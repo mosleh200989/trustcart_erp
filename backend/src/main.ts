@@ -1,0 +1,61 @@
+import { NestFactory } from '@nestjs/core';
+import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import { ValidationPipe } from '@nestjs/common';
+import { AppModule } from './app.module';
+
+async function bootstrap() {
+  const app = await NestFactory.create(AppModule);
+  const port = process.env.PORT || 3001;
+
+  // Set global API prefix
+  app.setGlobalPrefix('api');
+
+  // Enable CORS
+  app.enableCors({
+    origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
+    credentials: true,
+  });
+
+  // Set response headers for UTF-8 encoding
+  app.use((req: any, res: any, next: any) => {
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    next();
+  });
+
+  // Global validation pipe
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
+    }),
+  );
+
+  // Swagger Documentation
+  const config = new DocumentBuilder()
+    .setTitle('TrustCart ERP API')
+    .setDescription('Complete ERP System for Organic Grocery Business')
+    .setVersion('1.0.0')
+    .addBearerAuth()
+    .addBasicAuth()
+    .build();
+
+  const document = SwaggerModule.createDocument(app, config);
+  SwaggerModule.setup('api/docs', app, document);
+
+  await app.listen(port);
+  
+  console.log(`
+    ╔════════════════════════════════════════╗
+    ║   🚀 TrustCart ERP Backend Started    ║
+    ╠════════════════════════════════════════╣
+    ║   Server running on: http://localhost:${port}
+    ║   API Docs: http://localhost:${port}/api/docs
+    ╚════════════════════════════════════════╝
+    `);
+}
+
+bootstrap().catch((err) => {
+  console.error('Failed to start application:', err);
+  process.exit(1);
+});
