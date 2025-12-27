@@ -65,6 +65,7 @@ import { CrmModule } from './modules/crm/crm.module';
 import { SupportModule } from './modules/support/support.module';
 import { LoyaltyModule } from './modules/loyalty/loyalty.module';
 import { OffersModule } from './modules/offers/offers.module';
+import { LeadManagementModule } from './modules/lead-management/lead-management.module';
 
 @Module({
   imports: [
@@ -134,6 +135,7 @@ import { OffersModule } from './modules/offers/offers.module';
     SupportModule,
     LoyaltyModule,
     OffersModule,
+    LeadManagementModule,
   ],
   controllers: [],
   providers: [],
