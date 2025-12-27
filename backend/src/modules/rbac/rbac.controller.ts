@@ -1,5 +1,6 @@
-import { Controller, Get, Post, Delete, Param, Body, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Delete, Param, Body, Query, UseGuards, Request } from '@nestjs/common';
 import { RbacService } from './rbac.service';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
 @Controller('rbac')
 export class RbacController {
@@ -112,5 +113,27 @@ export class RbacController {
   async logActivity(@Body() body: any) {
     await this.rbacService.logActivity(body);
     return { message: 'Activity logged successfully' };
+  }
+
+  // Helper: Auto-assign admin role to current user (development only)
+  @Post('dev/make-me-admin')
+  @UseGuards(JwtAuthGuard)
+  async makeMeAdmin(@Request() req: any) {
+    const userId = req.user.id;
+    
+    // Find admin or super-admin role
+    const roles = await this.rbacService.findAllRoles();
+    const adminRole = roles.find(r => r.slug === 'super-admin' || r.slug === 'admin');
+    
+    if (!adminRole) {
+      return { error: 'Admin role not found in database' };
+    }
+
+    await this.rbacService.assignRoleToUser(userId, adminRole.id, userId);
+    
+    return { 
+      message: `Admin role (${adminRole.name}) assigned to user ${userId}`,
+      role: adminRole 
+    };
   }
 }
