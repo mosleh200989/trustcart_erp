@@ -17,7 +17,12 @@ export class CustomersController {
 
   @Post()
   async create(@Body() createCustomerDto: any) {
-    return this.customersService.create(createCustomerDto);
+    try {
+      return await this.customersService.create(createCustomerDto);
+    } catch (error: any) {
+      console.error('Customer creation error:', error);
+      throw new Error(error.message || 'Failed to create customer');
+    }
   }
 
   @Put(':id')

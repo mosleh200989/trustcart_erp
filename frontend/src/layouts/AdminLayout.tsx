@@ -48,7 +48,38 @@ const menuItems: MenuItem[] = [
   {
     title: 'HR',
     icon: FaUserTie,
-    path: '/admin/hr'
+    children: [
+      { title: 'Branches', icon: FaUserTie, path: '/admin/hr/branches' },
+      { title: 'Departments', icon: FaUserTie, path: '/admin/hr/departments' },
+      { title: 'Designations', icon: FaUserTie, path: '/admin/hr/designations' },
+      { title: 'Document Types', icon: FaUserTie, path: '/admin/hr/document-types' },
+      { title: 'Employees', icon: FaUserTie, path: '/admin/hr/employees' },
+      { title: 'Award Types', icon: FaUserTie, path: '/admin/hr/award-types' },
+      { title: 'Awards', icon: FaUserTie, path: '/admin/hr/awards' },
+      { title: 'Promotions', icon: FaUserTie, path: '/admin/hr/promotions' },
+      { title: 'Performance', icon: FaUserTie, path: '/admin/hr/performance', children: [
+        { title: 'Indicator Categories', icon: FaUserTie, path: '/admin/hr/performance/indicator-categories' },
+        { title: 'Indicators', icon: FaUserTie, path: '/admin/hr/performance/indicators' },
+        { title: 'Goal Types', icon: FaUserTie, path: '/admin/hr/performance/goal-types' },
+        { title: 'Employee Goals', icon: FaUserTie, path: '/admin/hr/performance/employee-goals' },
+        { title: 'Review Cycles', icon: FaUserTie, path: '/admin/hr/performance/review-cycles' },
+        { title: 'Employee Reviews', icon: FaUserTie, path: '/admin/hr/performance/employee-reviews' },
+      ]},
+      { title: 'Resignations', icon: FaUserTie, path: '/admin/hr/resignations' },
+      { title: 'Terminations', icon: FaUserTie, path: '/admin/hr/terminations' },
+      { title: 'Warnings', icon: FaUserTie, path: '/admin/hr/warnings' },
+      { title: 'Trips', icon: FaUserTie, path: '/admin/hr/trips' },
+      { title: 'Complaints', icon: FaUserTie, path: '/admin/hr/complaints' },
+      { title: 'Transfers', icon: FaUserTie, path: '/admin/hr/transfers' },
+      { title: 'Holidays', icon: FaUserTie, path: '/admin/hr/holidays' },
+      { title: 'Announcements', icon: FaUserTie, path: '/admin/hr/announcements' },
+      { title: 'Training Management', icon: FaUserTie, children: [
+        { title: 'Training Types', icon: FaUserTie, path: '/admin/hr/training-types' },
+        { title: 'Training Programs', icon: FaUserTie, path: '/admin/hr/training-programs' },
+        { title: 'Training Sessions', icon: FaUserTie, path: '/admin/hr/training-sessions' },
+        { title: 'Employee Trainings', icon: FaUserTie, path: '/admin/hr/employee-trainings' },
+      ]},
+    ],
   },
   {
     title: 'Payroll',
@@ -236,6 +267,43 @@ function MenuItem({
           <div className="bg-blue-800 bg-opacity-50">
             {item.children!.map((child) => {
               const ChildIcon = child.icon;
+              const hasGrandchildren = child.children && child.children.length > 0;
+              
+              if (hasGrandchildren) {
+                const [subExpanded, setSubExpanded] = useState(false);
+                return (
+                  <div key={child.title}>
+                    <button
+                      onClick={() => setSubExpanded(!subExpanded)}
+                      className="w-full flex items-center px-8 py-2 hover:bg-blue-700 transition-colors"
+                    >
+                      <ChildIcon className="text-sm" />
+                      <span className="ml-3 flex-1 text-left text-sm">{child.title}</span>
+                      <FaChevronDown className={`text-xs transition-transform ${subExpanded ? 'rotate-180' : ''}`} />
+                    </button>
+                    {subExpanded && (
+                      <div className="bg-blue-900 bg-opacity-50">
+                        {child.children!.map((grandchild) => {
+                          const GrandchildIcon = grandchild.icon;
+                          return (
+                            <Link key={grandchild.title} href={grandchild.path || '#'}>
+                              <div
+                                className={`flex items-center px-12 py-2 hover:bg-blue-700 transition-colors ${
+                                  currentPath === grandchild.path ? 'bg-gradient-to-r from-blue-500 to-blue-600' : ''
+                                }`}
+                              >
+                                <GrandchildIcon className="text-xs" />
+                                <span className="ml-3 text-xs">{grandchild.title}</span>
+                              </div>
+                            </Link>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+              
               return (
                 <Link key={child.title} href={child.path || '#'}>
                   <div

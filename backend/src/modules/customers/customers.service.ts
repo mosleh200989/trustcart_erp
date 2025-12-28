@@ -20,13 +20,27 @@ export class CustomersService {
   }
 
   async create(createCustomerDto: any) {
-    // Hash password if provided
-    if (createCustomerDto.password) {
-      createCustomerDto.password = await bcrypt.hash(createCustomerDto.password, 10);
+    try {
+      // Check if email already exists
+      const existing = await this.customersRepository.findOne({ 
+        where: { email: createCustomerDto.email } 
+      });
+      
+      if (existing) {
+        throw new Error('Email already exists');
+      }
+
+      // Hash password if provided
+      if (createCustomerDto.password) {
+        createCustomerDto.password = await bcrypt.hash(createCustomerDto.password, 10);
+      }
+      
+      const customer = this.customersRepository.create(createCustomerDto);
+      return this.customersRepository.save(customer);
+    } catch (error) {
+      console.error('Error creating customer:', error);
+      throw error;
     }
-    
-    const customer = this.customersRepository.create(createCustomerDto);
-    return this.customersRepository.save(customer);
   }
 
   async update(id: string, updateCustomerDto: any) {
