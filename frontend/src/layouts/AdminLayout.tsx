@@ -104,7 +104,19 @@ const menuItems: MenuItem[] = [
   {
     title: 'CRM',
     icon: FaHandshake,
-    path: '/admin/crm/team-dashboard'
+    children: [
+      { title: 'Dashboard', icon: FaTachometerAlt, path: '/admin/crm/team-dashboard' },
+      { title: 'Lead Assignment', icon: FaUsers, path: '/admin/crm/lead-assignment' },
+      { title: 'Team Data Collection', icon: FaBullseye, path: '/admin/crm/team-data-collection' },
+      { title: 'Tier Management', icon: FaTachometerAlt, path: '/admin/crm/customer-tier-management' },
+      { title: 'Pipeline', icon: FaBullseye, path: '/admin/crm/pipeline' },
+      { title: 'Tasks', icon: FaBullseye, path: '/admin/crm/tasks' },
+      { title: 'Analytics', icon: FaTachometerAlt, path: '/admin/crm/analytics' },
+      { title: 'Quotes', icon: FaBook, path: '/admin/crm/quotes' },
+      { title: 'Meetings', icon: FaUsers, path: '/admin/crm/meetings' },
+      { title: 'Emails', icon: FaBell, path: '/admin/crm/emails' },
+      { title: 'Customers', icon: FaUsers, path: '/admin/crm/customers' },
+    ],
   },
   {
     title: 'Support',

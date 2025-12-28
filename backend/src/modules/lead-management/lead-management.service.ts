@@ -1,0 +1,368 @@
+import { Injectable } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { CustomerSession } from './entities/customer-session.entity';
+import { IncompleteOrder } from './entities/incomplete-order.entity';
+import { TeamAssignment } from './entities/team-assignment.entity';
+import { TeamAData } from './entities/team-a-data.entity';
+import { TeamBData } from './entities/team-b-data.entity';
+import { TeamCData } from './entities/team-c-data.entity';
+import { TeamDData } from './entities/team-d-data.entity';
+import { TeamEData } from './entities/team-e-data.entity';
+import { CustomerTier } from './entities/customer-tier.entity';
+import { TeamMember } from './entities/team-member.entity';
+
+@Injectable()
+export class LeadManagementService {
+  constructor(
+    @InjectRepository(CustomerSession)
+    private readonly sessionRepo: Repository<CustomerSession>,
+    @InjectRepository(IncompleteOrder)
+    private readonly incompleteOrderRepo: Repository<IncompleteOrder>,
+    @InjectRepository(TeamAssignment)
+    private readonly teamAssignmentRepo: Repository<TeamAssignment>,
+    @InjectRepository(TeamAData)
+    private readonly teamADataRepo: Repository<TeamAData>,
+    @InjectRepository(TeamBData)
+    private readonly teamBDataRepo: Repository<TeamBData>,
+    @InjectRepository(TeamCData)
+    private readonly teamCDataRepo: Repository<TeamCData>,
+    @InjectRepository(TeamDData)
+    private readonly teamDDataRepo: Repository<TeamDData>,
+    @InjectRepository(TeamEData)
+    private readonly teamEDataRepo: Repository<TeamEData>,
+    @InjectRepository(CustomerTier)
+    private readonly customerTierRepo: Repository<CustomerTier>,
+    @InjectRepository(TeamMember)
+    private readonly teamMemberRepo: Repository<TeamMember>,
+  ) {}
+
+  // ============================================
+  // SESSION TRACKING
+  // ============================================
+
+  async trackSession(data: Partial<CustomerSession>) {
+    const session = this.sessionRepo.create(data);
+    return this.sessionRepo.save(session);
+  }
+
+  async updateSession(sessionId: string, data: Partial<CustomerSession>) {
+    await this.sessionRepo.update({ sessionId }, data);
+    return this.sessionRepo.findOne({ where: { sessionId } });
+  }
+
+  async getCustomerSessions(customerId: number) {
+    return this.sessionRepo.find({
+      where: { customerId },
+      order: { sessionStart: 'DESC' },
+    });
+  }
+
+  async getSessionByCampaign(campaignId: string) {
+    return this.sessionRepo.find({
+      where: { campaignId },
+      order: { sessionStart: 'DESC' },
+    });
+  }
+
+  // ============================================
+  // INCOMPLETE ORDERS
+  // ============================================
+
+  async trackIncompleteOrder(data: Partial<IncompleteOrder>) {
+    const order = this.incompleteOrderRepo.create(data);
+    return this.incompleteOrderRepo.save(order);
+  }
+
+  async getIncompleteOrders(customerId?: number) {
+    const where: any = { recovered: false };
+    if (customerId) where.customerId = customerId;
+    
+    return this.incompleteOrderRepo.find({
+      where,
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  async markOrderRecovered(id: number, recoveredOrderId: number) {
+    await this.incompleteOrderRepo.update(id, {
+      recovered: true,
+      recoveredOrderId,
+    });
+    return this.incompleteOrderRepo.findOne({ where: { id } });
+  }
+
+  async sendRecoveryEmail(id: number) {
+    await this.incompleteOrderRepo.update(id, { recoveryEmailSent: true });
+  }
+
+  // ============================================
+  // UNASSIGNED LEADS
+  // ============================================
+
+  async getUnassignedLeads(limit = 50) {
+    // This will use the database view created in migration
+    return this.sessionRepo.query(`
+      SELECT * FROM unassigned_leads
+      ORDER BY lead_score DESC, created_at DESC
+      LIMIT $1
+    `, [limit]);
+  }
+
+  // ============================================
+  // TEAM ASSIGNMENTS
+  // ============================================
+
+  async assignLeadToTeam(data: {
+    customerId: number;
+    teamType: string;
+    assignedById: number;
+    assignedToId: number;
+    notes?: string;
+  }) {
+    const assignment = this.teamAssignmentRepo.create(data);
+    await this.teamAssignmentRepo.save(assignment);
+
+    // Update customer lead_status to 'assigned'
+    await this.sessionRepo.query(`
+      UPDATE customers 
+      SET lead_status = 'assigned', 
+          assigned_team_member_id = $1,
+          assigned_at = CURRENT_TIMESTAMP
+      WHERE id = $2
+    `, [data.assignedToId, data.customerId]);
+
+    // Increment team member's assigned count
+    await this.teamMemberRepo.increment(
+      { userId: data.assignedToId },
+      'assignedLeadsCount',
+      1
+    );
+
+    return assignment;
+  }
+
+  async getTeamAssignments(teamType?: string, assignedToId?: number, status?: string) {
+    const where: any = {};
+    if (teamType) where.teamType = teamType;
+    if (assignedToId) where.assignedToId = assignedToId;
+    if (status) where.status = status;
+
+    return this.teamAssignmentRepo.find({
+      where,
+      order: { assignedAt: 'DESC' },
+    });
+  }
+
+  async updateAssignmentStatus(id: number, status: string) {
+    const update: any = { status };
+    if (status === 'completed') {
+      update.completedAt = new Date();
+    }
+    
+    await this.teamAssignmentRepo.update(id, update);
+    return this.teamAssignmentRepo.findOne({ where: { id } });
+  }
+
+  // ============================================
+  // TEAM A DATA (Gender, Profession, Product Interest)
+  // ============================================
+
+  async saveTeamAData(data: Partial<TeamAData>) {
+    const existing = await this.teamADataRepo.findOne({
+      where: { customerId: data.customerId },
+    });
+
+    if (existing) {
+      await this.teamADataRepo.update(existing.id, data);
+      return this.teamADataRepo.findOne({ where: { id: existing.id } });
+    }
+
+    const teamData = this.teamADataRepo.create(data);
+    return this.teamADataRepo.save(teamData);
+  }
+
+  async getTeamAData(customerId: number) {
+    return this.teamADataRepo.findOne({ where: { customerId } });
+  }
+
+  // ============================================
+  // TEAM B DATA (DOB, Marriage Day, Product Interest)
+  // ============================================
+
+  async saveTeamBData(data: Partial<TeamBData>) {
+    const existing = await this.teamBDataRepo.findOne({
+      where: { customerId: data.customerId },
+    });
+
+    if (existing) {
+      await this.teamBDataRepo.update(existing.id, data);
+      return this.teamBDataRepo.findOne({ where: { id: existing.id } });
+    }
+
+    const teamData = this.teamBDataRepo.create(data);
+    return this.teamBDataRepo.save(teamData);
+  }
+
+  async getTeamBData(customerId: number) {
+    return this.teamBDataRepo.findOne({ where: { customerId } });
+  }
+
+  // ============================================
+  // TEAM C DATA (Family Members, Product Interest)
+  // ============================================
+
+  async saveTeamCData(data: Partial<TeamCData>) {
+    const existing = await this.teamCDataRepo.findOne({
+      where: { customerId: data.customerId },
+    });
+
+    if (existing) {
+      await this.teamCDataRepo.update(existing.id, data);
+      return this.teamCDataRepo.findOne({ where: { id: existing.id } });
+    }
+
+    const teamData = this.teamCDataRepo.create(data);
+    return this.teamCDataRepo.save(teamData);
+  }
+
+  async getTeamCData(customerId: number) {
+    return this.teamCDataRepo.findOne({ where: { customerId } });
+  }
+
+  // ============================================
+  // TEAM D DATA (Health Card, Membership, Coupon)
+  // ============================================
+
+  async saveTeamDData(data: Partial<TeamDData>) {
+    const existing = await this.teamDDataRepo.findOne({
+      where: { customerId: data.customerId },
+    });
+
+    if (existing) {
+      await this.teamDDataRepo.update(existing.id, data);
+      return this.teamDDataRepo.findOne({ where: { id: existing.id } });
+    }
+
+    const teamData = this.teamDDataRepo.create(data);
+    return this.teamDDataRepo.save(teamData);
+  }
+
+  async getTeamDData(customerId: number) {
+    return this.teamDDataRepo.findOne({ where: { customerId } });
+  }
+
+  // ============================================
+  // TEAM E DATA (Permanent Membership)
+  // ============================================
+
+  async saveTeamEData(data: Partial<TeamEData>) {
+    const existing = await this.teamEDataRepo.findOne({
+      where: { customerId: data.customerId },
+    });
+
+    if (existing) {
+      await this.teamEDataRepo.update(existing.id, data);
+      return this.teamEDataRepo.findOne({ where: { id: existing.id } });
+    }
+
+    const teamData = this.teamEDataRepo.create(data);
+    return this.teamEDataRepo.save(teamData);
+  }
+
+  async getTeamEData(customerId: number) {
+    return this.teamEDataRepo.findOne({ where: { customerId } });
+  }
+
+  // ============================================
+  // CUSTOMER TIER MANAGEMENT
+  // ============================================
+
+  async updateCustomerTier(data: {
+    customerId: number;
+    tier: string;
+    isActive: boolean;
+    tierAssignedById?: number;
+    notes?: string;
+  }) {
+    const existing = await this.customerTierRepo.findOne({
+      where: { customerId: data.customerId },
+    });
+
+    if (existing) {
+      await this.customerTierRepo.update(existing.id, {
+        ...data,
+        tierAssignedAt: new Date(),
+      });
+      return this.customerTierRepo.findOne({ where: { id: existing.id } });
+    }
+
+    const tier = this.customerTierRepo.create({
+      ...data,
+      autoAssigned: false,
+    });
+    return this.customerTierRepo.save(tier);
+  }
+
+  async getCustomerTier(customerId: number) {
+    return this.customerTierRepo.findOne({ where: { customerId } });
+  }
+
+  async getCustomersByTier(tier: string) {
+    return this.customerTierRepo.find({
+      where: { tier, isActive: true },
+      order: { totalSpent: 'DESC' },
+    });
+  }
+
+  async getInactiveCustomers(daysThreshold = 30) {
+    return this.customerTierRepo.find({
+      where: { isActive: false },
+      order: { lastActivityDate: 'ASC' },
+    });
+  }
+
+  // ============================================
+  // TEAM MEMBER MANAGEMENT
+  // ============================================
+
+  async addTeamMember(data: Partial<TeamMember>) {
+    const member = this.teamMemberRepo.create(data);
+    return this.teamMemberRepo.save(member);
+  }
+
+  async getTeamMembers(teamLeaderId: number, teamType?: string) {
+    const where: any = { teamLeaderId };
+    if (teamType) where.teamType = teamType;
+
+    return this.teamMemberRepo.find({ where });
+  }
+
+  async getTeamMemberStats(userId: number) {
+    return this.teamMemberRepo.findOne({ where: { userId } });
+  }
+
+  // ============================================
+  // TEAM LEADER DASHBOARD
+  // ============================================
+
+  async getTeamLeaderDashboard(teamLeaderId: number) {
+    return this.sessionRepo.query(`
+      SELECT * FROM team_leader_dashboard
+      WHERE team_leader_id = $1
+    `, [teamLeaderId]);
+  }
+
+  // ============================================
+  // CUSTOMER COMPLETE PROFILE
+  // ============================================
+
+  async getCustomerCompleteProfile(customerId: number) {
+    const result = await this.sessionRepo.query(`
+      SELECT * FROM customer_complete_profile
+      WHERE id = $1
+    `, [customerId]);
+
+    return result[0] || null;
+  }
+}

@@ -46,42 +46,39 @@ export class RbacService {
 
   // Check if user has permission
   async checkPermission(userId: number, permissionSlug: string): Promise<boolean> {
-    const result = await this.rolesRepository.query(`
-      SELECT EXISTS (
-        SELECT 1 FROM user_roles ur
-        INNER JOIN role_permissions rp ON ur.role_id = rp.role_id
-        INNER JOIN permissions p ON rp.permission_id = p.id
-        WHERE ur.user_id = $1 AND p.slug = $2
-        
-        UNION
-        
-        SELECT 1 FROM user_permissions up
-        INNER JOIN permissions p ON up.permission_id = p.id
-        WHERE up.user_id = $1 AND p.slug = $2 AND up.granted = TRUE
-      ) as has_permission
-    `, [userId, permissionSlug]);
+    try {
+      const result = await this.rolesRepository.query(`
+        SELECT EXISTS (
+          SELECT 1 FROM user_roles ur
+          INNER JOIN role_permissions rp ON ur.role_id = rp.role_id
+          INNER JOIN permissions p ON rp.permission_id = p.id
+          WHERE ur.user_id = $1 AND p.slug = $2
+        ) as has_permission
+      `, [userId, permissionSlug]);
 
-    return result[0]?.has_permission || false;
+      return result[0]?.has_permission || false;
+    } catch (error) {
+      console.error('Error checking permission:', error);
+      return false;
+    }
   }
 
   // Get user permissions
   async getUserPermissions(userId: number): Promise<Permission[]> {
-    const result = await this.permissionsRepository.query(`
-      SELECT DISTINCT p.* FROM permissions p
-      INNER JOIN role_permissions rp ON p.id = rp.permission_id
-      INNER JOIN user_roles ur ON rp.role_id = ur.role_id
-      WHERE ur.user_id = $1
-      
-      UNION
-      
-      SELECT DISTINCT p.* FROM permissions p
-      INNER JOIN user_permissions up ON p.id = up.permission_id
-      WHERE up.user_id = $1 AND up.granted = TRUE
-      
-      ORDER BY module, action
-    `, [userId]);
+    try {
+      const result = await this.permissionsRepository.query(`
+        SELECT DISTINCT p.* FROM permissions p
+        INNER JOIN role_permissions rp ON p.id = rp.permission_id
+        INNER JOIN user_roles ur ON rp.role_id = ur.role_id
+        WHERE ur.user_id = $1
+        ORDER BY p.module, p.action
+      `, [userId]);
 
-    return result;
+      return result;
+    } catch (error) {
+      console.error('Error getting user permissions:', error);
+      return [];
+    }
   }
 
   // Get user roles

@@ -36,7 +36,7 @@ export class AuthService {
         // Generate token for customer
         const token = jwt.sign(
           { id: customer.id, email: customer.email, roleSlug: 'customer-account' },
-          process.env.JWT_SECRET || 'your_jwt_secret_key',
+          process.env.JWT_SECRET || 'trustcart-erp-secret-key-2024',
           { expiresIn: '24h' }
         );
 
@@ -73,7 +73,7 @@ export class AuthService {
           if (existingUser) {
             const token = jwt.sign(
               { id: existingUser.id, email: existingUser.email },
-              process.env.JWT_SECRET || 'your_jwt_secret_key',
+              process.env.JWT_SECRET || 'trustcart-erp-secret-key-2024',
               { expiresIn: '24h' }
             );
 
@@ -106,7 +106,7 @@ export class AuthService {
 
         const token = jwt.sign(
           { id: newUser.id, email: newUser.email, roleId: newUser.roleId, roleSlug },
-          process.env.JWT_SECRET || 'your_jwt_secret_key',
+          process.env.JWT_SECRET || 'trustcart-erp-secret-key-2024',
           { expiresIn: '24h' }
         );
 
@@ -151,7 +151,7 @@ export class AuthService {
     // Generate JWT token
     const token = jwt.sign(
       { id: user.id, email: user.email, roleId: user.roleId, roleSlug },
-      process.env.JWT_SECRET || 'your_jwt_secret_key',
+      process.env.JWT_SECRET || 'trustcart-erp-secret-key-2024',
       { expiresIn: '24h' }
     );
 
@@ -245,7 +245,7 @@ export class AuthService {
 
   async validateToken(token: string) {
     try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your_jwt_secret_key');
+      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'trustcart-erp-secret-key-2024');
       return { valid: true, user: decoded };
     } catch (error) {
       return { valid: false };
