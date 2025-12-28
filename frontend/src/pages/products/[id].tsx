@@ -3,8 +3,9 @@ import { useRouter } from 'next/router';
 import ElectroNavbar from '@/components/ElectroNavbar';
 import ElectroFooter from '@/components/ElectroFooter';
 import ElectroProductCard from '@/components/ElectroProductCard';
+import AddToCartPopup from '@/components/AddToCartPopup';
 import apiClient from '@/services/api';
-import { FaStar, FaShoppingCart, FaHeart, FaShareAlt } from 'react-icons/fa';
+import { FaStar, FaShoppingCart, FaHeart, FaShareAlt, FaChevronLeft, FaChevronRight } from 'react-icons/fa';
 
 export default function ProductDetailsPage() {
   const router = useRouter();
@@ -13,6 +14,8 @@ export default function ProductDetailsPage() {
   const [relatedProducts, setRelatedProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [quantity, setQuantity] = useState(1);
+  const [showCartPopup, setShowCartPopup] = useState(false);
+  const [currentSlide, setCurrentSlide] = useState(0);
 
   useEffect(() => {
     if (id) {
@@ -62,7 +65,8 @@ export default function ProductDetailsPage() {
     }
 
     localStorage.setItem('cart', JSON.stringify(cart));
-    alert(`Added ${quantity} item(s) to cart!`);
+    window.dispatchEvent(new Event('cartUpdated'));
+    setShowCartPopup(true);
   };
 
   const handleAddToWishlist = () => {
@@ -126,7 +130,7 @@ export default function ProductDetailsPage() {
     <div className="min-h-screen bg-gray-50">
       <ElectroNavbar />
 
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-56 py-8">
         {/* Breadcrumb */}
         <div className="text-sm text-gray-600 mb-6">
           <span onClick={() => router.push('/')} className="cursor-pointer hover:text-orange-500">Home</span>
@@ -213,7 +217,7 @@ export default function ProductDetailsPage() {
                     min="1"
                     value={quantity}
                     onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
-                    className="w-20 h-10 border border-gray-300 rounded-lg text-center"
+                    className="w-12 h-10 border border-gray-300 rounded-lg text-center"
                   />
                   <button
                     onClick={() => setQuantity(quantity + 1)}
@@ -228,18 +232,18 @@ export default function ProductDetailsPage() {
               <div className="flex space-x-4 mb-6">
                 <button
                   onClick={handleAddToCart}
-                  className="flex-1 bg-orange-500 text-white py-3 rounded-lg hover:bg-orange-600 flex items-center justify-center space-x-2 font-semibold"
+                  className="flex-1 border-2 border-orange-500 bg-white text-orange-500 py-2.5 rounded-lg hover:!bg-orange-500 hover:text-white flex items-center justify-center space-x-2 font-semibold transition-all duration-300"
                 >
                   <FaShoppingCart />
                   <span>Add to Cart</span>
                 </button>
                 <button
                   onClick={handleAddToWishlist}
-                  className="w-12 h-12 border-2 border-orange-500 text-orange-500 rounded-lg hover:bg-orange-50 flex items-center justify-center"
+                  className="w-12 h-12 border-2 border-orange-500 text-orange-500 rounded-lg hover:!bg-orange-500 hover:text-white flex items-center justify-center transition-all duration-300"
                 >
                   <FaHeart />
                 </button>
-                <button className="w-12 h-12 border-2 border-orange-500 text-orange-500 rounded-lg hover:bg-orange-50 flex items-center justify-center">
+                <button className="w-12 h-12 border-2 border-orange-500 text-orange-500 rounded-lg hover:!bg-orange-500 hover:text-white flex items-center justify-center transition-all duration-300">
                   <FaShareAlt />
                 </button>
               </div>
@@ -257,28 +261,67 @@ export default function ProductDetailsPage() {
           </div>
         </div>
 
-        {/* Related Products */}
+        {/* Recommended Products Slider */}
         {relatedProducts.length > 0 && (
           <div className="mb-8">
-            <h2 className="text-2xl font-bold mb-6">Related Products</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-              {relatedProducts.slice(0, 4).map((relatedProduct) => (
-                <ElectroProductCard
-                  key={relatedProduct.id}
-                  id={relatedProduct.id}
-                  name_en={relatedProduct.name_en}
-                  name_bn={relatedProduct.name_bn}
-                  price={relatedProduct.base_price || relatedProduct.price}
-                  image={relatedProduct.image_url}
-                  rating={5}
-                  reviews={0}
-                  inStock={true}
-                />
-              ))}
+            <h2 className="text-2xl font-bold mb-6">Recommended Products</h2>
+            <div className="relative">
+              {/* Navigation Arrows */}
+              {relatedProducts.length > 4 && (
+                <>
+                  <button
+                    onClick={() => setCurrentSlide(Math.max(0, currentSlide - 1))}
+                    disabled={currentSlide === 0}
+                    className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-4 z-10 bg-white hover:bg-orange-500 text-gray-700 hover:text-white p-3 rounded-full shadow-lg transition-all hover:scale-110 disabled:opacity-50 disabled:cursor-not-allowed"
+                    aria-label="Previous products"
+                  >
+                    <FaChevronLeft size={20} />
+                  </button>
+                  <button
+                    onClick={() => setCurrentSlide(Math.min(relatedProducts.length - 4, currentSlide + 1))}
+                    disabled={currentSlide >= relatedProducts.length - 4}
+                    className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-4 z-10 bg-white hover:bg-orange-500 text-gray-700 hover:text-white p-3 rounded-full shadow-lg transition-all hover:scale-110 disabled:opacity-50 disabled:cursor-not-allowed"
+                    aria-label="Next products"
+                  >
+                    <FaChevronRight size={20} />
+                  </button>
+                </>
+              )}
+              
+              {/* Products Slider */}
+              <div className="overflow-hidden">
+                <div
+                  className="flex transition-transform duration-500 ease-in-out"
+                  style={{ transform: `translateX(-${currentSlide * 25}%)` }}
+                >
+                  {relatedProducts.map((relatedProduct) => (
+                    <div key={relatedProduct.id} className="w-1/4 flex-shrink-0 px-3">
+                      <ElectroProductCard
+                        id={relatedProduct.id}
+                        slug={relatedProduct.slug}
+                        name={relatedProduct.name_en || relatedProduct.name}
+                        nameEn={relatedProduct.name_en}
+                        nameBn={relatedProduct.name_bn}
+                        price={relatedProduct.base_price || relatedProduct.price}
+                        image={relatedProduct.image_url}
+                        rating={5}
+                        reviews={0}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
         )}
       </div>
+
+      {/* Add to Cart Popup */}
+      <AddToCartPopup
+        isOpen={showCartPopup}
+        onClose={() => setShowCartPopup(false)}
+        product={product}
+      />
 
       <ElectroFooter />
     </div>

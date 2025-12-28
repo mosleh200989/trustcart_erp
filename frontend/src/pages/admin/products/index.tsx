@@ -4,6 +4,7 @@ import AdminLayout from '@/layouts/AdminLayout';
 import DataTable from '@/components/admin/DataTable';
 import Modal from '@/components/admin/Modal';
 import FormInput from '@/components/admin/FormInput';
+import ImageUpload from '@/components/admin/ImageUpload';
 import { FaPlus, FaSearch } from 'react-icons/fa';
 import apiClient from '@/services/api';
 
@@ -249,8 +250,56 @@ export default function AdminProducts() {
     }
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+  const generateSlug = (text: string): string => {
+    return text
+      .toLowerCase()
+      .trim()
+      .replace(/[^\w\s-]/g, '') // Remove special characters
+      .replace(/[\s_]+/g, '-')   // Replace spaces and underscores with hyphens
+      .replace(/^-+|-+$/g, '');   // Remove leading/trailing hyphens
+  };
+
+  const generateSKU = async (categoryId: string): Promise<string> => {
+    if (!categoryId) return '';
+    
+    try {
+      // Find category
+      const category = categories.find(cat => cat.id.toString() === categoryId);
+      if (!category) return '';
+      
+      // Get category prefix (first 3 letters of name_en in uppercase)
+      const prefix = (category.name_en || 'PRD').substring(0, 3).toUpperCase();
+      
+      // Count products in this category
+      const productsInCategory = products.filter(p => p.category_name === category.name_en);
+      const nextNumber = productsInCategory.length + 1;
+      
+      // Format: PREFIX-XXXX (e.g., SPI-0001, DRY-0012)
+      return `${prefix}-${nextNumber.toString().padStart(4, '0')}`;
+    } catch (error) {
+      console.error('Error generating SKU:', error);
+      return '';
+    }
+  };
+
+  const handleInputChange = async (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    
+    // Update form data
+    const updatedData = { ...formData, [name]: value };
+    
+    // Auto-generate slug from name_en
+    if (name === 'name_en' && value) {
+      updatedData.slug = generateSlug(value);
+    }
+    
+    // Auto-generate SKU when category changes (only in add mode)
+    if (name === 'category_id' && value && modalMode === 'add') {
+      const sku = await generateSKU(value);
+      updatedData.sku = sku;
+    }
+    
+    setFormData(updatedData);
   };
 
   const filteredProducts = products.filter(p =>
@@ -429,7 +478,7 @@ export default function AdminProducts() {
                 required
                 options={categories.map(cat => ({
                   value: cat.id,
-                  label: cat.name
+                  label: cat.name_en || cat.name
                 }))}
               />
               <div className="grid grid-cols-2 gap-4">
@@ -439,12 +488,14 @@ export default function AdminProducts() {
                   value={formData.slug}
                   onChange={handleInputChange}
                   required
+                  placeholder="Auto-generated from product name (editable)"
                 />
                 <FormInput
                   label="SKU"
                   name="sku"
                   value={formData.sku}
                   onChange={handleInputChange}
+                  placeholder="Auto-generated from category (editable)"
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -473,14 +524,15 @@ export default function AdminProducts() {
                   onChange={handleInputChange}
                   placeholder="1, 2, 3... (for homepage/products page order)"
                 />
-                <FormInput
-                  label="Image URL"
-                  name="image_url"
-                  value={formData.image_url}
-                  onChange={handleInputChange}
-                  placeholder="https://example.com/image.jpg"
-                />
               </div>
+
+              <ImageUpload
+                value={formData.image_url}
+                onChange={(url) => setFormData({ ...formData, image_url: url })}
+                label="Product Image"
+                folder="trustcart/products"
+              />
+
               <FormInput
                 label="Description"
                 name="description_en"
