@@ -20,7 +20,7 @@ export class ProductsService {
           p.id, p.slug, p.sku, p.product_code, 
           p.name_en, p.name_bn, p.description_en, 
           p.category_id, 
-          c.name as category_name,
+          c.name_en as category_name,
           p.base_price, 
           p.base_price as price,
           p.base_price as selling_price,
@@ -28,7 +28,12 @@ export class ProductsService {
           p.stock_quantity,
           p.display_position,
           p.status, 
-          p.image_url, 
+          p.image_url,
+          p.discount_type,
+          p.discount_value,
+          p.sale_price,
+          p.brand,
+          p.unit_of_measure,
           p.created_at
         FROM products p
         LEFT JOIN categories c ON p.category_id = c.id
@@ -56,10 +61,10 @@ export class ProductsService {
   async findAllCategories() {
     try {
       const categories = await this.productsRepository.query(`
-        SELECT id, name, slug, description, image_url, is_active, display_order
+        SELECT id, name_en, name_bn, slug, description, image_url, is_active, display_order
         FROM categories
         WHERE is_active = true
-        ORDER BY display_order ASC, name ASC
+        ORDER BY display_order ASC, name_en ASC
       `);
       return categories;
     } catch (error) {
@@ -80,13 +85,17 @@ export class ProductsService {
           p.id, p.slug, p.sku, p.product_code, 
           p.name_en, p.name_bn, p.description_en, 
           p.category_id, 
-          c.name as category_name,
+          c.name_en as category_name,
           p.base_price, 
           p.base_price as price,
           p.wholesale_price, 
           p.stock_quantity,
           p.image_url, 
-          p.status
+          p.status,
+          p.discount_type,
+          p.discount_value,
+          p.sale_price,
+          p.brand
         FROM products p
         LEFT JOIN categories c ON p.category_id = c.id
         WHERE p.status = 'active'
@@ -95,7 +104,7 @@ export class ProductsService {
             OR LOWER(p.name_bn) LIKE $1 
             OR LOWER(p.description_en) LIKE $1
             OR LOWER(p.sku) LIKE $1
-            OR LOWER(c.name) LIKE $1
+            OR LOWER(c.name_en) LIKE $1
           )
         ORDER BY p.created_at DESC
         LIMIT 20
@@ -116,7 +125,7 @@ export class ProductsService {
           p.name_en, p.name_bn, 
           p.description_en, p.description_bn, 
           p.category_id,
-          c.name as category_name,
+          c.name_en as category_name,
           p.base_price, 
           p.base_price as price,
           p.base_price as selling_price,
@@ -124,7 +133,11 @@ export class ProductsService {
           p.stock_quantity,
           p.display_position,
           p.brand, p.unit_of_measure, 
-          p.image_url, p.status, p.created_at
+          p.image_url, p.status,
+          p.discount_type,
+          p.discount_value,
+          p.sale_price,
+          p.created_at
         FROM products p
         LEFT JOIN categories c ON p.category_id = c.id
         WHERE p.slug = $1 
@@ -269,8 +282,9 @@ export class ProductsService {
     try {
       const results = await this.productsRepository.query(`
         SELECT p.id, p.slug, p.sku, p.name_en, p.name_bn, p.description_en, 
-               p.base_price, p.selling_price, p.image_url, p.status
+               p.base_price, p.sale_price, p.discount_type, p.discount_value, p.image_url, p.status, p.stock_quantity, c.name_en as category_name
         FROM products p
+        LEFT JOIN categories c ON p.category_id = c.id
         WHERE p.status = 'active' 
           AND p.id != $1
           AND p.category_id = (SELECT category_id FROM products WHERE id = $1)
@@ -287,9 +301,10 @@ export class ProductsService {
   async findSuggested(limit: number = 4) {
     try {
       const results = await this.productsRepository.query(`
-        SELECT id, slug, sku, name_en, name_bn, description_en, base_price, selling_price, image_url, status
-        FROM products 
-        WHERE status = 'active'
+        SELECT p.id, p.slug, p.sku, p.name_en, p.name_bn, p.description_en, p.base_price, p.sale_price, p.discount_type, p.discount_value, p.image_url, p.status, p.stock_quantity, c.name_en as category_name
+        FROM products p
+        LEFT JOIN categories c ON p.category_id = c.id
+        WHERE p.status = 'active'
         ORDER BY RANDOM()
         LIMIT $1
       `, [limit]);

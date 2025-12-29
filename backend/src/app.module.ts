@@ -40,6 +40,9 @@ import { OfferReward } from './modules/offers/entities/offer-reward.entity';
 import { OfferProduct } from './modules/offers/entities/offer-product.entity';
 import { OfferCategory } from './modules/offers/entities/offer-category.entity';
 import { OfferUsage } from './modules/offers/entities/offer-usage.entity';
+import { Banner } from './modules/banners/banner.entity';
+import { Category } from './modules/categories/category.entity';
+import { SpecialOffer } from './modules/special-offers/special-offer.entity';
 
 // Modules
 import { AuthModule } from './modules/auth/auth.module';
@@ -92,6 +95,10 @@ import { SupportModule } from './modules/support/support.module';
 import { LoyaltyModule } from './modules/loyalty/loyalty.module';
 import { OffersModule } from './modules/offers/offers.module';
 import { LeadManagementModule } from './modules/lead-management/lead-management.module';
+import { BannersModule } from './modules/banners/banners.module';
+import { CategoriesModule } from './modules/categories/categories.module';
+import { UploadModule } from './modules/upload/upload.module';
+import { SpecialOffersModule } from './modules/special-offers/special-offers.module';
 
 @Module({
   imports: [
@@ -123,6 +130,7 @@ import { LeadManagementModule } from './modules/lead-management/lead-management.
             Offer, OfferCondition, OfferReward, OfferProduct, OfferCategory, OfferUsage,
             // HRM Entities
             HrmBranches, HrmDepartments, HrmDesignations, HrmEmployees, HrmAwardTypes, HrmAwards, HrmPromotions, HrmResignations, HrmTerminations, HrmWarnings, HrmTrips, HrmComplaints, HrmTransfers, HrmHolidays, HrmAnnouncements, HrmTrainingTypes, HrmTrainingPrograms, HrmTrainingSessions, HrmEmployeeTrainings, HrmPerformanceIndicatorCategories, HrmPerformanceIndicators, HrmEmployeePerformance, HrmDocumentTypes, HrmEmployeeDocuments
+            Offer, OfferCondition, OfferReward, OfferProduct, OfferCategory, OfferUsage, Banner, Category, SpecialOffer
           ],
           synchronize: false,
           logging: true,
@@ -165,6 +173,10 @@ import { LeadManagementModule } from './modules/lead-management/lead-management.
     LoyaltyModule,
     OffersModule,
     LeadManagementModule,
+    BannersModule,
+    CategoriesModule,
+    UploadModule,
+    SpecialOffersModule,
   ],
   controllers: [],
   providers: [],
