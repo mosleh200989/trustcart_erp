@@ -21,8 +21,10 @@ const menuItems: MenuItem[] = [
     icon: FaBoxes,
     children: [
       { title: 'All Products', icon: FaBoxes, path: '/admin/products' },
+      { title: 'Manage Categories', icon: FaBoxes, path: '/admin/categories' },
       { title: 'Combo Products', icon: FaBoxes, path: '/admin/combo-products' },
       { title: 'Offers & Promotions', icon: FaBoxes, path: '/admin/offers' },
+      { title: 'Special Offers', icon: FaBoxes, path: '/admin/special-offers' },
     ],
   },
   {

@@ -1,9 +1,17 @@
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/router';
 import ElectroNavbar from '@/components/ElectroNavbar';
 import ElectroFooter from '@/components/ElectroFooter';
 import ElectroProductCard from '@/components/ElectroProductCard';
 import { FaThLarge, FaThList, FaFilter } from 'react-icons/fa';
 import apiClient from '@/services/api';
+
+interface Category {
+  id: number;
+  name_en: string;
+  name_bn: string;
+  slug: string;
+}
 
 interface Product {
   id: number;
@@ -17,9 +25,10 @@ interface Product {
 }
 
 export default function Products() {
+  const router = useRouter();
   const [products, setProducts] = useState<Product[]>([]);
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
-  const [categories, setCategories] = useState<string[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   
@@ -39,6 +48,18 @@ export default function Products() {
     loadProducts();
     loadCategories();
   }, []);
+
+  // Handle URL query parameters
+  useEffect(() => {
+    if (router.isReady && router.query.category) {
+      const categorySlug = router.query.category as string;
+      // Find category by slug and set filter
+      const category = categories.find(cat => cat.slug === categorySlug);
+      if (category) {
+        setFilters(prev => ({ ...prev, category: category.name_en }));
+      }
+    }
+  }, [router.isReady, router.query.category, categories]);
 
   useEffect(() => {
     applyFilters();
@@ -62,7 +83,8 @@ export default function Products() {
   const loadCategories = async () => {
     try {
       const response = await apiClient.get('/products/categories');
-      const cats = response.data?.map((c: any) => c.name) || [];
+      const cats = Array.isArray(response.data) ? response.data : [];
+      console.log('Categories loaded:', cats);
       setCategories(cats);
     } catch (error) {
       console.error('Failed to load categories:', error);
@@ -167,16 +189,19 @@ export default function Products() {
                     />
                     <span className="text-sm">All Categories</span>
                   </label>
-                  {categories.map((cat, idx) => (
-                    <label key={idx} className="flex items-center gap-2 cursor-pointer hover:text-orange-500">
+                  {categories.map((cat) => (
+                    <label key={cat.id} className="flex items-center gap-2 cursor-pointer hover:text-orange-500">
                       <input
                         type="radio"
                         name="category"
-                        checked={filters.category === cat}
-                        onChange={() => setFilters({ ...filters, category: cat })}
+                        checked={filters.category === cat.name_en}
+                        onChange={() => setFilters({ ...filters, category: cat.name_en })}
                         className="text-orange-500"
                       />
-                      <span className="text-sm">{cat}</span>
+                      <span className="text-sm">
+                        {cat.name_en}
+                        {cat.name_bn && <span className="text-gray-500 ml-1">({cat.name_bn})</span>}
+                      </span>
                     </label>
                   ))}
                 </div>
