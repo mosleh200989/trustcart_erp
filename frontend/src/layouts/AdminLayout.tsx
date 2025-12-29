@@ -23,6 +23,7 @@ const menuItems: MenuItem[] = [
       { title: 'All Products', icon: FaBoxes, path: '/admin/products' },
       { title: 'Manage Categories', icon: FaBoxes, path: '/admin/categories' },
       { title: 'Combo Products', icon: FaBoxes, path: '/admin/combo-products' },
+      { title: 'Deal of the Day', icon: FaBoxes, path: '/admin/products/deal-of-the-day' },
       { title: 'Offers & Promotions', icon: FaBoxes, path: '/admin/offers' },
       { title: 'Special Offers', icon: FaBoxes, path: '/admin/special-offers' },
     ],

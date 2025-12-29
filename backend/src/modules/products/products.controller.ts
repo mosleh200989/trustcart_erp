@@ -60,6 +60,30 @@ export class ProductsController {
     return product;
   }
 
+  @Get(':id/images')
+  async getProductImages(@Param('id') id: string) {
+    return this.productsService.getProductImages(parseInt(id));
+  }
+
+  @Post(':id/images')
+  async addProductImage(@Param('id') id: string, @Body() imageData: { image_url: string; display_order?: number; is_primary?: boolean }) {
+    return this.productsService.addProductImage(parseInt(id), imageData);
+  }
+
+  @Delete(':id/images/:imageId')
+  async deleteProductImage(@Param('id') id: string, @Param('imageId') imageId: string) {
+    return this.productsService.deleteProductImage(parseInt(imageId));
+  }
+
+  @Put(':id/images/:imageId')
+  async updateProductImage(
+    @Param('id') id: string,
+    @Param('imageId') imageId: string,
+    @Body() imageData: { display_order?: number; is_primary?: boolean }
+  ) {
+    return this.productsService.updateProductImage(parseInt(imageId), imageData);
+  }
+
   @Get(':id')
   async findOne(@Param('id') id: string) {
     return this.productsService.findOne(id);
@@ -147,5 +171,22 @@ export class ProductsController {
       sessionId,
       limit ? parseInt(limit) : 8
     );
+  }
+
+  // Deal of the Day endpoints
+  @Get('deal-of-the-day')
+  async getDealOfTheDay() {
+    return this.productsService.getDealOfTheDay();
+  }
+
+  @Post('admin/deal-of-the-day')
+  async setDealOfTheDay(@Body() body: { productId: number; endDate?: string }) {
+    const endDate = body.endDate ? new Date(body.endDate) : undefined;
+    return this.productsService.setDealOfTheDay(body.productId, endDate);
+  }
+
+  @Delete('admin/deal-of-the-day')
+  async removeDealOfTheDay() {
+    return this.productsService.removeDealOfTheDay();
   }
 }

@@ -5,6 +5,7 @@ import DataTable from '@/components/admin/DataTable';
 import Modal from '@/components/admin/Modal';
 import FormInput from '@/components/admin/FormInput';
 import ImageUpload from '@/components/admin/ImageUpload';
+import MultipleImageUpload from '@/components/admin/MultipleImageUpload';
 import { FaPlus, FaSearch } from 'react-icons/fa';
 import apiClient from '@/services/api';
 
@@ -43,7 +44,8 @@ export default function AdminProducts() {
     description_en: '',
     status: 'active',
     image_url: '',
-    display_position: ''
+    display_position: '',
+    additional_info: ''
   });
 
   useEffect(() => {
@@ -86,7 +88,8 @@ export default function AdminProducts() {
       description_en: '',
       status: 'active',
       image_url: '',
-      display_position: ''
+      display_position: '',
+      additional_info: ''
     });
     setIsModalOpen(true);
   };
@@ -114,7 +117,8 @@ export default function AdminProducts() {
         description_en: fullProduct.description_en || '',
         status: fullProduct.status || 'active',
         image_url: fullProduct.image_url || '',
-        display_position: fullProduct.display_position ? fullProduct.display_position.toString() : ''
+        display_position: fullProduct.display_position ? fullProduct.display_position.toString() : '',
+        additional_info: fullProduct.additional_info ? JSON.stringify(fullProduct.additional_info, null, 2) : ''
       });
       
       console.log('Form data set to:', {
@@ -135,7 +139,8 @@ export default function AdminProducts() {
         description_en: '',
         status: product.status,
         image_url: '',
-        display_position: ''
+        display_position: '',
+        additional_info: ''
       });
     }
     setIsModalOpen(true);
@@ -210,6 +215,16 @@ export default function AdminProducts() {
 
     if (formData.display_position && formData.display_position.trim()) {
       payload.display_position = parseInt(formData.display_position);
+    }
+
+    // Parse and include additional_info JSON
+    if (formData.additional_info && formData.additional_info.trim()) {
+      try {
+        payload.additional_info = JSON.parse(formData.additional_info.trim());
+      } catch (jsonError) {
+        alert('Invalid JSON format in Additional Information field. Please check your syntax.');
+        return;
+      }
     }
 
     console.log('Payload to send:', payload);
@@ -529,9 +544,55 @@ export default function AdminProducts() {
               <ImageUpload
                 value={formData.image_url}
                 onChange={(url) => setFormData({ ...formData, image_url: url })}
-                label="Product Image"
+                label="Primary Product Image (Legacy)"
                 folder="trustcart/products"
               />
+
+              {/* Multiple Images Upload - Only show in edit mode */}
+              {modalMode === 'edit' && selectedProduct && (
+                <div className="border-t pt-4 mt-4">
+                  <MultipleImageUpload
+                    productId={selectedProduct.id}
+                    folder="trustcart/products"
+                  />
+                </div>
+              )}
+
+              {modalMode === 'add' && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mt-4">
+                  <p className="text-sm text-blue-800">
+                    <strong>Note:</strong> You can add multiple images after creating the product. 
+                    Upload the primary image above, then save the product to access the multiple image uploader.
+                  </p>
+                </div>
+              )}
+
+              <FormInput
+                label="Description"
+                name="description_en"
+                type="textarea"
+                value={formData.description_en}
+                onChange={handleInputChange}
+                rows={3}
+              />
+
+              {/* Additional Information JSON Field */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Additional Information (JSON)
+                </label>
+                <textarea
+                  name="additional_info"
+                  value={formData.additional_info || ''}
+                  onChange={handleInputChange}
+                  rows={4}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
+                  placeholder='{"weight": "500g", "dimensions": "10x10x15 cm", "warranty": "1 year"}'
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Enter product specifications in JSON format. Example: {`{"weight": "500g", "manufacturer": "Brand Name"}`}
+                </p>
+              </div>
 
               <FormInput
                 label="Description"

@@ -1,21 +1,27 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
+import { motion } from 'framer-motion';
 import ElectroNavbar from '@/components/ElectroNavbar';
 import ElectroFooter from '@/components/ElectroFooter';
 import ElectroProductCard from '@/components/ElectroProductCard';
 import AddToCartPopup from '@/components/AddToCartPopup';
 import apiClient from '@/services/api';
-import { FaStar, FaShoppingCart, FaHeart, FaShareAlt, FaChevronLeft, FaChevronRight } from 'react-icons/fa';
+import { FaStar, FaShoppingCart, FaHeart, FaShareAlt, FaChevronLeft, FaChevronRight, FaSearchPlus } from 'react-icons/fa';
 
 export default function ProductDetailsPage() {
   const router = useRouter();
   const { id } = router.query;
   const [product, setProduct] = useState<any>(null);
+  const [productImages, setProductImages] = useState<any[]>([]);
   const [relatedProducts, setRelatedProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [quantity, setQuantity] = useState(1);
   const [showCartPopup, setShowCartPopup] = useState(false);
   const [currentSlide, setCurrentSlide] = useState(0);
+  const [selectedImage, setSelectedImage] = useState<string>('');
+  const [activeTab, setActiveTab] = useState<'description' | 'additional'>('description');
+  const [showZoom, setShowZoom] = useState(false);
+  const [zoomPosition, setZoomPosition] = useState({ x: 0, y: 0 });
 
   useEffect(() => {
     if (id) {
@@ -31,6 +37,28 @@ export default function ProductDetailsPage() {
       
       const response = await apiClient.get(endpoint);
       setProduct(response.data);
+      
+      // Load product images
+      try {
+        const imagesResponse = await apiClient.get(`/products/${response.data.id}/images`);
+        const images = imagesResponse.data || [];
+        setProductImages(images);
+        // Set the first image as selected, or fall back to the main image_url
+        if (images.length > 0) {
+          setSelectedImage(images[0].image_url);
+        } else if (response.data.image_url) {
+          setSelectedImage(response.data.image_url);
+          // If no images in the images table but has image_url, create a temporary image array
+          setProductImages([{ id: 0, image_url: response.data.image_url, is_primary: true }]);
+        }
+      } catch (error) {
+        console.error('Error loading product images:', error);
+        // Fallback to main image
+        if (response.data.image_url) {
+          setSelectedImage(response.data.image_url);
+          setProductImages([{ id: 0, image_url: response.data.image_url, is_primary: true }]);
+        }
+      }
       
       // Load related products using the product ID
       try {
@@ -92,6 +120,13 @@ export default function ProductDetailsPage() {
     }
   };
 
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width) * 100;
+    const y = ((e.clientY - rect.top) / rect.height) * 100;
+    setZoomPosition({ x, y });
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen">
@@ -125,12 +160,18 @@ export default function ProductDetailsPage() {
 
   const displayName = product.name_en || product.name_bn || 'Product';
   const price = Number(product.base_price || product.price || 0);
+  const additionalInfo = product.additional_info || {};
 
   return (
     <div className="min-h-screen bg-gray-50">
       <ElectroNavbar />
 
-      <div className="container mx-auto px-56 py-8">
+      <motion.div 
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.5 }}
+        className="container mx-auto px-4 lg:px-36 py-8"
+      >
         {/* Breadcrumb */}
         <div className="text-sm text-gray-600 mb-6">
           <span onClick={() => router.push('/')} className="cursor-pointer hover:text-orange-500">Home</span>
@@ -141,17 +182,46 @@ export default function ProductDetailsPage() {
         </div>
 
         {/* Product Details */}
-        <div className="bg-white rounded-lg shadow-lg p-8 mb-8">
+        <div className="bg-white rounded-lg shadow-lg p-4 lg:p-8 mb-8">
           <div className="grid md:grid-cols-2 gap-8">
-            {/* Product Image */}
-            <div>
-              <div className="relative bg-gray-100 rounded-lg overflow-hidden aspect-square">
-                {product.image_url ? (
-                  <img
-                    src={product.image_url}
-                    alt={displayName}
-                    className="w-full h-full object-cover"
-                  />
+            {/* Product Images */}
+            <motion.div
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.5, delay: 0.2 }}
+            >
+              {/* Main Image with Zoom */}
+              <div 
+                className="relative bg-gray-100 rounded-lg overflow-hidden aspect-square mb-4 cursor-zoom-in"
+                onMouseEnter={() => setShowZoom(true)}
+                onMouseLeave={() => setShowZoom(false)}
+                onMouseMove={handleMouseMove}
+              >
+                {selectedImage ? (
+                  <>
+                    <img
+                      src={selectedImage}
+                      alt={displayName}
+                      className="w-full h-full object-cover"
+                    />
+                    {/* Zoom Overlay */}
+                    {showZoom && (
+                      <div className="absolute inset-0 bg-white bg-opacity-90 flex items-center justify-center">
+                        <div 
+                          className="w-full h-full bg-no-repeat"
+                          style={{
+                            backgroundImage: `url(${selectedImage})`,
+                            backgroundSize: '200%',
+                            backgroundPosition: `${zoomPosition.x}% ${zoomPosition.y}%`
+                          }}
+                        />
+                      </div>
+                    )}
+                    {/* Zoom Icon */}
+                    <div className="absolute top-4 right-4 bg-white rounded-full p-2 shadow-lg">
+                      <FaSearchPlus className="text-gray-600" />
+                    </div>
+                  </>
                 ) : (
                   <div className="w-full h-full flex items-center justify-center text-gray-400">
                     <div className="text-center">
@@ -161,11 +231,36 @@ export default function ProductDetailsPage() {
                   </div>
                 )}
               </div>
-            </div>
+
+              {/* Thumbnail Images */}
+              {productImages.length > 1 && (
+                <div className="grid grid-cols-4 gap-2">
+                  {productImages.map((img, index) => (
+                    <div
+                      key={img.id || index}
+                      onClick={() => setSelectedImage(img.image_url)}
+                      className={`relative bg-gray-100 rounded-lg overflow-hidden aspect-square cursor-pointer border-2 transition ${
+                        selectedImage === img.image_url ? 'border-orange-500' : 'border-transparent hover:border-gray-300'
+                      }`}
+                    >
+                      <img
+                        src={img.image_url}
+                        alt={`${displayName} ${index + 1}`}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </motion.div>
 
             {/* Product Info */}
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900 mb-4">{displayName}</h1>
+            <motion.div
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.5, delay: 0.3 }}
+            >
+              <h1 className="text-2xl lg:text-3xl font-bold text-gray-900 mb-4">{displayName}</h1>
               
               {/* Rating */}
               <div className="flex items-center mb-4">
@@ -179,21 +274,13 @@ export default function ProductDetailsPage() {
 
               {/* Price */}
               <div className="mb-6">
-                <div className="text-4xl font-bold text-orange-500 mb-2">
+                <div className="text-3xl lg:text-4xl font-bold text-orange-500 mb-2">
                   ৳{price.toFixed(2)}
                 </div>
                 {product.sku && (
                   <p className="text-gray-600 text-sm">SKU: {product.sku}</p>
                 )}
               </div>
-
-              {/* Description */}
-              {product.description_en && (
-                <div className="mb-6">
-                  <h3 className="text-lg font-semibold mb-2">Description</h3>
-                  <p className="text-gray-700">{product.description_en}</p>
-                </div>
-              )}
 
               {/* Stock Status */}
               <div className="mb-6">
@@ -229,7 +316,7 @@ export default function ProductDetailsPage() {
               </div>
 
               {/* Action Buttons */}
-              <div className="flex space-x-4 mb-6">
+              <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-4 mb-6">
                 <button
                   onClick={handleAddToCart}
                   className="flex-1 border-2 border-orange-500 bg-white text-orange-500 py-2.5 rounded-lg hover:!bg-orange-500 hover:text-white flex items-center justify-center space-x-2 font-semibold transition-all duration-300"
@@ -239,12 +326,14 @@ export default function ProductDetailsPage() {
                 </button>
                 <button
                   onClick={handleAddToWishlist}
-                  className="w-12 h-12 border-2 border-orange-500 text-orange-500 rounded-lg hover:!bg-orange-500 hover:text-white flex items-center justify-center transition-all duration-300"
+                  className="w-full sm:w-12 h-12 border-2 border-orange-500 text-orange-500 rounded-lg hover:!bg-orange-500 hover:text-white flex items-center justify-center sm:justify-center space-x-2 sm:space-x-0 transition-all duration-300"
                 >
                   <FaHeart />
+                  <span className="sm:hidden">Add to Wishlist</span>
                 </button>
-                <button className="w-12 h-12 border-2 border-orange-500 text-orange-500 rounded-lg hover:!bg-orange-500 hover:text-white flex items-center justify-center transition-all duration-300">
+                <button className="w-full sm:w-12 h-12 border-2 border-orange-500 text-orange-500 rounded-lg hover:!bg-orange-500 hover:text-white flex items-center justify-center sm:justify-center space-x-2 sm:space-x-0 transition-all duration-300">
                   <FaShareAlt />
+                  <span className="sm:hidden">Share Product</span>
                 </button>
               </div>
 
@@ -257,6 +346,73 @@ export default function ProductDetailsPage() {
                   <p><span className="font-semibold">Brand:</span> {product.brand}</p>
                 )}
               </div>
+            </motion.div>
+          </div>
+
+          {/* Tabs Section - Description & Additional Information */}
+          <div className="mt-8 border-t pt-8">
+            {/* Tab Headers */}
+            <div className="flex border-b mb-6">
+              <button
+                onClick={() => setActiveTab('description')}
+                className={`px-6 py-3 font-semibold transition ${
+                  activeTab === 'description'
+                    ? 'border-b-2 border-orange-500 text-orange-500'
+                    : 'text-gray-600 hover:text-orange-500'
+                }`}
+              >
+                Description
+              </button>
+              <button
+                onClick={() => setActiveTab('additional')}
+                className={`px-6 py-3 font-semibold transition ${
+                  activeTab === 'additional'
+                    ? 'border-b-2 border-orange-500 text-orange-500'
+                    : 'text-gray-600 hover:text-orange-500'
+                }`}
+              >
+                Additional Information
+              </button>
+            </div>
+
+            {/* Tab Content */}
+            <div className="min-h-[200px]">
+              {activeTab === 'description' && (
+                <div className="prose max-w-none">
+                  <h3 className="text-xl font-semibold mb-4">Product Description</h3>
+                  {product.description_en ? (
+                    <p className="text-gray-700 leading-relaxed whitespace-pre-line">{product.description_en}</p>
+                  ) : (
+                    <p className="text-gray-500 italic">No description available for this product.</p>
+                  )}
+                </div>
+              )}
+
+              {activeTab === 'additional' && (
+                <div>
+                  <h3 className="text-xl font-semibold mb-4">Additional Information</h3>
+                  {Object.keys(additionalInfo).length > 0 ? (
+                    <div className="overflow-x-auto">
+                      <table className="w-full border-collapse min-w-[300px]">
+                        <tbody>
+                          {Object.entries(additionalInfo).map(([key, value]) => (
+                            <tr key={key} className="border-b">
+                              <td className="py-2 lg:py-3 px-2 lg:px-4 bg-gray-50 font-semibold text-gray-700 capitalize text-sm lg:text-base break-words">
+                                {key.replace(/_/g, ' ')}
+                              </td>
+                              <td className="py-2 lg:py-3 px-2 lg:px-4 text-gray-600 text-sm lg:text-base break-words">
+                                {typeof value === 'object' ? JSON.stringify(value) : String(value)}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <p className="text-gray-500 italic">No additional information available for this product.</p>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -314,7 +470,7 @@ export default function ProductDetailsPage() {
             </div>
           </div>
         )}
-      </div>
+      </motion.div>
 
       {/* Add to Cart Popup */}
       <AddToCartPopup
