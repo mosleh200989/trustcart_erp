@@ -1,9 +1,10 @@
 import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards, Request } from '@nestjs/common';
 import { DealService } from './deal.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { Public } from '../../common/decorators/public.decorator';
 
 @Controller('crm/deals')
-@UseGuards(JwtAuthGuard)
+@Public()
 export class DealController {
   constructor(private readonly dealService: DealService) {}
 

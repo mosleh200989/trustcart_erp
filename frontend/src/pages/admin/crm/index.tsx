@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import AdminLayout from '@/layouts/AdminLayout';
 import apiClient from '@/services/api';
-import { FaPlus, FaUserTie } from 'react-icons/fa';
+import Link from 'next/link';
+import { FaPlus, FaUserTie, FaProjectDiagram, FaTasks, FaUsers, FaEnvelope, FaCogs, FaFileInvoice, FaCheckCircle, FaChartLine, FaUserFriends } from 'react-icons/fa';
 import CrmQuickActions from '@/components/admin/CrmQuickActions';
 
 export default function AdminCRM() {
@@ -24,6 +25,72 @@ export default function AdminCRM() {
     }
   };
 
+  const phase1Features = [
+    {
+      title: 'Pipeline Settings',
+      description: 'Manage custom pipelines and deal stages',
+      icon: FaProjectDiagram,
+      color: 'bg-blue-500',
+      href: '/admin/crm/pipeline-settings'
+    },
+    {
+      title: 'Activity Templates',
+      description: 'Create reusable activity templates',
+      icon: FaTasks,
+      color: 'bg-green-500',
+      href: '/admin/crm/activity-templates'
+    },
+    {
+      title: 'Customer Segments',
+      description: 'Segment customers with dynamic criteria',
+      icon: FaUsers,
+      color: 'bg-purple-500',
+      href: '/admin/crm/segments'
+    },
+    {
+      title: 'Email Templates',
+      description: 'Design and manage email templates',
+      icon: FaEnvelope,
+      color: 'bg-red-500',
+      href: '/admin/crm/email-templates'
+    },
+    {
+      title: 'Workflows',
+      description: 'Automate CRM workflows',
+      icon: FaCogs,
+      color: 'bg-yellow-500',
+      href: '/admin/crm/workflows'
+    },
+    {
+      title: 'Quote Templates',
+      description: 'Create professional quote templates',
+      icon: FaFileInvoice,
+      color: 'bg-indigo-500',
+      href: '/admin/crm/quote-templates'
+    },
+    {
+      title: 'Quote Approvals',
+      description: 'Manage quote approval workflow',
+      icon: FaCheckCircle,
+      color: 'bg-teal-500',
+      href: '/admin/crm/quote-approvals'
+    },
+    {
+      title: 'Sales Forecasts',
+      description: 'View sales forecasts and quotas',
+      icon: FaChartLine,
+      color: 'bg-orange-500',
+      href: '/admin/crm/forecasts'
+    },
+    {
+      title: 'Customers',
+      description: 'Manage customer records',
+      icon: FaUserFriends,
+      color: 'bg-pink-500',
+      href: '/admin/crm/customers'
+    }
+  ];
+
   return (
     <AdminLayout>
       <div className="p-6 space-y-6">
@@ -39,6 +106,35 @@ export default function AdminCRM() {
 
         {/* CRM Automation Quick Actions */}
         <CrmQuickActions />
+
+        {/* Phase 1 Features Navigation */}
+        <div className="bg-white rounded-lg shadow p-6">
+          <h2 className="text-2xl font-semibold text-gray-800 mb-6">CRM Phase 1 Features</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {phase1Features.map((feature) => {
+              const Icon = feature.icon;
+              return (
+                <Link key={feature.href} href={feature.href}>
+                  <div className="border border-gray-200 rounded-lg p-4 hover:shadow-lg transition-shadow cursor-pointer group">
+                    <div className="flex items-start gap-4">
+                      <div className={`${feature.color} p-3 rounded-lg text-white group-hover:scale-110 transition-transform`}>
+                        <Icon className="text-2xl" />
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="font-semibold text-gray-800 group-hover:text-pink-600 transition-colors">
+                          {feature.title}
+                        </h3>
+                        <p className="text-sm text-gray-600 mt-1">
+                          {feature.description}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        </div>
 
         <div className="bg-white rounded-lg shadow p-6">
           <h2 className="text-xl font-semibold text-gray-800 mb-4">Recent Leads</h2>

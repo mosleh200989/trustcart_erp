@@ -4,7 +4,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Public } from '../../common/decorators/public.decorator';
 
 @Controller('crm/emails')
-@UseGuards(JwtAuthGuard)
+@Public()
 export class EmailTrackingController {
   constructor(private readonly emailTrackingService: EmailTrackingService) {}
 

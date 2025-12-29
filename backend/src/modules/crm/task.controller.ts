@@ -1,9 +1,10 @@
 import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards, Request } from '@nestjs/common';
 import { TaskService } from './task.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { Public } from '../../common/decorators/public.decorator';
 
 @Controller('crm/tasks')
-@UseGuards(JwtAuthGuard)
+@Public()
 export class TaskController {
   constructor(private readonly taskService: TaskService) {}
 

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
+// import QuoteNotifications from '@/components/QuoteNotifications'; // DISABLED
 import { 
   FaTachometerAlt, FaBoxes, FaShoppingCart, FaUsers, FaWarehouse, 
   FaShoppingBag, FaUserTie, FaBook, FaBullseye, FaHandshake, 
@@ -108,7 +109,9 @@ const menuItems: MenuItem[] = [
     title: 'CRM',
     icon: FaHandshake,
     children: [
-      { title: 'Dashboard', icon: FaTachometerAlt, path: '/admin/crm/team-dashboard' },
+      { title: 'Dashboard', icon: FaTachometerAlt, path: '/admin/crm' },
+      { title: 'Customers', icon: FaUsers, path: '/admin/crm/customers' },
+      { title: 'Team Dashboard', icon: FaTachometerAlt, path: '/admin/crm/team-dashboard' },
       { title: 'Lead Assignment', icon: FaUsers, path: '/admin/crm/lead-assignment' },
       { title: 'Team Data Collection', icon: FaBullseye, path: '/admin/crm/team-data-collection' },
       { title: 'Tier Management', icon: FaTachometerAlt, path: '/admin/crm/customer-tier-management' },
@@ -118,7 +121,20 @@ const menuItems: MenuItem[] = [
       { title: 'Quotes', icon: FaBook, path: '/admin/crm/quotes' },
       { title: 'Meetings', icon: FaUsers, path: '/admin/crm/meetings' },
       { title: 'Emails', icon: FaBell, path: '/admin/crm/emails' },
-      { title: 'Customers', icon: FaUsers, path: '/admin/crm/customers' },
+      { 
+        title: 'Phase 1 Features', 
+        icon: FaCog, 
+        children: [
+          { title: 'Pipeline Settings', icon: FaCog, path: '/admin/crm/pipeline-settings' },
+          { title: 'Activity Templates', icon: FaBullseye, path: '/admin/crm/activity-templates' },
+          { title: 'Customer Segments', icon: FaUsers, path: '/admin/crm/segments' },
+          { title: 'Email Templates', icon: FaBell, path: '/admin/crm/email-templates' },
+          { title: 'Workflows', icon: FaCog, path: '/admin/crm/workflows' },
+          { title: 'Quote Templates', icon: FaBook, path: '/admin/crm/quote-templates' },
+          { title: 'Quote Approvals', icon: FaBook, path: '/admin/crm/quote-approvals' },
+          { title: 'Sales Forecasts', icon: FaTachometerAlt, path: '/admin/crm/forecasts' },
+        ]
+      },
     ],
   },
   {
@@ -220,12 +236,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               <h2 className="text-2xl font-bold text-gray-800">Admin Panel</h2>
             </div>
             <div className="flex items-center space-x-4">
-              <button className="text-gray-600 hover:text-gray-800 relative">
-                <FaBell size={20} />
-                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-                  3
-                </span>
-              </button>
+              {/* <QuoteNotifications /> */} {/* DISABLED */}
               <span className="text-sm text-gray-700 font-medium">Admin User</span>
               <button
                 onClick={handleLogout}
