@@ -80,9 +80,9 @@ export default function ElectroProductCard({
     <div className="bg-white border border-gray-200 rounded-lg overflow-hidden hover:shadow-xl transition-all duration-300 group relative">
       {/* Discount Badge */}
       {discountPercent && discountPercent > 0 && (
-        <div className="absolute top-3 left-3 z-10">
-          <div className="bg-gradient-to-r from-red-500 to-pink-500 text-white px-3 py-1.5 rounded-full text-xs font-bold shadow-lg animate-pulse">
-            🔥 {discountPercent}% OFF
+        <div className="absolute top-2 left-2 z-10">
+          <div className="bg-gradient-to-br from-red-500 to-red-600 text-white px-3 py-1.5 rounded-md text-xs font-bold shadow-lg">
+            -{discountPercent}%
           </div>
         </div>
       )}
@@ -106,12 +106,18 @@ export default function ElectroProductCard({
 
       <Link href={productUrl}>
         {/* Image */}
-        <div className="relative h-64 bg-gray-50 flex items-center justify-center overflow-hidden">
+        <div className="relative h-48 bg-gray-50 flex items-center justify-center overflow-hidden">
           {image ? (
             <img
               src={image}
               alt={displayName}
+              crossOrigin="anonymous"
               className="object-contain group-hover:scale-110 transition-transform duration-500 max-h-full p-4"
+              onError={(e) => {
+                console.error('Image failed to load:', image);
+                e.currentTarget.style.display = 'none';
+                e.currentTarget.parentElement!.innerHTML = '<div class="w-full h-full flex items-center justify-center bg-gradient-to-br from-orange-100 to-orange-50"><span class="text-6xl">📦</span></div>';
+              }}
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-orange-100 to-orange-50">
@@ -124,7 +130,7 @@ export default function ElectroProductCard({
         </div>
 
         {/* Content */}
-        <div className="p-5">
+        <div className="py-4 px-3">
           {/* Rating */}
           <div className="flex items-center gap-1 mb-2">
             {[...Array(5)].map((_, i) => (
@@ -177,11 +183,11 @@ export default function ElectroProductCard({
       </Link>
 
       {/* Add to Cart Button */}
-      <div className="px-4 pb-4">
+      <div className="px-3 pb-4">
         <button
           onClick={handleAddToCart}
           disabled={stock === 0}
-          className="w-full bg-orange-500 hover:bg-orange-600 text-white py-2 rounded-lg font-semibold transition flex items-center justify-center gap-2 disabled:bg-gray-300 disabled:cursor-not-allowed"
+          className="w-full bg-white border-2 border-orange-500 hover:!bg-orange-500 hover:text-white hover:shadow-lg text-orange-500 py-2 rounded-lg font-semibold transition-all duration-300 flex items-center justify-center gap-2 disabled:bg-gray-300 disabled:cursor-not-allowed"
         >
           <FaShoppingCart size={18} />
           Add to Cart
