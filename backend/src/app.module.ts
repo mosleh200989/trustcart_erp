@@ -127,7 +127,13 @@ import { SpecialOffersModule } from './modules/special-offers/special-offers.mod
             FamilyMember, CustomerInteraction, CustomerBehavior, CustomerDropoff, CustomerAddress,
             CallTask, RecommendationRule, EngagementHistory, MarketingCampaign,
             SalesTeam, SalesOrder, SalesOrderItem, OrderItem, OrderActivityLog, CourierTrackingHistory, SupportTicket,
-            Offer, OfferCondition, OfferReward, OfferProduct, OfferCategory, OfferUsage
+<<<<<<<<< Temporary merge branch 1
+            Offer, OfferCondition, OfferReward, OfferProduct, OfferCategory, OfferUsage, Banner, Category, SpecialOffer
+=========
+            Offer, OfferCondition, OfferReward, OfferProduct, OfferCategory, OfferUsage,
+            // HRM Entities
+            HrmBranches, HrmDepartments, HrmDesignations, HrmEmployees, HrmAwardTypes, HrmAwards, HrmPromotions, HrmResignations, HrmTerminations, HrmWarnings, HrmTrips, HrmComplaints, HrmTransfers, HrmHolidays, HrmAnnouncements, HrmTrainingTypes, HrmTrainingPrograms, HrmTrainingSessions, HrmEmployeeTrainings, HrmPerformanceIndicatorCategories, HrmPerformanceIndicators, HrmEmployeePerformance, HrmDocumentTypes, HrmEmployeeDocuments
+>>>>>>>>> Temporary merge branch 2
           ],
           synchronize: false,
           logging: true,
