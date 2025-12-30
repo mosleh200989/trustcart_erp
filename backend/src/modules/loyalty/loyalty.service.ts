@@ -28,6 +28,31 @@ export class LoyaltyService {
     private priceLockRepo: Repository<PriceLock>,
   ) {}
 
+  private isUuid(value: string): boolean {
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      value,
+    );
+  }
+
+  private resolveCustomerSelector(customerIdOrUuid: string | number):
+    | { kind: 'uuid'; customerUuid: string }
+    | { kind: 'legacy-int'; customerId: number } {
+    if (typeof customerIdOrUuid === 'number') {
+      return { kind: 'legacy-int', customerId: customerIdOrUuid };
+    }
+
+    const trimmed = String(customerIdOrUuid).trim();
+    if (this.isUuid(trimmed)) {
+      return { kind: 'uuid', customerUuid: trimmed };
+    }
+
+    const legacyCustomerId = Number(trimmed);
+    if (!Number.isFinite(legacyCustomerId) || !Number.isInteger(legacyCustomerId)) {
+      throw new Error('Invalid customer identifier');
+    }
+    return { kind: 'legacy-int', customerId: legacyCustomerId };
+  }
+
   // =====================================================
   // MEMBERSHIP MANAGEMENT
   // =====================================================
@@ -65,19 +90,29 @@ export class LoyaltyService {
   // WALLET MANAGEMENT
   // =====================================================
 
-  async getCustomerWallet(customerId: number) {
-    let wallet = await this.walletRepo.findOne({ where: { customerId } });
+  async getCustomerWallet(customerIdOrUuid: string | number) {
+    const selector = this.resolveCustomerSelector(customerIdOrUuid);
+    const where =
+      selector.kind === 'uuid'
+        ? ({ customerUuid: selector.customerUuid } as any)
+        : ({ customerId: selector.customerId } as any);
+
+    let wallet = await this.walletRepo.findOne({ where });
     
     if (!wallet) {
-      wallet = this.walletRepo.create({ customerId, balance: 0 });
+      wallet =
+        selector.kind === 'uuid'
+          ? this.walletRepo.create({ customerUuid: selector.customerUuid, balance: 0 })
+          : this.walletRepo.create({ customerId: selector.customerId, balance: 0 });
       await this.walletRepo.save(wallet);
     }
     
     return wallet;
   }
 
-  async creditWallet(customerId: number, amount: number, source: string, description?: string, referenceId?: number) {
-    const wallet = await this.getCustomerWallet(customerId);
+  async creditWallet(customerIdOrUuid: string | number, amount: number, source: string, description?: string, referenceId?: number) {
+    const selector = this.resolveCustomerSelector(customerIdOrUuid);
+    const wallet = await this.getCustomerWallet(customerIdOrUuid);
     
     wallet.balance += amount;
     wallet.totalEarned += amount;
@@ -86,7 +121,9 @@ export class LoyaltyService {
     // Log transaction
     const transaction = this.transactionRepo.create({
       walletId: wallet.id,
-      customerId,
+      ...(selector.kind === 'uuid'
+        ? { customerUuid: selector.customerUuid }
+        : { customerId: selector.customerId }),
       transactionType: 'credit',
       amount,
       source: source as any,
@@ -98,8 +135,9 @@ export class LoyaltyService {
     return await this.transactionRepo.save(transaction);
   }
 
-  async debitWallet(customerId: number, amount: number, source: string, description?: string) {
-    const wallet = await this.getCustomerWallet(customerId);
+  async debitWallet(customerIdOrUuid: string | number, amount: number, source: string, description?: string) {
+    const selector = this.resolveCustomerSelector(customerIdOrUuid);
+    const wallet = await this.getCustomerWallet(customerIdOrUuid);
     
     if (wallet.balance < amount) {
       throw new Error('Insufficient wallet balance');
@@ -112,7 +150,9 @@ export class LoyaltyService {
     // Log transaction
     const transaction = this.transactionRepo.create({
       walletId: wallet.id,
-      customerId,
+      ...(selector.kind === 'uuid'
+        ? { customerUuid: selector.customerUuid }
+        : { customerId: selector.customerId }),
       transactionType: 'debit',
       amount,
       source: source as any,
@@ -123,9 +163,15 @@ export class LoyaltyService {
     return await this.transactionRepo.save(transaction);
   }
 
-  async getWalletTransactions(customerId: number, limit: number = 50) {
+  async getWalletTransactions(customerIdOrUuid: string | number, limit: number = 50) {
+    const selector = this.resolveCustomerSelector(customerIdOrUuid);
+    const where =
+      selector.kind === 'uuid'
+        ? ({ customerUuid: selector.customerUuid } as any)
+        : ({ customerId: selector.customerId } as any);
+
     return await this.transactionRepo.find({
-      where: { customerId },
+      where,
       order: { createdAt: 'DESC' },
       take: limit,
     });

@@ -32,13 +32,13 @@ export class LoyaltyController {
   // =====================================================
 
   @Get('wallet/:customerId')
-  async getCustomerWallet(@Param('customerId') customerId: number) {
+  async getCustomerWallet(@Param('customerId') customerId: string) {
     return await this.loyaltyService.getCustomerWallet(customerId);
   }
 
   @Post('wallet/:customerId/credit')
   async creditWallet(
-    @Param('customerId') customerId: number,
+    @Param('customerId') customerId: string,
     @Body() data: { amount: number; source: string; description?: string; referenceId?: number },
   ) {
     return await this.loyaltyService.creditWallet(
@@ -52,7 +52,7 @@ export class LoyaltyController {
 
   @Post('wallet/:customerId/debit')
   async debitWallet(
-    @Param('customerId') customerId: number,
+    @Param('customerId') customerId: string,
     @Body() data: { amount: number; source: string; description?: string },
   ) {
     return await this.loyaltyService.debitWallet(
@@ -65,7 +65,7 @@ export class LoyaltyController {
 
   @Get('wallet/:customerId/transactions')
   async getWalletTransactions(
-    @Param('customerId') customerId: number,
+    @Param('customerId') customerId: string,
     @Query('limit') limit?: number,
   ) {
     return await this.loyaltyService.getWalletTransactions(
