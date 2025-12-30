@@ -84,11 +84,6 @@ export class ProductsController {
     return this.productsService.updateProductImage(parseInt(imageId), imageData);
   }
 
-  @Get(':id')
-  async findOne(@Param('id') id: string) {
-    return this.productsService.findOne(id);
-  }
-
   @Post()
   async create(@Body() createProductDto: any) {
     try {
@@ -177,6 +172,13 @@ export class ProductsController {
   @Get('deal-of-the-day')
   async getDealOfTheDay() {
     return this.productsService.getDealOfTheDay();
+  }
+
+  // NOTE: Keep this below other static GET routes (e.g. deal-of-the-day)
+  // so it doesn't accidentally catch them.
+  @Get(':id')
+  async findOne(@Param('id') id: string) {
+    return this.productsService.findOne(id);
   }
 
   @Post('admin/deal-of-the-day')

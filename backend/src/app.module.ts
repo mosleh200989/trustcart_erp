@@ -43,6 +43,7 @@ import { OfferUsage } from './modules/offers/entities/offer-usage.entity';
 import { Banner } from './modules/banners/banner.entity';
 import { Category } from './modules/categories/category.entity';
 import { SpecialOffer } from './modules/special-offers/special-offer.entity';
+import { DealOfTheDay } from './modules/products/deal-of-the-day.entity';
 
 // CRM Entities
 import { Deal } from './modules/crm/entities/deal.entity';
@@ -122,6 +123,7 @@ import { SpecialOffersModule } from './modules/special-offers/special-offers.mod
             CallTask, RecommendationRule, EngagementHistory, MarketingCampaign,
             SalesTeam, SalesOrder, SalesOrderItem, OrderItem, OrderActivityLog, CourierTrackingHistory, SupportTicket,
             Offer, OfferCondition, OfferReward, OfferProduct, OfferCategory, OfferUsage, Banner, Category, SpecialOffer,
+            DealOfTheDay,
             // CRM entities
             Deal, DealStage, Activity, Task, Quote, Meeting, EmailTracking,
             CustomDealStage, SalesPipeline, ActivityTemplate, CustomerSegment, SegmentMember,

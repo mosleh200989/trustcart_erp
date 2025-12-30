@@ -49,7 +49,7 @@ const CustomerView = () => {
       ]);
 
       setCustomer(customerRes.data);
-      setActivities(activitiesRes.data);
+      setActivities(Array.isArray(activitiesRes.data) ? activitiesRes.data : []);
       setDeals(dealsRes.data);
       setTasks(tasksRes.data);
       setMeetings(meetingsRes.data);

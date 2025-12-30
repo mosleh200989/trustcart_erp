@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Product } from './product.entity';
@@ -77,7 +77,11 @@ export class ProductsService {
   }
 
   async findOne(id: string) {
-    return this.productsRepository.findOne({ where: { id: parseInt(id) } });
+    const numericId = parseInt(id, 10);
+    if (!Number.isFinite(numericId)) {
+      throw new BadRequestException('Invalid product id');
+    }
+    return this.productsRepository.findOne({ where: { id: numericId } });
   }
 
   async searchProducts(query: string) {
@@ -455,30 +459,48 @@ export class ProductsService {
   // Deal of the Day methods
   async getDealOfTheDay() {
     try {
+      console.log('🔍 Fetching active deal from database...');
       const deal = await this.dealOfTheDayRepository.findOne({
         where: { is_active: true },
-        relations: ['product'],
       });
 
+      console.log('📦 Deal found:', deal);
+
       if (!deal) {
+        console.log('⚠️ No active deal found in database');
+        return null;
+      }
+
+      if (!deal.product_id || deal.product_id === null || isNaN(Number(deal.product_id))) {
+        console.log('⚠️ Deal exists but product_id is invalid:', deal.product_id);
+        return null;
+      }
+
+      // Check if deal has expired
+      if (deal.end_date && new Date(deal.end_date) < new Date()) {
+        console.log('⏰ Deal has expired, deactivating...');
+        await this.dealOfTheDayRepository.update(deal.id, { is_active: false });
         return null;
       }
 
       // Get full product details with category
+      console.log('🔍 Fetching product with ID:', deal.product_id);
+      
       const productDetails = await this.productsRepository.query(`
         SELECT 
           p.id, p.slug, p.sku, p.name_en, p.name_bn, 
           p.base_price, p.sale_price, p.discount_type, p.discount_value,
-          p.brand, p.image_url, p.stock_quantity,
+          p.brand, p.image_url, p.stock_quantity, p.status,
           c.name_en as category_name
         FROM products p
         LEFT JOIN categories c ON p.category_id = c.id
-        WHERE p.id = $1
-      `, [deal.product_id]);
+        WHERE p.id = $1 AND p.status = 'active'
+      `, [Number(deal.product_id)]);
 
+      console.log('✅ Product details fetched:', productDetails[0] ? 'Found' : 'Not found');
       return productDetails[0] || null;
     } catch (error) {
-      console.error('Error fetching deal of the day:', error);
+      console.error('❌ Error fetching deal of the day:', error);
       return null;
     }
   }
