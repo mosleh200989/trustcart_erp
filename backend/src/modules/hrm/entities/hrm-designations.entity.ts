@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany, JoinColumn } from 'typeorm';
 import { HrmDepartments } from './hrm-departments.entity';
 import { HrmEmployees } from './hrm-employees.entity';
 import { HrmPromotions } from './hrm-promotions.entity';
@@ -15,7 +15,8 @@ export class HrmDesignations {
   code: string;
 
   @ManyToOne(() => HrmDepartments, department => department.designations, { nullable: true, onDelete: 'SET NULL' })
-  department: HrmDepartments;
+  @JoinColumn({ name: 'department_id' })
+  department: HrmDepartments | null;
 
   @Column({ default: true })
   status: boolean;
@@ -35,3 +36,4 @@ export class HrmDesignations {
   @OneToMany(() => HrmPromotions, promotion => promotion.new_designation)
   new_promotions: HrmPromotions[];
 }
+

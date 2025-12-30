@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn } from 'typeorm';
 import { HrmEmployees } from './hrm-employees.entity';
 
 @Entity('hr_warnings')
@@ -7,6 +7,7 @@ export class HrmWarnings {
   id: number;
 
   @ManyToOne(() => HrmEmployees, employee => employee.warnings, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'employee_id' })
   employee: HrmEmployees;
 
   @Column({ length: 100, nullable: true })
@@ -30,3 +31,4 @@ export class HrmWarnings {
   @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
   updated_at: Date;
 }
+

@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany, JoinColumn } from 'typeorm';
 import { HrmBranches } from './hrm-branches.entity';
 import { HrmDesignations } from './hrm-designations.entity';
 import { HrmEmployees } from './hrm-employees.entity';
@@ -15,7 +15,8 @@ export class HrmDepartments {
   code: string;
 
   @ManyToOne(() => HrmBranches, branch => branch.departments, { nullable: true, onDelete: 'SET NULL' })
-  branch: HrmBranches;
+  @JoinColumn({ name: 'branch_id' })
+  branch: HrmBranches | null;
 
   @Column({ default: true })
   status: boolean;

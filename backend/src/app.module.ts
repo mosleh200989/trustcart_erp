@@ -89,7 +89,6 @@ import { RecruitmentModule } from './modules/recruitment/recruitment.module';
 import { SalesModule } from './modules/sales/sales.module';
 import { PurchaseModule } from './modules/purchase/purchase.module';
 import { InventoryModule } from './modules/inventory/inventory.module';
-import { HrModule } from './modules/hr/hr.module';
 import { HrmModule } from './modules/hrm/hrm.module';
 // HRM Entities
 import { HrmBranches } from './modules/hrm/entities/hrm-branches.entity';
@@ -157,7 +156,10 @@ import { SpecialOffersModule } from './modules/special-offers/special-offers.mod
             FamilyMember, CustomerInteraction, CustomerBehavior, CustomerDropoff, CustomerAddress,
             CallTask, RecommendationRule, EngagementHistory, MarketingCampaign,
             SalesTeam, SalesOrder, SalesOrderItem, OrderItem, OrderActivityLog, CourierTrackingHistory, SupportTicket,
+
             Offer, OfferCondition, OfferReward, OfferProduct, OfferCategory, OfferUsage, Banner, Category, SpecialOffer,
+            
+            
             DealOfTheDay,
             // Loyalty entities
             CustomerMembership, CustomerWallet, WalletTransaction, CustomerReferral, MonthlyGroceryList, GroceryListItem, PriceLock,
@@ -198,7 +200,6 @@ import { SpecialOffersModule } from './modules/special-offers/special-offers.mod
     SalesModule,
     PurchaseModule,
     InventoryModule,
-    HrModule,
     HrmModule,
     PayrollModule,
     AccountingModule,

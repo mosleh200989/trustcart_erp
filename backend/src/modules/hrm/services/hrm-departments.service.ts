@@ -12,8 +12,18 @@ export class HrmDepartmentsService {
     private readonly departmentRepository: Repository<HrmDepartments>,
   ) {}
 
-  create(dto: CreateDepartmentDto) {
-    const department = this.departmentRepository.create(dto);
+  async create(dto: CreateDepartmentDto) {
+    const { branchId, ...rest } = dto;
+    const department = this.departmentRepository.create(rest);
+    if (branchId) {
+      // Use getRepository with the entity class for correct typing
+      const { HrmBranches } = await import('../entities/hrm-branches.entity');
+      const branchRepo = this.departmentRepository.manager.getRepository(HrmBranches);
+      const branch = await branchRepo.findOne({ where: { id: branchId } });
+      if (branch) {
+        department.branch = branch;
+      }
+    }
     return this.departmentRepository.save(department);
   }
 
@@ -25,8 +35,29 @@ export class HrmDepartmentsService {
     return this.departmentRepository.findOne({ where: { id } });
   }
 
-  update(id: number, dto: UpdateDepartmentDto) {
-    return this.departmentRepository.update(id, dto);
+  async update(id: number, dto: UpdateDepartmentDto) {
+    const department = await this.departmentRepository.findOne({ where: { id } });
+    if (!department) {
+      throw new Error('Department not found');
+    }
+
+    const { branchId, ...rest } = dto;
+    Object.assign(department, rest);
+
+    if (branchId !== undefined) {
+      if (branchId) {
+        const { HrmBranches } = await import('../entities/hrm-branches.entity');
+        const branchRepo = this.departmentRepository.manager.getRepository(HrmBranches);
+        const branch = await branchRepo.findOne({ where: { id: branchId } });
+        if (branch) {
+          department.branch = branch;
+        }
+      } else {
+        department.branch = null;
+      }
+    }
+
+    return this.departmentRepository.save(department);
   }
 
   remove(id: number) {

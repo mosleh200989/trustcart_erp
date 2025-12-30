@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn } from 'typeorm';
 import { HrmEmployees } from './hrm-employees.entity';
 import { HrmTrainingSessions } from './hrm-training-sessions.entity';
 
@@ -8,9 +8,11 @@ export class HrmEmployeeTrainings {
   id: number;
 
   @ManyToOne(() => HrmEmployees, employee => employee.employee_trainings, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'employee_id' })
   employee: HrmEmployees;
 
   @ManyToOne(() => HrmTrainingSessions, session => session.employee_trainings, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'training_session_id' })
   training_session: HrmTrainingSessions;
 
   @Column({ length: 50, default: 'Pending' })
@@ -25,3 +27,4 @@ export class HrmEmployeeTrainings {
   @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
   updated_at: Date;
 }
+

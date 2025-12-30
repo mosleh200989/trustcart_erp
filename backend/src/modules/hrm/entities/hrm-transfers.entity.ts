@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn } from 'typeorm';
 import { HrmEmployees } from './hrm-employees.entity';
 import { HrmBranches } from './hrm-branches.entity';
 
@@ -8,12 +8,15 @@ export class HrmTransfers {
   id: number;
 
   @ManyToOne(() => HrmEmployees, employee => employee.transfers, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'employee_id' })
   employee: HrmEmployees;
 
   @ManyToOne(() => HrmBranches, branch => branch.transfers_from, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'from_branch_id' })
   from_branch: HrmBranches;
 
   @ManyToOne(() => HrmBranches, branch => branch.transfers_to, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'to_branch_id' })
   to_branch: HrmBranches;
 
   @Column({ type: 'date', nullable: true })
@@ -34,3 +37,4 @@ export class HrmTransfers {
   @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
   updated_at: Date;
 }
+

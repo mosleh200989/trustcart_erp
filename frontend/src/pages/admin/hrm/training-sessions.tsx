@@ -29,7 +29,7 @@ export default function TrainingSessionsPage() {
 
   const fetchTrainingSessions = async () => {
     try {
-      const response = await api.get('/hr/training-sessions');
+      const response = await api.get('/hrm/training-sessions');
       setTrainingSessions(Array.isArray(response.data) ? response.data : []);
     } catch (error) {
       console.error('Failed to fetch training sessions:', error);
@@ -43,9 +43,9 @@ export default function TrainingSessionsPage() {
     e.preventDefault();
     try {
       if (editingTrainingSession) {
-        await api.put(`/hr/training-sessions/${editingTrainingSession.id}`, formData);
+        await api.put(`/hrm/training-sessions/${editingTrainingSession.id}`, formData);
       } else {
-        await api.post('/hr/training-sessions', formData);
+        await api.post('/hrm/training-sessions', formData);
       }
       fetchTrainingSessions();
       resetForm();
@@ -68,7 +68,7 @@ export default function TrainingSessionsPage() {
   const handleDelete = async (id: number) => {
     if (confirm('Are you sure you want to delete this training session?')) {
       try {
-        await api.delete(`/hr/training-sessions/${id}`);
+        await api.delete(`/hrm/training-sessions/${id}`);
         fetchTrainingSessions();
       } catch (error) {
         console.error('Failed to delete training session:', error);

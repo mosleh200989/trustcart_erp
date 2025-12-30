@@ -18,11 +18,11 @@ export class HrmComplaintsService {
   }
 
   findAll() {
-    return this.complaintsRepository.find();
+    return this.complaintsRepository.find({ relations: ['employee'] });
   }
 
   findOne(id: number) {
-    return this.complaintsRepository.findOne({ where: { id } });
+    return this.complaintsRepository.findOne({ where: { id }, relations: ['employee'] });
   }
 
   update(id: number, dto: UpdateComplaintDto) {
