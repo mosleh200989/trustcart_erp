@@ -9,7 +9,7 @@ interface Branch {
   address?: string;
   phone?: string;
   email?: string;
-  isActive: boolean;
+  status: boolean;
 }
 
 export default function BranchesPage() {
@@ -23,7 +23,7 @@ export default function BranchesPage() {
     address: '',
     phone: '',
     email: '',
-    isActive: true,
+    status: true,
   });
 
   useEffect(() => {
@@ -42,18 +42,36 @@ export default function BranchesPage() {
     }
   };
 
+  const prepareData = (data: any) => { 
+    const prepared = { ...data }; 
+    const idFields = ['branchId', 'departmentId', 'employeeId', 'managerId', 'designationId', 'awardTypeId', 
+                      'fromBranchId', 'toBranchId', 'fromDepartmentId', 'toDepartmentId', 
+                      'fromDesignationId', 'toDesignationId', 'typeId', 'categoryId', 'roomId', 'cycleId',
+                      'goalTypeId', 'indicatorId', 'candidateId', 'jobPostingId', 'roundId', 
+                      'componentId', 'policyId', 'leaveTypeId', 'sessionId', 'programId', 'templateId'];
+    idFields.forEach(field => {
+      if (prepared[field] !== undefined && prepared[field] !== '' && prepared[field] !== null) {
+        prepared[field] = Number(prepared[field]);
+      } else if (prepared[field] === '') {
+        delete prepared[field];
+      }
+    });
+    return prepared;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       if (editingBranch) {
-        await api.put(`/hrm/branches/${editingBranch.id}`, formData);
+        await api.patch(`/hrm/branches/${editingBranch.id}`, prepareData(formData));
       } else {
-        await api.post('/hrm/branches', formData);
+        await api.post('/hrm/branches', prepareData(formData));
       }
       fetchBranches();
       resetForm();
     } catch (error) {
       console.error('Failed to save branch:', error);
+      alert('Failed to save branch. Please try again.');
     }
   };
 
@@ -65,7 +83,7 @@ export default function BranchesPage() {
       address: branch.address || '',
       phone: branch.phone || '',
       email: branch.email || '',
-      isActive: branch.isActive,
+      status: branch.status,
     });
     setShowModal(true);
   };
@@ -76,7 +94,8 @@ export default function BranchesPage() {
         await api.delete(`/hrm/branches/${id}`);
         fetchBranches();
       } catch (error) {
-        console.error('Failed to delete branch:', error);
+        console.error('Failed to delete', error);
+        alert('Failed to delete. Please try again.');
       }
     }
   };
@@ -88,7 +107,7 @@ export default function BranchesPage() {
       address: '',
       phone: '',
       email: '',
-      isActive: true,
+      status: true,
     });
     setEditingBranch(null);
     setShowModal(false);
@@ -138,10 +157,10 @@ export default function BranchesPage() {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span
                         className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                          branch.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                          branch.status ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
                         }`}
                       >
-                        {branch.isActive ? 'Active' : 'Inactive'}
+                        {branch.status ? 'Active' : 'Inactive'}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
@@ -167,68 +186,70 @@ export default function BranchesPage() {
 
         {showModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-8 max-w-md w-full">
+            <div className="bg-white rounded-lg p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
               <h2 className="text-2xl font-bold mb-4">
                 {editingBranch ? 'Edit Branch' : 'Add New Branch'}
               </h2>
               <form onSubmit={handleSubmit}>
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Code</label>
-                  <input
-                    type="text"
-                    value={formData.code}
-                    onChange={(e) => setFormData({ ...formData, code: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    required
-                  />
-                </div>
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Name</label>
-                  <input
-                    type="text"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    required
-                  />
-                </div>
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Address</label>
-                  <textarea
-                    value={formData.address}
-                    onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    rows={3}
-                  />
-                </div>
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Phone</label>
-                  <input
-                    type="text"
-                    value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
-                  <input
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-                <div className="mb-4">
-                  <label className="flex items-center">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Code</label>
                     <input
-                      type="checkbox"
-                      checked={formData.isActive}
-                      onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
-                      className="mr-2"
+                      type="text"
+                      value={formData.code}
+                      onChange={(e) => setFormData({ ...formData, code: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      required
                     />
-                    <span className="text-sm font-medium text-gray-700">Active</span>
-                  </label>
+                  </div>
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Name</label>
+                    <input
+                      type="text"
+                      value={formData.name}
+                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      required
+                    />
+                  </div>
+                  <div className="mb-4 col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Address</label>
+                    <textarea
+                      value={formData.address}
+                      onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      rows={3}
+                    />
+                  </div>
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Phone</label>
+                    <input
+                      type="text"
+                      value={formData.phone}
+                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                    <input
+                      type="email"
+                      value={formData.email}
+                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div className="mb-4 col-span-2">
+                    <label className="flex items-center">
+                      <input
+                        type="checkbox"
+                        checked={formData.status}
+                        onChange={(e) => setFormData({ ...formData, status: e.target.checked })}
+                        className="mr-2"
+                      />
+                      <span className="text-sm font-medium text-gray-700">Active</span>
+                    </label>
+                  </div>
                 </div>
                 <div className="flex justify-end gap-4">
                   <button
@@ -253,3 +274,6 @@ export default function BranchesPage() {
     </AdminLayout>
   );
 }
+
+
+

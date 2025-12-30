@@ -1,74 +1,78 @@
 
 import { useState, useEffect } from 'react';
-import AdminLayout from '../../../layouts/AdminLayout';
-import api from '../../../services/api';
+import AdminLayout from '../../../../layouts/AdminLayout';
+import api from '../../../../services/api';
 
-interface TrainingProgram {
+interface IndicatorCategory {
   id: number;
   name: string;
   description?: string;
-  isActive: boolean;
+  status: boolean;
 }
 
-export default function TrainingProgramsPage() {
-  const [trainingPrograms, setTrainingPrograms] = useState<TrainingProgram[]>([]);
+export default function IndicatorCategoriesPage() {
+  const [indicatorCategories, setIndicatorCategories] = useState<IndicatorCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
-  const [editingTrainingProgram, setEditingTrainingProgram] = useState<TrainingProgram | null>(null);
+  const [editingIndicatorCategory, setEditingIndicatorCategory] = useState<IndicatorCategory | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     description: '',
-    isActive: true,
+    status: true,
   });
 
   useEffect(() => {
-    fetchTrainingPrograms();
+    fetchIndicatorCategories();
   }, []);
 
-  const fetchTrainingPrograms = async () => {
+  const fetchIndicatorCategories = async () => {
     try {
-      const response = await api.get('/hrm/training-programs');
-      setTrainingPrograms(Array.isArray(response.data) ? response.data : []);
+      const response = await api.get('/hrm/indicator-categories');
+      setIndicatorCategories(Array.isArray(response.data) ? response.data : []);
     } catch (error) {
-      console.error('Failed to fetch training programs:', error);
-      setTrainingPrograms([]);
+      console.error('Failed to fetch indicator categories:', error);
+      setIndicatorCategories([]);
     } finally {
       setLoading(false);
     }
   };
 
+    const prepareData = (data: any) => { const prepared = { ...data }; const idFields = ['branchId', 'departmentId', 'employeeId', 'managerId', 'designationId', 'awardTypeId', 'fromBranchId', 'toBranchId', 'fromDepartmentId', 'toDepartmentId', 'fromDesignationId', 'toDesignationId', 'typeId', 'categoryId', 'roomId', 'cycleId', 'goalTypeId', 'indicatorId', 'candidateId', 'jobPostingId', 'roundId', 'componentId', 'policyId', 'leaveTypeId', 'sessionId', 'programId', 'templateId']; idFields.forEach(field => { if (prepared[field] !== undefined && prepared[field] !== '' && prepared[field] !== null) { prepared[field] = Number(prepared[field]); } else if (prepared[field] === '') { delete prepared[field]; } }); return prepared; };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      if (editingTrainingProgram) {
-        await api.put(`/hrm/training-programs/${editingTrainingProgram.id}`, formData);
+      if (editingIndicatorCategory) {
+        await api.patch(`/hrm/indicator-categories/${editingIndicatorCategory.id}`, prepareData(formData));
       } else {
-        await api.post('/hrm/training-programs', formData);
+        await api.post('/hrm/indicator-categories', prepareData(formData));
       }
-      fetchTrainingPrograms();
+      fetchIndicatorCategories();
       resetForm();
     } catch (error) {
-      console.error('Failed to save training program:', error);
+      console.error('Failed to save', error);
+      alert('Failed to save. Please try again.');
     }
   };
 
-  const handleEdit = (trainingProgram: TrainingProgram) => {
-    setEditingTrainingProgram(trainingProgram);
+  const handleEdit = (indicatorCategory: IndicatorCategory) => {
+    setEditingIndicatorCategory(indicatorCategory);
     setFormData({
-      name: trainingProgram.name,
-      description: trainingProgram.description || '',
-      isActive: trainingProgram.isActive,
+      name: indicatorCategory.name,
+      description: indicatorCategory.description || '',
+      status: indicatorCategory.status,
     });
     setShowModal(true);
   };
 
   const handleDelete = async (id: number) => {
-    if (confirm('Are you sure you want to delete this training program?')) {
+    if (confirm('Are you sure you want to delete this indicator category?')) {
       try {
-        await api.delete(`/hrm/training-programs/${id}`);
-        fetchTrainingPrograms();
+        await api.delete(`/hrm/indicator-categories/${id}`);
+        fetchIndicatorCategories();
       } catch (error) {
-        console.error('Failed to delete training program:', error);
+        console.error('Failed to delete', error);
+        alert('Failed to delete. Please try again.');
       }
     }
   };
@@ -77,9 +81,9 @@ export default function TrainingProgramsPage() {
     setFormData({
       name: '',
       description: '',
-      isActive: true,
+      status: true,
     });
-    setEditingTrainingProgram(null);
+    setEditingIndicatorCategory(null);
     setShowModal(false);
   };
 
@@ -87,20 +91,20 @@ export default function TrainingProgramsPage() {
     <AdminLayout>
       <div className="container mx-auto px-4 py-6">
         <div className="flex justify-between items-center mb-6">
-          <h1 className="text-3xl font-bold text-gray-800">Training Programs</h1>
+          <h1 className="text-3xl font-bold text-gray-800">Indicator Categories</h1>
           <button
             onClick={() => setShowModal(true)}
             className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition"
           >
-            Add New Training Program
+            Add New Indicator Category
           </button>
         </div>
 
         {loading ? (
           <div className="text-center py-12">Loading...</div>
-        ) : trainingPrograms.length === 0 ? (
+        ) : indicatorCategories.length === 0 ? (
           <div className="bg-white rounded-lg shadow p-6 text-center">
-            <p className="text-gray-500">No training programs found. Click "Add New Training Program" to create one.</p>
+            <p className="text-gray-500">No indicator categories found. Click "Add New Indicator Category" to create one.</p>
           </div>
         ) : (
           <div className="bg-white rounded-lg shadow overflow-hidden">
@@ -114,30 +118,30 @@ export default function TrainingProgramsPage() {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {trainingPrograms.map((program) => (
-                  <tr key={program.id}>
+                {indicatorCategories.map((category) => (
+                  <tr key={category.id}>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {program.name}
+                      {category.name}
                     </td>
-                    <td className="px-6 py-4 text-sm text-gray-500">{program.description || '-'}</td>
+                    <td className="px-6 py-4 text-sm text-gray-500">{category.description || '-'}</td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span
                         className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                          program.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                          category.status ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
                         }`}
                       >
-                        {program.isActive ? 'Active' : 'Inactive'}
+                        {category.status ? 'Active' : 'Inactive'}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <button
-                        onClick={() => handleEdit(program)}
+                        onClick={() => handleEdit(category)}
                         className="text-blue-600 hover:text-blue-900 mr-4"
                       >
                         Edit
                       </button>
                       <button
-                        onClick={() => handleDelete(program.id)}
+                        onClick={() => handleDelete(category.id)}
                         className="text-red-600 hover:text-red-900"
                       >
                         Delete
@@ -152,9 +156,9 @@ export default function TrainingProgramsPage() {
 
         {showModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-8 max-w-md w-full">
+            <div className="bg-white rounded-lg p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
               <h2 className="text-2xl font-bold mb-4">
-                {editingTrainingProgram ? 'Edit Training Program' : 'Add New Training Program'}
+                {editingIndicatorCategory ? 'Edit Indicator Category' : 'Add New Indicator Category'}
               </h2>
               <form onSubmit={handleSubmit}>
                 <div className="mb-4">
@@ -180,8 +184,8 @@ export default function TrainingProgramsPage() {
                   <label className="flex items-center">
                     <input
                       type="checkbox"
-                      checked={formData.isActive}
-                      onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
+                      checked={formData.status}
+                      onChange={(e) => setFormData({ ...formData, status: e.target.checked })}
                       className="mr-2"
                     />
                     <span className="text-sm font-medium text-gray-700">Active</span>
@@ -199,7 +203,7 @@ export default function TrainingProgramsPage() {
                     type="submit"
                     className="px-4 py-2 text-white bg-blue-600 rounded-md hover:bg-blue-700"
                   >
-                    {editingTrainingProgram ? 'Update' : 'Create'}
+                    {editingIndicatorCategory ? 'Update' : 'Create'}
                   </button>
                 </div>
               </form>
@@ -210,3 +214,7 @@ export default function TrainingProgramsPage() {
     </AdminLayout>
   );
 }
+
+
+
+
