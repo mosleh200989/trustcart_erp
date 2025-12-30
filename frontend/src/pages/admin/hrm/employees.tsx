@@ -1,42 +1,45 @@
+
 import { useState, useEffect } from 'react';
 import AdminLayout from '../../../layouts/AdminLayout';
 import api from '../../../services/api';
 
-interface Branch {
+interface Employee {
   id: number;
-  name: string;
-  code: string;
-  address?: string;
+  firstName: string;
+  lastName: string;
+  email: string;
   phone?: string;
-  email?: string;
+  designationId?: number;
+  departmentId?: number;
   isActive: boolean;
 }
 
-export default function BranchesPage() {
-  const [branches, setBranches] = useState<Branch[]>([]);
+export default function EmployeesPage() {
+  const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
-  const [editingBranch, setEditingBranch] = useState<Branch | null>(null);
+  const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [formData, setFormData] = useState({
-    name: '',
-    code: '',
-    address: '',
-    phone: '',
+    firstName: '',
+    lastName: '',
     email: '',
+    phone: '',
+    designationId: '',
+    departmentId: '',
     isActive: true,
   });
 
   useEffect(() => {
-    fetchBranches();
+    fetchEmployees();
   }, []);
 
-  const fetchBranches = async () => {
+  const fetchEmployees = async () => {
     try {
-      const response = await api.get('/hr/branches');
-      setBranches(Array.isArray(response.data) ? response.data : []);
+      const response = await api.get('/hrm/employees');
+      setEmployees(Array.isArray(response.data) ? response.data : []);
     } catch (error) {
-      console.error('Failed to fetch branches:', error);
-      setBranches([]);
+      console.error('Failed to fetch employees:', error);
+      setEmployees([]);
     } finally {
       setLoading(false);
     }
@@ -45,52 +48,54 @@ export default function BranchesPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      if (editingBranch) {
-        await api.put(`/hr/branches/${editingBranch.id}`, formData);
+      if (editingEmployee) {
+        await api.put(`/hrm/employees/${editingEmployee.id}`, formData);
       } else {
-        await api.post('/hr/branches', formData);
+        await api.post('/hrm/employees', formData);
       }
-      fetchBranches();
+      fetchEmployees();
       resetForm();
     } catch (error) {
-      console.error('Failed to save branch:', error);
+      console.error('Failed to save employee:', error);
     }
   };
 
-  const handleEdit = (branch: Branch) => {
-    setEditingBranch(branch);
+  const handleEdit = (employee: Employee) => {
+    setEditingEmployee(employee);
     setFormData({
-      name: branch.name,
-      code: branch.code,
-      address: branch.address || '',
-      phone: branch.phone || '',
-      email: branch.email || '',
-      isActive: branch.isActive,
+      firstName: employee.firstName,
+      lastName: employee.lastName,
+      email: employee.email,
+      phone: employee.phone || '',
+      designationId: employee.designationId?.toString() || '',
+      departmentId: employee.departmentId?.toString() || '',
+      isActive: employee.isActive,
     });
     setShowModal(true);
   };
 
   const handleDelete = async (id: number) => {
-    if (confirm('Are you sure you want to delete this branch?')) {
+    if (confirm('Are you sure you want to delete this employee?')) {
       try {
-        await api.delete(`/hr/branches/${id}`);
-        fetchBranches();
+        await api.delete(`/hrm/employees/${id}`);
+        fetchEmployees();
       } catch (error) {
-        console.error('Failed to delete branch:', error);
+        console.error('Failed to delete employee:', error);
       }
     }
   };
 
   const resetForm = () => {
     setFormData({
-      name: '',
-      code: '',
-      address: '',
-      phone: '',
+      firstName: '',
+      lastName: '',
       email: '',
+      phone: '',
+      designationId: '',
+      departmentId: '',
       isActive: true,
     });
-    setEditingBranch(null);
+    setEditingEmployee(null);
     setShowModal(false);
   };
 
@@ -98,61 +103,61 @@ export default function BranchesPage() {
     <AdminLayout>
       <div className="container mx-auto px-4 py-6">
         <div className="flex justify-between items-center mb-6">
-          <h1 className="text-3xl font-bold text-gray-800">Branches</h1>
+          <h1 className="text-3xl font-bold text-gray-800">Employees</h1>
           <button
             onClick={() => setShowModal(true)}
             className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition"
           >
-            Add New Branch
+            Add New Employee
           </button>
         </div>
 
         {loading ? (
           <div className="text-center py-12">Loading...</div>
-        ) : branches.length === 0 ? (
+        ) : employees.length === 0 ? (
           <div className="bg-white rounded-lg shadow p-6 text-center">
-            <p className="text-gray-500">No branches found. Click "Add New Branch" to create one.</p>
+            <p className="text-gray-500">No employees found. Click "Add New Employee" to create one.</p>
           </div>
         ) : (
           <div className="bg-white rounded-lg shadow overflow-hidden">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Code</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Address</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">First Name</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Last Name</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Phone</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {branches.map((branch) => (
-                  <tr key={branch.id}>
+                {employees.map((employee) => (
+                  <tr key={employee.id}>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {branch.code}
+                      {employee.firstName}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{branch.name}</td>
-                    <td className="px-6 py-4 text-sm text-gray-500">{branch.address || '-'}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{branch.phone || '-'}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{employee.lastName}</td>
+                    <td className="px-6 py-4 text-sm text-gray-500">{employee.email}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{employee.phone || '-'}</td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span
                         className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                          branch.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                          employee.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
                         }`}
                       >
-                        {branch.isActive ? 'Active' : 'Inactive'}
+                        {employee.isActive ? 'Active' : 'Inactive'}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <button
-                        onClick={() => handleEdit(branch)}
+                        onClick={() => handleEdit(employee)}
                         className="text-blue-600 hover:text-blue-900 mr-4"
                       >
                         Edit
                       </button>
                       <button
-                        onClick={() => handleDelete(branch.id)}
+                        onClick={() => handleDelete(employee.id)}
                         className="text-red-600 hover:text-red-900"
                       >
                         Delete
@@ -169,45 +174,27 @@ export default function BranchesPage() {
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-white rounded-lg p-8 max-w-md w-full">
               <h2 className="text-2xl font-bold mb-4">
-                {editingBranch ? 'Edit Branch' : 'Add New Branch'}
+                {editingEmployee ? 'Edit Employee' : 'Add New Employee'}
               </h2>
               <form onSubmit={handleSubmit}>
                 <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Code</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">First Name</label>
                   <input
                     type="text"
-                    value={formData.code}
-                    onChange={(e) => setFormData({ ...formData, code: e.target.value })}
+                    value={formData.firstName}
+                    onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     required
                   />
                 </div>
                 <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Name</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Last Name</label>
                   <input
                     type="text"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    value={formData.lastName}
+                    onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     required
-                  />
-                </div>
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Address</label>
-                  <textarea
-                    value={formData.address}
-                    onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    rows={3}
-                  />
-                </div>
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Phone</label>
-                  <input
-                    type="text"
-                    value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
                 <div className="mb-4">
@@ -216,6 +203,16 @@ export default function BranchesPage() {
                     type="email"
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    required
+                  />
+                </div>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Phone</label>
+                  <input
+                    type="text"
+                    value={formData.phone}
+                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
@@ -242,7 +239,7 @@ export default function BranchesPage() {
                     type="submit"
                     className="px-4 py-2 text-white bg-blue-600 rounded-md hover:bg-blue-700"
                   >
-                    {editingBranch ? 'Update' : 'Create'}
+                    {editingEmployee ? 'Update' : 'Create'}
                   </button>
                 </div>
               </form>

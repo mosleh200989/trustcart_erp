@@ -3,37 +3,35 @@ import { useState, useEffect } from 'react';
 import AdminLayout from '../../../layouts/AdminLayout';
 import api from '../../../services/api';
 
-interface Holiday {
+interface IndicatorCategory {
   id: number;
   name: string;
-  date: string;
   description?: string;
   isActive: boolean;
 }
 
-export default function HolidaysPage() {
-  const [holidays, setHolidays] = useState<Holiday[]>([]);
+export default function IndicatorCategoriesPage() {
+  const [indicatorCategories, setIndicatorCategories] = useState<IndicatorCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
-  const [editingHoliday, setEditingHoliday] = useState<Holiday | null>(null);
+  const [editingIndicatorCategory, setEditingIndicatorCategory] = useState<IndicatorCategory | null>(null);
   const [formData, setFormData] = useState({
     name: '',
-    date: '',
     description: '',
     isActive: true,
   });
 
   useEffect(() => {
-    fetchHolidays();
+    fetchIndicatorCategories();
   }, []);
 
-  const fetchHolidays = async () => {
+  const fetchIndicatorCategories = async () => {
     try {
-      const response = await api.get('/hr/holidays');
-      setHolidays(Array.isArray(response.data) ? response.data : []);
+      const response = await api.get('/hrm/indicator-categories');
+      setIndicatorCategories(Array.isArray(response.data) ? response.data : []);
     } catch (error) {
-      console.error('Failed to fetch holidays:', error);
-      setHolidays([]);
+      console.error('Failed to fetch indicator categories:', error);
+      setIndicatorCategories([]);
     } finally {
       setLoading(false);
     }
@@ -42,36 +40,35 @@ export default function HolidaysPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      if (editingHoliday) {
-        await api.put(`/hr/holidays/${editingHoliday.id}`, formData);
+      if (editingIndicatorCategory) {
+        await api.put(`/hrm/indicator-categories/${editingIndicatorCategory.id}`, formData);
       } else {
-        await api.post('/hr/holidays', formData);
+        await api.post('/hrm/indicator-categories', formData);
       }
-      fetchHolidays();
+      fetchIndicatorCategories();
       resetForm();
     } catch (error) {
-      console.error('Failed to save holiday:', error);
+      console.error('Failed to save indicator category:', error);
     }
   };
 
-  const handleEdit = (holiday: Holiday) => {
-    setEditingHoliday(holiday);
+  const handleEdit = (indicatorCategory: IndicatorCategory) => {
+    setEditingIndicatorCategory(indicatorCategory);
     setFormData({
-      name: holiday.name,
-      date: holiday.date,
-      description: holiday.description || '',
-      isActive: holiday.isActive,
+      name: indicatorCategory.name,
+      description: indicatorCategory.description || '',
+      isActive: indicatorCategory.isActive,
     });
     setShowModal(true);
   };
 
   const handleDelete = async (id: number) => {
-    if (confirm('Are you sure you want to delete this holiday?')) {
+    if (confirm('Are you sure you want to delete this indicator category?')) {
       try {
-        await api.delete(`/hr/holidays/${id}`);
-        fetchHolidays();
+        await api.delete(`/hrm/indicator-categories/${id}`);
+        fetchIndicatorCategories();
       } catch (error) {
-        console.error('Failed to delete holiday:', error);
+        console.error('Failed to delete indicator category:', error);
       }
     }
   };
@@ -79,11 +76,10 @@ export default function HolidaysPage() {
   const resetForm = () => {
     setFormData({
       name: '',
-      date: '',
       description: '',
       isActive: true,
     });
-    setEditingHoliday(null);
+    setEditingIndicatorCategory(null);
     setShowModal(false);
   };
 
@@ -91,20 +87,20 @@ export default function HolidaysPage() {
     <AdminLayout>
       <div className="container mx-auto px-4 py-6">
         <div className="flex justify-between items-center mb-6">
-          <h1 className="text-3xl font-bold text-gray-800">Holidays</h1>
+          <h1 className="text-3xl font-bold text-gray-800">Indicator Categories</h1>
           <button
             onClick={() => setShowModal(true)}
             className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition"
           >
-            Add New Holiday
+            Add New Indicator Category
           </button>
         </div>
 
         {loading ? (
           <div className="text-center py-12">Loading...</div>
-        ) : holidays.length === 0 ? (
+        ) : indicatorCategories.length === 0 ? (
           <div className="bg-white rounded-lg shadow p-6 text-center">
-            <p className="text-gray-500">No holidays found. Click "Add New Holiday" to create one.</p>
+            <p className="text-gray-500">No indicator categories found. Click "Add New Indicator Category" to create one.</p>
           </div>
         ) : (
           <div className="bg-white rounded-lg shadow overflow-hidden">
@@ -112,38 +108,36 @@ export default function HolidaysPage() {
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {holidays.map((holiday) => (
-                  <tr key={holiday.id}>
+                {indicatorCategories.map((category) => (
+                  <tr key={category.id}>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {holiday.name}
+                      {category.name}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{holiday.date}</td>
-                    <td className="px-6 py-4 text-sm text-gray-500">{holiday.description || '-'}</td>
+                    <td className="px-6 py-4 text-sm text-gray-500">{category.description || '-'}</td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span
                         className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                          holiday.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                          category.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
                         }`}
                       >
-                        {holiday.isActive ? 'Active' : 'Inactive'}
+                        {category.isActive ? 'Active' : 'Inactive'}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <button
-                        onClick={() => handleEdit(holiday)}
+                        onClick={() => handleEdit(category)}
                         className="text-blue-600 hover:text-blue-900 mr-4"
                       >
                         Edit
                       </button>
                       <button
-                        onClick={() => handleDelete(holiday.id)}
+                        onClick={() => handleDelete(category.id)}
                         className="text-red-600 hover:text-red-900"
                       >
                         Delete
@@ -160,7 +154,7 @@ export default function HolidaysPage() {
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-white rounded-lg p-8 max-w-md w-full">
               <h2 className="text-2xl font-bold mb-4">
-                {editingHoliday ? 'Edit Holiday' : 'Add New Holiday'}
+                {editingIndicatorCategory ? 'Edit Indicator Category' : 'Add New Indicator Category'}
               </h2>
               <form onSubmit={handleSubmit}>
                 <div className="mb-4">
@@ -169,16 +163,6 @@ export default function HolidaysPage() {
                     type="text"
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    required
-                  />
-                </div>
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Date</label>
-                  <input
-                    type="date"
-                    value={formData.date}
-                    onChange={(e) => setFormData({ ...formData, date: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     required
                   />
@@ -215,7 +199,7 @@ export default function HolidaysPage() {
                     type="submit"
                     className="px-4 py-2 text-white bg-blue-600 rounded-md hover:bg-blue-700"
                   >
-                    {editingHoliday ? 'Update' : 'Create'}
+                    {editingIndicatorCategory ? 'Update' : 'Create'}
                   </button>
                 </div>
               </form>

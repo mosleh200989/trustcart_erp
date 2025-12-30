@@ -3,41 +3,35 @@ import { useState, useEffect } from 'react';
 import AdminLayout from '../../../layouts/AdminLayout';
 import api from '../../../services/api';
 
-interface Promotion {
+interface TrainingType {
   id: number;
-  employeeId?: number;
-  oldDesignationId?: number;
-  newDesignationId?: number;
-  promotionDate?: string;
-  remarks?: string;
+  name: string;
+  description?: string;
   isActive: boolean;
 }
 
-export default function PromotionsPage() {
-  const [promotions, setPromotions] = useState<Promotion[]>([]);
+export default function TrainingTypesPage() {
+  const [trainingTypes, setTrainingTypes] = useState<TrainingType[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
-  const [editingPromotion, setEditingPromotion] = useState<Promotion | null>(null);
+  const [editingTrainingType, setEditingTrainingType] = useState<TrainingType | null>(null);
   const [formData, setFormData] = useState({
-    employeeId: '',
-    oldDesignationId: '',
-    newDesignationId: '',
-    promotionDate: '',
-    remarks: '',
+    name: '',
+    description: '',
     isActive: true,
   });
 
   useEffect(() => {
-    fetchPromotions();
+    fetchTrainingTypes();
   }, []);
 
-  const fetchPromotions = async () => {
+  const fetchTrainingTypes = async () => {
     try {
-      const response = await api.get('/hr/promotions');
-      setPromotions(Array.isArray(response.data) ? response.data : []);
+      const response = await api.get('/hrm/training-types');
+      setTrainingTypes(Array.isArray(response.data) ? response.data : []);
     } catch (error) {
-      console.error('Failed to fetch promotions:', error);
-      setPromotions([]);
+      console.error('Failed to fetch training types:', error);
+      setTrainingTypes([]);
     } finally {
       setLoading(false);
     }
@@ -46,52 +40,46 @@ export default function PromotionsPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      if (editingPromotion) {
-        await api.put(`/hr/promotions/${editingPromotion.id}`, formData);
+      if (editingTrainingType) {
+        await api.put(`/hrm/training-types/${editingTrainingType.id}`, formData);
       } else {
-        await api.post('/hr/promotions', formData);
+        await api.post('/hrm/training-types', formData);
       }
-      fetchPromotions();
+      fetchTrainingTypes();
       resetForm();
     } catch (error) {
-      console.error('Failed to save promotion:', error);
+      console.error('Failed to save training type:', error);
     }
   };
 
-  const handleEdit = (promotion: Promotion) => {
-    setEditingPromotion(promotion);
+  const handleEdit = (trainingType: TrainingType) => {
+    setEditingTrainingType(trainingType);
     setFormData({
-      employeeId: promotion.employeeId?.toString() || '',
-      oldDesignationId: promotion.oldDesignationId?.toString() || '',
-      newDesignationId: promotion.newDesignationId?.toString() || '',
-      promotionDate: promotion.promotionDate || '',
-      remarks: promotion.remarks || '',
-      isActive: promotion.isActive,
+      name: trainingType.name,
+      description: trainingType.description || '',
+      isActive: trainingType.isActive,
     });
     setShowModal(true);
   };
 
   const handleDelete = async (id: number) => {
-    if (confirm('Are you sure you want to delete this promotion?')) {
+    if (confirm('Are you sure you want to delete this training type?')) {
       try {
-        await api.delete(`/hr/promotions/${id}`);
-        fetchPromotions();
+        await api.delete(`/hrm/training-types/${id}`);
+        fetchTrainingTypes();
       } catch (error) {
-        console.error('Failed to delete promotion:', error);
+        console.error('Failed to delete training type:', error);
       }
     }
   };
 
   const resetForm = () => {
     setFormData({
-      employeeId: '',
-      oldDesignationId: '',
-      newDesignationId: '',
-      promotionDate: '',
-      remarks: '',
+      name: '',
+      description: '',
       isActive: true,
     });
-    setEditingPromotion(null);
+    setEditingTrainingType(null);
     setShowModal(false);
   };
 
@@ -99,57 +87,57 @@ export default function PromotionsPage() {
     <AdminLayout>
       <div className="container mx-auto px-4 py-6">
         <div className="flex justify-between items-center mb-6">
-          <h1 className="text-3xl font-bold text-gray-800">Promotions</h1>
+          <h1 className="text-3xl font-bold text-gray-800">Training Types</h1>
           <button
             onClick={() => setShowModal(true)}
             className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition"
           >
-            Add New Promotion
+            Add New Training Type
           </button>
         </div>
 
         {loading ? (
           <div className="text-center py-12">Loading...</div>
-        ) : promotions.length === 0 ? (
+        ) : trainingTypes.length === 0 ? (
           <div className="bg-white rounded-lg shadow p-6 text-center">
-            <p className="text-gray-500">No promotions found. Click "Add New Promotion" to create one.</p>
+            <p className="text-gray-500">No training types found. Click "Add New Training Type" to create one.</p>
           </div>
         ) : (
           <div className="bg-white rounded-lg shadow overflow-hidden">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Promotion Date</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Remarks</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {promotions.map((promotion) => (
-                  <tr key={promotion.id}>
+                {trainingTypes.map((type) => (
+                  <tr key={type.id}>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {promotion.promotionDate || '-'}
+                      {type.name}
                     </td>
-                    <td className="px-6 py-4 text-sm text-gray-500">{promotion.remarks || '-'}</td>
+                    <td className="px-6 py-4 text-sm text-gray-500">{type.description || '-'}</td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span
                         className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                          promotion.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                          type.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
                         }`}
                       >
-                        {promotion.isActive ? 'Active' : 'Inactive'}
+                        {type.isActive ? 'Active' : 'Inactive'}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <button
-                        onClick={() => handleEdit(promotion)}
+                        onClick={() => handleEdit(type)}
                         className="text-blue-600 hover:text-blue-900 mr-4"
                       >
                         Edit
                       </button>
                       <button
-                        onClick={() => handleDelete(promotion.id)}
+                        onClick={() => handleDelete(type.id)}
                         className="text-red-600 hover:text-red-900"
                       >
                         Delete
@@ -166,23 +154,24 @@ export default function PromotionsPage() {
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-white rounded-lg p-8 max-w-md w-full">
               <h2 className="text-2xl font-bold mb-4">
-                {editingPromotion ? 'Edit Promotion' : 'Add New Promotion'}
+                {editingTrainingType ? 'Edit Training Type' : 'Add New Training Type'}
               </h2>
               <form onSubmit={handleSubmit}>
                 <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Promotion Date</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Name</label>
                   <input
-                    type="date"
-                    value={formData.promotionDate}
-                    onChange={(e) => setFormData({ ...formData, promotionDate: e.target.value })}
+                    type="text"
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    required
                   />
                 </div>
                 <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Remarks</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
                   <textarea
-                    value={formData.remarks}
-                    onChange={(e) => setFormData({ ...formData, remarks: e.target.value })}
+                    value={formData.description}
+                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     rows={3}
                   />
@@ -210,7 +199,7 @@ export default function PromotionsPage() {
                     type="submit"
                     className="px-4 py-2 text-white bg-blue-600 rounded-md hover:bg-blue-700"
                   >
-                    {editingPromotion ? 'Update' : 'Create'}
+                    {editingTrainingType ? 'Update' : 'Create'}
                   </button>
                 </div>
               </form>

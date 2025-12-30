@@ -48,45 +48,147 @@ const menuItems: MenuItem[] = [
     path: '/admin/purchase'
   },
   {
-    title: 'HR',
+    title: 'HR Management',
     icon: FaUserTie,
     children: [
-      { title: 'Branches', icon: FaUserTie, path: '/admin/hr/branches' },
-      { title: 'Departments', icon: FaUserTie, path: '/admin/hr/departments' },
-      { title: 'Designations', icon: FaUserTie, path: '/admin/hr/designations' },
-      { title: 'Document Types', icon: FaUserTie, path: '/admin/hr/document-types' },
-      { title: 'Employees', icon: FaUserTie, path: '/admin/hr/employees' },
-      { title: 'Award Types', icon: FaUserTie, path: '/admin/hr/award-types' },
-      { title: 'Awards', icon: FaUserTie, path: '/admin/hr/awards' },
-      { title: 'Promotions', icon: FaUserTie, path: '/admin/hr/promotions' },
-      { title: 'Performance', icon: FaUserTie, path: '/admin/hr/performance', children: [
-        { title: 'Indicator Categories', icon: FaUserTie, path: '/admin/hr/performance/indicator-categories' },
-        { title: 'Indicators', icon: FaUserTie, path: '/admin/hr/performance/indicators' },
-        { title: 'Goal Types', icon: FaUserTie, path: '/admin/hr/performance/goal-types' },
-        { title: 'Employee Goals', icon: FaUserTie, path: '/admin/hr/performance/employee-goals' },
-        { title: 'Review Cycles', icon: FaUserTie, path: '/admin/hr/performance/review-cycles' },
-        { title: 'Employee Reviews', icon: FaUserTie, path: '/admin/hr/performance/employee-reviews' },
-      ]},
-      { title: 'Resignations', icon: FaUserTie, path: '/admin/hr/resignations' },
-      { title: 'Terminations', icon: FaUserTie, path: '/admin/hr/terminations' },
-      { title: 'Warnings', icon: FaUserTie, path: '/admin/hr/warnings' },
-      { title: 'Trips', icon: FaUserTie, path: '/admin/hr/trips' },
-      { title: 'Complaints', icon: FaUserTie, path: '/admin/hr/complaints' },
-      { title: 'Transfers', icon: FaUserTie, path: '/admin/hr/transfers' },
-      { title: 'Holidays', icon: FaUserTie, path: '/admin/hr/holidays' },
-      { title: 'Announcements', icon: FaUserTie, path: '/admin/hr/announcements' },
-      { title: 'Training Management', icon: FaUserTie, children: [
-        { title: 'Training Types', icon: FaUserTie, path: '/admin/hr/training-types' },
-        { title: 'Training Programs', icon: FaUserTie, path: '/admin/hr/training-programs' },
-        { title: 'Training Sessions', icon: FaUserTie, path: '/admin/hr/training-sessions' },
-        { title: 'Employee Trainings', icon: FaUserTie, path: '/admin/hr/employee-trainings' },
-      ]},
+      { title: 'Branches', icon: FaUserTie, path: '/admin/hrm/branches' },
+      { title: 'Departments', icon: FaUserTie, path: '/admin/hrm/departments' },
+      { title: 'Designations', icon: FaUserTie, path: '/admin/hrm/designations' },
+      { title: 'Document Types', icon: FaUserTie, path: '/admin/hrm/document-types' },
+      { title: 'Employees', icon: FaUserTie, path: '/admin/hrm/employees' },
+      { title: 'Award Types', icon: FaUserTie, path: '/admin/hrm/award-types' },
+      { title: 'Awards', icon: FaUserTie, path: '/admin/hrm/awards' },
+      { title: 'Promotions', icon: FaUserTie, path: '/admin/hrm/promotions' },
+      { title: 'Resignations', icon: FaUserTie, path: '/admin/hrm/resignations' },
+      { title: 'Terminations', icon: FaUserTie, path: '/admin/hrm/terminations' },
+      { title: 'Warnings', icon: FaUserTie, path: '/admin/hrm/warnings' },
+      { title: 'Trips', icon: FaUserTie, path: '/admin/hrm/trips' },
+      { title: 'Complaints', icon: FaUserTie, path: '/admin/hrm/complaints' },
+      { title: 'Transfers', icon: FaUserTie, path: '/admin/hrm/transfers' },
+      { title: 'Holidays', icon: FaUserTie, path: '/admin/hrm/holidays' },
+      { title: 'Announcements', icon: FaUserTie, path: '/admin/hrm/announcements' },
+      { 
+        title: 'Training Management', 
+        icon: FaUserTie, 
+        children: [
+          { title: 'Training Types', icon: FaUserTie, path: '/admin/hrm/training-types' },
+          { title: 'Training Programs', icon: FaUserTie, path: '/admin/hrm/training-programs' },
+          { title: 'Training Sessions', icon: FaUserTie, path: '/admin/hrm/training-sessions' },
+          { title: 'Employee Trainings', icon: FaUserTie, path: '/admin/hrm/employee-trainings' },
+        ]
+      },
+      { 
+        title: 'Performance Management', 
+        icon: FaUserTie, 
+        children: [
+          { title: 'Indicator Categories', icon: FaUserTie, path: '/admin/hrm/indicator-categories' },
+          { title: 'Indicators', icon: FaUserTie, path: '/admin/hrm/indicators' },
+          { title: 'Goal Types', icon: FaUserTie, path: '/admin/hrm/goal-types' },
+          { title: 'Employee Goals', icon: FaUserTie, path: '/admin/hrm/employee-goals' },
+          { title: 'Review Cycles', icon: FaUserTie, path: '/admin/hrm/review-cycles' },
+          { title: 'Employee Reviews', icon: FaUserTie, path: '/admin/hrm/employee-reviews' },
+        ]
+      },
+      { 
+        title: 'Attendance Management', 
+        icon: FaUserTie, 
+        children: [
+          { title: 'Shifts', icon: FaUserTie, path: '/admin/hrm/shifts' },
+          { title: 'Attendance Policies', icon: FaUserTie, path: '/admin/hrm/attendance-policies' },
+          { title: 'Attendance Records', icon: FaUserTie, path: '/admin/hrm/attendance-records' },
+          { title: 'Regularizations', icon: FaUserTie, path: '/admin/hrm/regularizations' },
+        ]
+      },
+      { 
+        title: 'Payroll', 
+        icon: FaUserTie, 
+        children: [
+          { title: 'Salary Components', icon: FaUserTie, path: '/admin/hrm/salary-components' },
+          { title: 'Employee Salaries', icon: FaUserTie, path: '/admin/hrm/employee-salaries' },
+          { title: 'Payroll Runs', icon: FaUserTie, path: '/admin/hrm/payroll-runs' },
+          { title: 'Payslips', icon: FaUserTie, path: '/admin/hrm/payslips' },
+        ]
+      },
+      { 
+        title: 'Leave Management', 
+        icon: FaUserTie, 
+        children: [
+          { title: 'Leave Types', icon: FaUserTie, path: '/admin/hrm/leave-types' },
+          { title: 'Leave Policies', icon: FaUserTie, path: '/admin/hrm/leave-policies' },
+          { title: 'Leave Applications', icon: FaUserTie, path: '/admin/hrm/leave-applications' },
+          { title: 'Leave Balances', icon: FaUserTie, path: '/admin/hrm/leave-balances' },
+        ]
+      },
+      {
+        title: 'Recruitment',
+        icon: FaUserTie,
+        children: [
+          { title: 'Job Categories', icon: FaUserTie, path: '/admin/hrm/job-categories' },
+          { title: 'Job Requisitions', icon: FaUserTie, path: '/admin/hrm/job-requisitions' },
+          { title: 'Job Types', icon: FaUserTie, path: '/admin/hrm/job-types' },
+          { title: 'Job Locations', icon: FaUserTie, path: '/admin/hrm/job-locations' },
+          { title: 'Job Postings', icon: FaUserTie, path: '/admin/hrm/job-postings' },
+          { title: 'Candidate Sources', icon: FaUserTie, path: '/admin/hrm/candidate-sources' },
+          { title: 'Candidates', icon: FaUserTie, path: '/admin/hrm/candidates' },
+          { title: 'Interview Types', icon: FaUserTie, path: '/admin/hrm/interview-types' },
+          { title: 'Interview Rounds', icon: FaUserTie, path: '/admin/hrm/interview-rounds' },
+          { title: 'Interviews', icon: FaUserTie, path: '/admin/hrm/interviews' },
+          { title: 'Interview Feedback', icon: FaUserTie, path: '/admin/hrm/interview-feedback' },
+          { title: 'Assessments', icon: FaUserTie, path: '/admin/hrm/assessments' },
+          { title: 'Offer Templates', icon: FaUserTie, path: '/admin/hrm/offer-templates' },
+          { title: 'Offers', icon: FaUserTie, path: '/admin/hrm/offers' },
+          { title: 'Onboarding Checklists', icon: FaUserTie, path: '/admin/hrm/onboarding-checklists' },
+          { title: 'Checklist Items', icon: FaUserTie, path: '/admin/hrm/checklist-items' },
+          { title: 'Candidate Onboarding', icon: FaUserTie, path: '/admin/hrm/candidate-onboarding' },
+        ],
+      },
+      {
+        title: 'Contract Management',
+        icon: FaUserTie,
+        children: [
+          { title: 'Contract Types', icon: FaUserTie, path: '/admin/hrm/contract-types' },
+          { title: 'Employee Contracts', icon: FaUserTie, path: '/admin/hrm/employee-contracts' },
+          { title: 'Contract Renewals', icon: FaUserTie, path: '/admin/hrm/contract-renewals' },
+          { title: 'Contract Templates', icon: FaUserTie, path: '/admin/hrm/contract-templates' },
+        ],
+      },
+      {
+        title: 'Document Management',
+        icon: FaUserTie,
+        children: [
+          { title: 'Document Categories', icon: FaUserTie, path: '/admin/hrm/document-categories' },
+          { title: 'HR Documents', icon: FaUserTie, path: '/admin/hrm/hr-documents' },
+          { title: 'Acknowledgments', icon: FaUserTie, path: '/admin/hrm/acknowledgments' },
+          { title: 'Document Templates', icon: FaUserTie, path: '/admin/hrm/document-templates' },
+        ],
+      },
+      {
+        title: 'Meetings',
+        icon: FaUserTie,
+        children: [
+          { title: 'Meeting Types', icon: FaUserTie, path: '/admin/hrm/meeting-types' },
+          { title: 'Meeting Rooms', icon: FaUserTie, path: '/admin/hrm/meeting-rooms' },
+          { title: 'Meetings', icon: FaUserTie, path: '/admin/hrm/meetings' },
+          { title: 'Meeting Attendees', icon: FaUserTie, path: '/admin/hrm/meeting-attendees' },
+          { title: 'Meeting Minutes', icon: FaUserTie, path: '/admin/hrm/meeting-minutes' },
+          { title: 'Action Items', icon: FaUserTie, path: '/admin/hrm/action-items' },
+        ],
+      },
+      {
+        title: 'Calendar',
+        icon: FaUserTie,
+        children: [
+          { title: 'Calendar Events', icon: FaUserTie, path: '/admin/hrm/calendar-events' },
+        ],
+      },
+      {
+        title: 'Media Library',
+        icon: FaUserTie,
+        children: [
+          { title: 'Media Files', icon: FaUserTie, path: '/admin/hrm/media-files' },
+        ],
+      },
     ],
-  },
-  {
-    title: 'Payroll',
-    icon: FaUserTie,
-    path: '/admin/payroll'
   },
   {
     title: 'Accounting',
@@ -130,14 +232,6 @@ const menuItems: MenuItem[] = [
     icon: FaUser,
     path: '/admin/users'
   },
-  {
-    title: 'Recruitment',
-    icon: FaUserTie,
-    children: [
-      { title: 'Jobs', icon: FaUserTie, path: '/admin/recruitment/jobs' },
-      { title: 'Applications', icon: FaUserTie, path: '/admin/recruitment/applications' },
-    ],
-  },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -145,20 +239,27 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [expandedMenus, setExpandedMenus] = useState<string[]>([]);
   const router = useRouter();
 
+  // Helper function to get all parent menu titles for a given path
+  const getParentMenuTitles = (items: MenuItem[], currentPath: string, parents: string[] = []): string[] | null => {
+    for (const item of items) {
+      if (item.path === currentPath) {
+        return parents;
+      }
+      if (item.children) {
+        const found = getParentMenuTitles(item.children, currentPath, [...parents, item.title]);
+        if (found !== null) {
+          return found;
+        }
+      }
+    }
+    return null;
+  };
+
   // Auto-expand menu containing the active page
   useEffect(() => {
-    const activeMenu = menuItems.find(item => {
-      if (item.path === router.pathname) return true;
-      if (item.children) {
-        return item.children.some(child => child.path === router.pathname);
-      }
-      return false;
-    });
-    
-    if (activeMenu && activeMenu.children) {
-      setExpandedMenus(prev => 
-        prev.includes(activeMenu.title) ? prev : [...prev, activeMenu.title]
-      );
+    const parentTitles = getParentMenuTitles(menuItems, router.pathname);
+    if (parentTitles && parentTitles.length > 0) {
+      setExpandedMenus(parentTitles);
     }
   }, [router.pathname]);
 
@@ -202,8 +303,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               key={item.title}
               item={item}
               collapsed={sidebarCollapsed}
-              expanded={expandedMenus.includes(item.title)}
-              onToggle={() => toggleMenu(item.title)}
+              expandedMenus={expandedMenus}
+              onToggle={toggleMenu}
               currentPath={router.pathname}
             />
           ))}
@@ -246,56 +347,57 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 function MenuItem({
   item,
   collapsed,
-  expanded,
+  expandedMenus,
   onToggle,
   currentPath,
 }: {
   item: MenuItem;
   collapsed: boolean;
-  expanded: boolean;
-  onToggle: () => void;
+  expandedMenus: string[];
+  onToggle: (title: string) => void;
   currentPath: string;
 }) {
   const hasChildren = item.children && item.children.length > 0;
   const isActive = item.path === currentPath;
+  const isExpanded = expandedMenus.includes(item.title);
   const IconComponent = item.icon;
 
   if (hasChildren) {
     return (
       <div>
         <button
-          onClick={onToggle}
+          onClick={() => onToggle(item.title)}
           className={`w-full flex items-center px-4 py-3 hover:bg-blue-700 transition-colors ${
-            expanded ? 'bg-blue-700' : ''
+            isExpanded ? 'bg-blue-700' : ''
           }`}
         >
           <IconComponent className="text-lg" />
           {!collapsed && (
             <>
               <span className="ml-3 flex-1 text-left text-sm font-medium">{item.title}</span>
-              <FaChevronDown className={`text-sm transition-transform ${expanded ? 'rotate-180' : ''}`} />
+              <FaChevronDown className={`text-sm transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
             </>
           )}
         </button>
-        {expanded && !collapsed && (
+        {isExpanded && !collapsed && (
           <div className="bg-blue-800 bg-opacity-50">
             {item.children!.map((child) => {
               const ChildIcon = child.icon;
               const hasGrandchildren = child.children && child.children.length > 0;
               
               if (hasGrandchildren) {
-                const [subExpanded, setSubExpanded] = useState(false);
+                const isChildExpanded = expandedMenus.includes(child.title);
                 return (
                   <div key={child.title}>
                     <button
-                      onClick={() => setSubExpanded(!subExpanded)}
+                      onClick={() => onToggle(child.title)}
                       className="w-full flex items-center px-8 py-2 hover:bg-blue-700 transition-colors"
                     >
                       <ChildIcon className="text-sm" />
                       <span className="ml-3 flex-1 text-left text-sm">{child.title}</span>
-                      <FaChevronDown className={`text-xs transition-transform ${subExpanded ? 'rotate-180' : ''}`} />
+                      <FaChevronDown className={`text-xs transition-transform ${isChildExpanded ? 'rotate-180' : ''}`} />
                     </button>
-                    {subExpanded && (
+                    {isChildExpanded && (
                       <div className="bg-blue-900 bg-opacity-50">
                         {child.children!.map((grandchild) => {
                           const GrandchildIcon = grandchild.icon;

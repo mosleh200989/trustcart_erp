@@ -59,7 +59,6 @@ import { RecruitmentModule } from './modules/recruitment/recruitment.module';
 import { SalesModule } from './modules/sales/sales.module';
 import { PurchaseModule } from './modules/purchase/purchase.module';
 import { InventoryModule } from './modules/inventory/inventory.module';
-import { HrModule } from './modules/hr/hr.module';
 import { HrmModule } from './modules/hrm/hrm.module';
 // HRM Entities
 import { HrmBranches } from './modules/hrm/entities/hrm-branches.entity';
@@ -127,13 +126,10 @@ import { SpecialOffersModule } from './modules/special-offers/special-offers.mod
             FamilyMember, CustomerInteraction, CustomerBehavior, CustomerDropoff, CustomerAddress,
             CallTask, RecommendationRule, EngagementHistory, MarketingCampaign,
             SalesTeam, SalesOrder, SalesOrderItem, OrderItem, OrderActivityLog, CourierTrackingHistory, SupportTicket,
-<<<<<<<<< Temporary merge branch 1
-            Offer, OfferCondition, OfferReward, OfferProduct, OfferCategory, OfferUsage, Banner, Category, SpecialOffer
-=========
-            Offer, OfferCondition, OfferReward, OfferProduct, OfferCategory, OfferUsage,
-            // HRM Entities
+
+            Offer, OfferCondition, OfferReward, OfferProduct, OfferCategory, OfferUsage, Banner, Category, SpecialOffer,
+            
             HrmBranches, HrmDepartments, HrmDesignations, HrmEmployees, HrmAwardTypes, HrmAwards, HrmPromotions, HrmResignations, HrmTerminations, HrmWarnings, HrmTrips, HrmComplaints, HrmTransfers, HrmHolidays, HrmAnnouncements, HrmTrainingTypes, HrmTrainingPrograms, HrmTrainingSessions, HrmEmployeeTrainings, HrmPerformanceIndicatorCategories, HrmPerformanceIndicators, HrmEmployeePerformance, HrmDocumentTypes, HrmEmployeeDocuments
->>>>>>>>> Temporary merge branch 2
           ],
           synchronize: false,
           logging: true,
@@ -165,7 +161,6 @@ import { SpecialOffersModule } from './modules/special-offers/special-offers.mod
     SalesModule,
     PurchaseModule,
     InventoryModule,
-    HrModule,
     HrmModule,
     PayrollModule,
     AccountingModule,

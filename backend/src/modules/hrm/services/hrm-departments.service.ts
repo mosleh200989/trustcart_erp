@@ -12,8 +12,18 @@ export class HrmDepartmentsService {
     private readonly departmentRepository: Repository<HrmDepartments>,
   ) {}
 
-  create(dto: CreateDepartmentDto) {
-    const department = this.departmentRepository.create(dto);
+  async create(dto: CreateDepartmentDto) {
+    const { branchId, ...rest } = dto;
+    const department = this.departmentRepository.create(rest);
+    if (branchId) {
+      // Use getRepository with the entity class for correct typing
+      const { HrmBranches } = await import('../entities/hrm-branches.entity');
+      const branchRepo = this.departmentRepository.manager.getRepository(HrmBranches);
+      const branch = await branchRepo.findOne({ where: { id: branchId } });
+      if (branch) {
+        department.branch = branch;
+      }
+    }
     return this.departmentRepository.save(department);
   }
 
