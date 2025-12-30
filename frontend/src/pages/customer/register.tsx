@@ -32,15 +32,16 @@ export default function CustomerRegister() {
     }
 
     try {
-      const nameParts = name.trim().split(' ');
-      const name = nameParts[0] || name;
+      const trimmedFullName = name.trim();
+      const nameParts = trimmedFullName.split(/\s+/).filter(Boolean);
+      const firstName = nameParts[0] || trimmedFullName;
       const lastName = nameParts.slice(1).join(' ') || '';
       
       await apiClient.post('/customers', {
-        name,
+        name: firstName,
         lastName,
-        email,
-        phone,
+        email: email.trim() ? email.trim() : null,
+        phone: phone.trim(),
         password,
         customerType: 'new',
         status: 'active'
@@ -51,6 +52,7 @@ export default function CustomerRegister() {
         Router.push('/customer/login');
       }, 2000);
     } catch (err: any) {
+      console.log("Registration Error:", err);
       setError(err?.response?.data?.message || 'Registration failed. Email might already exist.');
     } finally {
       setLoading(false);
@@ -98,7 +100,7 @@ export default function CustomerRegister() {
 
           <div className="mb-4">
             <label className="block text-gray-700 font-medium mb-2 text-sm">
-              Email Address
+              Email Address (Optional)
             </label>
             <input
               type="email"
@@ -106,7 +108,6 @@ export default function CustomerRegister() {
               onChange={(e) => setEmail(e.target.value)}
               className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
               placeholder="customer@example.com"
-              required
             />
           </div>
 

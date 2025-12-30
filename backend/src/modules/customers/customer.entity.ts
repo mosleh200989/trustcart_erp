@@ -30,13 +30,13 @@ export class Customer {
   @Column({ name: 'company_name', nullable: true })
   companyName!: string;
 
-  @Column({ unique: true })
-  email!: string;
+  @Column({ type: 'varchar', length: 255, unique: true, nullable: true })
+  email!: string | null;
 
   @Column({ nullable: true, select: false })
   password!: string;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', length: 30, unique: true })
   phone!: string;
 
   @Column({ nullable: true })

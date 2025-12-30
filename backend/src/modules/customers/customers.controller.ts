@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Put, Delete } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Put, Delete, BadRequestException } from '@nestjs/common';
 import { CustomersService } from './customers.service';
 
 @Controller('customers')
@@ -21,7 +21,7 @@ export class CustomersController {
       return await this.customersService.create(createCustomerDto);
     } catch (error: any) {
       console.error('Customer creation error:', error);
-      throw new Error(error.message || 'Failed to create customer');
+      throw new BadRequestException(error.message || 'Failed to create customer');
     }
   }
 

@@ -45,6 +45,15 @@ import { Category } from './modules/categories/category.entity';
 import { SpecialOffer } from './modules/special-offers/special-offer.entity';
 import { DealOfTheDay } from './modules/products/deal-of-the-day.entity';
 
+// Loyalty Entities
+import { CustomerMembership } from './modules/loyalty/entities/customer-membership.entity';
+import { CustomerWallet } from './modules/loyalty/entities/customer-wallet.entity';
+import { WalletTransaction } from './modules/loyalty/entities/wallet-transaction.entity';
+import { CustomerReferral } from './modules/loyalty/entities/customer-referral.entity';
+import { MonthlyGroceryList } from './modules/loyalty/entities/monthly-grocery-list.entity';
+import { GroceryListItem } from './modules/loyalty/entities/grocery-list-item.entity';
+import { PriceLock } from './modules/loyalty/entities/price-lock.entity';
+
 // CRM Entities
 import { Deal } from './modules/crm/entities/deal.entity';
 import { DealStage } from './modules/crm/entities/deal-stage.entity';
@@ -150,6 +159,8 @@ import { SpecialOffersModule } from './modules/special-offers/special-offers.mod
             SalesTeam, SalesOrder, SalesOrderItem, OrderItem, OrderActivityLog, CourierTrackingHistory, SupportTicket,
             Offer, OfferCondition, OfferReward, OfferProduct, OfferCategory, OfferUsage, Banner, Category, SpecialOffer,
             DealOfTheDay,
+            // Loyalty entities
+            CustomerMembership, CustomerWallet, WalletTransaction, CustomerReferral, MonthlyGroceryList, GroceryListItem, PriceLock,
             // CRM entities
             Deal, DealStage, Activity, Task, Quote, Meeting, EmailTracking,
             CustomDealStage, SalesPipeline, ActivityTemplate, CustomerSegment, SegmentMember,

@@ -8,8 +8,11 @@ export class WalletTransaction {
   @Column({ name: 'wallet_id' })
   walletId: number;
 
-  @Column({ name: 'customer_id' })
-  customerId: number;
+  @Column({ name: 'customer_id', nullable: true })
+  customerId?: number;
+
+  @Column({ name: 'customer_uuid', type: 'uuid', nullable: true })
+  customerUuid?: string;
 
   @Column({ 
     name: 'transaction_type',

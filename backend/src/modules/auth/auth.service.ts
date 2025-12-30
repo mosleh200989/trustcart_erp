@@ -15,15 +15,24 @@ export class AuthService {
     private customersRepository: Repository<Customer>,
   ) {}
 
-  async login(email: string, password: string) {
+  async login(identifier: string, password: string) {
+    const loginValue = (identifier || '').toString().trim();
+    if (!loginValue) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+
+    const looksLikeEmail = loginValue.includes('@');
+
     // First, try to find in users table
-    const user = await this.usersRepository.findOne({ where: { email } });
+    const user = looksLikeEmail
+      ? await this.usersRepository.findOne({ where: { email: loginValue } })
+      : await this.usersRepository.findOne({ where: { phone: loginValue } });
     
     // If not found in users, check customers table
     if (!user) {
-      const customer = await this.customersRepository.findOne({ 
-        where: { email },
-        select: ['id', 'email', 'password', 'name', 'lastName', 'phone']
+      const customer = await this.customersRepository.findOne({
+        where: looksLikeEmail ? { email: loginValue } : { phone: loginValue },
+        select: ['id', 'email', 'password', 'name', 'lastName', 'phone'],
       });
       
       if (customer && customer.password) {
@@ -35,7 +44,7 @@ export class AuthService {
 
         // Generate token for customer
         const token = jwt.sign(
-          { id: customer.id, email: customer.email, roleSlug: 'customer-account' },
+          { id: customer.id, email: customer.email, phone: customer.phone, roleSlug: 'customer-account' },
           process.env.JWT_SECRET || 'trustcart-erp-secret-key-2024',
           { expiresIn: '24h' }
         );
@@ -53,10 +62,10 @@ export class AuthService {
       }
       
       // Create demo admin user if doesn't exist
-      if (email === 'admin@trustcart.com' && password === 'admin123') {
+      if (loginValue === 'admin@trustcart.com' && password === 'admin123') {
         const hashedPassword = await bcrypt.hash(password, 10);
         const newUser = this.usersRepository.create({
-          email,
+          email: loginValue,
           password: hashedPassword,
           name: 'Admin',
           lastName: 'User',
@@ -69,7 +78,7 @@ export class AuthService {
         } catch (error) {
           console.error('Error creating user:', error);
           // If user exists but query failed, try to find them
-          const existingUser = await this.usersRepository.findOne({ where: { email } });
+          const existingUser = await this.usersRepository.findOne({ where: { email: loginValue } });
           if (existingUser) {
             const token = jwt.sign(
               { id: existingUser.id, email: existingUser.email },

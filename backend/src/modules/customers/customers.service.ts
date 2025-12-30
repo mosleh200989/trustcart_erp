@@ -21,13 +21,39 @@ export class CustomersService {
 
   async create(createCustomerDto: any) {
     try {
-      // Check if email already exists
-      const existing = await this.customersRepository.findOne({ 
-        where: { email: createCustomerDto.email } 
+      const email =
+        typeof createCustomerDto.email === 'string'
+          ? createCustomerDto.email.trim()
+          : null;
+      const phone =
+        typeof createCustomerDto.phone === 'string'
+          ? createCustomerDto.phone.trim()
+          : '';
+
+      if (!phone) {
+        throw new Error('Phone number is required');
+      }
+
+      // Normalize empty email to null to avoid unique collisions on ''
+      createCustomerDto.email = email && email.length > 0 ? email : null;
+      createCustomerDto.phone = phone;
+
+      // Check if phone already exists (mandatory + login identifier)
+      const existingPhone = await this.customersRepository.findOne({
+        where: { phone },
       });
-      
-      if (existing) {
-        throw new Error('Email already exists');
+      if (existingPhone) {
+        throw new Error('Phone number already exists');
+      }
+
+      // Check if email already exists (only when provided)
+      if (createCustomerDto.email) {
+        const existingEmail = await this.customersRepository.findOne({
+          where: { email: createCustomerDto.email },
+        });
+        if (existingEmail) {
+          throw new Error('Email already exists');
+        }
       }
 
       // Hash password if provided

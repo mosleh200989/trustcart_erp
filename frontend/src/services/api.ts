@@ -24,8 +24,8 @@ apiClient.interceptors.request.use((config) => {
 export default apiClient;
 
 export const auth = {
-  async login(email: string, password: string) {
-    const res = await apiClient.post('/auth/login', { email, password });
+  async login(identifier: string, password: string) {
+    const res = await apiClient.post('/auth/login', { identifier, email: identifier, password });
     return res.data;
   },
 
@@ -37,7 +37,11 @@ export const auth = {
     try {
       const res = await apiClient.post('/auth/validate', { token });
       if (res.data && res.data.valid) {
-        return res.data.user as { id: number; email: string; roleId?: number; roleSlug?: string };
+        const user = res.data.user as any;
+        return {
+          ...user,
+          id: String(user?.id ?? ''),
+        } as { id: string; email?: string | null; phone?: string | null; roleId?: number; roleSlug?: string };
       }
       return null;
     } catch (err) {
@@ -298,21 +302,21 @@ export const sales = {
 
 // Loyalty / Wallet / Referrals API
 export const loyalty = {
-  async getWallet(customerId: number) {
+  async getWallet(customerId: string) {
     const res = await apiClient.get(`/loyalty/wallet/${customerId}`);
     return res.data;
   },
-  async getWalletTransactions(customerId: number, limit: number = 20) {
+  async getWalletTransactions(customerId: string, limit: number = 20) {
     const res = await apiClient.get(`/loyalty/wallet/${customerId}/transactions`, {
       params: { limit },
     });
     return Array.isArray(res.data) ? res.data : [];
   },
-  async getReferrals(customerId: number) {
+  async getReferrals(customerId: string) {
     const res = await apiClient.get(`/loyalty/referrals/${customerId}`);
     return Array.isArray(res.data) ? res.data : [];
   },
-  async getReferralStats(customerId: number) {
+  async getReferralStats(customerId: string) {
     const res = await apiClient.get(`/loyalty/referrals/${customerId}/stats`);
     return res.data || {};
   },
