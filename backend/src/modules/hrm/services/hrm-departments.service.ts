@@ -35,8 +35,29 @@ export class HrmDepartmentsService {
     return this.departmentRepository.findOne({ where: { id } });
   }
 
-  update(id: number, dto: UpdateDepartmentDto) {
-    return this.departmentRepository.update(id, dto);
+  async update(id: number, dto: UpdateDepartmentDto) {
+    const department = await this.departmentRepository.findOne({ where: { id } });
+    if (!department) {
+      throw new Error('Department not found');
+    }
+
+    const { branchId, ...rest } = dto;
+    Object.assign(department, rest);
+
+    if (branchId !== undefined) {
+      if (branchId) {
+        const { HrmBranches } = await import('../entities/hrm-branches.entity');
+        const branchRepo = this.departmentRepository.manager.getRepository(HrmBranches);
+        const branch = await branchRepo.findOne({ where: { id: branchId } });
+        if (branch) {
+          department.branch = branch;
+        }
+      } else {
+        department.branch = null;
+      }
+    }
+
+    return this.departmentRepository.save(department);
   }
 
   remove(id: number) {

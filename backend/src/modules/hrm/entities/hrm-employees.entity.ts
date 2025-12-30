@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany, JoinColumn } from 'typeorm';
 import { HrmBranches } from './hrm-branches.entity';
 import { HrmDepartments } from './hrm-departments.entity';
 import { HrmDesignations } from './hrm-designations.entity';
@@ -35,12 +35,15 @@ export class HrmEmployees {
   phone: string;
 
   @ManyToOne(() => HrmBranches, branch => branch.employees, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'branch_id' })
   branch: HrmBranches;
 
   @ManyToOne(() => HrmDepartments, department => department.employees, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'department_id' })
   department: HrmDepartments;
 
   @ManyToOne(() => HrmDesignations, designation => designation.employees, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'designation_id' })
   designation: HrmDesignations;
 
   @Column({ type: 'date', nullable: true })
@@ -106,3 +109,4 @@ export class HrmEmployees {
   @OneToMany(() => HrmEmployeeDocuments, ed => ed.employee)
   employee_documents: HrmEmployeeDocuments[];
 }
+

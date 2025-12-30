@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany, JoinColumn } from 'typeorm';
 import { HrmTrainingPrograms } from './hrm-training-programs.entity';
 import { HrmEmployeeTrainings } from './hrm-employee-trainings.entity';
 
@@ -8,6 +8,7 @@ export class HrmTrainingSessions {
   id: number;
 
   @ManyToOne(() => HrmTrainingPrograms, program => program.training_sessions, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'training_program_id' })
   training_program: HrmTrainingPrograms;
 
   @Column({ length: 255 })
@@ -37,3 +38,4 @@ export class HrmTrainingSessions {
   @OneToMany(() => HrmEmployeeTrainings, et => et.training_session)
   employee_trainings: HrmEmployeeTrainings[];
 }
+

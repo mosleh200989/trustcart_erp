@@ -12,8 +12,17 @@ export class HrmDesignationsService {
     private readonly designationRepository: Repository<HrmDesignations>,
   ) {}
 
-  create(dto: CreateDesignationDto) {
-    const designation = this.designationRepository.create(dto);
+  async create(dto: CreateDesignationDto) {
+    const { departmentId, ...rest } = dto;
+    const designation = this.designationRepository.create(rest);
+    if (departmentId) {
+      const { HrmDepartments } = await import('../entities/hrm-departments.entity');
+      const departmentRepo = this.designationRepository.manager.getRepository(HrmDepartments);
+      const department = await departmentRepo.findOne({ where: { id: departmentId } });
+      if (department) {
+        designation.department = department;
+      }
+    }
     return this.designationRepository.save(designation);
   }
 
@@ -25,8 +34,29 @@ export class HrmDesignationsService {
     return this.designationRepository.findOne({ where: { id } });
   }
 
-  update(id: number, dto: UpdateDesignationDto) {
-    return this.designationRepository.update(id, dto);
+  async update(id: number, dto: UpdateDesignationDto) {
+    const designation = await this.designationRepository.findOne({ where: { id } });
+    if (!designation) {
+      throw new Error('Designation not found');
+    }
+
+    const { departmentId, ...rest } = dto;
+    Object.assign(designation, rest);
+
+    if (departmentId !== undefined) {
+      if (departmentId) {
+        const { HrmDepartments } = await import('../entities/hrm-departments.entity');
+        const departmentRepo = this.designationRepository.manager.getRepository(HrmDepartments);
+        const department = await departmentRepo.findOne({ where: { id: departmentId } });
+        if (department) {
+          designation.department = department;
+        }
+      } else {
+        designation.department = null;
+      }
+    }
+
+    return this.designationRepository.save(designation);
   }
 
   remove(id: number) {

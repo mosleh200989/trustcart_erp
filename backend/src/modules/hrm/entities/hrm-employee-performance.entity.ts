@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn } from 'typeorm';
 import { HrmEmployees } from './hrm-employees.entity';
 import { HrmPerformanceIndicators } from './hrm-performance-indicators.entity';
 
@@ -8,9 +8,11 @@ export class HrmEmployeePerformance {
   id: number;
 
   @ManyToOne(() => HrmEmployees, employee => employee.employee_performance, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'employee_id' })
   employee: HrmEmployees;
 
   @ManyToOne(() => HrmPerformanceIndicators, indicator => indicator.employee_performance, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'indicator_id' })
   indicator: HrmPerformanceIndicators;
 
   @Column({ type: 'int', nullable: true })
@@ -28,3 +30,4 @@ export class HrmEmployeePerformance {
   @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
   updated_at: Date;
 }
+

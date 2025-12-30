@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn } from 'typeorm';
 import { HrmEmployees } from './hrm-employees.entity';
 import { HrmDocumentTypes } from './hrm-document-types.entity';
 
@@ -8,9 +8,11 @@ export class HrmEmployeeDocuments {
   id: number;
 
   @ManyToOne(() => HrmEmployees, employee => employee.employee_documents, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'employee_id' })
   employee: HrmEmployees;
 
   @ManyToOne(() => HrmDocumentTypes, type => type.employee_documents, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'document_type_id' })
   document_type: HrmDocumentTypes;
 
   @Column({ type: 'text', nullable: true })
@@ -31,3 +33,4 @@ export class HrmEmployeeDocuments {
   @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
   updated_at: Date;
 }
+

@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany, JoinColumn } from 'typeorm';
 import { HrmPerformanceIndicatorCategories } from './hrm-performance-indicator-categories.entity';
 import { HrmEmployeePerformance } from './hrm-employee-performance.entity';
 
@@ -8,6 +8,7 @@ export class HrmPerformanceIndicators {
   id: number;
 
   @ManyToOne(() => HrmPerformanceIndicatorCategories, category => category.indicators, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'category_id' })
   category: HrmPerformanceIndicatorCategories;
 
   @Column({ length: 255 })
@@ -31,3 +32,4 @@ export class HrmPerformanceIndicators {
   @OneToMany(() => HrmEmployeePerformance, ep => ep.indicator)
   employee_performance: HrmEmployeePerformance[];
 }
+

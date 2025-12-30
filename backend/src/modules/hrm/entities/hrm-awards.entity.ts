@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn } from 'typeorm';
 import { HrmAwardTypes } from './hrm-award-types.entity';
 import { HrmEmployees } from './hrm-employees.entity';
 
@@ -8,9 +8,11 @@ export class HrmAwards {
   id: number;
 
   @ManyToOne(() => HrmAwardTypes, awardType => awardType.awards, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'award_type_id' })
   award_type: HrmAwardTypes;
 
   @ManyToOne(() => HrmEmployees, employee => employee.awards, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'employee_id' })
   employee: HrmEmployees;
 
   @Column({ length: 255 })
@@ -31,3 +33,4 @@ export class HrmAwards {
   @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
   updated_at: Date;
 }
+
