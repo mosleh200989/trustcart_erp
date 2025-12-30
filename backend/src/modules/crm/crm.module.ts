@@ -18,6 +18,24 @@ import { MeetingService } from './meeting.service';
 import { MeetingController } from './meeting.controller';
 import { EmailTrackingService } from './email-tracking.service';
 import { EmailTrackingController } from './email-tracking.controller';
+import { DealStageService } from './deal-stage.service';
+import { DealStageController } from './deal-stage.controller';
+// Phase 1 Services and Controllers
+import { PipelineService } from './pipeline.service';
+import { PipelineController } from './pipeline.controller';
+import { SegmentationService } from './segmentation.service';
+import { SegmentationController } from './segmentation.controller';
+import { EmailTemplateService } from './email-template.service';
+import { EmailTemplateController } from './email-template.controller';
+import { ActivityTemplateService } from './activity-template.service';
+import { ActivityTemplateController } from './activity-template.controller';
+import { ForecastService } from './forecast.service';
+import { ForecastController } from './forecast.controller';
+import { WorkflowService } from './workflow.service';
+import { WorkflowController } from './workflow.controller';
+import { QuoteTemplateService } from './quote-template.service';
+import { QuoteTemplateController } from './quote-template.controller';
+// Entities
 import { Customer } from '../customers/customer.entity';
 import { User } from '../users/user.entity';
 import { CallTask } from './entities/call-task.entity';
@@ -32,13 +50,24 @@ import { Quote } from './entities/quote.entity';
 import { Meeting } from './entities/meeting.entity';
 import { EmailTracking } from './entities/email-tracking.entity';
 import { DealStage } from './entities/deal-stage.entity';
-import { DealStageService } from './deal-stage.service';
-import { DealStageController } from './deal-stage.controller';
+// Phase 1 Entities
+import { CustomDealStage } from './entities/custom-deal-stage.entity';
+import { SalesPipeline } from './entities/sales-pipeline.entity';
+import { ActivityTemplate } from './entities/activity-template.entity';
+import { CustomerSegment } from './entities/customer-segment.entity';
+import { SegmentMember } from './entities/segment-member.entity';
+import { EmailTemplate } from './entities/email-template.entity';
+import { AutomationWorkflow } from './entities/automation-workflow.entity';
+import { WorkflowExecution } from './entities/workflow-execution.entity';
+import { QuoteTemplate } from './entities/quote-template.entity';
+import { SalesForecast } from './entities/sales-forecast.entity';
+import { SalesQuota } from './entities/sales-quota.entity';
 import { RbacModule } from '../rbac/rbac.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([
+      // Existing entities
       Customer,
       User,
       CallTask,
@@ -52,11 +81,24 @@ import { RbacModule } from '../rbac/rbac.module';
       Task,
       Quote,
       Meeting,
-      EmailTracking
+      EmailTracking,
+      // Phase 1 entities
+      CustomDealStage,
+      SalesPipeline,
+      ActivityTemplate,
+      CustomerSegment,
+      SegmentMember,
+      EmailTemplate,
+      AutomationWorkflow,
+      WorkflowExecution,
+      QuoteTemplate,
+      SalesForecast,
+      SalesQuota
     ]),
     RbacModule
   ],
   controllers: [
+    // Existing controllers
     CrmController, 
     CrmTeamController, 
     CrmAutomationController,
@@ -66,9 +108,18 @@ import { RbacModule } from '../rbac/rbac.module';
     TaskController,
     QuoteController,
     MeetingController,
-    EmailTrackingController
+    EmailTrackingController,
+    // Phase 1 controllers
+    PipelineController,
+    SegmentationController,
+    EmailTemplateController,
+    ActivityTemplateController,
+    ForecastController,
+    WorkflowController,
+    QuoteTemplateController
   ],
   providers: [
+    // Existing providers
     CrmService, 
     CrmTeamService, 
     CrmAutomationService,
@@ -78,9 +129,18 @@ import { RbacModule } from '../rbac/rbac.module';
     TaskService,
     QuoteService,
     MeetingService,
-    EmailTrackingService
+    EmailTrackingService,
+    // Phase 1 providers
+    PipelineService,
+    SegmentationService,
+    EmailTemplateService,
+    ActivityTemplateService,
+    ForecastService,
+    WorkflowService,
+    QuoteTemplateService
   ],
   exports: [
+    // Existing exports
     CrmService, 
     CrmTeamService, 
     CrmAutomationService,
@@ -90,7 +150,15 @@ import { RbacModule } from '../rbac/rbac.module';
     TaskService,
     QuoteService,
     MeetingService,
-    EmailTrackingService
+    EmailTrackingService,
+    // Phase 1 exports
+    PipelineService,
+    SegmentationService,
+    EmailTemplateService,
+    ActivityTemplateService,
+    ForecastService,
+    WorkflowService,
+    QuoteTemplateService
   ],
 })
 export class CrmModule {}

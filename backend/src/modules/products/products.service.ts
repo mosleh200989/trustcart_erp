@@ -1,13 +1,16 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Product } from './product.entity';
+import { DealOfTheDay } from './deal-of-the-day.entity';
 
 @Injectable()
 export class ProductsService {
   constructor(
     @InjectRepository(Product)
     private productsRepository: Repository<Product>,
+    @InjectRepository(DealOfTheDay)
+    private dealOfTheDayRepository: Repository<DealOfTheDay>,
   ) {}
 
   async findAll() {
@@ -74,7 +77,11 @@ export class ProductsService {
   }
 
   async findOne(id: string) {
-    return this.productsRepository.findOne({ where: { id: parseInt(id) } });
+    const numericId = parseInt(id, 10);
+    if (!Number.isFinite(numericId)) {
+      throw new BadRequestException('Invalid product id');
+    }
+    return this.productsRepository.findOne({ where: { id: numericId } });
   }
 
   async searchProducts(query: string) {
@@ -342,6 +349,195 @@ export class ProductsService {
     } catch (error) {
       console.error('Error fetching recently viewed products:', error);
       return [];
+    }
+  }
+
+  // Product Images Methods
+  async getProductImages(productId: number) {
+    try {
+      const images = await this.productsRepository.query(`
+        SELECT id, product_id, image_url, display_order, is_primary, created_at
+        FROM product_images
+        WHERE product_id = $1
+        ORDER BY is_primary DESC, display_order ASC
+      `, [productId]);
+      return images;
+    } catch (error) {
+      console.error('Error fetching product images:', error);
+      return [];
+    }
+  }
+
+  async addProductImage(productId: number, imageData: { image_url: string; display_order?: number; is_primary?: boolean }) {
+    try {
+      // If this is to be set as primary, unset any existing primary image
+      if (imageData.is_primary) {
+        await this.productsRepository.query(`
+          UPDATE product_images SET is_primary = FALSE WHERE product_id = $1
+        `, [productId]);
+      }
+
+      const result = await this.productsRepository.query(`
+        INSERT INTO product_images (product_id, image_url, display_order, is_primary)
+        VALUES ($1, $2, $3, $4)
+        RETURNING *
+      `, [
+        productId,
+        imageData.image_url,
+        imageData.display_order || 0,
+        imageData.is_primary || false
+      ]);
+      return result[0];
+    } catch (error) {
+      console.error('Error adding product image:', error);
+      throw error;
+    }
+  }
+
+  async deleteProductImage(imageId: number) {
+    try {
+      await this.productsRepository.query(`
+        DELETE FROM product_images WHERE id = $1
+      `, [imageId]);
+      return { success: true, message: 'Image deleted successfully' };
+    } catch (error) {
+      console.error('Error deleting product image:', error);
+      throw error;
+    }
+  }
+
+  async updateProductImage(imageId: number, imageData: { display_order?: number; is_primary?: boolean }) {
+    try {
+      // If setting as primary, get the product_id first and unset others
+      if (imageData.is_primary) {
+        const currentImage = await this.productsRepository.query(`
+          SELECT product_id FROM product_images WHERE id = $1
+        `, [imageId]);
+        
+        if (currentImage.length > 0) {
+          await this.productsRepository.query(`
+            UPDATE product_images SET is_primary = FALSE WHERE product_id = $1
+          `, [currentImage[0].product_id]);
+        }
+      }
+
+      const updateFields: string[] = [];
+      const params: any[] = [];
+      let paramCounter = 1;
+
+      if (imageData.display_order !== undefined) {
+        updateFields.push(`display_order = $${paramCounter}`);
+        params.push(imageData.display_order);
+        paramCounter++;
+      }
+
+      if (imageData.is_primary !== undefined) {
+        updateFields.push(`is_primary = $${paramCounter}`);
+        params.push(imageData.is_primary);
+        paramCounter++;
+      }
+
+      if (updateFields.length === 0) {
+        return { success: false, message: 'No fields to update' };
+      }
+
+      params.push(imageId);
+      const result = await this.productsRepository.query(`
+        UPDATE product_images 
+        SET ${updateFields.join(', ')}
+        WHERE id = $${paramCounter}
+        RETURNING *
+      `, params);
+
+      return result[0];
+    } catch (error) {
+      console.error('Error updating product image:', error);
+      throw error;
+    }
+  }
+
+  // Deal of the Day methods
+  async getDealOfTheDay() {
+    try {
+      console.log('🔍 Fetching active deal from database...');
+      const deal = await this.dealOfTheDayRepository.findOne({
+        where: { is_active: true },
+      });
+
+      console.log('📦 Deal found:', deal);
+
+      if (!deal) {
+        console.log('⚠️ No active deal found in database');
+        return null;
+      }
+
+      if (!deal.product_id || deal.product_id === null || isNaN(Number(deal.product_id))) {
+        console.log('⚠️ Deal exists but product_id is invalid:', deal.product_id);
+        return null;
+      }
+
+      // Check if deal has expired
+      if (deal.end_date && new Date(deal.end_date) < new Date()) {
+        console.log('⏰ Deal has expired, deactivating...');
+        await this.dealOfTheDayRepository.update(deal.id, { is_active: false });
+        return null;
+      }
+
+      // Get full product details with category
+      console.log('🔍 Fetching product with ID:', deal.product_id);
+      
+      const productDetails = await this.productsRepository.query(`
+        SELECT 
+          p.id, p.slug, p.sku, p.name_en, p.name_bn, 
+          p.base_price, p.sale_price, p.discount_type, p.discount_value,
+          p.brand, p.image_url, p.stock_quantity, p.status,
+          c.name_en as category_name
+        FROM products p
+        LEFT JOIN categories c ON p.category_id = c.id
+        WHERE p.id = $1 AND p.status = 'active'
+      `, [Number(deal.product_id)]);
+
+      console.log('✅ Product details fetched:', productDetails[0] ? 'Found' : 'Not found');
+      return productDetails[0] || null;
+    } catch (error) {
+      console.error('❌ Error fetching deal of the day:', error);
+      return null;
+    }
+  }
+
+  async setDealOfTheDay(productId: number, endDate?: Date) {
+    try {
+      // Deactivate all existing deals
+      await this.dealOfTheDayRepository.update(
+        { is_active: true },
+        { is_active: false }
+      );
+
+      // Create new deal
+      const deal = this.dealOfTheDayRepository.create({
+        product_id: productId,
+        start_date: new Date(),
+        end_date: endDate,
+        is_active: true,
+      });
+
+      return await this.dealOfTheDayRepository.save(deal);
+    } catch (error) {
+      console.error('Error setting deal of the day:', error);
+      throw error;
+    }
+  }
+
+  async removeDealOfTheDay() {
+    try {
+      await this.dealOfTheDayRepository.update(
+        { is_active: true },
+        { is_active: false }
+      );
+      return { success: true, message: 'Deal of the day removed' };
+    } catch (error) {
+      console.error('Error removing deal of the day:', error);
+      throw error;
     }
   }
 }

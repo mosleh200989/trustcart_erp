@@ -2,6 +2,7 @@ import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateCol
 import { Customer } from '../../customers/customer.entity';
 import { User } from '../../users/user.entity';
 import { Deal } from './deal.entity';
+import { QuoteTemplate } from './quote-template.entity';
 
 @Entity('quotes')
 export class Quote {
@@ -31,6 +32,25 @@ export class Quote {
   @ManyToOne(() => User)
   @JoinColumn({ name: 'created_by' })
   creator: User;
+
+  // Phase 1: Quote Template
+  @Column({ name: 'template_id', nullable: true })
+  templateId: number;
+
+  @ManyToOne(() => QuoteTemplate, { nullable: true })
+  @JoinColumn({ name: 'template_id' })
+  template: QuoteTemplate;
+
+  // Phase 1: Quote Versioning
+  @Column({ type: 'integer', default: 1 })
+  version: number;
+
+  @Column({ name: 'parent_quote_id', nullable: true })
+  parentQuoteId: number;
+
+  @ManyToOne(() => Quote, { nullable: true })
+  @JoinColumn({ name: 'parent_quote_id' })
+  parentQuote: Quote;
 
   @Column({ name: 'valid_until', type: 'date' })
   validUntil: Date;
@@ -76,6 +96,20 @@ export class Quote {
 
   @Column({ name: 'pdf_url', nullable: true })
   pdfUrl: string;
+
+  // Phase 1: Approval Workflow
+  @Column({ name: 'approval_status', default: 'pending' })
+  approvalStatus: string; // 'pending', 'approved', 'rejected'
+
+  @Column({ name: 'approved_by', nullable: true })
+  approvedBy: number;
+
+  @ManyToOne(() => User, { nullable: true })
+  @JoinColumn({ name: 'approved_by' })
+  approver: User;
+
+  @Column({ name: 'approved_at', type: 'timestamp', nullable: true })
+  approvedAt: Date;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
