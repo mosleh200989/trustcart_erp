@@ -47,12 +47,18 @@ export default function Register() {
     setLoading(true);
 
     try {
-      // Register user
-      const response = await apiClient.post('/auth/register', {
-        name: formData.name,
-        email: formData.email,
+      const nameParts = formData.name.trim().split(' ');
+      const firstName = nameParts[0] || formData.name;
+      const lastName = nameParts.slice(1).join(' ') || '';
+
+      const response = await apiClient.post('/customers', {
+        name: firstName,
+        lastName,
+        email: formData.email.trim() ? formData.email.trim() : null,
+        phone: formData.phone.trim(),
         password: formData.password,
-        phone: formData.phone
+        customerType: 'new',
+        status: 'active',
       });
 
       if (response.data) {
@@ -98,13 +104,12 @@ export default function Register() {
             </div>
 
             <div className="mb-4">
-              <label className="block text-sm font-semibold mb-2">Email *</label>
+              <label className="block text-sm font-semibold mb-2">Email (Optional)</label>
               <input
                 type="email"
                 name="email"
                 value={formData.email}
                 onChange={handleChange}
-                required
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-500"
               />
             </div>

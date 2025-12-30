@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { FaStar, FaShoppingCart, FaHeart, FaEye } from 'react-icons/fa';
@@ -34,13 +34,19 @@ export default function ElectroProductCard({
   discount
 }: ProductCardProps) {
   const [showPopup, setShowPopup] = useState(false);
+  const [imageError, setImageError] = useState(false);
   const router = useRouter();
   const displayName = nameEn || name || nameBn || 'Product';
   const productUrl = slug ? `/products/${slug}` : `/products/${id}`;
+  const imageUrl = typeof image === 'string' ? image.trim() : '';
   const priceNum = typeof price === 'number' ? price : parseFloat(price) || 0;
   const originalPriceNum = originalPrice ? (typeof originalPrice === 'number' ? originalPrice : parseFloat(originalPrice)) : undefined;
   const hasDiscount = originalPriceNum && originalPriceNum > priceNum;
   const discountPercent = hasDiscount ? Math.round(((originalPriceNum - priceNum) / originalPriceNum) * 100) : discount;
+
+  useEffect(() => {
+    setImageError(false);
+  }, [imageUrl]);
 
   const handleAddToCart = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -107,16 +113,14 @@ export default function ElectroProductCard({
       <Link href={productUrl}>
         {/* Image */}
         <div className="relative h-48 bg-gray-50 flex items-center justify-center overflow-hidden">
-          {image ? (
+          {imageUrl && !imageError ? (
             <img
-              src={image}
+              src={imageUrl}
               alt={displayName}
-              crossOrigin="anonymous"
               className="object-contain group-hover:scale-110 transition-transform duration-500 max-h-full p-4"
               onError={(e) => {
-                console.error('Image failed to load:', image);
-                e.currentTarget.style.display = 'none';
-                e.currentTarget.parentElement!.innerHTML = '<div class="w-full h-full flex items-center justify-center bg-gradient-to-br from-orange-100 to-orange-50"><span class="text-6xl">📦</span></div>';
+                console.error('Image failed to load:', imageUrl);
+                setImageError(true);
               }}
             />
           ) : (
@@ -126,7 +130,7 @@ export default function ElectroProductCard({
           )}
           
           {/* Hover Overlay */}
-          <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-10 transition-all duration-300"></div>
+          <div className="pointer-events-none absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-all duration-300"></div>
         </div>
 
         {/* Content */}

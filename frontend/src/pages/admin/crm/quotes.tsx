@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Plus, Search, Eye, Send, Download, CheckCircle, XCircle, Clock, Edit, Trash2, X, FileText } from 'lucide-react';
 import AdminLayout from '@/layouts/AdminLayout';
+import apiClient from '@/services/api';
+// import { addQuoteNotification } from '@/components/QuoteNotifications'; // DISABLED
 import { format } from 'date-fns';
 
 interface Quote {
@@ -37,27 +39,38 @@ const QuoteManagement = () => {
   const fetchQuotes = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('authToken');
-      const params = new URLSearchParams();
-      if (filterStatus) params.append('status', filterStatus);
+      const params: any = {};
+      if (filterStatus) params.status = filterStatus;
 
-      const response = await fetch(`http://localhost:3001/api/crm/quotes?${params}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await apiClient.get('/crm/quotes', { params });
+      const data = Array.isArray(response.data) ? response.data : [];
       
-      if (!response.ok) {
-        console.error('Failed to fetch quotes:', response.statusText);
-        setQuotes([]);
-        return;
+      // Check for status changes and trigger notifications
+      if (quotes.length > 0) {
+        data.forEach((newQuote: Quote) => {
+          const oldQuote = quotes.find(q => q.id === newQuote.id);
+          if (oldQuote && oldQuote.status !== newQuote.status) {
+            const messages: Record<string, string> = {
+              sent: `Quote ${newQuote.quoteNumber} has been sent to ${newQuote.customer.name}`,
+              viewed: `Quote ${newQuote.quoteNumber} was viewed by ${newQuote.customer.name}`,
+              accepted: `🎉 Quote ${newQuote.quoteNumber} was accepted by ${newQuote.customer.name}!`,
+              rejected: `Quote ${newQuote.quoteNumber} was rejected by ${newQuote.customer.name}`,
+            };
+            
+            const message = messages[newQuote.status] || `Quote ${newQuote.quoteNumber} status changed to ${newQuote.status}`;
+            /* DISABLED - Quote Notifications
+            addQuoteNotification(
+              `quote_${newQuote.status}` as any,
+              newQuote.id,
+              newQuote.quoteNumber,
+              message
+            );
+            */
+          }
+        });
       }
       
-      const data = await response.json();
-      if (Array.isArray(data)) {
-        setQuotes(data);
-      } else {
-        console.error('Quotes API returned non-array:', data);
-        setQuotes([]);
-      }
+      setQuotes(data);
     } catch (error) {
       console.error('Error fetching quotes:', error);
       setQuotes([]);
@@ -68,14 +81,41 @@ const QuoteManagement = () => {
 
   const markAsSent = async (id: number) => {
     try {
-      const token = localStorage.getItem('authToken');
-      await fetch(`http://localhost:3001/api/crm/quotes/${id}/send`, {
-        method: 'PATCH',
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      await apiClient.patch(`/crm/quotes/${id}/send`);
+      const quote = quotes.find(q => q.id === id);
+      if (quote) {
+        /* DISABLED - Quote Notifications
+        addQuoteNotification(
+          'quote_sent',
+          quote.id,
+          quote.quoteNumber,
+          `Quote ${quote.quoteNumber} has been sent to ${quote.customer.name}`
+        );
+        */
+      }
       fetchQuotes();
     } catch (error) {
       console.error('Error marking quote as sent:', error);
+    }
+  };
+
+  const downloadPDF = async (id: number) => {
+    try {
+      const response = await apiClient.get(`/crm/quotes/${id}/pdf`, {
+        responseType: 'blob'
+      });
+      
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `quote-${id}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error downloading PDF:', error);
+      alert('Failed to download PDF');
     }
   };
 
@@ -248,7 +288,10 @@ const QuoteManagement = () => {
                         <Send className="w-4 h-4" /> Send to Customer
                       </button>
                     )}
-                    <button className="px-3 py-1.5 bg-green-100 text-green-700 rounded hover:bg-green-200 text-sm flex items-center gap-1">
+                    <button 
+                      onClick={() => downloadPDF(quote.id)}
+                      className="px-3 py-1.5 bg-green-100 text-green-700 rounded hover:bg-green-200 text-sm flex items-center gap-1"
+                    >
                       <Download className="w-4 h-4" /> Download PDF
                     </button>
                     <button className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 text-sm flex items-center gap-1">
@@ -310,14 +353,12 @@ const QuoteModal = ({ onClose, onSave }: { onClose: () => void; onSave: () => vo
 
   const fetchCustomers = async () => {
     try {
-      const token = localStorage.getItem('authToken');
-      const response = await fetch('http://localhost:3001/api/customers?limit=100', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await response.json();
+      const response = await apiClient.get('/customers', { params: { limit: 100 } });
+      const data = Array.isArray(response.data) ? response.data : [];
       setCustomers(data);
     } catch (error) {
       console.error('Error fetching customers:', error);
+      setCustomers([]);
     }
   };
 
@@ -347,22 +388,14 @@ const QuoteModal = ({ onClose, onSave }: { onClose: () => void; onSave: () => vo
     const { subtotal, tax, total } = calculateTotals();
     
     try {
-      const token = localStorage.getItem('authToken');
-      await fetch('http://localhost:3001/api/crm/quotes', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          ...formData,
-          customerId: parseInt(formData.customerId),
-          dealId: formData.dealId ? parseInt(formData.dealId) : undefined,
-          lineItems,
-          subtotal,
-          tax,
-          total,
-        }),
+      await apiClient.post('/crm/quotes', {
+        ...formData,
+        customerId: parseInt(formData.customerId),
+        dealId: formData.dealId ? parseInt(formData.dealId) : undefined,
+        lineItems,
+        subtotal,
+        tax,
+        total,
       });
       onSave();
     } catch (error) {

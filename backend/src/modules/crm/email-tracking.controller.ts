@@ -2,9 +2,10 @@ import { Controller, Get, Post, Put, Param, Body, Query, UseGuards, Request } fr
 import { EmailTrackingService } from './email-tracking.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Public } from '../../common/decorators/public.decorator';
+import { PermissionsGuard } from '../../common/guards/permissions.guard';
 
 @Controller('crm/emails')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 export class EmailTrackingController {
   constructor(private readonly emailTrackingService: EmailTrackingService) {}
 

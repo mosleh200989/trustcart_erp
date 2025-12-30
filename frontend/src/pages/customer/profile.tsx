@@ -6,7 +6,7 @@ import { FaUser, FaEnvelope, FaPhone, FaMapMarkerAlt, FaUsers, FaEdit, FaTrash, 
 interface CustomerProfile {
   id: string;
   name: string;
-  email: string;
+  email?: string | null;
   phone?: string | null;
   address?: string | null;
 }
@@ -16,7 +16,7 @@ export default function CustomerProfilePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
-  const [editPhone, setEditPhone] = useState('');
+  const [editEmail, setEditEmail] = useState('');
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [profileMessage, setProfileMessage] = useState<string | null>(null);
 
@@ -39,29 +39,30 @@ export default function CustomerProfilePage() {
       setError(null);
       try {
         const user = await auth.getCurrentUser();
-        if (!user || !user.email) {
+        if (!user) {
           setError('Unable to load profile. Please login again.');
           setLoading(false);
           return;
         }
 
-        const list = await customers.list();
-        const match = (list as any[]).find((c) => c.email === user.email);
+        const customerId = (user as any).id;
+        const match = await customers.get(customerId);
         if (!match) {
           setError('Customer profile not found for this account.');
-        } else {
-          const fullName = `${match.name || ''} ${match.lastName || ''}`.trim() || match.name || 'Customer';
-          setProfile({
-            id: match.id,
-            name: fullName,
-            email: match.email,
-            phone: match.phone || match.mobile,
-            address: match.address,
-          });
-          setEditName(fullName);
-          setEditPhone(match.phone || match.mobile || '');
-          loadFamily(match.id);
+          return;
         }
+
+        const fullName = `${match.name || ''} ${match.lastName || ''}`.trim() || match.name || 'Customer';
+        setProfile({
+          id: match.id,
+          name: fullName,
+          email: match.email ?? null,
+          phone: match.phone || match.mobile,
+          address: match.address,
+        });
+        setEditName(fullName);
+        setEditEmail(match.email ?? '');
+        loadFamily(match.id);
       } catch (e) {
         console.error('Error loading customer profile:', e);
         setError('Failed to load profile data.');
@@ -94,14 +95,14 @@ export default function CustomerProfilePage() {
       setProfileMessage(null);
       const updated = await customers.update(profile.id, {
         name: editName,
-        phone: editPhone,
+        email: editEmail.trim() ? editEmail.trim() : null,
       });
       setProfile((prev) =>
         prev
           ? {
               ...prev,
               name: updated.name ?? editName,
-              phone: updated.phone ?? editPhone,
+              email: updated.email ?? (editEmail.trim() ? editEmail.trim() : null),
             }
           : prev,
       );
@@ -113,6 +114,15 @@ export default function CustomerProfilePage() {
       setIsSavingProfile(false);
     }
   };
+
+  const relationshipOptions = [
+    { value: 'spouse', label: 'Spouse' },
+    { value: 'child', label: 'Child' },
+    { value: 'parent', label: 'Parent' },
+    { value: 'sibling', label: 'Sibling' },
+    { value: 'grandparent', label: 'Grandparent' },
+    { value: 'other', label: 'Other' },
+  ];
 
   const handleAddFamily = async () => {
     if (!profile) return;
@@ -255,11 +265,13 @@ export default function CustomerProfilePage() {
                     <FaEnvelope className="text-gray-400" />
                     Email Address
                   </label>
-                  <div className="w-full border border-gray-200 bg-gray-50 rounded-lg px-4 py-3 text-gray-600 flex items-center gap-2">
-                    <FaEnvelope className="text-gray-400" />
-                    {profile.email}
-                    <span className="ml-auto text-xs bg-gray-200 text-gray-600 px-2 py-1 rounded">Read-only</span>
-                  </div>
+                  <input
+                    type="email"
+                    className="w-full border border-gray-300 rounded-lg px-4 py-3 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                    value={editEmail}
+                    onChange={(e) => setEditEmail(e.target.value)}
+                    placeholder="you@example.com (optional)"
+                  />
                 </div>
 
                 {/* Phone Field */}
@@ -268,13 +280,11 @@ export default function CustomerProfilePage() {
                     <FaPhone className="text-gray-400" />
                     Phone Number
                   </label>
-                  <input
-                    type="tel"
-                    className="w-full border border-gray-300 rounded-lg px-4 py-3 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-                    value={editPhone}
-                    onChange={(e) => setEditPhone(e.target.value)}
-                    placeholder="Enter your phone number"
-                  />
+                  <div className="w-full border border-gray-200 bg-gray-50 rounded-lg px-4 py-3 text-gray-600 flex items-center gap-2">
+                    <FaPhone className="text-gray-400" />
+                    {profile.phone || '-'}
+                    <span className="ml-auto text-xs bg-gray-200 text-gray-600 px-2 py-1 rounded">Read-only</span>
+                  </div>
                 </div>
 
                 {/* Address Field */}
@@ -347,13 +357,18 @@ export default function CustomerProfilePage() {
                                 onChange={(e) => setEditFamilyName(e.target.value)}
                                 placeholder="Name"
                               />
-                              <input
-                                type="text"
+                              <select
                                 className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
                                 value={editFamilyRelationship}
                                 onChange={(e) => setEditFamilyRelationship(e.target.value)}
-                                placeholder="Relationship"
-                              />
+                              >
+                                <option value="">Select relationship</option>
+                                {relationshipOptions.map((opt) => (
+                                  <option key={opt.value} value={opt.value}>
+                                    {opt.label}
+                                  </option>
+                                ))}
+                              </select>
                               <input
                                 type="text"
                                 className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
@@ -434,13 +449,18 @@ export default function CustomerProfilePage() {
                       value={newFamilyName}
                       onChange={(e) => setNewFamilyName(e.target.value)}
                     />
-                    <input
-                      type="text"
-                      placeholder="Relationship (e.g., Spouse, Child)"
+                    <select
                       className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
                       value={newFamilyRelationship}
                       onChange={(e) => setNewFamilyRelationship(e.target.value)}
-                    />
+                    >
+                      <option value="">Select relationship</option>
+                      {relationshipOptions.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
                     <input
                       type="tel"
                       placeholder="Phone (optional)"

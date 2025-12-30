@@ -56,6 +56,25 @@ export class Activity {
   @Column({ type: 'jsonb', nullable: true })
   metadata: any; // For storing type-specific data
 
+  // Phase 1: Advanced Activity Logging fields
+  @Column({ name: 'recording_url', type: 'text', nullable: true })
+  recordingUrl: string;
+
+  @Column({ nullable: true })
+  sentiment: string; // 'very_positive', 'positive', 'neutral', 'negative', 'very_negative'
+
+  @Column({ name: 'follow_up_required', type: 'boolean', default: false })
+  followUpRequired: boolean;
+
+  @Column({ name: 'follow_up_date', type: 'timestamp', nullable: true })
+  followUpDate: Date;
+
+  @Column({ type: 'jsonb', default: [] })
+  tags: string[];
+
+  @Column({ type: 'jsonb', default: [] })
+  attachments: any[];
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 }

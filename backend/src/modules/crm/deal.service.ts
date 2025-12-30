@@ -58,19 +58,24 @@ export class DealService {
   }
 
   async getPipelineStats(ownerId?: number): Promise<any> {
-    let query = this.dealRepository.createQueryBuilder('deal')
-      .select('deal.stage', 'stage')
-      .addSelect('COUNT(*)', 'count')
-      .addSelect('SUM(deal.value)', 'totalValue')
+    const base = this.dealRepository.createQueryBuilder('deal')
       .where('deal.status = :status', { status: 'open' });
 
     if (ownerId) {
-      query.andWhere('deal.ownerId = :ownerId', { ownerId });
+      base.andWhere('deal.ownerId = :ownerId', { ownerId });
     }
 
-    query.groupBy('deal.stage');
+    const totals = await base.clone()
+      .select('COUNT(*)', 'totalDeals')
+      .addSelect('COALESCE(SUM(deal.value), 0)', 'totalValue')
+      .addSelect('COALESCE(AVG(deal.probability), 0)', 'avgProbability')
+      .getRawOne<{ totaldeals: string; totalvalue: string; avgprobability: string }>();
 
-    return await query.getRawMany();
+    return {
+      totalDeals: Number(totals?.totaldeals ?? 0),
+      totalValue: Number(totals?.totalvalue ?? 0),
+      avgProbability: Math.round(Number(totals?.avgprobability ?? 0)),
+    };
   }
 
   async getWinRateStats(ownerId?: number): Promise<any> {

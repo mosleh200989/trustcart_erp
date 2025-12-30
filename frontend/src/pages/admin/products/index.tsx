@@ -5,6 +5,7 @@ import DataTable from '@/components/admin/DataTable';
 import Modal from '@/components/admin/Modal';
 import FormInput from '@/components/admin/FormInput';
 import ImageUpload from '@/components/admin/ImageUpload';
+import MultipleImageUpload from '@/components/admin/MultipleImageUpload';
 import { FaPlus, FaSearch } from 'react-icons/fa';
 import apiClient from '@/services/api';
 
@@ -32,6 +33,8 @@ export default function AdminProducts() {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const itemsPerPage = 10;
 
+  const [additionalInfoRows, setAdditionalInfoRows] = useState<Array<{ key: string; value: string }>>([]);
+
   const [formData, setFormData] = useState({
     name_en: '',
     name_bn: '',
@@ -45,6 +48,24 @@ export default function AdminProducts() {
     image_url: '',
     display_position: ''
   });
+
+  const toAdditionalInfoRows = (data: any): Array<{ key: string; value: string }> => {
+    if (!data || typeof data !== 'object' || Array.isArray(data)) return [];
+    return Object.entries(data).map(([key, value]) => ({
+      key,
+      value: typeof value === 'string' ? value : JSON.stringify(value)
+    }));
+  };
+
+  const buildAdditionalInfoObject = (): Record<string, string> => {
+    const result: Record<string, string> = {};
+    for (const row of additionalInfoRows) {
+      const key = row.key?.trim();
+      if (!key) continue;
+      result[key] = row.value ?? '';
+    }
+    return result;
+  };
 
   useEffect(() => {
     loadProducts();
@@ -88,6 +109,7 @@ export default function AdminProducts() {
       image_url: '',
       display_position: ''
     });
+    setAdditionalInfoRows([]);
     setIsModalOpen(true);
   };
 
@@ -116,6 +138,8 @@ export default function AdminProducts() {
         image_url: fullProduct.image_url || '',
         display_position: fullProduct.display_position ? fullProduct.display_position.toString() : ''
       });
+
+      setAdditionalInfoRows(toAdditionalInfoRows(fullProduct.additional_info));
       
       console.log('Form data set to:', {
         ...fullProduct,
@@ -137,6 +161,7 @@ export default function AdminProducts() {
         image_url: '',
         display_position: ''
       });
+      setAdditionalInfoRows([]);
     }
     setIsModalOpen(true);
   };
@@ -210,6 +235,24 @@ export default function AdminProducts() {
 
     if (formData.display_position && formData.display_position.trim()) {
       payload.display_position = parseInt(formData.display_position);
+    }
+
+    // Build and include additional_info from key/value rows
+    if (additionalInfoRows.length > 0) {
+      const keys = additionalInfoRows
+        .map(r => r.key?.trim())
+        .filter((k): k is string => Boolean(k));
+
+      const duplicates = keys.filter((k, idx) => keys.indexOf(k) !== idx);
+      if (duplicates.length > 0) {
+        alert(`Duplicate keys in Additional Information: ${Array.from(new Set(duplicates)).join(', ')}`);
+        return;
+      }
+
+      const additionalInfo = buildAdditionalInfoObject();
+      if (Object.keys(additionalInfo).length > 0) {
+        payload.additional_info = additionalInfo;
+      }
     }
 
     console.log('Payload to send:', payload);
@@ -529,9 +572,98 @@ export default function AdminProducts() {
               <ImageUpload
                 value={formData.image_url}
                 onChange={(url) => setFormData({ ...formData, image_url: url })}
-                label="Product Image"
+                label="Primary Product Image (Legacy)"
                 folder="trustcart/products"
               />
+
+              {/* Multiple Images Upload - Only show in edit mode */}
+              {modalMode === 'edit' && selectedProduct && (
+                <div className="border-t pt-4 mt-4">
+                  <MultipleImageUpload
+                    productId={selectedProduct.id}
+                    folder="trustcart/products"
+                  />
+                </div>
+              )}
+
+              {modalMode === 'add' && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mt-4">
+                  <p className="text-sm text-blue-800">
+                    <strong>Note:</strong> You can add multiple images after creating the product. 
+                    Upload the primary image above, then save the product to access the multiple image uploader.
+                  </p>
+                </div>
+              )}
+
+              <FormInput
+                label="Description"
+                name="description_en"
+                type="textarea"
+                value={formData.description_en}
+                onChange={handleInputChange}
+                rows={3}
+              />
+
+              {/* Additional Information Key/Value Editor */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-medium text-gray-700">
+                    Additional Information
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setAdditionalInfoRows([...additionalInfoRows, { key: '', value: '' }])}
+                    className="inline-flex items-center gap-2 px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                  >
+                    <FaPlus className="h-3 w-3" />
+                    Add field
+                  </button>
+                </div>
+
+                {additionalInfoRows.length === 0 ? (
+                  <p className="text-sm text-gray-500">
+                    Add key/value pairs like weight, dimensions, warranty, etc.
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {additionalInfoRows.map((row, idx) => (
+                      <div key={idx} className="grid grid-cols-12 gap-2">
+                        <input
+                          type="text"
+                          value={row.key}
+                          onChange={(e) => {
+                            const next = [...additionalInfoRows];
+                            next[idx] = { ...next[idx], key: e.target.value };
+                            setAdditionalInfoRows(next);
+                          }}
+                          placeholder="Key (e.g., weight)"
+                          className="col-span-5 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                        <input
+                          type="text"
+                          value={row.value}
+                          onChange={(e) => {
+                            const next = [...additionalInfoRows];
+                            next[idx] = { ...next[idx], value: e.target.value };
+                            setAdditionalInfoRows(next);
+                          }}
+                          placeholder="Value (e.g., 500g)"
+                          className="col-span-6 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setAdditionalInfoRows(additionalInfoRows.filter((_, i) => i !== idx))}
+                          className="col-span-1 px-2 py-2 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50"
+                          aria-label="Remove"
+                          title="Remove"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
 
               <FormInput
                 label="Description"

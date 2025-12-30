@@ -43,6 +43,36 @@ import { OfferUsage } from './modules/offers/entities/offer-usage.entity';
 import { Banner } from './modules/banners/banner.entity';
 import { Category } from './modules/categories/category.entity';
 import { SpecialOffer } from './modules/special-offers/special-offer.entity';
+import { DealOfTheDay } from './modules/products/deal-of-the-day.entity';
+
+// Loyalty Entities
+import { CustomerMembership } from './modules/loyalty/entities/customer-membership.entity';
+import { CustomerWallet } from './modules/loyalty/entities/customer-wallet.entity';
+import { WalletTransaction } from './modules/loyalty/entities/wallet-transaction.entity';
+import { CustomerReferral } from './modules/loyalty/entities/customer-referral.entity';
+import { MonthlyGroceryList } from './modules/loyalty/entities/monthly-grocery-list.entity';
+import { GroceryListItem } from './modules/loyalty/entities/grocery-list-item.entity';
+import { PriceLock } from './modules/loyalty/entities/price-lock.entity';
+
+// CRM Entities
+import { Deal } from './modules/crm/entities/deal.entity';
+import { DealStage } from './modules/crm/entities/deal-stage.entity';
+import { Activity } from './modules/crm/entities/activity.entity';
+import { Task } from './modules/crm/entities/task.entity';
+import { Quote } from './modules/crm/entities/quote.entity';
+import { Meeting } from './modules/crm/entities/meeting.entity';
+import { EmailTracking } from './modules/crm/entities/email-tracking.entity';
+import { CustomDealStage } from './modules/crm/entities/custom-deal-stage.entity';
+import { SalesPipeline } from './modules/crm/entities/sales-pipeline.entity';
+import { ActivityTemplate } from './modules/crm/entities/activity-template.entity';
+import { CustomerSegment } from './modules/crm/entities/customer-segment.entity';
+import { SegmentMember } from './modules/crm/entities/segment-member.entity';
+import { EmailTemplate } from './modules/crm/entities/email-template.entity';
+import { AutomationWorkflow } from './modules/crm/entities/automation-workflow.entity';
+import { WorkflowExecution } from './modules/crm/entities/workflow-execution.entity';
+import { QuoteTemplate } from './modules/crm/entities/quote-template.entity';
+import { SalesForecast } from './modules/crm/entities/sales-forecast.entity';
+import { SalesQuota } from './modules/crm/entities/sales-quota.entity';
 
 // Modules
 import { AuthModule } from './modules/auth/auth.module';
@@ -129,6 +159,15 @@ import { SpecialOffersModule } from './modules/special-offers/special-offers.mod
 
             Offer, OfferCondition, OfferReward, OfferProduct, OfferCategory, OfferUsage, Banner, Category, SpecialOffer,
             
+            
+            DealOfTheDay,
+            // Loyalty entities
+            CustomerMembership, CustomerWallet, WalletTransaction, CustomerReferral, MonthlyGroceryList, GroceryListItem, PriceLock,
+            // CRM entities
+            Deal, DealStage, Activity, Task, Quote, Meeting, EmailTracking,
+            CustomDealStage, SalesPipeline, ActivityTemplate, CustomerSegment, SegmentMember,
+            EmailTemplate, AutomationWorkflow, WorkflowExecution, QuoteTemplate, SalesForecast, SalesQuota,
+            // HRM Entities
             HrmBranches, HrmDepartments, HrmDesignations, HrmEmployees, HrmAwardTypes, HrmAwards, HrmPromotions, HrmResignations, HrmTerminations, HrmWarnings, HrmTrips, HrmComplaints, HrmTransfers, HrmHolidays, HrmAnnouncements, HrmTrainingTypes, HrmTrainingPrograms, HrmTrainingSessions, HrmEmployeeTrainings, HrmPerformanceIndicatorCategories, HrmPerformanceIndicators, HrmEmployeePerformance, HrmDocumentTypes, HrmEmployeeDocuments
           ],
           synchronize: false,

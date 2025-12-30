@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
-import AdminLayout from '@/components/admin/AdminLayout';
+import AdminLayout from '@/layouts/AdminLayout';
 
 interface Customer360 {
   customer_id: number;

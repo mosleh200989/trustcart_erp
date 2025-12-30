@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { auth } from '@/services/api';
 
 export default function CustomerLogin() {
-  const [email, setEmail] = useState('');
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -14,7 +14,7 @@ export default function CustomerLogin() {
     setLoading(true);
     setError(null);
     try {
-      const data = await auth.login(email, password);
+      const data = await auth.login(identifier, password);
       if (data && data.accessToken) {
         const roleSlug = data?.user?.roleSlug as string | undefined;
 
@@ -55,14 +55,14 @@ export default function CustomerLogin() {
         <form onSubmit={submit}>
           <div className="mb-4">
             <label className="block text-gray-700 font-medium mb-2">
-              Email Address
+              Email or Phone
             </label>
             <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              type="text"
+              value={identifier}
+              onChange={(e) => setIdentifier(e.target.value)}
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
-              placeholder="customer@example.com"
+              placeholder="customer@example.com or 01712345678"
               required
             />
           </div>

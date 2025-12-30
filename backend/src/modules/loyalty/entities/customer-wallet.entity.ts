@@ -5,8 +5,11 @@ export class CustomerWallet {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ name: 'customer_id', unique: true })
-  customerId: number;
+  @Column({ name: 'customer_id', nullable: true })
+  customerId?: number;
+
+  @Column({ name: 'customer_uuid', type: 'uuid', nullable: true })
+  customerUuid?: string;
 
   @Column({ type: 'decimal', precision: 10, scale: 2, default: 0 })
   balance: number;

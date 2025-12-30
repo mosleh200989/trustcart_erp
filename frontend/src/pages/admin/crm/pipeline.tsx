@@ -277,8 +277,8 @@ const Pipeline = () => {
   const filteredDeals = (stageDeals: Deal[]) => {
     if (!searchTerm) return stageDeals;
     return stageDeals.filter(deal =>
-      deal.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      deal.customer?.name.toLowerCase().includes(searchTerm.toLowerCase())
+      (deal.name ?? '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (deal.customer?.name ?? '').toLowerCase().includes(searchTerm.toLowerCase())
     );
   };
 
@@ -510,7 +510,7 @@ const DealModal = ({ onClose, onSave, stages }: { onClose: () => void; onSave: (
     e.preventDefault();
     try {
       const token = localStorage.getItem('authToken');
-      await fetch('http://localhost:3001/api/crm/deals', {
+      const response = await fetch('http://localhost:3001/api/crm/deals', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -523,9 +523,16 @@ const DealModal = ({ onClose, onSave, stages }: { onClose: () => void; onSave: (
           tags: formData.tags ? formData.tags.split(',').map(t => t.trim()) : [],
         }),
       });
-      onSave();
+      
+      if (response.ok) {
+        onSave(); // Only call onSave after successful creation
+      } else {
+        const errorData = await response.json();
+        alert(`Failed to create deal: ${errorData.message || 'Unknown error'}`);
+      }
     } catch (error) {
       console.error('Error creating deal:', error);
+      alert('Failed to create deal. Please try again.');
     }
   };
 
