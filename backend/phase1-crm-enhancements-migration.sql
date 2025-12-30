@@ -40,10 +40,14 @@
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
 
+    -- Prevent duplicate pipeline names (keeps reruns idempotent)
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_sales_pipelines_name_unique
+    ON sales_pipelines(name);
+
     -- Insert default pipeline
     INSERT INTO sales_pipelines (name, description, is_default, is_active)
     VALUES ('Default Sales Pipeline', 'Standard B2B sales pipeline', true, true)
-    ON CONFLICT DO NOTHING;
+    ON CONFLICT (name) DO NOTHING;
 
     -- Insert default stages
     INSERT INTO custom_deal_stages (name, color, position, default_probability, is_system, pipeline_id, stage_type)
@@ -406,15 +410,34 @@ CREATE TABLE IF NOT EXISTS automation_workflows (
     END;
     $$ language 'plpgsql';
 
-    -- Apply triggers to all new tables
-    CREATE TRIGGER update_custom_deal_stages_updated_at BEFORE UPDATE ON custom_deal_stages FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-    CREATE TRIGGER update_sales_pipelines_updated_at BEFORE UPDATE ON sales_pipelines FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-    CREATE TRIGGER update_activity_templates_updated_at BEFORE UPDATE ON activity_templates FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-    CREATE TRIGGER update_customer_segments_updated_at BEFORE UPDATE ON customer_segments FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-    CREATE TRIGGER update_email_templates_updated_at BEFORE UPDATE ON email_templates FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-    CREATE TRIGGER update_automation_workflows_updated_at BEFORE UPDATE ON automation_workflows FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-    CREATE TRIGGER update_quote_templates_updated_at BEFORE UPDATE ON quote_templates FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-    CREATE TRIGGER update_sales_quotas_updated_at BEFORE UPDATE ON sales_quotas FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+    -- Apply triggers to all new tables (guarded for re-runs)
+    DO $$
+    BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'update_custom_deal_stages_updated_at') THEN
+            CREATE TRIGGER update_custom_deal_stages_updated_at BEFORE UPDATE ON custom_deal_stages FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'update_sales_pipelines_updated_at') THEN
+            CREATE TRIGGER update_sales_pipelines_updated_at BEFORE UPDATE ON sales_pipelines FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'update_activity_templates_updated_at') THEN
+            CREATE TRIGGER update_activity_templates_updated_at BEFORE UPDATE ON activity_templates FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'update_customer_segments_updated_at') THEN
+            CREATE TRIGGER update_customer_segments_updated_at BEFORE UPDATE ON customer_segments FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'update_email_templates_updated_at') THEN
+            CREATE TRIGGER update_email_templates_updated_at BEFORE UPDATE ON email_templates FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'update_automation_workflows_updated_at') THEN
+            CREATE TRIGGER update_automation_workflows_updated_at BEFORE UPDATE ON automation_workflows FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'update_quote_templates_updated_at') THEN
+            CREATE TRIGGER update_quote_templates_updated_at BEFORE UPDATE ON quote_templates FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'update_sales_quotas_updated_at') THEN
+            CREATE TRIGGER update_sales_quotas_updated_at BEFORE UPDATE ON sales_quotas FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+        END IF;
+    END $$;
 
     -- =====================================================
     -- INSERT SAMPLE DATA

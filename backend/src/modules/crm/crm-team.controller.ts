@@ -3,10 +3,9 @@ import { CrmTeamService } from './crm-team.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
-import { Public } from '../../common/decorators/public.decorator';
 
 @Controller('crm/team')
-@Public()
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 export class CrmTeamController {
   constructor(private readonly crmTeamService: CrmTeamService) {}
 

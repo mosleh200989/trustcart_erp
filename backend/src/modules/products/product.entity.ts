@@ -53,6 +53,9 @@ export class Product {
   @Column({ type: 'int', nullable: true })
   display_position!: number;
 
+  @Column({ type: 'jsonb', nullable: true, name: 'additional_info', default: () => "'{}'::jsonb" })
+  additional_info!: Record<string, any>;
+
   @Column({ nullable: true, default: 'active' })
   status!: string;
 

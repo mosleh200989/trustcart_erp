@@ -30,8 +30,9 @@ export class ProductsService {
           p.wholesale_price, 
           p.stock_quantity,
           p.display_position,
+          p.additional_info,
           p.status, 
-          p.image_url,
+          COALESCE(p.image_url, pi.image_url) as image_url,
           p.discount_type,
           p.discount_value,
           p.sale_price,
@@ -39,6 +40,13 @@ export class ProductsService {
           p.unit_of_measure,
           p.created_at
         FROM products p
+        LEFT JOIN LATERAL (
+          SELECT image_url
+          FROM product_images
+          WHERE product_id = p.id
+          ORDER BY is_primary DESC, display_order ASC
+          LIMIT 1
+        ) pi ON TRUE
         LEFT JOIN categories c ON p.category_id = c.id
         WHERE p.status = 'active'
         ORDER BY p.created_at DESC
@@ -97,13 +105,21 @@ export class ProductsService {
           p.base_price as price,
           p.wholesale_price, 
           p.stock_quantity,
-          p.image_url, 
+          COALESCE(p.image_url, pi.image_url) as image_url, 
+          p.additional_info,
           p.status,
           p.discount_type,
           p.discount_value,
           p.sale_price,
           p.brand
         FROM products p
+        LEFT JOIN LATERAL (
+          SELECT image_url
+          FROM product_images
+          WHERE product_id = p.id
+          ORDER BY is_primary DESC, display_order ASC
+          LIMIT 1
+        ) pi ON TRUE
         LEFT JOIN categories c ON p.category_id = c.id
         WHERE p.status = 'active'
           AND (
@@ -140,12 +156,21 @@ export class ProductsService {
           p.stock_quantity,
           p.display_position,
           p.brand, p.unit_of_measure, 
-          p.image_url, p.status,
+          COALESCE(p.image_url, pi.image_url) as image_url,
+          p.status,
+          p.additional_info,
           p.discount_type,
           p.discount_value,
           p.sale_price,
           p.created_at
         FROM products p
+        LEFT JOIN LATERAL (
+          SELECT image_url
+          FROM product_images
+          WHERE product_id = p.id
+          ORDER BY is_primary DESC, display_order ASC
+          LIMIT 1
+        ) pi ON TRUE
         LEFT JOIN categories c ON p.category_id = c.id
         WHERE p.slug = $1 
         LIMIT 1
@@ -221,9 +246,18 @@ export class ProductsService {
   async findDealOfDay() {
     try {
       const results = await this.productsRepository.query(`
-        SELECT id, slug, sku, name_en, name_bn, description_en, base_price, selling_price, 
-               deal_price, deal_expires_at, image_url, status
-        FROM products 
+        SELECT p.id, p.slug, p.sku, p.name_en, p.name_bn, p.description_en, p.base_price, p.selling_price, 
+               p.deal_price, p.deal_expires_at,
+               COALESCE(p.image_url, pi.image_url) as image_url,
+               p.status
+        FROM products p
+        LEFT JOIN LATERAL (
+          SELECT image_url
+          FROM product_images
+          WHERE product_id = p.id
+          ORDER BY is_primary DESC, display_order ASC
+          LIMIT 1
+        ) pi ON TRUE
         WHERE is_deal_of_day = TRUE 
           AND status = 'active'
           AND (deal_expires_at IS NULL OR deal_expires_at > NOW())
@@ -240,8 +274,17 @@ export class ProductsService {
   async findPopular() {
     try {
       const results = await this.productsRepository.query(`
-        SELECT id, slug, sku, name_en, name_bn, description_en, base_price, selling_price, image_url, status
-        FROM products 
+        SELECT p.id, p.slug, p.sku, p.name_en, p.name_bn, p.description_en, p.base_price, p.selling_price,
+               COALESCE(p.image_url, pi.image_url) as image_url,
+               p.status
+        FROM products p
+        LEFT JOIN LATERAL (
+          SELECT image_url
+          FROM product_images
+          WHERE product_id = p.id
+          ORDER BY is_primary DESC, display_order ASC
+          LIMIT 1
+        ) pi ON TRUE
         WHERE is_popular = TRUE AND status = 'active'
         ORDER BY created_at DESC
         LIMIT 8
@@ -256,8 +299,17 @@ export class ProductsService {
   async findNewArrivals() {
     try {
       const results = await this.productsRepository.query(`
-        SELECT id, slug, sku, name_en, name_bn, description_en, base_price, selling_price, image_url, status
-        FROM products 
+        SELECT p.id, p.slug, p.sku, p.name_en, p.name_bn, p.description_en, p.base_price, p.selling_price,
+               COALESCE(p.image_url, pi.image_url) as image_url,
+               p.status
+        FROM products p
+        LEFT JOIN LATERAL (
+          SELECT image_url
+          FROM product_images
+          WHERE product_id = p.id
+          ORDER BY is_primary DESC, display_order ASC
+          LIMIT 1
+        ) pi ON TRUE
         WHERE is_new_arrival = TRUE AND status = 'active'
         ORDER BY created_at DESC
         LIMIT 8
@@ -272,8 +324,17 @@ export class ProductsService {
   async findFeatured() {
     try {
       const results = await this.productsRepository.query(`
-        SELECT id, slug, sku, name_en, name_bn, description_en, base_price, selling_price, image_url, status
-        FROM products 
+        SELECT p.id, p.slug, p.sku, p.name_en, p.name_bn, p.description_en, p.base_price, p.selling_price,
+               COALESCE(p.image_url, pi.image_url) as image_url,
+               p.status
+        FROM products p
+        LEFT JOIN LATERAL (
+          SELECT image_url
+          FROM product_images
+          WHERE product_id = p.id
+          ORDER BY is_primary DESC, display_order ASC
+          LIMIT 1
+        ) pi ON TRUE
         WHERE is_featured = TRUE AND status = 'active'
         ORDER BY created_at DESC
         LIMIT 8
@@ -289,8 +350,17 @@ export class ProductsService {
     try {
       const results = await this.productsRepository.query(`
         SELECT p.id, p.slug, p.sku, p.name_en, p.name_bn, p.description_en, 
-               p.base_price, p.sale_price, p.discount_type, p.discount_value, p.image_url, p.status, p.stock_quantity, c.name_en as category_name
+               p.base_price, p.sale_price, p.discount_type, p.discount_value,
+               COALESCE(p.image_url, pi.image_url) as image_url,
+               p.status, p.stock_quantity, c.name_en as category_name
         FROM products p
+        LEFT JOIN LATERAL (
+          SELECT image_url
+          FROM product_images
+          WHERE product_id = p.id
+          ORDER BY is_primary DESC, display_order ASC
+          LIMIT 1
+        ) pi ON TRUE
         LEFT JOIN categories c ON p.category_id = c.id
         WHERE p.status = 'active' 
           AND p.id != $1
@@ -308,8 +378,17 @@ export class ProductsService {
   async findSuggested(limit: number = 4) {
     try {
       const results = await this.productsRepository.query(`
-        SELECT p.id, p.slug, p.sku, p.name_en, p.name_bn, p.description_en, p.base_price, p.sale_price, p.discount_type, p.discount_value, p.image_url, p.status, p.stock_quantity, c.name_en as category_name
+        SELECT p.id, p.slug, p.sku, p.name_en, p.name_bn, p.description_en, p.base_price, p.sale_price, p.discount_type, p.discount_value,
+               COALESCE(p.image_url, pi.image_url) as image_url,
+               p.status, p.stock_quantity, c.name_en as category_name
         FROM products p
+        LEFT JOIN LATERAL (
+          SELECT image_url
+          FROM product_images
+          WHERE product_id = p.id
+          ORDER BY is_primary DESC, display_order ASC
+          LIMIT 1
+        ) pi ON TRUE
         LEFT JOIN categories c ON p.category_id = c.id
         WHERE p.status = 'active'
         ORDER BY RANDOM()
@@ -326,8 +405,17 @@ export class ProductsService {
     try {
       let query = `
         SELECT DISTINCT p.id, p.slug, p.sku, p.name_en, p.name_bn, p.description_en, 
-               p.base_price, p.selling_price, p.image_url, p.status, upv.viewed_at
+               p.base_price, p.selling_price,
+               COALESCE(p.image_url, pi.image_url) as image_url,
+               p.status, upv.viewed_at
         FROM products p
+        LEFT JOIN LATERAL (
+          SELECT image_url
+          FROM product_images
+          WHERE product_id = p.id
+          ORDER BY is_primary DESC, display_order ASC
+          LIMIT 1
+        ) pi ON TRUE
         INNER JOIN user_product_views upv ON p.id = upv.product_id
         WHERE p.status = 'active'
       `;

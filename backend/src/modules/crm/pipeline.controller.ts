@@ -1,10 +1,10 @@
 import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { PipelineService } from './pipeline.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { Public } from '../../common/decorators/public.decorator';
+import { PermissionsGuard } from '../../common/guards/permissions.guard';
 
 @Controller('crm/pipelines')
-@Public()
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 export class PipelineController {
   constructor(private readonly pipelineService: PipelineService) {}
 
