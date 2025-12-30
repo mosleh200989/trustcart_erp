@@ -1,0 +1,10 @@
+-- Migration: HRM Departments Table
+CREATE TABLE IF NOT EXISTS hr_departments (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    code VARCHAR(50) UNIQUE NOT NULL,
+    branch_id INTEGER REFERENCES hr_branches(id) ON DELETE SET NULL,
+    status BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);

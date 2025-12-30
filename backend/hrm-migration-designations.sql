@@ -1,0 +1,10 @@
+-- Migration: HRM Designations Table
+CREATE TABLE IF NOT EXISTS hr_designations (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    code VARCHAR(50) UNIQUE NOT NULL,
+    department_id INTEGER REFERENCES hr_departments(id) ON DELETE SET NULL,
+    status BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);

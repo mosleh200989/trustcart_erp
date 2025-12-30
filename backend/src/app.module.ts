@@ -81,6 +81,32 @@ import { SalesModule } from './modules/sales/sales.module';
 import { PurchaseModule } from './modules/purchase/purchase.module';
 import { InventoryModule } from './modules/inventory/inventory.module';
 import { HrModule } from './modules/hr/hr.module';
+import { HrmModule } from './modules/hrm/hrm.module';
+// HRM Entities
+import { HrmBranches } from './modules/hrm/entities/hrm-branches.entity';
+import { HrmDepartments } from './modules/hrm/entities/hrm-departments.entity';
+import { HrmDesignations } from './modules/hrm/entities/hrm-designations.entity';
+import { HrmEmployees } from './modules/hrm/entities/hrm-employees.entity';
+import { HrmAwardTypes } from './modules/hrm/entities/hrm-award-types.entity';
+import { HrmAwards } from './modules/hrm/entities/hrm-awards.entity';
+import { HrmPromotions } from './modules/hrm/entities/hrm-promotions.entity';
+import { HrmResignations } from './modules/hrm/entities/hrm-resignations.entity';
+import { HrmTerminations } from './modules/hrm/entities/hrm-terminations.entity';
+import { HrmWarnings } from './modules/hrm/entities/hrm-warnings.entity';
+import { HrmTrips } from './modules/hrm/entities/hrm-trips.entity';
+import { HrmComplaints } from './modules/hrm/entities/hrm-complaints.entity';
+import { HrmTransfers } from './modules/hrm/entities/hrm-transfers.entity';
+import { HrmHolidays } from './modules/hrm/entities/hrm-holidays.entity';
+import { HrmAnnouncements } from './modules/hrm/entities/hrm-announcements.entity';
+import { HrmTrainingTypes } from './modules/hrm/entities/hrm-training-types.entity';
+import { HrmTrainingPrograms } from './modules/hrm/entities/hrm-training-programs.entity';
+import { HrmTrainingSessions } from './modules/hrm/entities/hrm-training-sessions.entity';
+import { HrmEmployeeTrainings } from './modules/hrm/entities/hrm-employee-trainings.entity';
+import { HrmPerformanceIndicatorCategories } from './modules/hrm/entities/hrm-performance-indicator-categories.entity';
+import { HrmPerformanceIndicators } from './modules/hrm/entities/hrm-performance-indicators.entity';
+import { HrmEmployeePerformance } from './modules/hrm/entities/hrm-employee-performance.entity';
+import { HrmDocumentTypes } from './modules/hrm/entities/hrm-document-types.entity';
+import { HrmEmployeeDocuments } from './modules/hrm/entities/hrm-employee-documents.entity';
 import { PayrollModule } from './modules/payroll/payroll.module';
 import { AccountingModule } from './modules/accounting/accounting.module';
 import { ProjectModule } from './modules/project/project.module';
@@ -127,7 +153,9 @@ import { SpecialOffersModule } from './modules/special-offers/special-offers.mod
             // CRM entities
             Deal, DealStage, Activity, Task, Quote, Meeting, EmailTracking,
             CustomDealStage, SalesPipeline, ActivityTemplate, CustomerSegment, SegmentMember,
-            EmailTemplate, AutomationWorkflow, WorkflowExecution, QuoteTemplate, SalesForecast, SalesQuota
+            EmailTemplate, AutomationWorkflow, WorkflowExecution, QuoteTemplate, SalesForecast, SalesQuota,
+            // HRM Entities
+            HrmBranches, HrmDepartments, HrmDesignations, HrmEmployees, HrmAwardTypes, HrmAwards, HrmPromotions, HrmResignations, HrmTerminations, HrmWarnings, HrmTrips, HrmComplaints, HrmTransfers, HrmHolidays, HrmAnnouncements, HrmTrainingTypes, HrmTrainingPrograms, HrmTrainingSessions, HrmEmployeeTrainings, HrmPerformanceIndicatorCategories, HrmPerformanceIndicators, HrmEmployeePerformance, HrmDocumentTypes, HrmEmployeeDocuments
           ],
           synchronize: false,
           logging: true,
@@ -160,6 +188,7 @@ import { SpecialOffersModule } from './modules/special-offers/special-offers.mod
     PurchaseModule,
     InventoryModule,
     HrModule,
+    HrmModule,
     PayrollModule,
     AccountingModule,
     ProjectModule,
