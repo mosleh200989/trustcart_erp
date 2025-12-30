@@ -1,7 +1,7 @@
 import { Controller, Get, Post, Body, Param, Put, Delete, Query } from '@nestjs/common';
 import { CrmService } from './crm.service';
 
-@Controller('crm')
+@Controller('crm/legacy')
 export class CrmController {
   constructor(private readonly crmService: CrmService) {}
 

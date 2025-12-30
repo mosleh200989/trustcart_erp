@@ -277,8 +277,8 @@ const Pipeline = () => {
   const filteredDeals = (stageDeals: Deal[]) => {
     if (!searchTerm) return stageDeals;
     return stageDeals.filter(deal =>
-      deal.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      deal.customer?.name.toLowerCase().includes(searchTerm.toLowerCase())
+      (deal.name ?? '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (deal.customer?.name ?? '').toLowerCase().includes(searchTerm.toLowerCase())
     );
   };
 

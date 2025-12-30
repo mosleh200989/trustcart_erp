@@ -33,6 +33,8 @@ export default function AdminProducts() {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const itemsPerPage = 10;
 
+  const [additionalInfoRows, setAdditionalInfoRows] = useState<Array<{ key: string; value: string }>>([]);
+
   const [formData, setFormData] = useState({
     name_en: '',
     name_bn: '',
@@ -44,9 +46,26 @@ export default function AdminProducts() {
     description_en: '',
     status: 'active',
     image_url: '',
-    display_position: '',
-    additional_info: ''
+    display_position: ''
   });
+
+  const toAdditionalInfoRows = (data: any): Array<{ key: string; value: string }> => {
+    if (!data || typeof data !== 'object' || Array.isArray(data)) return [];
+    return Object.entries(data).map(([key, value]) => ({
+      key,
+      value: typeof value === 'string' ? value : JSON.stringify(value)
+    }));
+  };
+
+  const buildAdditionalInfoObject = (): Record<string, string> => {
+    const result: Record<string, string> = {};
+    for (const row of additionalInfoRows) {
+      const key = row.key?.trim();
+      if (!key) continue;
+      result[key] = row.value ?? '';
+    }
+    return result;
+  };
 
   useEffect(() => {
     loadProducts();
@@ -88,9 +107,9 @@ export default function AdminProducts() {
       description_en: '',
       status: 'active',
       image_url: '',
-      display_position: '',
-      additional_info: ''
+      display_position: ''
     });
+    setAdditionalInfoRows([]);
     setIsModalOpen(true);
   };
 
@@ -117,9 +136,10 @@ export default function AdminProducts() {
         description_en: fullProduct.description_en || '',
         status: fullProduct.status || 'active',
         image_url: fullProduct.image_url || '',
-        display_position: fullProduct.display_position ? fullProduct.display_position.toString() : '',
-        additional_info: fullProduct.additional_info ? JSON.stringify(fullProduct.additional_info, null, 2) : ''
+        display_position: fullProduct.display_position ? fullProduct.display_position.toString() : ''
       });
+
+      setAdditionalInfoRows(toAdditionalInfoRows(fullProduct.additional_info));
       
       console.log('Form data set to:', {
         ...fullProduct,
@@ -139,9 +159,9 @@ export default function AdminProducts() {
         description_en: '',
         status: product.status,
         image_url: '',
-        display_position: '',
-        additional_info: ''
+        display_position: ''
       });
+      setAdditionalInfoRows([]);
     }
     setIsModalOpen(true);
   };
@@ -217,13 +237,21 @@ export default function AdminProducts() {
       payload.display_position = parseInt(formData.display_position);
     }
 
-    // Parse and include additional_info JSON
-    if (formData.additional_info && formData.additional_info.trim()) {
-      try {
-        payload.additional_info = JSON.parse(formData.additional_info.trim());
-      } catch (jsonError) {
-        alert('Invalid JSON format in Additional Information field. Please check your syntax.');
+    // Build and include additional_info from key/value rows
+    if (additionalInfoRows.length > 0) {
+      const keys = additionalInfoRows
+        .map(r => r.key?.trim())
+        .filter((k): k is string => Boolean(k));
+
+      const duplicates = keys.filter((k, idx) => keys.indexOf(k) !== idx);
+      if (duplicates.length > 0) {
+        alert(`Duplicate keys in Additional Information: ${Array.from(new Set(duplicates)).join(', ')}`);
         return;
+      }
+
+      const additionalInfo = buildAdditionalInfoObject();
+      if (Object.keys(additionalInfo).length > 0) {
+        payload.additional_info = additionalInfo;
       }
     }
 
@@ -576,22 +604,65 @@ export default function AdminProducts() {
                 rows={3}
               />
 
-              {/* Additional Information JSON Field */}
+              {/* Additional Information Key/Value Editor */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Additional Information (JSON)
-                </label>
-                <textarea
-                  name="additional_info"
-                  value={formData.additional_info || ''}
-                  onChange={handleInputChange}
-                  rows={4}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
-                  placeholder='{"weight": "500g", "dimensions": "10x10x15 cm", "warranty": "1 year"}'
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  Enter product specifications in JSON format. Example: {`{"weight": "500g", "manufacturer": "Brand Name"}`}
-                </p>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-medium text-gray-700">
+                    Additional Information
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setAdditionalInfoRows([...additionalInfoRows, { key: '', value: '' }])}
+                    className="inline-flex items-center gap-2 px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                  >
+                    <FaPlus className="h-3 w-3" />
+                    Add field
+                  </button>
+                </div>
+
+                {additionalInfoRows.length === 0 ? (
+                  <p className="text-sm text-gray-500">
+                    Add key/value pairs like weight, dimensions, warranty, etc.
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {additionalInfoRows.map((row, idx) => (
+                      <div key={idx} className="grid grid-cols-12 gap-2">
+                        <input
+                          type="text"
+                          value={row.key}
+                          onChange={(e) => {
+                            const next = [...additionalInfoRows];
+                            next[idx] = { ...next[idx], key: e.target.value };
+                            setAdditionalInfoRows(next);
+                          }}
+                          placeholder="Key (e.g., weight)"
+                          className="col-span-5 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                        <input
+                          type="text"
+                          value={row.value}
+                          onChange={(e) => {
+                            const next = [...additionalInfoRows];
+                            next[idx] = { ...next[idx], value: e.target.value };
+                            setAdditionalInfoRows(next);
+                          }}
+                          placeholder="Value (e.g., 500g)"
+                          className="col-span-6 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setAdditionalInfoRows(additionalInfoRows.filter((_, i) => i !== idx))}
+                          className="col-span-1 px-2 py-2 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50"
+                          aria-label="Remove"
+                          title="Remove"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <FormInput

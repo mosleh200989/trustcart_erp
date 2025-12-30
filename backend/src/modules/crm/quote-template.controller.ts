@@ -1,10 +1,10 @@
 import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards, Request } from '@nestjs/common';
 import { QuoteTemplateService } from './quote-template.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { Public } from '../../common/decorators/public.decorator';
+import { PermissionsGuard } from '../../common/guards/permissions.guard';
 
 @Controller('crm/quote-templates')
-@Public()
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 export class QuoteTemplateController {
   constructor(private readonly quoteTemplateService: QuoteTemplateService) {}
 

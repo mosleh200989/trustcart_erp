@@ -1,10 +1,10 @@
 import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards, Request } from '@nestjs/common';
 import { MeetingService } from './meeting.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { Public } from '../../common/decorators/public.decorator';
+import { PermissionsGuard } from '../../common/guards/permissions.guard';
 
 @Controller('crm/meetings')
-@Public()
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 export class MeetingController {
   constructor(private readonly meetingService: MeetingService) {}
 

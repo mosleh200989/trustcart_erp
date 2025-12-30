@@ -1,10 +1,10 @@
 import { Controller, Get, Post, Put, Body, Param, Query, UseGuards, Request } from '@nestjs/common';
 import { ForecastService } from './forecast.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { Public } from '../../common/decorators/public.decorator';
+import { PermissionsGuard } from '../../common/guards/permissions.guard';
 
 @Controller('crm/forecasts')
-@Public()
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 export class ForecastController {
   constructor(private readonly forecastService: ForecastService) {}
 

@@ -6,7 +6,18 @@ import ElectroFooter from '@/components/ElectroFooter';
 import ElectroProductCard from '@/components/ElectroProductCard';
 import AddToCartPopup from '@/components/AddToCartPopup';
 import apiClient from '@/services/api';
-import { FaStar, FaShoppingCart, FaHeart, FaShareAlt, FaChevronLeft, FaChevronRight, FaSearchPlus } from 'react-icons/fa';
+import {
+  FaStar,
+  FaShoppingCart,
+  FaHeart,
+  FaShareAlt,
+  FaChevronLeft,
+  FaChevronRight,
+  FaSearchPlus,
+  FaWhatsapp,
+  FaPhone,
+  FaFacebookMessenger
+} from 'react-icons/fa';
 
 export default function ProductDetailsPage() {
   const router = useRouter();
@@ -19,6 +30,7 @@ export default function ProductDetailsPage() {
   const [showCartPopup, setShowCartPopup] = useState(false);
   const [currentSlide, setCurrentSlide] = useState(0);
   const [selectedImage, setSelectedImage] = useState<string>('');
+  const [imageSlideIndex, setImageSlideIndex] = useState(0);
   const [activeTab, setActiveTab] = useState<'description' | 'additional'>('description');
   const [showZoom, setShowZoom] = useState(false);
   const [zoomPosition, setZoomPosition] = useState({ x: 0, y: 0 });
@@ -28,6 +40,21 @@ export default function ProductDetailsPage() {
       loadProduct();
     }
   }, [id]);
+
+  useEffect(() => {
+    if (!productImages || productImages.length === 0) return;
+    const safeIndex = Math.min(Math.max(0, imageSlideIndex), productImages.length - 1);
+    const next = productImages[safeIndex]?.image_url;
+    if (next) setSelectedImage(next);
+  }, [imageSlideIndex, productImages]);
+
+  useEffect(() => {
+    if (!productImages || productImages.length <= 1) return;
+    const interval = setInterval(() => {
+      setImageSlideIndex((prev) => (prev + 1) % productImages.length);
+    }, 4000);
+    return () => clearInterval(interval);
+  }, [productImages]);
 
   const loadProduct = async () => {
     try {
@@ -42,14 +69,25 @@ export default function ProductDetailsPage() {
       try {
         const imagesResponse = await apiClient.get(`/products/${response.data.id}/images`);
         const images = imagesResponse.data || [];
-        setProductImages(images);
+        const sortedImages = [...images].sort((a: any, b: any) => {
+          const aPrimary = a?.is_primary ? 1 : 0;
+          const bPrimary = b?.is_primary ? 1 : 0;
+          if (aPrimary !== bPrimary) return bPrimary - aPrimary;
+          const aOrder = typeof a?.display_order === 'number' ? a.display_order : 0;
+          const bOrder = typeof b?.display_order === 'number' ? b.display_order : 0;
+          if (aOrder !== bOrder) return aOrder - bOrder;
+          return (a?.id ?? 0) - (b?.id ?? 0);
+        });
+        setProductImages(sortedImages);
         // Set the first image as selected, or fall back to the main image_url
-        if (images.length > 0) {
-          setSelectedImage(images[0].image_url);
+        if (sortedImages.length > 0) {
+          setImageSlideIndex(0);
+          setSelectedImage(sortedImages[0].image_url);
         } else if (response.data.image_url) {
           setSelectedImage(response.data.image_url);
           // If no images in the images table but has image_url, create a temporary image array
           setProductImages([{ id: 0, image_url: response.data.image_url, is_primary: true }]);
+          setImageSlideIndex(0);
         }
       } catch (error) {
         console.error('Error loading product images:', error);
@@ -57,6 +95,7 @@ export default function ProductDetailsPage() {
         if (response.data.image_url) {
           setSelectedImage(response.data.image_url);
           setProductImages([{ id: 0, image_url: response.data.image_url, is_primary: true }]);
+          setImageSlideIndex(0);
         }
       }
       
@@ -162,6 +201,38 @@ export default function ProductDetailsPage() {
   const price = Number(product.base_price || product.price || 0);
   const additionalInfo = product.additional_info || {};
 
+  const supportPhone = (process.env.NEXT_PUBLIC_SUPPORT_PHONE || '').trim();
+  const supportWhatsApp = (process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP || '').trim();
+  const supportMessenger = (process.env.NEXT_PUBLIC_SUPPORT_MESSENGER || '').trim();
+  const canShowContacts = Boolean(supportPhone || supportWhatsApp || supportMessenger);
+
+  const getCurrentUrl = () => {
+    if (typeof window === 'undefined') return '';
+    return window.location.href;
+  };
+
+  const handleWhatsAppContact = () => {
+    const digits = supportWhatsApp.replace(/\D/g, '');
+    if (!digits) return;
+    const message = `Hello, I have a question about: ${displayName}\n${getCurrentUrl()}`;
+    window.open(`https://wa.me/${digits}?text=${encodeURIComponent(message)}`, '_blank', 'noopener,noreferrer');
+  };
+
+  const handleMessengerContact = () => {
+    if (!supportMessenger) return;
+    window.open(supportMessenger, '_blank', 'noopener,noreferrer');
+  };
+
+  const goPrevImage = () => {
+    if (!productImages || productImages.length <= 1) return;
+    setImageSlideIndex((prev) => (prev - 1 + productImages.length) % productImages.length);
+  };
+
+  const goNextImage = () => {
+    if (!productImages || productImages.length <= 1) return;
+    setImageSlideIndex((prev) => (prev + 1) % productImages.length);
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       <ElectroNavbar />
@@ -221,6 +292,36 @@ export default function ProductDetailsPage() {
                     <div className="absolute top-4 right-4 bg-white rounded-full p-2 shadow-lg">
                       <FaSearchPlus className="text-gray-600" />
                     </div>
+
+                    {/* Slider Controls */}
+                    {productImages.length > 1 && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            goPrevImage();
+                          }}
+                          className="absolute left-3 top-1/2 -translate-y-1/2 bg-white/90 hover:bg-white text-gray-700 p-3 rounded-full shadow-lg transition-all"
+                          aria-label="Previous image"
+                        >
+                          <FaChevronLeft size={18} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            goNextImage();
+                          }}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 bg-white/90 hover:bg-white text-gray-700 p-3 rounded-full shadow-lg transition-all"
+                          aria-label="Next image"
+                        >
+                          <FaChevronRight size={18} />
+                        </button>
+                      </>
+                    )}
                   </>
                 ) : (
                   <div className="w-full h-full flex items-center justify-center text-gray-400">
@@ -238,7 +339,10 @@ export default function ProductDetailsPage() {
                   {productImages.map((img, index) => (
                     <div
                       key={img.id || index}
-                      onClick={() => setSelectedImage(img.image_url)}
+                      onClick={() => {
+                        setImageSlideIndex(index);
+                        setSelectedImage(img.image_url);
+                      }}
                       className={`relative bg-gray-100 rounded-lg overflow-hidden aspect-square cursor-pointer border-2 transition ${
                         selectedImage === img.image_url ? 'border-orange-500' : 'border-transparent hover:border-gray-300'
                       }`}
@@ -336,6 +440,41 @@ export default function ProductDetailsPage() {
                   <span className="sm:hidden">Share Product</span>
                 </button>
               </div>
+
+              {/* Contact / Social Buttons */}
+              {canShowContacts && (
+                <div className="flex flex-col sm:flex-row gap-2 mb-6">
+                  {supportWhatsApp && (
+                    <button
+                      type="button"
+                      onClick={handleWhatsAppContact}
+                      className="flex-1 bg-green-600 text-white py-2.5 rounded-lg hover:bg-green-700 flex items-center justify-center gap-2 font-semibold transition-all duration-300"
+                    >
+                      <FaWhatsapp />
+                      <span>WhatsApp</span>
+                    </button>
+                  )}
+                  {supportPhone && (
+                    <a
+                      href={`tel:${supportPhone}`}
+                      className="flex-1 border-2 border-gray-300 text-gray-800 py-2.5 rounded-lg hover:bg-gray-50 flex items-center justify-center gap-2 font-semibold transition-all duration-300"
+                    >
+                      <FaPhone />
+                      <span>Call</span>
+                    </a>
+                  )}
+                  {supportMessenger && (
+                    <button
+                      type="button"
+                      onClick={handleMessengerContact}
+                      className="flex-1 bg-blue-600 text-white py-2.5 rounded-lg hover:bg-blue-700 flex items-center justify-center gap-2 font-semibold transition-all duration-300"
+                    >
+                      <FaFacebookMessenger />
+                      <span>Messenger</span>
+                    </button>
+                  )}
+                </div>
+              )}
 
               {/* Additional Info */}
               <div className="border-t pt-4 space-y-2 text-sm text-gray-600">

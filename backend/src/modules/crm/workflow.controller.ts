@@ -1,10 +1,10 @@
 import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards, Request } from '@nestjs/common';
 import { WorkflowService } from './workflow.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { Public } from '../../common/decorators/public.decorator';
+import { PermissionsGuard } from '../../common/guards/permissions.guard';
 
 @Controller('crm/workflows')
-@Public()
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 export class WorkflowController {
   constructor(private readonly workflowService: WorkflowService) {}
 

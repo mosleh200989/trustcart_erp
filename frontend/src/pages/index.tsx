@@ -148,7 +148,7 @@ export default function Home() {
     }
   };
 
-  console.log(dealOfTheDay)
+  // console.log("Featrued Products", featuredProducts[0].image_url)
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -316,6 +316,76 @@ export default function Home() {
         </motion.div>
       ))}
 
+      {/* Deal of the Day */}
+      {dealOfTheDay && (
+        <motion.div 
+          initial={{ opacity: 0, y: 30 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.6 }}
+          className="bg-gradient-to-br from-amber-50 to-orange-50 py-12"
+        >
+          <div className="container mx-auto px-4 lg:px-36">
+            <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-0">
+                {/* Left Side - Content */}
+                <div className="p-12 flex flex-col justify-center">
+                  <div className="inline-block bg-orange-100 text-orange-600 px-4 py-2 rounded-full text-xs sm:text-sm font-bold mb-4 w-fit">
+                    🔥 DEAL OF THE DAY
+                  </div>
+                  <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900 mb-4">
+                    {dealOfTheDay.name_en}
+                  </h2>
+                  <p className="text-base sm:text-lg lg:text-xl text-gray-600 mb-6">
+                    {dealOfTheDay.brand || 'Premium Quality'}
+                  </p>
+                  <div className="mb-8">
+                    <div className="flex items-end gap-3 mb-2">
+                      <span className="text-4xl sm:text-5xl lg:text-6xl font-bold text-gray-900">
+                        ৳{Number(dealOfTheDay.sale_price || dealOfTheDay.base_price).toFixed(0)}
+                      </span>
+                      {dealOfTheDay.sale_price && (
+                        <span className="text-xl sm:text-2xl line-through text-gray-400 pb-2">
+                          ৳{Number(dealOfTheDay.base_price).toFixed(0)}
+                        </span>
+                      )}
+                    </div>
+                    {dealOfTheDay.sale_price && (
+                      <div className="inline-block bg-red-100 text-red-600 px-3 py-1 rounded-full text-sm font-bold">
+                        Save ৳{(Number(dealOfTheDay.base_price) - Number(dealOfTheDay.sale_price)).toFixed(0)}
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex gap-4">
+                    <a
+                      href={`/products/${dealOfTheDay.slug}`}
+                      className="bg-gradient-to-r from-orange-500 to-orange-600 text-white px-8 py-3 rounded-full font-bold text-lg hover:from-orange-600 hover:to-orange-700 transition-all hover:scale-105 shadow-lg"
+                    >
+                      Grab This Deal Now!
+                    </a>
+                  </div>
+                </div>
+                {/* Right Side - Image */}
+                <div className="flex items-center justify-center overflow-hidden">
+                  {dealOfTheDay.image_url ? (
+                    <img
+                      src={dealOfTheDay.image_url}
+                      alt={dealOfTheDay.name_en}
+                      crossOrigin="anonymous"
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="bg-gradient-to-br from-orange-100 to-orange-200 w-full h-full flex items-center justify-center">
+                      <div className="text-9xl animate-pulse">🏷️</div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </motion.div>
+      )}
+
       {/* Categories Slider */}
       <motion.div 
         initial={{ opacity: 0 }}
@@ -327,58 +397,6 @@ export default function Home() {
         <h2 className="text-3xl font-bold text-center mb-8">Shop by Categories</h2>
         <CategorySlider categories={categories} />
       </motion.div>
-
-      {/* Deal of the Day */}
-      {dealOfTheDay && (
-        <motion.div 
-          initial={{ opacity: 0, scale: 0.95 }}
-          whileInView={{ opacity: 1, scale: 1 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.6 }}
-          className="bg-gradient-to-br from-amber-50 to-orange-50 py-12"
-        >
-          <div className="container mx-auto px-4 lg:px-36">
-            <div className="bg-white rounded-2xl shadow-2xl overflow-hidden">
-              <div className="grid grid-cols-1 md:grid-cols-2">
-                <div className="bg-gradient-to-br from-orange-400 to-red-500 p-12 text-white flex flex-col justify-center">
-                  <div className="inline-block bg-white/20 backdrop-blur-sm px-4 py-2 rounded-full text-sm font-bold mb-4 w-fit">
-                    🔥 DEAL OF THE DAY
-                  </div>
-                  <h2 className="text-4xl font-bold mb-4">{dealOfTheDay.name_en}</h2>
-                  <p className="text-xl mb-6 text-white/90">{dealOfTheDay.brand || 'Premium Quality'}</p>
-                  <div className="flex items-end gap-3 mb-6">
-                    <span className="text-6xl font-bold">
-                      ৳{Number(dealOfTheDay.sale_price || dealOfTheDay.base_price).toFixed(0)}
-                    </span>
-                    {dealOfTheDay.sale_price && (
-                      <span className="text-2xl line-through opacity-75 pb-2">
-                        ৳{Number(dealOfTheDay.base_price).toFixed(0)}
-                      </span>
-                    )}
-                  </div>
-                  <a
-                    href={`/products/${dealOfTheDay.slug}`}
-                    className="bg-white text-orange-600 px-8 py-4 rounded-full font-bold text-lg hover:bg-gray-100 transition-all hover:scale-105 shadow-xl inline-block text-center w-fit"
-                  >
-                    Grab This Deal Now!
-                  </a>
-                </div>
-                <div className="relative h-96 md:h-auto bg-gradient-to-br from-amber-100 to-orange-100 flex items-center justify-center p-8">
-                  {dealOfTheDay.image_url ? (
-                    <img
-                      src={dealOfTheDay.image_url}
-                      alt={dealOfTheDay.name_en}
-                      className="max-h-80 w-auto object-contain drop-shadow-2xl"
-                    />
-                  ) : (
-                    <div className="text-9xl">🏷️</div>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        </motion.div>
-      )}
 
       {/* Hot Deals Section */}
       <motion.div 
@@ -458,7 +476,7 @@ export default function Home() {
                 price={product.hasDiscount ? product.salePrice : (product.base_price || product.price)}
                 originalPrice={product.hasDiscount ? (product.base_price || product.price) : undefined}
                 stock={product.stock_quantity}
-                image={product.image_url}
+                image={product?.image_url}
                 rating={5}
                 reviews={Math.floor(Math.random() * 200)}
                 discount={product.hasDiscount ? product.discountPercent : undefined}
