@@ -7,7 +7,7 @@ interface AwardType {
   id: number;
   name: string;
   description?: string;
-  isActive: boolean;
+  status: boolean;
 }
 
 export default function AwardTypesPage() {
@@ -18,7 +18,7 @@ export default function AwardTypesPage() {
   const [formData, setFormData] = useState({
     name: '',
     description: '',
-    isActive: true,
+    status: true,
   });
 
   useEffect(() => {
@@ -37,18 +37,21 @@ export default function AwardTypesPage() {
     }
   };
 
+    const prepareData = (data: any) => { const prepared = { ...data }; const idFields = ['branchId', 'departmentId', 'employeeId', 'managerId', 'designationId', 'awardTypeId', 'fromBranchId', 'toBranchId', 'fromDepartmentId', 'toDepartmentId', 'fromDesignationId', 'toDesignationId', 'typeId', 'categoryId', 'roomId', 'cycleId', 'goalTypeId', 'indicatorId', 'candidateId', 'jobPostingId', 'roundId', 'componentId', 'policyId', 'leaveTypeId', 'sessionId', 'programId', 'templateId']; idFields.forEach(field => { if (prepared[field] !== undefined && prepared[field] !== '' && prepared[field] !== null) { prepared[field] = Number(prepared[field]); } else if (prepared[field] === '') { delete prepared[field]; } }); return prepared; };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       if (editingAwardType) {
-        await api.put(`/hrm/award-types/${editingAwardType.id}`, formData);
+        await api.patch(`/hrm/award-types/${editingAwardType.id}`, prepareData(formData));
       } else {
-        await api.post('/hrm/award-types', formData);
+        await api.post('/hrm/award-types', prepareData(formData));
       }
       fetchAwardTypes();
       resetForm();
     } catch (error) {
       console.error('Failed to save award type:', error);
+      alert('Failed to save. Please try again.');
     }
   };
 
@@ -57,7 +60,7 @@ export default function AwardTypesPage() {
     setFormData({
       name: awardType.name,
       description: awardType.description || '',
-      isActive: awardType.isActive,
+      status: awardType.status,
     });
     setShowModal(true);
   };
@@ -69,6 +72,7 @@ export default function AwardTypesPage() {
         fetchAwardTypes();
       } catch (error) {
         console.error('Failed to delete award type:', error);
+        alert('Failed to delete. Please try again.');
       }
     }
   };
@@ -77,7 +81,7 @@ export default function AwardTypesPage() {
     setFormData({
       name: '',
       description: '',
-      isActive: true,
+      status: true,
     });
     setEditingAwardType(null);
     setShowModal(false);
@@ -123,10 +127,10 @@ export default function AwardTypesPage() {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span
                         className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                          awardType.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                          awardType.status ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
                         }`}
                       >
-                        {awardType.isActive ? 'Active' : 'Inactive'}
+                        {awardType.status ? 'Active' : 'Inactive'}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
@@ -152,7 +156,7 @@ export default function AwardTypesPage() {
 
         {showModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-8 max-w-md w-full">
+            <div className="bg-white rounded-lg p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
               <h2 className="text-2xl font-bold mb-4">
                 {editingAwardType ? 'Edit Award Type' : 'Add New Award Type'}
               </h2>
@@ -180,8 +184,8 @@ export default function AwardTypesPage() {
                   <label className="flex items-center">
                     <input
                       type="checkbox"
-                      checked={formData.isActive}
-                      onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
+                      checked={formData.status}
+                      onChange={(e) => setFormData({ ...formData, status: e.target.checked })}
                       className="mr-2"
                     />
                     <span className="text-sm font-medium text-gray-700">Active</span>
@@ -210,3 +214,6 @@ export default function AwardTypesPage() {
     </AdminLayout>
   );
 }
+
+
+

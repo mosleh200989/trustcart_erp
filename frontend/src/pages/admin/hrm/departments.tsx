@@ -8,7 +8,7 @@ interface Department {
   code: string;
   branchId?: number;
   managerId?: number;
-  isActive: boolean;
+  status: boolean;
 }
 
 export default function DepartmentsPage() {
@@ -21,7 +21,7 @@ export default function DepartmentsPage() {
     code: '',
     branchId: '',
     managerId: '',
-    isActive: true,
+    status: true,
   });
 
   useEffect(() => {
@@ -40,18 +40,21 @@ export default function DepartmentsPage() {
     }
   };
 
+  const prepareData = (data: any) => { const prepared = { ...data }; const idFields = ['branchId', 'departmentId', 'employeeId', 'managerId', 'designationId', 'awardTypeId', 'fromBranchId', 'toBranchId', 'fromDepartmentId', 'toDepartmentId', 'fromDesignationId', 'toDesignationId', 'typeId', 'categoryId', 'roomId', 'cycleId', 'goalTypeId', 'indicatorId', 'candidateId', 'jobPostingId', 'roundId', 'componentId', 'policyId', 'leaveTypeId', 'sessionId', 'programId', 'templateId']; idFields.forEach(field => { if (prepared[field] !== undefined && prepared[field] !== '' && prepared[field] !== null) { prepared[field] = Number(prepared[field]); } else if (prepared[field] === '') { delete prepared[field]; } }); return prepared; };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       if (editingDepartment) {
-        await api.put(`/hrm/departments/${editingDepartment.id}`, formData);
+        await api.patch(`/hrm/departments/${editingDepartment.id}`, prepareData(formData));
       } else {
-        await api.post('/hrm/departments', formData);
+        await api.post('/hrm/departments', prepareData(formData));
       }
       fetchDepartments();
       resetForm();
     } catch (error) {
       console.error('Failed to save department:', error);
+      alert('Failed to save. Please try again.');
     }
   };
 
@@ -62,7 +65,7 @@ export default function DepartmentsPage() {
       code: department.code,
       branchId: department.branchId?.toString() || '',
       managerId: department.managerId?.toString() || '',
-      isActive: department.isActive,
+      status: department.status,
     });
     setShowModal(true);
   };
@@ -74,6 +77,7 @@ export default function DepartmentsPage() {
         fetchDepartments();
       } catch (error) {
         console.error('Failed to delete department:', error);
+        alert('Failed to delete. Please try again.');
       }
     }
   };
@@ -84,7 +88,7 @@ export default function DepartmentsPage() {
       code: '',
       branchId: '',
       managerId: '',
-      isActive: true,
+      status: true,
     });
     setEditingDepartment(null);
     setShowModal(false);
@@ -130,10 +134,10 @@ export default function DepartmentsPage() {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span
                         className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                          department.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                          department.status ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
                         }`}
                       >
-                        {department.isActive ? 'Active' : 'Inactive'}
+                        {department.status ? 'Active' : 'Inactive'}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
@@ -159,7 +163,7 @@ export default function DepartmentsPage() {
 
         {showModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-8 max-w-md w-full">
+            <div className="bg-white rounded-lg p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
               <h2 className="text-2xl font-bold mb-4">
                 {editingDepartment ? 'Edit Department' : 'Add New Department'}
               </h2>
@@ -188,8 +192,8 @@ export default function DepartmentsPage() {
                   <label className="flex items-center">
                     <input
                       type="checkbox"
-                      checked={formData.isActive}
-                      onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
+                      checked={formData.status}
+                      onChange={(e) => setFormData({ ...formData, status: e.target.checked })}
                       className="mr-2"
                     />
                     <span className="text-sm font-medium text-gray-700">Active</span>
@@ -218,3 +222,6 @@ export default function DepartmentsPage() {
     </AdminLayout>
   );
 }
+
+
+

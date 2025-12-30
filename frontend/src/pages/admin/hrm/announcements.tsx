@@ -7,7 +7,7 @@ interface Announcement {
   id: number;
   title: string;
   content: string;
-  isActive: boolean;
+  status: boolean;
 }
 
 export default function AnnouncementsPage() {
@@ -18,7 +18,7 @@ export default function AnnouncementsPage() {
   const [formData, setFormData] = useState({
     title: '',
     content: '',
-    isActive: true,
+    status: true,
   });
 
   useEffect(() => {
@@ -37,18 +37,21 @@ export default function AnnouncementsPage() {
     }
   };
 
+    const prepareData = (data: any) => { const prepared = { ...data }; const idFields = ['branchId', 'departmentId', 'employeeId', 'managerId', 'designationId', 'awardTypeId', 'fromBranchId', 'toBranchId', 'fromDepartmentId', 'toDepartmentId', 'fromDesignationId', 'toDesignationId', 'typeId', 'categoryId', 'roomId', 'cycleId', 'goalTypeId', 'indicatorId', 'candidateId', 'jobPostingId', 'roundId', 'componentId', 'policyId', 'leaveTypeId', 'sessionId', 'programId', 'templateId']; idFields.forEach(field => { if (prepared[field] !== undefined && prepared[field] !== '' && prepared[field] !== null) { prepared[field] = Number(prepared[field]); } else if (prepared[field] === '') { delete prepared[field]; } }); return prepared; };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       if (editingAnnouncement) {
-        await api.put(`/hrm/announcements/${editingAnnouncement.id}`, formData);
+        await api.patch(`/hrm/announcements/${editingAnnouncement.id}`, prepareData(formData));
       } else {
-        await api.post('/hrm/announcements', formData);
+        await api.post('/hrm/announcements', prepareData(formData));
       }
       fetchAnnouncements();
       resetForm();
     } catch (error) {
       console.error('Failed to save announcement:', error);
+      alert('Failed to save. Please try again.');
     }
   };
 
@@ -57,7 +60,7 @@ export default function AnnouncementsPage() {
     setFormData({
       title: announcement.title,
       content: announcement.content,
-      isActive: announcement.isActive,
+      status: announcement.status,
     });
     setShowModal(true);
   };
@@ -69,6 +72,7 @@ export default function AnnouncementsPage() {
         fetchAnnouncements();
       } catch (error) {
         console.error('Failed to delete announcement:', error);
+        alert('Failed to delete. Please try again.');
       }
     }
   };
@@ -77,7 +81,7 @@ export default function AnnouncementsPage() {
     setFormData({
       title: '',
       content: '',
-      isActive: true,
+      status: true,
     });
     setEditingAnnouncement(null);
     setShowModal(false);
@@ -123,10 +127,10 @@ export default function AnnouncementsPage() {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span
                         className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                          announcement.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                          announcement.status ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
                         }`}
                       >
-                        {announcement.isActive ? 'Active' : 'Inactive'}
+                        {announcement.status ? 'Active' : 'Inactive'}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
@@ -152,7 +156,7 @@ export default function AnnouncementsPage() {
 
         {showModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-8 max-w-md w-full">
+            <div className="bg-white rounded-lg p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
               <h2 className="text-2xl font-bold mb-4">
                 {editingAnnouncement ? 'Edit Announcement' : 'Add New Announcement'}
               </h2>
@@ -181,8 +185,8 @@ export default function AnnouncementsPage() {
                   <label className="flex items-center">
                     <input
                       type="checkbox"
-                      checked={formData.isActive}
-                      onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
+                      checked={formData.status}
+                      onChange={(e) => setFormData({ ...formData, status: e.target.checked })}
                       className="mr-2"
                     />
                     <span className="text-sm font-medium text-gray-700">Active</span>
@@ -211,3 +215,6 @@ export default function AnnouncementsPage() {
     </AdminLayout>
   );
 }
+
+
+

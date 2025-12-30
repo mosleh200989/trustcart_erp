@@ -7,7 +7,7 @@ interface DocumentType {
   id: number;
   name: string;
   description?: string;
-  isActive: boolean;
+  status: boolean;
 }
 
 export default function DocumentTypesPage() {
@@ -18,7 +18,7 @@ export default function DocumentTypesPage() {
   const [formData, setFormData] = useState({
     name: '',
     description: '',
-    isActive: true,
+    status: true,
   });
 
   useEffect(() => {
@@ -37,18 +37,21 @@ export default function DocumentTypesPage() {
     }
   };
 
+    const prepareData = (data: any) => { const prepared = { ...data }; const idFields = ['branchId', 'departmentId', 'employeeId', 'managerId', 'designationId', 'awardTypeId', 'fromBranchId', 'toBranchId', 'fromDepartmentId', 'toDepartmentId', 'fromDesignationId', 'toDesignationId', 'typeId', 'categoryId', 'roomId', 'cycleId', 'goalTypeId', 'indicatorId', 'candidateId', 'jobPostingId', 'roundId', 'componentId', 'policyId', 'leaveTypeId', 'sessionId', 'programId', 'templateId']; idFields.forEach(field => { if (prepared[field] !== undefined && prepared[field] !== '' && prepared[field] !== null) { prepared[field] = Number(prepared[field]); } else if (prepared[field] === '') { delete prepared[field]; } }); return prepared; };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       if (editingDocumentType) {
-        await api.put(`/hrm/document-types/${editingDocumentType.id}`, formData);
+        await api.patch(`/hrm/document-types/${editingDocumentType.id}`, prepareData(formData));
       } else {
-        await api.post('/hrm/document-types', formData);
+        await api.post('/hrm/document-types', prepareData(formData));
       }
       fetchDocumentTypes();
       resetForm();
     } catch (error) {
       console.error('Failed to save document type:', error);
+      alert('Failed to save. Please try again.');
     }
   };
 
@@ -57,7 +60,7 @@ export default function DocumentTypesPage() {
     setFormData({
       name: documentType.name,
       description: documentType.description || '',
-      isActive: documentType.isActive,
+      status: documentType.status,
     });
     setShowModal(true);
   };
@@ -69,6 +72,7 @@ export default function DocumentTypesPage() {
         fetchDocumentTypes();
       } catch (error) {
         console.error('Failed to delete document type:', error);
+        alert('Failed to delete. Please try again.');
       }
     }
   };
@@ -77,7 +81,7 @@ export default function DocumentTypesPage() {
     setFormData({
       name: '',
       description: '',
-      isActive: true,
+      status: true,
     });
     setEditingDocumentType(null);
     setShowModal(false);
@@ -123,10 +127,10 @@ export default function DocumentTypesPage() {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span
                         className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                          documentType.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                          documentType.status ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
                         }`}
                       >
-                        {documentType.isActive ? 'Active' : 'Inactive'}
+                        {documentType.status ? 'Active' : 'Inactive'}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
@@ -152,7 +156,7 @@ export default function DocumentTypesPage() {
 
         {showModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-8 max-w-md w-full">
+            <div className="bg-white rounded-lg p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
               <h2 className="text-2xl font-bold mb-4">
                 {editingDocumentType ? 'Edit Document Type' : 'Add New Document Type'}
               </h2>
@@ -180,8 +184,8 @@ export default function DocumentTypesPage() {
                   <label className="flex items-center">
                     <input
                       type="checkbox"
-                      checked={formData.isActive}
-                      onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
+                      checked={formData.status}
+                      onChange={(e) => setFormData({ ...formData, status: e.target.checked })}
                       className="mr-2"
                     />
                     <span className="text-sm font-medium text-gray-700">Active</span>
@@ -210,3 +214,6 @@ export default function DocumentTypesPage() {
     </AdminLayout>
   );
 }
+
+
+
