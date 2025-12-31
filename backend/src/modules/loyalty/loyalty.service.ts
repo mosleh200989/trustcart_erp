@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { In } from 'typeorm';
 import { CustomerMembership } from './entities/customer-membership.entity';
 import { CustomerWallet } from './entities/customer-wallet.entity';
 import { WalletTransaction } from './entities/wallet-transaction.entity';
@@ -8,6 +9,9 @@ import { CustomerReferral } from './entities/customer-referral.entity';
 import { MonthlyGroceryList } from './entities/monthly-grocery-list.entity';
 import { GroceryListItem } from './entities/grocery-list-item.entity';
 import { PriceLock } from './entities/price-lock.entity';
+import { QueryFailedError } from 'typeorm';
+import { CustomerPoints } from './entities/customer-points.entity';
+import { PointTransaction } from './entities/point-transaction.entity';
 
 @Injectable()
 export class LoyaltyService {
@@ -26,7 +30,30 @@ export class LoyaltyService {
     private groceryItemRepo: Repository<GroceryListItem>,
     @InjectRepository(PriceLock)
     private priceLockRepo: Repository<PriceLock>,
+
+    @InjectRepository(CustomerPoints)
+    private pointsRepo: Repository<CustomerPoints>,
+
+    @InjectRepository(PointTransaction)
+    private pointTxRepo: Repository<PointTransaction>,
   ) {}
+
+  private normalizeMoneyAmount(amount: number): number {
+    if (typeof amount !== 'number' || !Number.isFinite(amount)) {
+      throw new Error('Invalid amount');
+    }
+    const rounded = Math.round(amount * 100) / 100;
+    if (rounded <= 0) {
+      throw new Error('Amount must be greater than 0');
+    }
+    return rounded;
+  }
+
+  private isUniqueViolation(error: unknown): boolean {
+    if (!(error instanceof QueryFailedError)) return false;
+    const driverError: any = (error as any).driverError;
+    return driverError?.code === '23505';
+  }
 
   private isUuid(value: string): boolean {
     return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
@@ -97,70 +124,148 @@ export class LoyaltyService {
         ? ({ customerUuid: selector.customerUuid } as any)
         : ({ customerId: selector.customerId } as any);
 
-    let wallet = await this.walletRepo.findOne({ where });
-    
-    if (!wallet) {
-      wallet =
+    return await this.walletRepo.manager.transaction(async (manager) => {
+      const walletRepo = manager.getRepository(CustomerWallet);
+
+      let wallet = await walletRepo.findOne({ where, lock: { mode: 'pessimistic_write' } });
+
+      if (!wallet) {
+        wallet =
+          selector.kind === 'uuid'
+            ? walletRepo.create({ customerUuid: selector.customerUuid, balance: 0, totalEarned: 0, totalSpent: 0 })
+            : walletRepo.create({ customerId: selector.customerId, balance: 0, totalEarned: 0, totalSpent: 0 });
+
+        try {
+          await walletRepo.save(wallet);
+        } catch (e) {
+          // Another request may have created the wallet concurrently.
+          if (!this.isUniqueViolation(e)) throw e;
+          wallet = await walletRepo.findOne({ where, lock: { mode: 'pessimistic_write' } });
+        }
+      }
+
+      if (!wallet) {
+        throw new Error('Failed to create or load wallet');
+      }
+
+      return wallet;
+    });
+  }
+
+  async creditWallet(
+    customerIdOrUuid: string | number,
+    amount: number,
+    source: string,
+    description?: string,
+    referenceId?: number,
+    idempotencyKey?: string,
+  ) {
+    const selector = this.resolveCustomerSelector(customerIdOrUuid);
+    const normalizedAmount = this.normalizeMoneyAmount(amount);
+
+    return await this.walletRepo.manager.transaction(async (manager) => {
+      const walletRepo = manager.getRepository(CustomerWallet);
+      const txRepo = manager.getRepository(WalletTransaction);
+
+      if (idempotencyKey) {
+        const existing = await txRepo.findOne({ where: { idempotencyKey } as any });
+        if (existing) return existing;
+      }
+
+      const walletWhere =
         selector.kind === 'uuid'
-          ? this.walletRepo.create({ customerUuid: selector.customerUuid, balance: 0 })
-          : this.walletRepo.create({ customerId: selector.customerId, balance: 0 });
-      await this.walletRepo.save(wallet);
-    }
-    
-    return wallet;
+          ? ({ customerUuid: selector.customerUuid } as any)
+          : ({ customerId: selector.customerId } as any);
+
+      let wallet = await walletRepo.findOne({ where: walletWhere, lock: { mode: 'pessimistic_write' } });
+      if (!wallet) {
+        wallet =
+          selector.kind === 'uuid'
+            ? walletRepo.create({ customerUuid: selector.customerUuid, balance: 0, totalEarned: 0, totalSpent: 0 })
+            : walletRepo.create({ customerId: selector.customerId, balance: 0, totalEarned: 0, totalSpent: 0 });
+        await walletRepo.save(wallet);
+      }
+
+      wallet.balance = Number(wallet.balance) + normalizedAmount;
+      wallet.totalEarned = Number(wallet.totalEarned) + normalizedAmount;
+      await walletRepo.save(wallet);
+
+      const baseTx: Partial<WalletTransaction> = {
+        walletId: wallet.id,
+        idempotencyKey: idempotencyKey || undefined,
+        status: 'posted',
+        transactionType: 'credit',
+        amount: normalizedAmount,
+        source: source as any,
+        description,
+        referenceId,
+        balanceAfter: wallet.balance,
+      };
+
+      if (selector.kind === 'uuid') baseTx.customerUuid = selector.customerUuid;
+      else baseTx.customerId = selector.customerId;
+
+      const transaction = txRepo.create(baseTx as any);
+
+      return await txRepo.save(transaction);
+    });
   }
 
-  async creditWallet(customerIdOrUuid: string | number, amount: number, source: string, description?: string, referenceId?: number) {
+  async debitWallet(
+    customerIdOrUuid: string | number,
+    amount: number,
+    source: string,
+    description?: string,
+    idempotencyKey?: string,
+  ) {
     const selector = this.resolveCustomerSelector(customerIdOrUuid);
-    const wallet = await this.getCustomerWallet(customerIdOrUuid);
-    
-    wallet.balance += amount;
-    wallet.totalEarned += amount;
-    await this.walletRepo.save(wallet);
-    
-    // Log transaction
-    const transaction = this.transactionRepo.create({
-      walletId: wallet.id,
-      ...(selector.kind === 'uuid'
-        ? { customerUuid: selector.customerUuid }
-        : { customerId: selector.customerId }),
-      transactionType: 'credit',
-      amount,
-      source: source as any,
-      description,
-      referenceId,
-      balanceAfter: wallet.balance,
-    });
-    
-    return await this.transactionRepo.save(transaction);
-  }
+    const normalizedAmount = this.normalizeMoneyAmount(amount);
 
-  async debitWallet(customerIdOrUuid: string | number, amount: number, source: string, description?: string) {
-    const selector = this.resolveCustomerSelector(customerIdOrUuid);
-    const wallet = await this.getCustomerWallet(customerIdOrUuid);
-    
-    if (wallet.balance < amount) {
-      throw new Error('Insufficient wallet balance');
-    }
-    
-    wallet.balance -= amount;
-    wallet.totalSpent += amount;
-    await this.walletRepo.save(wallet);
-    
-    // Log transaction
-    const transaction = this.transactionRepo.create({
-      walletId: wallet.id,
-      ...(selector.kind === 'uuid'
-        ? { customerUuid: selector.customerUuid }
-        : { customerId: selector.customerId }),
-      transactionType: 'debit',
-      amount,
-      source: source as any,
-      description,
-      balanceAfter: wallet.balance,
+    return await this.walletRepo.manager.transaction(async (manager) => {
+      const walletRepo = manager.getRepository(CustomerWallet);
+      const txRepo = manager.getRepository(WalletTransaction);
+
+      if (idempotencyKey) {
+        const existing = await txRepo.findOne({ where: { idempotencyKey } as any });
+        if (existing) return existing;
+      }
+
+      const walletWhere =
+        selector.kind === 'uuid'
+          ? ({ customerUuid: selector.customerUuid } as any)
+          : ({ customerId: selector.customerId } as any);
+
+      const wallet = await walletRepo.findOne({ where: walletWhere, lock: { mode: 'pessimistic_write' } });
+      if (!wallet) {
+        throw new Error('Wallet not found');
+      }
+
+      if (Number(wallet.balance) < normalizedAmount) {
+        throw new Error('Insufficient wallet balance');
+      }
+
+      wallet.balance = Number(wallet.balance) - normalizedAmount;
+      wallet.totalSpent = Number(wallet.totalSpent) + normalizedAmount;
+      await walletRepo.save(wallet);
+
+      const baseTx: Partial<WalletTransaction> = {
+        walletId: wallet.id,
+        idempotencyKey: idempotencyKey || undefined,
+        status: 'posted',
+        transactionType: 'debit',
+        amount: normalizedAmount,
+        source: source as any,
+        description,
+        balanceAfter: wallet.balance,
+      };
+
+      if (selector.kind === 'uuid') baseTx.customerUuid = selector.customerUuid;
+      else baseTx.customerId = selector.customerId;
+
+      const transaction = txRepo.create(baseTx as any);
+
+      return await txRepo.save(transaction);
     });
-    
-    return await this.transactionRepo.save(transaction);
   }
 
   async getWalletTransactions(customerIdOrUuid: string | number, limit: number = 50) {
@@ -201,26 +306,268 @@ export class LoyaltyService {
   }
 
   async getReferralsByCustomer(customerId: number) {
-    return await this.referralRepo.find({
+    const referrals = await this.referralRepo.find({
       where: { referrerCustomerId: customerId },
       order: { createdAt: 'DESC' },
     });
+
+    if (referrals.length === 0) return referrals;
+
+    const referralIds = referrals.map((r) => r.id);
+    const rewardTxs = await this.transactionRepo.find({
+      where: {
+        source: 'referral' as any,
+        transactionType: 'credit' as any,
+        referenceId: In(referralIds) as any,
+      } as any,
+      order: { createdAt: 'DESC' },
+    });
+
+    const rewardTxByReferralId = new Map<number, { id: number; createdAt: Date }>();
+    for (const tx of rewardTxs) {
+      if (tx.referenceId != null && !rewardTxByReferralId.has(Number(tx.referenceId))) {
+        rewardTxByReferralId.set(Number(tx.referenceId), { id: tx.id, createdAt: tx.createdAt });
+      }
+    }
+
+    return referrals.map((r: any) => {
+      const tx = rewardTxByReferralId.get(r.id);
+      return {
+        ...r,
+        rewardTransactionId: tx?.id ?? null,
+        rewardCreditedAt: tx?.createdAt ?? null,
+      };
+    });
   }
 
-  async markReferralComplete(referralId: number, referredCustomerId: number) {
+  async getShareReferralCode(customerId: number): Promise<string> {
+    // Stable, server-driven code for sharing links (not tied to per-referral records)
+    const id = Number(customerId);
+    if (!Number.isFinite(id) || id <= 0) throw new Error('Invalid customerId');
+    return `REF${String(id).padStart(6, '0')}`;
+  }
+
+  async markReferralComplete(referralId: number, referredCustomerId?: number) {
     const referral = await this.referralRepo.findOne({ where: { id: referralId } });
     
     if (!referral) {
       throw new Error('Referral not found');
     }
+
+    // Idempotent: if already completed, just ensure reward credited and return.
+    if (referral.status === 'completed') {
+      await this.ensureReferralRewardCredited(referral.id);
+      return await this.referralRepo.findOne({ where: { id: referralId } });
+    }
+
+    if (referredCustomerId != null) {
+      referral.referredCustomerId = referredCustomerId;
+    }
     
-    referral.referredCustomerId = referredCustomerId;
     referral.firstOrderPlaced = true;
     referral.firstOrderDate = new Date();
     referral.status = 'completed';
+    referral.completedAt = new Date();
     
-    // Credit will be handled by database trigger
-    return await this.referralRepo.save(referral);
+    // Primary path: DB trigger from membership-loyalty-migration.sql.
+    // Fallback: if trigger is not installed, credit via application (idempotent).
+    const saved = await this.referralRepo.save(referral);
+    await this.ensureReferralRewardCredited(saved.id);
+    return await this.referralRepo.findOne({ where: { id: referralId } });
+  }
+
+  private async ensureReferralRewardCredited(referralId: number) {
+    const referral = await this.referralRepo.findOne({ where: { id: referralId } });
+    if (!referral) return;
+    if (referral.rewardCredited) return;
+    if (referral.status !== 'completed') return;
+    if (!referral.referrerCustomerId) return;
+
+    // Credit referrer wallet once.
+    const idempotencyKey = `referral:${referral.id}:referrer`;
+    await this.creditWallet(
+      referral.referrerCustomerId,
+      Number(referral.rewardAmount || 0),
+      'referral',
+      'Referral reward',
+      referral.id,
+      idempotencyKey,
+    );
+
+    referral.rewardCredited = true;
+    await this.referralRepo.save(referral);
+  }
+
+  // =====================================================
+  // POINTS MANAGEMENT (Ledger-based)
+  // =====================================================
+
+  private normalizePoints(points: number): number {
+    if (typeof points !== 'number' || !Number.isFinite(points) || !Number.isInteger(points)) {
+      throw new Error('Invalid points');
+    }
+    if (points <= 0) {
+      throw new Error('Points must be greater than 0');
+    }
+    return points;
+  }
+
+  async getCustomerPoints(customerIdOrUuid: string | number) {
+    const selector = this.resolveCustomerSelector(customerIdOrUuid);
+    const where =
+      selector.kind === 'uuid'
+        ? ({ customerUuid: selector.customerUuid } as any)
+        : ({ customerId: selector.customerId } as any);
+
+    return await this.pointsRepo.manager.transaction(async (manager) => {
+      const pointsRepo = manager.getRepository(CustomerPoints);
+
+      let points = await pointsRepo.findOne({ where, lock: { mode: 'pessimistic_write' } });
+
+      if (!points) {
+        points =
+          selector.kind === 'uuid'
+            ? pointsRepo.create({ customerUuid: selector.customerUuid, activePoints: 0, lifetimeEarned: 0, lifetimeRedeemed: 0 })
+            : pointsRepo.create({ customerId: selector.customerId, activePoints: 0, lifetimeEarned: 0, lifetimeRedeemed: 0 });
+        try {
+          await pointsRepo.save(points);
+        } catch (e) {
+          if (!this.isUniqueViolation(e)) throw e;
+          points = await pointsRepo.findOne({ where, lock: { mode: 'pessimistic_write' } });
+        }
+      }
+
+      if (!points) throw new Error('Failed to create or load points');
+      return points;
+    });
+  }
+
+  async earnPoints(
+    customerIdOrUuid: string | number,
+    points: number,
+    source: string,
+    description?: string,
+    referenceId?: number,
+    idempotencyKey?: string,
+  ) {
+    const selector = this.resolveCustomerSelector(customerIdOrUuid);
+    const normalizedPoints = this.normalizePoints(points);
+
+    return await this.pointsRepo.manager.transaction(async (manager) => {
+      const pointsRepo = manager.getRepository(CustomerPoints);
+      const txRepo = manager.getRepository(PointTransaction);
+
+      if (idempotencyKey) {
+        const existing = await txRepo.findOne({ where: { idempotencyKey } as any });
+        if (existing) return existing;
+      }
+
+      const where =
+        selector.kind === 'uuid'
+          ? ({ customerUuid: selector.customerUuid } as any)
+          : ({ customerId: selector.customerId } as any);
+
+      let summary = await pointsRepo.findOne({ where, lock: { mode: 'pessimistic_write' } });
+      if (!summary) {
+        summary =
+          selector.kind === 'uuid'
+            ? pointsRepo.create({ customerUuid: selector.customerUuid, activePoints: 0, lifetimeEarned: 0, lifetimeRedeemed: 0 })
+            : pointsRepo.create({ customerId: selector.customerId, activePoints: 0, lifetimeEarned: 0, lifetimeRedeemed: 0 });
+        await pointsRepo.save(summary);
+      }
+
+      summary.activePoints += normalizedPoints;
+      summary.lifetimeEarned += normalizedPoints;
+      await pointsRepo.save(summary);
+
+      const baseTx: Partial<PointTransaction> = {
+        idempotencyKey: idempotencyKey || undefined,
+        transactionType: 'earn',
+        points: normalizedPoints,
+        source,
+        description,
+        referenceId,
+        balanceAfter: summary.activePoints,
+      };
+
+      if (selector.kind === 'uuid') baseTx.customerUuid = selector.customerUuid;
+      else baseTx.customerId = selector.customerId;
+
+      const tx = txRepo.create(baseTx as any);
+
+      return await txRepo.save(tx);
+    });
+  }
+
+  async redeemPoints(
+    customerIdOrUuid: string | number,
+    points: number,
+    source: string,
+    description?: string,
+    referenceId?: number,
+    idempotencyKey?: string,
+  ) {
+    const selector = this.resolveCustomerSelector(customerIdOrUuid);
+    const normalizedPoints = this.normalizePoints(points);
+
+    return await this.pointsRepo.manager.transaction(async (manager) => {
+      const pointsRepo = manager.getRepository(CustomerPoints);
+      const txRepo = manager.getRepository(PointTransaction);
+
+      if (idempotencyKey) {
+        const existing = await txRepo.findOne({ where: { idempotencyKey } as any });
+        if (existing) return existing;
+      }
+
+      const where =
+        selector.kind === 'uuid'
+          ? ({ customerUuid: selector.customerUuid } as any)
+          : ({ customerId: selector.customerId } as any);
+
+      const summary = await pointsRepo.findOne({ where, lock: { mode: 'pessimistic_write' } });
+      if (!summary) {
+        throw new Error('Points summary not found');
+      }
+
+      if (summary.activePoints < normalizedPoints) {
+        throw new Error('Insufficient points');
+      }
+
+      summary.activePoints -= normalizedPoints;
+      summary.lifetimeRedeemed += normalizedPoints;
+      await pointsRepo.save(summary);
+
+      const baseTx: Partial<PointTransaction> = {
+        idempotencyKey: idempotencyKey || undefined,
+        transactionType: 'redeem',
+        points: normalizedPoints,
+        source,
+        description,
+        referenceId,
+        balanceAfter: summary.activePoints,
+      };
+
+      if (selector.kind === 'uuid') baseTx.customerUuid = selector.customerUuid;
+      else baseTx.customerId = selector.customerId;
+
+      const tx = txRepo.create(baseTx as any);
+
+      return await txRepo.save(tx);
+    });
+  }
+
+  async getPointTransactions(customerIdOrUuid: string | number, limit: number = 50) {
+    const selector = this.resolveCustomerSelector(customerIdOrUuid);
+    const where =
+      selector.kind === 'uuid'
+        ? ({ customerUuid: selector.customerUuid } as any)
+        : ({ customerId: selector.customerId } as any);
+
+    return await this.pointTxRepo.find({
+      where,
+      order: { createdAt: 'DESC' },
+      take: limit,
+    });
   }
 
   async getReferralStats(customerId: number) {

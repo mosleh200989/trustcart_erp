@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import AdminLayout from '@/layouts/AdminLayout';
 import Link from 'next/link';
+import apiClient from '@/services/api';
 
 interface MembershipData {
   id: number;
@@ -71,26 +72,24 @@ export default function MembershipDashboard() {
     try {
       setLoading(true);
       const [membershipRes, walletRes, referralStatsRes, referralsRes, groceryRes] = await Promise.all([
-        fetch(`http://localhost:3001/loyalty/membership/${customerId}`),
-        fetch(`http://localhost:3001/loyalty/wallet/${customerId}`),
-        fetch(`http://localhost:3001/loyalty/referrals/${customerId}/stats`),
-        fetch(`http://localhost:3001/loyalty/referrals/${customerId}`),
-        fetch(`http://localhost:3001/loyalty/grocery-lists/${customerId}`),
+        apiClient.get(`/loyalty/membership/${customerId}`),
+        apiClient.get(`/loyalty/wallet/${customerId}`),
+        apiClient.get(`/loyalty/referrals/${customerId}/stats`),
+        apiClient.get(`/loyalty/referrals/${customerId}`),
+        apiClient.get(`/loyalty/grocery-lists/${customerId}`),
       ]);
 
-      const [membershipData, walletData, referralStatsData, referralsData, groceryData] = await Promise.all([
-        membershipRes.json(),
-        walletRes.json(),
-        referralStatsRes.json(),
-        referralsRes.json(),
-        groceryRes.json(),
-      ]);
+      const membershipData = membershipRes.data;
+      const walletData = walletRes.data;
+      const referralStatsData = referralStatsRes.data;
+      const referralsData = referralsRes.data;
+      const groceryData = groceryRes.data;
 
       setMembership(membershipData);
       setWallet(walletData);
       setReferralStats(referralStatsData);
-      setReferrals(referralsData);
-      setGroceryLists(groceryData);
+      setReferrals(Array.isArray(referralsData) ? referralsData : []);
+      setGroceryLists(Array.isArray(groceryData) ? groceryData : []);
     } catch (error) {
       console.error('Failed to load data:', error);
     } finally {

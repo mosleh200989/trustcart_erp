@@ -9,6 +9,7 @@ import { OrderManagementController } from './order-management.controller';
 import { OrderItem } from './entities/order-item.entity';
 import { OrderActivityLog } from './entities/order-activity-log.entity';
 import { CourierTrackingHistory } from './entities/courier-tracking-history.entity';
+import { CustomersModule } from '../customers/customers.module';
 
 @Module({
   imports: [
@@ -18,7 +19,8 @@ import { CourierTrackingHistory } from './entities/courier-tracking-history.enti
       OrderItem,
       OrderActivityLog,
       CourierTrackingHistory,
-    ])
+    ]),
+    CustomersModule,
   ],
   controllers: [SalesController, OrderManagementController],
   providers: [SalesService, OrderManagementService],

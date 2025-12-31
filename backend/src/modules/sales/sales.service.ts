@@ -52,6 +52,24 @@ export class SalesService {
     }));
   }
 
+  async findForCustomer(customerId: number) {
+    const orders = await this.salesRepository.find({
+      where: { customerId },
+      order: { createdAt: 'DESC' },
+    });
+
+    return orders.map((order) => ({
+      id: order.id,
+      salesOrderNumber: order.salesOrderNumber,
+      customerId: order.customerId,
+      totalAmount: parseFloat(order.totalAmount?.toString() || '0'),
+      status: order.status,
+      orderDate: order.orderDate || order.createdAt,
+      createdAt: order.createdAt,
+      notes: order.notes,
+    }));
+  }
+
   async findOne(id: string) {
     return this.salesRepository.findOne({ where: { id: Number(id) } });
   }
@@ -59,6 +77,17 @@ export class SalesService {
   async create(createSalesDto: any) {
     // Map incoming payload (including web checkout orders) to existing sales_orders schema
     const sales = new SalesOrder();
+
+    // created_by is NOT NULL and is a FK to users.
+    // For customer checkout (no admin user context), default to a system user id.
+    const systemUserId = Number(process.env.SYSTEM_USER_ID || 1);
+    const providedCreatedBy =
+      createSalesDto.created_by != null
+        ? Number(createSalesDto.created_by)
+        : createSalesDto.createdBy != null
+          ? Number(createSalesDto.createdBy)
+          : null;
+    sales.createdBy = Number.isFinite(providedCreatedBy as any) ? (providedCreatedBy as number) : systemUserId;
 
     // Customer identifier (nullable, foreign key to customers.id in DB)
     if (createSalesDto.customer_id != null) {
@@ -123,8 +152,70 @@ export class SalesService {
   }
 
   async update(id: string, updateSalesDto: any) {
+    if (updateSalesDto?.status) {
+      const current = await this.salesRepository.findOne({ where: { id: Number(id) } });
+      if (current) {
+        const from = this.normalizeOrderStatus(current.status);
+        const to = this.normalizeOrderStatus(updateSalesDto.status);
+        if (!this.isStatusTransitionAllowed(from, to)) {
+          throw new Error(`Invalid status transition: ${from} -> ${to}`);
+        }
+      }
+    }
+
     await this.salesRepository.update(id, updateSalesDto);
     return this.findOne(id);
+  }
+
+  async cancelForCustomer(orderId: number, customerId: number, cancelReason?: string) {
+    const order = await this.salesRepository.findOne({ where: { id: orderId } });
+    if (!order) throw new Error('Order not found');
+    if (order.customerId == null || Number(order.customerId) !== Number(customerId)) {
+      throw new Error('Forbidden: order ownership mismatch');
+    }
+
+    const status = this.normalizeOrderStatus(order.status);
+    if (['cancelled', 'delivered', 'completed'].includes(status)) {
+      throw new Error(`Cannot cancel order in status: ${status}`);
+    }
+    if (order.courierStatus && ['picked', 'in_transit', 'delivered'].includes(order.courierStatus)) {
+      throw new Error('Cannot cancel order - already shipped');
+    }
+
+    if (cancelReason != null && String(cancelReason).trim().length > 255) {
+      throw new Error('Cancel reason is too long');
+    }
+
+    order.status = 'cancelled';
+    order.cancelReason = cancelReason ? String(cancelReason).trim() : order.cancelReason;
+    order.cancelledBy = Number(customerId);
+    order.cancelledAt = new Date();
+    return await this.salesRepository.save(order);
+  }
+
+  private normalizeOrderStatus(status: unknown): string {
+    return String(status || '').trim().toLowerCase().replace(/\s+/g, '_');
+  }
+
+  private isStatusTransitionAllowed(from: string, to: string): boolean {
+    if (!from || !to) return true;
+    if (from === to) return true;
+
+    const allowed: Record<string, string[]> = {
+      pending: ['approved', 'hold', 'processing', 'shipped', 'cancelled'],
+      approved: ['processing', 'shipped', 'cancelled'],
+      processing: ['shipped', 'cancelled'],
+      hold: ['approved', 'processing', 'cancelled'],
+      shipped: ['delivered', 'completed'],
+      delivered: ['completed'],
+      completed: [],
+      cancelled: [],
+    };
+
+    // If we don't recognize the status, don't block updates.
+    if (!Object.prototype.hasOwnProperty.call(allowed, from)) return true;
+
+    return allowed[from].includes(to);
   }
 
   async remove(id: string) {

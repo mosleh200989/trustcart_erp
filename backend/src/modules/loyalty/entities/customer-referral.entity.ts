@@ -1,5 +1,10 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn } from 'typeorm';
 
+const nonNullDecimalToNumberTransformer = {
+  to: (value: number) => value,
+  from: (value: string | number | null): number => (value === null ? 0 : Number(value)),
+};
+
 @Entity('customer_referrals')
 export class CustomerReferral {
   @PrimaryGeneratedColumn()
@@ -27,7 +32,14 @@ export class CustomerReferral {
   })
   status: 'pending' | 'registered' | 'completed' | 'expired';
 
-  @Column({ type: 'decimal', precision: 10, scale: 2, default: 100, name: 'reward_amount' })
+  @Column({
+    type: 'decimal',
+    precision: 10,
+    scale: 2,
+    default: 100,
+    name: 'reward_amount',
+    transformer: nonNullDecimalToNumberTransformer,
+  })
   rewardAmount: number;
 
   @Column({ default: false, name: 'reward_credited' })

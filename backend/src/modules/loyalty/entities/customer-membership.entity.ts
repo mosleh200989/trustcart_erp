@@ -1,5 +1,10 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn } from 'typeorm';
 
+const nonNullDecimalToNumberTransformer = {
+  to: (value: number) => value,
+  from: (value: string | number | null): number => (value === null ? 0 : Number(value)),
+};
+
 @Entity('customer_memberships')
 export class CustomerMembership {
   @PrimaryGeneratedColumn()
@@ -16,7 +21,14 @@ export class CustomerMembership {
   })
   membershipTier: 'none' | 'silver' | 'gold';
 
-  @Column({ type: 'decimal', precision: 5, scale: 2, default: 0, name: 'discount_percentage' })
+  @Column({
+    type: 'decimal',
+    precision: 5,
+    scale: 2,
+    default: 0,
+    name: 'discount_percentage',
+    transformer: nonNullDecimalToNumberTransformer,
+  })
   discountPercentage: number;
 
   @Column({ name: 'free_delivery_count', default: 0 })
@@ -25,10 +37,24 @@ export class CustomerMembership {
   @Column({ name: 'free_delivery_used', default: 0 })
   freeDeliveryUsed: number;
 
-  @Column({ type: 'decimal', precision: 10, scale: 2, default: 0, name: 'total_monthly_spend' })
+  @Column({
+    type: 'decimal',
+    precision: 10,
+    scale: 2,
+    default: 0,
+    name: 'total_monthly_spend',
+    transformer: nonNullDecimalToNumberTransformer,
+  })
   totalMonthlySpend: number;
 
-  @Column({ type: 'decimal', precision: 10, scale: 2, default: 0, name: 'current_month_spend' })
+  @Column({
+    type: 'decimal',
+    precision: 10,
+    scale: 2,
+    default: 0,
+    name: 'current_month_spend',
+    transformer: nonNullDecimalToNumberTransformer,
+  })
   currentMonthSpend: number;
 
   @Column({ type: 'date', nullable: true, name: 'last_order_date' })

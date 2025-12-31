@@ -8,7 +8,7 @@ interface ReviewCycle {
   startDate: string;
   endDate: string;
   status: string;
-  status: boolean;
+  isActive: boolean;
 }
 
 export default function ReviewCyclesPage() {
@@ -21,7 +21,7 @@ export default function ReviewCyclesPage() {
     startDate: '',
     endDate: '',
     status: 'Planned',
-    status: true,
+    isActive: true,
   });
 
   useEffect(() => {
@@ -65,7 +65,7 @@ export default function ReviewCyclesPage() {
       startDate: reviewCycle.startDate,
       endDate: reviewCycle.endDate,
       status: reviewCycle.status,
-      status: reviewCycle.status,
+      isActive: reviewCycle.isActive,
     });
     setShowModal(true);
   };
@@ -88,7 +88,7 @@ export default function ReviewCyclesPage() {
       startDate: '',
       endDate: '',
       status: 'Planned',
-      status: true,
+      isActive: true,
     });
     setEditingReviewCycle(null);
     setShowModal(false);
@@ -146,10 +146,10 @@ export default function ReviewCyclesPage() {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span
                         className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                          reviewCycle.status ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                          reviewCycle.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
                         }`}
                       >
-                        {reviewCycle.status ? 'Active' : 'Inactive'}
+                        {reviewCycle.isActive ? 'Active' : 'Inactive'}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
@@ -227,8 +227,8 @@ export default function ReviewCyclesPage() {
                   <label className="flex items-center">
                     <input
                       type="checkbox"
-                      checked={formData.status}
-                      onChange={(e) => setFormData({ ...formData, status: e.target.checked })}
+                      checked={formData.isActive}
+                      onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
                       className="mr-2"
                     />
                     <span className="text-sm font-medium text-gray-700">Active</span>

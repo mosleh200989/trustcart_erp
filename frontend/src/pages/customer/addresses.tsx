@@ -36,8 +36,8 @@ export default function CustomerAddressesPage() {
       const response = await apiClient.get('/customer-addresses', {
         headers: { Authorization: `Bearer ${token}` }
       });
-      console.log('=== Fetched addresses ===');
-      console.log('Response data:', JSON.stringify(response.data, null, 2));
+      // console.log('=== Fetched addresses ===');
+      // console.log('Response data:', JSON.stringify(response.data, null, 2));
       setAddresses(response.data);
     } catch (error) {
       console.error('Failed to fetch addresses:', error);
@@ -50,10 +50,10 @@ export default function CustomerAddressesPage() {
     e.preventDefault();
     try {
       const token = localStorage.getItem('authToken');
-      console.log('=== handleSubmit START ===');
-      console.log('Editing ID:', editingId);
-      console.log('Editing ID type:', typeof editingId);
-      console.log('Form data:', JSON.stringify(formData, null, 2));
+      // console.log('=== handleSubmit START ===');
+      // console.log('Editing ID:', editingId);
+      // console.log('Editing ID type:', typeof editingId);
+      // console.log('Form data:', JSON.stringify(formData, null, 2));
       
       if (editingId) {
         console.log('Updating address with ID:', editingId);
@@ -77,10 +77,10 @@ export default function CustomerAddressesPage() {
   };
 
   const handleEdit = (address: Address) => {
-    console.log('=== handleEdit called ===');
-    console.log('Full address object:', JSON.stringify(address, null, 2));
-    console.log('Address ID:', address.id);
-    console.log('Address ID type:', typeof address.id);
+    // console.log('=== handleEdit called ===');
+    // console.log('Full address object:', JSON.stringify(address, null, 2));
+    // console.log('Address ID:', address.id);
+    // console.log('Address ID type:', typeof address.id);
     
     setFormData({
       addressType: address.addressType,

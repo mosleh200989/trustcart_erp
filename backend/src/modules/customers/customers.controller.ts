@@ -27,7 +27,12 @@ export class CustomersController {
 
   @Put(':id')
   async update(@Param('id') id: string, @Body() updateCustomerDto: any) {
-    return this.customersService.update(id, updateCustomerDto);
+    try {
+      return await this.customersService.update(id, updateCustomerDto);
+    } catch (error: any) {
+      console.error('Customer update error:', error);
+      throw new BadRequestException(error.message || 'Failed to update customer');
+    }
   }
 
   @Delete(':id')

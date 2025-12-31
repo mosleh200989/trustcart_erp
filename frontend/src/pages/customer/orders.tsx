@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import CustomerLayout from '@/layouts/CustomerLayout';
-import apiClient, { auth, customers, sales } from '@/services/api';
+import apiClient, { auth, sales } from '@/services/api';
 import { FaEye, FaTimes, FaTruck } from 'react-icons/fa';
 
 interface OrderItem {
@@ -38,27 +38,15 @@ export default function CustomerOrdersPage() {
       setError(null);
       try {
         const user = await auth.getCurrentUser();
-        if (!user || !user.email) {
+        if (!user) {
           setError('Unable to load orders. Please login again.');
           setLoading(false);
           return;
         }
 
-        const list = await customers.list();
-        const customer = (list as any[]).find((c) => c.email === user.email);
-        if (!customer) {
-          setError('No customer profile found for this account.');
-          setLoading(false);
-          return;
-        }
-
-        const allOrders = await sales.list();
-        const myOrders = (allOrders as any[]).filter(
-          (o) => o.customerId === customer.id,
-        );
-
+        const myOrders = await sales.my();
         setOrders(
-          myOrders.sort(
+          (myOrders as any[]).sort(
             (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
           ),
         );
@@ -95,7 +83,7 @@ export default function CustomerOrdersPage() {
     }
 
     try {
-      await sales.update(order.id.toString(), { status: 'cancelled' });
+      await sales.cancel(order.id.toString());
       setOrders(orders.map(o => o.id === order.id ? { ...o, status: 'cancelled' } : o));
       alert('Order cancelled successfully');
     } catch (e) {

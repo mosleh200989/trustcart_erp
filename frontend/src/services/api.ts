@@ -290,12 +290,28 @@ export const sales = {
     const res = await apiClient.get('/sales');
     return Array.isArray(res.data) ? res.data : [];
   },
+  async my() {
+    const res = await apiClient.get('/sales/my');
+    return Array.isArray(res.data) ? res.data : [];
+  },
   async get(id: string | number) {
     const res = await apiClient.get(`/sales/${id}`);
     return res.data;
   },
   async create(data: any) {
     const res = await apiClient.post('/sales', data);
+    return res.data;
+  },
+  async update(id: string | number, data: any) {
+    const res = await apiClient.put(`/sales/${id}`, data);
+    return res.data;
+  },
+  async cancel(id: string | number, cancelReason?: string) {
+    const res = await apiClient.post(`/sales/${id}/cancel`, cancelReason ? { cancelReason } : {});
+    return res.data;
+  },
+  async delete(id: string | number) {
+    const res = await apiClient.delete(`/sales/${id}`);
     return res.data;
   },
 };
@@ -315,6 +331,10 @@ export const loyalty = {
   async getReferrals(customerId: string) {
     const res = await apiClient.get(`/loyalty/referrals/${customerId}`);
     return Array.isArray(res.data) ? res.data : [];
+  },
+  async getReferralCode(customerId: string) {
+    const res = await apiClient.get(`/loyalty/referral-code/${customerId}`);
+    return res.data?.referralCode as string;
   },
   async getReferralStats(customerId: string) {
     const res = await apiClient.get(`/loyalty/referrals/${customerId}/stats`);

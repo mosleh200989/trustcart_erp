@@ -9,6 +9,8 @@ import { CustomerReferral } from './entities/customer-referral.entity';
 import { MonthlyGroceryList } from './entities/monthly-grocery-list.entity';
 import { GroceryListItem } from './entities/grocery-list-item.entity';
 import { PriceLock } from './entities/price-lock.entity';
+import { CustomerPoints } from './entities/customer-points.entity';
+import { PointTransaction } from './entities/point-transaction.entity';
 
 @Module({
   imports: [
@@ -17,6 +19,8 @@ import { PriceLock } from './entities/price-lock.entity';
       CustomerWallet,
       WalletTransaction,
       CustomerReferral,
+      CustomerPoints,
+      PointTransaction,
       MonthlyGroceryList,
       GroceryListItem,
       PriceLock,

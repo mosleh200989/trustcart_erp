@@ -150,7 +150,7 @@ export default function Home() {
                 </h2>
                 <p className="text-muted mb-0">Deal of the Day - সীমিত সময়ের জন্য</p>
               </div>
-              <DealTimer deadline={new Date(Date.now() + 24 * 60 * 60 * 1000)} />
+              <DealTimer endTime={new Date(Date.now() + 24 * 60 * 60 * 1000)} />
             </div>
             <div className="row g-3">
               {dealOfDayProducts.slice(0, 4).map((product) => (

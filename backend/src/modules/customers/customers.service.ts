@@ -11,6 +11,11 @@ export class CustomersService {
     private customersRepository: Repository<Customer>,
   ) {}
 
+  async findByEmail(email: string) {
+    if (!email) return null;
+    return this.customersRepository.findOne({ where: { email } });
+  }
+
   async findAll() {
     return this.customersRepository.find();
   }
@@ -70,7 +75,40 @@ export class CustomersService {
   }
 
   async update(id: string, updateCustomerDto: any) {
-    await this.customersRepository.update(id, updateCustomerDto);
+    const patch: any = { ...updateCustomerDto };
+
+    if (Object.prototype.hasOwnProperty.call(patch, 'phone')) {
+      const phone = typeof patch.phone === 'string' ? patch.phone.trim() : '';
+      if (!phone) {
+        throw new Error('Phone number is required');
+      }
+
+      // Enforce uniqueness (ignore self)
+      const existingPhone = await this.customersRepository.findOne({ where: { phone } });
+      if (existingPhone && existingPhone.id !== id) {
+        throw new Error('Phone number already exists');
+      }
+
+      patch.phone = phone;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(patch, 'email')) {
+      const email = typeof patch.email === 'string' ? patch.email.trim() : null;
+      patch.email = email && email.length > 0 ? email : null;
+
+      if (patch.email) {
+        const existingEmail = await this.customersRepository.findOne({ where: { email: patch.email } });
+        if (existingEmail && existingEmail.id !== id) {
+          throw new Error('Email already exists');
+        }
+      }
+    }
+
+    if (patch.password) {
+      patch.password = await bcrypt.hash(patch.password, 10);
+    }
+
+    await this.customersRepository.update(id, patch);
     return this.findOne(id);
   }
 

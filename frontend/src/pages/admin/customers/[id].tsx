@@ -11,6 +11,7 @@ interface Customer360 {
   mobile: string;
   streetAddress: string;
   district: string;
+  stateProvince?: string;
   city: string;
   gender: string;
   date_of_birth: string;

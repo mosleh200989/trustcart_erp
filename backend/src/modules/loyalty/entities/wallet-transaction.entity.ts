@@ -1,5 +1,10 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn } from 'typeorm';
 
+const nonNullDecimalToNumberTransformer = {
+  to: (value: number) => value,
+  from: (value: string | number | null): number => (value === null ? 0 : Number(value)),
+};
+
 @Entity('wallet_transactions')
 export class WalletTransaction {
   @PrimaryGeneratedColumn()
@@ -8,10 +13,16 @@ export class WalletTransaction {
   @Column({ name: 'wallet_id' })
   walletId: number;
 
+  @Column({ name: 'idempotency_key', type: 'varchar', length: 100, nullable: true })
+  idempotencyKey?: string;
+
+  @Column({ type: 'varchar', length: 20, default: 'posted' })
+  status: 'posted' | 'pending' | 'reversed';
+
   @Column({ name: 'customer_id', nullable: true })
   customerId?: number;
 
-  @Column({ name: 'customer_uuid', type: 'uuid', nullable: true })
+  @Column({ name: 'customer_uuid', type: 'uuid', nullable: true, select: false })
   customerUuid?: string;
 
   @Column({ 
@@ -21,7 +32,7 @@ export class WalletTransaction {
   })
   transactionType: 'credit' | 'debit';
 
-  @Column({ type: 'decimal', precision: 10, scale: 2 })
+  @Column({ type: 'decimal', precision: 10, scale: 2, transformer: nonNullDecimalToNumberTransformer })
   amount: number;
 
   @Column({ 
@@ -36,7 +47,14 @@ export class WalletTransaction {
   @Column({ type: 'text', nullable: true })
   description: string;
 
-  @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true, name: 'balance_after' })
+  @Column({
+    type: 'decimal',
+    precision: 10,
+    scale: 2,
+    nullable: true,
+    name: 'balance_after',
+    transformer: nonNullDecimalToNumberTransformer,
+  })
   balanceAfter: number;
 
   @CreateDateColumn({ name: 'created_at' })

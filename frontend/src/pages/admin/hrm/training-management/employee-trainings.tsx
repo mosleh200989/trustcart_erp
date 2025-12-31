@@ -9,7 +9,7 @@ interface EmployeeTraining {
   trainingProgramId?: number;
   status?: string;
   remarks?: string;
-  status: boolean;
+  isActive: boolean;
 }
 
 export default function EmployeeTrainingsPage() {
@@ -22,7 +22,7 @@ export default function EmployeeTrainingsPage() {
     trainingProgramId: '',
     status: '',
     remarks: '',
-    status: true,
+    isActive: true,
   });
 
   useEffect(() => {
@@ -66,7 +66,7 @@ export default function EmployeeTrainingsPage() {
       trainingProgramId: employeeTraining.trainingProgramId?.toString() || '',
       status: employeeTraining.status || '',
       remarks: employeeTraining.remarks || '',
-      status: employeeTraining.status,
+      isActive: employeeTraining.isActive,
     });
     setShowModal(true);
   };
@@ -89,7 +89,7 @@ export default function EmployeeTrainingsPage() {
       trainingProgramId: '',
       status: '',
       remarks: '',
-      status: true,
+      isActive: true,
     });
     setEditingEmployeeTraining(null);
     setShowModal(false);
@@ -191,8 +191,8 @@ export default function EmployeeTrainingsPage() {
                   <label className="flex items-center">
                     <input
                       type="checkbox"
-                      checked={formData.status}
-                      onChange={(e) => setFormData({ ...formData, status: e.target.checked })}
+                      checked={formData.isActive}
+                      onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
                       className="mr-2"
                     />
                     <span className="text-sm font-medium text-gray-700">Active</span>

@@ -6,7 +6,7 @@ import apiClient from '@/services/api';
 
 const CareersPage = () => {
   const router = useRouter();
-  const [jobs, setJobs] = useState([]);
+  const [jobs, setJobs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState({
     category: '',

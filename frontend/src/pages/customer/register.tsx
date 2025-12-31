@@ -61,7 +61,7 @@ export default function CustomerRegister() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-500 to-orange-700 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl p-8">
         {/* Logo & Title */}
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-orange-600 mb-2">TrustCart ERP</h1>
@@ -93,7 +93,7 @@ export default function CustomerRegister() {
               value={name}
               onChange={(e) => setName(e.target.value)}
               className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
-              placeholder="John Doe"
+              placeholder="Enter Your Full Name"
               required
             />
           </div>
@@ -107,7 +107,7 @@ export default function CustomerRegister() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
-              placeholder="customer@example.com"
+              placeholder="Enter Your Email Address"
             />
           </div>
 
@@ -120,7 +120,7 @@ export default function CustomerRegister() {
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
-              placeholder="01712345678"
+              placeholder="Enter Your Phone Number"
               required
             />
           </div>
@@ -134,7 +134,7 @@ export default function CustomerRegister() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
-              placeholder="••••••••"
+              placeholder="Enter Your Password"
               required
             />
           </div>
@@ -148,7 +148,7 @@ export default function CustomerRegister() {
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
-              placeholder="••••••••"
+              placeholder="Enter Your Password Again"
               required
             />
           </div>

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import CustomerLayout from '@/layouts/CustomerLayout';
-import apiClient, { auth, customers, sales } from '@/services/api';
+import apiClient, { auth, sales } from '@/services/api';
 import { FaShoppingCart, FaBox, FaClock, FaCheckCircle, FaTimesCircle, FaArrowRight, FaStore } from 'react-icons/fa';
 
 interface DashboardStats {
@@ -46,18 +46,8 @@ export default function CustomerAccountDashboard() {
         return;
       }
 
-      // Get customer info
-      const list = await customers.list();
-      const customer = (list as any[]).find((c) => c.email === user.email);
-      if (customer) {
-        setCustomerName(`${customer.firstName || ''} ${customer.lastName || ''}`.trim());
-      }
-
-      // Get all orders
-      const allOrders = await sales.list();
-      const myOrders = (allOrders as any[]).filter(
-        (o) => o.customerId === customer?.id,
-      );
+      // Get my orders
+      const myOrders = await sales.my();
 
       // Calculate stats
       const totalOrders = myOrders.length;

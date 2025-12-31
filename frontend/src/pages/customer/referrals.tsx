@@ -19,7 +19,7 @@ export default function CustomerReferralsPage() {
       setError(null);
       try {
         const user = await auth.getCurrentUser();
-        if (!user || !user.email) {
+        if (!user) {
           setError('Unable to load referrals. Please login again.');
           setLoading(false);
           return;
@@ -37,13 +37,21 @@ export default function CustomerReferralsPage() {
 
         setCustomerData(customer);
 
-        // Generate referral code if not exists (using customer ID or email)
-        const generatedCode = `REF${customer.id.toString().substring(0, 8).toUpperCase()}`;
-        setReferralCode(generatedCode);
-        
-        // Set referral link (client-side only)
-        if (typeof window !== 'undefined') {
-          setReferralLink(`${window.location.origin}/register?ref=${generatedCode}`);
+        // Server-driven referral code (stable, from backend)
+        try {
+          const code = await loyalty.getReferralCode(String(customer.id));
+          setReferralCode(code);
+          if (typeof window !== 'undefined') {
+            setReferralLink(`${window.location.origin}/register?ref=${code}`);
+          }
+        } catch (e) {
+          console.error('Failed to load referral code:', e);
+          // Graceful fallback (should rarely be needed)
+          const fallback = `REF${String(customer.id).padStart(6, '0')}`;
+          setReferralCode(fallback);
+          if (typeof window !== 'undefined') {
+            setReferralLink(`${window.location.origin}/register?ref=${fallback}`);
+          }
         }
 
         // Try to load referrals - handle gracefully if not available
@@ -273,7 +281,10 @@ export default function CustomerReferralsPage() {
                             <div className="text-sm font-semibold text-gray-900">৳{Number(r.rewardAmount || 0).toFixed(2)}</div>
                             <div className="text-xs text-gray-500">
                               {r.rewardCredited ? (
-                                <span className="text-green-600">✓ Credited</span>
+                                <span className="text-green-600">
+                                  ✓ Credited{r.rewardTransactionId ? ` (#${r.rewardTransactionId})` : ''}
+                                  {r.rewardCreditedAt ? ` • ${new Date(r.rewardCreditedAt).toLocaleDateString()}` : ''}
+                                </span>
                               ) : (
                                 <span className="text-yellow-600">Pending</span>
                               )}

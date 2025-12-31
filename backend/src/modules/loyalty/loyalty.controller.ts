@@ -1,5 +1,6 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { LoyaltyService } from './loyalty.service';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
 @Controller('loyalty')
 export class LoyaltyController {
@@ -39,7 +40,7 @@ export class LoyaltyController {
   @Post('wallet/:customerId/credit')
   async creditWallet(
     @Param('customerId') customerId: string,
-    @Body() data: { amount: number; source: string; description?: string; referenceId?: number },
+    @Body() data: { amount: number; source: string; description?: string; referenceId?: number; idempotencyKey?: string },
   ) {
     return await this.loyaltyService.creditWallet(
       customerId,
@@ -47,19 +48,21 @@ export class LoyaltyController {
       data.source,
       data.description,
       data.referenceId,
+      data.idempotencyKey,
     );
   }
 
   @Post('wallet/:customerId/debit')
   async debitWallet(
     @Param('customerId') customerId: string,
-    @Body() data: { amount: number; source: string; description?: string },
+    @Body() data: { amount: number; source: string; description?: string; idempotencyKey?: string },
   ) {
     return await this.loyaltyService.debitWallet(
       customerId,
       data.amount,
       data.source,
       data.description,
+      data.idempotencyKey,
     );
   }
 
@@ -79,6 +82,7 @@ export class LoyaltyController {
   // =====================================================
 
   @Post('referral')
+  @UseGuards(JwtAuthGuard)
   async createReferral(@Body() data: {
     referrerCustomerId: number;
     referredEmail: string;
@@ -92,21 +96,78 @@ export class LoyaltyController {
   }
 
   @Get('referrals/:customerId')
+  @UseGuards(JwtAuthGuard)
   async getReferralsByCustomer(@Param('customerId') customerId: number) {
     return await this.loyaltyService.getReferralsByCustomer(customerId);
   }
 
+  // Server-driven shareable referral code for a customer
+  @Get('referral-code/:customerId')
+  @UseGuards(JwtAuthGuard)
+  async getReferralCode(@Param('customerId') customerId: number) {
+    return { referralCode: await this.loyaltyService.getShareReferralCode(customerId) };
+  }
+
   @Put('referral/:referralId/complete')
+  @UseGuards(JwtAuthGuard)
   async markReferralComplete(
     @Param('referralId') referralId: number,
-    @Body('referredCustomerId') referredCustomerId: number,
+    @Body('referredCustomerId') referredCustomerId?: number,
   ) {
     return await this.loyaltyService.markReferralComplete(referralId, referredCustomerId);
   }
 
   @Get('referrals/:customerId/stats')
+  @UseGuards(JwtAuthGuard)
   async getReferralStats(@Param('customerId') customerId: number) {
     return await this.loyaltyService.getReferralStats(customerId);
+  }
+
+  // =====================================================
+  // POINTS ENDPOINTS
+  // =====================================================
+
+  @Get('points/:customerId')
+  async getCustomerPoints(@Param('customerId') customerId: string) {
+    return await this.loyaltyService.getCustomerPoints(customerId);
+  }
+
+  @Get('points/:customerId/transactions')
+  async getPointTransactions(
+    @Param('customerId') customerId: string,
+    @Query('limit') limit?: number,
+  ) {
+    return await this.loyaltyService.getPointTransactions(customerId, limit ? Number(limit) : 50);
+  }
+
+  @Post('points/:customerId/earn')
+  async earnPoints(
+    @Param('customerId') customerId: string,
+    @Body() data: { points: number; source: string; description?: string; referenceId?: number; idempotencyKey?: string },
+  ) {
+    return await this.loyaltyService.earnPoints(
+      customerId,
+      data.points,
+      data.source,
+      data.description,
+      data.referenceId,
+      data.idempotencyKey,
+    );
+  }
+
+  @Post('points/:customerId/redeem')
+  async redeemPoints(
+    @Param('customerId') customerId: string,
+    @Body() data: { points: number; source: string; description?: string; referenceId?: number; idempotencyKey?: string },
+  ) {
+    return await this.loyaltyService.redeemPoints(
+      customerId,
+      data.points,
+      data.source,
+      data.description,
+      data.referenceId,
+      data.idempotencyKey,
+    );
   }
 
   // =====================================================

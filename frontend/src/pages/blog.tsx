@@ -192,7 +192,38 @@ export default function Blog() {
                 <h3 className="text-xl font-bold mb-4 pb-3 border-b border-gray-200">Featured Products</h3>
                 <div className="space-y-4">
                   {relatedProducts.map((product) => (
-                    <ElectroProductCard key={product.id} product={product} />
+                    <ElectroProductCard
+                      key={product.id}
+                      id={product.id}
+                      slug={product.slug}
+                      name={product.name_en || product.name}
+                      nameBn={product.name_bn}
+                      nameEn={product.name_en}
+                      price={(() => {
+                        const basePrice = product.base_price ?? product.price ?? 0;
+                        const salePrice = product.sale_price ?? product.salePrice;
+                        const hasDiscount =
+                          typeof salePrice === 'number' &&
+                          typeof basePrice === 'number' &&
+                          salePrice > 0 &&
+                          salePrice < basePrice;
+                        return hasDiscount ? salePrice : basePrice;
+                      })()}
+                      originalPrice={(() => {
+                        const basePrice = product.base_price ?? product.price;
+                        const salePrice = product.sale_price ?? product.salePrice;
+                        const hasDiscount =
+                          typeof salePrice === 'number' &&
+                          typeof basePrice === 'number' &&
+                          salePrice > 0 &&
+                          salePrice < basePrice;
+                        return hasDiscount ? basePrice : undefined;
+                      })()}
+                      stock={product.stock_quantity}
+                      image={product.image_url}
+                      rating={5}
+                      reviews={0}
+                    />
                   ))}
                 </div>
               </div>

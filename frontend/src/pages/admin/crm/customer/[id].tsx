@@ -14,12 +14,12 @@ const CustomerView = () => {
   const { id } = router.query;
   const [customer, setCustomer] = useState<any>(null);
   const [activeTab, setActiveTab] = useState('overview');
-  const [activities, setActivities] = useState([]);
-  const [deals, setDeals] = useState([]);
-  const [tasks, setTasks] = useState([]);
-  const [meetings, setMeetings] = useState([]);
-  const [quotes, setQuotes] = useState([]);
-  const [emails, setEmails] = useState([]);
+  const [activities, setActivities] = useState<any[]>([]);
+  const [deals, setDeals] = useState<any[]>([]);
+  const [tasks, setTasks] = useState<any[]>([]);
+  const [meetings, setMeetings] = useState<any[]>([]);
+  const [quotes, setQuotes] = useState<any[]>([]);
+  const [emails, setEmails] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {

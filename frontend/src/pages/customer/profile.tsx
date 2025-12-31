@@ -11,12 +11,45 @@ interface CustomerProfile {
   address?: string | null;
 }
 
+type FamilyRelationship = 'spouse' | 'child' | 'parent' | 'sibling' | 'grandparent' | 'other';
+
+const toDateInputValue = (value: any): string => {
+  if (!value) return '';
+  if (typeof value === 'string') {
+    // Accept already-normalized YYYY-MM-DD.
+    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+    const parsed = new Date(value);
+    if (!Number.isNaN(parsed.getTime())) return parsed.toISOString().slice(0, 10);
+    return '';
+  }
+  const parsed = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(parsed.getTime())) return '';
+  return parsed.toISOString().slice(0, 10);
+};
+
+const isValidIsoDate = (value: string): boolean => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return false;
+  return parsed.toISOString().slice(0, 10) === value;
+};
+
+const normalizeOptionalIsoDate = (label: string, value: string): string | undefined => {
+  const trimmed = (value || '').trim();
+  if (!trimmed) return undefined;
+  if (!isValidIsoDate(trimmed)) {
+    throw new Error(`${label} must be in YYYY-MM-DD format`);
+  }
+  return trimmed;
+};
+
 export default function CustomerProfilePage() {
   const [profile, setProfile] = useState<CustomerProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
   const [editEmail, setEditEmail] = useState('');
+  const [editPhone, setEditPhone] = useState('');
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [profileMessage, setProfileMessage] = useState<string | null>(null);
 
@@ -26,11 +59,15 @@ export default function CustomerProfilePage() {
   const [newFamilyName, setNewFamilyName] = useState('');
   const [newFamilyPhone, setNewFamilyPhone] = useState('');
   const [newFamilyRelationship, setNewFamilyRelationship] = useState('');
+  const [newFamilyDob, setNewFamilyDob] = useState('');
+  const [newFamilyAnniversary, setNewFamilyAnniversary] = useState('');
   const [isAddingFamily, setIsAddingFamily] = useState(false);
   const [editingFamilyId, setEditingFamilyId] = useState<number | null>(null);
   const [editFamilyName, setEditFamilyName] = useState('');
   const [editFamilyPhone, setEditFamilyPhone] = useState('');
   const [editFamilyRelationship, setEditFamilyRelationship] = useState('');
+  const [editFamilyDob, setEditFamilyDob] = useState('');
+  const [editFamilyAnniversary, setEditFamilyAnniversary] = useState('');
   const [isSavingFamily, setIsSavingFamily] = useState(false);
 
   useEffect(() => {
@@ -62,6 +99,7 @@ export default function CustomerProfilePage() {
         });
         setEditName(fullName);
         setEditEmail(match.email ?? '');
+        setEditPhone((match.phone || match.mobile || '').toString());
         loadFamily(match.id);
       } catch (e) {
         console.error('Error loading customer profile:', e);
@@ -93,9 +131,14 @@ export default function CustomerProfilePage() {
     try {
       setIsSavingProfile(true);
       setProfileMessage(null);
+      if (!editPhone.trim()) {
+        setProfileMessage('Phone number is required.');
+        return;
+      }
       const updated = await customers.update(profile.id, {
         name: editName,
         email: editEmail.trim() ? editEmail.trim() : null,
+        phone: editPhone.trim(),
       });
       setProfile((prev) =>
         prev
@@ -103,6 +146,7 @@ export default function CustomerProfilePage() {
               ...prev,
               name: updated.name ?? editName,
               email: updated.email ?? (editEmail.trim() ? editEmail.trim() : null),
+              phone: updated.phone ?? editPhone.trim(),
             }
           : prev,
       );
@@ -124,27 +168,47 @@ export default function CustomerProfilePage() {
     { value: 'other', label: 'Other' },
   ];
 
+  const relationshipNeedsDob = (relationship: string) =>
+    relationship === 'child' || relationship === 'parent' || relationship === 'grandparent';
+
+  const relationshipNeedsAnniversary = (relationship: string) => relationship === 'spouse';
+
   const handleAddFamily = async () => {
     if (!profile) return;
     if (!newFamilyName || !newFamilyRelationship) {
       alert('Please enter name and relationship for the family member.');
       return;
     }
+    if (!newFamilyPhone.trim()) {
+      alert('Please enter phone number for the family member.');
+      return;
+    }
     try {
       setIsAddingFamily(true);
-      await cdm.addFamily({
+      const payload: any = {
         customerId: Number(profile.id),
         name: newFamilyName,
-        phone: newFamilyPhone,
-        relationship: newFamilyRelationship,
-      });
+        phone: newFamilyPhone.trim(),
+        relationship: newFamilyRelationship as FamilyRelationship,
+      };
+      if (relationshipNeedsDob(newFamilyRelationship)) {
+        const dob = normalizeOptionalIsoDate('Date of Birth', newFamilyDob);
+        if (dob) payload.dateOfBirth = dob;
+      }
+      if (relationshipNeedsAnniversary(newFamilyRelationship)) {
+        const anniversary = normalizeOptionalIsoDate('Anniversary Date', newFamilyAnniversary);
+        if (anniversary) payload.anniversaryDate = anniversary;
+      }
+      await cdm.addFamily(payload);
       setNewFamilyName('');
       setNewFamilyPhone('');
       setNewFamilyRelationship('');
+      setNewFamilyDob('');
+      setNewFamilyAnniversary('');
       await loadFamily(profile.id);
     } catch (e) {
       console.error('Error adding family member:', e);
-      alert('Failed to add family member.');
+      alert(e instanceof Error ? e.message : 'Failed to add family member.');
     } finally {
       setIsAddingFamily(false);
     }
@@ -167,6 +231,8 @@ export default function CustomerProfilePage() {
     setEditFamilyName(member.name || '');
     setEditFamilyRelationship(member.relationship || '');
     setEditFamilyPhone(member.phone || '');
+    setEditFamilyDob(toDateInputValue(member.dateOfBirth));
+    setEditFamilyAnniversary(toDateInputValue(member.anniversaryDate));
   };
 
   const cancelEditFamily = () => {
@@ -174,6 +240,8 @@ export default function CustomerProfilePage() {
     setEditFamilyName('');
     setEditFamilyRelationship('');
     setEditFamilyPhone('');
+    setEditFamilyDob('');
+    setEditFamilyAnniversary('');
   };
 
   const handleSaveFamily = async () => {
@@ -182,19 +250,34 @@ export default function CustomerProfilePage() {
       alert('Please enter name and relationship for the family member.');
       return;
     }
+    if (!editFamilyPhone.trim()) {
+      alert('Please enter phone number for the family member.');
+      return;
+    }
     try {
       setIsSavingFamily(true);
-      await cdm.updateFamily(editingFamilyId, {
+      const payload: any = {
         customerId: Number(profile.id),
         name: editFamilyName,
-        phone: editFamilyPhone,
-        relationship: editFamilyRelationship,
-      });
+        phone: editFamilyPhone.trim(),
+        relationship: editFamilyRelationship as FamilyRelationship,
+        dateOfBirth: null,
+        anniversaryDate: null,
+      };
+      if (relationshipNeedsDob(editFamilyRelationship)) {
+        const dob = normalizeOptionalIsoDate('Date of Birth', editFamilyDob);
+        if (dob) payload.dateOfBirth = dob;
+      }
+      if (relationshipNeedsAnniversary(editFamilyRelationship)) {
+        const anniversary = normalizeOptionalIsoDate('Anniversary Date', editFamilyAnniversary);
+        if (anniversary) payload.anniversaryDate = anniversary;
+      }
+      await cdm.updateFamily(editingFamilyId, payload);
       cancelEditFamily();
       await loadFamily(profile.id);
     } catch (e) {
       console.error('Error updating family member:', e);
-      alert('Failed to update family member.');
+      alert(e instanceof Error ? e.message : 'Failed to update family member.');
     } finally {
       setIsSavingFamily(false);
     }
@@ -246,7 +329,7 @@ export default function CustomerProfilePage() {
               <div className="p-6 space-y-5">
                 {/* Name Field */}
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                  <label className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
                     <FaUser className="text-gray-400" />
                     Full Name
                   </label>
@@ -261,7 +344,7 @@ export default function CustomerProfilePage() {
 
                 {/* Email Field */}
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                  <label className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
                     <FaEnvelope className="text-gray-400" />
                     Email Address
                   </label>
@@ -276,20 +359,23 @@ export default function CustomerProfilePage() {
 
                 {/* Phone Field */}
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                  <label className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
                     <FaPhone className="text-gray-400" />
-                    Phone Number
+                    Phone Number <span className="text-red-500">*</span>
                   </label>
-                  <div className="w-full border border-gray-200 bg-gray-50 rounded-lg px-4 py-3 text-gray-600 flex items-center gap-2">
-                    <FaPhone className="text-gray-400" />
-                    {profile.phone || '-'}
-                    <span className="ml-auto text-xs bg-gray-200 text-gray-600 px-2 py-1 rounded">Read-only</span>
-                  </div>
+                  <input
+                    type="tel"
+                    className="w-full border border-gray-300 rounded-lg px-4 py-3 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                    value={editPhone}
+                    onChange={(e) => setEditPhone(e.target.value)}
+                    placeholder="Enter your phone number"
+                    required
+                  />
                 </div>
 
                 {/* Address Field */}
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                  <label className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
                     <FaMapMarkerAlt className="text-gray-400" />
                     Address
                   </label>
@@ -360,7 +446,12 @@ export default function CustomerProfilePage() {
                               <select
                                 className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
                                 value={editFamilyRelationship}
-                                onChange={(e) => setEditFamilyRelationship(e.target.value)}
+                                onChange={(e) => {
+                                  const value = e.target.value;
+                                  setEditFamilyRelationship(value);
+                                  if (!relationshipNeedsDob(value)) setEditFamilyDob('');
+                                  if (!relationshipNeedsAnniversary(value)) setEditFamilyAnniversary('');
+                                }}
                               >
                                 <option value="">Select relationship</option>
                                 {relationshipOptions.map((opt) => (
@@ -370,12 +461,35 @@ export default function CustomerProfilePage() {
                                 ))}
                               </select>
                               <input
-                                type="text"
+                                type="tel"
                                 className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
                                 value={editFamilyPhone}
                                 onChange={(e) => setEditFamilyPhone(e.target.value)}
-                                placeholder="Phone"
+                                placeholder="Phone number"
+                                required
                               />
+
+                              {relationshipNeedsDob(editFamilyRelationship) && (
+                                <input
+                                  type="text"
+                                  className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                  value={editFamilyDob}
+                                  onChange={(e) => setEditFamilyDob(e.target.value)}
+                                  placeholder="Date of Birth (YYYY-MM-DD)"
+                                  inputMode="numeric"
+                                />
+                              )}
+
+                              {relationshipNeedsAnniversary(editFamilyRelationship) && (
+                                <input
+                                  type="text"
+                                  className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                  value={editFamilyAnniversary}
+                                  onChange={(e) => setEditFamilyAnniversary(e.target.value)}
+                                  placeholder="Anniversary Date (YYYY-MM-DD)"
+                                  inputMode="numeric"
+                                />
+                              )}
                               <div className="flex gap-2">
                                 <button
                                   onClick={handleSaveFamily}
@@ -405,6 +519,20 @@ export default function CustomerProfilePage() {
                                   <div className="text-sm text-gray-600 flex items-center gap-1 mt-2">
                                     <FaPhone className="text-gray-400 text-xs" />
                                     {member.phone}
+                                  </div>
+                                )}
+
+                                {member.dateOfBirth && (
+                                  <div className="text-sm text-gray-600 flex items-center gap-2 mt-1">
+                                    <span className="text-gray-400">DOB:</span>
+                                    <span>{toDateInputValue(member.dateOfBirth)}</span>
+                                  </div>
+                                )}
+
+                                {member.anniversaryDate && (
+                                  <div className="text-sm text-gray-600 flex items-center gap-2 mt-1">
+                                    <span className="text-gray-400">Anniversary:</span>
+                                    <span>{toDateInputValue(member.anniversaryDate)}</span>
                                   </div>
                                 )}
                               </div>
@@ -452,7 +580,12 @@ export default function CustomerProfilePage() {
                     <select
                       className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
                       value={newFamilyRelationship}
-                      onChange={(e) => setNewFamilyRelationship(e.target.value)}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setNewFamilyRelationship(value);
+                        if (!relationshipNeedsDob(value)) setNewFamilyDob('');
+                        if (!relationshipNeedsAnniversary(value)) setNewFamilyAnniversary('');
+                      }}
                     >
                       <option value="">Select relationship</option>
                       {relationshipOptions.map((opt) => (
@@ -463,11 +596,34 @@ export default function CustomerProfilePage() {
                     </select>
                     <input
                       type="tel"
-                      placeholder="Phone (optional)"
+                      placeholder="Phone number"
                       className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
                       value={newFamilyPhone}
                       onChange={(e) => setNewFamilyPhone(e.target.value)}
+                      required
                     />
+
+                    {relationshipNeedsDob(newFamilyRelationship) && (
+                      <input
+                        type="text"
+                        placeholder="Date of Birth (YYYY-MM-DD)"
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                        value={newFamilyDob}
+                        onChange={(e) => setNewFamilyDob(e.target.value)}
+                        inputMode="numeric"
+                      />
+                    )}
+
+                    {relationshipNeedsAnniversary(newFamilyRelationship) && (
+                      <input
+                        type="text"
+                        placeholder="Anniversary Date (YYYY-MM-DD)"
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                        value={newFamilyAnniversary}
+                        onChange={(e) => setNewFamilyAnniversary(e.target.value)}
+                        inputMode="numeric"
+                      />
+                    )}
                     <button
                       onClick={handleAddFamily}
                       disabled={isAddingFamily}
