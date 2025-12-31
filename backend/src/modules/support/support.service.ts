@@ -19,46 +19,17 @@ export class SupportService {
   }
 
   async findByCustomerId(customerId: string) {
-    try {
-      console.log('=== findByCustomerId SERVICE START ===');
-      console.log('Customer ID:', customerId);
-      console.log('Customer ID type:', typeof customerId);
-      
-      const tickets = await this.ticketsRepository.find({
-        where: { customerId },
-        order: { createdAt: 'DESC' },
-      });
-      
-      console.log('Tickets found:', tickets.length);
-      console.log('=== findByCustomerId SERVICE END ===');
-      return tickets;
-    } catch (error: any) {
-      console.error('=== ERROR in findByCustomerId ===');
-      console.error('Error:', error.message);
-      console.error('Stack:', error.stack);
-      throw error;
-    }
+    return this.ticketsRepository.find({
+      where: { customerId },
+      order: { createdAt: 'DESC' },
+    });
   }
 
   async findByCustomerEmail(email: string) {
-    try {
-      console.log('=== findByCustomerEmail SERVICE START ===');
-      console.log('Email:', email);
-      
-      const tickets = await this.ticketsRepository.find({
-        where: { customerEmail: email },
-        order: { createdAt: 'DESC' },
-      });
-      
-      console.log('Tickets found:', tickets.length);
-      console.log('=== findByCustomerEmail SERVICE END ===');
-      return tickets;
-    } catch (error: any) {
-      console.error('=== ERROR in findByCustomerEmail ===');
-      console.error('Error:', error.message);
-      console.error('Stack:', error.stack);
-      throw error;
-    }
+    return this.ticketsRepository.find({
+      where: { customerEmail: email },
+      order: { createdAt: 'DESC' },
+    });
   }
 
   async findOne(id: number) {
@@ -66,30 +37,22 @@ export class SupportService {
   }
 
   async create(dto: any) {
-    try {
-      console.log('=== create SERVICE START ===');
-      console.log('DTO:', JSON.stringify(dto));
-      
-      const ticket = this.ticketsRepository.create(dto);
-      console.log('Ticket entity created:', JSON.stringify(ticket));
-      
-      const saved = await this.ticketsRepository.save(ticket);
-      console.log('Ticket saved:', JSON.stringify(saved));
-      console.log('=== create SERVICE END ===');
-      
-      return saved;
-    } catch (error: any) {
-      console.error('=== ERROR in create SERVICE ===');
-      console.error('Error name:', error.name);
-      console.error('Error message:', error.message);
-      console.error('Error stack:', error.stack);
-      console.error('DTO was:', JSON.stringify(dto));
-      throw error;
-    }
+    const normalized = {
+      ...dto,
+      status: this.normalizeStatus(dto?.status) ?? 'open',
+      priority: dto?.priority ? String(dto.priority).toLowerCase() : dto?.priority,
+    };
+    const ticket = this.ticketsRepository.create(normalized);
+    return await this.ticketsRepository.save(ticket);
   }
 
   async update(id: number, dto: any) {
-    await this.ticketsRepository.update(id, dto);
+    const normalized = {
+      ...dto,
+      status: dto?.status ? this.normalizeStatus(dto.status) : dto?.status,
+      priority: dto?.priority ? String(dto.priority).toLowerCase() : dto?.priority,
+    };
+    await this.ticketsRepository.update(id, normalized);
     return this.findOne(id);
   }
 
@@ -105,7 +68,7 @@ export class SupportService {
     };
     
     if (status) {
-      updateData.status = status;
+      updateData.status = this.normalizeStatus(status);
     }
     
     await this.ticketsRepository.update(id, updateData);
@@ -113,17 +76,23 @@ export class SupportService {
   }
 
   async updateStatus(id: number, status: string) {
-    await this.ticketsRepository.update(id, { status });
+    await this.ticketsRepository.update(id, { status: this.normalizeStatus(status) });
     return this.findOne(id);
   }
 
   async updatePriority(id: number, priority: string) {
-    await this.ticketsRepository.update(id, { priority });
+    await this.ticketsRepository.update(id, { priority: String(priority).toLowerCase() });
     return this.findOne(id);
   }
 
   async assignTicket(id: number, assignedTo: number | null) {
     await this.ticketsRepository.update(id, { assignedTo });
     return this.findOne(id);
+  }
+
+  private normalizeStatus(status: unknown): string {
+    const raw = String(status || '').trim().toLowerCase();
+    if (raw === 'in-progress') return 'in_progress';
+    return raw;
   }
 }

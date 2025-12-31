@@ -1,5 +1,6 @@
 import { Controller, Get, Post, Put, Delete, Body, Param, Query } from '@nestjs/common';
 import { CdmService } from './cdm.service';
+import { CreateFamilyMemberDto, UpdateFamilyMemberDto } from './dto/family-member.dto';
 
 @Controller('cdm')
 export class CdmController {
@@ -41,16 +42,40 @@ export class CdmController {
   }
 
   @Post('family')
-  async addFamilyMember(@Body() data: any) {
-    return await this.cdmService.addFamilyMember(data);
+  async addFamilyMember(@Body() data: CreateFamilyMemberDto) {
+    const payload: any = {
+      ...data,
+    };
+
+    if (data.dateOfBirth) {
+      payload.dateOfBirth = new Date(data.dateOfBirth);
+    }
+    if (data.anniversaryDate) {
+      payload.anniversaryDate = new Date(data.anniversaryDate);
+    }
+
+    return await this.cdmService.addFamilyMember(payload);
   }
 
   @Put('family/:id')
   async updateFamilyMember(
     @Param('id') id: number,
-    @Body() data: any,
+    @Body() data: UpdateFamilyMemberDto,
   ) {
-    return await this.cdmService.updateFamilyMember(id, data);
+    const payload: any = {
+      ...data,
+    };
+
+    if (Object.prototype.hasOwnProperty.call(data, 'dateOfBirth')) {
+      payload.dateOfBirth = data.dateOfBirth ? new Date(data.dateOfBirth) : null;
+    }
+    if (Object.prototype.hasOwnProperty.call(data, 'anniversaryDate')) {
+      payload.anniversaryDate = data.anniversaryDate
+        ? new Date(data.anniversaryDate)
+        : null;
+    }
+
+    return await this.cdmService.updateFamilyMember(id, payload);
   }
 
   @Delete('family/:id')

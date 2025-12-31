@@ -125,8 +125,5 @@ export class SalesOrder {
     if (!this.orderDate) {
       this.orderDate = new Date();
     }
-    if (!this.createdBy) {
-      this.createdBy = this.customerId || 1; // Default to customer ID or 1 (system user)
-    }
   }
 }

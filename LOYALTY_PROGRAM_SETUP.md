@@ -368,10 +368,14 @@ For issues or questions:
 
 1. ✅ Run database migration
 2. ✅ Start backend & frontend servers
+
+### Step 5: Run UUID Wallet Migration
+If you are using wallet endpoints from the customer portal and you see errors like `column CustomerWallet.customer_uuid does not exist`, run the UUID wallet migration:
+  - `backend/loyalty-wallet-uuid-migration.sql`
+  - Windows runner: `backend/run-loyalty-wallet-uuid-migration.bat` (or `.ps1` if using Docker)
 3. ✅ Test tier upgrade with sample order
 4. ✅ Test referral system
 5. ✅ Create first grocery list
-6. ✅ View KPI dashboard
 7. 🔄 Integrate with WhatsApp API for reminders
 8. 🔄 Set up daily cron for repeat reminders
 9. 🔄 Add email notifications for tier upgrades
@@ -379,6 +383,3 @@ For issues or questions:
 
 ---
 
-**Installation Complete! 🎉**
-
-Your loyalty program is ready to increase customer retention and boost repeat sales!

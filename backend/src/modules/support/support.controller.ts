@@ -1,7 +1,15 @@
-import { Controller, Get, Post, Body, Param, Put, Delete, Request, UseGuards, Patch } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Put, Delete, Request, UseGuards } from '@nestjs/common';
 import { SupportService } from './support.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CustomersService } from '../customers/customers.service';
+import {
+  AddSupportTicketReplyDto,
+  AssignSupportTicketDto,
+  CreateSupportTicketDto,
+  UpdateSupportTicketDto,
+  UpdateSupportTicketPriorityDto,
+  UpdateSupportTicketStatusDto,
+} from './dto/support-ticket.dto';
 
 @Controller('support')
 export class SupportController {
@@ -10,41 +18,22 @@ export class SupportController {
     private readonly customersService: CustomersService,
   ) {}
 
+  // Admin endpoints (must be declared before ":id" route to avoid route collisions)
+  @Get('all')
+  @UseGuards(JwtAuthGuard)
+  async findAllAdmin() {
+    return this.supportService.findAll();
+  }
+
   @Get()
   @UseGuards(JwtAuthGuard)
   async findAll(@Request() req: any) {
-    try {
-      console.log('=== GET /support START ===');
-      console.log('User:', JSON.stringify(req.user));
-      console.log('User email:', req.user.email);
-      
-      // Get customer by email
-      const customers = await this.customersService.findAll();
-      console.log('Total customers:', customers.length);
-      
-      const customer = customers.find((c: any) => c.email === req.user.email);
-      console.log('Customer found:', customer ? 'YES' : 'NO');
-      
-      if (customer) {
-        console.log('Customer ID:', customer.id);
-        const tickets = await this.supportService.findByCustomerId(customer.id);
-        console.log('Tickets found:', tickets.length);
-        return tickets;
-      }
-      
-      // Fallback to email if no customer found
-      console.log('Searching by email:', req.user.email);
-      const tickets = await this.supportService.findByCustomerEmail(req.user.email);
-      console.log('Tickets found by email:', tickets.length);
-      console.log('=== GET /support END ===');
-      return tickets;
-    } catch (error: any) {
-      console.error('=== ERROR in GET /support ===');
-      console.error('Error name:', error.name);
-      console.error('Error message:', error.message);
-      console.error('Error stack:', error.stack);
-      throw error;
+    const email = req?.user?.email;
+    const customer = email ? await this.customersService.findByEmail(email) : null;
+    if (customer?.id != null) {
+      return this.supportService.findByCustomerId(String(customer.id));
     }
+    return email ? this.supportService.findByCustomerEmail(email) : [];
   }
 
   @Get(':id')
@@ -55,48 +44,21 @@ export class SupportController {
 
   @Post()
   @UseGuards(JwtAuthGuard)
-  async create(@Body() dto: any, @Request() req: any) {
-    try {
-      console.log('=== POST /support START ===');
-      console.log('User:', JSON.stringify(req.user));
-      console.log('Request body:', JSON.stringify(dto));
-      
-      // Get customer by email
-      console.log('Fetching customers...');
-      const customers = await this.customersService.findAll();
-      console.log('Total customers:', customers.length);
-      
-      const customer = customers.find((c: any) => c.email === req.user.email);
-      console.log('Customer found:', customer ? 'YES' : 'NO');
-      if (customer) {
-        console.log('Customer ID:', customer.id);
-      }
-      
-      const payload = {
-        ...dto,
-        customerId: customer?.id || null,
-        customerEmail: req.user.email,
-        status: 'open',
-      };
-      
-      console.log('Payload to save:', JSON.stringify(payload));
-      const result = await this.supportService.create(payload);
-      console.log('Ticket created:', JSON.stringify(result));
-      console.log('=== POST /support END ===');
-      
-      return result;
-    } catch (error: any) {
-      console.error('=== ERROR in POST /support ===');
-      console.error('Error name:', error.name);
-      console.error('Error message:', error.message);
-      console.error('Error stack:', error.stack);
-      throw error;
-    }
+  async create(@Body() dto: CreateSupportTicketDto, @Request() req: any) {
+    const email = req?.user?.email;
+    const customer = email ? await this.customersService.findByEmail(email) : null;
+    const payload = {
+      ...dto,
+      customerId: customer?.id != null ? String(customer.id) : null,
+      customerEmail: email,
+      status: 'open',
+    };
+    return this.supportService.create(payload);
   }
 
   @Put(':id')
   @UseGuards(JwtAuthGuard)
-  async update(@Param('id') id: string, @Body() dto: any) {
+  async update(@Param('id') id: string, @Body() dto: UpdateSupportTicketDto) {
     return this.supportService.update(+id, dto);
   }
 
@@ -106,29 +68,27 @@ export class SupportController {
     return this.supportService.remove(+id);
   }
 
-  // Admin endpoints
-  @Get('all')
-  async findAllAdmin() {
-    return this.supportService.findAll();
-  }
-
   @Put(':id/reply')
-  async addReply(@Param('id') id: string, @Body() dto: { response: string; status?: string }) {
+  @UseGuards(JwtAuthGuard)
+  async addReply(@Param('id') id: string, @Body() dto: AddSupportTicketReplyDto) {
     return this.supportService.addReply(+id, dto.response, dto.status);
   }
 
   @Put(':id/status')
-  async updateStatus(@Param('id') id: string, @Body() dto: { status: string }) {
+  @UseGuards(JwtAuthGuard)
+  async updateStatus(@Param('id') id: string, @Body() dto: UpdateSupportTicketStatusDto) {
     return this.supportService.updateStatus(+id, dto.status);
   }
 
   @Put(':id/priority')
-  async updatePriority(@Param('id') id: string, @Body() dto: { priority: string }) {
+  @UseGuards(JwtAuthGuard)
+  async updatePriority(@Param('id') id: string, @Body() dto: UpdateSupportTicketPriorityDto) {
     return this.supportService.updatePriority(+id, dto.priority);
   }
 
   @Put(':id/assign')
-  async assignTicket(@Param('id') id: string, @Body() dto: { assignedTo: number | null }) {
-    return this.supportService.assignTicket(+id, dto.assignedTo);
+  @UseGuards(JwtAuthGuard)
+  async assignTicket(@Param('id') id: string, @Body() dto: AssignSupportTicketDto) {
+    return this.supportService.assignTicket(+id, dto.assignedTo ?? null);
   }
 }

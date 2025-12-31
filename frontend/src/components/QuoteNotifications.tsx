@@ -1,4 +1,4 @@
-/* COMMENTED OUT - Quote Notifications Feature Disabled
+// Quote Notifications
 import { useEffect, useState } from 'react';
 import { FaBell, FaTimes, FaFileInvoice, FaCheckCircle, FaTimesCircle } from 'react-icons/fa';
 
@@ -261,4 +261,4 @@ export function addQuoteNotification(
   // Trigger a custom event to update the UI
   window.dispatchEvent(new CustomEvent('newQuoteNotification', { detail: notification }));
 }
-*/
+

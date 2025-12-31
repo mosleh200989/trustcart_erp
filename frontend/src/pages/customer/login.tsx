@@ -62,7 +62,7 @@ export default function CustomerLogin() {
               value={identifier}
               onChange={(e) => setIdentifier(e.target.value)}
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
-              placeholder="customer@example.com or 01712345678"
+              placeholder="Enter Your Email or Phone"
               required
             />
           </div>
@@ -76,7 +76,7 @@ export default function CustomerLogin() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
-              placeholder="••••••••"
+              placeholder="Enter Your Password"
               required
             />
           </div>
@@ -94,7 +94,7 @@ export default function CustomerLogin() {
           <p className="text-gray-600 text-sm mb-2">
             Don't have an account?{' '}
             <Link href="/customer/register" className="text-orange-600 font-semibold hover:underline">
-              Register here
+              Register here 
             </Link>
           </p>
           <p className="text-xs text-gray-500">
