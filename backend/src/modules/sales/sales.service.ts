@@ -70,6 +70,41 @@ export class SalesService {
     }));
   }
 
+  // Customer portal should still show orders that were placed as a guest before registration.
+  // We match by customer_id when possible, and also by customer_email / customer_phone.
+  async findForCustomerPortal(params: { id?: any; email?: string | null; phone?: string | null }) {
+    const rawId = params?.id;
+    const idText = rawId != null ? String(rawId).trim() : '';
+    const email = typeof params?.email === 'string' ? params.email.trim() : '';
+    const phone = typeof params?.phone === 'string' ? params.phone.trim() : '';
+
+    const qb = this.salesRepository.createQueryBuilder('o');
+    qb.where('1=0');
+
+    if (idText) {
+      qb.orWhere('o.customer_id::text = :cid', { cid: idText });
+    }
+    if (email) {
+      qb.orWhere('o.customer_email = :email', { email });
+    }
+    if (phone) {
+      qb.orWhere('o.customer_phone = :phone', { phone });
+    }
+
+    const orders = await qb.orderBy('o.created_at', 'DESC').getMany();
+
+    return orders.map((order) => ({
+      id: order.id,
+      salesOrderNumber: order.salesOrderNumber,
+      customerId: (order as any).customerId,
+      totalAmount: parseFloat(order.totalAmount?.toString() || '0'),
+      status: order.status,
+      orderDate: order.orderDate || order.createdAt,
+      createdAt: order.createdAt,
+      notes: order.notes,
+    }));
+  }
+
   async findOne(id: string) {
     return this.salesRepository.findOne({ where: { id: Number(id) } });
   }
@@ -98,6 +133,25 @@ export class SalesService {
       sales.customerId = null as any;
     }
 
+    // Customer contact info (critical for showing guest orders after registration)
+    const customerName =
+      createSalesDto.customer_name ??
+      createSalesDto.customerName ??
+      null;
+    sales.customerName = customerName ? String(customerName).trim() : null;
+
+    const customerEmail =
+      createSalesDto.customer_email ??
+      createSalesDto.customerEmail ??
+      null;
+    sales.customerEmail = customerEmail ? String(customerEmail).trim() : null;
+
+    const customerPhone =
+      createSalesDto.customer_phone ??
+      createSalesDto.customerPhone ??
+      null;
+    sales.customerPhone = customerPhone ? String(customerPhone).trim() : null;
+
     // Total amount: prefer explicit totals, then fall back to computed from items
     let totalAmount: number | null = null;
     if (createSalesDto.totalAmount != null) totalAmount = Number(createSalesDto.totalAmount);
@@ -120,6 +174,10 @@ export class SalesService {
     sales.status = createSalesDto.status || 'pending';
 
     // Store shipping address and notes
+    if (createSalesDto.shipping_address != null) {
+      sales.shippingAddress = String(createSalesDto.shipping_address);
+    }
+
     let notesText = '';
     if (createSalesDto.shipping_address) {
       notesText += `Shipping Address: ${createSalesDto.shipping_address}`;
@@ -129,6 +187,18 @@ export class SalesService {
       notesText += `Order Notes: ${createSalesDto.notes}`;
     }
     sales.notes = notesText || null;
+
+    // Tracking fields (sent from checkout)
+    if (createSalesDto.user_ip != null) sales.userIp = String(createSalesDto.user_ip);
+    if (createSalesDto.geo_location != null) sales.geoLocation = createSalesDto.geo_location;
+    if (createSalesDto.browser_info != null) sales.browserInfo = String(createSalesDto.browser_info);
+    if (createSalesDto.device_type != null) sales.deviceType = String(createSalesDto.device_type);
+    if (createSalesDto.operating_system != null) sales.operatingSystem = String(createSalesDto.operating_system);
+    if (createSalesDto.traffic_source != null) sales.trafficSource = String(createSalesDto.traffic_source);
+    if (createSalesDto.referrer_url != null) sales.referrerUrl = String(createSalesDto.referrer_url);
+    if (createSalesDto.utm_source != null) sales.utmSource = String(createSalesDto.utm_source);
+    if (createSalesDto.utm_medium != null) sales.utmMedium = String(createSalesDto.utm_medium);
+    if (createSalesDto.utm_campaign != null) sales.utmCampaign = String(createSalesDto.utm_campaign);
 
     // Save the order first
     const savedOrder = await this.salesRepository.save(sales);
@@ -240,5 +310,38 @@ export class SalesService {
       .getRawMany();
 
     return items;
+  }
+
+  async acceptThankYouOffer(orderId: number, productId: number, offerPrice: number) {
+    const order = await this.salesRepository.findOne({ where: { id: Number(orderId) } });
+    if (!order) {
+      throw new Error('Order not found');
+    }
+
+    if ((order as any).thankYouOfferAccepted) {
+      throw new Error('Offer already accepted for this order');
+    }
+
+    if (!Number.isFinite(Number(productId)) || Number(productId) <= 0) {
+      throw new Error('Invalid offer product');
+    }
+    if (!Number.isFinite(Number(offerPrice)) || Number(offerPrice) <= 0) {
+      throw new Error('Invalid offer price');
+    }
+
+    const item = new SalesOrderItem();
+    item.salesOrderId = order.id;
+    item.productId = Number(productId);
+    item.quantity = 1;
+    item.unitPrice = Number(offerPrice);
+    item.lineTotal = item.quantity * item.unitPrice;
+    await this.orderItemsRepository.save(item);
+
+    const currentTotal = parseFloat((order.totalAmount as any)?.toString?.() || String(order.totalAmount || 0));
+    order.totalAmount = Number(currentTotal) + Number(item.lineTotal);
+    (order as any).thankYouOfferAccepted = true;
+    await this.salesRepository.save(order);
+
+    return order;
   }
 }

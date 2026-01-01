@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react';
-import Link from 'next/link';
-import { useRouter } from 'next/router';
-import { FaStar, FaShoppingCart, FaHeart, FaEye } from 'react-icons/fa';
-import AddToCartPopup from './AddToCartPopup';
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/router";
+import { FaStar, FaShoppingCart, FaHeart, FaEye, FaTag } from "react-icons/fa";
+import AddToCartPopup from "./AddToCartPopup";
 
 interface ProductCardProps {
   id: number;
@@ -10,6 +10,7 @@ interface ProductCardProps {
   nameBn?: string;
   nameEn?: string;
   name?: string;
+  categoryName?: string;
   price: number;
   originalPrice?: number;
   stock?: number;
@@ -19,30 +20,39 @@ interface ProductCardProps {
   discount?: number;
 }
 
-export default function ElectroProductCard({ 
+export default function ElectroProductCard({
   id,
   slug,
-  nameBn, 
-  nameEn, 
+  nameBn,
+  nameEn,
   name,
-  price, 
-  originalPrice, 
+  categoryName,
+  price,
+  originalPrice,
   stock,
   image,
   rating = 5,
   reviews = 0,
-  discount
+  discount,
 }: ProductCardProps) {
   const [showPopup, setShowPopup] = useState(false);
   const [imageError, setImageError] = useState(false);
   const router = useRouter();
-  const displayName = nameEn || name || nameBn || 'Product';
+  const displayName = nameEn || name || nameBn || "Product";
+  const displayCategory =
+    typeof categoryName === "string" ? categoryName.trim() : "";
   const productUrl = slug ? `/products/${slug}` : `/products/${id}`;
-  const imageUrl = typeof image === 'string' ? image.trim() : '';
-  const priceNum = typeof price === 'number' ? price : parseFloat(price) || 0;
-  const originalPriceNum = originalPrice ? (typeof originalPrice === 'number' ? originalPrice : parseFloat(originalPrice)) : undefined;
+  const imageUrl = typeof image === "string" ? image.trim() : "";
+  const priceNum = typeof price === "number" ? price : parseFloat(price) || 0;
+  const originalPriceNum = originalPrice
+    ? typeof originalPrice === "number"
+      ? originalPrice
+      : parseFloat(originalPrice)
+    : undefined;
   const hasDiscount = originalPriceNum && originalPriceNum > priceNum;
-  const discountPercent = hasDiscount ? Math.round(((originalPriceNum - priceNum) / originalPriceNum) * 100) : discount;
+  const discountPercent = hasDiscount
+    ? Math.round(((originalPriceNum - priceNum) / originalPriceNum) * 100)
+    : discount;
 
   useEffect(() => {
     setImageError(false);
@@ -50,35 +60,42 @@ export default function ElectroProductCard({
 
   const handleAddToCart = (e: React.MouseEvent) => {
     e.preventDefault();
-    const cart = JSON.parse(localStorage.getItem('cart') || '[]');
+    const cart = JSON.parse(localStorage.getItem("cart") || "[]");
     const existingItem = cart.find((item: any) => item.id === id);
-    
+
     if (existingItem) {
       existingItem.quantity += 1;
     } else {
-      cart.push({ id, name: displayName, name_en: displayName, price: priceNum, quantity: 1, image });
+      cart.push({
+        id,
+        name: displayName,
+        name_en: displayName,
+        price: priceNum,
+        quantity: 1,
+        image,
+      });
     }
-    
-    localStorage.setItem('cart', JSON.stringify(cart));
-    window.dispatchEvent(new Event('cartUpdated'));
+
+    localStorage.setItem("cart", JSON.stringify(cart));
+    window.dispatchEvent(new Event("cartUpdated"));
     setShowPopup(true);
   };
 
   const handleAddToWishlist = (e: React.MouseEvent) => {
     e.preventDefault();
-    const token = localStorage.getItem('authToken');
+    const token = localStorage.getItem("authToken");
     if (!token) {
-      alert('Please login to add items to your wishlist.');
-      router.push('/customer/login');
+      alert("Please login to add items to your wishlist.");
+      router.push("/customer/login");
       return;
     }
 
-    const wishlist = JSON.parse(localStorage.getItem('wishlist') || '[]');
+    const wishlist = JSON.parse(localStorage.getItem("wishlist") || "[]");
     if (!wishlist.find((item: any) => item.id === id)) {
       wishlist.push({ id, name: displayName, price: priceNum, image });
-      localStorage.setItem('wishlist', JSON.stringify(wishlist));
-      window.dispatchEvent(new Event('wishlistUpdated'));
-      alert('Added to your wishlist.');
+      localStorage.setItem("wishlist", JSON.stringify(wishlist));
+      window.dispatchEvent(new Event("wishlistUpdated"));
+      alert("Added to your wishlist.");
     }
   };
 
@@ -87,8 +104,14 @@ export default function ElectroProductCard({
       {/* Discount Badge */}
       {discountPercent && discountPercent > 0 && (
         <div className="absolute top-2 left-2 z-10">
-          <div className="bg-gradient-to-br from-red-500 to-red-600 text-white px-3 py-1.5 rounded-md text-xs font-bold shadow-lg">
-            -{discountPercent}%
+          <div
+            className="inline-flex items-center gap-1.5 bg-gradient-to-r from-green-500 via-green-400 to-green-600 text-white px-3 py-3 text-xs font-extrabold shadow-xl border border-white/60"
+            style={{
+              clipPath:
+                "polygon(50% 0%, 60% 12%, 76% 6%, 72% 22%, 88% 24%, 78% 36%, 100% 50%, 78% 64%, 88% 76%, 72% 78%, 76% 94%, 60% 88%, 50% 100%, 40% 88%, 24% 94%, 28% 78%, 12% 76%, 22% 64%, 0% 50%, 22% 36%, 12% 24%, 28% 22%, 24% 6%, 40% 12%)",
+            }}
+          >
+            <span>-{discountPercent}%</span>
           </div>
         </div>
       )}
@@ -102,7 +125,7 @@ export default function ElectroProductCard({
         >
           <FaHeart size={16} />
         </button>
-        <button 
+        <button
           className="bg-white hover:bg-orange-500 hover:text-white p-2.5 rounded-full shadow-lg transition-all hover:scale-110"
           title="Quick View"
         >
@@ -117,9 +140,9 @@ export default function ElectroProductCard({
             <img
               src={imageUrl}
               alt={displayName}
-              className="object-contain group-hover:scale-110 transition-transform duration-500 max-h-full p-4"
+              className="object-fit group-hover:scale-110 transition-transform duration-500 w-full h-full"
               onError={(e) => {
-                console.error('Image failed to load:', imageUrl);
+                console.error("Image failed to load:", imageUrl);
                 setImageError(true);
               }}
             />
@@ -128,36 +151,50 @@ export default function ElectroProductCard({
               <span className="text-6xl">📦</span>
             </div>
           )}
-          
+
           {/* Hover Overlay */}
           <div className="pointer-events-none absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-all duration-300"></div>
         </div>
 
         {/* Content */}
-        <div className="py-4 px-3">
+        <div className="py-1 px-3">
           {/* Rating */}
-          <div className="flex items-center gap-1 mb-2">
+          {/* <div className="flex items-center gap-1 mb-2">
             {[...Array(5)].map((_, i) => (
               <FaStar
                 key={i}
                 size={14}
-                className={i < rating ? 'text-yellow-400' : 'text-gray-300'}
+                className={i < rating ? "text-yellow-400" : "text-gray-300"}
               />
             ))}
             <span className="text-xs text-gray-500 ml-1">({reviews})</span>
-          </div>
+          </div> */}
 
           {/* Name */}
-          <h3 className="font-semibold text-gray-800 mb-3 line-clamp-2 min-h-[3rem] group-hover:text-orange-500 transition-colors">
+          <h3
+            className={`font-semibold text-gray-800 text-xl group-hover:text-orange-500 transition-colors text-center ${
+              displayCategory ? "mb-1" : "mb-3"
+            }`}
+          >
             {displayName}
           </h3>
 
+          {displayCategory && (
+            <div className="text-sm text-gray-500 mb-3 text-center line-clamp-1">
+              {displayCategory}
+            </div>
+          )}
+
           {/* Price */}
-          <div className="mb-3">
-            <div className="flex items-center gap-2 mb-1">
-              <span className="text-2xl font-bold text-orange-500">৳{priceNum.toFixed(2)}</span>
+          <div className="mb-3 text-center">
+            <div className="flex items-center justify-center gap-2 mb-1">
+              <span className="text-2xl font-bold text-orange-500">
+                ৳{priceNum.toFixed(2)}
+              </span>
               {hasDiscount && originalPriceNum && (
-                <span className="text-sm text-gray-400 line-through">৳{originalPriceNum.toFixed(2)}</span>
+                <span className="text-sm text-gray-400 line-through">
+                  ৳{originalPriceNum.toFixed(2)}
+                </span>
               )}
             </div>
             {hasDiscount && originalPriceNum && (
@@ -166,23 +203,6 @@ export default function ElectroProductCard({
               </div>
             )}
           </div>
-
-          {/* Stock Status */}
-          {stock !== undefined && (
-            <div className="mb-3">
-              {stock > 0 ? (
-                <span className="inline-flex items-center gap-1 text-xs text-green-600 font-semibold bg-green-50 px-2 py-1 rounded">
-                  <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-                  In Stock ({stock})
-                </span>
-              ) : (
-                <span className="inline-flex items-center gap-1 text-xs text-red-600 font-semibold bg-red-50 px-2 py-1 rounded">
-                  <span className="w-2 h-2 bg-red-500 rounded-full"></span>
-                  Out of Stock
-                </span>
-              )}
-            </div>
-          )}
         </div>
       </Link>
 

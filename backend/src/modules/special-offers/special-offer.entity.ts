@@ -38,6 +38,17 @@ export class SpecialOffer {
   @Column({ default: true })
   is_active: boolean;
 
+  // Used to differentiate placements (e.g., homepage vs thank you page)
+  @Column({ default: 'homepage' })
+  context: string;
+
+  // Optional upsell configuration for thank you page offer
+  @Column({ type: 'int', nullable: true })
+  product_id: number;
+
+  @Column('decimal', { precision: 12, scale: 2, nullable: true })
+  offer_price: number;
+
   @Column({ default: 0 })
   display_order: number;
 

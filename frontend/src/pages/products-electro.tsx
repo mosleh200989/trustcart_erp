@@ -294,6 +294,7 @@ export default function ElectroProducts() {
                       id={product.id}
                       nameEn={product.name_en}
                       nameBn={product.name_bn}
+                      categoryName={product.category_name}
                       price={product.base_price}
                       originalPrice={product.mrp}
                       stock={product.stock_quantity}

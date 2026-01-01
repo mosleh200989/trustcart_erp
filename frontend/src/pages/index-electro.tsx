@@ -181,6 +181,11 @@ export default function ElectroHome() {
                 name={product.name_en || product.name}
                 nameBn={product.name_bn}
                 nameEn={product.name_en}
+                categoryName={
+                  product.category_name ||
+                  product.category?.name_en ||
+                  product.category?.name
+                }
                 price={product.base_price || product.price}
                 originalPrice={product.mrp}
                 stock={product.stock_quantity}

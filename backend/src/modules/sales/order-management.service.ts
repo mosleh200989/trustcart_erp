@@ -1,10 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { SalesOrder } from './sales-order.entity';
 import { OrderItem } from './entities/order-item.entity';
 import { OrderActivityLog } from './entities/order-activity-log.entity';
 import { CourierTrackingHistory } from './entities/courier-tracking-history.entity';
+import { SalesOrderItem } from './sales-order-item.entity';
+import { Product } from '../products/product.entity';
 
 @Injectable()
 export class OrderManagementService {
@@ -13,6 +15,10 @@ export class OrderManagementService {
     private salesOrderRepository: Repository<SalesOrder>,
     @InjectRepository(OrderItem)
     private orderItemRepository: Repository<OrderItem>,
+    @InjectRepository(SalesOrderItem)
+    private salesOrderItemRepository: Repository<SalesOrderItem>,
+    @InjectRepository(Product)
+    private productRepository: Repository<Product>,
     @InjectRepository(OrderActivityLog)
     private activityLogRepository: Repository<OrderActivityLog>,
     @InjectRepository(CourierTrackingHistory)
@@ -21,10 +27,47 @@ export class OrderManagementService {
 
   // ==================== ORDER ITEMS MANAGEMENT ====================
   
-  async getOrderItems(orderId: number): Promise<OrderItem[]> {
-    return await this.orderItemRepository.find({
+  async getOrderItems(orderId: number): Promise<any[]> {
+    const orderItems = await this.orderItemRepository.find({
       where: { orderId },
-      order: { id: 'ASC' }
+      order: { id: 'ASC' },
+    });
+
+    // Preferred source for admin-managed orders
+    if (orderItems.length > 0) return orderItems;
+
+    // Fallback for checkout-created orders (stored in sales_order_items)
+    const salesItems = await this.salesOrderItemRepository.find({
+      where: { salesOrderId: orderId },
+      order: { id: 'ASC' },
+    });
+
+    if (salesItems.length === 0) return [];
+
+    const productIds = Array.from(new Set(salesItems.map((i) => Number(i.productId)).filter(Boolean)));
+    const products = productIds.length
+      ? await this.productRepository.find({ where: { id: In(productIds) } })
+      : [];
+    const productById = new Map(products.map((p) => [Number(p.id), p]));
+
+    return salesItems.map((si) => {
+      const qty = Number(si.quantity || 0);
+      const unit = Number(si.unitPrice || 0);
+      const subtotal = si.lineTotal != null ? Number(si.lineTotal) : qty * unit;
+      const product = productById.get(Number(si.productId));
+
+      return {
+        id: si.id,
+        orderId,
+        productId: Number(si.productId),
+        productName: product?.name_en || `Product #${si.productId}`,
+        quantity: qty,
+        unitPrice: unit,
+        subtotal,
+        createdAt: si.createdAt,
+        updatedAt: si.createdAt,
+        updatedBy: null,
+      };
     });
   }
 
@@ -432,15 +475,58 @@ export class OrderManagementService {
     const order = await this.salesOrderRepository.findOne({ where: { id: orderId } });
     if (!order) throw new Error('Order not found');
 
+    const customerId = order.customerId != null ? Number(order.customerId) : null;
+    const customerEmail = order.customerEmail ? String(order.customerEmail).trim() : '';
+    const customerPhone = order.customerPhone ? String(order.customerPhone).trim() : '';
+
+    const customer = {
+      customerId,
+      customerName: order.customerName || null,
+      customerEmail: customerEmail || null,
+      customerPhone: customerPhone || null,
+    };
+
+    const orderHistoryQb = this.salesOrderRepository.createQueryBuilder('o');
+    orderHistoryQb.where('1=0');
+    if (customerId != null && Number.isFinite(customerId)) {
+      orderHistoryQb.orWhere('o.customer_id = :cid', { cid: customerId });
+    }
+    if (customerEmail) {
+      orderHistoryQb.orWhere('o.customer_email = :email', { email: customerEmail });
+    }
+    if (customerPhone) {
+      orderHistoryQb.orWhere('o.customer_phone = :phone', { phone: customerPhone });
+    }
+
+    // If we have no reliable identifier, default to current order only
+    if (orderHistoryQb.expressionMap.wheres.length <= 1) {
+      orderHistoryQb.orWhere('o.id = :id', { id: order.id });
+    }
+
+    const orderHistoryRows = await orderHistoryQb
+      .orderBy('o.created_at', 'DESC')
+      .getMany();
+
     const items = await this.getOrderItems(orderId);
     const activityLogs = await this.getActivityLogs(orderId);
     const courierTracking = await this.getCourierTrackingHistory(orderId);
+
+    const orderHistory = orderHistoryRows.map((o) => ({
+      id: o.id,
+      salesOrderNumber: o.salesOrderNumber,
+      status: o.status,
+      totalAmount: Number(o.totalAmount || 0),
+      createdAt: o.createdAt,
+      orderDate: o.orderDate || o.createdAt,
+    }));
 
     return {
       ...order,
       items,
       activityLogs,
       courierTracking,
+      customer,
+      orderHistory,
     };
   }
 }

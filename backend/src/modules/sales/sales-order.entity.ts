@@ -14,6 +14,15 @@ export class SalesOrder {
   @Column({ name: 'customer_id', type: 'int', nullable: true })
   customerId!: number | null;
 
+  @Column({ name: 'customer_name', type: 'varchar', length: 150, nullable: true })
+  customerName!: string | null;
+
+  @Column({ name: 'customer_email', type: 'varchar', length: 255, nullable: true })
+  customerEmail!: string | null;
+
+  @Column({ name: 'customer_phone', type: 'varchar', length: 30, nullable: true })
+  customerPhone!: string | null;
+
   // order_date in DB (defaults to NOW() in schema)
   @Column({ name: 'order_date', type: 'timestamp', nullable: true })
   orderDate!: Date;
@@ -104,6 +113,9 @@ export class SalesOrder {
 
   @Column({ name: 'courier_status', type: 'varchar', length: 50, nullable: true })
   courierStatus: string;
+
+  @Column({ name: 'thank_you_offer_accepted', type: 'boolean', default: false })
+  thankYouOfferAccepted: boolean;
 
   @Column({ name: 'shipped_at', type: 'timestamp', nullable: true })
   shippedAt: Date;

@@ -6,6 +6,22 @@ import { SpecialOffer } from './special-offer.entity';
 export class SpecialOffersController {
   constructor(private readonly specialOffersService: SpecialOffersService) {}
 
+  // Thank You page offer (single record, configured from admin)
+  @Get('thank-you')
+  async getThankYouOffer(): Promise<SpecialOffer | null> {
+    return this.specialOffersService.findThankYouOffer(false);
+  }
+
+  @Get('thank-you/admin')
+  async getThankYouOfferForAdmin(): Promise<SpecialOffer | null> {
+    return this.specialOffersService.findThankYouOffer(true);
+  }
+
+  @Put('thank-you')
+  async upsertThankYouOffer(@Body() offerData: Partial<SpecialOffer>): Promise<SpecialOffer> {
+    return this.specialOffersService.upsertThankYouOffer(offerData);
+  }
+
   @Get()
   async findAll(@Query('active') active?: string): Promise<SpecialOffer[]> {
     if (active === 'true') {

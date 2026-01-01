@@ -199,6 +199,11 @@ export default function Blog() {
                       name={product.name_en || product.name}
                       nameBn={product.name_bn}
                       nameEn={product.name_en}
+                      categoryName={
+                        product.category_name ||
+                        product.category?.name_en ||
+                        product.category?.name
+                      }
                       price={(() => {
                         const basePrice = product.base_price ?? product.price ?? 0;
                         const salePrice = product.sale_price ?? product.salePrice;

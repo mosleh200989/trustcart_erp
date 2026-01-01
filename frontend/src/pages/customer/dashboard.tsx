@@ -37,24 +37,49 @@ export default function CustomerAccountDashboard() {
     loadDashboardData();
   }, []);
 
+  const normalizeStatus = (value: unknown) =>
+    String(value || '')
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, '_');
+
   const loadDashboardData = async () => {
     try {
       setLoading(true);
       const user = await auth.getCurrentUser();
-      if (!user || !user.email) {
+      if (!user) {
         setLoading(false);
         return;
       }
 
+      const displayName =
+        (user as any)?.name || (user as any)?.email || (user as any)?.phone || '';
+      if (displayName) setCustomerName(String(displayName));
+
       // Get my orders
       const myOrders = await sales.my();
 
+      const normalized = (myOrders || []).map((o: any) => ({
+        ...o,
+        _status: normalizeStatus(o?.status),
+      }));
+
       // Calculate stats
-      const totalOrders = myOrders.length;
-      const pendingOrders = myOrders.filter(o => o.status === 'pending').length;
-      const completedOrders = myOrders.filter(o => o.status === 'completed' || o.status === 'delivered').length;
-      const cancelledOrders = myOrders.filter(o => o.status === 'cancelled').length;
-      const totalSpent = myOrders.reduce((sum, o) => sum + Number(o.totalAmount || 0), 0);
+      const totalOrders = normalized.length;
+      const completedOrders = normalized.filter(
+        (o: any) => o._status === 'completed' || o._status === 'delivered',
+      ).length;
+      const cancelledOrders = normalized.filter((o: any) => o._status === 'cancelled').length;
+
+      // Treat anything that isn't completed/delivered/cancelled as "pending"
+      const pendingOrders = normalized.filter(
+        (o: any) => !['completed', 'delivered', 'cancelled'].includes(o._status),
+      ).length;
+
+      const totalSpent = normalized.reduce(
+        (sum: number, o: any) => sum + Number(o.totalAmount || 0),
+        0,
+      );
 
       setStats({
         totalOrders,
@@ -65,7 +90,7 @@ export default function CustomerAccountDashboard() {
       });
 
       // Get recent orders (last 5)
-      const sortedOrders = myOrders
+      const sortedOrders = (myOrders || [])
         .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
         .slice(0, 5);
       setRecentOrders(sortedOrders);

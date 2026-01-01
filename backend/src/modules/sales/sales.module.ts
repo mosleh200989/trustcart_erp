@@ -9,7 +9,9 @@ import { OrderManagementController } from './order-management.controller';
 import { OrderItem } from './entities/order-item.entity';
 import { OrderActivityLog } from './entities/order-activity-log.entity';
 import { CourierTrackingHistory } from './entities/courier-tracking-history.entity';
+import { Product } from '../products/product.entity';
 import { CustomersModule } from '../customers/customers.module';
+import { SpecialOffersModule } from '../special-offers/special-offers.module';
 
 @Module({
   imports: [
@@ -19,8 +21,10 @@ import { CustomersModule } from '../customers/customers.module';
       OrderItem,
       OrderActivityLog,
       CourierTrackingHistory,
+      Product,
     ]),
     CustomersModule,
+    SpecialOffersModule,
   ],
   controllers: [SalesController, OrderManagementController],
   providers: [SalesService, OrderManagementService],
