@@ -60,6 +60,12 @@ export class AuthService {
           },
         };
       }
+
+      if (customer && !customer.password) {
+        throw new UnauthorizedException(
+          'Account exists but password is not set. Please register to set a password.',
+        );
+      }
       
       // Create demo admin user if doesn't exist
       if (loginValue === 'admin@trustcart.com' && password === 'admin123') {

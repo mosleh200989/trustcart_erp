@@ -36,6 +36,9 @@ export class Customer {
   @Column({ nullable: true, select: false })
   password!: string;
 
+  @Column({ default: true, name: 'is_guest' })
+  isGuest!: boolean;
+
   @Column({ type: 'varchar', length: 30, unique: true })
   phone!: string;
 

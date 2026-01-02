@@ -1,6 +1,6 @@
 ﻿import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { FaCheckCircle, FaShoppingCart, FaTimes, FaArrowLeft } from 'react-icons/fa';
+import { FaCheckCircle, FaShoppingCart, FaTimes, FaArrowLeft, FaCreditCard } from 'react-icons/fa';
 import apiClient from '@/services/api';
 import ElectroProductCard from './ElectroProductCard';
 
@@ -23,6 +23,11 @@ const AddToCartPopup: React.FC<AddToCartPopupProps> = ({ isOpen, onClose, produc
       nameEn: item.name_en ?? item.nameEn ?? item.name,
       nameBn: item.name_bn ?? item.nameBn,
       name: item.name ?? item.name_en ?? item.name_bn,
+      categoryName:
+        item.category_name ??
+        item.categoryName ??
+        item.category?.name_en ??
+        item.category?.name,
       price: resolvedPrice,
       originalPrice: item.base_price ? Number(item.base_price) : undefined,
       stock: item.stock_quantity ?? item.stock ?? item.stockQuantity,
@@ -91,13 +96,13 @@ const AddToCartPopup: React.FC<AddToCartPopupProps> = ({ isOpen, onClose, produc
                 className="flex items-center justify-center gap-2 px-6 py-3 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-lg font-semibold transition-colors"
               >
                 <FaArrowLeft />
-                Continue Shopping
+                Proceed to Checkout
               </button>
               <Link 
-                href="/cart"
+                href="/checkout"
                 className="flex items-center justify-center gap-2 px-6 py-3 bg-orange-500 hover:bg-orange-600 text-white rounded-lg font-semibold transition-colors"
               >
-                <FaShoppingCart />
+                <FaCreditCard />
                 View Cart
               </Link>
             </div>

@@ -17,8 +17,12 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
   const [items, setItems] = useState<any[]>([]);
   const [activityLogs, setActivityLogs] = useState<any[]>([]);
   const [courierTracking, setCourierTracking] = useState<any[]>([]);
+  const [customer, setCustomer] = useState<any>(null);
+  const [orderHistory, setOrderHistory] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('items');
+
+  const [currentOrderId, setCurrentOrderId] = useState<number>(orderId);
   
   // Edit states
   const [editingItem, setEditingItem] = useState<number | null>(null);
@@ -41,19 +45,25 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
   const [cancelReason, setCancelReason] = useState('');
 
   useEffect(() => {
-    loadOrderDetails();
+    setCurrentOrderId(orderId);
   }, [orderId]);
+
+  useEffect(() => {
+    loadOrderDetails();
+  }, [currentOrderId]);
 
   const loadOrderDetails = async () => {
     try {
       setLoading(true);
-      const response = await apiClient.get(`/order-management/${orderId}/details`);
+      const response = await apiClient.get(`/order-management/${currentOrderId}/details`);
       const data = response.data;
       
       setOrder(data);
       setItems(data.items || []);
       setActivityLogs(data.activityLogs || []);
       setCourierTracking(data.courierTracking || []);
+      setCustomer(data.customer || null);
+      setOrderHistory(Array.isArray(data.orderHistory) ? data.orderHistory : []);
       
       setShippingAddress(data.shippingAddress || '');
       setCourierNotes(data.courierNotes || '');
@@ -203,7 +213,7 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
       alert('Failed to update notes');
     }
   };
-
+console.log("Items:", items);
   if (loading) {
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -215,6 +225,11 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
   }
 
   if (!order) return null;
+
+  const itemsSubtotal = items.reduce((sum, item) => sum + Number(item.subtotal || 0), 0);
+  const totalAmount = Number(order.totalAmount || 0);
+  const deliveryCharge = totalAmount - itemsSubtotal;
+  const totalQuantity = items.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
 
   const canHoldOrCancel = !order.courierStatus || !['picked', 'in_transit', 'delivered'].includes(order.courierStatus);
 
@@ -262,12 +277,12 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
         {/* Tabs */}
         <div className="border-b">
           <div className="flex gap-1 p-2 bg-gray-50">
-            {['items', 'delivery', 'notes', 'tracking', 'logs'].map((tab) => (
+            {['items', 'customer', 'order history', 'delivery', 'notes', 'tracking', 'logs'].map((tab) => (
               <button
                 key={tab}
-                onClick={() => setActiveTab(tab)}
+                onClick={() => setActiveTab(tab === 'order history' ? 'order-history' : tab)}
                 className={`px-6 py-3 rounded-t-lg font-semibold transition ${
-                  activeTab === tab 
+                  activeTab === (tab === 'order history' ? 'order-history' : tab) 
                     ? 'bg-white text-blue-600 border-b-2 border-blue-600' 
                     : 'text-gray-600 hover:bg-gray-100'
                 }`}
@@ -290,6 +305,32 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                     <FaPlus /> Add Product
                   </button>
                 )}
+              </div>
+
+              {/* Totals Breakdown */}
+              <div className="bg-gray-50 border rounded-lg p-4 mb-4">
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-3 text-sm">
+                  <div>
+                    <div className="text-gray-600">Items</div>
+                    <div className="font-bold">{items.length}</div>
+                  </div>
+                  <div>
+                    <div className="text-gray-600">Total Quantity</div>
+                    <div className="font-bold">{totalQuantity}</div>
+                  </div>
+                  <div>
+                    <div className="text-gray-600">Subtotal</div>
+                    <div className="font-bold">৳{itemsSubtotal.toFixed(2)}</div>
+                  </div>
+                  <div>
+                    <div className="text-gray-600">Delivery Charge</div>
+                    <div className="font-bold">৳{deliveryCharge.toFixed(2)}</div>
+                  </div>
+                  <div>
+                    <div className="text-gray-600">Total</div>
+                    <div className="font-bold text-blue-600">৳{totalAmount.toFixed(2)}</div>
+                  </div>
+                </div>
               </div>
 
               {/* Add Product Form */}
@@ -412,6 +453,83 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                   </tfoot>
                 </table>
               </div>
+            </div>
+          )}
+
+          {/* CUSTOMER TAB */}
+          {activeTab === 'customer' && (
+            <div className="space-y-4">
+              <h3 className="text-xl font-bold">Customer Information</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="bg-gray-50 border rounded-lg p-4">
+                  <div className="text-sm text-gray-600">Customer ID</div>
+                  <div className="font-semibold">{customer?.customerId ?? order.customerId ?? 'Guest'}</div>
+                </div>
+                <div className="bg-gray-50 border rounded-lg p-4">
+                  <div className="text-sm text-gray-600">Name</div>
+                  <div className="font-semibold">{customer?.customerName ?? order.customerName ?? 'N/A'}</div>
+                </div>
+                <div className="bg-gray-50 border rounded-lg p-4">
+                  <div className="text-sm text-gray-600">Email</div>
+                  <div className="font-semibold">{customer?.customerEmail ?? order.customerEmail ?? 'N/A'}</div>
+                </div>
+                <div className="bg-gray-50 border rounded-lg p-4">
+                  <div className="text-sm text-gray-600">Phone</div>
+                  <div className="font-semibold">{customer?.customerPhone ?? order.customerPhone ?? 'N/A'}</div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ORDER HISTORY TAB */}
+          {activeTab === 'order-history' && (
+            <div>
+              <h3 className="text-xl font-bold mb-4">Order History</h3>
+
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse">
+                  <thead>
+                    <tr className="bg-gray-100">
+                      <th className="border p-3 text-left">Order</th>
+                      <th className="border p-3 text-left">Date</th>
+                      <th className="border p-3 text-left">Status</th>
+                      <th className="border p-3 text-right">Amount</th>
+                      <th className="border p-3 text-center">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {orderHistory.map((h) => (
+                      <tr key={h.id} className={`hover:bg-gray-50 ${Number(h.id) === Number(currentOrderId) ? 'bg-blue-50' : ''}`}>
+                        <td className="border p-3 font-semibold">{h.salesOrderNumber ? `#${h.salesOrderNumber}` : `#${h.id}`}</td>
+                        <td className="border p-3">{h.orderDate ? new Date(h.orderDate).toLocaleString() : (h.createdAt ? new Date(h.createdAt).toLocaleString() : 'N/A')}</td>
+                        <td className="border p-3">
+                          <span className="uppercase font-semibold">{h.status || 'N/A'}</span>
+                        </td>
+                        <td className="border p-3 text-right font-semibold">৳{Number(h.totalAmount || 0).toFixed(2)}</td>
+                        <td className="border p-3 text-center">
+                          <div className="flex gap-2 justify-center">
+                            <button
+                              onClick={() => {
+                                setCurrentOrderId(Number(h.id));
+                                setActiveTab('items');
+                              }}
+                              className="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700"
+                              disabled={Number(h.id) === Number(currentOrderId)}
+                              title="View"
+                            >
+                              View
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {orderHistory.length === 0 && (
+                <p className="text-gray-500 text-center py-8">No order history found</p>
+              )}
             </div>
           )}
 

@@ -16,6 +16,12 @@ export class CustomersService {
     return this.customersRepository.findOne({ where: { email } });
   }
 
+  async findByPhone(phone: string) {
+    const normalized = typeof phone === 'string' ? phone.trim() : '';
+    if (!normalized) return null;
+    return this.customersRepository.findOne({ where: { phone: normalized } });
+  }
+
   async findAll() {
     return this.customersRepository.find();
   }
@@ -35,6 +41,10 @@ export class CustomersService {
           ? createCustomerDto.phone.trim()
           : '';
 
+      const wantsPassword =
+        typeof createCustomerDto.password === 'string' &&
+        createCustomerDto.password.trim().length > 0;
+
       if (!phone) {
         throw new Error('Phone number is required');
       }
@@ -44,10 +54,55 @@ export class CustomersService {
       createCustomerDto.phone = phone;
 
       // Check if phone already exists (mandatory + login identifier)
-      const existingPhone = await this.customersRepository.findOne({
-        where: { phone },
-      });
-      if (existingPhone) {
+      // If it exists and has NO password, and this request provides a password,
+      // treat it as a guest->account upgrade instead of failing.
+      const existingByPhone = await this.customersRepository
+        .createQueryBuilder('customer')
+        .addSelect('customer.password')
+        .where('customer.phone = :phone', { phone })
+        .getOne();
+
+      if (existingByPhone) {
+        const existingHasPassword =
+          typeof (existingByPhone as any).password === 'string' &&
+          (existingByPhone as any).password.length > 0;
+
+        if (wantsPassword && !existingHasPassword) {
+          // Check email uniqueness (ignore self)
+          if (createCustomerDto.email) {
+            const existingEmail = await this.customersRepository.findOne({
+              where: { email: createCustomerDto.email },
+            });
+            if (existingEmail && existingEmail.id !== existingByPhone.id) {
+              throw new Error('Email already exists');
+            }
+          }
+
+          const patch: any = {
+            isGuest: false,
+            password: await bcrypt.hash(createCustomerDto.password, 10),
+          };
+
+          if (Object.prototype.hasOwnProperty.call(createCustomerDto, 'email')) {
+            patch.email = createCustomerDto.email;
+          }
+          if (createCustomerDto.name && (!existingByPhone.name || !existingByPhone.name.trim())) {
+            patch.name = createCustomerDto.name;
+          }
+          if (
+            createCustomerDto.lastName &&
+            (!existingByPhone.lastName || !existingByPhone.lastName.trim())
+          ) {
+            patch.lastName = createCustomerDto.lastName;
+          }
+          if (createCustomerDto.customerType) patch.customerType = createCustomerDto.customerType;
+          if (createCustomerDto.status) patch.status = createCustomerDto.status;
+          patch.isActive = true;
+
+          await this.customersRepository.update(existingByPhone.id, patch);
+          return this.findOne(existingByPhone.id);
+        }
+
         throw new Error('Phone number already exists');
       }
 
@@ -62,8 +117,11 @@ export class CustomersService {
       }
 
       // Hash password if provided
-      if (createCustomerDto.password) {
+      if (wantsPassword) {
         createCustomerDto.password = await bcrypt.hash(createCustomerDto.password, 10);
+        createCustomerDto.isGuest = false;
+      } else {
+        createCustomerDto.isGuest = true;
       }
       
       const customer = this.customersRepository.create(createCustomerDto);
@@ -106,6 +164,7 @@ export class CustomersService {
 
     if (patch.password) {
       patch.password = await bcrypt.hash(patch.password, 10);
+      patch.isGuest = false;
     }
 
     await this.customersRepository.update(id, patch);

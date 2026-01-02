@@ -97,6 +97,16 @@ export default function CustomerLogin() {
               Register here 
             </Link>
           </p>
+
+          <div className="mt-4">
+            <Link
+              href="/products"
+              className="inline-flex items-center justify-center w-full bg-gray-100 hover:bg-gray-200 text-gray-800 py-3 rounded-lg font-semibold transition-colors"
+            >
+              Continue Shopping
+            </Link>
+          </div>
+
           <p className="text-xs text-gray-500">
             Customer portal access for customer accounts only.
           </p>

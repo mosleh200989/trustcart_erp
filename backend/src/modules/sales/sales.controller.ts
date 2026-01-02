@@ -3,12 +3,14 @@ import { SalesService } from './sales.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CustomersService } from '../customers/customers.service';
 import { CancelSalesOrderDto } from './dto/cancel-sales-order.dto';
+import { SpecialOffersService } from '../special-offers/special-offers.service';
 
 @Controller('sales')
 export class SalesController {
   constructor(
     private readonly salesService: SalesService,
     private readonly customersService: CustomersService,
+    private readonly specialOffersService: SpecialOffersService,
   ) {}
 
   // Customer portal endpoint
@@ -16,9 +18,19 @@ export class SalesController {
   @UseGuards(JwtAuthGuard)
   async findMyOrders(@Request() req: any) {
     const email = req?.user?.email;
-    const customer = email ? await this.customersService.findByEmail(email) : null;
-    if (!customer?.id) return [];
-    return this.salesService.findForCustomer(Number(customer.id));
+    const phone = req?.user?.phone;
+
+    // Customer tokens may omit email (email is optional on customer accounts).
+    // Prefer email match, then fall back to phone match.
+    let customer: any | null = null;
+    if (email) customer = await this.customersService.findByEmail(email);
+    if (!customer && phone) {
+      customer = await this.customersService.findByPhone(phone);
+    }
+
+    // Even if we can't find a customer record, we can still return orders matched by contact info.
+    const customerId = customer?.id ?? req?.user?.id;
+    return this.salesService.findForCustomerPortal({ id: customerId, email, phone });
   }
 
   @Get()
@@ -54,6 +66,30 @@ export class SalesController {
       if (message.toLowerCase().includes('forbidden') || message.toLowerCase().includes('ownership')) {
         throw new ForbiddenException(message);
       }
+      throw new BadRequestException(message);
+    }
+  }
+
+  // Public endpoint (supports guest checkout) to accept the configured thank-you offer
+  @Post(':id/accept-thank-you-offer')
+  async acceptThankYouOffer(@Param('id') id: string) {
+    try {
+      const offer = await this.specialOffersService.findThankYouOffer(false);
+      if (!offer?.is_active) {
+        throw new Error('No active offer');
+      }
+      if (!offer.product_id || !offer.offer_price) {
+        throw new Error('Offer is not configured');
+      }
+
+      return await this.salesService.acceptThankYouOffer(
+        Number(id),
+        Number(offer.product_id),
+        Number(offer.offer_price),
+      );
+    } catch (e: any) {
+      const message = e?.message || 'Failed to accept offer';
+      if (message.toLowerCase().includes('not found')) throw new NotFoundException(message);
       throw new BadRequestException(message);
     }
   }

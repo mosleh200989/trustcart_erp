@@ -1,11 +1,11 @@
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/router';
-import { motion } from 'framer-motion';
-import ElectroNavbar from '@/components/ElectroNavbar';
-import ElectroFooter from '@/components/ElectroFooter';
-import ElectroProductCard from '@/components/ElectroProductCard';
-import AddToCartPopup from '@/components/AddToCartPopup';
-import apiClient from '@/services/api';
+import { useState, useEffect } from "react";
+import { useRouter } from "next/router";
+import { motion } from "framer-motion";
+import ElectroNavbar from "@/components/ElectroNavbar";
+import ElectroFooter from "@/components/ElectroFooter";
+import ElectroProductCard from "@/components/ElectroProductCard";
+import AddToCartPopup from "@/components/AddToCartPopup";
+import apiClient from "@/services/api";
 import {
   FaStar,
   FaShoppingCart,
@@ -16,8 +16,8 @@ import {
   FaSearchPlus,
   FaWhatsapp,
   FaPhone,
-  FaFacebookMessenger
-} from 'react-icons/fa';
+  FaFacebookMessenger,
+} from "react-icons/fa";
 
 export default function ProductDetailsPage() {
   const router = useRouter();
@@ -29,11 +29,23 @@ export default function ProductDetailsPage() {
   const [quantity, setQuantity] = useState(1);
   const [showCartPopup, setShowCartPopup] = useState(false);
   const [currentSlide, setCurrentSlide] = useState(0);
-  const [selectedImage, setSelectedImage] = useState<string>('');
+  const [slidesPerView, setSlidesPerView] = useState(4);
+  const [selectedImage, setSelectedImage] = useState<string>("");
   const [imageSlideIndex, setImageSlideIndex] = useState(0);
-  const [activeTab, setActiveTab] = useState<'description' | 'additional'>('description');
+  const [activeTab, setActiveTab] = useState<"description" | "additional">(
+    "description"
+  );
   const [showZoom, setShowZoom] = useState(false);
   const [zoomPosition, setZoomPosition] = useState({ x: 0, y: 0 });
+
+  const getSlidesPerView = () => {
+    if (typeof window === "undefined") return 4;
+    const width = window.innerWidth;
+    if (width < 640) return 1;
+    if (width < 768) return 2;
+    if (width < 1024) return 3;
+    return 4;
+  };
 
   useEffect(() => {
     if (id) {
@@ -43,7 +55,10 @@ export default function ProductDetailsPage() {
 
   useEffect(() => {
     if (!productImages || productImages.length === 0) return;
-    const safeIndex = Math.min(Math.max(0, imageSlideIndex), productImages.length - 1);
+    const safeIndex = Math.min(
+      Math.max(0, imageSlideIndex),
+      productImages.length - 1
+    );
     const next = productImages[safeIndex]?.image_url;
     if (next) setSelectedImage(next);
   }, [imageSlideIndex, productImages]);
@@ -56,25 +71,43 @@ export default function ProductDetailsPage() {
     return () => clearInterval(interval);
   }, [productImages]);
 
+  useEffect(() => {
+    const update = () => setSlidesPerView(getSlidesPerView());
+    update();
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, []);
+
+  useEffect(() => {
+    const maxSlide = Math.max(0, relatedProducts.length - slidesPerView);
+    setCurrentSlide((prev) => Math.min(prev, maxSlide));
+  }, [relatedProducts.length, slidesPerView]);
+
   const loadProduct = async () => {
     try {
       // Check if id is a number (ID) or string (slug)
       const isNumericId = !isNaN(Number(id));
-      const endpoint = isNumericId ? `/products/${id}` : `/products/by-slug/${id}`;
-      
+      const endpoint = isNumericId
+        ? `/products/${id}`
+        : `/products/by-slug/${id}`;
+
       const response = await apiClient.get(endpoint);
       setProduct(response.data);
-      
+
       // Load product images
       try {
-        const imagesResponse = await apiClient.get(`/products/${response.data.id}/images`);
+        const imagesResponse = await apiClient.get(
+          `/products/${response.data.id}/images`
+        );
         const images = imagesResponse.data || [];
         const sortedImages = [...images].sort((a: any, b: any) => {
           const aPrimary = a?.is_primary ? 1 : 0;
           const bPrimary = b?.is_primary ? 1 : 0;
           if (aPrimary !== bPrimary) return bPrimary - aPrimary;
-          const aOrder = typeof a?.display_order === 'number' ? a.display_order : 0;
-          const bOrder = typeof b?.display_order === 'number' ? b.display_order : 0;
+          const aOrder =
+            typeof a?.display_order === "number" ? a.display_order : 0;
+          const bOrder =
+            typeof b?.display_order === "number" ? b.display_order : 0;
           if (aOrder !== bOrder) return aOrder - bOrder;
           return (a?.id ?? 0) - (b?.id ?? 0);
         });
@@ -86,36 +119,42 @@ export default function ProductDetailsPage() {
         } else if (response.data.image_url) {
           setSelectedImage(response.data.image_url);
           // If no images in the images table but has image_url, create a temporary image array
-          setProductImages([{ id: 0, image_url: response.data.image_url, is_primary: true }]);
+          setProductImages([
+            { id: 0, image_url: response.data.image_url, is_primary: true },
+          ]);
           setImageSlideIndex(0);
         }
       } catch (error) {
-        console.error('Error loading product images:', error);
+        console.error("Error loading product images:", error);
         // Fallback to main image
         if (response.data.image_url) {
           setSelectedImage(response.data.image_url);
-          setProductImages([{ id: 0, image_url: response.data.image_url, is_primary: true }]);
+          setProductImages([
+            { id: 0, image_url: response.data.image_url, is_primary: true },
+          ]);
           setImageSlideIndex(0);
         }
       }
-      
+
       // Load related products using the product ID
       try {
         const productId = response.data.id;
-        const relatedResponse = await apiClient.get(`/products/related/${productId}`);
+        const relatedResponse = await apiClient.get(
+          `/products/related/${productId}`
+        );
         setRelatedProducts(relatedResponse.data || []);
       } catch (error) {
-        console.error('Error loading related products:', error);
+        console.error("Error loading related products:", error);
       }
     } catch (error) {
-      console.error('Error loading product:', error);
+      console.error("Error loading product:", error);
     } finally {
       setLoading(false);
     }
   };
 
   const handleAddToCart = () => {
-    const cart = JSON.parse(localStorage.getItem('cart') || '[]');
+    const cart = JSON.parse(localStorage.getItem("cart") || "[]");
     const existingItem = cart.find((item: any) => item.id === product.id);
 
     if (existingItem) {
@@ -127,25 +166,47 @@ export default function ProductDetailsPage() {
         name_en: product.name_en,
         price: product.base_price,
         quantity: quantity,
-        image: product.image_url
+        image: product.image_url,
       });
     }
 
-    localStorage.setItem('cart', JSON.stringify(cart));
-    window.dispatchEvent(new Event('cartUpdated'));
+    localStorage.setItem("cart", JSON.stringify(cart));
+    window.dispatchEvent(new Event("cartUpdated"));
     setShowCartPopup(true);
+  };
+
+  const handleBuyNow = () => {
+    const cart = JSON.parse(localStorage.getItem("cart") || "[]");
+    const existingItem = cart.find((item: any) => item.id === product.id);
+
+    if (existingItem) {
+      existingItem.quantity += quantity;
+    } else {
+      cart.push({
+        id: product.id,
+        name: product.name_en,
+        name_en: product.name_en,
+        price: product.base_price,
+        quantity: quantity,
+        image: product.image_url,
+      });
+    }
+
+    localStorage.setItem("cart", JSON.stringify(cart));
+    window.dispatchEvent(new Event("cartUpdated"));
+    router.push("/checkout");
   };
 
   const handleAddToWishlist = () => {
     if (!product) return;
-    const token = localStorage.getItem('authToken');
+    const token = localStorage.getItem("authToken");
     if (!token) {
-      alert('Please login to add items to your wishlist.');
-      router.push('/customer/login');
+      alert("Please login to add items to your wishlist.");
+      router.push("/customer/login");
       return;
     }
 
-    const wishlist = JSON.parse(localStorage.getItem('wishlist') || '[]');
+    const wishlist = JSON.parse(localStorage.getItem("wishlist") || "[]");
     if (!wishlist.find((item: any) => item.id === product.id)) {
       wishlist.push({
         id: product.id,
@@ -153,9 +214,9 @@ export default function ProductDetailsPage() {
         price: product.base_price || product.price,
         image: product.image_url,
       });
-      localStorage.setItem('wishlist', JSON.stringify(wishlist));
-      window.dispatchEvent(new Event('wishlistUpdated'));
-      alert('Added to your wishlist.');
+      localStorage.setItem("wishlist", JSON.stringify(wishlist));
+      window.dispatchEvent(new Event("wishlistUpdated"));
+      alert("Added to your wishlist.");
     }
   };
 
@@ -184,9 +245,11 @@ export default function ProductDetailsPage() {
         <ElectroNavbar />
         <div className="container mx-auto px-4 py-20 text-center">
           <h1 className="text-3xl font-bold mb-4">Product Not Found</h1>
-          <p className="text-gray-600 mb-6">The product you're looking for doesn't exist.</p>
+          <p className="text-gray-600 mb-6">
+            The product you're looking for doesn't exist.
+          </p>
           <button
-            onClick={() => router.push('/')}
+            onClick={() => router.push("/")}
             className="bg-orange-500 text-white px-6 py-3 rounded-lg hover:bg-orange-600"
           >
             Go to Homepage
@@ -197,35 +260,50 @@ export default function ProductDetailsPage() {
     );
   }
 
-  const displayName = product.name_en || product.name_bn || 'Product';
+  const displayName = product.name_en || product.name_bn || "Product";
   const price = Number(product.base_price || product.price || 0);
   const additionalInfo = product.additional_info || {};
 
-  const supportPhone = (process.env.NEXT_PUBLIC_SUPPORT_PHONE || '').trim();
-  const supportWhatsApp = (process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP || '').trim();
-  const supportMessenger = (process.env.NEXT_PUBLIC_SUPPORT_MESSENGER || '').trim();
-  const canShowContacts = Boolean(supportPhone || supportWhatsApp || supportMessenger);
+  const maxRelatedSlide = Math.max(0, relatedProducts.length - slidesPerView);
+  const relatedSlideStepPercent = 100 / slidesPerView;
+
+  const supportPhone = (process.env.NEXT_PUBLIC_SUPPORT_PHONE || "").trim();
+  const supportWhatsApp = (
+    process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP || ""
+  ).trim();
+  const supportMessenger = (
+    process.env.NEXT_PUBLIC_SUPPORT_MESSENGER || ""
+  ).trim();
+  const canShowContacts = Boolean(
+    supportPhone || supportWhatsApp || supportMessenger
+  );
 
   const getCurrentUrl = () => {
-    if (typeof window === 'undefined') return '';
+    if (typeof window === "undefined") return "";
     return window.location.href;
   };
 
   const handleWhatsAppContact = () => {
-    const digits = supportWhatsApp.replace(/\D/g, '');
+    const digits = supportWhatsApp.replace(/\D/g, "");
     if (!digits) return;
     const message = `Hello, I have a question about: ${displayName}\n${getCurrentUrl()}`;
-    window.open(`https://wa.me/${digits}?text=${encodeURIComponent(message)}`, '_blank', 'noopener,noreferrer');
+    window.open(
+      `https://wa.me/${digits}?text=${encodeURIComponent(message)}`,
+      "_blank",
+      "noopener,noreferrer"
+    );
   };
 
   const handleMessengerContact = () => {
     if (!supportMessenger) return;
-    window.open(supportMessenger, '_blank', 'noopener,noreferrer');
+    window.open(supportMessenger, "_blank", "noopener,noreferrer");
   };
 
   const goPrevImage = () => {
     if (!productImages || productImages.length <= 1) return;
-    setImageSlideIndex((prev) => (prev - 1 + productImages.length) % productImages.length);
+    setImageSlideIndex(
+      (prev) => (prev - 1 + productImages.length) % productImages.length
+    );
   };
 
   const goNextImage = () => {
@@ -236,388 +314,451 @@ export default function ProductDetailsPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <ElectroNavbar />
-
-      <motion.div 
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.5 }}
-        className="container mx-auto px-4 lg:px-36 py-8"
-      >
-        {/* Breadcrumb */}
-        <div className="text-sm text-gray-600 mb-6">
-          <span onClick={() => router.push('/')} className="cursor-pointer hover:text-orange-500">Home</span>
-          <span className="mx-2">/</span>
-          <span onClick={() => router.push('/products')} className="cursor-pointer hover:text-orange-500">Products</span>
-          <span className="mx-2">/</span>
-          <span className="text-gray-900">{displayName}</span>
-        </div>
-
-        {/* Product Details */}
-        <div className="bg-white rounded-lg shadow-lg p-4 lg:p-8 mb-8">
-          <div className="grid md:grid-cols-2 gap-8">
-            {/* Product Images */}
-            <motion.div
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.5, delay: 0.2 }}
+      <div className="max-w-7xl mx-auto">
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.5 }}
+          className="container mx-auto px-4 lg:px-64 py-8"
+        >
+          {/* Breadcrumb */}
+          <div className="text-sm text-gray-600 mb-6">
+            <span
+              onClick={() => router.push("/")}
+              className="cursor-pointer hover:text-orange-500"
             >
-              {/* Main Image with Zoom */}
-              <div 
-                className="relative bg-gray-100 rounded-lg overflow-hidden aspect-square mb-4 cursor-zoom-in"
-                onMouseEnter={() => setShowZoom(true)}
-                onMouseLeave={() => setShowZoom(false)}
-                onMouseMove={handleMouseMove}
+              Home
+            </span>
+            <span className="mx-2">/</span>
+            <span
+              onClick={() => router.push("/products")}
+              className="cursor-pointer hover:text-orange-500"
+            >
+              Products
+            </span>
+            <span className="mx-2">/</span>
+            <span className="text-gray-900">{displayName}</span>
+          </div>
+
+          {/* Product Details */}
+          <div className="bg-white rounded-lg shadow-lg p-4 lg:p-8 mb-8">
+            <div className="grid md:grid-cols-2 gap-8">
+              {/* Product Images */}
+              <motion.div
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.5, delay: 0.2 }}
               >
-                {selectedImage ? (
-                  <>
-                    <img
-                      src={selectedImage}
-                      alt={displayName}
-                      className="w-full h-full object-cover"
-                    />
-                    {/* Zoom Overlay */}
-                    {showZoom && (
-                      <div className="absolute inset-0 bg-white bg-opacity-90 flex items-center justify-center">
-                        <div 
-                          className="w-full h-full bg-no-repeat"
-                          style={{
-                            backgroundImage: `url(${selectedImage})`,
-                            backgroundSize: '200%',
-                            backgroundPosition: `${zoomPosition.x}% ${zoomPosition.y}%`
-                          }}
+                {/* Main Image with Zoom */}
+                <div
+                  className="relative bg-gray-100 rounded-lg overflow-hidden aspect-square mb-4 cursor-zoom-in"
+                  onMouseEnter={() => setShowZoom(true)}
+                  onMouseLeave={() => setShowZoom(false)}
+                  onMouseMove={handleMouseMove}
+                >
+                  {selectedImage ? (
+                    <>
+                      <img
+                        src={selectedImage}
+                        alt={displayName}
+                        className="w-full h-full object-cover"
+                      />
+                      {/* Zoom Overlay */}
+                      {showZoom && (
+                        <div className="absolute inset-0 bg-white bg-opacity-90 flex items-center justify-center">
+                          <div
+                            className="w-full h-full bg-no-repeat"
+                            style={{
+                              backgroundImage: `url(${selectedImage})`,
+                              backgroundSize: "200%",
+                              backgroundPosition: `${zoomPosition.x}% ${zoomPosition.y}%`,
+                            }}
+                          />
+                        </div>
+                      )}
+                      {/* Zoom Icon */}
+                      <div className="absolute top-4 right-4 bg-white rounded-full p-2 shadow-lg">
+                        <FaSearchPlus className="text-gray-600" />
+                      </div>
+
+                      {/* Slider Controls */}
+                      {productImages.length > 1 && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              goPrevImage();
+                            }}
+                            className="absolute left-3 top-1/2 -translate-y-1/2 bg-white/90 hover:bg-white text-gray-700 p-3 rounded-full shadow-lg transition-all"
+                            aria-label="Previous image"
+                          >
+                            <FaChevronLeft size={18} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              goNextImage();
+                            }}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 bg-white/90 hover:bg-white text-gray-700 p-3 rounded-full shadow-lg transition-all"
+                            aria-label="Next image"
+                          >
+                            <FaChevronRight size={18} />
+                          </button>
+                        </>
+                      )}
+                    </>
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-gray-400">
+                      <div className="text-center">
+                        <FaShoppingCart className="text-6xl mx-auto mb-2" />
+                        <p>No Image</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Thumbnail Images */}
+                {productImages.length > 1 && (
+                  <div className="grid grid-cols-4 gap-2">
+                    {productImages.map((img, index) => (
+                      <div
+                        key={img.id || index}
+                        onClick={() => {
+                          setImageSlideIndex(index);
+                          setSelectedImage(img.image_url);
+                        }}
+                        className={`relative bg-gray-100 rounded-lg overflow-hidden aspect-square cursor-pointer border-2 transition ${
+                          selectedImage === img.image_url
+                            ? "border-orange-500"
+                            : "border-transparent hover:border-gray-300"
+                        }`}
+                      >
+                        <img
+                          src={img.image_url}
+                          alt={`${displayName} ${index + 1}`}
+                          className="w-full h-full object-cover"
                         />
                       </div>
-                    )}
-                    {/* Zoom Icon */}
-                    <div className="absolute top-4 right-4 bg-white rounded-full p-2 shadow-lg">
-                      <FaSearchPlus className="text-gray-600" />
-                    </div>
+                    ))}
+                  </div>
+                )}
+              </motion.div>
 
-                    {/* Slider Controls */}
-                    {productImages.length > 1 && (
-                      <>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            goPrevImage();
-                          }}
-                          className="absolute left-3 top-1/2 -translate-y-1/2 bg-white/90 hover:bg-white text-gray-700 p-3 rounded-full shadow-lg transition-all"
-                          aria-label="Previous image"
-                        >
-                          <FaChevronLeft size={18} />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            goNextImage();
-                          }}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 bg-white/90 hover:bg-white text-gray-700 p-3 rounded-full shadow-lg transition-all"
-                          aria-label="Next image"
-                        >
-                          <FaChevronRight size={18} />
-                        </button>
-                      </>
+              {/* Product Info */}
+              <motion.div
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.5, delay: 0.3 }}
+              >
+                <h1 className="text-2xl lg:text-3xl font-bold text-gray-900 mb-4">
+                  {displayName}
+                </h1>
+
+                {/* Rating */}
+                <div className="flex items-center mb-4">
+                  <div className="flex text-yellow-400 mr-2">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <FaStar key={star} className="text-sm" />
+                    ))}
+                  </div>
+                  <span className="text-gray-600 text-sm">(125 reviews)</span>
+                </div>
+
+                {/* Price */}
+                <div className="mb-6">
+                  <div className="text-3xl lg:text-4xl font-bold text-orange-500 mb-2">
+                    ৳{price.toFixed(2)}
+                  </div>
+                  {product.sku && (
+                    <p className="text-gray-600 text-sm">SKU: {product.sku}</p>
+                  )}
+                </div>
+
+                {/* Stock Status */}
+                <div className="mb-6">
+                  <span className="inline-block px-4 py-2 bg-green-100 text-green-800 rounded-full text-sm font-semibold">
+                    In Stock
+                  </span>
+                </div>
+
+                {/* Quantity Selector */}
+                <div className="mb-6">
+                  <label className="block text-sm font-semibold mb-2">
+                    Quantity
+                  </label>
+                  <div className="flex items-center space-x-3">
+                    <button
+                      onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                      className="w-10 h-10 border border-gray-300 rounded-lg hover:bg-gray-100"
+                    >
+                      -
+                    </button>
+                    <input
+                      type="number"
+                      min="1"
+                      value={quantity}
+                      onChange={(e) =>
+                        setQuantity(Math.max(1, parseInt(e.target.value) || 1))
+                      }
+                      className="w-12 h-10 border border-gray-300 rounded-lg text-center"
+                    />
+                    <button
+                      onClick={() => setQuantity(quantity + 1)}
+                      className="w-10 h-10 border border-gray-300 rounded-lg hover:bg-gray-100"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-4 mb-6">
+                  <button
+                    onClick={handleAddToCart}
+                    className="flex-1 border-2 border-orange-500 bg-white text-orange-500 py-2.5 rounded-lg hover:!bg-orange-500 hover:text-white flex items-center justify-center space-x-2 font-semibold transition-all duration-300"
+                  >
+                    <FaShoppingCart />
+                    <span>Add to Cart</span>
+                  </button>
+                  <button
+                    onClick={handleBuyNow}
+                    className="flex-1 bg-orange-500 text-white py-2.5 rounded-lg hover:bg-orange-600 flex items-center justify-center space-x-2 font-semibold transition-all duration-300"
+                  >
+                    <FaShoppingCart />
+                    <span>Buy Now</span>
+                  </button>
+                  <button
+                    onClick={handleAddToWishlist}
+                    className="w-full sm:w-12 h-12 border-2 border-orange-500 text-orange-500 rounded-lg hover:!bg-orange-500 hover:text-white flex items-center justify-center sm:justify-center space-x-2 sm:space-x-0 transition-all duration-300"
+                  >
+                    <FaHeart />
+                    <span className="sm:hidden">Add to Wishlist</span>
+                  </button>
+                  <button className="w-full sm:w-12 h-12 border-2 border-orange-500 text-orange-500 rounded-lg hover:!bg-orange-500 hover:text-white flex items-center justify-center sm:justify-center space-x-2 sm:space-x-0 transition-all duration-300">
+                    <FaShareAlt />
+                    <span className="sm:hidden">Share Product</span>
+                  </button>
+                </div>
+
+                {/* Contact / Social Buttons */}
+                {canShowContacts && (
+                  <div className="flex flex-col sm:flex-row gap-2 mb-6">
+                    {supportWhatsApp && (
+                      <button
+                        type="button"
+                        onClick={handleWhatsAppContact}
+                        className="flex-1 bg-green-600 text-white py-2.5 rounded-lg hover:bg-green-700 flex items-center justify-center gap-2 font-semibold transition-all duration-300"
+                      >
+                        <FaWhatsapp />
+                        <span>WhatsApp</span>
+                      </button>
                     )}
-                  </>
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-gray-400">
-                    <div className="text-center">
-                      <FaShoppingCart className="text-6xl mx-auto mb-2" />
-                      <p>No Image</p>
-                    </div>
+                    {supportPhone && (
+                      <a
+                        href={`tel:${supportPhone}`}
+                        className="flex-1 border-2 border-gray-300 text-gray-800 py-2.5 rounded-lg hover:bg-gray-50 flex items-center justify-center gap-2 font-semibold transition-all duration-300"
+                      >
+                        <FaPhone />
+                        <span>Call</span>
+                      </a>
+                    )}
+                    {supportMessenger && (
+                      <button
+                        type="button"
+                        onClick={handleMessengerContact}
+                        className="flex-1 bg-blue-600 text-white py-2.5 rounded-lg hover:bg-blue-700 flex items-center justify-center gap-2 font-semibold transition-all duration-300"
+                      >
+                        <FaFacebookMessenger />
+                        <span>Messenger</span>
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {/* Additional Info */}
+                <div className="border-t pt-4 space-y-2 text-sm text-gray-600">
+                  {product.category_name && (
+                    <p>
+                      <span className="font-semibold">Category:</span>{" "}
+                      {product.category_name}
+                    </p>
+                  )}
+                  {product.brand && (
+                    <p>
+                      <span className="font-semibold">Brand:</span>{" "}
+                      {product.brand}
+                    </p>
+                  )}
+                </div>
+              </motion.div>
+            </div>
+
+            {/* Tabs Section - Description & Additional Information */}
+            <div className="mt-8 border-t pt-8">
+              {/* Tab Headers */}
+              <div className="flex border-b mb-6">
+                <button
+                  onClick={() => setActiveTab("description")}
+                  className={`px-6 py-3 font-semibold transition ${
+                    activeTab === "description"
+                      ? "border-b-2 border-orange-500 text-orange-500"
+                      : "text-gray-600 hover:text-orange-500"
+                  }`}
+                >
+                  Description
+                </button>
+                <button
+                  onClick={() => setActiveTab("additional")}
+                  className={`px-6 py-3 font-semibold transition ${
+                    activeTab === "additional"
+                      ? "border-b-2 border-orange-500 text-orange-500"
+                      : "text-gray-600 hover:text-orange-500"
+                  }`}
+                >
+                  Additional Information
+                </button>
+              </div>
+
+              {/* Tab Content */}
+              <div className="min-h-[200px]">
+                {activeTab === "description" && (
+                  <div className="prose max-w-none">
+                    <h3 className="text-xl font-semibold mb-4">
+                      Product Description
+                    </h3>
+                    {product.description_en ? (
+                      <p className="text-gray-700 leading-relaxed whitespace-pre-line">
+                        {product.description_en}
+                      </p>
+                    ) : (
+                      <p className="text-gray-500 italic">
+                        No description available for this product.
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {activeTab === "additional" && (
+                  <div>
+                    <h3 className="text-xl font-semibold mb-4">
+                      Additional Information
+                    </h3>
+                    {Object.keys(additionalInfo).length > 0 ? (
+                      <div className="overflow-x-auto">
+                        <table className="w-full border-collapse min-w-[300px]">
+                          <tbody>
+                            {Object.entries(additionalInfo).map(
+                              ([key, value]) => (
+                                <tr key={key} className="border-b">
+                                  <td className="py-2 lg:py-3 px-2 lg:px-4 bg-gray-50 font-semibold text-gray-700 capitalize text-sm lg:text-base break-words">
+                                    {key.replace(/_/g, " ")}
+                                  </td>
+                                  <td className="py-2 lg:py-3 px-2 lg:px-4 text-gray-600 text-sm lg:text-base break-words">
+                                    {typeof value === "object"
+                                      ? JSON.stringify(value)
+                                      : String(value)}
+                                  </td>
+                                </tr>
+                              )
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <p className="text-gray-500 italic">
+                        No additional information available for this product.
+                      </p>
+                    )}
                   </div>
                 )}
               </div>
+            </div>
+          </div>
 
-              {/* Thumbnail Images */}
-              {productImages.length > 1 && (
-                <div className="grid grid-cols-4 gap-2">
-                  {productImages.map((img, index) => (
-                    <div
-                      key={img.id || index}
-                      onClick={() => {
-                        setImageSlideIndex(index);
-                        setSelectedImage(img.image_url);
-                      }}
-                      className={`relative bg-gray-100 rounded-lg overflow-hidden aspect-square cursor-pointer border-2 transition ${
-                        selectedImage === img.image_url ? 'border-orange-500' : 'border-transparent hover:border-gray-300'
-                      }`}
-                    >
-                      <img
-                        src={img.image_url}
-                        alt={`${displayName} ${index + 1}`}
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
-                  ))}
-                </div>
-              )}
-            </motion.div>
-
-            {/* Product Info */}
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.5, delay: 0.3 }}
-            >
-              <h1 className="text-2xl lg:text-3xl font-bold text-gray-900 mb-4">{displayName}</h1>
-              
-              {/* Rating */}
-              <div className="flex items-center mb-4">
-                <div className="flex text-yellow-400 mr-2">
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <FaStar key={star} className="text-sm" />
-                  ))}
-                </div>
-                <span className="text-gray-600 text-sm">(125 reviews)</span>
-              </div>
-
-              {/* Price */}
-              <div className="mb-6">
-                <div className="text-3xl lg:text-4xl font-bold text-orange-500 mb-2">
-                  ৳{price.toFixed(2)}
-                </div>
-                {product.sku && (
-                  <p className="text-gray-600 text-sm">SKU: {product.sku}</p>
-                )}
-              </div>
-
-              {/* Stock Status */}
-              <div className="mb-6">
-                <span className="inline-block px-4 py-2 bg-green-100 text-green-800 rounded-full text-sm font-semibold">
-                  In Stock
-                </span>
-              </div>
-
-              {/* Quantity Selector */}
-              <div className="mb-6">
-                <label className="block text-sm font-semibold mb-2">Quantity</label>
-                <div className="flex items-center space-x-3">
-                  <button
-                    onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                    className="w-10 h-10 border border-gray-300 rounded-lg hover:bg-gray-100"
-                  >
-                    -
-                  </button>
-                  <input
-                    type="number"
-                    min="1"
-                    value={quantity}
-                    onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
-                    className="w-12 h-10 border border-gray-300 rounded-lg text-center"
-                  />
-                  <button
-                    onClick={() => setQuantity(quantity + 1)}
-                    className="w-10 h-10 border border-gray-300 rounded-lg hover:bg-gray-100"
-                  >
-                    +
-                  </button>
-                </div>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-4 mb-6">
-                <button
-                  onClick={handleAddToCart}
-                  className="flex-1 border-2 border-orange-500 bg-white text-orange-500 py-2.5 rounded-lg hover:!bg-orange-500 hover:text-white flex items-center justify-center space-x-2 font-semibold transition-all duration-300"
-                >
-                  <FaShoppingCart />
-                  <span>Add to Cart</span>
-                </button>
-                <button
-                  onClick={handleAddToWishlist}
-                  className="w-full sm:w-12 h-12 border-2 border-orange-500 text-orange-500 rounded-lg hover:!bg-orange-500 hover:text-white flex items-center justify-center sm:justify-center space-x-2 sm:space-x-0 transition-all duration-300"
-                >
-                  <FaHeart />
-                  <span className="sm:hidden">Add to Wishlist</span>
-                </button>
-                <button className="w-full sm:w-12 h-12 border-2 border-orange-500 text-orange-500 rounded-lg hover:!bg-orange-500 hover:text-white flex items-center justify-center sm:justify-center space-x-2 sm:space-x-0 transition-all duration-300">
-                  <FaShareAlt />
-                  <span className="sm:hidden">Share Product</span>
-                </button>
-              </div>
-
-              {/* Contact / Social Buttons */}
-              {canShowContacts && (
-                <div className="flex flex-col sm:flex-row gap-2 mb-6">
-                  {supportWhatsApp && (
+          {/* Recommended Products Slider */}
+          {relatedProducts.length > 0 && (
+            <div className="mb-8">
+              <h2 className="text-2xl font-bold mb-6">Recommended Products</h2>
+              <div className="relative">
+                {/* Navigation Arrows */}
+                {relatedProducts.length > slidesPerView && (
+                  <>
                     <button
-                      type="button"
-                      onClick={handleWhatsAppContact}
-                      className="flex-1 bg-green-600 text-white py-2.5 rounded-lg hover:bg-green-700 flex items-center justify-center gap-2 font-semibold transition-all duration-300"
+                      onClick={() =>
+                        setCurrentSlide(Math.max(0, currentSlide - 1))
+                      }
+                      disabled={currentSlide === 0}
+                      className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-4 z-10 bg-white hover:bg-orange-500 text-gray-700 hover:text-white p-3 rounded-full shadow-lg transition-all hover:scale-110 disabled:opacity-50 disabled:cursor-not-allowed"
+                      aria-label="Previous products"
                     >
-                      <FaWhatsapp />
-                      <span>WhatsApp</span>
+                      <FaChevronLeft size={20} />
                     </button>
-                  )}
-                  {supportPhone && (
-                    <a
-                      href={`tel:${supportPhone}`}
-                      className="flex-1 border-2 border-gray-300 text-gray-800 py-2.5 rounded-lg hover:bg-gray-50 flex items-center justify-center gap-2 font-semibold transition-all duration-300"
-                    >
-                      <FaPhone />
-                      <span>Call</span>
-                    </a>
-                  )}
-                  {supportMessenger && (
                     <button
-                      type="button"
-                      onClick={handleMessengerContact}
-                      className="flex-1 bg-blue-600 text-white py-2.5 rounded-lg hover:bg-blue-700 flex items-center justify-center gap-2 font-semibold transition-all duration-300"
+                      onClick={() =>
+                        setCurrentSlide(
+                          Math.min(maxRelatedSlide, currentSlide + 1)
+                        )
+                      }
+                      disabled={currentSlide >= maxRelatedSlide}
+                      className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-4 z-10 bg-white hover:bg-orange-500 text-gray-700 hover:text-white p-3 rounded-full shadow-lg transition-all hover:scale-110 disabled:opacity-50 disabled:cursor-not-allowed"
+                      aria-label="Next products"
                     >
-                      <FaFacebookMessenger />
-                      <span>Messenger</span>
+                      <FaChevronRight size={20} />
                     </button>
-                  )}
-                </div>
-              )}
-
-              {/* Additional Info */}
-              <div className="border-t pt-4 space-y-2 text-sm text-gray-600">
-                {product.category_name && (
-                  <p><span className="font-semibold">Category:</span> {product.category_name}</p>
+                  </>
                 )}
-                {product.brand && (
-                  <p><span className="font-semibold">Brand:</span> {product.brand}</p>
-                )}
-              </div>
-            </motion.div>
-          </div>
 
-          {/* Tabs Section - Description & Additional Information */}
-          <div className="mt-8 border-t pt-8">
-            {/* Tab Headers */}
-            <div className="flex border-b mb-6">
-              <button
-                onClick={() => setActiveTab('description')}
-                className={`px-6 py-3 font-semibold transition ${
-                  activeTab === 'description'
-                    ? 'border-b-2 border-orange-500 text-orange-500'
-                    : 'text-gray-600 hover:text-orange-500'
-                }`}
-              >
-                Description
-              </button>
-              <button
-                onClick={() => setActiveTab('additional')}
-                className={`px-6 py-3 font-semibold transition ${
-                  activeTab === 'additional'
-                    ? 'border-b-2 border-orange-500 text-orange-500'
-                    : 'text-gray-600 hover:text-orange-500'
-                }`}
-              >
-                Additional Information
-              </button>
-            </div>
-
-            {/* Tab Content */}
-            <div className="min-h-[200px]">
-              {activeTab === 'description' && (
-                <div className="prose max-w-none">
-                  <h3 className="text-xl font-semibold mb-4">Product Description</h3>
-                  {product.description_en ? (
-                    <p className="text-gray-700 leading-relaxed whitespace-pre-line">{product.description_en}</p>
-                  ) : (
-                    <p className="text-gray-500 italic">No description available for this product.</p>
-                  )}
-                </div>
-              )}
-
-              {activeTab === 'additional' && (
-                <div>
-                  <h3 className="text-xl font-semibold mb-4">Additional Information</h3>
-                  {Object.keys(additionalInfo).length > 0 ? (
-                    <div className="overflow-x-auto">
-                      <table className="w-full border-collapse min-w-[300px]">
-                        <tbody>
-                          {Object.entries(additionalInfo).map(([key, value]) => (
-                            <tr key={key} className="border-b">
-                              <td className="py-2 lg:py-3 px-2 lg:px-4 bg-gray-50 font-semibold text-gray-700 capitalize text-sm lg:text-base break-words">
-                                {key.replace(/_/g, ' ')}
-                              </td>
-                              <td className="py-2 lg:py-3 px-2 lg:px-4 text-gray-600 text-sm lg:text-base break-words">
-                                {typeof value === 'object' ? JSON.stringify(value) : String(value)}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  ) : (
-                    <p className="text-gray-500 italic">No additional information available for this product.</p>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Recommended Products Slider */}
-        {relatedProducts.length > 0 && (
-          <div className="mb-8">
-            <h2 className="text-2xl font-bold mb-6">Recommended Products</h2>
-            <div className="relative">
-              {/* Navigation Arrows */}
-              {relatedProducts.length > 4 && (
-                <>
-                  <button
-                    onClick={() => setCurrentSlide(Math.max(0, currentSlide - 1))}
-                    disabled={currentSlide === 0}
-                    className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-4 z-10 bg-white hover:bg-orange-500 text-gray-700 hover:text-white p-3 rounded-full shadow-lg transition-all hover:scale-110 disabled:opacity-50 disabled:cursor-not-allowed"
-                    aria-label="Previous products"
+                {/* Products Slider */}
+                <div className="overflow-hidden">
+                  <div
+                    className="flex transition-transform duration-500 ease-in-out"
+                    style={{
+                      transform: `translateX(-${currentSlide * relatedSlideStepPercent}%)`,
+                    }}
                   >
-                    <FaChevronLeft size={20} />
-                  </button>
-                  <button
-                    onClick={() => setCurrentSlide(Math.min(relatedProducts.length - 4, currentSlide + 1))}
-                    disabled={currentSlide >= relatedProducts.length - 4}
-                    className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-4 z-10 bg-white hover:bg-orange-500 text-gray-700 hover:text-white p-3 rounded-full shadow-lg transition-all hover:scale-110 disabled:opacity-50 disabled:cursor-not-allowed"
-                    aria-label="Next products"
-                  >
-                    <FaChevronRight size={20} />
-                  </button>
-                </>
-              )}
-              
-              {/* Products Slider */}
-              <div className="overflow-hidden">
-                <div
-                  className="flex transition-transform duration-500 ease-in-out"
-                  style={{ transform: `translateX(-${currentSlide * 25}%)` }}
-                >
-                  {relatedProducts.map((relatedProduct) => (
-                    <div key={relatedProduct.id} className="w-1/4 flex-shrink-0 px-3">
-                      <ElectroProductCard
-                        id={relatedProduct.id}
-                        slug={relatedProduct.slug}
-                        name={relatedProduct.name_en || relatedProduct.name}
-                        nameEn={relatedProduct.name_en}
-                        nameBn={relatedProduct.name_bn}
-                        price={relatedProduct.base_price || relatedProduct.price}
-                        image={relatedProduct.image_url}
-                        rating={5}
-                        reviews={0}
-                      />
-                    </div>
-                  ))}
+                    {relatedProducts.map((relatedProduct) => (
+                      <div
+                        key={relatedProduct.id}
+                        className="w-full sm:w-1/2 md:w-1/3 lg:w-1/4 flex-shrink-0 px-3"
+                      >
+                        <ElectroProductCard
+                          id={relatedProduct.id}
+                          slug={relatedProduct.slug}
+                          name={relatedProduct.name_en || relatedProduct.name}
+                          nameEn={relatedProduct.name_en}
+                          nameBn={relatedProduct.name_bn}
+                          categoryName={
+                            relatedProduct.category_name ||
+                            relatedProduct.category?.name_en ||
+                            relatedProduct.category?.name
+                          }
+                          price={
+                            relatedProduct.base_price || relatedProduct.price
+                          }
+                          image={relatedProduct.image_url}
+                          rating={5}
+                          reviews={0}
+                        />
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        )}
-      </motion.div>
+          )}
+        </motion.div>
 
-      {/* Add to Cart Popup */}
-      <AddToCartPopup
-        isOpen={showCartPopup}
-        onClose={() => setShowCartPopup(false)}
-        product={product}
-      />
-
+        {/* Add to Cart Popup */}
+        <AddToCartPopup
+          isOpen={showCartPopup}
+          onClose={() => setShowCartPopup(false)}
+          product={product}
+        />
+      </div>
       <ElectroFooter />
     </div>
   );
