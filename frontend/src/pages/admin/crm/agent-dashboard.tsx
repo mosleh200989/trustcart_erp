@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import AdminLayout from '@/layouts/AdminLayout';
 import { FaPhone, FaWhatsapp, FaSms, FaEnvelope, FaFire, FaChartLine, FaCheckCircle, FaClock } from 'react-icons/fa';
 import apiClient from '@/services/api';
@@ -12,6 +12,24 @@ interface CallTask {
   status: string;
   scheduled_time?: string;
   notes?: string;
+}
+
+type AgentStatus = 'online' | 'on_call' | 'break';
+type MicStatus = 'unknown' | 'granted' | 'denied';
+type CallUiStatus = 'idle' | 'initiating' | 'ringing' | 'connected' | 'ended' | 'failed';
+
+interface SuggestedScriptResponse {
+  taskId: number;
+  scriptKey: string;
+  opening: string[];
+  main: {
+    title: string;
+    goal: string;
+    lines: string[];
+  };
+  objectionHandling: Array<{ objection: string; reply: string }>;
+  ending: string[];
+  context?: any;
 }
 
 interface NextAction {
@@ -41,6 +59,24 @@ export default function AgentDashboard() {
   const [nextAction, setNextAction] = useState<NextAction | null>(null);
   const [selectedTask, setSelectedTask] = useState<CallTask | null>(null);
   const [showCustomerModal, setShowCustomerModal] = useState(false);
+
+  // Softphone UI state (UI-only; telephony initiation happens via backend)
+  const [agentStatus, setAgentStatus] = useState<AgentStatus>('online');
+  const [micStatus, setMicStatus] = useState<MicStatus>('unknown');
+  const [callStatus, setCallStatus] = useState<CallUiStatus>('idle');
+  const [dialNumber, setDialNumber] = useState('');
+  const [isMuted, setIsMuted] = useState(false);
+  const [isOnHold, setIsOnHold] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [callSeconds, setCallSeconds] = useState(0);
+  const timerRef = useRef<number | null>(null);
+
+  const [suggestedScript, setSuggestedScript] = useState<SuggestedScriptResponse | null>(null);
+  const [telephonyInfo, setTelephonyInfo] = useState<any>(null);
+
+  const [outcome, setOutcome] = useState('');
+  const [notes, setNotes] = useState('');
+  const [followUpAt, setFollowUpAt] = useState('');
 
   useEffect(() => {
     loadDashboard();
@@ -73,12 +109,30 @@ export default function AgentDashboard() {
       // Get customer intelligence
       const intelRes = await apiClient.get(`/crm/automation/intelligence/${task.customer_id}`);
       const recommendationsRes = await apiClient.get(`/crm/automation/recommendations/${task.customer_id}`);
+
+      // AI-style suggested script (rule-based on backend)
+      const scriptRes = await apiClient.get(`/crm/automation/call-tasks/${task.id}/suggested-script`);
       
       setSelectedTask({
         ...task,
         customer_intel: intelRes.data,
         recommendations: recommendationsRes.data
       } as any);
+
+      setSuggestedScript(scriptRes.data);
+      setTelephonyInfo(null);
+      setOutcome('');
+      setNotes('');
+      setFollowUpAt('');
+
+      const customerPhone = String(intelRes?.data?.phone || task.customer_id || '').trim();
+      setDialNumber(customerPhone);
+      setCallStatus('idle');
+      setAgentStatus('online');
+      setIsMuted(false);
+      setIsOnHold(false);
+      setIsRecording(false);
+      setCallSeconds(0);
       setShowCustomerModal(true);
       
       // Track engagement
@@ -111,6 +165,105 @@ export default function AgentDashboard() {
       alert('Failed to complete task');
     }
   };
+
+  const requestMicPermission = async () => {
+    try {
+      if (!navigator?.mediaDevices?.getUserMedia) {
+        setMicStatus('denied');
+        return;
+      }
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // stop immediately (UI permission check only)
+      stream.getTracks().forEach((t) => t.stop());
+      setMicStatus('granted');
+    } catch {
+      setMicStatus('denied');
+    }
+  };
+
+  const formatTime = (s: number) => {
+    const mm = String(Math.floor(s / 60)).padStart(2, '0');
+    const ss = String(s % 60).padStart(2, '0');
+    return `${mm}:${ss}`;
+  };
+
+  const handleInitiateCall = async () => {
+    if (!selectedTask) return;
+    try {
+      setCallStatus('initiating');
+      setAgentStatus('on_call');
+      await requestMicPermission();
+
+      const res = await apiClient.post('/telephony/calls/initiate', {
+        taskId: selectedTask.id,
+        agentUserId: agentId,
+      });
+      setTelephonyInfo(res.data);
+      // Without realtime events, we mark as connected after initiation.
+      setCallStatus('connected');
+      setCallSeconds(0);
+    } catch (error) {
+      console.error('Failed to initiate telephony call:', error);
+      setCallStatus('failed');
+      setAgentStatus('online');
+    }
+  };
+
+  const handleEndCallUi = () => {
+    setCallStatus('ended');
+    setAgentStatus('online');
+    setIsMuted(false);
+    setIsOnHold(false);
+    setIsRecording(false);
+  };
+
+  useEffect(() => {
+    if (!showCustomerModal) return;
+    requestMicPermission();
+  }, [showCustomerModal]);
+
+  useEffect(() => {
+    const shouldRun = callStatus === 'connected';
+    if (!shouldRun) {
+      if (timerRef.current) {
+        window.clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+      return;
+    }
+
+    if (!timerRef.current) {
+      timerRef.current = window.setInterval(() => {
+        setCallSeconds((prev) => prev + 1);
+      }, 1000);
+    }
+
+    return () => {
+      if (timerRef.current) {
+        window.clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    };
+  }, [callStatus]);
+
+  const customerIntel = (selectedTask as any)?.customer_intel;
+
+  const customerSegmentLabel = useMemo(() => {
+    const totalOrders = Number(customerIntel?.total_orders || 0);
+    if (totalOrders <= 1) return 'New-1';
+    if (totalOrders === 2) return 'Repeat-2';
+    if (totalOrders === 3) return 'Repeat-3';
+    if (totalOrders >= 8) return 'Permanent';
+    return 'Regular';
+  }, [customerIntel]);
+
+  const isVip = useMemo(() => {
+    const lifetimeValue = Number(customerIntel?.lifetime_value || 0);
+    const avgOrderValue = Number(customerIntel?.avg_order_value || 0);
+    return lifetimeValue >= 20000 || avgOrderValue >= 3000;
+  }, [customerIntel]);
+
+  const daysSinceLastOrder = Number(customerIntel?.days_since_last_order || 0);
 
   const getPriorityBadge = (priority: string) => {
     const colors = {
@@ -331,109 +484,373 @@ export default function AgentDashboard() {
         {/* Customer Detail Modal */}
         {showCustomerModal && selectedTask && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-              <div className="p-6 border-b">
-                <h2 className="text-2xl font-bold text-gray-800">Customer Call</h2>
-                <p className="text-sm text-gray-600">Customer ID: {selectedTask.customer_id}</p>
+            <div className="bg-white rounded-lg shadow-xl w-full max-w-6xl max-h-[92vh] overflow-hidden flex flex-col">
+              {/* Top Bar */}
+              <div className="px-6 py-4 border-b flex items-center justify-between gap-4">
+                <div>
+                  <h2 className="text-xl font-bold text-gray-800">Web Softphone</h2>
+                  <p className="text-sm text-gray-600">Task #{selectedTask.id} • Customer: {selectedTask.customer_id}</p>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${
+                    agentStatus === 'on_call'
+                      ? 'bg-red-50 text-red-800 border-red-200'
+                      : agentStatus === 'break'
+                      ? 'bg-yellow-50 text-yellow-800 border-yellow-200'
+                      : 'bg-green-50 text-green-800 border-green-200'
+                  }`}>
+                    {agentStatus === 'on_call' ? 'On Call' : agentStatus === 'break' ? 'Break' : 'Online'}
+                  </span>
+
+                  <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${
+                    micStatus === 'granted'
+                      ? 'bg-green-50 text-green-800 border-green-200'
+                      : micStatus === 'denied'
+                      ? 'bg-red-50 text-red-800 border-red-200'
+                      : 'bg-gray-50 text-gray-700 border-gray-200'
+                  }`}>
+                    Mic: {micStatus}
+                  </span>
+
+                  <div className="text-sm text-gray-700 font-semibold">Timer: {formatTime(callSeconds)}</div>
+
+                  <button
+                    onClick={() => setAgentStatus((s) => (s === 'break' ? 'online' : 'break'))}
+                    className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm"
+                    disabled={callStatus === 'connected' || callStatus === 'initiating'}
+                  >
+                    {agentStatus === 'break' ? 'Back Online' : 'Break'}
+                  </button>
+                </div>
               </div>
-              
-              <div className="p-6 space-y-4">
-                {(selectedTask as any).customer_intel && (
-                  <div className="bg-blue-50 p-4 rounded-lg">
-                    <h3 className="font-semibold text-gray-800 mb-3">Customer Intelligence</h3>
-                    <div className="grid grid-cols-2 gap-3 text-sm">
+
+              {/* Main 3-column layout */}
+              <div className="flex-1 overflow-y-auto">
+                <div className="p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  {/* Customer Info Panel */}
+                  <div className="bg-white border rounded-lg p-4">
+                    <div className="flex items-start justify-between gap-3 mb-3">
                       <div>
-                        <span className="text-gray-600">Name:</span>
-                        <span className="ml-2 font-semibold">
-                          {(selectedTask as any).customer_intel.name} {(selectedTask as any).customer_intel.last_name}
+                        <h3 className="font-semibold text-gray-800">Customer Info</h3>
+                        <p className="text-xs text-gray-500">Auto screen-pop</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {isVip && (
+                          <span className="px-2 py-1 rounded text-xs font-semibold bg-yellow-50 text-yellow-800 border border-yellow-200">
+                            VIP
+                          </span>
+                        )}
+                        <span className="px-2 py-1 rounded text-xs font-semibold bg-gray-50 text-gray-700 border border-gray-200">
+                          {customerSegmentLabel}
                         </span>
                       </div>
-                      <div>
-                        <span className="text-gray-600">Phone:</span>
-                        <span className="ml-2 font-semibold">{(selectedTask as any).customer_intel.phone}</span>
+                    </div>
+
+                    {customerIntel ? (
+                      <div className="space-y-3 text-sm">
+                        <div className="flex justify-between gap-4">
+                          <span className="text-gray-600">Name</span>
+                          <span className="font-semibold text-gray-800">
+                            {customerIntel?.name} {customerIntel?.last_name}
+                          </span>
+                        </div>
+                        <div className="flex justify-between gap-4">
+                          <span className="text-gray-600">Phone</span>
+                          <span className="font-semibold text-gray-800">{customerIntel?.phone || selectedTask.customer_id}</span>
+                        </div>
+                        <div className="flex justify-between gap-4">
+                          <span className="text-gray-600">Total Orders</span>
+                          <span className="font-semibold text-gray-800">{customerIntel?.total_orders || 0}</span>
+                        </div>
+                        <div className="flex justify-between gap-4">
+                          <span className="text-gray-600">Lifetime Value</span>
+                          <span className="font-semibold text-gray-800">৳{customerIntel?.lifetime_value || 0}</span>
+                        </div>
+                        <div className="flex justify-between gap-4">
+                          <span className="text-gray-600">Last Purchase</span>
+                          <span className="font-semibold text-gray-800">{daysSinceLastOrder} days ago</span>
+                        </div>
+
+                        <div className="pt-2 border-t">
+                          <div className="text-xs font-semibold text-gray-700 mb-1">AI Alert</div>
+                          <ul className="text-xs text-gray-700 list-disc list-inside space-y-1">
+                            {daysSinceLastOrder >= 30 && <li>Inactive / Win-back candidate</li>}
+                            {Number(customerIntel?.avg_order_value || 0) >= 3000 && <li>High average order value</li>}
+                            {Number(customerIntel?.total_orders || 0) <= 1 && <li>New customer: build trust</li>}
+                            {daysSinceLastOrder < 30 && <li>Refill reminder opportunity</li>}
+                          </ul>
+                        </div>
                       </div>
-                      <div>
-                        <span className="text-gray-600">Total Orders:</span>
-                        <span className="ml-2 font-semibold">{(selectedTask as any).customer_intel.total_orders}</span>
+                    ) : (
+                      <div className="text-sm text-gray-600">Loading customer info...</div>
+                    )}
+
+                    {(selectedTask as any).recommendations && (selectedTask as any).recommendations.length > 0 && (
+                      <div className="mt-4 bg-gray-50 border rounded-lg p-3">
+                        <div className="text-sm font-semibold text-gray-800 mb-2">Recommended Products</div>
+                        <ul className="space-y-2">
+                          {(selectedTask as any).recommendations.slice(0, 5).map((rec: any, idx: number) => (
+                            <li key={idx} className="flex items-center gap-2 text-xs">
+                              <span className={`px-2 py-1 rounded text-xs font-semibold ${
+                                rec.priority === 'high' ? 'bg-red-100 text-red-800' :
+                                rec.priority === 'medium' ? 'bg-orange-100 text-orange-800' :
+                                'bg-blue-100 text-blue-800'
+                              }`}>
+                                {rec.priority}
+                              </span>
+                              <span className="font-semibold text-gray-800">{rec.recommended_product_name}</span>
+                            </li>
+                          ))}
+                        </ul>
                       </div>
+                    )}
+                  </div>
+
+                  {/* Softphone Pad (Center) */}
+                  <div className="bg-white border rounded-lg p-4">
+                    <div className="flex items-start justify-between gap-3 mb-3">
                       <div>
-                        <span className="text-gray-600">Lifetime Value:</span>
-                        <span className="ml-2 font-semibold">৳{(selectedTask as any).customer_intel.lifetime_value}</span>
+                        <h3 className="font-semibold text-gray-800">Softphone</h3>
+                        <p className="text-xs text-gray-500">Call control (browser UI)</p>
                       </div>
-                      <div>
-                        <span className="text-gray-600">Avg Order:</span>
-                        <span className="ml-2 font-semibold">৳{(selectedTask as any).customer_intel.avg_order_value}</span>
+                      <span className={`px-2 py-1 rounded text-xs font-semibold border ${
+                        callStatus === 'connected'
+                          ? 'bg-green-50 text-green-800 border-green-200'
+                          : callStatus === 'initiating'
+                          ? 'bg-blue-50 text-blue-800 border-blue-200'
+                          : callStatus === 'failed'
+                          ? 'bg-red-50 text-red-800 border-red-200'
+                          : callStatus === 'ended'
+                          ? 'bg-gray-50 text-gray-700 border-gray-200'
+                          : 'bg-yellow-50 text-yellow-800 border-yellow-200'
+                      }`}>
+                        {callStatus}
+                      </span>
+                    </div>
+
+                    <div className="mb-4">
+                      <label className="block text-xs font-semibold text-gray-600 mb-1">Dial</label>
+                      <input
+                        value={dialNumber}
+                        onChange={(e) => setDialNumber(e.target.value)}
+                        className="w-full px-3 py-2 border rounded-lg text-sm"
+                        placeholder="Customer phone"
+                        disabled={callStatus === 'connected' || callStatus === 'initiating'}
+                      />
+                      {telephonyInfo?.mode === 'mock' && (
+                        <div className="mt-2 text-xs text-gray-600">
+                          Telephony: mock mode (set Bracknet env to go live)
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2 mb-4">
+                      {['1','2','3','4','5','6','7','8','9','*','0','#'].map((d) => (
+                        <button
+                          key={d}
+                          onClick={() => setDialNumber((v) => `${v}${d}`)}
+                          className="py-3 border rounded-lg hover:bg-gray-50 font-semibold"
+                          disabled={callStatus === 'connected' || callStatus === 'initiating'}
+                        >
+                          {d}
+                        </button>
+                      ))}
+                    </div>
+
+                    <div className="flex gap-3">
+                      {callStatus !== 'connected' ? (
+                        <button
+                          onClick={handleInitiateCall}
+                          className="flex-1 px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold flex items-center justify-center gap-2"
+                          disabled={!dialNumber || callStatus === 'initiating' || agentStatus === 'break'}
+                        >
+                          <FaPhone /> Call
+                        </button>
+                      ) : (
+                        <button
+                          onClick={handleEndCallUi}
+                          className="flex-1 px-4 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 font-semibold"
+                        >
+                          Hangup
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2 mt-4">
+                      <button
+                        onClick={() => setIsMuted((v) => !v)}
+                        className={`px-3 py-2 rounded-lg text-sm border ${isMuted ? 'bg-gray-100' : 'bg-white'}`}
+                        disabled={callStatus !== 'connected'}
+                      >
+                        Mute
+                      </button>
+                      <button
+                        onClick={() => setIsOnHold((v) => !v)}
+                        className={`px-3 py-2 rounded-lg text-sm border ${isOnHold ? 'bg-gray-100' : 'bg-white'}`}
+                        disabled={callStatus !== 'connected'}
+                      >
+                        Hold
+                      </button>
+                      <button
+                        onClick={() => setIsRecording((v) => !v)}
+                        className={`px-3 py-2 rounded-lg text-sm border ${isRecording ? 'bg-gray-100' : 'bg-white'}`}
+                        disabled={callStatus !== 'connected'}
+                      >
+                        Record
+                      </button>
+                    </div>
+
+                    {telephonyInfo?.telephonyCallId && (
+                      <div className="mt-4 text-xs text-gray-600 border-t pt-3">
+                        <div>Telephony Call ID: {telephonyInfo.telephonyCallId}</div>
+                        {telephonyInfo.externalCallId && <div>External Call ID: {telephonyInfo.externalCallId}</div>}
                       </div>
+                    )}
+                  </div>
+
+                  {/* AI Script Panel */}
+                  <div className="bg-white border rounded-lg p-4">
+                    <div className="flex items-start justify-between gap-3 mb-3">
                       <div>
-                        <span className="text-gray-600">Last Purchase:</span>
-                        <span className="ml-2 font-semibold">{(selectedTask as any).customer_intel.days_since_last_order} days ago</span>
+                        <h3 className="font-semibold text-gray-800">AI Script</h3>
+                        <p className="text-xs text-gray-500">Suggested talking points</p>
+                      </div>
+                      <span className="px-2 py-1 rounded text-xs font-semibold bg-gray-50 text-gray-700 border border-gray-200">
+                        {suggestedScript?.scriptKey || 'default'}
+                      </span>
+                    </div>
+
+                    {suggestedScript ? (
+                      <div className="space-y-4">
+                        <div className="border rounded-lg p-3 bg-gray-50">
+                          <div className="text-sm font-semibold text-gray-800">{suggestedScript.main.title}</div>
+                          <div className="text-xs text-gray-600">Goal: {suggestedScript.main.goal}</div>
+                        </div>
+
+                        <div>
+                          <div className="text-xs font-semibold text-gray-700 mb-1">Opening Line</div>
+                          <ul className="text-sm text-gray-800 list-disc list-inside space-y-1">
+                            {suggestedScript.opening.slice(0, 3).map((l, idx) => (
+                              <li key={idx}>{l}</li>
+                            ))}
+                          </ul>
+                        </div>
+
+                        <div>
+                          <div className="text-xs font-semibold text-gray-700 mb-1">Main Script</div>
+                          <ul className="text-sm text-gray-800 list-disc list-inside space-y-1">
+                            {suggestedScript.main.lines.map((l, idx) => (
+                              <li key={idx}>{l}</li>
+                            ))}
+                          </ul>
+                        </div>
+
+                        <div>
+                          <div className="text-xs font-semibold text-gray-700 mb-1">Objection Helper</div>
+                          <div className="space-y-2">
+                            {suggestedScript.objectionHandling.map((o, idx) => (
+                              <div key={idx} className="border rounded-lg p-3">
+                                <div className="text-xs font-semibold text-gray-700">{o.objection}</div>
+                                <div className="text-sm text-gray-800">{o.reply}</div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div>
+                          <div className="text-xs font-semibold text-gray-700 mb-1">Closing</div>
+                          <ul className="text-sm text-gray-800 list-disc list-inside space-y-1">
+                            {suggestedScript.ending.map((l, idx) => (
+                              <li key={idx}>{l}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-sm text-gray-600">Loading suggested script...</div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Bottom Panel: Outcome + Notes + Follow-up */}
+                <div className="px-6 pb-6">
+                  <div className="bg-white border rounded-lg p-4">
+                    <h3 className="font-semibold text-gray-800 mb-3">Call Notes & Outcome</h3>
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                      <div className="lg:col-span-1">
+                        <div className="text-sm font-semibold text-gray-700 mb-2">Outcome (required)</div>
+                        <div className="space-y-2 text-sm">
+                          {[
+                            { v: 'order_placed', label: 'Ordered' },
+                            { v: 'callback', label: 'Follow-up' },
+                            { v: 'not_interested', label: 'Not Interested' },
+                            { v: 'price_issue', label: 'Price Issue' },
+                            { v: 'no_answer', label: 'No Response' },
+                          ].map((o) => (
+                            <label key={o.v} className="flex items-center gap-2">
+                              <input
+                                type="radio"
+                                name="outcome"
+                                value={o.v}
+                                checked={outcome === o.v}
+                                onChange={(e) => setOutcome(e.target.value)}
+                              />
+                              <span>{o.label}</span>
+                            </label>
+                          ))}
+                        </div>
+
+                        {outcome === 'callback' && (
+                          <div className="mt-4">
+                            <label className="block text-sm font-semibold text-gray-700 mb-2">Follow-up time</label>
+                            <input
+                              type="datetime-local"
+                              value={followUpAt}
+                              onChange={(e) => setFollowUpAt(e.target.value)}
+                              className="w-full px-3 py-2 border rounded-lg text-sm"
+                            />
+                            <div className="text-xs text-gray-500 mt-1">Saved into notes for now</div>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="lg:col-span-2">
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Notes</label>
+                        <textarea
+                          value={notes}
+                          onChange={(e) => setNotes(e.target.value)}
+                          rows={5}
+                          className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                          placeholder="Write short notes (customer needs, objections, next steps)"
+                        />
                       </div>
                     </div>
                   </div>
-                )}
-                
-                {(selectedTask as any).recommendations && (selectedTask as any).recommendations.length > 0 && (
-                  <div className="bg-green-50 p-4 rounded-lg">
-                    <h3 className="font-semibold text-gray-800 mb-3">🎯 Recommended Products</h3>
-                    <ul className="space-y-2">
-                      {(selectedTask as any).recommendations.map((rec: any, idx: number) => (
-                        <li key={idx} className="flex items-center gap-2 text-sm">
-                          <span className={`px-2 py-1 rounded text-xs font-semibold ${
-                            rec.priority === 'high' ? 'bg-red-100 text-red-800' :
-                            rec.priority === 'medium' ? 'bg-orange-100 text-orange-800' :
-                            'bg-blue-100 text-blue-800'
-                          }`}>
-                            {rec.priority}
-                          </span>
-                          <span className="font-semibold">{rec.recommended_product_name}</span>
-                          <span className="text-gray-600 text-xs">({rec.rule_name})</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Call Outcome</label>
-                  <select
-                    id="outcome"
-                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="interested">Interested</option>
-                    <option value="not_interested">Not Interested</option>
-                    <option value="callback">Request Callback</option>
-                    <option value="order_placed">Order Placed</option>
-                    <option value="no_answer">No Answer</option>
-                  </select>
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Notes</label>
-                  <textarea
-                    id="notes"
-                    rows={4}
-                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                    placeholder="Add any notes about the call..."
-                  ></textarea>
                 </div>
               </div>
-              
+
+              {/* Footer actions */}
               <div className="p-6 border-t flex gap-3">
                 <button
                   onClick={() => {
-                    const outcome = (document.getElementById('outcome') as HTMLSelectElement).value;
-                    const notes = (document.getElementById('notes') as HTMLTextAreaElement).value;
-                    handleCompleteTask(outcome, notes);
+                    const mergedNotes = `${notes || ''}${followUpAt ? `\n[Follow-up] ${followUpAt}` : ''}`.trim();
+                    handleCompleteTask(outcome, mergedNotes);
+                    handleEndCallUi();
                   }}
                   className="flex-1 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold"
+                  disabled={!outcome}
                 >
                   Complete Task
                 </button>
                 <button
-                  onClick={() => setShowCustomerModal(false)}
+                  onClick={() => {
+                    setShowCustomerModal(false);
+                    handleEndCallUi();
+                  }}
                   className="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
                 >
-                  Cancel
+                  Close
                 </button>
               </div>
             </div>

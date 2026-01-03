@@ -12,6 +12,8 @@ import { PriceLock } from './entities/price-lock.entity';
 import { QueryFailedError } from 'typeorm';
 import { CustomerPoints } from './entities/customer-points.entity';
 import { PointTransaction } from './entities/point-transaction.entity';
+import { ProductConsumptionProfile } from './entities/product-consumption-profile.entity';
+import { CustomerProductReminder, ReminderChannel } from './entities/customer-product-reminder.entity';
 
 @Injectable()
 export class LoyaltyService {
@@ -36,7 +38,22 @@ export class LoyaltyService {
 
     @InjectRepository(PointTransaction)
     private pointTxRepo: Repository<PointTransaction>,
+
+    @InjectRepository(ProductConsumptionProfile)
+    private consumptionProfileRepo: Repository<ProductConsumptionProfile>,
+
+    @InjectRepository(CustomerProductReminder)
+    private customerProductReminderRepo: Repository<CustomerProductReminder>,
   ) {}
+
+  private getTodayDateString(): string {
+    return new Date().toISOString().slice(0, 10);
+  }
+
+  private generatePermanentCardNumber(customerId: number): string {
+    const suffix = String(Math.floor(Math.random() * 1000000)).padStart(6, '0');
+    return `PERM-${customerId}-${suffix}`;
+  }
 
   private normalizeMoneyAmount(amount: number): number {
     if (typeof amount !== 'number' || !Number.isFinite(amount)) {
@@ -111,6 +128,280 @@ export class LoyaltyService {
     membership.tierAchievedAt = new Date();
     
     return await this.membershipRepo.save(membership);
+  }
+
+  async updateMembershipTierV2(customerId: number, tier: 'none' | 'silver' | 'gold' | 'permanent') {
+    const membership = await this.getCustomerMembership(customerId);
+
+    membership.membershipTier = tier;
+    membership.discountPercentage =
+      tier === 'permanent' ? 12 : tier === 'gold' ? 10 : tier === 'silver' ? 4 : 0;
+    membership.freeDeliveryCount = tier === 'permanent' ? 2 : tier === 'gold' ? 1 : 0;
+    membership.priceLockEnabled = tier === 'gold' || tier === 'permanent';
+    membership.tierAchievedAt = new Date();
+
+    if (tier === 'permanent' && !membership.permanentCardNumber) {
+      membership.permanentCardNumber = this.generatePermanentCardNumber(customerId);
+    }
+
+    return await this.membershipRepo.save(membership);
+  }
+
+  async evaluateAndUpgradeMembership(
+    customerId: number,
+    thresholds?: {
+      silverOrders?: number;
+      silverSpend?: number;
+      goldOrders?: number;
+      goldSpend?: number;
+      permanentOrders?: number;
+      permanentSpend?: number;
+    },
+  ) {
+    const t = {
+      silverOrders: thresholds?.silverOrders ?? 3,
+      silverSpend: thresholds?.silverSpend ?? 5000,
+      goldOrders: thresholds?.goldOrders ?? 6,
+      goldSpend: thresholds?.goldSpend ?? 12000,
+      permanentOrders: thresholds?.permanentOrders ?? 12,
+      permanentSpend: thresholds?.permanentSpend ?? 25000,
+    };
+
+    const [stats] = await this.membershipRepo.query(
+      `
+      SELECT
+        COUNT(*)::int AS total_orders,
+        COALESCE(SUM(total_amount), 0)::numeric AS total_spend
+      FROM sales_orders
+      WHERE customer_id = $1
+      `,
+      [customerId],
+    );
+
+    const totalOrders = Number(stats?.total_orders ?? 0);
+    const totalSpend = Number(stats?.total_spend ?? 0);
+
+    let nextTier: 'none' | 'silver' | 'gold' | 'permanent' = 'none';
+    if (totalOrders >= t.permanentOrders || totalSpend >= t.permanentSpend) nextTier = 'permanent';
+    else if (totalOrders >= t.goldOrders || totalSpend >= t.goldSpend) nextTier = 'gold';
+    else if (totalOrders >= t.silverOrders || totalSpend >= t.silverSpend) nextTier = 'silver';
+
+    const updated = await this.updateMembershipTierV2(customerId, nextTier);
+
+    return {
+      customerId,
+      totalOrders,
+      totalSpend,
+      tier: updated.membershipTier,
+      permanentCardNumber: updated.permanentCardNumber ?? null,
+      thresholds: t,
+    };
+  }
+
+  // =====================================================
+  // CONSUMPTION PROFILES (Admin Config)
+  // =====================================================
+
+  async listConsumptionProfiles() {
+    return await this.consumptionProfileRepo.find({
+      order: { isActive: 'DESC', updatedAt: 'DESC' },
+    });
+  }
+
+  async upsertConsumptionProfile(data: {
+    productId?: number | null;
+    categoryId?: number | null;
+    avgConsumptionDays: number;
+    bufferDays?: number;
+    minDays?: number;
+    maxDays?: number;
+    isActive?: boolean;
+  }) {
+    const productId = data.productId ?? null;
+    const categoryId = data.categoryId ?? null;
+
+    if ((productId == null && categoryId == null) || (productId != null && categoryId != null)) {
+      throw new Error('Provide exactly one of productId or categoryId');
+    }
+
+    const where: any = productId != null ? { productId } : { categoryId };
+    let profile = await this.consumptionProfileRepo.findOne({ where });
+
+    if (!profile) {
+      profile = this.consumptionProfileRepo.create({
+        productId,
+        categoryId,
+        avgConsumptionDays: data.avgConsumptionDays,
+        bufferDays: data.bufferDays ?? 7,
+        minDays: data.minDays ?? 7,
+        maxDays: data.maxDays ?? 180,
+        isActive: data.isActive ?? true,
+      });
+    } else {
+      profile.avgConsumptionDays = data.avgConsumptionDays;
+      profile.bufferDays = data.bufferDays ?? profile.bufferDays;
+      profile.minDays = data.minDays ?? profile.minDays;
+      profile.maxDays = data.maxDays ?? profile.maxDays;
+      if (typeof data.isActive === 'boolean') profile.isActive = data.isActive;
+    }
+
+    return await this.consumptionProfileRepo.save(profile);
+  }
+
+  async deleteConsumptionProfile(id: number) {
+    return await this.consumptionProfileRepo.delete(id);
+  }
+
+  // =====================================================
+  // PER-PRODUCT REMINDERS
+  // =====================================================
+
+  async generateProductReminders(asOfDate?: string) {
+    const asOf = (asOfDate || this.getTodayDateString()).slice(0, 10);
+
+    // Upsert current reminder state per (customer, product)
+    await this.membershipRepo.query(
+      `
+      INSERT INTO customer_product_reminders (
+        customer_id,
+        product_id,
+        last_order_id,
+        last_order_date,
+        reminder_due_date,
+        reminder_sent,
+        created_at,
+        updated_at
+      )
+      SELECT
+        x.customer_id,
+        x.product_id,
+        x.last_order_id,
+        x.last_order_date,
+        (
+          x.last_order_date
+          + (GREATEST(LEAST(x.consumption_days, x.max_days), x.min_days) - GREATEST(LEAST(x.buffer_days, 60), 0)) * INTERVAL '1 day'
+        )::date AS reminder_due_date,
+        false AS reminder_sent,
+        CURRENT_TIMESTAMP,
+        CURRENT_TIMESTAMP
+      FROM (
+        SELECT DISTINCT ON (so.customer_id, soi.product_id)
+          so.customer_id,
+          soi.product_id,
+          so.id AS last_order_id,
+          so.order_date::date AS last_order_date,
+          COALESCE(pp.avg_consumption_days, cp.avg_consumption_days, 30) AS consumption_days,
+          COALESCE(pp.buffer_days, cp.buffer_days, 7) AS buffer_days,
+          COALESCE(pp.min_days, cp.min_days, 7) AS min_days,
+          COALESCE(pp.max_days, cp.max_days, 180) AS max_days
+        FROM sales_orders so
+        JOIN sales_order_items soi ON soi.sales_order_id = so.id
+        LEFT JOIN products p ON p.id = soi.product_id
+        LEFT JOIN product_consumption_profiles pp
+          ON pp.product_id = soi.product_id AND pp.is_active = true
+        LEFT JOIN product_consumption_profiles cp
+          ON cp.category_id = p.category_id AND cp.product_id IS NULL AND cp.is_active = true
+        WHERE so.customer_id IS NOT NULL
+        ORDER BY so.customer_id, soi.product_id, so.order_date DESC, so.id DESC
+      ) x
+      ON CONFLICT (customer_id, product_id)
+      DO UPDATE SET
+        last_order_id = EXCLUDED.last_order_id,
+        last_order_date = EXCLUDED.last_order_date,
+        reminder_due_date = EXCLUDED.reminder_due_date,
+        reminder_sent = CASE
+          WHEN customer_product_reminders.last_order_date <> EXCLUDED.last_order_date THEN false
+          ELSE customer_product_reminders.reminder_sent
+        END,
+        reminder_sent_at = CASE
+          WHEN customer_product_reminders.last_order_date <> EXCLUDED.last_order_date THEN NULL
+          ELSE customer_product_reminders.reminder_sent_at
+        END,
+        reminder_channel = CASE
+          WHEN customer_product_reminders.last_order_date <> EXCLUDED.last_order_date THEN NULL
+          ELSE customer_product_reminders.reminder_channel
+        END,
+        updated_at = CURRENT_TIMESTAMP;
+      `,
+    );
+
+    // Create CRM call tasks for due reminders (idempotent)
+    await this.membershipRepo.query(
+      `
+      INSERT INTO crm_call_tasks (
+        customer_id,
+        priority,
+        call_reason,
+        task_date,
+        recommended_product_id,
+        status
+      )
+      SELECT
+        r.customer_id::text,
+        CASE WHEN cm.membership_tier IN ('gold','permanent') THEN 'hot' ELSE 'warm' END,
+        'Repeat purchase reminder',
+        $1::date,
+        r.product_id,
+        'pending'
+      FROM customer_product_reminders r
+      LEFT JOIN customer_memberships cm ON cm.customer_id = r.customer_id
+      WHERE r.reminder_due_date <= $1::date
+        AND r.reminder_sent = false
+        AND NOT EXISTS (
+          SELECT 1 FROM crm_call_tasks ct
+          WHERE ct.customer_id = r.customer_id::text
+            AND ct.task_date = $1::date
+            AND ct.recommended_product_id = r.product_id
+            AND ct.call_reason = 'Repeat purchase reminder'
+        );
+      `,
+      [asOf],
+    );
+
+    return { success: true, asOfDate: asOf };
+  }
+
+  async listDueProductReminders(asOfDate?: string, limit = 100) {
+    const asOf = (asOfDate || this.getTodayDateString()).slice(0, 10);
+    const lim = Math.max(1, Math.min(1000, Number(limit) || 100));
+
+    const rows = await this.membershipRepo.query(
+      `
+      SELECT
+        r.id,
+        r.customer_id,
+        r.product_id,
+        r.last_order_date,
+        r.reminder_due_date,
+        r.reminder_sent,
+        r.reminder_channel,
+        c.first_name,
+        c.last_name,
+        c.phone,
+        p.name_en AS product_name
+      FROM customer_product_reminders r
+      LEFT JOIN customers c ON c.id = r.customer_id
+      LEFT JOIN products p ON p.id = r.product_id
+      WHERE r.reminder_due_date <= $1::date
+        AND r.reminder_sent = false
+      ORDER BY r.reminder_due_date ASC
+      LIMIT $2;
+      `,
+      [asOf, lim],
+    );
+
+    return { asOfDate: asOf, count: rows.length, reminders: rows };
+  }
+
+  async markProductReminderSent(id: number, channel: ReminderChannel) {
+    const reminder = await this.customerProductReminderRepo.findOne({ where: { id } });
+    if (!reminder) throw new Error('Reminder not found');
+
+    reminder.reminderSent = true;
+    reminder.reminderChannel = channel;
+    reminder.reminderSentAt = new Date();
+
+    return await this.customerProductReminderRepo.save(reminder);
   }
 
   // =====================================================
@@ -741,10 +1032,11 @@ export class LoyaltyService {
   // =====================================================
 
   async getLoyaltyDashboard() {
-    const [kpis, silverCount, goldCount, activeSubscriptions, pendingReferrals] = await Promise.all([
+    const [kpis, silverCount, goldCount, permanentCount, activeSubscriptions, pendingReferrals] = await Promise.all([
       this.getLoyaltyKPIs(),
       this.membershipRepo.count({ where: { membershipTier: 'silver' } }),
       this.membershipRepo.count({ where: { membershipTier: 'gold' } }),
+      this.membershipRepo.count({ where: { membershipTier: 'permanent' } }),
       this.groceryListRepo.count({ where: { isSubscription: true, isActive: true } }),
       this.referralRepo.count({ where: { status: 'pending' } }),
     ]);
@@ -753,6 +1045,7 @@ export class LoyaltyService {
       ...kpis,
       silver_members: silverCount,
       gold_members: goldCount,
+      permanent_members: permanentCount,
       active_subscriptions: activeSubscriptions,
       pending_referrals: pendingReferrals,
     };

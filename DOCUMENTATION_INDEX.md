@@ -35,6 +35,8 @@
 - **[CDM_CRM_API_REFERENCE.md](CDM_CRM_API_REFERENCE.md)** - API quick reference
 - **[CDM_COMPLETE_GUIDE.md](CDM_COMPLETE_GUIDE.md)** - Legacy CDM documentation
 - **[CRM_AUTOMATION_GUIDE.md](CRM_AUTOMATION_GUIDE.md)** - CRM automation features
+- **[docs/WEBRTC_SOFTPHONE_UI_GUIDE_BN.md](docs/WEBRTC_SOFTPHONE_UI_GUIDE_BN.md)** - Agent Web Softphone UI (Customer Info + Call Control + AI Script)
+- **[docs/BRACKNET_CRM_API_CONTRACT_IMPLEMENTATION_BN.md](docs/BRACKNET_CRM_API_CONTRACT_IMPLEMENTATION_BN.md)** - Bracknet ↔ CRM API Contract + Implementation (Call control + Webhooks)
 
 ### 🎁 Loyalty & Membership Program
 - **[LOYALTY_PROGRAM_SETUP.md](LOYALTY_PROGRAM_SETUP.md)** - ⭐ Complete loyalty program guide

@@ -5,6 +5,7 @@ import api from '../../../services/api';
 const SalesTeamLeaderDashboard = () => {
   const [dashboard, setDashboard] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [generating, setGenerating] = useState(false);
 
   useEffect(() => {
     fetchDashboard();
@@ -21,6 +22,20 @@ const SalesTeamLeaderDashboard = () => {
     }
   };
 
+  const handleGenerateCalls = async () => {
+    try {
+      setGenerating(true);
+      await api.post('/crm/team/ops/generate-calls', {});
+      await fetchDashboard();
+      alert('Daily auto calls generated');
+    } catch (error) {
+      console.error('Failed to generate calls', error);
+      alert('Failed to generate calls');
+    } finally {
+      setGenerating(false);
+    }
+  };
+
   if (loading) {
     return (
       <AdminLayout>
@@ -34,71 +49,65 @@ const SalesTeamLeaderDashboard = () => {
       <div className="container mx-auto px-4 py-8">
         <h1 className="text-3xl font-bold mb-8">Sales Team Leader Dashboard</h1>
 
+        <div className="mb-6 flex gap-3">
+          <button
+            onClick={handleGenerateCalls}
+            disabled={generating}
+            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50"
+          >
+            {generating ? 'Generating...' : 'Generate Today\'s Auto Calls'}
+          </button>
+        </div>
+
         {/* Overview Cards */}
-        <div className="grid md:grid-cols-5 gap-6 mb-8">
+        <div className="grid md:grid-cols-4 gap-6 mb-8">
           <div className="bg-white p-6 rounded-lg shadow">
-            <div className="text-gray-600 text-sm mb-2">Total Leads</div>
-            <div className="text-3xl font-bold text-blue-600">{dashboard?.overview.totalLeads}</div>
+            <div className="text-gray-600 text-sm mb-2">Total Customers (TL Coverage)</div>
+            <div className="text-3xl font-bold text-blue-600">{dashboard?.overview.totalCustomers}</div>
           </div>
           <div className="bg-white p-6 rounded-lg shadow">
-            <div className="text-gray-600 text-sm mb-2">Active Leads</div>
-            <div className="text-3xl font-bold text-green-600">{dashboard?.overview.activeLeads}</div>
+            <div className="text-gray-600 text-sm mb-2">Repeat Rate</div>
+            <div className="text-3xl font-bold text-green-600">{dashboard?.overview.repeatRate}%</div>
           </div>
           <div className="bg-white p-6 rounded-lg shadow">
-            <div className="text-gray-600 text-sm mb-2">Closed Deals</div>
-            <div className="text-3xl font-bold text-purple-600">{dashboard?.overview.closedDeals}</div>
+            <div className="text-gray-600 text-sm mb-2">VIP/Permanent Active (30d)</div>
+            <div className="text-3xl font-bold text-purple-600">{dashboard?.overview.vipRetention30}%</div>
           </div>
           <div className="bg-white p-6 rounded-lg shadow">
-            <div className="text-gray-600 text-sm mb-2">Lost Deals</div>
-            <div className="text-3xl font-bold text-red-600">{dashboard?.overview.lostDeals}</div>
-          </div>
-          <div className="bg-white p-6 rounded-lg shadow">
-            <div className="text-gray-600 text-sm mb-2">Total Revenue</div>
-            <div className="text-2xl font-bold text-indigo-600">৳{dashboard?.overview.revenue.toLocaleString()}</div>
+            <div className="text-gray-600 text-sm mb-2">Pending From Previous Days</div>
+            <div className="text-3xl font-bold text-red-600">{dashboard?.overview.pendingFromPreviousDays}</div>
           </div>
         </div>
 
-        {/* Priority Breakdown */}
+        {/* Segmentation */}
         <div className="grid md:grid-cols-2 gap-6 mb-8">
           <div className="bg-white p-6 rounded-lg shadow">
-            <h2 className="text-xl font-bold mb-4">Lead Priority Breakdown</h2>
-            <div className="space-y-4">
-              <div className="flex justify-between items-center">
-                <div className="flex items-center">
-                  <span className="w-4 h-4 bg-red-500 rounded mr-3"></span>
-                  <span>🔥 Hot Leads</span>
-                </div>
-                <span className="font-bold text-xl">{dashboard?.priorityBreakdown.hot}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <div className="flex items-center">
-                  <span className="w-4 h-4 bg-yellow-500 rounded mr-3"></span>
-                  <span>⚡ Warm Leads</span>
-                </div>
-                <span className="font-bold text-xl">{dashboard?.priorityBreakdown.warm}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <div className="flex items-center">
-                  <span className="w-4 h-4 bg-blue-500 rounded mr-3"></span>
-                  <span>❄️ Cold Leads</span>
-                </div>
-                <span className="font-bold text-xl">{dashboard?.priorityBreakdown.cold}</span>
-              </div>
+            <h2 className="text-xl font-bold mb-4">Purchase Stage Segmentation</h2>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between"><span>New (1st order)</span><span className="font-semibold">{dashboard?.segmentation?.purchaseStageCounts?.new ?? 0}</span></div>
+              <div className="flex justify-between"><span>Repeat-2</span><span className="font-semibold">{dashboard?.segmentation?.purchaseStageCounts?.repeat_2 ?? 0}</span></div>
+              <div className="flex justify-between"><span>Repeat-3</span><span className="font-semibold">{dashboard?.segmentation?.purchaseStageCounts?.repeat_3 ?? 0}</span></div>
+              <div className="flex justify-between"><span>Regular (4–7)</span><span className="font-semibold">{dashboard?.segmentation?.purchaseStageCounts?.regular ?? 0}</span></div>
+              <div className="flex justify-between"><span>Permanent (8+)</span><span className="font-semibold">{dashboard?.segmentation?.purchaseStageCounts?.permanent ?? 0}</span></div>
             </div>
           </div>
 
           <div className="bg-white p-6 rounded-lg shadow">
-            <h2 className="text-xl font-bold mb-4">Teams Overview</h2>
-            <div className="space-y-3">
-              <div className="flex justify-between">
-                <span className="text-gray-600">Total Teams</span>
-                <span className="font-semibold">{dashboard?.teamPerformance.totalTeams}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Total Members</span>
-                <span className="font-semibold text-blue-600">{dashboard?.teamPerformance.totalMembers}</span>
-              </div>
+            <h2 className="text-xl font-bold mb-4">Value Stage Segmentation</h2>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between"><span>Normal</span><span className="font-semibold">{dashboard?.segmentation?.valueStageCounts?.normal ?? 0}</span></div>
+              <div className="flex justify-between"><span>Medium</span><span className="font-semibold">{dashboard?.segmentation?.valueStageCounts?.medium ?? 0}</span></div>
+              <div className="flex justify-between"><span>VIP</span><span className="font-semibold">{dashboard?.segmentation?.valueStageCounts?.vip ?? 0}</span></div>
             </div>
+          </div>
+        </div>
+
+        {/* Teams Overview */}
+        <div className="bg-white p-6 rounded-lg shadow mb-8">
+          <h2 className="text-xl font-bold mb-4">Teams Overview</h2>
+          <div className="grid md:grid-cols-2 gap-4 text-sm">
+            <div className="flex justify-between"><span className="text-gray-600">Total Teams</span><span className="font-semibold">{dashboard?.teamPerformance.totalTeams}</span></div>
+            <div className="flex justify-between"><span className="text-gray-600">Total Members</span><span className="font-semibold text-blue-600">{dashboard?.teamPerformance.totalMembers}</span></div>
           </div>
         </div>
 
@@ -131,6 +140,160 @@ const SalesTeamLeaderDashboard = () => {
               ))}
             </tbody>
           </table>
+        </div>
+
+        {/* Agent-wise Calls */}
+        <div className="bg-white p-6 rounded-lg shadow mb-8">
+          <h2 className="text-xl font-bold mb-4">Agent-wise Calls (Today)</h2>
+          <table className="min-w-full">
+            <thead>
+              <tr className="border-b">
+                <th className="text-left py-3 px-4">Agent ID</th>
+                <th className="text-left py-3 px-4">Total</th>
+                <th className="text-left py-3 px-4">Completed</th>
+                <th className="text-left py-3 px-4">Failed</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(dashboard?.agentWiseCalls || []).map((row: any) => (
+                <tr key={row.agent_id} className="border-b hover:bg-gray-50">
+                  <td className="py-3 px-4">{row.agent_id ?? 'Unassigned'}</td>
+                  <td className="py-3 px-4">{row.total_today}</td>
+                  <td className="py-3 px-4 text-green-600 font-semibold">{row.completed_today}</td>
+                  <td className="py-3 px-4 text-red-600 font-semibold">{row.failed_today}</td>
+                </tr>
+              ))}
+              {(dashboard?.agentWiseCalls || []).length === 0 && (
+                <tr>
+                  <td colSpan={4} className="py-6 text-center text-gray-600">No tasks found for today.</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Scripts */}
+        <div className="bg-white p-6 rounded-lg shadow mb-8">
+          <h2 className="text-xl font-bold mb-4">Call Script Playbook</h2>
+          <div className="grid md:grid-cols-2 gap-4 text-sm mb-6">
+            <div className="border rounded p-4">
+              <div className="font-semibold mb-2">{dashboard?.scripts?.commonOpening?.title}</div>
+              <ul className="list-disc ml-5 space-y-1 text-gray-700">
+                {(dashboard?.scripts?.commonOpening?.lines || []).map((l: string, idx: number) => (
+                  <li key={idx}>{l}</li>
+                ))}
+              </ul>
+            </div>
+            <div className="border rounded p-4">
+              <div className="font-semibold mb-2">{dashboard?.scripts?.callEnding?.title}</div>
+              <ul className="list-disc ml-5 space-y-1 text-gray-700">
+                {(dashboard?.scripts?.callEnding?.lines || []).map((l: string, idx: number) => (
+                  <li key={idx}>{l}</li>
+                ))}
+              </ul>
+            </div>
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-4 text-sm">
+            {['A', 'B', 'C', 'D', 'E'].map((k) => (
+              <div key={k} className="border rounded p-4">
+                <div className="font-semibold mb-1">{dashboard?.scripts?.[k]?.title}</div>
+                <div className="text-gray-600 mb-2">Goal: {dashboard?.scripts?.[k]?.goal}</div>
+                <div className="text-gray-600 mb-2">Style: {(dashboard?.scripts?.[k]?.style || []).join(', ')}</div>
+                <ul className="list-disc ml-5 space-y-1 text-gray-700">
+                  {(dashboard?.scripts?.[k]?.script || []).map((l: string, idx: number) => (
+                    <li key={idx}>{l}</li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+            <div className="border rounded p-4">
+              <div className="font-semibold mb-1">{dashboard?.scripts?.winBack?.title}</div>
+              <div className="text-gray-600 mb-2">Goal: {dashboard?.scripts?.winBack?.goal}</div>
+              <div className="text-gray-600 mb-2">Style: {(dashboard?.scripts?.winBack?.style || []).join(', ')}</div>
+              <ul className="list-disc ml-5 space-y-1 text-gray-700">
+                {(dashboard?.scripts?.winBack?.script || []).map((l: string, idx: number) => (
+                  <li key={idx}>{l}</li>
+                ))}
+              </ul>
+            </div>
+            <div className="border rounded p-4">
+              <div className="font-semibold mb-1">{dashboard?.scripts?.permanentDeclaration?.title}</div>
+              <div className="text-gray-600 mb-2">Goal: {dashboard?.scripts?.permanentDeclaration?.goal}</div>
+              <div className="text-gray-600 mb-2">Style: {(dashboard?.scripts?.permanentDeclaration?.style || []).join(', ')}</div>
+              <ul className="list-disc ml-5 space-y-1 text-gray-700">
+                {(dashboard?.scripts?.permanentDeclaration?.script || []).map((l: string, idx: number) => (
+                  <li key={idx}>{l}</li>
+                ))}
+              </ul>
+            </div>
+            <div className="border rounded p-4">
+              <div className="font-semibold mb-2">{dashboard?.scripts?.objectionHandling?.title}</div>
+              <div className="space-y-3">
+                {(dashboard?.scripts?.objectionHandling?.items || []).map((it: any, idx: number) => (
+                  <div key={idx}>
+                    <div className="font-medium">❓ {it.objection}</div>
+                    <div className="text-gray-700">{it.reply}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-4 text-sm text-gray-600">
+            Universal flow: {(dashboard?.scripts?.universal?.flow || []).join(' → ')}
+          </div>
+        </div>
+
+        {/* Agent Training Role Plays */}
+        <div className="bg-white p-6 rounded-lg shadow mb-8">
+          <h2 className="text-xl font-bold mb-4">Agent Training (Role Play)</h2>
+          <div className="text-sm text-gray-600 mb-4">
+            {dashboard?.trainingRolePlays?.title} — {dashboard?.trainingRolePlays?.format}
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-4 text-sm">
+            {(dashboard?.trainingRolePlays?.rolePlays || []).map((rp: any) => (
+              <div key={rp.id} className="border rounded p-4">
+                <div className="font-semibold mb-2">{rp.title}</div>
+                <div className="text-gray-600 mb-2">
+                  Training Goal: {(rp.trainingGoal || []).join(' • ')}
+                </div>
+                <div className="space-y-2">
+                  {(rp.script || []).map((line: any, idx: number) => (
+                    <div key={idx}>
+                      <span className="font-medium">{line.speaker}: </span>
+                      <span className="text-gray-700">{line.line}</span>
+                    </div>
+                  ))}
+                </div>
+                {(rp.notes || []).length > 0 && (
+                  <div className="mt-3 text-gray-600">
+                    Notes: {(rp.notes || []).join(' • ')}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-4 text-sm mt-6">
+            <div className="border rounded p-4">
+              <div className="font-semibold mb-2">Common Training Mistakes</div>
+              <ul className="list-disc ml-5 space-y-1 text-gray-700">
+                {(dashboard?.trainingRolePlays?.commonMistakes || []).map((m: string, idx: number) => (
+                  <li key={idx}>{m}</li>
+                ))}
+              </ul>
+            </div>
+            <div className="border rounded p-4">
+              <div className="font-semibold mb-2">Golden Rules</div>
+              <ul className="list-disc ml-5 space-y-1 text-gray-700">
+                {(dashboard?.trainingRolePlays?.goldenRules || []).map((m: string, idx: number) => (
+                  <li key={idx}>{m}</li>
+                ))}
+              </ul>
+            </div>
+          </div>
         </div>
 
         {/* Recent Escalations */}

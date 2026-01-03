@@ -23,9 +23,72 @@ export class LoyaltyController {
   @Put('membership/:customerId/tier')
   async updateMembershipTier(
     @Param('customerId') customerId: number,
-    @Body('tier') tier: 'none' | 'silver' | 'gold',
+    @Body('tier') tier: 'none' | 'silver' | 'gold' | 'permanent',
   ) {
-    return await this.loyaltyService.updateMembershipTier(customerId, tier);
+    return await this.loyaltyService.updateMembershipTierV2(customerId, tier);
+  }
+
+  @Post('membership/:customerId/evaluate')
+  async evaluateMembership(
+    @Param('customerId') customerId: number,
+    @Body() thresholds?: {
+      silverOrders?: number;
+      silverSpend?: number;
+      goldOrders?: number;
+      goldSpend?: number;
+      permanentOrders?: number;
+      permanentSpend?: number;
+    },
+  ) {
+    return await this.loyaltyService.evaluateAndUpgradeMembership(customerId, thresholds);
+  }
+
+  // =====================================================
+  // CONSUMPTION PROFILES & REMINDERS
+  // =====================================================
+
+  @Get('consumption-profiles')
+  async listConsumptionProfiles() {
+    return await this.loyaltyService.listConsumptionProfiles();
+  }
+
+  @Post('consumption-profiles')
+  async upsertConsumptionProfile(@Body() data: any) {
+    return await this.loyaltyService.upsertConsumptionProfile({
+      productId: data.productId ?? data.product_id ?? null,
+      categoryId: data.categoryId ?? data.category_id ?? null,
+      avgConsumptionDays: Number(data.avgConsumptionDays ?? data.avg_consumption_days),
+      bufferDays: data.bufferDays != null ? Number(data.bufferDays) : undefined,
+      minDays: data.minDays != null ? Number(data.minDays) : undefined,
+      maxDays: data.maxDays != null ? Number(data.maxDays) : undefined,
+      isActive: typeof data.isActive === 'boolean' ? data.isActive : data.is_active,
+    });
+  }
+
+  @Delete('consumption-profiles/:id')
+  async deleteConsumptionProfile(@Param('id') id: number) {
+    return await this.loyaltyService.deleteConsumptionProfile(id);
+  }
+
+  @Post('reminders/generate')
+  async generateReminders(@Query('date') date?: string) {
+    return await this.loyaltyService.generateProductReminders(date);
+  }
+
+  @Get('reminders/due')
+  async listDueReminders(
+    @Query('date') date?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return await this.loyaltyService.listDueProductReminders(date, limit ? Number(limit) : 100);
+  }
+
+  @Put('reminders/:id/sent')
+  async markReminderSent(
+    @Param('id') id: number,
+    @Body('channel') channel: 'whatsapp' | 'sms' | 'call' | 'email',
+  ) {
+    return await this.loyaltyService.markProductReminderSent(id, channel);
   }
 
   // =====================================================

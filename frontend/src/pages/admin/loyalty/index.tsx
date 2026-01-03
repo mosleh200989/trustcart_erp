@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
 import AdminLayout from '@/layouts/AdminLayout';
 import Link from 'next/link';
+import apiClient from '@/services/api';
 
 interface KPIData {
   total_customers: number;
   silver_members: number;
   gold_members: number;
+  permanent_members?: number;
   first_to_repeat_percentage: number;
   member_conversion_rate: number;
   avg_orders_per_customer: number;
@@ -16,23 +18,66 @@ interface KPIData {
   total_referral_rewards_paid: number;
 }
 
+interface DueReminderRow {
+  id: number;
+  customer_id: number;
+  product_id: number;
+  first_name?: string;
+  last_name?: string;
+  phone?: string;
+  product_name?: string;
+  last_order_date: string;
+  reminder_due_date: string;
+}
+
 export default function LoyaltyKPIDashboard() {
   const [kpis, setKpis] = useState<KPIData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [remindersLoading, setRemindersLoading] = useState(false);
+  const [dueReminders, setDueReminders] = useState<DueReminderRow[]>([]);
+  const [reminderMeta, setReminderMeta] = useState<{ asOfDate?: string; count?: number }>({});
 
   useEffect(() => {
     loadKPIs();
+    loadDueReminders();
   }, []);
 
   const loadKPIs = async () => {
     try {
-      const res = await fetch('http://localhost:3001/loyalty/dashboard');
-      const data = await res.json();
-      setKpis(data);
+      const res = await apiClient.get('/loyalty/dashboard');
+      setKpis(res.data);
     } catch (error) {
       console.error('Failed to load KPIs:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadDueReminders = async () => {
+    try {
+      setRemindersLoading(true);
+      const res = await apiClient.get('/loyalty/reminders/due?limit=20');
+      setDueReminders(Array.isArray(res.data?.reminders) ? res.data.reminders : []);
+      setReminderMeta({ asOfDate: res.data?.asOfDate, count: res.data?.count });
+    } catch (error) {
+      console.error('Failed to load due reminders:', error);
+      setDueReminders([]);
+    } finally {
+      setRemindersLoading(false);
+    }
+  };
+
+  const generateRemindersNow = async () => {
+    try {
+      setRemindersLoading(true);
+      await apiClient.post('/loyalty/reminders/generate');
+      await loadDueReminders();
+      alert('Reminders generated and CRM call tasks created (due reminders).');
+    } catch (error) {
+      console.error('Failed to generate reminders:', error);
+      alert('Failed to generate reminders');
+    } finally {
+      setRemindersLoading(false);
     }
   };
 
@@ -273,7 +318,93 @@ export default function LoyaltyKPIDashboard() {
                 />
               </div>
             </div>
+
+            {/* Permanent */}
+            {typeof kpis.permanent_members === 'number' && (
+              <div>
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-sm font-medium">🏅 Permanent Members</span>
+                  <span className="text-sm font-bold">
+                    {kpis.permanent_members} ({((kpis.permanent_members / kpis.total_customers) * 100).toFixed(1)}%)
+                  </span>
+                </div>
+                <div className="bg-gray-200 rounded-full h-3">
+                  <div
+                    className="bg-gradient-to-r from-green-400 to-green-600 rounded-full h-3"
+                    style={{ width: `${(kpis.permanent_members / kpis.total_customers) * 100}%` }}
+                  />
+                </div>
+              </div>
+            )}
           </div>
+        </div>
+
+        {/* Due Reminders */}
+        <div className="bg-white rounded-lg shadow p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="text-xl font-bold">Consumption-based Due Reminders</h3>
+              <p className="text-sm text-gray-600">
+                Shows customers who should be reminded to reorder (per product).
+              </p>
+              {reminderMeta.asOfDate && (
+                <p className="text-xs text-gray-500 mt-1">As of: {reminderMeta.asOfDate}</p>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={loadDueReminders}
+                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
+                disabled={remindersLoading}
+              >
+                Refresh
+              </button>
+              <button
+                onClick={generateRemindersNow}
+                className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+                disabled={remindersLoading}
+              >
+                {remindersLoading ? 'Working…' : 'Generate Now'}
+              </button>
+            </div>
+          </div>
+
+          {remindersLoading ? (
+            <div className="p-6 text-center text-gray-500">Loading reminders…</div>
+          ) : dueReminders.length === 0 ? (
+            <div className="p-6 text-center text-gray-500">No due reminders found.</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600 uppercase">Customer</th>
+                    <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600 uppercase">Phone</th>
+                    <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600 uppercase">Product</th>
+                    <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600 uppercase">Last Order</th>
+                    <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600 uppercase">Due Date</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 bg-white">
+                  {dueReminders.map((r) => (
+                    <tr key={r.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-2 text-sm text-gray-900">
+                        {(r.first_name || r.last_name)
+                          ? `${r.first_name ?? ''} ${r.last_name ?? ''}`.trim()
+                          : `Customer #${r.customer_id}`}
+                      </td>
+                      <td className="px-4 py-2 text-sm text-gray-700">{r.phone || '—'}</td>
+                      <td className="px-4 py-2 text-sm text-gray-700">
+                        {r.product_name || `Product #${r.product_id}`}
+                      </td>
+                      <td className="px-4 py-2 text-sm text-gray-700">{r.last_order_date}</td>
+                      <td className="px-4 py-2 text-sm text-gray-700">{r.reminder_due_date}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
 
         {/* Quick Actions */}

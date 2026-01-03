@@ -57,6 +57,22 @@ export class CrmTeamController {
     return await this.crmTeamService.getTeamLeaderDashboard(req.user.id);
   }
 
+  @Post('ops/generate-calls')
+  @RequirePermissions('view-team-leader-dashboard')
+  async generateDailyAutoCalls(
+    @Body()
+    body: {
+      date?: string;
+      perAgentLimit?: number;
+      reminderQuota?: number;
+      offerQuota?: number;
+      followupQuota?: number;
+    },
+    @Request() req: any,
+  ) {
+    return await this.crmTeamService.generateDailyAutoCalls(req.user.id, body);
+  }
+
   @Get('lead-aging')
   @RequirePermissions('view-team-leader-dashboard')
   async getLeadAging(@Request() req: any) {

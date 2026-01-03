@@ -53,6 +53,13 @@ import { CustomerReferral } from './modules/loyalty/entities/customer-referral.e
 import { MonthlyGroceryList } from './modules/loyalty/entities/monthly-grocery-list.entity';
 import { GroceryListItem } from './modules/loyalty/entities/grocery-list-item.entity';
 import { PriceLock } from './modules/loyalty/entities/price-lock.entity';
+import { CustomerPoints } from './modules/loyalty/entities/customer-points.entity';
+import { PointTransaction } from './modules/loyalty/entities/point-transaction.entity';
+import { ProductConsumptionProfile } from './modules/loyalty/entities/product-consumption-profile.entity';
+import { CustomerProductReminder } from './modules/loyalty/entities/customer-product-reminder.entity';
+
+// Telephony Entities
+import { TelephonyCall } from './modules/telephony/entities/telephony-call.entity';
 
 // CRM Entities
 import { Deal } from './modules/crm/entities/deal.entity';
@@ -128,6 +135,7 @@ import { BannersModule } from './modules/banners/banners.module';
 import { CategoriesModule } from './modules/categories/categories.module';
 import { UploadModule } from './modules/upload/upload.module';
 import { SpecialOffersModule } from './modules/special-offers/special-offers.module';
+import { TelephonyModule } from './modules/telephony/telephony.module';
 
 @Module({
   imports: [
@@ -163,10 +171,13 @@ import { SpecialOffersModule } from './modules/special-offers/special-offers.mod
             DealOfTheDay,
             // Loyalty entities
             CustomerMembership, CustomerWallet, WalletTransaction, CustomerReferral, MonthlyGroceryList, GroceryListItem, PriceLock,
+            CustomerPoints, PointTransaction, ProductConsumptionProfile, CustomerProductReminder,
             // CRM entities
             Deal, DealStage, Activity, Task, Quote, Meeting, EmailTracking,
             CustomDealStage, SalesPipeline, ActivityTemplate, CustomerSegment, SegmentMember,
             EmailTemplate, AutomationWorkflow, WorkflowExecution, QuoteTemplate, SalesForecast, SalesQuota,
+            // Telephony entities
+            TelephonyCall,
             // HRM Entities
             HrmBranches, HrmDepartments, HrmDesignations, HrmEmployees, HrmAwardTypes, HrmAwards, HrmPromotions, HrmResignations, HrmTerminations, HrmWarnings, HrmTrips, HrmComplaints, HrmTransfers, HrmHolidays, HrmAnnouncements, HrmTrainingTypes, HrmTrainingPrograms, HrmTrainingSessions, HrmEmployeeTrainings, HrmPerformanceIndicatorCategories, HrmPerformanceIndicators, HrmEmployeePerformance, HrmDocumentTypes, HrmEmployeeDocuments
           ],
@@ -214,6 +225,7 @@ import { SpecialOffersModule } from './modules/special-offers/special-offers.mod
     CategoriesModule,
     UploadModule,
     SpecialOffersModule,
+    TelephonyModule,
   ],
   controllers: [],
   providers: [],
