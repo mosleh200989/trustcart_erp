@@ -32,7 +32,11 @@ const menuItems: MenuItem[] = [
   {
     title: 'Sales',
     icon: FaShoppingCart,
-    path: '/admin/sales'
+    children: [
+      { title: 'Orders', icon: FaShoppingCart, path: '/admin/sales' },
+      { title: 'Incomplete Order', icon: FaShoppingCart, path: '/admin/sales/incomplete-orders' },
+      { title: 'Late Delivery', icon: FaShoppingCart, path: '/admin/sales/late-delivery' },
+    ],
   },
   {
     title: 'Customers',

@@ -127,6 +127,15 @@ export class OrderManagementController {
     });
   }
 
+  @Post(':orderId/steadfast/send')
+  async sendToSteadfast(@Param('orderId') orderId: number, @Req() req: Request) {
+    const userInfo = this.getUserInfo(req);
+    return await this.orderManagementService.sendToSteadfast({
+      orderId,
+      ...userInfo,
+    });
+  }
+
   @Post(':orderId/courier-status')
   async updateCourierStatus(
     @Param('orderId') orderId: number,
@@ -183,6 +192,13 @@ export class OrderManagementController {
     return await this.orderManagementService.getOrderDetails(orderId);
   }
 
+  // ==================== CUSTOMER PRODUCT HISTORY ====================
+
+  @Get(':orderId/product-history')
+  async getCustomerProductHistory(@Param('orderId') orderId: number) {
+    return await this.orderManagementService.getCustomerProductHistory(orderId);
+  }
+
   // ==================== ORDER TRACKING ====================
 
   @Put(':orderId/tracking')
@@ -199,11 +215,16 @@ export class OrderManagementController {
       utmSource?: string;
       utmMedium?: string;
       utmCampaign?: string;
-    }
+    },
+    @Req() req: Request
   ) {
+    const ipAddress = req.ip || (req.headers['x-forwarded-for'] as string) || 'unknown';
+    const ua = (req.headers['user-agent'] as string) || '';
     return await this.orderManagementService.updateOrderTracking({
       orderId,
       ...body,
+      userIp: body.userIp ?? ipAddress,
+      browserInfo: body.browserInfo ?? ua,
     });
   }
 }

@@ -1,4 +1,4 @@
-import { BadRequestException, Controller, ForbiddenException, Get, NotFoundException, Post, Body, Param, Put, Delete, Request, UseGuards } from '@nestjs/common';
+import { BadRequestException, Controller, ForbiddenException, Get, NotFoundException, Post, Body, Param, Put, Delete, Request, UseGuards, Query } from '@nestjs/common';
 import { SalesService } from './sales.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CustomersService } from '../customers/customers.service';
@@ -36,6 +36,12 @@ export class SalesController {
   @Get()
   async findAll() {
     return this.salesService.findAll();
+  }
+
+  @Get('late-deliveries')
+  async findLateDeliveries(@Query('thresholdDays') thresholdDays?: string) {
+    const days = thresholdDays != null ? Number(thresholdDays) : undefined;
+    return this.salesService.findLateDeliveries({ thresholdDays: days });
   }
 
   @Get(':id')

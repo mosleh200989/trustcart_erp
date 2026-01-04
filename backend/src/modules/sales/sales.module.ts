@@ -12,6 +12,7 @@ import { CourierTrackingHistory } from './entities/courier-tracking-history.enti
 import { Product } from '../products/product.entity';
 import { CustomersModule } from '../customers/customers.module';
 import { SpecialOffersModule } from '../special-offers/special-offers.module';
+import { User } from '../users/user.entity';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { SpecialOffersModule } from '../special-offers/special-offers.module';
       OrderActivityLog,
       CourierTrackingHistory,
       Product,
+      User,
     ]),
     CustomersModule,
     SpecialOffersModule,

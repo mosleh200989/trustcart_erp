@@ -133,6 +133,11 @@ export class CustomersService {
   }
 
   async update(id: string, updateCustomerDto: any) {
+    const existingCustomer = await this.customersRepository.findOne({ where: { id } });
+    if (!existingCustomer) {
+      throw new Error('Customer not found');
+    }
+
     const patch: any = { ...updateCustomerDto };
 
     if (Object.prototype.hasOwnProperty.call(patch, 'phone')) {
@@ -141,10 +146,13 @@ export class CustomersService {
         throw new Error('Phone number is required');
       }
 
-      // Enforce uniqueness (ignore self)
-      const existingPhone = await this.customersRepository.findOne({ where: { phone } });
-      if (existingPhone && existingPhone.id !== id) {
-        throw new Error('Phone number already exists');
+      // Only enforce uniqueness if the phone is being changed.
+      // This avoids false positives when legacy data contains duplicates.
+      if (existingCustomer.phone !== phone) {
+        const existingPhone = await this.customersRepository.findOne({ where: { phone } });
+        if (existingPhone && existingPhone.id !== id) {
+          throw new Error('Phone number already exists');
+        }
       }
 
       patch.phone = phone;
@@ -155,9 +163,11 @@ export class CustomersService {
       patch.email = email && email.length > 0 ? email : null;
 
       if (patch.email) {
-        const existingEmail = await this.customersRepository.findOne({ where: { email: patch.email } });
-        if (existingEmail && existingEmail.id !== id) {
-          throw new Error('Email already exists');
+        if (existingCustomer.email !== patch.email) {
+          const existingEmail = await this.customersRepository.findOne({ where: { email: patch.email } });
+          if (existingEmail && existingEmail.id !== id) {
+            throw new Error('Email already exists');
+          }
         }
       }
     }

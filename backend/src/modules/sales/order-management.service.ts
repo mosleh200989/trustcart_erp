@@ -7,6 +7,9 @@ import { OrderActivityLog } from './entities/order-activity-log.entity';
 import { CourierTrackingHistory } from './entities/courier-tracking-history.entity';
 import { SalesOrderItem } from './sales-order-item.entity';
 import { Product } from '../products/product.entity';
+import { CustomersService } from '../customers/customers.service';
+import axios from 'axios';
+import { User } from '../users/user.entity';
 
 @Injectable()
 export class OrderManagementService {
@@ -23,7 +26,301 @@ export class OrderManagementService {
     private activityLogRepository: Repository<OrderActivityLog>,
     @InjectRepository(CourierTrackingHistory)
     private courierTrackingRepository: Repository<CourierTrackingHistory>,
+    private customersService: CustomersService,
+
+    @InjectRepository(User)
+    private usersRepository: Repository<User>,
   ) {}
+
+  private formatUserName(u?: Partial<User> | null): string | null {
+    if (!u) return null;
+    const name = [u.name, u.lastName].filter(Boolean).join(' ').trim();
+    return name.length ? name : null;
+  }
+
+  private async enrichActivityLogs(logs: OrderActivityLog[]): Promise<any[]> {
+    const performerIds = Array.from(
+      new Set(logs.map((l) => (l.performedBy != null ? Number(l.performedBy) : NaN)).filter((n) => Number.isFinite(n))),
+    );
+
+    if (performerIds.length === 0) return logs;
+
+    const performers = await this.usersRepository.findBy({ id: In(performerIds) });
+    const performerById = new Map<number, User>(performers.map((u) => [Number(u.id), u]));
+
+    const leaderIds = Array.from(
+      new Set(
+        performers
+          .map((u) => (u.teamLeaderId != null ? Number(u.teamLeaderId) : NaN))
+          .filter((n) => Number.isFinite(n)),
+      ),
+    );
+    const leaders = leaderIds.length ? await this.usersRepository.findBy({ id: In(leaderIds) }) : [];
+    const leaderById = new Map<number, User>(leaders.map((u) => [Number(u.id), u]));
+
+    return logs.map((log) => {
+      const performer = log.performedBy != null ? performerById.get(Number(log.performedBy)) : undefined;
+      const leader = performer?.teamLeaderId != null ? leaderById.get(Number(performer.teamLeaderId)) : undefined;
+      return {
+        ...log,
+        performedByName: log.performedByName || this.formatUserName(performer) || 'System',
+        performedByUser: performer
+          ? {
+              id: performer.id,
+              name: performer.name,
+              lastName: performer.lastName,
+              email: performer.email,
+              phone: performer.phone,
+              teamLeaderId: performer.teamLeaderId,
+              teamId: performer.teamId,
+              roleId: performer.roleId,
+            }
+          : null,
+        teamLeader: leader
+          ? {
+              id: leader.id,
+              name: leader.name,
+              lastName: leader.lastName,
+              email: leader.email,
+              phone: leader.phone,
+            }
+          : null,
+      };
+    });
+  }
+
+  private readonly steadfastBaseUrl = process.env.STEADFAST_BASE_URL || 'https://portal.packzy.com/api/v1';
+
+  private getSteadfastHeaders() {
+    const apiKey = process.env.STEADFAST_API_KEY || '';
+    const secretKey = process.env.STEADFAST_SECRET_KEY || '';
+    if (!apiKey || !secretKey) {
+      throw new Error('Steadfast API credentials are not configured (STEADFAST_API_KEY/STEADFAST_SECRET_KEY)');
+    }
+    return {
+      'Api-Key': apiKey,
+      'Secret-Key': secretKey,
+      'Content-Type': 'application/json',
+    } as const;
+  }
+
+  private normalizeBdPhone(raw: any): string {
+    const s = raw == null ? '' : String(raw);
+    const digits = s.replace(/\D/g, '');
+    // Common cases: 01XXXXXXXXX, 8801XXXXXXXXX, +8801XXXXXXXXX
+    if (digits.length === 11 && digits.startsWith('01')) return digits;
+    if (digits.length === 13 && digits.startsWith('8801')) return digits.slice(2);
+    if (digits.length > 11) return digits.slice(digits.length - 11);
+    return digits;
+  }
+
+  private buildSteadfastInvoice(order: SalesOrder): string {
+    const invoice = order.salesOrderNumber ? String(order.salesOrderNumber).trim() : String(order.id);
+    // Steadfast allows alpha-numeric including hyphens and underscores.
+    return invoice.replace(/\s+/g, '_');
+  }
+
+  private extractSteadfastStatus(data: any): string | null {
+    const status =
+      data?.delivery_status ??
+      data?.status ??
+      data?.current_status ??
+      data?.consignment?.status ??
+      data?.consignment_status ??
+      null;
+    return status == null ? null : String(status);
+  }
+
+  private isDeliveredStatus(status: string): boolean {
+    const s = String(status).toLowerCase();
+    return s === 'delivered' || s.includes('delivered');
+  }
+
+  private async tryRefreshSteadfastCourierStatus(order: SalesOrder): Promise<SalesOrder> {
+    if (!order?.courierCompany || String(order.courierCompany).toLowerCase() !== 'steadfast') return order;
+
+    const consignmentId = order.courierOrderId ? String(order.courierOrderId).trim() : '';
+    const trackingCode = order.trackingId ? String(order.trackingId).trim() : '';
+    const invoice = this.buildSteadfastInvoice(order);
+
+    if (!consignmentId && !trackingCode && !invoice) return order;
+
+    try {
+      const headers = this.getSteadfastHeaders();
+
+      // Prefer CID (consignment_id) when available.
+      const url = consignmentId
+        ? `${this.steadfastBaseUrl}/status_by_cid/${encodeURIComponent(consignmentId)}`
+        : trackingCode
+          ? `${this.steadfastBaseUrl}/status_by_trackingcode/${encodeURIComponent(trackingCode)}`
+          : `${this.steadfastBaseUrl}/status_by_invoice/${encodeURIComponent(invoice)}`;
+
+      const res = await axios.get(url, { headers, timeout: 20000 });
+      const latestStatus = this.extractSteadfastStatus(res.data);
+
+      if (!latestStatus) return order;
+      if (String(order.courierStatus || '').trim() === latestStatus.trim()) return order;
+
+      const prevStatus = order.courierStatus;
+      order.courierStatus = latestStatus;
+
+      if (this.isDeliveredStatus(latestStatus) && order.status !== 'delivered') {
+        order.status = 'delivered';
+        order.deliveredAt = new Date();
+      }
+
+      const saved = await this.salesOrderRepository.save(order);
+
+      await this.courierTrackingRepository.save({
+        orderId: saved.id,
+        courierCompany: 'Steadfast',
+        trackingId: saved.trackingId,
+        status: saved.courierStatus,
+        remarks: `Steadfast status refreshed${prevStatus ? ` (was: ${prevStatus})` : ''}`,
+      });
+
+      await this.logActivity({
+        orderId: saved.id,
+        actionType: 'courier_status_synced',
+        actionDescription: `Steadfast courier status refreshed to: ${saved.courierStatus}`,
+        oldValue: { courierStatus: prevStatus },
+        newValue: { courierStatus: saved.courierStatus },
+        performedBy: undefined,
+        performedByName: 'System',
+      });
+
+      return saved;
+    } catch {
+      // Do not block order details if Steadfast API is unreachable or credentials are missing.
+      return order;
+    }
+  }
+
+  async sendToSteadfast(data: {
+    orderId: number;
+    userId: number;
+    userName: string;
+    ipAddress?: string;
+  }): Promise<any> {
+    const order = await this.salesOrderRepository.findOne({ where: { id: data.orderId } });
+    if (!order) throw new Error('Order not found');
+
+    if (order.courierCompany && String(order.courierCompany).toLowerCase() === 'steadfast' && order.trackingId) {
+      return {
+        success: true,
+        message: 'Order already sent to Steadfast',
+        courierCompany: order.courierCompany,
+        courierOrderId: order.courierOrderId,
+        trackingId: order.trackingId,
+        courierStatus: order.courierStatus,
+      };
+    }
+
+    const items = await this.getOrderItems(order.id);
+    const invoice = this.buildSteadfastInvoice(order);
+    const recipientName = (order.customerName ? String(order.customerName).trim() : '') || 'N/A';
+    const recipientPhone = this.normalizeBdPhone(order.customerPhone);
+    const recipientAddress = (order.shippingAddress ? String(order.shippingAddress).trim() : '') || (order.notes ? String(order.notes).trim() : '');
+
+    if (!recipientPhone || recipientPhone.length !== 11) {
+      throw new Error('Customer phone must be a valid 11 digit number to send to Steadfast');
+    }
+    if (!recipientAddress) {
+      throw new Error('Shipping address is required to send to Steadfast');
+    }
+
+    const codAmount = Number(order.totalAmount || 0);
+    if (!Number.isFinite(codAmount) || codAmount < 0) {
+      throw new Error('Invalid COD amount');
+    }
+
+    const itemDescription = items
+      .slice(0, 20)
+      .map((i) => `${i.productName} x${Number(i.quantity || 0)}`)
+      .join(', ')
+      .slice(0, 250);
+
+    const totalLot = items.reduce((sum, i) => sum + Number(i.quantity || 0), 0);
+    const noteParts = [order.courierNotes, order.riderInstructions].filter(Boolean).map((v) => String(v));
+    const note = noteParts.join(' | ').slice(0, 250) || undefined;
+
+    const payload: any = {
+      invoice,
+      recipient_name: recipientName,
+      recipient_phone: recipientPhone,
+      recipient_address: recipientAddress.slice(0, 250),
+      cod_amount: codAmount,
+      delivery_type: 0,
+    };
+    if (note) payload.note = note;
+    if (itemDescription) payload.item_description = itemDescription;
+    if (totalLot) payload.total_lot = totalLot;
+    if (order.customerEmail) payload.recipient_email = String(order.customerEmail).trim();
+
+    let resData: any;
+    try {
+      const res = await axios.post(`${this.steadfastBaseUrl}/create_order`, payload, {
+        headers: this.getSteadfastHeaders(),
+        timeout: 20000,
+      });
+      resData = res.data;
+    } catch (e: any) {
+      const status = e?.response?.status;
+      const msg = e?.response?.data?.message || e?.message || 'Failed to connect to Steadfast';
+      throw new Error(status ? `Steadfast error (${status}): ${msg}` : msg);
+    }
+
+    const consignment = resData?.consignment;
+    const consignmentId = consignment?.consignment_id ?? null;
+    const trackingCode = consignment?.tracking_code ?? null;
+    const courierStatus = consignment?.status ?? resData?.delivery_status ?? null;
+
+    if (!consignmentId || !trackingCode) {
+      throw new Error(resData?.message || 'Steadfast did not return consignment_id/tracking_code');
+    }
+
+    order.status = 'shipped';
+    order.shippedAt = new Date();
+    order.courierCompany = 'Steadfast';
+    order.courierOrderId = String(consignmentId);
+    order.trackingId = String(trackingCode);
+    order.courierStatus = courierStatus ? String(courierStatus) : 'in_review';
+
+    await this.salesOrderRepository.save(order);
+
+    await this.courierTrackingRepository.save({
+      orderId: order.id,
+      courierCompany: 'Steadfast',
+      trackingId: String(trackingCode),
+      status: order.courierStatus,
+      remarks: 'Consignment created in Steadfast',
+    });
+
+    await this.logActivity({
+      orderId: order.id,
+      actionType: 'shipped',
+      actionDescription: `Order sent to Steadfast. Consignment: ${consignmentId}, Tracking: ${trackingCode}`,
+      newValue: {
+        courierCompany: 'Steadfast',
+        courierOrderId: String(consignmentId),
+        trackingId: String(trackingCode),
+        courierStatus: order.courierStatus,
+      },
+      performedBy: data.userId,
+      performedByName: data.userName,
+      ipAddress: data.ipAddress,
+    });
+
+    return {
+      success: true,
+      message: resData?.message || 'Sent to Steadfast',
+      courierCompany: 'Steadfast',
+      courierOrderId: String(consignmentId),
+      trackingId: String(trackingCode),
+      courierStatus: order.courierStatus,
+      raw: resData,
+    };
+  }
 
   // ==================== ORDER ITEMS MANAGEMENT ====================
   
@@ -467,7 +764,8 @@ export class OrderManagementService {
     const order = await this.salesOrderRepository.findOne({ where: { id: data.orderId } });
     if (!order) throw new Error('Order not found');
 
-    Object.assign(order, data);
+    const { orderId: _orderId, ...patch } = data as any;
+    Object.assign(order, patch);
     return await this.salesOrderRepository.save(order);
   }
 
@@ -475,16 +773,67 @@ export class OrderManagementService {
     const order = await this.salesOrderRepository.findOne({ where: { id: orderId } });
     if (!order) throw new Error('Order not found');
 
-    const customerId = order.customerId != null ? Number(order.customerId) : null;
-    const customerEmail = order.customerEmail ? String(order.customerEmail).trim() : '';
-    const customerPhone = order.customerPhone ? String(order.customerPhone).trim() : '';
+    // Keep Steadfast courier status in sync on read (best-effort).
+    const orderWithCourierSync = await this.tryRefreshSteadfastCourierStatus(order);
+
+    const rawCustomerId = orderWithCourierSync.customerId != null ? Number(orderWithCourierSync.customerId) : NaN;
+    const customerId = Number.isFinite(rawCustomerId) && rawCustomerId > 0 ? rawCustomerId : null;
+    const customerEmail = orderWithCourierSync.customerEmail ? String(orderWithCourierSync.customerEmail).trim() : '';
+    const customerPhone = orderWithCourierSync.customerPhone ? String(orderWithCourierSync.customerPhone).trim() : '';
+
+    let matchedCustomer: any | null = null;
+    if (customerEmail) matchedCustomer = await this.customersService.findByEmail(customerEmail);
+    if (!matchedCustomer && customerPhone) {
+      matchedCustomer = await this.customersService.findByPhone(customerPhone);
+    }
+
+    const matchedName = matchedCustomer
+      ? [matchedCustomer.name, matchedCustomer.lastName].filter(Boolean).join(' ').trim() || null
+      : null;
 
     const customer = {
       customerId,
-      customerName: order.customerName || null,
-      customerEmail: customerEmail || null,
-      customerPhone: customerPhone || null,
+      customerName: orderWithCourierSync.customerName || matchedName,
+      customerEmail: customerEmail || matchedCustomer?.email || null,
+      customerPhone: customerPhone || matchedCustomer?.phone || null,
     };
+
+    const customerRecord = matchedCustomer
+      ? {
+          id: matchedCustomer.id,
+          uuid: matchedCustomer.uuid,
+          title: matchedCustomer.title,
+          name: matchedCustomer.name,
+          lastName: matchedCustomer.lastName,
+          companyName: matchedCustomer.companyName,
+          email: matchedCustomer.email,
+          phone: matchedCustomer.phone,
+          mobile: matchedCustomer.mobile,
+          website: matchedCustomer.website,
+          source: matchedCustomer.source,
+          rating: matchedCustomer.rating,
+          totalSpent: matchedCustomer.total_spent ?? matchedCustomer.totalSpent,
+          customerLifetimeValue: matchedCustomer.customer_lifetime_value ?? matchedCustomer.customerLifetimeValue,
+          preferredContactMethod: matchedCustomer.preferred_contact_method ?? matchedCustomer.preferredContactMethod,
+          notes: matchedCustomer.notes,
+          lastContactDate: matchedCustomer.last_contact_date ?? matchedCustomer.lastContactDate,
+          nextFollowUp: matchedCustomer.next_follow_up ?? matchedCustomer.nextFollowUp,
+          address: matchedCustomer.address,
+          district: matchedCustomer.district,
+          city: matchedCustomer.city,
+          gender: matchedCustomer.gender,
+          dateOfBirth: matchedCustomer.dateOfBirth,
+          maritalStatus: matchedCustomer.maritalStatus,
+          anniversaryDate: matchedCustomer.anniversaryDate,
+          profession: matchedCustomer.profession,
+          availableTime: matchedCustomer.availableTime,
+          customerType: matchedCustomer.customerType,
+          lifecycleStage: matchedCustomer.lifecycleStage,
+          status: matchedCustomer.status,
+          isActive: matchedCustomer.isActive,
+          priority: matchedCustomer.priority,
+        }
+      : null;
 
     const orderHistoryQb = this.salesOrderRepository.createQueryBuilder('o');
     orderHistoryQb.where('1=0');
@@ -500,7 +849,7 @@ export class OrderManagementService {
 
     // If we have no reliable identifier, default to current order only
     if (orderHistoryQb.expressionMap.wheres.length <= 1) {
-      orderHistoryQb.orWhere('o.id = :id', { id: order.id });
+      orderHistoryQb.orWhere('o.id = :id', { id: orderWithCourierSync.id });
     }
 
     const orderHistoryRows = await orderHistoryQb
@@ -508,7 +857,7 @@ export class OrderManagementService {
       .getMany();
 
     const items = await this.getOrderItems(orderId);
-    const activityLogs = await this.getActivityLogs(orderId);
+    const activityLogs = await this.enrichActivityLogs(await this.getActivityLogs(orderId));
     const courierTracking = await this.getCourierTrackingHistory(orderId);
 
     const orderHistory = orderHistoryRows.map((o) => ({
@@ -521,12 +870,130 @@ export class OrderManagementService {
     }));
 
     return {
-      ...order,
+      ...orderWithCourierSync,
       items,
       activityLogs,
       courierTracking,
       customer,
+      customerRecord,
       orderHistory,
     };
+  }
+
+  async getCustomerProductHistory(orderId: number): Promise<any> {
+    const order = await this.salesOrderRepository.findOne({ where: { id: orderId } });
+    if (!order) throw new Error('Order not found');
+
+    const rawCustomerId = order.customerId != null ? Number(order.customerId) : NaN;
+    const customerId = Number.isFinite(rawCustomerId) && rawCustomerId > 0 ? rawCustomerId : null;
+    const customerEmail = order.customerEmail ? String(order.customerEmail).trim() : '';
+    const customerPhone = order.customerPhone ? String(order.customerPhone).trim() : '';
+
+    const orderHistoryQb = this.salesOrderRepository.createQueryBuilder('o');
+    orderHistoryQb.where('1=0');
+    if (customerId != null && Number.isFinite(customerId)) {
+      orderHistoryQb.orWhere('o.customer_id = :cid', { cid: customerId });
+    }
+    if (customerEmail) {
+      orderHistoryQb.orWhere('o.customer_email = :email', { email: customerEmail });
+    }
+    if (customerPhone) {
+      orderHistoryQb.orWhere('o.customer_phone = :phone', { phone: customerPhone });
+    }
+
+    if (orderHistoryQb.expressionMap.wheres.length <= 1) {
+      orderHistoryQb.orWhere('o.id = :id', { id: order.id });
+    }
+
+    const orders = await orderHistoryQb.orderBy('o.created_at', 'DESC').getMany();
+
+    const itemsByOrderId = new Map<number, any[]>();
+    for (const o of orders) {
+      // eslint-disable-next-line no-await-in-loop
+      itemsByOrderId.set(o.id, await this.getOrderItems(o.id));
+    }
+
+    const productIds = new Set<number>();
+    for (const orderItems of itemsByOrderId.values()) {
+      for (const item of orderItems) {
+        const pid = Number(item.productId);
+        if (Number.isFinite(pid) && pid > 0) productIds.add(pid);
+      }
+    }
+
+    const products = productIds.size
+      ? await this.productRepository.find({ where: { id: In(Array.from(productIds)) } })
+      : [];
+    const productById = new Map(products.map((p) => [Number(p.id), p]));
+
+    type Agg = {
+      productKey: string;
+      productId: number | null;
+      productName: string;
+      sku?: string | null;
+      totalQuantity: number;
+      totalValue: number;
+      ordersCount: number;
+      lastPurchasedAt: Date | null;
+    };
+
+    const aggByKey = new Map<string, { data: Agg; orderIds: Set<number> }>();
+
+    for (const o of orders) {
+      const orderItems = itemsByOrderId.get(o.id) || [];
+
+      for (const item of orderItems) {
+        const pid = Number(item.productId);
+        const hasPid = Number.isFinite(pid) && pid > 0;
+        const productName = String(item.productName || (hasPid ? `Product #${pid}` : 'Unknown Product'));
+        const key = hasPid ? `id:${pid}` : `name:${productName.toLowerCase()}`;
+        const qty = Number(item.quantity || 0);
+        const value = Number(item.subtotal || 0);
+
+        const p = hasPid ? productById.get(pid) : undefined;
+        const lastPurchasedAt = (item.updatedAt || item.createdAt || o.orderDate || o.createdAt) as Date | undefined;
+
+        const existing = aggByKey.get(key);
+        if (!existing) {
+          const initial: Agg = {
+            productKey: key,
+            productId: hasPid ? pid : null,
+            productName: p?.name_en || productName,
+            sku: (p as any)?.sku ?? null,
+            totalQuantity: qty,
+            totalValue: value,
+            ordersCount: 1,
+            lastPurchasedAt: lastPurchasedAt || null,
+          };
+          aggByKey.set(key, { data: initial, orderIds: new Set([o.id]) });
+        } else {
+          existing.data.totalQuantity += qty;
+          existing.data.totalValue += value;
+          existing.orderIds.add(o.id);
+          existing.data.ordersCount = existing.orderIds.size;
+          if (lastPurchasedAt) {
+            const prev = existing.data.lastPurchasedAt;
+            if (!prev || new Date(lastPurchasedAt).getTime() > new Date(prev).getTime()) {
+              existing.data.lastPurchasedAt = lastPurchasedAt;
+            }
+          }
+        }
+      }
+    }
+
+    const productsHistory = Array.from(aggByKey.values())
+      .map((x) => x.data)
+      .sort((a, b) => b.totalQuantity - a.totalQuantity);
+
+    const summary = {
+      totalOrders: orders.length,
+      totalSpent: orders.reduce((sum, o) => sum + Number((o as any).totalAmount || 0), 0),
+      totalQuantity: productsHistory.reduce((sum, p) => sum + Number(p.totalQuantity || 0), 0),
+      uniqueProducts: productsHistory.length,
+      lastOrderDate: orders[0]?.orderDate || orders[0]?.createdAt || null,
+      firstOrderDate: orders.length ? (orders[orders.length - 1]?.orderDate || orders[orders.length - 1]?.createdAt || null) : null,
+    };
+
+    return { summary, products: productsHistory };
   }
 }

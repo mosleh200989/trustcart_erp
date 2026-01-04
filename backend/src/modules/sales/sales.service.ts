@@ -13,26 +13,38 @@ export class SalesService {
     private orderItemsRepository: Repository<SalesOrderItem>,
   ) {}
 
-  async findAll() {
-    const orders = await this.salesRepository.find({
-      order: { createdAt: 'DESC' }
-    });
-    
-    // Transform to match frontend expectations (snake_case)
-    return orders.map(order => ({
+  private toAdminListDto(order: SalesOrder) {
+    const customerName = (order as any).customerName ?? null;
+    const customerEmail = (order as any).customerEmail ?? null;
+    const customerPhone = (order as any).customerPhone ?? null;
+
+    return {
       id: order.id,
+      // Keep both keys for compatibility (some pages used order_number earlier)
+      sales_order_number: order.salesOrderNumber,
       order_number: order.salesOrderNumber,
+
       customer_id: order.customerId,
-      customer_name: `Customer #${order.customerId || 'Guest'}`,
+      customer_name: customerName ?? (order.customerId ? `Customer #${order.customerId}` : 'Guest'),
+      customer_email: customerEmail,
+      customer_phone: customerPhone,
+
       total_amount: parseFloat(order.totalAmount?.toString() || '0'),
       status: order.status,
+
       order_date: order.orderDate || order.createdAt,
       created_at: order.createdAt,
-      // Include all new fields
+
       shipping_address: order.shippingAddress,
       courier_notes: order.courierNotes,
       rider_instructions: order.riderInstructions,
       internal_notes: order.internalNotes,
+      cancel_reason: order.cancelReason,
+      approved_by: order.approvedBy,
+      approved_at: order.approvedAt,
+      cancelled_by: order.cancelledBy,
+      cancelled_at: order.cancelledAt,
+
       user_ip: order.userIp,
       geo_location: order.geoLocation,
       browser_info: order.browserInfo,
@@ -43,13 +55,43 @@ export class SalesService {
       utm_source: order.utmSource,
       utm_medium: order.utmMedium,
       utm_campaign: order.utmCampaign,
+
       courier_company: order.courierCompany,
+      courier_order_id: (order as any).courierOrderId ?? null,
       tracking_id: order.trackingId,
       courier_status: order.courierStatus,
       shipped_at: order.shippedAt,
       delivered_at: order.deliveredAt,
+      thank_you_offer_accepted: (order as any).thankYouOfferAccepted ?? null,
+
       notes: order.notes,
-    }));
+    };
+  }
+
+  async findAll() {
+    const orders = await this.salesRepository.find({
+      order: { createdAt: 'DESC' }
+    });
+
+    return orders.map((order) => this.toAdminListDto(order));
+  }
+
+  async findLateDeliveries(params?: { thresholdDays?: number }) {
+    const thresholdDays =
+      params?.thresholdDays != null && Number.isFinite(params.thresholdDays)
+        ? Math.max(0, Math.floor(params.thresholdDays))
+        : 3;
+
+    const cutoff = new Date(Date.now() - thresholdDays * 24 * 60 * 60 * 1000);
+
+    const qb = this.salesRepository.createQueryBuilder('o');
+    qb.where('o.shipped_at IS NOT NULL')
+      .andWhere('o.delivered_at IS NULL')
+      .andWhere('o.shipped_at <= :cutoff', { cutoff })
+      .orderBy('o.shipped_at', 'ASC');
+
+    const orders = await qb.getMany();
+    return orders.map((order) => this.toAdminListDto(order));
   }
 
   async findForCustomer(customerId: number) {
@@ -152,6 +194,28 @@ export class SalesService {
       null;
     sales.customerPhone = customerPhone ? String(customerPhone).trim() : null;
 
+    // Allow admin UI to explicitly set order number/date (otherwise BeforeInsert generates)
+    const orderNumber =
+      createSalesDto.sales_order_number ??
+      createSalesDto.salesOrderNumber ??
+      createSalesDto.order_number ??
+      createSalesDto.orderNumber ??
+      null;
+    if (orderNumber) {
+      sales.salesOrderNumber = String(orderNumber).trim();
+    }
+
+    const orderDate =
+      createSalesDto.order_date ??
+      createSalesDto.orderDate ??
+      null;
+    if (orderDate) {
+      const d = new Date(orderDate);
+      if (!Number.isNaN(d.getTime())) {
+        sales.orderDate = d;
+      }
+    }
+
     // Total amount: prefer explicit totals, then fall back to computed from items
     let totalAmount: number | null = null;
     if (createSalesDto.totalAmount != null) totalAmount = Number(createSalesDto.totalAmount);
@@ -174,31 +238,80 @@ export class SalesService {
     sales.status = createSalesDto.status || 'pending';
 
     // Store shipping address and notes
-    if (createSalesDto.shipping_address != null) {
-      sales.shippingAddress = String(createSalesDto.shipping_address);
+    const shippingAddress =
+      createSalesDto.shipping_address ??
+      createSalesDto.shippingAddress ??
+      null;
+    if (shippingAddress != null && String(shippingAddress).trim() !== '') {
+      sales.shippingAddress = String(shippingAddress);
     }
 
-    let notesText = '';
-    if (createSalesDto.shipping_address) {
-      notesText += `Shipping Address: ${createSalesDto.shipping_address}`;
+    const courierNotes =
+      createSalesDto.courier_notes ??
+      createSalesDto.courierNotes ??
+      null;
+    if (courierNotes != null && String(courierNotes).trim() !== '') {
+      sales.courierNotes = String(courierNotes);
     }
-    if (createSalesDto.notes) {
+
+    const riderInstructions =
+      createSalesDto.rider_instructions ??
+      createSalesDto.riderInstructions ??
+      null;
+    if (riderInstructions != null && String(riderInstructions).trim() !== '') {
+      sales.riderInstructions = String(riderInstructions);
+    }
+
+    const internalNotes =
+      createSalesDto.internal_notes ??
+      createSalesDto.internalNotes ??
+      null;
+    if (internalNotes != null && String(internalNotes).trim() !== '') {
+      sales.internalNotes = String(internalNotes);
+    }
+
+    const notesInput = createSalesDto.notes ?? createSalesDto.order_notes ?? createSalesDto.orderNotes ?? null;
+
+    let notesText = '';
+    if (shippingAddress) {
+      notesText += `Shipping Address: ${shippingAddress}`;
+    }
+    if (notesInput) {
       if (notesText) notesText += '\n\n';
-      notesText += `Order Notes: ${createSalesDto.notes}`;
+      notesText += `Order Notes: ${notesInput}`;
     }
     sales.notes = notesText || null;
 
     // Tracking fields (sent from checkout)
     if (createSalesDto.user_ip != null) sales.userIp = String(createSalesDto.user_ip);
+    if (createSalesDto.userIp != null) sales.userIp = String(createSalesDto.userIp);
+
     if (createSalesDto.geo_location != null) sales.geoLocation = createSalesDto.geo_location;
+    if (createSalesDto.geoLocation != null) sales.geoLocation = createSalesDto.geoLocation;
+
     if (createSalesDto.browser_info != null) sales.browserInfo = String(createSalesDto.browser_info);
+    if (createSalesDto.browserInfo != null) sales.browserInfo = String(createSalesDto.browserInfo);
+
     if (createSalesDto.device_type != null) sales.deviceType = String(createSalesDto.device_type);
+    if (createSalesDto.deviceType != null) sales.deviceType = String(createSalesDto.deviceType);
+
     if (createSalesDto.operating_system != null) sales.operatingSystem = String(createSalesDto.operating_system);
+    if (createSalesDto.operatingSystem != null) sales.operatingSystem = String(createSalesDto.operatingSystem);
+
     if (createSalesDto.traffic_source != null) sales.trafficSource = String(createSalesDto.traffic_source);
+    if (createSalesDto.trafficSource != null) sales.trafficSource = String(createSalesDto.trafficSource);
+
     if (createSalesDto.referrer_url != null) sales.referrerUrl = String(createSalesDto.referrer_url);
+    if (createSalesDto.referrerUrl != null) sales.referrerUrl = String(createSalesDto.referrerUrl);
+
     if (createSalesDto.utm_source != null) sales.utmSource = String(createSalesDto.utm_source);
+    if (createSalesDto.utmSource != null) sales.utmSource = String(createSalesDto.utmSource);
+
     if (createSalesDto.utm_medium != null) sales.utmMedium = String(createSalesDto.utm_medium);
+    if (createSalesDto.utmMedium != null) sales.utmMedium = String(createSalesDto.utmMedium);
+
     if (createSalesDto.utm_campaign != null) sales.utmCampaign = String(createSalesDto.utm_campaign);
+    if (createSalesDto.utmCampaign != null) sales.utmCampaign = String(createSalesDto.utmCampaign);
 
     // Save the order first
     const savedOrder = await this.salesRepository.save(sales);

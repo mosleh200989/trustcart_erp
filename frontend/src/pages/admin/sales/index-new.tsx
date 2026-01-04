@@ -8,7 +8,8 @@ import apiClient from '@/services/api';
 
 interface SalesOrder {
   id: number;
-  order_number: string;
+  order_number?: string;
+  sales_order_number?: string;
   customer_name: string;
   total_amount: number;
   status: string;
@@ -68,7 +69,7 @@ export default function AdminSales() {
     setModalMode('edit');
     setSelectedOrder(order);
     setFormData({
-      order_number: order.order_number,
+      order_number: order.order_number ?? order.sales_order_number ?? '',
       customer_id: '',
       customer_name: order.customer_name,
       total_amount: order.total_amount.toString(),
@@ -120,7 +121,7 @@ export default function AdminSales() {
   };
 
   const filteredOrders = orders.filter(o =>
-    o.order_number?.toLowerCase().includes(search.toLowerCase()) ||
+    (o.order_number ?? o.sales_order_number ?? '').toLowerCase().includes(search.toLowerCase()) ||
     o.customer_name?.toLowerCase().includes(search.toLowerCase())
   );
 
@@ -132,7 +133,11 @@ export default function AdminSales() {
 
   const columns = [
     { key: 'id', label: 'ID' },
-    { key: 'order_number', label: 'Order Number' },
+    {
+      key: 'order_number',
+      label: 'Order Number',
+      render: (_: any, row: SalesOrder) => row.order_number ?? row.sales_order_number ?? '-'
+    },
     { key: 'customer_name', label: 'Customer' },
     { 
       key: 'total_amount', 
@@ -235,7 +240,7 @@ export default function AdminSales() {
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700">Order Number</label>
-                <p className="mt-1 text-gray-900">{selectedOrder?.order_number}</p>
+                <p className="mt-1 text-gray-900">{selectedOrder?.order_number ?? selectedOrder?.sales_order_number}</p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">Customer</label>
