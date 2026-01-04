@@ -128,6 +128,136 @@ export class CrmAutomationService {
     
     return results;
   }
+
+  // ==================== AI-STYLE CALL SCRIPT SUGGESTIONS ====================
+
+  private chooseScriptKey(intel: any, task: CallTask) {
+    const totalOrders = Number(intel?.total_orders || 0);
+    const lifetimeValue = Number(intel?.lifetime_value || 0);
+    const avgOrderValue = Number(intel?.avg_order_value || 0);
+    const daysSinceLastOrder = Number(intel?.days_since_last_order || 0);
+
+    const isVip = lifetimeValue >= 20000 || avgOrderValue >= 3000;
+    const isPermanent = totalOrders >= 8;
+
+    const reason = String(task.call_reason || '').toLowerCase();
+    if (reason.includes('win-back') || daysSinceLastOrder >= 30) return 'winBack';
+    if (reason.includes('permanent')) return 'permanentDeclaration';
+    if (isVip || isPermanent) return 'vip';
+    if (totalOrders <= 1) return 'new';
+    if (totalOrders === 2) return 'second';
+    if (totalOrders === 3) return 'third';
+    return 'regular';
+  }
+
+  async getSuggestedCallScript(taskId: number) {
+    const task = await this.callTaskRepo.findOne({ where: { id: taskId } });
+    if (!task) throw new Error('Task not found');
+
+    const intel = await this.getCustomerIntelligence(task.customer_id);
+    const recommendations = await this.getCustomerRecommendations(task.customer_id);
+
+    const key = this.chooseScriptKey(intel, task);
+
+    const opening = [
+      'আসসালামু আলাইকুম। আমি TrustCart Organic Grocery থেকে বলছি।',
+      'আমি কি [Customer Name] ভাই/আপু কথা বলছি?',
+      '(Yes হলে) ধন্যবাদ। ১ মিনিট সময় দিলে ভালো লাগবে।',
+    ];
+
+    const ending = [
+      'ধন্যবাদ আপনার সময় দেওয়ার জন্য।',
+      'কোনো প্রশ্ন থাকলে যেকোনো সময় TrustCart-এ কল করতে পারেন।',
+    ];
+
+    const scripts: Record<string, { title: string; goal: string; lines: string[] } > = {
+      new: {
+        title: 'New Customer (1st Order)',
+        goal: 'Trust build + 2nd order',
+        lines: [
+          'আপনি সম্প্রতি আমাদের থেকে [Product Name] নিয়েছিলেন। জানতে চাইছিলাম—কোয়ালিটি কেমন লেগেছে?',
+          '(Positive হলে) আলহামদুলিল্লাহ। আমরা খাঁটি অর্গানিক প্রোডাক্ট নিয়ে কাজ করি, যেন বাজারের ভেজাল থেকে পরিবারকে নিরাপদ রাখা যায়।',
+          'আপনি যেহেতু নতুন কাস্টমার, আপনার জন্য একটা ছোট বিশেষ ছাড় চালু আছে। চাইলে আজই আবার অর্ডার করতে পারেন।',
+        ],
+      },
+      second: {
+        title: 'Second-Time Customer (Reminder)',
+        goal: 'Habit build + reminder',
+        lines: [
+          'আপনি গতবার [Product + Quantity] নিয়েছিলেন। সাধারণত এই পরিমাণে প্রায় [X] দিন ব্যবহার হয়।',
+          'তাই ভাবলাম সময়মতো মনে করিয়ে দেই, যেন হঠাৎ শেষ হয়ে না যায়।',
+          'এই প্রোডাক্টের সাথে অনেক কাস্টমার [Related Product] নিচ্ছেন। চাইলে আপনাকে কম্বো অফার দিতে পারি।',
+        ],
+      },
+      third: {
+        title: 'Third-Time Customer (Membership Intro)',
+        goal: 'Loyalty entry + membership intro',
+        lines: [
+          'আপনি আমাদের নিয়মিত কাস্টমার হয়ে যাচ্ছেন, এজন্য আপনাকে ধন্যবাদ।',
+          'এই পর্যায়ে আমরা Membership সুবিধা দেই—ডিসকাউন্ট, বিশেষ অফার আর অগ্রাধিকার ডেলিভারি।',
+          'আপনি চাইলে পরের অর্ডার থেকেই এই সুবিধা নিতে পারবেন।',
+        ],
+      },
+      regular: {
+        title: 'Regular / Medium Customer',
+        goal: 'Upsell + combo',
+        lines: [
+          'আপনি নিয়মিত আমাদের থেকে কেনাকাটা করেন, এজন্য আমরা আপনাকে আলাদা করে গুরুত্ব দেই।',
+          'বাজারে যেসব পণ্যে ভেজাল বেশি, আমরা সেগুলো নিয়েই বেশি কাজ করছি।',
+          'এই মাসে আপনার জন্য একটা Save More Combo আছে। একসাথে নিলে খরচ কম পড়বে।',
+        ],
+      },
+      vip: {
+        title: 'VIP / Permanent Customer',
+        goal: 'Retention + exclusivity',
+        lines: [
+          'আপনি আমাদের প্রিমিয়াম কাস্টমার, এজন্য ধন্যবাদ। এই অফারটা সাধারণ কাস্টমারের জন্য না।',
+          'আপনার জন্য আমরা Early Access দিচ্ছি নতুন প্রোডাক্টে।',
+          'আপনি চাইলে আজকেই অর্ডার কনফার্ম করে রাখছি।',
+        ],
+      },
+      winBack: {
+        title: 'Inactive / Lost Customer (Win-back)',
+        goal: 'Re-engage',
+        lines: [
+          'কিছুদিন ধরে আপনার কোনো অর্ডার পাইনি। ভাবলাম খোঁজ নিই—কোনো সমস্যা হয়েছিল কি?',
+          'আমরা চাই আপনি ভালো সার্ভিস পান।',
+          'এই সপ্তাহে আপনার জন্য একটা Comeback Discount আছে। চাইলে আজকেই অর্ডার করতে পারেন।',
+        ],
+      },
+      permanentDeclaration: {
+        title: 'Permanent Customer Declaration',
+        goal: 'Celebrate + retention lock-in',
+        lines: [
+          'অভিনন্দন! আপনি এখন TrustCart Permanent Customer।',
+          'এর মানে আপনি আজীবন বিশেষ ছাড়, প্রাইওরিটি ডেলিভারি আর এক্সক্লুসিভ অফার পাবেন।',
+          'আমরা আপনাকে শুধু কাস্টমার না, পরিবারের একজন মনে করি।',
+        ],
+      },
+    };
+
+    const chosen = scripts[key] || scripts.regular;
+
+    const objectionHandling = [
+      { objection: 'দাম বেশি', reply: 'বুঝতে পারছি। তবে আমরা ভেজালমুক্ত অর্গানিক দেই—লং টার্মে এটা আসলে সাশ্রয়ী।' },
+      { objection: 'পরে নিব', reply: 'সমস্যা নেই। আমি আপনার জন্য রিমাইন্ডার সেট করে দিচ্ছি।' },
+    ];
+
+    return {
+      taskId: task.id,
+      scriptKey: key,
+      opening,
+      main: chosen,
+      objectionHandling,
+      ending,
+      context: {
+        callReason: task.call_reason,
+        priority: task.priority,
+        customerIntel: intel,
+        recommendations,
+      },
+    };
+  }
   
   async getAllRecommendationRules() {
     return await this.recommendationRepo.find({

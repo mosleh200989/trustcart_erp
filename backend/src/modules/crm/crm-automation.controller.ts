@@ -1,5 +1,6 @@
 import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards, Request } from '@nestjs/common';
 import { CrmAutomationService } from './crm-automation.service';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
 @Controller('crm/automation')
 export class CrmAutomationController {
@@ -62,6 +63,12 @@ export class CrmAutomationController {
   @Get('recommendations/:customerId')
   async getRecommendations(@Param('customerId') customerId: string) {
     return await this.automationService.getCustomerRecommendations(customerId);
+  }
+  
+  @UseGuards(JwtAuthGuard)
+  @Get('call-tasks/:taskId/suggested-script')
+  async getSuggestedScript(@Param('taskId') taskId: string) {
+    return await this.automationService.getSuggestedCallScript(Number(taskId));
   }
   
   @Get('recommendation-rules')

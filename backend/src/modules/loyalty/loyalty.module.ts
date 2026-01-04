@@ -11,6 +11,8 @@ import { GroceryListItem } from './entities/grocery-list-item.entity';
 import { PriceLock } from './entities/price-lock.entity';
 import { CustomerPoints } from './entities/customer-points.entity';
 import { PointTransaction } from './entities/point-transaction.entity';
+import { ProductConsumptionProfile } from './entities/product-consumption-profile.entity';
+import { CustomerProductReminder } from './entities/customer-product-reminder.entity';
 
 @Module({
   imports: [
@@ -24,6 +26,8 @@ import { PointTransaction } from './entities/point-transaction.entity';
       MonthlyGroceryList,
       GroceryListItem,
       PriceLock,
+      ProductConsumptionProfile,
+      CustomerProductReminder,
     ]),
   ],
   controllers: [LoyaltyController],

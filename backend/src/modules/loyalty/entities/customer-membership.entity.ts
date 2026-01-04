@@ -19,7 +19,10 @@ export class CustomerMembership {
     length: 20,
     default: 'none'
   })
-  membershipTier: 'none' | 'silver' | 'gold';
+  membershipTier: 'none' | 'silver' | 'gold' | 'permanent';
+
+  @Column({ name: 'permanent_card_number', type: 'varchar', length: 50, nullable: true })
+  permanentCardNumber!: string | null;
 
   @Column({
     type: 'decimal',
