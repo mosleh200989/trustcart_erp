@@ -4,36 +4,16 @@ import DataTable from '@/components/admin/DataTable';
 import Modal from '@/components/admin/Modal';
 import FormInput from '@/components/admin/FormInput';
 import AdminOrderDetailsModal from '@/components/AdminOrderDetailsModal';
-import { FaPlus, FaSearch } from 'react-icons/fa';
+import { FaPlus } from 'react-icons/fa';
 import apiClient from '@/services/api';
 
 const INITIAL_FILTERS = {
   q: '',
+  todayOnly: false,
   status: '',
-  orderNumber: '',
-  customerName: '',
-  customerPhone: '',
-
-  orderDateFrom: '',
-  orderDateTo: '',
-  createdAtFrom: '',
-  createdAtTo: '',
-  shippedAtFrom: '',
-  shippedAtTo: '',
-  deliveredAtFrom: '',
-  deliveredAtTo: '',
-
-  shippingAddress: '',
-  cancelReason: '',
-
-  createdBy: '',
-  approvedBy: '',
-  cancelledBy: '',
-
-  courierCompany: '',
-  courierOrderId: '',
   courierStatus: '',
-  thankYouOfferAccepted: '',
+  startDate: '',
+  endDate: '',
 };
 
 interface SalesOrder {
@@ -318,6 +298,70 @@ export default function AdminSales() {
     }
   };
 
+  const bulkSendToSteadfast = async () => {
+    const ids = selectedRowIds
+      .map((id) => Number(id))
+      .filter((id) => Number.isFinite(id));
+
+    if (ids.length === 0) {
+      alert('Select at least one order');
+      return;
+    }
+
+    if (!confirm(`Send ${ids.length} selected order(s) to Steadfast?`)) return;
+
+    const results = await Promise.allSettled(
+      ids.map((id) => apiClient.post(`/order-management/${id}/steadfast/send`)),
+    );
+
+    const successCount = results.filter((r) => r.status === 'fulfilled').length;
+    const failedCount = results.length - successCount;
+
+    alert(
+      failedCount === 0
+        ? `Sent ${successCount} order(s) to Steadfast.`
+        : `Sent ${successCount} order(s) to Steadfast. Failed: ${failedCount}.`,
+    );
+
+    setSelectedRowIds([]);
+    await loadOrders();
+  };
+
+  const bulkSendToPathao = async () => {
+    const ids = selectedRowIds
+      .map((id) => Number(id))
+      .filter((id) => Number.isFinite(id));
+
+    if (ids.length === 0) {
+      alert('Select at least one order');
+      return;
+    }
+
+    if (!confirm(`Send ${ids.length} selected order(s) to Pathao?`)) return;
+
+    const results = await Promise.allSettled(
+      ids.map((id) =>
+        apiClient.post(`/order-management/${id}/ship`, {
+          courierCompany: 'Pathao',
+          courierOrderId: '',
+          trackingId: `PATHAO-${id}`,
+        }),
+      ),
+    );
+
+    const successCount = results.filter((r) => r.status === 'fulfilled').length;
+    const failedCount = results.length - successCount;
+
+    alert(
+      failedCount === 0
+        ? `Sent ${successCount} order(s) to Pathao.`
+        : `Sent ${successCount} order(s) to Pathao. Failed: ${failedCount}.`,
+    );
+
+    setSelectedRowIds([]);
+    await loadOrders();
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -377,7 +421,9 @@ export default function AdminSales() {
   };
 
   const handleFilterChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    const { name, value } = e.target;
+    const target = e.target as HTMLInputElement;
+    const name = target.name;
+    const value = target.type === 'checkbox' ? target.checked : target.value;
     setFilters((prev) => ({ ...prev, [name]: value }));
   };
 
@@ -385,15 +431,13 @@ export default function AdminSales() {
     setFilters(INITIAL_FILTERS);
   };
 
-  const activeFilterCount = Object.values(filters).filter((v) => String(v).trim() !== '').length;
+  const activeFilterCount = Object.values(filters).filter((v) => {
+    if (typeof v === 'boolean') return v;
+    return String(v).trim() !== '';
+  }).length;
 
   const filteredOrders = useMemo(() => {
     const normalize = (v: any) => (v ?? '').toString().toLowerCase().trim();
-    const includes = (field: any, needle: string) => {
-      const n = normalize(needle);
-      if (!n) return true;
-      return normalize(field).includes(n);
-    };
     const dateKey = (v: any): string => {
       if (!v) return '';
       if (v instanceof Date && !Number.isNaN(v.getTime())) return v.toISOString().slice(0, 10);
@@ -416,51 +460,27 @@ export default function AdminSales() {
       const toOk = toKey ? valueKey <= toKey : true;
       return fromOk && toOk;
     };
-    const parseNumber = (v: any): number | null => {
-      if (v == null || String(v).trim() === '') return null;
-      const n = Number(v);
-      return Number.isFinite(n) ? n : null;
-    };
-    const inNumberRange = (field: any, min: string, max: string) => {
-      const minN = parseNumber(min);
-      const maxN = parseNumber(max);
-      if (minN == null && maxN == null) return true;
-      const valueN = parseNumber(field);
-      if (valueN == null) return false;
-      const minOk = minN != null ? valueN >= minN : true;
-      const maxOk = maxN != null ? valueN <= maxN : true;
-      return minOk && maxOk;
-    };
-    const equalsNumber = (field: any, needle: string) => {
-      const n = parseNumber(needle);
-      if (n == null) return true;
-      const valueN = parseNumber(field);
-      return valueN != null ? valueN === n : false;
-    };
 
     return orders.filter((o) => {
       const orderNumber = o.salesOrderNumber ?? o.sales_order_number ?? o.order_number ?? '';
       const customerName = o.customerName ?? o.customer_name ?? '';
       const customerPhone = o.customerPhone ?? o.customer_phone ?? '';
-      const totalAmount = o.totalAmount ?? o.total_amount ?? null;
       const orderDate = o.orderDate ?? o.order_date ?? null;
-      const createdAt = o.createdAt ?? o.created_at ?? null;
-
-      const shippingAddress = o.shippingAddress ?? o.shipping_address ?? '';
-      const cancelReason = o.cancelReason ?? o.cancel_reason ?? '';
-
-      const createdBy = o.createdBy ?? o.created_by ?? null;
-      const approvedBy = o.approvedBy ?? o.approved_by ?? null;
-      const cancelledBy = o.cancelledBy ?? o.cancelled_by ?? null;
 
       const courierCompany = o.courierCompany ?? o.courier_company ?? '';
       const courierOrderId = o.courierOrderId ?? o.courier_order_id ?? '';
       const courierStatus = o.courierStatus ?? o.courier_status ?? '';
-      const thankYouOfferAccepted =
-        o.thankYouOfferAccepted ?? o.thank_you_offer_accepted ?? undefined;
 
-      const shippedAt = o.shippedAt ?? o.shipped_at ?? null;
-      const deliveredAt = o.deliveredAt ?? o.delivered_at ?? null;
+      const district =
+        (o as any).district ??
+        (o as any).shippingDistrict ??
+        (o as any).shipping_district ??
+        '';
+      const thana =
+        (o as any).thana ??
+        (o as any).shippingThana ??
+        (o as any).shipping_thana ??
+        '';
 
       // Global search
       const q = normalize(filters.q);
@@ -470,46 +490,38 @@ export default function AdminSales() {
           orderNumber,
           customerName,
           customerPhone,
-          shippingAddress,
           courierCompany,
           courierOrderId,
-          courierStatus,
-          cancelReason,
+          district,
+          thana,
         ]
           .map((v) => normalize(v))
           .join(' ');
         if (!haystack.includes(q)) return false;
       }
 
-      if (filters.status && normalize(o.status) !== normalize(filters.status)) return false;
-      if (!includes(orderNumber, filters.orderNumber)) return false;
-      if (!includes(customerName, filters.customerName)) return false;
-      if (!includes(customerPhone, filters.customerPhone)) return false;
-
-      if (!inDateRange(orderDate, filters.orderDateFrom, filters.orderDateTo)) return false;
-      if (!inDateRange(createdAt, filters.createdAtFrom, filters.createdAtTo)) return false;
-      if (!inDateRange(shippedAt, filters.shippedAtFrom, filters.shippedAtTo)) return false;
-      if (!inDateRange(deliveredAt, filters.deliveredAtFrom, filters.deliveredAtTo)) return false;
-
-      if (!includes(shippingAddress, filters.shippingAddress)) return false;
-      if (!includes(cancelReason, filters.cancelReason)) return false;
-
-      if (filters.createdBy && !equalsNumber(createdBy, filters.createdBy)) return false;
-      if (filters.approvedBy && !equalsNumber(approvedBy, filters.approvedBy)) return false;
-      if (filters.cancelledBy && !equalsNumber(cancelledBy, filters.cancelledBy)) return false;
-
-      if (!includes(courierCompany, filters.courierCompany)) return false;
-      if (!includes(courierOrderId, filters.courierOrderId)) return false;
-      if (!includes(courierStatus, filters.courierStatus)) return false;
-
-      if (filters.thankYouOfferAccepted) {
-        if (filters.thankYouOfferAccepted === 'true' && thankYouOfferAccepted !== true) return false;
-        if (filters.thankYouOfferAccepted === 'false' && thankYouOfferAccepted !== false) return false;
+      if ((filters as any).todayOnly) {
+        const todayKey = new Date().toISOString().slice(0, 10);
+        if (dateKey(orderDate) !== todayKey) return false;
       }
+
+      if (filters.status && normalize(o.status) !== normalize(filters.status)) return false;
+      if (filters.courierStatus && normalize(courierStatus) !== normalize(filters.courierStatus)) return false;
+
+      if (!inDateRange(orderDate, filters.startDate, filters.endDate)) return false;
 
       return true;
     });
   }, [orders, filters]);
+
+  const courierStatusOptions = useMemo(() => {
+    const set = new Set(
+      orders
+        .map((o) => (o.courierStatus ?? o.courier_status ?? '').toString().trim())
+        .filter(Boolean),
+    );
+    return Array.from(set.values()).sort((a, b) => a.localeCompare(b));
+  }, [orders]);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -534,6 +546,11 @@ export default function AdminSales() {
       label: 'Customer',
       render: (_: any, row: SalesOrder) => row.customerName ?? row.customer_name ?? '-'
     },
+    {
+      key: 'customerPhone',
+      label: 'Customer Phone',
+      render: (_: any, row: SalesOrder) => row.customerPhone ?? row.customer_phone ?? '-'
+    },
     { 
       key: 'totalAmount', 
       label: 'Amount',
@@ -542,6 +559,11 @@ export default function AdminSales() {
         const n = Number(amt);
         return `৳${Number.isFinite(n) ? n.toFixed(2) : '0.00'}`;
       }
+    },
+    {
+      key: 'courierOrderId',
+      label: 'Courier ID',
+      render: (_: any, row: SalesOrder) => row.courierOrderId ?? row.courier_order_id ?? '-'
     },
     {
       key: 'orderDate',
@@ -586,6 +608,24 @@ export default function AdminSales() {
           </div>
 
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={bulkSendToSteadfast}
+              disabled={selectedRowIds.length === 0}
+              className="px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-blue-500 to-blue-600 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:from-blue-600 hover:to-blue-700 transition-all"
+            >
+              Send to Steadfast
+            </button>
+
+            <button
+              type="button"
+              onClick={bulkSendToPathao}
+              disabled={selectedRowIds.length === 0}
+              className="px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-blue-500 to-blue-600 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:from-blue-600 hover:to-blue-700 transition-all"
+            >
+              Send to Pathao
+            </button>
+
             <select
               value={bulkAction}
               onChange={(e) => setBulkAction(e.target.value as any)}
@@ -627,104 +667,88 @@ export default function AdminSales() {
           </div>
 
           <div className="mt-4">
-            <div className="text-sm font-semibold text-gray-700 mb-2">Quick Filters</div>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="md:col-span-4">
-                <div className="relative">
-                  <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                  <input
-                    type="text"
+            <div className="space-y-4">
+              {/* 1st line: Search + Today orders */}
+              <div className="grid grid-cols-1 md:grid-cols-6 gap-4 items-end">
+                <div className="md:col-span-5">
+                  <FormInput
+                    label="Search"
                     name="q"
                     value={filters.q}
                     onChange={handleFilterChange}
-                    placeholder="Search orders (order/customer/address/courier/etc.)"
-                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Search by customer phone/name, order id, courier id/company, district, thana"
                   />
                 </div>
+
+                <div className="md:col-span-1">
+                  <label htmlFor="todayOnly" className="block text-sm font-medium text-gray-700">
+                    Today Orders
+                  </label>
+                  <div className="mt-1 flex h-10 w-full items-center rounded-md border border-gray-300 bg-white px-3 shadow-sm">
+                    <label className="flex items-center gap-2 text-sm text-gray-700 select-none" htmlFor="todayOnly">
+                      <input
+                        id="todayOnly"
+                        type="checkbox"
+                        name="todayOnly"
+                        checked={(filters as any).todayOnly}
+                        onChange={handleFilterChange}
+                        className="h-4 w-4 rounded border-gray-300 focus:ring-blue-500"
+                      />
+                      Today
+                    </label>
+                  </div>
+                </div>
               </div>
 
-              <FormInput label="Order Number" name="orderNumber" value={filters.orderNumber} onChange={handleFilterChange} />
-              <FormInput
-                label="Status"
-                name="status"
-                type="select"
-                value={filters.status}
-                onChange={handleFilterChange}
-                options={[
-                  { value: 'pending', label: 'Pending' },
-                  { value: 'completed', label: 'Completed' },
-                  { value: 'cancelled', label: 'Cancelled' },
-                ]}
-              />
-              <FormInput
-                label="Thank You Offer Accepted"
-                name="thankYouOfferAccepted"
-                type="select"
-                value={filters.thankYouOfferAccepted}
-                onChange={handleFilterChange}
-                options={[
-                  { value: 'true', label: 'Yes' },
-                  { value: 'false', label: 'No' },
-                ]}
-              />
+              {/* 2nd line: Status selects */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormInput
+                  label="Order Status"
+                  name="status"
+                  type="select"
+                  value={filters.status}
+                  onChange={handleFilterChange}
+                  selectPlaceholder="All"
+                  options={[
+                    { value: 'pending', label: 'Pending' },
+                    { value: 'approved', label: 'Approved' },
+                    { value: 'hold', label: 'Hold' },
+                    { value: 'completed', label: 'Completed' },
+                    { value: 'cancelled', label: 'Cancelled' },
+                  ]}
+                />
+
+                <FormInput
+                  label="Courier Status"
+                  name="courierStatus"
+                  type="select"
+                  value={filters.courierStatus}
+                  onChange={handleFilterChange}
+                  selectPlaceholder="All"
+                  options={courierStatusOptions.map((s) => ({ value: s, label: s }))}
+                />
+              </div>
+
+              {/* 3rd line: Date range */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormInput
+                  label="Start Date"
+                  name="startDate"
+                  type="date"
+                  value={filters.startDate}
+                  onChange={handleFilterChange}
+                />
+
+                <FormInput
+                  label="End Date"
+                  name="endDate"
+                  type="date"
+                  value={filters.endDate}
+                  onChange={handleFilterChange}
+                />
+              </div>
             </div>
           </div>
-
-          <details className="mt-4 border-t pt-4">
-            <summary className="cursor-pointer select-none text-sm font-semibold text-gray-700">
-              Advanced Filters
-            </summary>
-
-            <div className="mt-3 space-y-4">
-              <div>
-                <div className="text-sm font-semibold text-gray-700 mb-2">Dates</div>
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                  <FormInput label="Order Date From" name="orderDateFrom" type="date" value={filters.orderDateFrom} onChange={handleFilterChange} />
-                  <FormInput label="Order Date To" name="orderDateTo" type="date" value={filters.orderDateTo} onChange={handleFilterChange} />
-                  <FormInput label="Created At From" name="createdAtFrom" type="date" value={filters.createdAtFrom} onChange={handleFilterChange} />
-                  <FormInput label="Created At To" name="createdAtTo" type="date" value={filters.createdAtTo} onChange={handleFilterChange} />
-                  <FormInput label="Shipped At From" name="shippedAtFrom" type="date" value={filters.shippedAtFrom} onChange={handleFilterChange} />
-                  <FormInput label="Shipped At To" name="shippedAtTo" type="date" value={filters.shippedAtTo} onChange={handleFilterChange} />
-                  <FormInput label="Delivered At From" name="deliveredAtFrom" type="date" value={filters.deliveredAtFrom} onChange={handleFilterChange} />
-                  <FormInput label="Delivered At To" name="deliveredAtTo" type="date" value={filters.deliveredAtTo} onChange={handleFilterChange} />
-                </div>
-              </div>
-
-              <div>
-                <div className="text-sm font-semibold text-gray-700 mb-2">Customer</div>
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                  <FormInput label="Customer Name" name="customerName" value={filters.customerName} onChange={handleFilterChange} />
-                  <FormInput label="Customer Phone" name="customerPhone" value={filters.customerPhone} onChange={handleFilterChange} />
-                </div>
-              </div>
-
-              <div>
-                <div className="text-sm font-semibold text-gray-700 mb-2">Delivery</div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <FormInput label="Shipping Address" name="shippingAddress" value={filters.shippingAddress} onChange={handleFilterChange} />
-                  <FormInput label="Cancel Reason" name="cancelReason" value={filters.cancelReason} onChange={handleFilterChange} />
-                </div>
-              </div>
-
-              <div>
-                <div className="text-sm font-semibold text-gray-700 mb-2">Courier</div>
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                  <FormInput label="Courier Company" name="courierCompany" value={filters.courierCompany} onChange={handleFilterChange} />
-                  <FormInput label="Courier Order ID" name="courierOrderId" value={filters.courierOrderId} onChange={handleFilterChange} />
-                  <FormInput label="Courier Status" name="courierStatus" value={filters.courierStatus} onChange={handleFilterChange} />
-                </div>
-              </div>
-
-              <div>
-                <div className="text-sm font-semibold text-gray-700 mb-2">Admin</div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <FormInput label="Created By" name="createdBy" type="number" value={filters.createdBy} onChange={handleFilterChange} />
-                  <FormInput label="Approved By" name="approvedBy" type="number" value={filters.approvedBy} onChange={handleFilterChange} />
-                  <FormInput label="Cancelled By" name="cancelledBy" type="number" value={filters.cancelledBy} onChange={handleFilterChange} />
-                </div>
-              </div>
-            </div>
-          </details>
         </div>
 
         <DataTable
@@ -922,24 +946,6 @@ export default function AdminSales() {
               </div>
 
               <div className="border-t pt-4">
-                <div className="text-sm font-semibold text-gray-700 mb-2">Tracking (optional)</div>
-                <div className="grid grid-cols-2 gap-4">
-                  <FormInput label="User IP" name="user_ip" value={formData.user_ip} onChange={handleInputChange} />
-                  <FormInput label="Browser Info" name="browser_info" value={formData.browser_info} onChange={handleInputChange} />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <FormInput label="Device Type" name="device_type" value={formData.device_type} onChange={handleInputChange} />
-                  <FormInput label="Operating System" name="operating_system" value={formData.operating_system} onChange={handleInputChange} />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <FormInput label="Traffic Source" name="traffic_source" value={formData.traffic_source} onChange={handleInputChange} />
-                  <FormInput label="Referrer URL" name="referrer_url" value={formData.referrer_url} onChange={handleInputChange} />
-                </div>
-                <div className="grid grid-cols-3 gap-4">
-                  <FormInput label="UTM Source" name="utm_source" value={formData.utm_source} onChange={handleInputChange} />
-                  <FormInput label="UTM Medium" name="utm_medium" value={formData.utm_medium} onChange={handleInputChange} />
-                  <FormInput label="UTM Campaign" name="utm_campaign" value={formData.utm_campaign} onChange={handleInputChange} />
-                </div>
               </div>
             </form>
           )}

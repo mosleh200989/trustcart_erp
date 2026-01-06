@@ -63,6 +63,20 @@ export default function Checkout() {
     return Number(price) || 0;
   };
 
+  const getProductImageUrl = (product: any) => {
+    const candidate =
+      product?.image_url ??
+      product?.imageUrl ??
+      product?.image ??
+      product?.thumb ??
+      product?.thumbnail ??
+      product?.imageUrl ??
+      null;
+
+    const resolved = typeof candidate === "string" ? candidate.trim() : "";
+    return resolved || "/default-product.png";
+  };
+
   const loadSuggestedProducts = async () => {
     try {
       const response = await apiClient.get("/products");
@@ -173,7 +187,7 @@ export default function Checkout() {
       nameEn: product.name_en,
       sku: product.sku,
       price,
-      image: product.image,
+      image: getProductImageUrl(product),
       quantity: 1,
     };
 
@@ -671,34 +685,45 @@ export default function Checkout() {
                       <h4 className="text-sm font-bold text-gray-800 mb-3">
                         Suggested Products
                       </h4>
-                      <div className="space-y-3">
+                      <div className="grid grid-cols-1 gap-4">
                         {suggestedProducts.slice(0, 3).map((product) => {
                           const price = getProductPrice(product);
+                          const imageUrl = getProductImageUrl(product);
                           return (
                             <div
                               key={product.id}
-                              className="flex items-center gap-3"
+                              className="bg-white border border-gray-200 rounded-lg overflow-hidden hover:shadow-md transition-shadow"
                             >
-                              <img
-                                src={product.image || "/default-product.png"}
-                                alt={getProductDisplayName(product)}
-                                className="w-12 h-12 object-cover rounded"
-                              />
-                              <div className="flex-1 min-w-0">
-                                <div className="text-sm font-semibold text-gray-800 truncate">
+                              <div className="h-28 bg-gray-50 flex items-center justify-center overflow-hidden">
+                                <img
+                                  src={imageUrl}
+                                  alt={getProductDisplayName(product)}
+                                  className="w-full h-full object-cover"
+                                  onError={(e) => {
+                                    (e.currentTarget as HTMLImageElement).src =
+                                      "/default-product.png";
+                                  }}
+                                />
+                              </div>
+
+                              <div className="p-3">
+                                <div className="text-sm font-semibold text-gray-800 leading-snug">
                                   {getProductDisplayName(product)}
                                 </div>
-                                <div className="text-sm font-bold text-orange-500">
-                                  ৳{price}
+
+                                <div className="mt-2 flex items-center justify-between gap-2">
+                                  <div className="text-sm font-bold text-orange-500">
+                                    ৳{price}
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => addSuggestedToCart(product)}
+                                    className="px-3 py-1.5 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded font-semibold text-sm transition"
+                                  >
+                                    Add to cart
+                                  </button>
                                 </div>
                               </div>
-                              <button
-                                type="button"
-                                onClick={() => addSuggestedToCart(product)}
-                                className="px-3 py-1 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded font-semibold text-sm transition"
-                              >
-                                Add
-                              </button>
                             </div>
                           );
                         })}

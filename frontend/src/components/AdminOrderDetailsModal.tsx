@@ -480,7 +480,10 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
           {order.status === 'approved' && !order.shippedAt && (
             <>
               <button
-                onClick={sendToSteadfast}
+                onClick={() => {
+                  setCourierData({ courierCompany: 'Steadfast', courierOrderId: '', trackingId: '' });
+                  setShowShipModal(true);
+                }}
                 className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2"
               >
                 Send this SteadFast

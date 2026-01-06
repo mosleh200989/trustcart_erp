@@ -96,7 +96,7 @@ const AddToCartPopup: React.FC<AddToCartPopupProps> = ({ isOpen, onClose, produc
                 className="flex items-center justify-center gap-2 px-6 py-3 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-lg font-semibold transition-colors"
               >
                 <FaArrowLeft />
-                Proceed to Checkout
+                Continue Shopping
               </button>
               <Link 
                 href="/checkout"

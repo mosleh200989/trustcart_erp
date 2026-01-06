@@ -5,7 +5,7 @@ import { useRouter } from 'next/router';
 import { 
   FaTachometerAlt, FaBoxes, FaShoppingCart, FaUsers, FaWarehouse, 
   FaShoppingBag, FaUserTie, FaBook, FaBullseye, FaHandshake, 
-  FaHeadset, FaUser, FaCog, FaBars, FaTimes, FaBell, FaChevronDown 
+  FaHeadset, FaUser, FaCog, FaBars, FaTimes, FaBell, FaChevronDown, FaChartBar
 } from 'react-icons/fa';
 
 interface MenuItem {
@@ -36,6 +36,18 @@ const menuItems: MenuItem[] = [
       { title: 'Orders', icon: FaShoppingCart, path: '/admin/sales' },
       { title: 'Incomplete Order', icon: FaShoppingCart, path: '/admin/sales/incomplete-orders' },
       { title: 'Late Delivery', icon: FaShoppingCart, path: '/admin/sales/late-delivery' },
+    ],
+  },
+  {
+    title: 'Reports',
+    icon: FaChartBar,
+    children: [
+      { title: 'Overview', icon: FaChartBar, path: '/admin/reports?tab=overview' },
+      { title: 'Sales Reports', icon: FaChartBar, path: '/admin/reports?tab=sales' },
+      { title: 'Customer Reports', icon: FaChartBar, path: '/admin/reports?tab=customers' },
+      { title: 'Product Reports', icon: FaChartBar, path: '/admin/reports?tab=products' },
+      { title: 'Inventory Reports', icon: FaChartBar, path: '/admin/reports?tab=inventory' },
+      { title: 'Marketing Reports', icon: FaChartBar, path: '/admin/reports?tab=marketing' },
     ],
   },
   {
@@ -252,6 +264,13 @@ const menuItems: MenuItem[] = [
     title: 'Users',
     icon: FaUser,
     path: '/admin/users'
+  },
+  {
+    title: 'Settings',
+    icon: FaCog,
+    children: [
+      { title: 'Courier Configuration', icon: FaCog, path: '/admin/settings/courier-configuration' },
+    ],
   },
 ];
 
