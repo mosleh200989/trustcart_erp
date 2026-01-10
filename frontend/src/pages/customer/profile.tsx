@@ -200,6 +200,7 @@ export default function CustomerProfilePage() {
         if (anniversary) payload.anniversaryDate = anniversary;
       }
       await cdm.addFamily(payload);
+      alert('Family member added. An account is created/linked for this phone, and they can register once using the same phone number.');
       setNewFamilyName('');
       setNewFamilyPhone('');
       setNewFamilyRelationship('');

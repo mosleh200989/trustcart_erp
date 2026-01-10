@@ -1,7 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { FamilyMember } from './entities/family-member.entity';
+import { Customer } from './customer.entity';
 import { CustomerInteraction } from './entities/customer-interaction.entity';
 import { CustomerBehavior } from './entities/customer-behavior.entity';
 import { CustomerDropoff } from './entities/customer-dropoff.entity';
@@ -11,6 +12,8 @@ export class CdmService {
   constructor(
     @InjectRepository(FamilyMember)
     private familyMemberRepo: Repository<FamilyMember>,
+    @InjectRepository(Customer)
+    private customersRepository: Repository<Customer>,
     @InjectRepository(CustomerInteraction)
     private interactionRepo: Repository<CustomerInteraction>,
     @InjectRepository(CustomerBehavior)
@@ -18,6 +21,87 @@ export class CdmService {
     @InjectRepository(CustomerDropoff)
     private dropoffRepo: Repository<CustomerDropoff>,
   ) {}
+
+  private normalizePhone(value: any): string {
+    return typeof value === 'string' ? value.trim() : '';
+  }
+
+  private displayNameFromCustomer(customer: any): string {
+    const first = (customer?.name || '').toString().trim();
+    const last = (customer?.lastName || customer?.last_name || '').toString().trim();
+    return `${first} ${last}`.trim() || first || customer?.phone || 'Customer';
+  }
+
+  private async ensureCustomerAccountByPhone(phone: string, suggestedName?: string) {
+    const normalizedPhone = this.normalizePhone(phone);
+    if (!normalizedPhone) {
+      throw new BadRequestException('Phone number is required');
+    }
+
+    const existing = await this.customersRepository
+      .createQueryBuilder('customer')
+      .addSelect('customer.password')
+      .where('customer.phone = :phone', { phone: normalizedPhone })
+      .getOne();
+
+    if (existing) return existing;
+
+    const created = this.customersRepository.create({
+      phone: normalizedPhone,
+      name: (suggestedName || '').toString().trim() || null,
+      isGuest: true,
+      status: 'active',
+      customerType: 'new',
+      lifecycleStage: 'lead',
+      isActive: true,
+    } as any);
+
+    return await this.customersRepository.save(created);
+  }
+
+  private async upsertFamilyMemberRow(params: {
+    customerId: number;
+    name: string;
+    phone: string;
+    relationship: any;
+    dateOfBirth?: Date | null;
+    anniversaryDate?: Date | null;
+  }) {
+    const phone = this.normalizePhone(params.phone);
+    if (!phone) {
+      throw new BadRequestException('Phone number is required');
+    }
+
+    const existing = await this.familyMemberRepo.findOne({
+      where: {
+        customerId: params.customerId,
+        phone,
+      } as any,
+    });
+
+    const patch: any = {
+      customerId: params.customerId,
+      name: params.name,
+      phone,
+      relationship: params.relationship,
+      isActive: true,
+    };
+
+    if (Object.prototype.hasOwnProperty.call(params, 'dateOfBirth')) {
+      patch.dateOfBirth = params.dateOfBirth ?? null;
+    }
+    if (Object.prototype.hasOwnProperty.call(params, 'anniversaryDate')) {
+      patch.anniversaryDate = params.anniversaryDate ?? null;
+    }
+
+    if (existing) {
+      await this.familyMemberRepo.update(existing.id, patch);
+      return await this.familyMemberRepo.findOne({ where: { id: existing.id } });
+    }
+
+    const created = this.familyMemberRepo.create(patch);
+    return await this.familyMemberRepo.save(created);
+  }
 
   // =====================================================
   // CUSTOMER 360° VIEW
@@ -83,25 +167,179 @@ export class CdmService {
   // =====================================================
 
   async getFamilyMembers(customerId: number) {
-    return await this.familyMemberRepo.find({
-      where: { customerId, isActive: true },
-      order: { relationship: 'ASC', createdAt: 'DESC' }
-    });
+    // Return family members plus linked customer account info (by phone).
+    // This makes it easy for the customer panel to show that an account exists.
+    const query = `
+      SELECT
+        cfm.*,
+        c.id AS linked_customer_id,
+        c.name AS linked_customer_name,
+        c.last_name AS linked_customer_last_name,
+        c.email AS linked_customer_email,
+        c.phone AS linked_customer_phone
+      FROM customer_family_members cfm
+      LEFT JOIN customers c ON c.phone = cfm.phone
+      WHERE cfm.customer_id = $1 AND cfm.is_active = true
+      ORDER BY cfm.relationship ASC, cfm.created_at DESC
+    `;
+
+    return await this.familyMemberRepo.query(query, [customerId]);
   }
 
   async addFamilyMember(data: Partial<FamilyMember>) {
-    const member = this.familyMemberRepo.create(data);
-    return await this.familyMemberRepo.save(member);
+    const customerId = Number((data as any).customerId);
+    const phone = this.normalizePhone((data as any).phone);
+    const name = ((data as any).name || '').toString().trim();
+
+    if (!customerId || Number.isNaN(customerId)) {
+      throw new BadRequestException('customerId is required');
+    }
+    if (!name) {
+      throw new BadRequestException('name is required');
+    }
+    if (!phone) {
+      throw new BadRequestException('phone is required');
+    }
+
+    const ownerCustomer = await this.customersRepository.findOne({
+      where: { id: customerId as any } as any,
+    });
+    if (!ownerCustomer) {
+      throw new BadRequestException('Customer not found');
+    }
+
+    const ownerPhone = this.normalizePhone((ownerCustomer as any).phone);
+    if (ownerPhone && ownerPhone === phone) {
+      throw new BadRequestException('You cannot add your own phone number as a family member');
+    }
+
+    // Ensure an account exists for the family member (guest account with no password).
+    const familyCustomer = await this.ensureCustomerAccountByPhone(phone, name);
+
+    // Create/update the family-member row for the owner.
+    const ownerRow = await this.upsertFamilyMemberRow({
+      customerId,
+      name,
+      phone,
+      relationship: (data as any).relationship,
+      dateOfBirth: Object.prototype.hasOwnProperty.call(data, 'dateOfBirth')
+        ? ((data as any).dateOfBirth ?? null)
+        : undefined,
+      anniversaryDate: Object.prototype.hasOwnProperty.call(data, 'anniversaryDate')
+        ? ((data as any).anniversaryDate ?? null)
+        : undefined,
+    });
+
+    // Create/update the reciprocal link so the relationship shows on both accounts.
+    // We mirror the same relationship label as requested (e.g., brother <-> brother).
+    if (ownerPhone) {
+      const reciprocalName = this.displayNameFromCustomer(ownerCustomer);
+      await this.upsertFamilyMemberRow({
+        customerId: Number((familyCustomer as any).id),
+        name: reciprocalName,
+        phone: ownerPhone,
+        relationship: (data as any).relationship,
+      });
+    }
+
+    return ownerRow;
   }
 
   async updateFamilyMember(id: number, data: Partial<FamilyMember>) {
+    const existing = await this.familyMemberRepo.findOne({ where: { id } });
+    if (!existing) {
+      throw new BadRequestException('Family member not found');
+    }
+
+    const beforePhone = this.normalizePhone((existing as any).phone);
+
     await this.familyMemberRepo.update(id, data);
-    return await this.familyMemberRepo.findOne({ where: { id } });
+    const updated = await this.familyMemberRepo.findOne({ where: { id } });
+
+    // Best-effort reciprocal sync.
+    try {
+      const afterPhone = this.normalizePhone((updated as any)?.phone);
+      const ownerCustomer = await this.customersRepository.findOne({
+        where: { id: (existing as any).customerId as any } as any,
+      });
+      const ownerPhone = this.normalizePhone((ownerCustomer as any)?.phone);
+      const ownerName = ownerCustomer ? this.displayNameFromCustomer(ownerCustomer) : null;
+
+      if (ownerPhone && beforePhone) {
+        const beforeFamilyCustomer = await this.customersRepository.findOne({
+          where: { phone: beforePhone } as any,
+        });
+
+        // If the linked phone changed, deactivate the old reciprocal row.
+        if (beforeFamilyCustomer && afterPhone && afterPhone !== beforePhone) {
+          const oldReciprocal = await this.familyMemberRepo.findOne({
+            where: {
+              customerId: Number((beforeFamilyCustomer as any).id),
+              phone: ownerPhone,
+            } as any,
+          });
+          if (oldReciprocal) {
+            await this.familyMemberRepo.update(oldReciprocal.id, { isActive: false } as any);
+          }
+        }
+
+        // Ensure the new reciprocal row exists.
+        if (ownerName && afterPhone) {
+          const afterFamilyCustomer = await this.ensureCustomerAccountByPhone(afterPhone);
+          await this.upsertFamilyMemberRow({
+            customerId: Number((afterFamilyCustomer as any).id),
+            name: ownerName,
+            phone: ownerPhone,
+            relationship: (updated as any)?.relationship ?? (existing as any)?.relationship,
+          });
+        }
+      }
+    } catch (e) {
+      // Do not block updates if reciprocal sync fails.
+      console.error('Reciprocal family-member sync failed:', e);
+    }
+
+    return updated;
   }
 
   async deleteFamilyMember(id: number) {
+    const existing = await this.familyMemberRepo.findOne({ where: { id } });
+    if (!existing) {
+      throw new BadRequestException('Family member not found');
+    }
+
     // Soft delete
-    return await this.familyMemberRepo.update(id, { isActive: false });
+    await this.familyMemberRepo.update(id, { isActive: false } as any);
+
+    // Best-effort reciprocal delete.
+    try {
+      const ownerCustomer = await this.customersRepository.findOne({
+        where: { id: (existing as any).customerId as any } as any,
+      });
+      const ownerPhone = this.normalizePhone((ownerCustomer as any)?.phone);
+      const familyPhone = this.normalizePhone((existing as any).phone);
+
+      if (ownerPhone && familyPhone) {
+        const familyCustomer = await this.customersRepository.findOne({
+          where: { phone: familyPhone } as any,
+        });
+        if (familyCustomer) {
+          const reciprocal = await this.familyMemberRepo.findOne({
+            where: {
+              customerId: Number((familyCustomer as any).id),
+              phone: ownerPhone,
+            } as any,
+          });
+          if (reciprocal) {
+            await this.familyMemberRepo.update(reciprocal.id, { isActive: false } as any);
+          }
+        }
+      }
+    } catch (e) {
+      console.error('Reciprocal family-member delete failed:', e);
+    }
+
+    return { success: true };
   }
 
   // =====================================================

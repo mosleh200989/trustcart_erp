@@ -7,6 +7,7 @@ interface FormInputProps {
   value: string | number;
   onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => void;
   placeholder?: string;
+  selectPlaceholder?: string;
   required?: boolean;
   disabled?: boolean;
   options?: { value: string | number; label: string }[];
@@ -21,13 +22,14 @@ export default function FormInput({
   value,
   onChange,
   placeholder,
+  selectPlaceholder,
   required = false,
   disabled = false,
   options,
   rows = 4,
   error
 }: FormInputProps) {
-  const baseInputClasses = "mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm";
+  const baseInputClasses = "mt-1 block w-full rounded-md border-gray-300 shadow-sm px-3 py-2 focus:border-blue-500 focus:ring-blue-500 sm:text-sm";
   const errorClasses = error ? "border-red-300 focus:border-red-500 focus:ring-red-500" : "";
 
   return (
@@ -58,7 +60,7 @@ export default function FormInput({
           disabled={disabled}
           className={`${baseInputClasses} ${errorClasses}`}
         >
-          <option value="">Select {label}</option>
+          <option value="">{selectPlaceholder ?? `Select ${label}`}</option>
           {options?.map((option) => (
             <option key={option.value} value={option.value}>
               {option.label}

@@ -44,6 +44,7 @@ import { Banner } from './modules/banners/banner.entity';
 import { Category } from './modules/categories/category.entity';
 import { SpecialOffer } from './modules/special-offers/special-offer.entity';
 import { DealOfTheDay } from './modules/products/deal-of-the-day.entity';
+import { CourierConfiguration } from './modules/settings/courier-configuration.entity';
 
 // Loyalty Entities
 import { CustomerMembership } from './modules/loyalty/entities/customer-membership.entity';
@@ -136,6 +137,7 @@ import { CategoriesModule } from './modules/categories/categories.module';
 import { UploadModule } from './modules/upload/upload.module';
 import { SpecialOffersModule } from './modules/special-offers/special-offers.module';
 import { TelephonyModule } from './modules/telephony/telephony.module';
+import { SettingsModule } from './modules/settings/settings.module';
 
 @Module({
   imports: [
@@ -169,6 +171,7 @@ import { TelephonyModule } from './modules/telephony/telephony.module';
             
             
             DealOfTheDay,
+            CourierConfiguration,
             // Loyalty entities
             CustomerMembership, CustomerWallet, WalletTransaction, CustomerReferral, MonthlyGroceryList, GroceryListItem, PriceLock,
             CustomerPoints, PointTransaction, ProductConsumptionProfile, CustomerProductReminder,
@@ -226,6 +229,7 @@ import { TelephonyModule } from './modules/telephony/telephony.module';
     UploadModule,
     SpecialOffersModule,
     TelephonyModule,
+    SettingsModule,
   ],
   controllers: [],
   providers: [],

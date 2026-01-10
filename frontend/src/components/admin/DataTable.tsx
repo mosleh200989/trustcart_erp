@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { FaEdit, FaEye, FaTrash, FaChevronLeft, FaChevronRight } from 'react-icons/fa';
 
 interface Column {
@@ -10,6 +10,11 @@ interface Column {
 interface DataTableProps {
   columns: Column[];
   data: any[];
+  selection?: {
+    selectedRowIds: Array<string | number>;
+    onChange: (nextSelectedRowIds: Array<string | number>) => void;
+    getRowId?: (row: any) => string | number;
+  };
   onView?: (row: any) => void;
   onEdit?: (row: any) => void;
   onDelete?: (row: any) => void;
@@ -22,6 +27,7 @@ interface DataTableProps {
 export default function DataTable({
   columns,
   data,
+  selection,
   onView,
   onEdit,
   onDelete,
@@ -30,12 +36,70 @@ export default function DataTable({
   onPageChange,
   loading = false
 }: DataTableProps) {
+  const hasActions = !!(onView || onEdit || onDelete);
+  const getRowId = selection?.getRowId ?? ((row: any) => row?.id);
+  const visibleRowIds = useMemo(
+    () => (selection ? data.map((row) => getRowId(row)) : []),
+    [data, selection, getRowId],
+  );
+
+  const selectedSet = useMemo(
+    () => new Set(selection?.selectedRowIds ?? []),
+    [selection?.selectedRowIds],
+  );
+
+  const allVisibleSelected =
+    !!selection && visibleRowIds.length > 0 && visibleRowIds.every((id) => selectedSet.has(id));
+  const someVisibleSelected =
+    !!selection && visibleRowIds.some((id) => selectedSet.has(id)) && !allVisibleSelected;
+
+  const headerCheckboxRef = useRef<HTMLInputElement | null>(null);
+  useEffect(() => {
+    if (headerCheckboxRef.current) {
+      headerCheckboxRef.current.indeterminate = someVisibleSelected;
+    }
+  }, [someVisibleSelected]);
+
+  const toggleAllVisible = () => {
+    if (!selection) return;
+
+    if (allVisibleSelected) {
+      selection.onChange(selection.selectedRowIds.filter((id) => !visibleRowIds.includes(id)));
+      return;
+    }
+
+    const next = new Set(selection.selectedRowIds);
+    visibleRowIds.forEach((id) => next.add(id));
+    selection.onChange(Array.from(next));
+  };
+
+  const toggleOne = (row: any) => {
+    if (!selection) return;
+    const id = getRowId(row);
+    const next = new Set(selection.selectedRowIds);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    selection.onChange(Array.from(next));
+  };
+
   return (
     <div className="bg-white rounded-lg shadow">
       <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gradient-to-r from-blue-500 to-blue-600">
             <tr>
+              {selection && (
+                <th className="px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">
+                  <input
+                    ref={headerCheckboxRef}
+                    type="checkbox"
+                    checked={allVisibleSelected}
+                    onChange={toggleAllVisible}
+                    className="h-4 w-4 rounded border-gray-300 text-white accent-white"
+                    aria-label="Select all rows"
+                  />
+                </th>
+              )}
               {columns.map((column) => (
                 <th
                   key={column.key}
@@ -54,7 +118,7 @@ export default function DataTable({
           <tbody className="bg-white divide-y divide-gray-200">
             {loading ? (
               <tr>
-                <td colSpan={columns.length + 1} className="px-6 py-8 text-center text-gray-500">
+                <td colSpan={columns.length + (selection ? 1 : 0) + (hasActions ? 1 : 0)} className="px-6 py-8 text-center text-gray-500">
                   <div className="flex justify-center items-center">
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
                     <span className="ml-3">Loading...</span>
@@ -63,13 +127,24 @@ export default function DataTable({
               </tr>
             ) : data.length === 0 ? (
               <tr>
-                <td colSpan={columns.length + 1} className="px-6 py-8 text-center text-gray-500">
+                <td colSpan={columns.length + (selection ? 1 : 0) + (hasActions ? 1 : 0)} className="px-6 py-8 text-center text-gray-500">
                   No data available
                 </td>
               </tr>
             ) : (
               data.map((row, index) => (
                 <tr key={index} className="hover:bg-gray-50 transition-colors">
+                  {selection && (
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      <input
+                        type="checkbox"
+                        checked={selectedSet.has(getRowId(row))}
+                        onChange={() => toggleOne(row)}
+                        className="h-4 w-4 rounded border-gray-300 text-blue-600"
+                        aria-label="Select row"
+                      />
+                    </td>
+                  )}
                   {columns.map((column) => (
                     <td key={column.key} className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       {column.render ? column.render(row[column.key], row) : row[column.key] || '-'}

@@ -18,7 +18,10 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
   const [activityLogs, setActivityLogs] = useState<any[]>([]);
   const [courierTracking, setCourierTracking] = useState<any[]>([]);
   const [customer, setCustomer] = useState<any>(null);
+  const [customerRecord, setCustomerRecord] = useState<any>(null);
   const [orderHistory, setOrderHistory] = useState<any[]>([]);
+  const [productHistory, setProductHistory] = useState<any>(null);
+  const [productHistoryLoading, setProductHistoryLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('items');
 
@@ -44,6 +47,14 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
 
+  // Customer edit
+  const [isEditingCustomer, setIsEditingCustomer] = useState(false);
+  const [customerActiveTab, setCustomerActiveTab] = useState<'basic' | 'contact' | 'address' | 'crm'>('basic');
+  const [customerForm, setCustomerForm] = useState<any>({});
+
+  // Tracking edit
+  const [trackingForm, setTrackingForm] = useState<any>({});
+
   useEffect(() => {
     setCurrentOrderId(orderId);
   }, [orderId]);
@@ -57,18 +68,75 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
       setLoading(true);
       const response = await apiClient.get(`/order-management/${currentOrderId}/details`);
       const data = response.data;
+
+      const normalizeCustomerRecord = (raw: any) => {
+        if (!raw) return null;
+        const r = { ...raw };
+        // Support both camelCase and snake_case payloads
+        if (r.preferredContactMethod === undefined && r.preferred_contact_method !== undefined) {
+          r.preferredContactMethod = r.preferred_contact_method;
+        }
+        if (r.totalSpent === undefined && r.total_spent !== undefined) {
+          r.totalSpent = r.total_spent;
+        }
+        if (r.customerLifetimeValue === undefined && r.customer_lifetime_value !== undefined) {
+          r.customerLifetimeValue = r.customer_lifetime_value;
+        }
+        if (r.lastContactDate === undefined && r.last_contact_date !== undefined) {
+          r.lastContactDate = r.last_contact_date;
+        }
+        if (r.nextFollowUp === undefined && r.next_follow_up !== undefined) {
+          r.nextFollowUp = r.next_follow_up;
+        }
+        if (r.companyName === undefined && r.company_name !== undefined) {
+          r.companyName = r.company_name;
+        }
+        if (r.lastName === undefined && r.last_name !== undefined) {
+          r.lastName = r.last_name;
+        }
+        if (r.dateOfBirth === undefined && r.date_of_birth !== undefined) {
+          r.dateOfBirth = r.date_of_birth;
+        }
+        if (r.anniversaryDate === undefined && r.anniversary_date !== undefined) {
+          r.anniversaryDate = r.anniversary_date;
+        }
+        if (r.maritalStatus === undefined && r.marital_status !== undefined) {
+          r.maritalStatus = r.marital_status;
+        }
+        return r;
+      };
+      const normalizedCustomerRecord = normalizeCustomerRecord(data.customerRecord);
       
       setOrder(data);
       setItems(data.items || []);
       setActivityLogs(data.activityLogs || []);
       setCourierTracking(data.courierTracking || []);
       setCustomer(data.customer || null);
+      setCustomerRecord(normalizedCustomerRecord);
       setOrderHistory(Array.isArray(data.orderHistory) ? data.orderHistory : []);
       
       setShippingAddress(data.shippingAddress || '');
       setCourierNotes(data.courierNotes || '');
       setRiderInstructions(data.riderInstructions || '');
       setInternalNotes(data.internalNotes || '');
+
+      // Initialize tracking form for manual completion/edit
+      const geo = data.geoLocation || null;
+      setTrackingForm({
+        userIp: data.userIp || '',
+        geoCountry: geo?.country || '',
+        geoCity: geo?.city || '',
+        geoLatitude: geo?.latitude ?? '',
+        geoLongitude: geo?.longitude ?? '',
+        browserInfo: data.browserInfo || '',
+        deviceType: data.deviceType || '',
+        operatingSystem: data.operatingSystem || '',
+        trafficSource: data.trafficSource || '',
+        referrerUrl: data.referrerUrl || '',
+        utmSource: data.utmSource || '',
+        utmMedium: data.utmMedium || '',
+        utmCampaign: data.utmCampaign || '',
+      });
     } catch (error) {
       console.error('Error loading order details:', error);
       alert('Failed to load order details');
@@ -77,16 +145,144 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
     }
   };
 
+  const loadProductHistory = async () => {
+    try {
+      setProductHistoryLoading(true);
+      const res = await apiClient.get(`/order-management/${currentOrderId}/product-history`);
+      setProductHistory(res.data);
+    } catch (e) {
+      console.error('Failed to load product history:', e);
+      setProductHistory(null);
+    } finally {
+      setProductHistoryLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'product') {
+      loadProductHistory();
+    }
+  }, [activeTab, currentOrderId]);
+
+  const toInputValue = (v: any) => (v === null || v === undefined ? '' : String(v));
+  const displayOrNA = (v: any) => {
+    if (v === null || v === undefined) return 'N/A';
+    const s = String(v).trim();
+    return s.length ? s : 'N/A';
+  };
+
+  const startEditCustomer = () => {
+    setIsEditingCustomer(true);
+    setCustomerActiveTab('basic');
+    setCustomerForm({ ...(customerRecord || {}) });
+  };
+
+  const cancelEditCustomer = () => {
+    setIsEditingCustomer(false);
+    setCustomerForm({});
+  };
+
+  const sendToSteadfast = async () => {
+    if (!confirm('Send this order to Steadfast?')) return;
+    try {
+      const res = await apiClient.post(`/order-management/${currentOrderId}/steadfast/send`);
+      alert(res.data?.message || 'Sent to Steadfast');
+      loadOrderDetails();
+      onUpdate();
+    } catch (e: any) {
+      alert(e.response?.data?.message || 'Failed to send to Steadfast');
+    }
+  };
+
+  const saveCustomer = async () => {
+    if (!customerRecord?.id) return;
+    try {
+      await apiClient.put(`/customers/${customerRecord.id}`, {
+        title: customerForm.title || null,
+        name: customerForm.name || null,
+        lastName: customerForm.lastName || null,
+        companyName: customerForm.companyName || null,
+        email: customerForm.email || null,
+        phone: customerForm.phone || null,
+        mobile: customerForm.mobile || null,
+        website: customerForm.website || null,
+        source: customerForm.source || null,
+        rating: customerForm.rating === '' ? null : customerForm.rating,
+        total_spent: customerForm.totalSpent === '' ? null : customerForm.totalSpent,
+        customer_lifetime_value: customerForm.customerLifetimeValue === '' ? null : customerForm.customerLifetimeValue,
+        preferred_contact_method: customerForm.preferredContactMethod || null,
+        notes: customerForm.notes || null,
+        last_contact_date: customerForm.lastContactDate || null,
+        next_follow_up: customerForm.nextFollowUp || null,
+        address: customerForm.address || null,
+        district: customerForm.district || null,
+        city: customerForm.city || null,
+        gender: customerForm.gender || null,
+        dateOfBirth: customerForm.dateOfBirth || null,
+        maritalStatus: customerForm.maritalStatus || null,
+        anniversaryDate: customerForm.anniversaryDate || null,
+        profession: customerForm.profession || null,
+        availableTime: customerForm.availableTime || null,
+        customerType: customerForm.customerType || null,
+        lifecycleStage: customerForm.lifecycleStage || null,
+        status: customerForm.status || null,
+        priority: customerForm.priority || null,
+      });
+      alert('Customer updated successfully');
+      setIsEditingCustomer(false);
+      loadOrderDetails();
+    } catch (e: any) {
+      alert(e.response?.data?.message || 'Failed to update customer');
+    }
+  };
+
+  const saveTracking = async () => {
+    try {
+      await apiClient.put(`/order-management/${currentOrderId}/tracking`, {
+        userIp: trackingForm.userIp || null,
+        geoLocation: {
+          country: trackingForm.geoCountry || null,
+          city: trackingForm.geoCity || null,
+          latitude: trackingForm.geoLatitude === '' ? null : Number(trackingForm.geoLatitude),
+          longitude: trackingForm.geoLongitude === '' ? null : Number(trackingForm.geoLongitude),
+        },
+        browserInfo: trackingForm.browserInfo || null,
+        deviceType: trackingForm.deviceType || null,
+        operatingSystem: trackingForm.operatingSystem || null,
+        trafficSource: trackingForm.trafficSource || null,
+        referrerUrl: trackingForm.referrerUrl || null,
+        utmSource: trackingForm.utmSource || null,
+        utmMedium: trackingForm.utmMedium || null,
+        utmCampaign: trackingForm.utmCampaign || null,
+      });
+      alert('Tracking updated successfully');
+      loadOrderDetails();
+      onUpdate();
+    } catch (e: any) {
+      alert(e.response?.data?.message || 'Failed to update tracking');
+    }
+  };
+
   // ==================== ITEM MANAGEMENT ====================
   
   const startEditItem = (item: any) => {
     setEditingItem(item.id);
-    setEditItemData({ quantity: item.quantity, unitPrice: item.unitPrice });
+    setEditItemData({ quantity: String(item.quantity ?? ''), unitPrice: String(item.unitPrice ?? '') });
   };
 
   const saveEditItem = async (itemId: number) => {
     try {
-      await apiClient.put(`/order-management/items/${itemId}`, editItemData);
+      const qty = Number.parseInt(String(editItemData.quantity ?? ''), 10);
+      const unit = Number.parseFloat(String(editItemData.unitPrice ?? ''));
+      if (!Number.isFinite(qty) || qty < 1) {
+        alert('Quantity must be at least 1');
+        return;
+      }
+      if (!Number.isFinite(unit) || unit < 0) {
+        alert('Unit price must be a valid number');
+        return;
+      }
+      await apiClient.put(`/order-management/items/${itemId}`, { quantity: qty, unitPrice: unit });
       alert('Item updated successfully');
       loadOrderDetails();
       setEditingItem(null);
@@ -116,7 +312,7 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
     }
 
     try {
-      await apiClient.post(`/order-management/${orderId}/items`, {
+      await apiClient.post(`/order-management/${currentOrderId}/items`, {
         productId: newProduct.productId || null,
         productName: newProduct.productName,
         quantity: newProduct.quantity,
@@ -138,7 +334,7 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
     if (!confirm('Approve this order?')) return;
     
     try {
-      await apiClient.post(`/order-management/${orderId}/approve`);
+      await apiClient.post(`/order-management/${currentOrderId}/approve`);
       alert('Order approved');
       loadOrderDetails();
       onUpdate();
@@ -151,7 +347,7 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
     if (!confirm('Put this order on hold?')) return;
     
     try {
-      await apiClient.post(`/order-management/${orderId}/hold`);
+      await apiClient.post(`/order-management/${currentOrderId}/hold`);
       alert('Order put on hold');
       loadOrderDetails();
       onUpdate();
@@ -167,7 +363,7 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
     }
 
     try {
-      await apiClient.post(`/order-management/${orderId}/cancel`, { cancelReason });
+      await apiClient.post(`/order-management/${currentOrderId}/cancel`, { cancelReason });
       alert('Order cancelled');
       setShowCancelModal(false);
       loadOrderDetails();
@@ -186,7 +382,7 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
     }
 
     try {
-      await apiClient.post(`/order-management/${orderId}/ship`, courierData);
+      await apiClient.post(`/order-management/${currentOrderId}/ship`, courierData);
       alert('Order marked as shipped');
       setShowShipModal(false);
       loadOrderDetails();
@@ -200,7 +396,7 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
 
   const saveNotes = async () => {
     try {
-      await apiClient.put(`/order-management/${orderId}/notes`, {
+      await apiClient.put(`/order-management/${currentOrderId}/notes`, {
         shippingAddress,
         courierNotes,
         riderInstructions,
@@ -213,7 +409,18 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
       alert('Failed to update notes');
     }
   };
-console.log("Items:", items);
+
+  const viewCustomer: any = {
+    ...(customerRecord || {}),
+    id: customerRecord?.id ?? customer?.customerId ?? order?.customerId ?? null,
+    name: customerRecord?.name || customer?.customerName || order?.customerName || null,
+    lastName: customerRecord?.lastName || null,
+    email: customerRecord?.email || customer?.customerEmail || order?.customerEmail || null,
+    phone: customerRecord?.phone || customer?.customerPhone || order?.customerPhone || null,
+    address: customerRecord?.address || order?.shippingAddress || null,
+    district: customerRecord?.district || null,
+    city: customerRecord?.city || null,
+  };
   if (loading) {
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -228,7 +435,10 @@ console.log("Items:", items);
 
   const itemsSubtotal = items.reduce((sum, item) => sum + Number(item.subtotal || 0), 0);
   const totalAmount = Number(order.totalAmount || 0);
-  const deliveryCharge = totalAmount - itemsSubtotal;
+  const discountAmount = Number(order.discountAmount || order.discount_amount || 0);
+  const deliveryCharge = Number.isFinite(Number(order.deliveryCharge || order.delivery_charge))
+    ? Number(order.deliveryCharge || order.delivery_charge)
+    : Math.max(0, totalAmount - itemsSubtotal + discountAmount);
   const totalQuantity = items.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
 
   const canHoldOrCancel = !order.courierStatus || !['picked', 'in_transit', 'delivered'].includes(order.courierStatus);
@@ -266,18 +476,35 @@ console.log("Items:", items);
               <FaBan /> Cancel
             </button>
           )}
-          
+
           {order.status === 'approved' && !order.shippedAt && (
-            <button onClick={() => setShowShipModal(true)} className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2">
-              <FaShippingFast /> Ship Order
-            </button>
+            <>
+              <button
+                onClick={() => {
+                  setCourierData({ courierCompany: 'Steadfast', courierOrderId: '', trackingId: '' });
+                  setShowShipModal(true);
+                }}
+                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2"
+              >
+                Send this SteadFast
+              </button>
+              <button
+                onClick={() => {
+                  setCourierData({ courierCompany: 'Pathao', courierOrderId: '', trackingId: '' });
+                  setShowShipModal(true);
+                }}
+                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2"
+              >
+                Send this pathao
+              </button>
+            </>
           )}
         </div>
 
         {/* Tabs */}
         <div className="border-b">
           <div className="flex gap-1 p-2 bg-gray-50">
-            {['items', 'customer', 'order history', 'delivery', 'notes', 'tracking', 'logs'].map((tab) => (
+            {['items', 'customer', 'product', 'order history', 'delivery', 'notes', 'tracking', 'logs'].map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab === 'order history' ? 'order-history' : tab)}
@@ -394,8 +621,8 @@ console.log("Items:", items);
                           {editingItem === item.id ? (
                             <input
                               type="number"
-                              value={editItemData.quantity}
-                              onChange={(e) => setEditItemData({ ...editItemData, quantity: parseInt(e.target.value) })}
+                              value={toInputValue(editItemData.quantity)}
+                              onChange={(e) => setEditItemData({ ...editItemData, quantity: e.target.value })}
                               className="w-20 border px-2 py-1 rounded text-center"
                               min="1"
                             />
@@ -407,8 +634,8 @@ console.log("Items:", items);
                           {editingItem === item.id ? (
                             <input
                               type="number"
-                              value={editItemData.unitPrice}
-                              onChange={(e) => setEditItemData({ ...editItemData, unitPrice: parseFloat(e.target.value) })}
+                              value={toInputValue(editItemData.unitPrice)}
+                              onChange={(e) => setEditItemData({ ...editItemData, unitPrice: e.target.value })}
                               className="w-24 border px-2 py-1 rounded text-right"
                               min="0"
                               step="0.01"
@@ -445,6 +672,16 @@ console.log("Items:", items);
                     ))}
                   </tbody>
                   <tfoot>
+                    <tr className="bg-gray-50 font-semibold">
+                      <td colSpan={3} className="border p-3 text-right">Delivery Charge:</td>
+                      <td className="border p-3 text-right">৳{Number(deliveryCharge || 0).toFixed(2)}</td>
+                      <td className="border p-3"></td>
+                    </tr>
+                    <tr className="bg-gray-50 font-semibold">
+                      <td colSpan={3} className="border p-3 text-right">Discount:</td>
+                      <td className="border p-3 text-right">৳{Number(discountAmount || 0).toFixed(2)}</td>
+                      <td className="border p-3"></td>
+                    </tr>
                     <tr className="bg-gray-100 font-bold">
                       <td colSpan={3} className="border p-3 text-right">Total Amount:</td>
                       <td className="border p-3 text-right text-xl text-blue-600">৳{parseFloat(order.totalAmount || 0).toFixed(2)}</td>
@@ -459,25 +696,399 @@ console.log("Items:", items);
           {/* CUSTOMER TAB */}
           {activeTab === 'customer' && (
             <div className="space-y-4">
-              <h3 className="text-xl font-bold">Customer Information</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="bg-gray-50 border rounded-lg p-4">
-                  <div className="text-sm text-gray-600">Customer ID</div>
-                  <div className="font-semibold">{customer?.customerId ?? order.customerId ?? 'Guest'}</div>
-                </div>
-                <div className="bg-gray-50 border rounded-lg p-4">
-                  <div className="text-sm text-gray-600">Name</div>
-                  <div className="font-semibold">{customer?.customerName ?? order.customerName ?? 'N/A'}</div>
-                </div>
-                <div className="bg-gray-50 border rounded-lg p-4">
-                  <div className="text-sm text-gray-600">Email</div>
-                  <div className="font-semibold">{customer?.customerEmail ?? order.customerEmail ?? 'N/A'}</div>
-                </div>
-                <div className="bg-gray-50 border rounded-lg p-4">
-                  <div className="text-sm text-gray-600">Phone</div>
-                  <div className="font-semibold">{customer?.customerPhone ?? order.customerPhone ?? 'N/A'}</div>
-                </div>
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <h3 className="text-xl font-bold">Customer Information</h3>
+                {!isEditingCustomer ? (
+                  <button
+                    onClick={startEditCustomer}
+                    className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+                    disabled={!customerRecord?.id}
+                    title={!customerRecord?.id ? 'No customer record matched for this order' : 'Edit customer'}
+                  >
+                    Edit
+                  </button>
+                ) : (
+                  <div className="flex gap-2">
+                    <button onClick={saveCustomer} className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700">
+                      Save
+                    </button>
+                    <button onClick={cancelEditCustomer} className="bg-gray-400 text-white px-4 py-2 rounded-lg hover:bg-gray-500">
+                      Cancel
+                    </button>
+                  </div>
+                )}
               </div>
+
+              <div className="bg-gray-50 border rounded-lg p-3 flex gap-2 flex-wrap">
+                {([
+                  { key: 'basic', label: 'Basic' },
+                  { key: 'contact', label: 'Contact' },
+                  { key: 'address', label: 'Address' },
+                  { key: 'crm', label: 'CRM' },
+                ] as const).map((t) => (
+                  <button
+                    key={t.key}
+                    onClick={() => setCustomerActiveTab(t.key)}
+                    className={`px-4 py-2 rounded-lg font-semibold ${customerActiveTab === t.key ? 'bg-white text-blue-600 border border-blue-200' : 'text-gray-600 hover:bg-gray-100'}`}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+
+              {!isEditingCustomer && (
+                <div className="bg-white border rounded-lg p-4">
+                  {customerActiveTab === 'basic' && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <div className="text-sm text-gray-600">Customer ID</div>
+                        <div className="font-semibold">{displayOrNA(viewCustomer.id ?? 'Guest')}</div>
+                      </div>
+                      <div>
+                        <div className="text-sm text-gray-600">UUID</div>
+                        <div className="font-semibold">{displayOrNA(viewCustomer.uuid)}</div>
+                      </div>
+                      <div>
+                        <div className="text-sm text-gray-600">Title</div>
+                        <div className="font-semibold">{displayOrNA(viewCustomer.title)}</div>
+                      </div>
+                      <div>
+                        <div className="text-sm text-gray-600">First Name</div>
+                        <div className="font-semibold">{displayOrNA(viewCustomer.name)}</div>
+                      </div>
+                      <div>
+                        <div className="text-sm text-gray-600">Last Name</div>
+                        <div className="font-semibold">{displayOrNA(viewCustomer.lastName)}</div>
+                      </div>
+                      <div>
+                        <div className="text-sm text-gray-600">Company</div>
+                        <div className="font-semibold">{displayOrNA(viewCustomer.companyName)}</div>
+                      </div>
+                      <div>
+                        <div className="text-sm text-gray-600">Gender</div>
+                        <div className="font-semibold">{displayOrNA(viewCustomer.gender)}</div>
+                      </div>
+                      <div>
+                        <div className="text-sm text-gray-600">Date of Birth</div>
+                        <div className="font-semibold">{viewCustomer.dateOfBirth ? new Date(viewCustomer.dateOfBirth).toLocaleDateString() : 'N/A'}</div>
+                      </div>
+                      <div>
+                        <div className="text-sm text-gray-600">Marital Status</div>
+                        <div className="font-semibold">{displayOrNA(viewCustomer.maritalStatus)}</div>
+                      </div>
+                      <div>
+                        <div className="text-sm text-gray-600">Anniversary Date</div>
+                        <div className="font-semibold">{viewCustomer.anniversaryDate ? new Date(viewCustomer.anniversaryDate).toLocaleDateString() : 'N/A'}</div>
+                      </div>
+                      <div>
+                        <div className="text-sm text-gray-600">Profession</div>
+                        <div className="font-semibold">{displayOrNA(viewCustomer.profession)}</div>
+                      </div>
+                      <div>
+                        <div className="text-sm text-gray-600">Available Time</div>
+                        <div className="font-semibold">{displayOrNA(viewCustomer.availableTime)}</div>
+                      </div>
+                    </div>
+                  )}
+
+                  {customerActiveTab === 'contact' && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <div className="text-sm text-gray-600">Email</div>
+                        <div className="font-semibold">{displayOrNA(viewCustomer.email)}</div>
+                      </div>
+                      <div>
+                        <div className="text-sm text-gray-600">Phone</div>
+                        <div className="font-semibold">{displayOrNA(viewCustomer.phone)}</div>
+                      </div>
+                      <div>
+                        <div className="text-sm text-gray-600">Mobile</div>
+                        <div className="font-semibold">{displayOrNA(viewCustomer.mobile)}</div>
+                      </div>
+                      <div>
+                        <div className="text-sm text-gray-600">Website</div>
+                        <div className="font-semibold">{displayOrNA(viewCustomer.website)}</div>
+                      </div>
+                      <div>
+                        <div className="text-sm text-gray-600">Preferred Contact Method</div>
+                        <div className="font-semibold">{displayOrNA(viewCustomer.preferredContactMethod)}</div>
+                      </div>
+                      <div>
+                        <div className="text-sm text-gray-600">Source</div>
+                        <div className="font-semibold">{displayOrNA(viewCustomer.source)}</div>
+                      </div>
+                    </div>
+                  )}
+
+                  {customerActiveTab === 'address' && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="md:col-span-2">
+                        <div className="text-sm text-gray-600">Address</div>
+                        <div className="font-semibold whitespace-pre-wrap">{displayOrNA(viewCustomer.address)}</div>
+                      </div>
+                      <div>
+                        <div className="text-sm text-gray-600">District</div>
+                        <div className="font-semibold">{displayOrNA(viewCustomer.district)}</div>
+                      </div>
+                      <div>
+                        <div className="text-sm text-gray-600">City</div>
+                        <div className="font-semibold">{displayOrNA(viewCustomer.city)}</div>
+                      </div>
+                    </div>
+                  )}
+
+                  {customerActiveTab === 'crm' && (
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div>
+                        <div className="text-sm text-gray-600">Customer Type</div>
+                        <div className="font-semibold">{displayOrNA(viewCustomer.customerType)}</div>
+                      </div>
+                      <div>
+                        <div className="text-sm text-gray-600">Lifecycle Stage</div>
+                        <div className="font-semibold">{displayOrNA(viewCustomer.lifecycleStage)}</div>
+                      </div>
+                      <div>
+                        <div className="text-sm text-gray-600">Status</div>
+                        <div className="font-semibold">{displayOrNA(viewCustomer.status)}</div>
+                      </div>
+                      <div>
+                        <div className="text-sm text-gray-600">Priority</div>
+                        <div className="font-semibold">{displayOrNA(viewCustomer.priority)}</div>
+                      </div>
+                      <div>
+                        <div className="text-sm text-gray-600">Last Contact Date</div>
+                        <div className="font-semibold">{viewCustomer.lastContactDate ? new Date(viewCustomer.lastContactDate).toLocaleDateString() : 'N/A'}</div>
+                      </div>
+                      <div>
+                        <div className="text-sm text-gray-600">Next Follow Up</div>
+                        <div className="font-semibold">{viewCustomer.nextFollowUp ? new Date(viewCustomer.nextFollowUp).toLocaleDateString() : 'N/A'}</div>
+                      </div>
+                      <div>
+                        <div className="text-sm text-gray-600">Total Spent</div>
+                        <div className="font-semibold">{viewCustomer.totalSpent !== undefined && viewCustomer.totalSpent !== null ? `৳${Number(viewCustomer.totalSpent || 0).toFixed(2)}` : 'N/A'}</div>
+                      </div>
+                      <div>
+                        <div className="text-sm text-gray-600">Customer Lifetime Value</div>
+                        <div className="font-semibold">{viewCustomer.customerLifetimeValue !== undefined && viewCustomer.customerLifetimeValue !== null ? `৳${Number(viewCustomer.customerLifetimeValue || 0).toFixed(2)}` : 'N/A'}</div>
+                      </div>
+                      <div className="md:col-span-3">
+                        <div className="text-sm text-gray-600">Notes</div>
+                        <div className="font-semibold whitespace-pre-wrap">{displayOrNA(viewCustomer.notes)}</div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {isEditingCustomer && (
+                <div className="bg-white border rounded-lg p-4">
+                  {customerActiveTab === 'basic' && (
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div>
+                        <label className="block text-sm font-semibold mb-1">Title</label>
+                        <input className="w-full border p-2 rounded" value={toInputValue(customerForm.title)} onChange={(e) => setCustomerForm({ ...customerForm, title: e.target.value })} placeholder="N/A" />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold mb-1">First Name</label>
+                        <input className="w-full border p-2 rounded" value={toInputValue(customerForm.name)} onChange={(e) => setCustomerForm({ ...customerForm, name: e.target.value })} placeholder="N/A" />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold mb-1">Last Name</label>
+                        <input className="w-full border p-2 rounded" value={toInputValue(customerForm.lastName)} onChange={(e) => setCustomerForm({ ...customerForm, lastName: e.target.value })} placeholder="N/A" />
+                      </div>
+                      <div className="md:col-span-2">
+                        <label className="block text-sm font-semibold mb-1">Company Name</label>
+                        <input className="w-full border p-2 rounded" value={toInputValue(customerForm.companyName)} onChange={(e) => setCustomerForm({ ...customerForm, companyName: e.target.value })} placeholder="N/A" />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold mb-1">Gender</label>
+                        <input className="w-full border p-2 rounded" value={toInputValue(customerForm.gender)} onChange={(e) => setCustomerForm({ ...customerForm, gender: e.target.value })} placeholder="N/A" />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold mb-1">Date of Birth</label>
+                        <input type="date" className="w-full border p-2 rounded" value={toInputValue(customerForm.dateOfBirth).slice(0, 10)} onChange={(e) => setCustomerForm({ ...customerForm, dateOfBirth: e.target.value })} />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold mb-1">Marital Status</label>
+                        <input className="w-full border p-2 rounded" value={toInputValue(customerForm.maritalStatus)} onChange={(e) => setCustomerForm({ ...customerForm, maritalStatus: e.target.value })} placeholder="N/A" />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold mb-1">Anniversary Date</label>
+                        <input type="date" className="w-full border p-2 rounded" value={toInputValue(customerForm.anniversaryDate).slice(0, 10)} onChange={(e) => setCustomerForm({ ...customerForm, anniversaryDate: e.target.value })} />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold mb-1">Profession</label>
+                        <input className="w-full border p-2 rounded" value={toInputValue(customerForm.profession)} onChange={(e) => setCustomerForm({ ...customerForm, profession: e.target.value })} placeholder="N/A" />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold mb-1">Available Time</label>
+                        <input className="w-full border p-2 rounded" value={toInputValue(customerForm.availableTime)} onChange={(e) => setCustomerForm({ ...customerForm, availableTime: e.target.value })} placeholder="N/A" />
+                      </div>
+                    </div>
+                  )}
+
+                  {customerActiveTab === 'contact' && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-semibold mb-1">Email</label>
+                        <input type="email" className="w-full border p-2 rounded" value={toInputValue(customerForm.email)} onChange={(e) => setCustomerForm({ ...customerForm, email: e.target.value })} placeholder="N/A" />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold mb-1">Phone</label>
+                        <input className="w-full border p-2 rounded" value={toInputValue(customerForm.phone)} onChange={(e) => setCustomerForm({ ...customerForm, phone: e.target.value })} placeholder="N/A" />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold mb-1">Mobile</label>
+                        <input className="w-full border p-2 rounded" value={toInputValue(customerForm.mobile)} onChange={(e) => setCustomerForm({ ...customerForm, mobile: e.target.value })} placeholder="N/A" />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold mb-1">Website</label>
+                        <input className="w-full border p-2 rounded" value={toInputValue(customerForm.website)} onChange={(e) => setCustomerForm({ ...customerForm, website: e.target.value })} placeholder="N/A" />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold mb-1">Preferred Contact Method</label>
+                        <input className="w-full border p-2 rounded" value={toInputValue(customerForm.preferredContactMethod)} onChange={(e) => setCustomerForm({ ...customerForm, preferredContactMethod: e.target.value })} placeholder="N/A" />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold mb-1">Source</label>
+                        <input className="w-full border p-2 rounded" value={toInputValue(customerForm.source)} onChange={(e) => setCustomerForm({ ...customerForm, source: e.target.value })} placeholder="N/A" />
+                      </div>
+                    </div>
+                  )}
+
+                  {customerActiveTab === 'address' && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="md:col-span-2">
+                        <label className="block text-sm font-semibold mb-1">Address</label>
+                        <textarea className="w-full border p-2 rounded" rows={3} value={toInputValue(customerForm.address)} onChange={(e) => setCustomerForm({ ...customerForm, address: e.target.value })} placeholder="N/A" />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold mb-1">District</label>
+                        <input className="w-full border p-2 rounded" value={toInputValue(customerForm.district)} onChange={(e) => setCustomerForm({ ...customerForm, district: e.target.value })} placeholder="N/A" />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold mb-1">City</label>
+                        <input className="w-full border p-2 rounded" value={toInputValue(customerForm.city)} onChange={(e) => setCustomerForm({ ...customerForm, city: e.target.value })} placeholder="N/A" />
+                      </div>
+                    </div>
+                  )}
+
+                  {customerActiveTab === 'crm' && (
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div>
+                        <label className="block text-sm font-semibold mb-1">Customer Type</label>
+                        <input className="w-full border p-2 rounded" value={toInputValue(customerForm.customerType)} onChange={(e) => setCustomerForm({ ...customerForm, customerType: e.target.value })} placeholder="N/A" />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold mb-1">Lifecycle Stage</label>
+                        <input className="w-full border p-2 rounded" value={toInputValue(customerForm.lifecycleStage)} onChange={(e) => setCustomerForm({ ...customerForm, lifecycleStage: e.target.value })} placeholder="N/A" />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold mb-1">Status</label>
+                        <input className="w-full border p-2 rounded" value={toInputValue(customerForm.status)} onChange={(e) => setCustomerForm({ ...customerForm, status: e.target.value })} placeholder="N/A" />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold mb-1">Priority</label>
+                        <select className="w-full border p-2 rounded" value={toInputValue(customerForm.priority)} onChange={(e) => setCustomerForm({ ...customerForm, priority: e.target.value })}>
+                          <option value="">N/A</option>
+                          <option value="hot">hot</option>
+                          <option value="warm">warm</option>
+                          <option value="cold">cold</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold mb-1">Last Contact Date</label>
+                        <input type="date" className="w-full border p-2 rounded" value={toInputValue(customerForm.lastContactDate).slice(0, 10)} onChange={(e) => setCustomerForm({ ...customerForm, lastContactDate: e.target.value })} />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold mb-1">Next Follow Up</label>
+                        <input type="date" className="w-full border p-2 rounded" value={toInputValue(customerForm.nextFollowUp).slice(0, 10)} onChange={(e) => setCustomerForm({ ...customerForm, nextFollowUp: e.target.value })} />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold mb-1">Total Spent</label>
+                        <input type="number" className="w-full border p-2 rounded" value={toInputValue(customerForm.totalSpent)} onChange={(e) => setCustomerForm({ ...customerForm, totalSpent: e.target.value })} placeholder="N/A" />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold mb-1">Customer Lifetime Value</label>
+                        <input type="number" className="w-full border p-2 rounded" value={toInputValue(customerForm.customerLifetimeValue)} onChange={(e) => setCustomerForm({ ...customerForm, customerLifetimeValue: e.target.value })} placeholder="N/A" />
+                      </div>
+                      <div className="md:col-span-2">
+                        <label className="block text-sm font-semibold mb-1">Notes</label>
+                        <textarea className="w-full border p-2 rounded" rows={4} value={toInputValue(customerForm.notes)} onChange={(e) => setCustomerForm({ ...customerForm, notes: e.target.value })} placeholder="N/A" />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* PRODUCT TAB */}
+          {activeTab === 'product' && (
+            <div className="space-y-4">
+              <h3 className="text-xl font-bold">Product History</h3>
+
+              {productHistoryLoading && (
+                <div className="bg-white border rounded-lg p-6 text-center text-gray-600">Loading product history...</div>
+              )}
+
+              {!productHistoryLoading && (
+                <>
+                  <div className="bg-gray-50 border rounded-lg p-4">
+                    <div className="grid grid-cols-1 md:grid-cols-5 gap-3 text-sm">
+                      <div>
+                        <div className="text-gray-600">Total Orders</div>
+                        <div className="font-bold">{Number(productHistory?.summary?.totalOrders || 0)}</div>
+                      </div>
+                      <div>
+                        <div className="text-gray-600">Total Spent</div>
+                        <div className="font-bold">৳{Number(productHistory?.summary?.totalSpent || 0).toFixed(2)}</div>
+                      </div>
+                      <div>
+                        <div className="text-gray-600">Total Quantity</div>
+                        <div className="font-bold">{Number(productHistory?.summary?.totalQuantity || 0)}</div>
+                      </div>
+                      <div>
+                        <div className="text-gray-600">Unique Products</div>
+                        <div className="font-bold">{Number(productHistory?.summary?.uniqueProducts || 0)}</div>
+                      </div>
+                      <div>
+                        <div className="text-gray-600">Next Follow Up</div>
+                        <div className="font-bold">{viewCustomer?.nextFollowUp ? new Date(viewCustomer.nextFollowUp).toLocaleDateString() : 'N/A'}</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full border-collapse">
+                      <thead>
+                        <tr className="bg-gray-100">
+                          <th className="border p-3 text-left">Product</th>
+                          <th className="border p-3 text-left">SKU</th>
+                          <th className="border p-3 text-center">Total Quantity</th>
+                          <th className="border p-3 text-center">Orders</th>
+                          <th className="border p-3 text-left">Last Purchased</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(productHistory?.products || []).map((p: any) => (
+                          <tr key={p.productKey} className="hover:bg-gray-50">
+                            <td className="border p-3 font-semibold">{displayOrNA(p.productName)}</td>
+                            <td className="border p-3">{displayOrNA(p.sku)}</td>
+                            <td className="border p-3 text-center font-semibold">{Number(p.totalQuantity || 0)}</td>
+                            <td className="border p-3 text-center">{Number(p.ordersCount || 0)}</td>
+                            <td className="border p-3">{p.lastPurchasedAt ? new Date(p.lastPurchasedAt).toLocaleString() : 'N/A'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {(productHistory?.products || []).length === 0 && (
+                    <p className="text-gray-500 text-center py-8">No product history found</p>
+                  )}
+                </>
+              )}
             </div>
           )}
 
@@ -530,6 +1141,32 @@ console.log("Items:", items);
               {orderHistory.length === 0 && (
                 <p className="text-gray-500 text-center py-8">No order history found</p>
               )}
+
+              <div className="mt-6">
+                <h4 className="font-bold mb-3">Courier Info (Selected Order)</h4>
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse">
+                    <tbody>
+                      <tr className="bg-gray-50">
+                        <td className="border p-3 font-semibold w-64">Courier (company)</td>
+                        <td className="border p-3">{displayOrNA(order?.courierCompany)}</td>
+                      </tr>
+                      <tr>
+                        <td className="border p-3 font-semibold">Courier Status</td>
+                        <td className="border p-3">{displayOrNA(order?.courierStatus)}</td>
+                      </tr>
+                      <tr className="bg-gray-50">
+                        <td className="border p-3 font-semibold">Courier ID</td>
+                        <td className="border p-3">{displayOrNA(order?.courierOrderId)}</td>
+                      </tr>
+                      <tr>
+                        <td className="border p-3 font-semibold">Courier tracking id</td>
+                        <td className="border p-3">{displayOrNA(order?.trackingId)}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             </div>
           )}
 
@@ -647,51 +1284,74 @@ console.log("Items:", items);
           {activeTab === 'tracking' && (
             <div className="space-y-6">
               <h3 className="text-xl font-bold mb-4">Order Source & User Tracking</h3>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+
+              <div className="bg-white border rounded-lg p-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-semibold mb-1">IP Address</label>
+                    <input className="w-full border p-2 rounded" value={toInputValue(trackingForm.userIp)} onChange={(e) => setTrackingForm({ ...trackingForm, userIp: e.target.value })} placeholder="N/A" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold mb-1">Device Type</label>
+                    <input className="w-full border p-2 rounded" value={toInputValue(trackingForm.deviceType)} onChange={(e) => setTrackingForm({ ...trackingForm, deviceType: e.target.value })} placeholder="mobile / desktop" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold mb-1">Operating System</label>
+                    <input className="w-full border p-2 rounded" value={toInputValue(trackingForm.operatingSystem)} onChange={(e) => setTrackingForm({ ...trackingForm, operatingSystem: e.target.value })} placeholder="N/A" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold mb-1">Browser</label>
+                    <input className="w-full border p-2 rounded" value={toInputValue(trackingForm.browserInfo)} onChange={(e) => setTrackingForm({ ...trackingForm, browserInfo: e.target.value })} placeholder="N/A" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold mb-1">Traffic Source</label>
+                    <input className="w-full border p-2 rounded" value={toInputValue(trackingForm.trafficSource)} onChange={(e) => setTrackingForm({ ...trackingForm, trafficSource: e.target.value })} placeholder="N/A" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold mb-1">Referrer URL</label>
+                    <input className="w-full border p-2 rounded" value={toInputValue(trackingForm.referrerUrl)} onChange={(e) => setTrackingForm({ ...trackingForm, referrerUrl: e.target.value })} placeholder="N/A" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold mb-1">UTM Source</label>
+                    <input className="w-full border p-2 rounded" value={toInputValue(trackingForm.utmSource)} onChange={(e) => setTrackingForm({ ...trackingForm, utmSource: e.target.value })} placeholder="N/A" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold mb-1">UTM Medium</label>
+                    <input className="w-full border p-2 rounded" value={toInputValue(trackingForm.utmMedium)} onChange={(e) => setTrackingForm({ ...trackingForm, utmMedium: e.target.value })} placeholder="N/A" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold mb-1">UTM Campaign</label>
+                    <input className="w-full border p-2 rounded" value={toInputValue(trackingForm.utmCampaign)} onChange={(e) => setTrackingForm({ ...trackingForm, utmCampaign: e.target.value })} placeholder="N/A" />
+                  </div>
+                </div>
+
+                <div className="mt-4 bg-blue-50 p-4 rounded-lg border border-blue-200">
                   <h4 className="font-bold text-blue-800 mb-3 flex items-center gap-2">
-                    <FaGlobe /> Location & IP
+                    <FaGlobe /> Geo Location
                   </h4>
-                  <div className="space-y-2 text-sm">
-                    <div><strong>IP Address:</strong> {order.userIp || 'N/A'}</div>
-                    {order.geoLocation && (
-                      <>
-                        <div><strong>Country:</strong> {order.geoLocation.country || 'N/A'}</div>
-                        <div><strong>City:</strong> {order.geoLocation.city || 'N/A'}</div>
-                        <div><strong>Coordinates:</strong> {order.geoLocation.latitude}, {order.geoLocation.longitude}</div>
-                      </>
-                    )}
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                    <div>
+                      <label className="block text-sm font-semibold mb-1">Country</label>
+                      <input className="w-full border p-2 rounded" value={toInputValue(trackingForm.geoCountry)} onChange={(e) => setTrackingForm({ ...trackingForm, geoCountry: e.target.value })} placeholder="N/A" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold mb-1">City</label>
+                      <input className="w-full border p-2 rounded" value={toInputValue(trackingForm.geoCity)} onChange={(e) => setTrackingForm({ ...trackingForm, geoCity: e.target.value })} placeholder="N/A" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold mb-1">Latitude</label>
+                      <input className="w-full border p-2 rounded" value={toInputValue(trackingForm.geoLatitude)} onChange={(e) => setTrackingForm({ ...trackingForm, geoLatitude: e.target.value })} placeholder="N/A" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold mb-1">Longitude</label>
+                      <input className="w-full border p-2 rounded" value={toInputValue(trackingForm.geoLongitude)} onChange={(e) => setTrackingForm({ ...trackingForm, geoLongitude: e.target.value })} placeholder="N/A" />
+                    </div>
                   </div>
                 </div>
 
-                <div className="bg-green-50 p-4 rounded-lg border border-green-200">
-                  <h4 className="font-bold text-green-800 mb-3 flex items-center gap-2">
-                    {order.deviceType === 'mobile' ? <FaMobile /> : <FaDesktop />} Device & Browser
-                  </h4>
-                  <div className="space-y-2 text-sm">
-                    <div><strong>Device Type:</strong> <span className="uppercase">{order.deviceType || 'N/A'}</span></div>
-                    <div><strong>Operating System:</strong> {order.operatingSystem || 'N/A'}</div>
-                    <div><strong>Browser:</strong> {order.browserInfo || 'N/A'}</div>
-                  </div>
-                </div>
-
-                <div className="bg-purple-50 p-4 rounded-lg border border-purple-200">
-                  <h4 className="font-bold text-purple-800 mb-3">Traffic Source</h4>
-                  <div className="space-y-2 text-sm">
-                    <div><strong>Source:</strong> <span className="uppercase">{order.trafficSource || 'N/A'}</span></div>
-                    {order.referrerUrl && <div><strong>Referrer:</strong> {order.referrerUrl}</div>}
-                  </div>
-                </div>
-
-                <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
-                  <h4 className="font-bold text-yellow-800 mb-3">UTM Parameters</h4>
-                  <div className="space-y-2 text-sm">
-                    <div><strong>UTM Source:</strong> {order.utmSource || 'N/A'}</div>
-                    <div><strong>UTM Medium:</strong> {order.utmMedium || 'N/A'}</div>
-                    <div><strong>UTM Campaign:</strong> {order.utmCampaign || 'N/A'}</div>
-                  </div>
-                </div>
+                <button onClick={saveTracking} className="mt-4 bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 flex items-center gap-2">
+                  <FaSave /> Save Tracking
+                </button>
               </div>
             </div>
           )}
@@ -715,7 +1375,15 @@ console.log("Items:", items);
                     </div>
                     
                     <div className="flex items-center gap-4 text-sm text-gray-600 mt-2">
-                      <span><strong>Performed by:</strong> {log.performedByName || 'System'}</span>
+                      <span>
+                        <strong>Performed by:</strong> {log.performedByName || 'System'}
+                        {log.performedByUser?.id ? ` (ID: ${log.performedByUser.id})` : ''}
+                      </span>
+                      {log.teamLeader?.id && (
+                        <span>
+                          <strong>Team Leader:</strong> {[log.teamLeader.name, log.teamLeader.lastName].filter(Boolean).join(' ')} (ID: {log.teamLeader.id})
+                        </span>
+                      )}
                       {log.ipAddress && <span><strong>IP:</strong> {log.ipAddress}</span>}
                     </div>
                     
@@ -767,12 +1435,8 @@ console.log("Items:", items);
                     className="w-full border p-2 rounded"
                   >
                     <option value="">Select Courier</option>
-                    <option value="Sundarban Courier">Sundarban Courier</option>
                     <option value="Pathao">Pathao</option>
                     <option value="Steadfast">Steadfast</option>
-                    <option value="RedX">RedX</option>
-                    <option value="PaperFly">PaperFly</option>
-                    <option value="Other">Other</option>
                   </select>
                 </div>
                 <div>
