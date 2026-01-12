@@ -14,6 +14,8 @@ import { CustomerPoints } from './entities/customer-points.entity';
 import { PointTransaction } from './entities/point-transaction.entity';
 import { ProductConsumptionProfile } from './entities/product-consumption-profile.entity';
 import { CustomerProductReminder, ReminderChannel } from './entities/customer-product-reminder.entity';
+import { WalletWithdrawalRequest } from './entities/wallet-withdrawal-request.entity';
+import { OffersService } from '../offers/offers.service';
 
 @Injectable()
 export class LoyaltyService {
@@ -44,7 +46,43 @@ export class LoyaltyService {
 
     @InjectRepository(CustomerProductReminder)
     private customerProductReminderRepo: Repository<CustomerProductReminder>,
+
+    @InjectRepository(WalletWithdrawalRequest)
+    private withdrawalRepo: Repository<WalletWithdrawalRequest>,
+
+    private offersService: OffersService,
   ) {}
+
+  private now(): Date {
+    return new Date();
+  }
+
+  private normalizeTier(tier?: string | null): 'none' | 'silver' | 'gold' | 'permanent' {
+    const t = String(tier || '').trim().toLowerCase();
+    if (t === 'silver' || t === 'gold' || t === 'permanent') return t;
+    return 'none';
+  }
+
+  private normalizeReferralRewardType(value?: any): 'wallet' | 'points' | 'coupon' | 'free_product' | 'membership' {
+    const t = String(value || 'wallet').trim().toLowerCase();
+    if (t === 'points') return 'points';
+    if (t === 'coupon') return 'coupon';
+    if (t === 'free_product') return 'free_product';
+    if (t === 'membership') return 'membership';
+    return 'wallet';
+  }
+
+  private async countDeliveredOrdersForCustomer(customerId: number): Promise<number> {
+    try {
+      const rows = await this.referralRepo.query(
+        `SELECT COUNT(*)::int AS cnt FROM sales_orders WHERE customer_id = $1 AND lower(status::text) = 'delivered'`,
+        [Number(customerId)],
+      );
+      return Number(rows?.[0]?.cnt || 0);
+    } catch {
+      return 0;
+    }
+  }
 
   private getTodayDateString(): string {
     return new Date().toISOString().slice(0, 10);
@@ -375,8 +413,8 @@ export class LoyaltyService {
         r.reminder_due_date,
         r.reminder_sent,
         r.reminder_channel,
-        c.first_name,
-        c.last_name,
+        c.name AS first_name,
+        NULL::text AS last_name,
         c.phone,
         p.name_en AS product_name
       FROM customer_product_reminders r
@@ -577,23 +615,319 @@ export class LoyaltyService {
   // REFERRAL PROGRAM
   // =====================================================
 
+  tryParseShareReferralCode(code: string): number | null {
+    if (code == null) return null;
+    const normalized = String(code).trim().toUpperCase();
+    // Share codes are stable: REF000123 (digits only after REF)
+    const m = normalized.match(/^REF(\d+)$/);
+    if (!m) return null;
+    const id = Number(m[1]);
+    if (!Number.isFinite(id) || id <= 0) return null;
+    return id;
+  }
+
+  async recordReferralEvent(input: {
+    eventType: string;
+    referralId?: number;
+    referrerCustomerId?: number;
+    referredCustomerId?: number;
+    orderId?: number;
+    shareCodeUsed?: string;
+    partnerCode?: string;
+    sourceChannel?: string;
+    payload?: any;
+  }) {
+    try {
+      await this.referralRepo.query(
+        `
+        INSERT INTO referral_events (
+          event_type,
+          referral_id,
+          referrer_customer_id,
+          referred_customer_id,
+          order_id,
+          share_code_used,
+          partner_code,
+          source_channel,
+          payload
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+        `,
+        [
+          input.eventType,
+          input.referralId ?? null,
+          input.referrerCustomerId ?? null,
+          input.referredCustomerId ?? null,
+          input.orderId ?? null,
+          input.shareCodeUsed ?? null,
+          input.partnerCode ?? null,
+          input.sourceChannel ?? null,
+          input.payload ?? null,
+        ],
+      );
+    } catch {
+      // never block business flows on audit logging
+    }
+  }
+
+  private async resolveReferralCampaignConfig(input?: {
+    campaignId?: string;
+  }): Promise<{
+    campaignId: string | null;
+    rewardType: 'wallet' | 'points' | 'coupon' | 'free_product' | 'membership';
+    referrerRewardAmount: number;
+    referredRewardAmount: number;
+    referrerRewardPoints: number;
+    referredRewardPoints: number;
+    referrerOfferId: number | null;
+    referredOfferId: number | null;
+    vipReferralsThreshold: number | null;
+    vipMembershipTier: 'none' | 'silver' | 'gold' | 'permanent';
+  }> {
+    const requested = input?.campaignId ? String(input.campaignId) : null;
+
+    try {
+      if (requested) {
+        const rows = await this.referralRepo.query(
+          `SELECT id::text AS id, reward_referrer_amount, reward_referred_amount
+           , reward_type, reward_referrer_points, reward_referred_points, referrer_offer_id, referred_offer_id,
+             vip_referrals_threshold, vip_membership_tier
+           FROM referral_campaigns WHERE id = $1 LIMIT 1`,
+          [requested],
+        );
+        const row = rows?.[0];
+        if (row?.id) {
+          return {
+            campaignId: row.id,
+            rewardType: this.normalizeReferralRewardType(row.reward_type),
+            referrerRewardAmount: Number(row.reward_referrer_amount ?? 0),
+            referredRewardAmount: Number(row.reward_referred_amount ?? 0),
+            referrerRewardPoints: Number(row.reward_referrer_points ?? 0),
+            referredRewardPoints: Number(row.reward_referred_points ?? 0),
+            referrerOfferId: row.referrer_offer_id != null ? Number(row.referrer_offer_id) : null,
+            referredOfferId: row.referred_offer_id != null ? Number(row.referred_offer_id) : null,
+            vipReferralsThreshold: row.vip_referrals_threshold != null ? Number(row.vip_referrals_threshold) : null,
+            vipMembershipTier: this.normalizeTier(row.vip_membership_tier),
+          };
+        }
+      }
+    } catch {
+      // ignore and fall back
+    }
+
+    try {
+      const rows = await this.referralRepo.query(
+        `SELECT id::text AS id, reward_referrer_amount, reward_referred_amount
+         , reward_type, reward_referrer_points, reward_referred_points, referrer_offer_id, referred_offer_id,
+           vip_referrals_threshold, vip_membership_tier
+         FROM referral_campaigns WHERE name = $1 ORDER BY created_at ASC LIMIT 1`,
+        ['Default Referral Campaign'],
+      );
+      const row = rows?.[0];
+      if (row?.id) {
+        return {
+          campaignId: row.id,
+          rewardType: this.normalizeReferralRewardType(row.reward_type),
+          referrerRewardAmount: Number(row.reward_referrer_amount ?? 100),
+          referredRewardAmount: Number(row.reward_referred_amount ?? 0),
+          referrerRewardPoints: Number(row.reward_referrer_points ?? 0),
+          referredRewardPoints: Number(row.reward_referred_points ?? 0),
+          referrerOfferId: row.referrer_offer_id != null ? Number(row.referrer_offer_id) : null,
+          referredOfferId: row.referred_offer_id != null ? Number(row.referred_offer_id) : null,
+          vipReferralsThreshold: row.vip_referrals_threshold != null ? Number(row.vip_referrals_threshold) : null,
+          vipMembershipTier: this.normalizeTier(row.vip_membership_tier),
+        };
+      }
+    } catch {
+      // ignore
+    }
+
+    return {
+      campaignId: null,
+      rewardType: 'wallet',
+      referrerRewardAmount: 100,
+      referredRewardAmount: 0,
+      referrerRewardPoints: 0,
+      referredRewardPoints: 0,
+      referrerOfferId: null,
+      referredOfferId: null,
+      vipReferralsThreshold: null,
+      vipMembershipTier: 'none',
+    };
+  }
+
+  async registerReferralFromShareCode(input: {
+    referrerCustomerId: number;
+    referredCustomerId: number;
+    referredEmail?: string;
+    referredPhone?: string;
+    shareCodeUsed?: string;
+    sourceChannel?: string;
+    campaignId?: string;
+  }) {
+    if (!input?.referrerCustomerId || !input?.referredCustomerId) return null;
+    if (Number(input.referrerCustomerId) === Number(input.referredCustomerId)) return null;
+
+    const existing = await this.referralRepo.findOne({
+      where: { referredCustomerId: Number(input.referredCustomerId) } as any,
+    });
+    if (existing) return existing;
+
+    const campaign = await this.resolveReferralCampaignConfig({ campaignId: input.campaignId });
+    const referralCode = await this.generateReferralCode(Number(input.referrerCustomerId));
+
+    const referral = this.referralRepo.create({
+      referrerCustomerId: Number(input.referrerCustomerId),
+      referredCustomerId: Number(input.referredCustomerId),
+      referredEmail: input.referredEmail ?? null,
+      referredPhone: input.referredPhone ?? null,
+      referralCode,
+      shareCodeUsed: input.shareCodeUsed ?? null,
+      sourceChannel: input.sourceChannel ?? null,
+      campaignId: campaign.campaignId,
+      rewardAmount: campaign.referrerRewardAmount,
+      referredRewardAmount: campaign.referredRewardAmount,
+      status: 'registered',
+    } as any) as any;
+
+    const saved = (await this.referralRepo.save(referral as any)) as any;
+
+    await this.recordReferralEvent({
+      eventType: 'registered',
+      referralId: saved.id,
+      referrerCustomerId: saved.referrerCustomerId,
+      referredCustomerId: saved.referredCustomerId,
+      shareCodeUsed: saved.shareCodeUsed ?? undefined,
+      sourceChannel: saved.sourceChannel ?? undefined,
+      payload: { campaignId: saved.campaignId ?? null },
+    });
+
+    return saved;
+  }
+
+  async autoCompleteReferralForDeliveredOrder(input: { orderId: number; customerId: number | null }) {
+    const customerId = input?.customerId != null ? Number(input.customerId) : null;
+    if (!customerId) return null;
+
+    // Only complete on the first delivered order (fraud / abuse prevention)
+    const deliveredCount = await this.countDeliveredOrdersForCustomer(customerId);
+    if (deliveredCount > 1) {
+      return null;
+    }
+
+    const referral = await this.referralRepo.findOne({
+      where: { referredCustomerId: customerId } as any,
+    });
+    if (!referral) return null;
+    if ((referral as any).status === 'completed') return referral;
+
+    const completed = await this.markReferralComplete(referral.id, customerId, input.orderId);
+
+    await this.recordReferralEvent({
+      eventType: 'completed',
+      referralId: referral.id,
+      referrerCustomerId: (referral as any).referrerCustomerId,
+      referredCustomerId: customerId,
+      orderId: input.orderId,
+      shareCodeUsed: (referral as any).shareCodeUsed ?? undefined,
+      sourceChannel: (referral as any).sourceChannel ?? undefined,
+    });
+
+    return completed;
+  }
+
   async generateReferralCode(customerId: number): Promise<string> {
     const code = `REF${customerId}${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
     return code;
   }
 
-  async createReferral(referrerCustomerId: number, referredEmail: string, referredPhone?: string) {
+  async createReferral(referrerCustomerId: number, referredEmail?: string | null, referredPhone?: string | null) {
     const referralCode = await this.generateReferralCode(referrerCustomerId);
-    
+
+    const email = referredEmail != null && String(referredEmail).trim().length ? String(referredEmail).trim() : null;
+    const phone = referredPhone != null && String(referredPhone).trim().length ? String(referredPhone).trim() : null;
+
     const referral = this.referralRepo.create({
       referrerCustomerId,
-      referredEmail,
-      referredPhone,
+      referredEmail: email as any,
+      referredPhone: phone as any,
       referralCode,
       rewardAmount: 100,
     });
-    
+
     return await this.referralRepo.save(referral);
+  }
+
+  async createAgentReferral(input: {
+    referrerCustomerId: number;
+    referredEmail?: string;
+    referredPhone?: string;
+    agentUserId: number;
+    campaignId?: string;
+    partnerId?: string;
+    notes?: string;
+  }) {
+    const referrerCustomerId = Number(input.referrerCustomerId);
+    if (!Number.isFinite(referrerCustomerId) || referrerCustomerId <= 0) {
+      throw new Error('Invalid referrerCustomerId');
+    }
+    const agentUserId = Number(input.agentUserId);
+    if (!Number.isFinite(agentUserId) || agentUserId <= 0) {
+      throw new Error('Invalid agentUserId');
+    }
+
+    const referralCode = await this.generateReferralCode(referrerCustomerId);
+    const shareCodeUsed = await this.getShareReferralCode(referrerCustomerId);
+    const cfg = await this.resolveReferralCampaignConfig({ campaignId: input.campaignId });
+
+    const email = input.referredEmail != null && String(input.referredEmail).trim().length ? String(input.referredEmail).trim() : null;
+    const phone = input.referredPhone != null && String(input.referredPhone).trim().length ? String(input.referredPhone).trim() : null;
+
+    const referral = this.referralRepo.create({
+      referrerCustomerId,
+      referredEmail: email as any,
+      referredPhone: phone as any,
+      referralCode,
+      rewardAmount: cfg.referrerRewardAmount,
+      referredRewardAmount: cfg.referredRewardAmount,
+      status: 'pending' as any,
+    });
+
+    (referral as any).sourceChannel = 'agent_referral';
+    (referral as any).shareCodeUsed = shareCodeUsed;
+    (referral as any).campaignId = cfg.campaignId;
+    (referral as any).partnerId = input.partnerId != null ? String(input.partnerId) : null;
+    (referral as any).agentUserId = agentUserId;
+
+    const saved = await this.referralRepo.save(referral);
+
+    await this.recordReferralEvent({
+      eventType: 'invited',
+      referralId: saved.id,
+      referrerCustomerId,
+      shareCodeUsed,
+      sourceChannel: 'agent_referral',
+      payload: {
+        agentUserId,
+        notes: input.notes != null ? String(input.notes) : null,
+      },
+    });
+
+    return saved;
+  }
+
+  async listAgentReferrals(agentUserId: number, limit = 100) {
+    const id = Number(agentUserId);
+    if (!Number.isFinite(id) || id <= 0) return [];
+
+    const take = Number.isFinite(limit) ? Math.max(1, Math.min(500, Math.floor(limit))) : 100;
+    const rows = await this.referralRepo.query(
+      `SELECT * FROM customer_referrals
+       WHERE agent_user_id = $1
+       ORDER BY created_at DESC
+       LIMIT $2`,
+      [id, take],
+    );
+    return rows || [];
   }
 
   async getReferralsByCustomer(customerId: number) {
@@ -605,11 +939,13 @@ export class LoyaltyService {
     if (referrals.length === 0) return referrals;
 
     const referralIds = referrals.map((r) => r.id);
+    // Only map the referrer's reward transactions (avoid mixing in referred bonuses)
     const rewardTxs = await this.transactionRepo.find({
       where: {
         source: 'referral' as any,
         transactionType: 'credit' as any,
         referenceId: In(referralIds) as any,
+        customerId,
       } as any,
       order: { createdAt: 'DESC' },
     });
@@ -638,7 +974,7 @@ export class LoyaltyService {
     return `REF${String(id).padStart(6, '0')}`;
   }
 
-  async markReferralComplete(referralId: number, referredCustomerId?: number) {
+  async markReferralComplete(referralId: number, referredCustomerId?: number, orderId?: number) {
     const referral = await this.referralRepo.findOne({ where: { id: referralId } });
     
     if (!referral) {
@@ -653,6 +989,10 @@ export class LoyaltyService {
 
     if (referredCustomerId != null) {
       referral.referredCustomerId = referredCustomerId;
+    }
+
+    if (orderId != null) {
+      (referral as any).qualifyingOrderId = Number(orderId);
     }
     
     referral.firstOrderPlaced = true;
@@ -670,23 +1010,424 @@ export class LoyaltyService {
   private async ensureReferralRewardCredited(referralId: number) {
     const referral = await this.referralRepo.findOne({ where: { id: referralId } });
     if (!referral) return;
-    if (referral.rewardCredited) return;
     if (referral.status !== 'completed') return;
     if (!referral.referrerCustomerId) return;
 
-    // Credit referrer wallet once.
-    const idempotencyKey = `referral:${referral.id}:referrer`;
-    await this.creditWallet(
-      referral.referrerCustomerId,
-      Number(referral.rewardAmount || 0),
-      'referral',
-      'Referral reward',
-      referral.id,
-      idempotencyKey,
+    const campaignId = (referral as any).campaignId ? String((referral as any).campaignId) : undefined;
+    const campaign = await this.resolveReferralCampaignConfig({ campaignId });
+    const rewardType = campaign.rewardType;
+
+    const referredId = (referral as any).referredCustomerId ? Number((referral as any).referredCustomerId) : null;
+
+    if (rewardType === 'points') {
+      // Referrer points
+      if (!referral.rewardCredited && campaign.referrerRewardPoints > 0) {
+        const idempotencyKey = `referral:${referral.id}:referrer:points`;
+        await this.earnPoints(referral.referrerCustomerId, campaign.referrerRewardPoints, 'referral', 'Referral reward (points)', referral.id, idempotencyKey);
+        referral.rewardCredited = true;
+      }
+
+      // Referred points
+      if (referredId && campaign.referredRewardPoints > 0 && !(referral as any).referredRewardCredited) {
+        const idempotencyKey = `referral:${referral.id}:referred:points`;
+        await this.earnPoints(referredId, campaign.referredRewardPoints, 'referral', 'Referral welcome bonus (points)', referral.id, idempotencyKey);
+        (referral as any).referredRewardCredited = true;
+      }
+    } else if (rewardType === 'coupon' || rewardType === 'free_product') {
+      // Issue customer-assigned offer codes (single-use)
+      if (!referral.rewardCredited && campaign.referrerOfferId) {
+        const code = await this.offersService.issueOfferCode({
+          offerId: campaign.referrerOfferId,
+          assignedCustomerId: referral.referrerCustomerId,
+          prefix: rewardType === 'free_product' ? 'FREE' : 'REF',
+          maxUses: 1,
+          maxUsesPerCustomer: 1,
+        });
+        referral.rewardCredited = true;
+        await this.recordReferralEvent({
+          eventType: rewardType === 'free_product' ? 'reward_issued_free_product' : 'reward_issued_coupon',
+          referralId: referral.id,
+          referrerCustomerId: referral.referrerCustomerId,
+          referredCustomerId: referredId ?? undefined,
+          payload: { offerCode: code.code, offerId: campaign.referrerOfferId, side: 'referrer' },
+        });
+      }
+
+      if (referredId && !(referral as any).referredRewardCredited && campaign.referredOfferId) {
+        const code = await this.offersService.issueOfferCode({
+          offerId: campaign.referredOfferId,
+          assignedCustomerId: referredId,
+          prefix: rewardType === 'free_product' ? 'FREE' : 'WELCOME',
+          maxUses: 1,
+          maxUsesPerCustomer: 1,
+        });
+        (referral as any).referredRewardCredited = true;
+        await this.recordReferralEvent({
+          eventType: rewardType === 'free_product' ? 'reward_issued_free_product' : 'reward_issued_coupon',
+          referralId: referral.id,
+          referrerCustomerId: referral.referrerCustomerId,
+          referredCustomerId: referredId,
+          payload: { offerCode: code.code, offerId: campaign.referredOfferId, side: 'referred' },
+        });
+      }
+    } else {
+      // Default: wallet amounts
+      if (!referral.rewardCredited) {
+        const idempotencyKey = `referral:${referral.id}:referrer:wallet`;
+        await this.creditWallet(
+          referral.referrerCustomerId,
+          Number((referral as any).rewardAmount || campaign.referrerRewardAmount || 0),
+          'referral',
+          'Referral reward',
+          referral.id,
+          idempotencyKey,
+        );
+        referral.rewardCredited = true;
+      }
+
+      const referredAmount = Number((referral as any).referredRewardAmount || campaign.referredRewardAmount || 0);
+      if (referredId && referredAmount > 0 && !(referral as any).referredRewardCredited) {
+        const idempotencyKey = `referral:${referral.id}:referred:wallet`;
+        await this.creditWallet(
+          referredId,
+          referredAmount,
+          'referral',
+          'Referral welcome bonus',
+          referral.id,
+          idempotencyKey,
+        );
+        (referral as any).referredRewardCredited = true;
+      }
+    }
+
+    // VIP / membership automation for referrer
+    if (campaign.vipReferralsThreshold && campaign.vipReferralsThreshold > 0) {
+      try {
+        const stats = await this.getReferralStats(referral.referrerCustomerId);
+        const completed = Number((stats as any)?.completed_referrals || 0);
+        if (completed >= campaign.vipReferralsThreshold) {
+          const tier = campaign.vipMembershipTier !== 'none' ? campaign.vipMembershipTier : 'gold';
+          await this.updateMembershipTierV2(referral.referrerCustomerId, tier);
+        }
+      } catch {
+        // non-blocking
+      }
+    }
+
+    await this.referralRepo.save(referral as any);
+  }
+
+  async listReferralCampaigns(includeInactive = false) {
+    const where = includeInactive ? '' : 'WHERE is_active = true';
+    const rows = await this.referralRepo.query(
+      `SELECT id::text AS id, name, is_active, reward_type,
+              reward_referrer_amount, reward_referred_amount,
+              reward_referrer_points, reward_referred_points,
+              referrer_offer_id, referred_offer_id,
+              vip_referrals_threshold, vip_membership_tier,
+              starts_at, ends_at, created_at, updated_at
+       FROM referral_campaigns
+       ${where}
+       ORDER BY created_at DESC`,
+    );
+    return rows || [];
+  }
+
+  async createReferralCampaign(data: any) {
+    const name = String(data?.name || '').trim();
+    if (!name) throw new Error('Campaign name is required');
+
+    const rewardType = this.normalizeReferralRewardType(data?.rewardType ?? data?.reward_type);
+    const isActive = data?.isActive != null ? Boolean(data.isActive) : data?.is_active != null ? Boolean(data.is_active) : true;
+
+    const referrerAmount = Number(data?.rewardReferrerAmount ?? data?.reward_referrer_amount ?? 0);
+    const referredAmount = Number(data?.rewardReferredAmount ?? data?.reward_referred_amount ?? 0);
+    const referrerPoints = Number(data?.rewardReferrerPoints ?? data?.reward_referrer_points ?? 0);
+    const referredPoints = Number(data?.rewardReferredPoints ?? data?.reward_referred_points ?? 0);
+    const referrerOfferId = data?.referrerOfferId ?? data?.referrer_offer_id;
+    const referredOfferId = data?.referredOfferId ?? data?.referred_offer_id;
+    const vipThreshold = data?.vipReferralsThreshold ?? data?.vip_referrals_threshold;
+    const vipTier = this.normalizeTier(data?.vipMembershipTier ?? data?.vip_membership_tier);
+
+    const startsAt = data?.startsAt ?? data?.starts_at;
+    const endsAt = data?.endsAt ?? data?.ends_at;
+
+    const rows = await this.referralRepo.query(
+      `INSERT INTO referral_campaigns (
+        name, is_active, reward_type,
+        reward_referrer_amount, reward_referred_amount,
+        reward_referrer_points, reward_referred_points,
+        referrer_offer_id, referred_offer_id,
+        vip_referrals_threshold, vip_membership_tier,
+        starts_at, ends_at
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+      RETURNING id::text AS id, name, is_active, reward_type,
+        reward_referrer_amount, reward_referred_amount,
+        reward_referrer_points, reward_referred_points,
+        referrer_offer_id, referred_offer_id,
+        vip_referrals_threshold, vip_membership_tier,
+        starts_at, ends_at, created_at, updated_at`,
+      [
+        name,
+        isActive,
+        rewardType,
+        referrerAmount,
+        referredAmount,
+        referrerPoints,
+        referredPoints,
+        referrerOfferId != null ? Number(referrerOfferId) : null,
+        referredOfferId != null ? Number(referredOfferId) : null,
+        vipThreshold != null ? Number(vipThreshold) : null,
+        vipTier !== 'none' ? vipTier : null,
+        startsAt ? new Date(startsAt) : null,
+        endsAt ? new Date(endsAt) : null,
+      ],
+    );
+    return rows?.[0] || null;
+  }
+
+  async updateReferralCampaign(id: string, data: any) {
+    const campaignId = String(id).trim();
+    if (!campaignId) throw new Error('Invalid campaign id');
+
+    const name = data?.name != null ? String(data.name).trim() : undefined;
+    const isActive = data?.isActive != null ? Boolean(data.isActive) : data?.is_active != null ? Boolean(data.is_active) : undefined;
+    const rewardTypeRaw = data?.rewardType ?? data?.reward_type;
+    const rewardType = rewardTypeRaw != null ? this.normalizeReferralRewardType(rewardTypeRaw) : undefined;
+
+    const referrerAmount = data?.rewardReferrerAmount ?? data?.reward_referrer_amount;
+    const referredAmount = data?.rewardReferredAmount ?? data?.reward_referred_amount;
+    const referrerPoints = data?.rewardReferrerPoints ?? data?.reward_referrer_points;
+    const referredPoints = data?.rewardReferredPoints ?? data?.reward_referred_points;
+    const referrerOfferId = data?.referrerOfferId ?? data?.referrer_offer_id;
+    const referredOfferId = data?.referredOfferId ?? data?.referred_offer_id;
+    const vipThreshold = data?.vipReferralsThreshold ?? data?.vip_referrals_threshold;
+    const vipTierRaw = data?.vipMembershipTier ?? data?.vip_membership_tier;
+    const vipTier = vipTierRaw != null ? this.normalizeTier(vipTierRaw) : undefined;
+    const startsAt = data?.startsAt ?? data?.starts_at;
+    const endsAt = data?.endsAt ?? data?.ends_at;
+
+    const existing = await this.referralRepo.query(`SELECT id::text AS id FROM referral_campaigns WHERE id = $1 LIMIT 1`, [campaignId]);
+    if (!existing?.[0]?.id) throw new Error('Campaign not found');
+
+    await this.referralRepo.query(
+      `UPDATE referral_campaigns SET
+        name = COALESCE($2, name),
+        is_active = COALESCE($3, is_active),
+        reward_type = COALESCE($4, reward_type),
+        reward_referrer_amount = COALESCE($5, reward_referrer_amount),
+        reward_referred_amount = COALESCE($6, reward_referred_amount),
+        reward_referrer_points = COALESCE($7, reward_referrer_points),
+        reward_referred_points = COALESCE($8, reward_referred_points),
+        referrer_offer_id = COALESCE($9, referrer_offer_id),
+        referred_offer_id = COALESCE($10, referred_offer_id),
+        vip_referrals_threshold = COALESCE($11, vip_referrals_threshold),
+        vip_membership_tier = COALESCE($12, vip_membership_tier),
+        starts_at = COALESCE($13, starts_at),
+        ends_at = COALESCE($14, ends_at),
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = $1`,
+      [
+        campaignId,
+        name ?? null,
+        isActive != null ? isActive : null,
+        rewardType ?? null,
+        referrerAmount != null ? Number(referrerAmount) : null,
+        referredAmount != null ? Number(referredAmount) : null,
+        referrerPoints != null ? Number(referrerPoints) : null,
+        referredPoints != null ? Number(referredPoints) : null,
+        referrerOfferId != null ? Number(referrerOfferId) : null,
+        referredOfferId != null ? Number(referredOfferId) : null,
+        vipThreshold != null ? Number(vipThreshold) : null,
+        vipTier != null ? (vipTier === 'none' ? null : vipTier) : null,
+        startsAt != null ? new Date(startsAt) : null,
+        endsAt != null ? new Date(endsAt) : null,
+      ],
     );
 
-    referral.rewardCredited = true;
-    await this.referralRepo.save(referral);
+    const rows = await this.referralRepo.query(
+      `SELECT id::text AS id, name, is_active, reward_type,
+              reward_referrer_amount, reward_referred_amount,
+              reward_referrer_points, reward_referred_points,
+              referrer_offer_id, referred_offer_id,
+              vip_referrals_threshold, vip_membership_tier,
+              starts_at, ends_at, created_at, updated_at
+       FROM referral_campaigns WHERE id = $1 LIMIT 1`,
+      [campaignId],
+    );
+    return rows?.[0] || null;
+  }
+
+  async listReferralPartners(includeInactive = false) {
+    const where = includeInactive ? '' : 'WHERE is_active = true';
+    const rows = await this.referralRepo.query(
+      `SELECT id::text AS id, code, partner_type, name, is_active, created_at
+       FROM referral_partners
+       ${where}
+       ORDER BY created_at DESC`,
+    );
+    return rows || [];
+  }
+
+  async createReferralPartner(data: any) {
+    const code = String(data?.code || '').trim();
+    if (!code) throw new Error('Partner code is required');
+    const partnerType = String(data?.partnerType ?? data?.partner_type ?? 'influencer').trim() || 'influencer';
+    const name = data?.name != null ? String(data.name) : null;
+    const isActive = data?.isActive != null ? Boolean(data.isActive) : data?.is_active != null ? Boolean(data.is_active) : true;
+
+    const rows = await this.referralRepo.query(
+      `INSERT INTO referral_partners (code, partner_type, name, is_active)
+       VALUES ($1,$2,$3,$4)
+       RETURNING id::text AS id, code, partner_type, name, is_active, created_at`,
+      [code, partnerType, name, isActive],
+    );
+    return rows?.[0] || null;
+  }
+
+  async updateReferralPartner(id: string, data: any) {
+    const partnerId = String(id).trim();
+    if (!partnerId) throw new Error('Invalid partner id');
+
+    const code = data?.code != null ? String(data.code).trim() : null;
+    const partnerType = data?.partnerType != null ? String(data.partnerType).trim() : data?.partner_type != null ? String(data.partner_type).trim() : null;
+    const name = data?.name != null ? String(data.name) : null;
+    const isActive = data?.isActive != null ? Boolean(data.isActive) : data?.is_active != null ? Boolean(data.is_active) : null;
+
+    await this.referralRepo.query(
+      `UPDATE referral_partners SET
+        code = COALESCE($2, code),
+        partner_type = COALESCE($3, partner_type),
+        name = COALESCE($4, name),
+        is_active = COALESCE($5, is_active)
+      WHERE id = $1`,
+      [partnerId, code, partnerType, name, isActive],
+    );
+
+    const rows = await this.referralRepo.query(
+      `SELECT id::text AS id, code, partner_type, name, is_active, created_at
+       FROM referral_partners WHERE id = $1 LIMIT 1`,
+      [partnerId],
+    );
+    return rows?.[0] || null;
+  }
+
+  async getReferralPartnerReportByCode(code: string, input?: { from?: string; to?: string; limit?: number }) {
+    const partnerCode = String(code || '').trim();
+    if (!partnerCode) throw new Error('Partner code is required');
+
+    const from = input?.from ? new Date(input.from) : null;
+    const to = input?.to ? new Date(input.to) : null;
+    const limit = input?.limit != null && Number.isFinite(Number(input.limit)) ? Math.max(1, Math.min(500, Math.floor(Number(input.limit)))) : 50;
+
+    // Funnel stats from referral_events
+    const funnelRows = await this.referralRepo.query(
+      `SELECT
+         COUNT(*)::int AS total_events,
+         COUNT(*) FILTER (WHERE event_type = 'invited')::int AS invited,
+         COUNT(*) FILTER (WHERE event_type = 'registered')::int AS registered,
+         COUNT(*) FILTER (WHERE event_type = 'completed')::int AS completed,
+         COUNT(*) FILTER (WHERE event_type = 'reward_credited')::int AS reward_credited,
+         COUNT(DISTINCT referred_customer_id) FILTER (WHERE referred_customer_id IS NOT NULL)::int AS unique_referred_customers,
+         COUNT(DISTINCT order_id) FILTER (WHERE order_id IS NOT NULL)::int AS attributed_orders
+       FROM referral_events
+       WHERE partner_code = $1
+         AND ($2::timestamp IS NULL OR created_at >= $2)
+         AND ($3::timestamp IS NULL OR created_at <= $3)`,
+      [partnerCode, from, to],
+    );
+    const funnel = funnelRows?.[0] || {};
+
+    // Revenue + discount from sales_orders (attributed via referral_events.order_id)
+    const revenueRows = await this.referralRepo.query(
+      `SELECT
+         COALESCE(SUM(o.total_amount), 0)::numeric AS total_revenue,
+         COALESCE(SUM(o.discount_amount), 0)::numeric AS total_discount,
+         COUNT(DISTINCT o.id)::int AS order_count
+       FROM sales_orders o
+       WHERE o.id IN (
+         SELECT DISTINCT order_id
+         FROM referral_events
+         WHERE partner_code = $1
+           AND order_id IS NOT NULL
+           AND ($2::timestamp IS NULL OR created_at >= $2)
+           AND ($3::timestamp IS NULL OR created_at <= $3)
+       )`,
+      [partnerCode, from, to],
+    );
+    const revenue = revenueRows?.[0] || {};
+
+    // Recent attributed orders
+    const orders = await this.referralRepo.query(
+      `SELECT o.id, o.sales_order_number, o.customer_id, o.total_amount, o.discount_amount,
+              o.offer_code, o.offer_id, o.status, o.created_at, o.delivered_at
+       FROM sales_orders o
+       WHERE o.id IN (
+         SELECT DISTINCT order_id
+         FROM referral_events
+         WHERE partner_code = $1
+           AND order_id IS NOT NULL
+           AND ($2::timestamp IS NULL OR created_at >= $2)
+           AND ($3::timestamp IS NULL OR created_at <= $3)
+       )
+       ORDER BY o.created_at DESC
+       LIMIT $4`,
+      [partnerCode, from, to, limit],
+    );
+
+    return {
+      partner_code: partnerCode,
+      window: { from: from ? from.toISOString() : null, to: to ? to.toISOString() : null },
+      funnel,
+      revenue: {
+        order_count: Number(revenue.order_count ?? 0),
+        total_revenue: Number(revenue.total_revenue ?? 0),
+        total_discount: Number(revenue.total_discount ?? 0),
+      },
+      orders: orders || [],
+    };
+  }
+
+  // =====================================================
+  // WALLET WITHDRAWALS (cash-out workflow)
+  // =====================================================
+
+  async createWalletWithdrawalRequest(customerId: number, input: { amount: number; method?: string; account: string; notes?: string }) {
+    const amount = this.normalizeMoneyAmount(Number(input.amount));
+    const method = String(input.method || 'bkash').trim() || 'bkash';
+    const account = String(input.account || '').trim();
+    if (!account) throw new Error('Account is required');
+
+    // Ensure wallet exists and has sufficient balance
+    const wallet = await this.getCustomerWallet(customerId);
+    const balance = Number((wallet as any).balance || 0);
+    if (balance < amount) throw new Error('Insufficient wallet balance');
+
+    const req = this.withdrawalRepo.create({
+      customerId: Number(customerId),
+      amount,
+      method,
+      account,
+      status: 'pending',
+      notes: input.notes ? String(input.notes) : null,
+    });
+
+    return await this.withdrawalRepo.save(req);
+  }
+
+  async listWalletWithdrawalRequests(params: { customerId?: number; status?: string }) {
+    const where: any = {};
+    if (params.customerId != null) where.customerId = Number(params.customerId);
+    if (params.status) where.status = String(params.status);
+    return await this.withdrawalRepo.find({ where, order: { createdAt: 'DESC' } });
+  }
+
+  async updateWalletWithdrawalStatus(id: string | number, status: 'pending' | 'approved' | 'rejected' | 'paid', notes?: string) {
+    const req = await this.withdrawalRepo.findOne({ where: { id: String(id) } as any });
+    if (!req) throw new Error('Withdrawal request not found');
+    req.status = status;
+    req.notes = notes != null ? String(notes) : req.notes;
+    return await this.withdrawalRepo.save(req);
   }
 
   // =====================================================
@@ -1012,7 +1753,86 @@ export class LoyaltyService {
   // =====================================================
 
   async getLoyaltyKPIs() {
-    const query = `SELECT * FROM loyalty_kpi_metrics`;
+    // Compute KPIs directly from base tables (avoid relying on a DB view that may not exist)
+    const query = `
+      WITH
+      customers_total AS (
+        SELECT COUNT(*)::int AS total_customers
+        FROM customers
+      ),
+      delivered_orders AS (
+        SELECT
+          customer_id,
+          COUNT(*)::int AS delivered_count,
+          COALESCE(SUM(total_amount), 0)::float8 AS delivered_spend
+        FROM sales_orders
+        WHERE customer_id IS NOT NULL
+          AND lower(status::text) = 'delivered'
+        GROUP BY customer_id
+      ),
+      order_agg AS (
+        SELECT
+          COALESCE(SUM(delivered_count), 0)::int AS total_delivered_orders,
+          COALESCE(SUM(delivered_spend), 0)::float8 AS total_delivered_revenue,
+          COUNT(*) FILTER (WHERE delivered_count >= 1)::int AS customers_with_delivered,
+          COUNT(*) FILTER (WHERE delivered_count >= 2)::int AS repeat_customers
+        FROM delivered_orders
+      ),
+      membership_agg AS (
+        SELECT
+          COUNT(*) FILTER (WHERE membership_tier IS NOT NULL AND membership_tier <> 'none')::int AS members
+        FROM customer_memberships
+      ),
+      referral_agg AS (
+        SELECT
+          COUNT(*) FILTER (WHERE lower(status::text) = 'completed')::int AS completed_referrals,
+          COUNT(*)::int AS total_referrals
+        FROM customer_referrals
+      ),
+      wallet_referral_agg AS (
+        SELECT
+          COALESCE(SUM(amount), 0)::float8 AS total_referral_rewards_paid
+        FROM wallet_transactions
+        WHERE transaction_type = 'credit'
+          AND source = 'referral'
+          AND status = 'posted'
+      )
+      SELECT
+        ct.total_customers,
+        CASE
+          WHEN oa.customers_with_delivered > 0
+            THEN ROUND((oa.repeat_customers::numeric / oa.customers_with_delivered::numeric) * 100, 2)::float8
+          ELSE 0::float8
+        END AS first_to_repeat_percentage,
+        CASE
+          WHEN ct.total_customers > 0
+            THEN ROUND((ma.members::numeric / ct.total_customers::numeric) * 100, 2)::float8
+          ELSE 0::float8
+        END AS member_conversion_rate,
+        CASE
+          WHEN ct.total_customers > 0
+            THEN ROUND((oa.total_delivered_orders::numeric / ct.total_customers::numeric), 4)::float8
+          ELSE 0::float8
+        END AS avg_orders_per_customer,
+        CASE
+          WHEN ct.total_customers > 0
+            THEN ROUND((ra.total_referrals::numeric / ct.total_customers::numeric), 4)::float8
+          ELSE 0::float8
+        END AS avg_referrals_per_customer,
+        CASE
+          WHEN ct.total_customers > 0
+            THEN ROUND((oa.total_delivered_revenue::numeric / ct.total_customers::numeric), 2)::float8
+          ELSE 0::float8
+        END AS avg_customer_lifetime_value,
+        ra.completed_referrals,
+        ROUND(wra.total_referral_rewards_paid::numeric, 2)::float8 AS total_referral_rewards_paid
+      FROM customers_total ct
+      CROSS JOIN order_agg oa
+      CROSS JOIN membership_agg ma
+      CROSS JOIN referral_agg ra
+      CROSS JOIN wallet_referral_agg wra;
+    `;
+
     const result = await this.membershipRepo.query(query);
     return result[0] || {};
   }

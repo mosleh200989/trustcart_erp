@@ -1,8 +1,10 @@
-import { ArrayMinSize, IsArray, IsUUID } from 'class-validator';
+import { Type } from 'class-transformer';
+import { ArrayMinSize, IsArray, IsInt } from 'class-validator';
 
 export class AssignCustomersDto {
   @IsArray()
   @ArrayMinSize(1)
-  @IsUUID('4', { each: true })
-  customerIds!: string[];
+  @Type(() => Number)
+  @IsInt({ each: true })
+  customerIds!: number[];
 }

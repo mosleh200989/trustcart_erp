@@ -3,13 +3,54 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Customer } from './customer.entity';
 import * as bcrypt from 'bcrypt';
+import { LoyaltyService } from '../loyalty/loyalty.service';
 
 @Injectable()
 export class CustomersService {
   constructor(
     @InjectRepository(Customer)
     private customersRepository: Repository<Customer>,
+    private readonly loyaltyService: LoyaltyService,
   ) {}
+
+  private normalizeReferralCode(raw: any): string | null {
+    if (raw == null) return null;
+    const code = String(raw).trim();
+    if (!code) return null;
+    return code;
+  }
+
+  private normalizeReferralChannel(raw: any): string | null {
+    if (raw == null) return null;
+    const ch = String(raw).trim().toLowerCase();
+    return ch ? ch.slice(0, 30) : null;
+  }
+
+  private async resolveDefaultReferralCampaignId(): Promise<string | null> {
+    try {
+      const rows = await this.customersRepository.query(
+        `SELECT id::text AS id FROM referral_campaigns WHERE name = $1 ORDER BY created_at ASC LIMIT 1`,
+        ['Default Referral Campaign'],
+      );
+      return rows?.[0]?.id ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  private async resolvePartnerIdByCode(code: string): Promise<{ partnerId: string; partnerCode: string } | null> {
+    try {
+      const rows = await this.customersRepository.query(
+        `SELECT id::text AS id, code FROM referral_partners WHERE lower(code) = lower($1) AND is_active = true LIMIT 1`,
+        [code],
+      );
+      const row = rows?.[0];
+      if (!row?.id) return null;
+      return { partnerId: String(row.id), partnerCode: String(row.code) };
+    } catch {
+      return null;
+    }
+  }
 
   async findByEmail(email: string) {
     if (!email) return null;
@@ -27,11 +68,17 @@ export class CustomersService {
   }
 
   async findOne(id: string) {
-    return this.customersRepository.findOne({ where: { id } });
+    const numericId = Number(id);
+    if (!Number.isFinite(numericId)) return null;
+    return this.customersRepository.findOne({ where: { id: numericId } });
   }
 
   async create(createCustomerDto: any) {
     try {
+      if (Array.isArray(createCustomerDto)) {
+        throw new Error('Invalid customer payload');
+      }
+
       const email =
         typeof createCustomerDto.email === 'string'
           ? createCustomerDto.email.trim()
@@ -52,6 +99,20 @@ export class CustomersService {
       // Normalize empty email to null to avoid unique collisions on ''
       createCustomerDto.email = email && email.length > 0 ? email : null;
       createCustomerDto.phone = phone;
+
+      // Referral attribution fields (optional)
+      const referralCode =
+        this.normalizeReferralCode(createCustomerDto.ref) ||
+        this.normalizeReferralCode(createCustomerDto.referredByCode) ||
+        this.normalizeReferralCode(createCustomerDto.referred_by_code) ||
+        this.normalizeReferralCode(createCustomerDto.referral_code) ||
+        null;
+
+      const referralChannel =
+        this.normalizeReferralChannel(createCustomerDto.referralChannel) ||
+        this.normalizeReferralChannel(createCustomerDto.referred_channel) ||
+        this.normalizeReferralChannel(createCustomerDto.channel) ||
+        null;
 
       // Check if phone already exists (mandatory + login identifier)
       // If it exists and has NO password, and this request provides a password,
@@ -83,6 +144,29 @@ export class CustomersService {
             password: await bcrypt.hash(createCustomerDto.password, 10),
           };
 
+          // Preserve referral attribution; only set if empty and caller provided a code
+          if (referralCode && !(existingByPhone as any).referredByCode) {
+            const defaultCampaignId = await this.resolveDefaultReferralCampaignId();
+            const partner = await this.resolvePartnerIdByCode(referralCode);
+
+            if (partner) {
+              patch.referredByPartnerId = partner.partnerId;
+              patch.referredByCode = partner.partnerCode;
+              patch.referredChannel = referralChannel;
+              patch.referredAt = new Date();
+              patch.referralCampaignId = defaultCampaignId;
+            } else {
+              const referrerCustomerId = this.loyaltyService.tryParseShareReferralCode(referralCode);
+              if (referrerCustomerId) {
+                patch.referredByCustomerId = referrerCustomerId;
+                patch.referredByCode = referralCode;
+                patch.referredChannel = referralChannel;
+                patch.referredAt = new Date();
+                patch.referralCampaignId = defaultCampaignId;
+              }
+            }
+          }
+
           if (Object.prototype.hasOwnProperty.call(createCustomerDto, 'email')) {
             patch.email = createCustomerDto.email;
           }
@@ -100,7 +184,28 @@ export class CustomersService {
           patch.isActive = true;
 
           await this.customersRepository.update(existingByPhone.id, patch);
-          return this.findOne(existingByPhone.id);
+          const updated = await this.findOne(String(existingByPhone.id));
+
+          // If it's a share-code referral and we now have a referred customer id, ensure referral record exists
+          try {
+            const referrerCustomerId =
+              referralCode ? this.loyaltyService.tryParseShareReferralCode(referralCode) : null;
+            if (updated?.id && referrerCustomerId) {
+              await this.loyaltyService.registerReferralFromShareCode({
+                referrerCustomerId,
+                referredCustomerId: updated.id,
+                referredEmail: updated.email ?? undefined,
+                referredPhone: updated.phone ?? undefined,
+                shareCodeUsed: referralCode ?? undefined,
+                sourceChannel: referralChannel ?? undefined,
+                campaignId: (updated as any).referralCampaignId ?? undefined,
+              });
+            }
+          } catch {
+            // never block registration upgrade
+          }
+
+          return updated;
         }
 
         throw new Error('Phone number already exists');
@@ -123,9 +228,61 @@ export class CustomersService {
       } else {
         createCustomerDto.isGuest = true;
       }
+
+      // Map referral attribution onto the customer record (if provided)
+      if (referralCode) {
+        const defaultCampaignId = await this.resolveDefaultReferralCampaignId();
+        const partner = await this.resolvePartnerIdByCode(referralCode);
+        if (partner) {
+          createCustomerDto.referredByPartnerId = partner.partnerId;
+          createCustomerDto.referredByCode = partner.partnerCode;
+          createCustomerDto.referredChannel = referralChannel;
+          createCustomerDto.referredAt = new Date();
+          createCustomerDto.referralCampaignId = defaultCampaignId;
+        } else {
+          const referrerCustomerId = this.loyaltyService.tryParseShareReferralCode(referralCode);
+          if (referrerCustomerId) {
+            createCustomerDto.referredByCustomerId = referrerCustomerId;
+            createCustomerDto.referredByCode = referralCode;
+            createCustomerDto.referredChannel = referralChannel;
+            createCustomerDto.referredAt = new Date();
+            createCustomerDto.referralCampaignId = defaultCampaignId;
+          }
+        }
+      }
       
-      const customer = this.customersRepository.create(createCustomerDto);
-      return this.customersRepository.save(customer);
+      const customer = this.customersRepository.create(createCustomerDto as any) as unknown as Customer;
+
+      const saved = (await this.customersRepository.save(customer as any)) as Customer;
+
+      // If this signup used a share-code referral, ensure a referral row exists immediately (status=registered)
+      try {
+        const referrerCustomerId =
+          referralCode ? this.loyaltyService.tryParseShareReferralCode(referralCode) : null;
+        if (referrerCustomerId) {
+          await this.loyaltyService.registerReferralFromShareCode({
+            referrerCustomerId,
+            referredCustomerId: saved.id,
+            referredEmail: saved.email ?? undefined,
+            referredPhone: saved.phone ?? undefined,
+            shareCodeUsed: referralCode ?? undefined,
+            sourceChannel: referralChannel ?? undefined,
+            campaignId: (saved as any).referralCampaignId ?? undefined,
+          });
+        } else if (referralCode) {
+          // Partner code attribution event
+          await this.loyaltyService.recordReferralEvent({
+            eventType: 'partner_attributed',
+            referredCustomerId: saved.id,
+            partnerCode: referralCode,
+            sourceChannel: referralChannel ?? undefined,
+          });
+        }
+      } catch {
+        // never block signup
+      }
+
+      return saved;
     } catch (error) {
       console.error('Error creating customer:', error);
       throw error;
@@ -133,7 +290,12 @@ export class CustomersService {
   }
 
   async update(id: string, updateCustomerDto: any) {
-    const existingCustomer = await this.customersRepository.findOne({ where: { id } });
+    const numericId = Number(id);
+    if (!Number.isFinite(numericId)) {
+      throw new Error('Invalid customer id');
+    }
+
+    const existingCustomer = await this.customersRepository.findOne({ where: { id: numericId } });
     if (!existingCustomer) {
       throw new Error('Customer not found');
     }
@@ -150,7 +312,7 @@ export class CustomersService {
       // This avoids false positives when legacy data contains duplicates.
       if (existingCustomer.phone !== phone) {
         const existingPhone = await this.customersRepository.findOne({ where: { phone } });
-        if (existingPhone && existingPhone.id !== id) {
+        if (existingPhone && existingPhone.id !== numericId) {
           throw new Error('Phone number already exists');
         }
       }
@@ -165,7 +327,7 @@ export class CustomersService {
       if (patch.email) {
         if (existingCustomer.email !== patch.email) {
           const existingEmail = await this.customersRepository.findOne({ where: { email: patch.email } });
-          if (existingEmail && existingEmail.id !== id) {
+          if (existingEmail && existingEmail.id !== numericId) {
             throw new Error('Email already exists');
           }
         }
@@ -177,11 +339,15 @@ export class CustomersService {
       patch.isGuest = false;
     }
 
-    await this.customersRepository.update(id, patch);
-    return this.findOne(id);
+    await this.customersRepository.update(numericId, patch);
+    return this.findOne(String(numericId));
   }
 
   async remove(id: string) {
-    return this.customersRepository.delete(id);
+    const numericId = Number(id);
+    if (!Number.isFinite(numericId)) {
+      throw new Error('Invalid customer id');
+    }
+    return this.customersRepository.delete(numericId);
   }
 }

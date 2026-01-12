@@ -1,3 +1,4 @@
+import { getPendingReferralAttribution } from "@/utils/referralAttribution";
 import React, { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import Link from "next/link";
@@ -31,6 +32,7 @@ export default function Checkout() {
     phone: "",
     address: "",
     notes: "",
+    offerCode: "",
     paymentMethod: "cash",
   });
 
@@ -329,11 +331,18 @@ export default function Checkout() {
             customerId = existingCustomer.id;
           } else {
             // Customer not found, create new one
+            const pendingReferral = getPendingReferralAttribution();
             const newCustomer = await apiClient.post("/customers", {
               name: formData.fullName,
               email: formData.email || null,
               phone: formData.phone,
               address: formData.address,
+              ...(pendingReferral?.code
+                ? {
+                    ref: pendingReferral.code,
+                    referralChannel: pendingReferral.channel || 'checkout',
+                  }
+                : null),
             });
             customerId = newCustomer.data.id;
           }
@@ -354,6 +363,9 @@ export default function Checkout() {
         customer_phone: formData.phone,
         shipping_address: formData.address,
         notes: formData.notes,
+        ...(formData.offerCode?.trim()
+          ? { offer_code: formData.offerCode.trim() }
+          : {}),
         payment_method: formData.paymentMethod,
         items: cart.map((item) => ({
           product_id: item.id,
@@ -729,6 +741,23 @@ export default function Checkout() {
                       <strong className="text-orange-500">
                         ৳{total.toFixed(2)}
                       </strong>
+                    </div>
+                  </div>
+
+                  <div className="border-t pt-4 mb-6">
+                    <label className="block text-sm font-semibold text-gray-800 mb-2">
+                      Offer / Coupon Code (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      name="offerCode"
+                      value={formData.offerCode}
+                      onChange={handleChange}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-500"
+                      placeholder="Enter offer/coupon code"
+                    />
+                    <div className="text-xs text-gray-600 mt-2">
+                      If you have a referral coupon/offer code, paste it here.
                     </div>
                   </div>
 

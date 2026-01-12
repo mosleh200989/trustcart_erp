@@ -10,6 +10,8 @@ import { Product } from '../products/product.entity';
 import { CustomersService } from '../customers/customers.service';
 import axios from 'axios';
 import { User } from '../users/user.entity';
+import { LoyaltyService } from '../loyalty/loyalty.service';
+import { WhatsAppService } from '../messaging/whatsapp.service';
 
 @Injectable()
 export class OrderManagementService {
@@ -27,6 +29,8 @@ export class OrderManagementService {
     @InjectRepository(CourierTrackingHistory)
     private courierTrackingRepository: Repository<CourierTrackingHistory>,
     private customersService: CustomersService,
+    private loyaltyService: LoyaltyService,
+    private whatsAppService: WhatsAppService,
 
     @InjectRepository(User)
     private usersRepository: Repository<User>,
@@ -164,12 +168,34 @@ export class OrderManagementService {
       const prevStatus = order.courierStatus;
       order.courierStatus = latestStatus;
 
-      if (this.isDeliveredStatus(latestStatus) && order.status !== 'delivered') {
+      const becameDelivered = this.isDeliveredStatus(latestStatus) && order.status !== 'delivered';
+
+      if (becameDelivered) {
         order.status = 'delivered';
         order.deliveredAt = new Date();
       }
 
       const saved = await this.salesOrderRepository.save(order);
+
+      if (becameDelivered) {
+        try {
+          await this.loyaltyService.autoCompleteReferralForDeliveredOrder({
+            orderId: saved.id,
+            customerId: saved.customerId,
+          });
+        } catch {
+          // never block courier sync
+        }
+
+        try {
+          await this.whatsAppService.sendReferralNudgeOnDeliveredOrder({
+            orderId: saved.id,
+            customerId: saved.customerId,
+          });
+        } catch {
+          // never block courier sync
+        }
+      }
 
       await this.courierTrackingRepository.save({
         orderId: saved.id,
@@ -629,13 +655,35 @@ export class OrderManagementService {
     if (!order) throw new Error('Order not found');
 
     order.courierStatus = data.status;
-    
-    if (data.status === 'delivered') {
+
+    const becameDelivered = data.status === 'delivered' && order.status !== 'delivered';
+
+    if (becameDelivered) {
       order.status = 'delivered';
       order.deliveredAt = new Date();
     }
 
-    await this.salesOrderRepository.save(order);
+    const saved = await this.salesOrderRepository.save(order);
+
+    if (becameDelivered) {
+      try {
+        await this.loyaltyService.autoCompleteReferralForDeliveredOrder({
+          orderId: saved.id,
+          customerId: saved.customerId,
+        });
+      } catch {
+        // never block courier updates
+      }
+
+      try {
+        await this.whatsAppService.sendReferralNudgeOnDeliveredOrder({
+          orderId: saved.id,
+          customerId: saved.customerId,
+        });
+      } catch {
+        // never block courier updates
+      }
+    }
 
     // Add to tracking history
     await this.courierTrackingRepository.save({

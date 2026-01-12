@@ -13,6 +13,9 @@ import { Product } from '../products/product.entity';
 import { CustomersModule } from '../customers/customers.module';
 import { SpecialOffersModule } from '../special-offers/special-offers.module';
 import { User } from '../users/user.entity';
+import { LoyaltyModule } from '../loyalty/loyalty.module';
+import { OffersModule } from '../offers/offers.module';
+import { MessagingModule } from '../messaging/messaging.module';
 
 @Module({
   imports: [
@@ -27,6 +30,9 @@ import { User } from '../users/user.entity';
     ]),
     CustomersModule,
     SpecialOffersModule,
+    LoyaltyModule,
+    OffersModule,
+    MessagingModule,
   ],
   controllers: [SalesController, OrderManagementController],
   providers: [SalesService, OrderManagementService],

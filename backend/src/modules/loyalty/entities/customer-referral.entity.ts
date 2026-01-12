@@ -25,6 +25,25 @@ export class CustomerReferral {
   @Column({ unique: true, length: 50, name: 'referral_code' })
   referralCode: string;
 
+  // Stable share code used for attribution (e.g. REF000123)
+  @Column({ type: 'varchar', nullable: true, length: 50, name: 'share_code_used' })
+  shareCodeUsed: string | null;
+
+  @Column({ type: 'varchar', nullable: true, length: 30, name: 'source_channel' })
+  sourceChannel: string | null;
+
+  @Column({ type: 'uuid', nullable: true, name: 'campaign_id' })
+  campaignId: string | null;
+
+  @Column({ type: 'uuid', nullable: true, name: 'partner_id' })
+  partnerId: string | null;
+
+  @Column({ type: 'integer', nullable: true, name: 'agent_user_id' })
+  agentUserId: number | null;
+
+  @Column({ type: 'integer', nullable: true, name: 'qualifying_order_id' })
+  qualifyingOrderId: number | null;
+
   @Column({ 
     type: 'varchar',
     length: 20,
@@ -44,6 +63,19 @@ export class CustomerReferral {
 
   @Column({ default: false, name: 'reward_credited' })
   rewardCredited: boolean;
+
+  @Column({
+    type: 'decimal',
+    precision: 10,
+    scale: 2,
+    default: 0,
+    name: 'referred_reward_amount',
+    transformer: nonNullDecimalToNumberTransformer,
+  })
+  referredRewardAmount: number;
+
+  @Column({ default: false, name: 'referred_reward_credited' })
+  referredRewardCredited: boolean;
 
   @Column({ default: false, name: 'first_order_placed' })
   firstOrderPlaced: boolean;

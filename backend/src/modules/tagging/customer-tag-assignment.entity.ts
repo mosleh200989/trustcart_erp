@@ -13,8 +13,8 @@ export class CustomerTagAssignment {
   @PrimaryColumn({ type: 'uuid', name: 'tag_id' })
   tagId!: string;
 
-  @PrimaryColumn({ type: 'uuid', name: 'customer_id' })
-  customerId!: string;
+  @PrimaryColumn({ type: 'int', name: 'customer_id' })
+  customerId!: number;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt!: Date;

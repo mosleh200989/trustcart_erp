@@ -8,6 +8,7 @@ import { OfferReward } from './entities/offer-reward.entity';
 import { OfferProduct } from './entities/offer-product.entity';
 import { OfferCategory } from './entities/offer-category.entity';
 import { OfferUsage } from './entities/offer-usage.entity';
+import { OfferCode } from './entities/offer-code.entity';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { OfferUsage } from './entities/offer-usage.entity';
       OfferProduct,
       OfferCategory,
       OfferUsage,
+      OfferCode,
     ]),
   ],
   controllers: [OffersController],

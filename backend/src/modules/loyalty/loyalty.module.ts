@@ -13,6 +13,8 @@ import { CustomerPoints } from './entities/customer-points.entity';
 import { PointTransaction } from './entities/point-transaction.entity';
 import { ProductConsumptionProfile } from './entities/product-consumption-profile.entity';
 import { CustomerProductReminder } from './entities/customer-product-reminder.entity';
+import { WalletWithdrawalRequest } from './entities/wallet-withdrawal-request.entity';
+import { OffersModule } from '../offers/offers.module';
 
 @Module({
   imports: [
@@ -28,7 +30,9 @@ import { CustomerProductReminder } from './entities/customer-product-reminder.en
       PriceLock,
       ProductConsumptionProfile,
       CustomerProductReminder,
+      WalletWithdrawalRequest,
     ]),
+    OffersModule,
   ],
   controllers: [LoyaltyController],
   providers: [LoyaltyService],

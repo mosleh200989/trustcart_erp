@@ -1,10 +1,22 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import Router from 'next/router';
+import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { auth } from '@/services/api';
 import apiClient from '@/services/api';
+import {
+  clearPendingReferralAttribution,
+  getPendingReferralAttribution,
+  setPendingReferralAttribution,
+} from '@/utils/referralAttribution';
 
 export default function CustomerRegister() {
+  const router = useRouter();
+  const referralFromQuery = useMemo(() => {
+    const raw = router.query?.ref;
+    return typeof raw === 'string' ? raw.trim() : '';
+  }, [router.query]);
+
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
@@ -13,6 +25,16 @@ export default function CustomerRegister() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+
+  useEffect(() => {
+    if (!referralFromQuery) return;
+    setPendingReferralAttribution({ code: referralFromQuery, channel: 'share_link' });
+  }, [referralFromQuery]);
+
+  const activeReferral = useMemo(() => {
+    if (typeof window === 'undefined') return null;
+    return getPendingReferralAttribution();
+  }, [referralFromQuery]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -36,6 +58,8 @@ export default function CustomerRegister() {
       const nameParts = trimmedFullName.split(/\s+/).filter(Boolean);
       const firstName = nameParts[0] || trimmedFullName;
       const lastName = nameParts.slice(1).join(' ') || '';
+
+      const pendingReferral = getPendingReferralAttribution();
       
       await apiClient.post('/customers', {
         name: firstName,
@@ -44,10 +68,17 @@ export default function CustomerRegister() {
         phone: phone.trim(),
         password,
         customerType: 'new',
-        status: 'active'
+        status: 'active',
+        ...(pendingReferral?.code
+          ? {
+              ref: pendingReferral.code,
+              referralChannel: pendingReferral.channel || 'web',
+            }
+          : null),
       });
       
       setSuccess(true);
+      clearPendingReferralAttribution();
       setTimeout(() => {
         Router.push('/customer/login');
       }, 2000);
@@ -79,6 +110,12 @@ export default function CustomerRegister() {
         {error && (
           <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">
             {error}
+          </div>
+        )}
+
+        {activeReferral?.code && !success && (
+          <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded mb-4 text-sm">
+            Referral applied: <span className="font-semibold">{activeReferral.code}</span>
           </div>
         )}
 

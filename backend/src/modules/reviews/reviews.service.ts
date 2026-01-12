@@ -2,13 +2,20 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { CustomerReview } from './customer-review.entity';
+import { LoyaltyService } from '../loyalty/loyalty.service';
 
 @Injectable()
 export class ReviewsService {
   constructor(
     @InjectRepository(CustomerReview)
     private reviewsRepository: Repository<CustomerReview>,
+    private readonly loyaltyService: LoyaltyService,
   ) {}
+
+  private buildReferralShareUrl(code: string): string {
+    const base = String(process.env.APP_PUBLIC_URL || 'http://localhost:3000').replace(/\/+$/, '');
+    return `${base}/r/${encodeURIComponent(String(code).trim())}`;
+  }
 
   async findAll() {
     try {
@@ -63,6 +70,38 @@ export class ReviewsService {
 
   async create(createReviewDto: any) {
     const review = this.reviewsRepository.create(createReviewDto);
-    return this.reviewsRepository.save(review);
+    const saved = await this.reviewsRepository.save(review);
+
+    const customerIdRaw =
+      createReviewDto?.customerId ??
+      createReviewDto?.customer_id ??
+      (saved as any)?.customerId ??
+      (saved as any)?.customer_id ??
+      null;
+    const customerId = customerIdRaw != null ? Number(customerIdRaw) : null;
+
+    if (!customerId || !Number.isFinite(customerId)) {
+      return saved;
+    }
+
+    const referralCode = await this.loyaltyService.getShareReferralCode(customerId);
+    const referralLink = this.buildReferralShareUrl(referralCode);
+
+    await this.loyaltyService.recordReferralEvent({
+      eventType: 'review_created',
+      referrerCustomerId: customerId,
+      sourceChannel: 'review_share',
+      payload: {
+        reviewId: (saved as any).id,
+        productId: (saved as any).productId ?? (saved as any).product_id ?? null,
+        orderId: (saved as any).orderId ?? (saved as any).order_id ?? null,
+      },
+    });
+
+    return {
+      ...(saved as any),
+      referral_code: referralCode,
+      referral_link: referralLink,
+    };
   }
 }
