@@ -5,7 +5,7 @@ import { useRouter } from 'next/router';
 import { 
   FaTachometerAlt, FaBoxes, FaShoppingCart, FaUsers, FaWarehouse, 
   FaShoppingBag, FaUserTie, FaBook, FaBullseye, FaHandshake, 
-  FaHeadset, FaUser, FaCog, FaBars, FaTimes, FaBell, FaChevronDown, FaChartBar
+  FaHeadset, FaUser, FaCog, FaBars, FaTimes, FaBell, FaChevronDown, FaChartBar, FaTags
 } from 'react-icons/fa';
 
 interface MenuItem {
@@ -54,6 +54,14 @@ const menuItems: MenuItem[] = [
     title: 'Customers',
     icon: FaUsers,
     path: '/admin/customers'
+  },
+  {
+    title: 'Tagging',
+    icon: FaTags,
+    children: [
+      { title: 'Manage Tags', icon: FaTags, path: '/admin/tagging?tab=manage' },
+      { title: 'Tagwise Filter', icon: FaTags, path: '/admin/tagging?tab=filter' },
+    ],
   },
   {
     title: 'Inventory',
