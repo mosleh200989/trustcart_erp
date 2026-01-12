@@ -32,6 +32,16 @@ export default function CustomerOrdersPage() {
   const [orderProducts, setOrderProducts] = useState<OrderProduct[]>([]);
   const [loadingProducts, setLoadingProducts] = useState(false);
 
+  const getBestOrderDateTime = (order: Partial<OrderItem> | null | undefined): Date => {
+    const createdAt = order?.createdAt ? new Date(order.createdAt) : null;
+    if (createdAt && !Number.isNaN(createdAt.getTime())) return createdAt;
+
+    const orderDate = order?.orderDate ? new Date(order.orderDate) : null;
+    if (orderDate && !Number.isNaN(orderDate.getTime())) return orderDate;
+
+    return new Date(0);
+  };
+
   useEffect(() => {
     const loadOrders = async () => {
       setLoading(true);
@@ -152,7 +162,7 @@ export default function CustomerOrdersPage() {
                       <td className="px-4 py-3 text-sm text-gray-800 font-medium">#{o.id}</td>
                       <td className="px-4 py-3 text-sm text-gray-800">{o.salesOrderNumber}</td>
                       <td className="px-4 py-3 text-sm text-gray-600">
-                        {new Date(o.orderDate || o.createdAt).toLocaleDateString()}
+                        {getBestOrderDateTime(o).toLocaleDateString()}
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-800 font-semibold">
                         ৳{Number(o.totalAmount || 0).toFixed(2)}
@@ -224,7 +234,7 @@ export default function CustomerOrdersPage() {
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-1">Order Date</label>
                     <p className="text-gray-900">
-                      {new Date(selectedOrder.orderDate || selectedOrder.createdAt).toLocaleString()}
+                      {getBestOrderDateTime(selectedOrder).toLocaleString()}
                     </p>
                   </div>
                   <div>

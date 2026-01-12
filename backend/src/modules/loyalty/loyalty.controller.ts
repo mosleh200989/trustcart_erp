@@ -176,14 +176,91 @@ export class LoyaltyController {
   async markReferralComplete(
     @Param('referralId') referralId: number,
     @Body('referredCustomerId') referredCustomerId?: number,
+    @Body('orderId') orderId?: number,
   ) {
-    return await this.loyaltyService.markReferralComplete(referralId, referredCustomerId);
+    return await this.loyaltyService.markReferralComplete(referralId, referredCustomerId, orderId);
   }
 
   @Get('referrals/:customerId/stats')
   @UseGuards(JwtAuthGuard)
   async getReferralStats(@Param('customerId') customerId: number) {
     return await this.loyaltyService.getReferralStats(customerId);
+  }
+
+  // =====================================================
+  // REFERRAL CAMPAIGNS & PARTNERS (admin)
+  // =====================================================
+
+  @Get('referral-campaigns')
+  async listReferralCampaigns(@Query('includeInactive') includeInactive?: string) {
+    return await this.loyaltyService.listReferralCampaigns(includeInactive === 'true');
+  }
+
+  @Post('referral-campaigns')
+  async createReferralCampaign(@Body() data: any) {
+    return await this.loyaltyService.createReferralCampaign(data);
+  }
+
+  @Put('referral-campaigns/:id')
+  async updateReferralCampaign(@Param('id') id: string, @Body() data: any) {
+    return await this.loyaltyService.updateReferralCampaign(id, data);
+  }
+
+  @Get('referral-partners')
+  async listReferralPartners(@Query('includeInactive') includeInactive?: string) {
+    return await this.loyaltyService.listReferralPartners(includeInactive === 'true');
+  }
+
+  @Post('referral-partners')
+  async createReferralPartner(@Body() data: any) {
+    return await this.loyaltyService.createReferralPartner(data);
+  }
+
+  @Put('referral-partners/:id')
+  async updateReferralPartner(@Param('id') id: string, @Body() data: any) {
+    return await this.loyaltyService.updateReferralPartner(id, data);
+  }
+
+  @Get('referral-partners/:code/report')
+  async getReferralPartnerReport(
+    @Param('code') code: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return await this.loyaltyService.getReferralPartnerReportByCode(code, {
+      from,
+      to,
+      limit: limit != null ? Number(limit) : undefined,
+    });
+  }
+
+  // =====================================================
+  // WALLET WITHDRAWALS (cash-out workflow)
+  // =====================================================
+
+  @Post('wallet/:customerId/withdrawals')
+  async createWithdrawal(
+    @Param('customerId') customerId: number,
+    @Body() data: { amount: number; method?: string; account: string; notes?: string },
+  ) {
+    return await this.loyaltyService.createWalletWithdrawalRequest(Number(customerId), data);
+  }
+
+  @Get('wallet/:customerId/withdrawals')
+  async listWithdrawals(
+    @Param('customerId') customerId: number,
+    @Query('status') status?: string,
+  ) {
+    return await this.loyaltyService.listWalletWithdrawalRequests({ customerId: Number(customerId), status });
+  }
+
+  @Put('wallet/withdrawals/:id/status')
+  async updateWithdrawalStatus(
+    @Param('id') id: string,
+    @Body() data: { status: 'pending' | 'approved' | 'rejected' | 'paid'; notes?: string },
+  ) {
+    return await this.loyaltyService.updateWalletWithdrawalStatus(id, data.status, data.notes);
   }
 
   // =====================================================

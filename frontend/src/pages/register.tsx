@@ -1,12 +1,22 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import ElectroNavbar from '@/components/ElectroNavbar';
 import ElectroFooter from '@/components/ElectroFooter';
 import apiClient from '@/services/api';
+import {
+  clearPendingReferralAttribution,
+  getPendingReferralAttribution,
+  setPendingReferralAttribution,
+} from '@/utils/referralAttribution';
 
 export default function Register() {
   const router = useRouter();
+  const referralFromQuery = useMemo(() => {
+    const raw = router.query?.ref;
+    return typeof raw === 'string' ? raw.trim() : '';
+  }, [router.query]);
+
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -16,6 +26,16 @@ export default function Register() {
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!referralFromQuery) return;
+    setPendingReferralAttribution({ code: referralFromQuery, channel: 'share_link' });
+  }, [referralFromQuery]);
+
+  const activeReferral = useMemo(() => {
+    if (typeof window === 'undefined') return null;
+    return getPendingReferralAttribution();
+  }, [referralFromQuery]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({
@@ -51,6 +71,8 @@ export default function Register() {
       const firstName = nameParts[0] || formData.name;
       const lastName = nameParts.slice(1).join(' ') || '';
 
+      const pendingReferral = getPendingReferralAttribution();
+
       const response = await apiClient.post('/customers', {
         name: firstName,
         lastName,
@@ -59,9 +81,16 @@ export default function Register() {
         password: formData.password,
         customerType: 'new',
         status: 'active',
+        ...(pendingReferral?.code
+          ? {
+              ref: pendingReferral.code,
+              referralChannel: pendingReferral.channel || 'web',
+            }
+          : null),
       });
 
       if (response.data) {
+        clearPendingReferralAttribution();
         alert('Registration successful! Please login as a customer.');
         router.push('/customer/login');
       }
@@ -87,6 +116,12 @@ export default function Register() {
           {error && (
             <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded mb-4">
               {error}
+            </div>
+          )}
+
+          {activeReferral?.code && (
+            <div className="bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded mb-4 text-sm">
+              Referral applied: <span className="font-semibold">{activeReferral.code}</span>
             </div>
           )}
 

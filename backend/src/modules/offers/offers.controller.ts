@@ -53,12 +53,18 @@ export class OffersController {
     cart: any[];
     customerId?: number;
     customerData?: any;
+    code?: string;
   }) {
-    return this.offersService.evaluateOffers(
-      data.cart,
-      data.customerId,
-      data.customerData,
-    );
+    if (data.code) {
+      return await this.offersService.evaluateOfferCode({
+        code: data.code,
+        cart: data.cart,
+        customerId: data.customerId,
+        customerData: data.customerData,
+      });
+    }
+
+    return await this.offersService.evaluateOffers(data.cart, data.customerId, data.customerData);
   }
 
   @Post('best')
@@ -66,12 +72,18 @@ export class OffersController {
     cart: any[];
     customerId?: number;
     customerData?: any;
+    code?: string;
   }) {
-    return this.offersService.getBestOffer(
-      data.cart,
-      data.customerId,
-      data.customerData,
-    );
+    if (data.code) {
+      return await this.offersService.evaluateOfferCode({
+        code: data.code,
+        cart: data.cart,
+        customerId: data.customerId,
+        customerData: data.customerData,
+      });
+    }
+
+    return await this.offersService.getBestOffer(data.cart, data.customerId, data.customerData);
   }
 
   @Post('usage')

@@ -144,7 +144,8 @@ export class CrmTeamService {
 
   // ==================== LEAD ASSIGNMENT ====================
   async assignLeadToAgent(customerId: string, agentId: number, teamLeaderId: number): Promise<Customer> {
-    const customer = await this.customerRepository.findOne({ where: { id: customerId } });
+    const customerIdNum = Number(customerId);
+    const customer = await this.customerRepository.findOne({ where: { id: customerIdNum } });
     
     if (!customer) {
       throw new NotFoundException(`Customer with ID ${customerId} not found`);
@@ -163,7 +164,8 @@ export class CrmTeamService {
   }
 
   async setLeadPriority(customerId: string, priority: LeadPriority): Promise<Customer> {
-    const customer = await this.customerRepository.findOne({ where: { id: customerId } });
+    const customerIdNum = Number(customerId);
+    const customer = await this.customerRepository.findOne({ where: { id: customerIdNum } });
     
     if (!customer) {
       throw new NotFoundException(`Customer with ID ${customerId} not found`);

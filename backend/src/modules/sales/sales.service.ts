@@ -3,6 +3,9 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { SalesOrder } from './sales-order.entity';
 import { SalesOrderItem } from './sales-order-item.entity';
+import { LoyaltyService } from '../loyalty/loyalty.service';
+import { OffersService } from '../offers/offers.service';
+import { WhatsAppService } from '../messaging/whatsapp.service';
 
 @Injectable()
 export class SalesService {
@@ -11,7 +14,15 @@ export class SalesService {
     private salesRepository: Repository<SalesOrder>,
     @InjectRepository(SalesOrderItem)
     private orderItemsRepository: Repository<SalesOrderItem>,
+    private loyaltyService: LoyaltyService,
+    private offersService: OffersService,
+    private whatsAppService: WhatsAppService,
   ) {}
+
+  private normalizeOfferCode(value: any): string {
+    const code = value != null ? String(value).trim() : '';
+    return code ? code.toUpperCase() : '';
+  }
 
   private toAdminListDto(order: SalesOrder) {
     const customerName = (order as any).customerName ?? null;
@@ -216,23 +227,67 @@ export class SalesService {
       }
     }
 
-    // Total amount: prefer explicit totals, then fall back to computed from items
+    // ---- Offer code / discount support (optional) ----
+    const offerCode = this.normalizeOfferCode(
+      createSalesDto.offer_code ?? createSalesDto.offerCode ?? createSalesDto.promo_code ?? createSalesDto.promoCode,
+    );
+
+    const deliveryCharge =
+      createSalesDto.delivery_charge != null
+        ? Number(createSalesDto.delivery_charge)
+        : createSalesDto.deliveryCharge != null
+          ? Number(createSalesDto.deliveryCharge)
+          : 0;
+
+    const rawCartItems: any[] = Array.isArray(createSalesDto.items) ? createSalesDto.items : [];
+    const cartForOffers = rawCartItems.map((item) => ({
+      id: Number(item.id ?? item.product_id ?? item.productId ?? 0),
+      product_id: Number(item.product_id ?? item.productId ?? item.id ?? 0),
+      quantity: Number(item.quantity || 1),
+      price: Number(item.unit_price ?? item.unitPrice ?? item.price ?? 0),
+    }));
+
+    const computedSubtotal = cartForOffers.reduce((sum, item) => sum + Number(item.quantity || 1) * Number(item.price || 0), 0);
+
+    // Total amount: prefer explicit totals, then fall back to computed (subtotal + delivery - discount)
     let totalAmount: number | null = null;
     if (createSalesDto.totalAmount != null) totalAmount = Number(createSalesDto.totalAmount);
     else if (createSalesDto.total_amount != null) totalAmount = Number(createSalesDto.total_amount);
     else if (createSalesDto.total != null) totalAmount = Number(createSalesDto.total);
     else if (createSalesDto.grand_total != null) totalAmount = Number(createSalesDto.grand_total);
 
-    // If still null, try to compute from items
-    if (totalAmount == null && Array.isArray(createSalesDto.items)) {
-      totalAmount = createSalesDto.items.reduce((sum: number, item: any) => {
-        const qty = Number(item.quantity || 1);
-        const price = Number(item.unit_price ?? item.price ?? 0);
-        return sum + qty * price;
-      }, 0);
+    let discountAmount = 0;
+    let appliedOfferId: number | null = null;
+    let appliedOfferCode: string | null = null;
+    let freeProducts: Array<{ productId: number; quantity: number }> = [];
+
+    if (offerCode) {
+      try {
+        const evaluation = await this.offersService.evaluateOfferCode({
+          code: offerCode,
+          cart: cartForOffers,
+          customerId: sales.customerId != null ? Number(sales.customerId) : undefined,
+          customerData: { customerId: sales.customerId },
+        });
+
+        discountAmount = Number(evaluation.discountAmount || 0);
+        appliedOfferId = Number((evaluation as any)?.offer?.id);
+        appliedOfferCode = offerCode;
+        freeProducts = Array.isArray((evaluation as any).freeProducts) ? (evaluation as any).freeProducts : [];
+      } catch {
+        // Ignore invalid codes to avoid blocking checkout.
+      }
     }
 
-    sales.totalAmount = totalAmount ?? 0;
+    // If explicit total not provided, compute.
+    if (totalAmount == null) {
+      totalAmount = computedSubtotal + (Number.isFinite(deliveryCharge) ? deliveryCharge : 0) - (Number.isFinite(discountAmount) ? discountAmount : 0);
+    }
+
+    sales.totalAmount = Number.isFinite(totalAmount as any) ? Number(totalAmount) : 0;
+    sales.discountAmount = Number.isFinite(discountAmount as any) ? Number(discountAmount) : 0;
+    sales.offerId = appliedOfferId;
+    sales.offerCode = appliedOfferCode;
 
     // Status: use provided or default to 'pending'
     sales.status = createSalesDto.status || 'pending';
@@ -316,9 +371,21 @@ export class SalesService {
     // Save the order first
     const savedOrder = await this.salesRepository.save(sales);
 
-    // Save order items if provided
+    // Save order items if provided (and append free products when applicable)
     if (Array.isArray(createSalesDto.items) && createSalesDto.items.length > 0) {
-      const orderItems = createSalesDto.items.map((item: any) => {
+      const mergedItems = [...createSalesDto.items];
+      if (freeProducts.length) {
+        for (const fp of freeProducts) {
+          mergedItems.push({
+            product_id: fp.productId,
+            quantity: fp.quantity,
+            unit_price: 0,
+            price: 0,
+          });
+        }
+      }
+
+      const orderItems = mergedItems.map((item: any) => {
         const orderItem = new SalesOrderItem();
         orderItem.salesOrderId = savedOrder.id;
         orderItem.productId = Number(item.product_id || item.productId);
@@ -331,10 +398,21 @@ export class SalesService {
       await this.orderItemsRepository.save(orderItems);
     }
 
+    // Record offer usage (best-effort)
+    if (savedOrder.offerId && savedOrder.customerId && savedOrder.discountAmount > 0) {
+      try {
+        await this.offersService.recordUsage(savedOrder.offerId, savedOrder.customerId, savedOrder.id, savedOrder.discountAmount);
+      } catch {
+        // never block order creation
+      }
+    }
+
     return savedOrder;
   }
 
   async update(id: string, updateSalesDto: any) {
+    let becameDelivered = false;
+
     if (updateSalesDto?.status) {
       const current = await this.salesRepository.findOne({ where: { id: Number(id) } });
       if (current) {
@@ -343,11 +421,35 @@ export class SalesService {
         if (!this.isStatusTransitionAllowed(from, to)) {
           throw new Error(`Invalid status transition: ${from} -> ${to}`);
         }
+
+        becameDelivered = from !== 'delivered' && to === 'delivered';
       }
     }
 
     await this.salesRepository.update(id, updateSalesDto);
-    return this.findOne(id);
+    const updated = await this.findOne(id);
+
+    if (becameDelivered && updated) {
+      try {
+        await this.loyaltyService.autoCompleteReferralForDeliveredOrder({
+          orderId: updated.id,
+          customerId: updated.customerId,
+        });
+      } catch {
+        // never block order updates
+      }
+
+      try {
+        await this.whatsAppService.sendReferralNudgeOnDeliveredOrder({
+          orderId: updated.id,
+          customerId: updated.customerId,
+        });
+      } catch {
+        // never block order updates
+      }
+    }
+
+    return updated;
   }
 
   async cancelForCustomer(orderId: number, customerId: number, cancelReason?: string) {

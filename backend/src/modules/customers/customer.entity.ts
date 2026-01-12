@@ -12,11 +12,13 @@ export enum LeadPriority {
 
 @Entity('customers')
 export class Customer {
-  @PrimaryGeneratedColumn('uuid')
-  id!: string;
+  // Matches existing customers table (id serial/int primary key)
+  @PrimaryGeneratedColumn()
+  id!: number;
 
-  @Column({ type: 'uuid', nullable: true })
-  uuid!: string;
+  // Optional stable UUID (unique) used in some parts of the system
+  @Column({ type: 'uuid', nullable: true, unique: true })
+  uuid!: string | null;
 
   @Column({ nullable: true })
   title!: string;
@@ -38,6 +40,25 @@ export class Customer {
 
   @Column({ default: true, name: 'is_guest' })
   isGuest!: boolean;
+
+  // Referral attribution (optional)
+  @Column({ name: 'referred_by_customer_id', type: 'int', nullable: true })
+  referredByCustomerId!: number | null;
+
+  @Column({ name: 'referred_by_code', type: 'varchar', length: 50, nullable: true })
+  referredByCode!: string | null;
+
+  @Column({ name: 'referred_by_partner_id', type: 'uuid', nullable: true })
+  referredByPartnerId!: string | null;
+
+  @Column({ name: 'referred_channel', type: 'varchar', length: 30, nullable: true })
+  referredChannel!: string | null;
+
+  @Column({ name: 'referred_at', type: 'timestamp', nullable: true })
+  referredAt!: Date | null;
+
+  @Column({ name: 'referral_campaign_id', type: 'uuid', nullable: true })
+  referralCampaignId!: string | null;
 
   @Column({ type: 'varchar', length: 30, unique: true })
   phone!: string;

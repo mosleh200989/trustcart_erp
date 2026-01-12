@@ -46,6 +46,10 @@ import { SpecialOffer } from './modules/special-offers/special-offer.entity';
 import { DealOfTheDay } from './modules/products/deal-of-the-day.entity';
 import { CourierConfiguration } from './modules/settings/courier-configuration.entity';
 
+// Tagging Entities
+import { CustomerTag } from './modules/tagging/customer-tag.entity';
+import { CustomerTagAssignment } from './modules/tagging/customer-tag-assignment.entity';
+
 // Loyalty Entities
 import { CustomerMembership } from './modules/loyalty/entities/customer-membership.entity';
 import { CustomerWallet } from './modules/loyalty/entities/customer-wallet.entity';
@@ -138,6 +142,7 @@ import { UploadModule } from './modules/upload/upload.module';
 import { SpecialOffersModule } from './modules/special-offers/special-offers.module';
 import { TelephonyModule } from './modules/telephony/telephony.module';
 import { SettingsModule } from './modules/settings/settings.module';
+import { TaggingModule } from './modules/tagging/tagging.module';
 
 @Module({
   imports: [
@@ -181,6 +186,10 @@ import { SettingsModule } from './modules/settings/settings.module';
             EmailTemplate, AutomationWorkflow, WorkflowExecution, QuoteTemplate, SalesForecast, SalesQuota,
             // Telephony entities
             TelephonyCall,
+
+            // Tagging entities
+            CustomerTag,
+            CustomerTagAssignment,
             // HRM Entities
             HrmBranches, HrmDepartments, HrmDesignations, HrmEmployees, HrmAwardTypes, HrmAwards, HrmPromotions, HrmResignations, HrmTerminations, HrmWarnings, HrmTrips, HrmComplaints, HrmTransfers, HrmHolidays, HrmAnnouncements, HrmTrainingTypes, HrmTrainingPrograms, HrmTrainingSessions, HrmEmployeeTrainings, HrmPerformanceIndicatorCategories, HrmPerformanceIndicators, HrmEmployeePerformance, HrmDocumentTypes, HrmEmployeeDocuments
           ],
@@ -230,6 +239,7 @@ import { SettingsModule } from './modules/settings/settings.module';
     SpecialOffersModule,
     TelephonyModule,
     SettingsModule,
+    TaggingModule,
   ],
   controllers: [],
   providers: [],

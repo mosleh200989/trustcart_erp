@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from "react";
+import { getPendingReferralAttribution } from "@/utils/referralAttribution";
+import React, { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import Link from "next/link";
 import ElectroNavbar from "@/components/ElectroNavbar";
@@ -17,6 +18,7 @@ import { TrackingService } from "@/utils/tracking";
 
 export default function Checkout() {
   const router = useRouter();
+  const touchedRef = useRef<Record<string, boolean>>({});
   const [cart, setCart] = useState<any[]>([]);
   const [subtotal, setSubtotal] = useState(0);
   const [suggestedProducts, setSuggestedProducts] = useState<any[]>([]);
@@ -30,6 +32,7 @@ export default function Checkout() {
     phone: "",
     address: "",
     notes: "",
+    offerCode: "",
     paymentMethod: "cash",
   });
 
@@ -102,60 +105,118 @@ export default function Checkout() {
     const initCustomer = async () => {
       try {
         const user = await auth.getCurrentUser();
-        if (user && (user as any).email) {
-          setCurrentUser(user);
+        if (!user || !(user as any).email) return;
+
+        setCurrentUser(user);
+
+        // Prefill from the authenticated user immediately (works even if CRM lookup fails)
+        setFormData((prev) => {
+          const isTouched = touchedRef.current;
+          const fullNameFromUser = String(
+            (user as any).name ?? (user as any).fullName ?? ""
+          ).trim();
+          const emailFromUser = String((user as any).email ?? "").trim();
+          const phoneFromUser = String((user as any).phone ?? "").trim();
+
+          return {
+            ...prev,
+            fullName:
+              isTouched.fullName || prev.fullName
+                ? prev.fullName
+                : fullNameFromUser,
+            email:
+              isTouched.email || prev.email ? prev.email : emailFromUser,
+            phone:
+              isTouched.phone || prev.phone ? prev.phone : phoneFromUser,
+          };
+        });
+
+        // Optionally resolve a CRM customer + default address
+        let match: any | null = null;
+        try {
           const list = await customers.list();
-          const match = (list as any[]).find(
-            (c) => c.email === (user as any).email
+          match =
+            (list as any[]).find((c) => c.email === (user as any).email) ||
+            null;
+          if (match) setCustomerProfile(match);
+        } catch (err) {
+          console.warn(
+            "Customer list lookup failed (prefill still applied):",
+            err
           );
-          if (match) {
-            setCustomerProfile(match);
+        }
 
-            // Load customer addresses to get default address details
-            try {
-              const token = localStorage.getItem("authToken");
-              const addressResponse = await apiClient.get(
-                "/customer-addresses",
-                {
-                  headers: { Authorization: `Bearer ${token}` },
-                }
-              );
-              const addresses = addressResponse.data;
-              const primaryAddress =
-                addresses.find((addr: any) => addr.isPrimary) || addresses[0];
+        if (!match) return;
 
-              if (primaryAddress) {
-                setDefaultAddress(primaryAddress);
-              }
+        const fullNameFromMatch =
+          String(match.name ?? "").trim() ||
+          `${String(match.firstName ?? "").trim()} ${String(
+            match.lastName ?? ""
+          ).trim()}`.trim();
 
-              setFormData((prev) => ({
-                ...prev,
-                fullName:
-                  match.name ||
-                  match.firstName + " " + (match.lastName || "") ||
-                  prev.fullName,
-                email: match.email || prev.email,
-                phone: primaryAddress?.phone || match.phone || prev.phone,
-                address:
-                  primaryAddress?.streetAddress ||
-                  match.address ||
-                  prev.address,
-              }));
-            } catch (addrError) {
-              console.error("Error loading addresses:", addrError);
-              // Fallback to basic customer data
-              setFormData((prev) => ({
-                ...prev,
-                fullName:
-                  match.name ||
-                  match.firstName + " " + (match.lastName || "") ||
-                  prev.fullName,
-                email: match.email || prev.email,
-                phone: match.phone || prev.phone,
-                address: match.address || prev.address,
-              }));
-            }
+        // Load customer addresses to get default address details
+        try {
+          const token = localStorage.getItem("authToken");
+          const addressResponse = await apiClient.get("/customer-addresses", {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          const addresses = addressResponse.data;
+          const primaryAddress =
+            addresses.find((addr: any) => addr.isPrimary) || addresses[0];
+
+          if (primaryAddress) {
+            setDefaultAddress(primaryAddress);
           }
+
+          setFormData((prev) => {
+            const isTouched = touchedRef.current;
+            return {
+              ...prev,
+              fullName:
+                isTouched.fullName || prev.fullName
+                  ? prev.fullName
+                  : fullNameFromMatch || prev.fullName,
+              email:
+                isTouched.email || prev.email
+                  ? prev.email
+                  : match.email || prev.email,
+              phone:
+                isTouched.phone || prev.phone
+                  ? prev.phone
+                  : primaryAddress?.phone || match.phone || prev.phone,
+              address:
+                isTouched.address || prev.address
+                  ? prev.address
+                  : primaryAddress?.streetAddress ||
+                    match.address ||
+                    prev.address,
+            };
+          });
+        } catch (addrError) {
+          console.error("Error loading addresses:", addrError);
+          // Fallback to basic customer data
+          setFormData((prev) => {
+            const isTouched = touchedRef.current;
+            return {
+              ...prev,
+              fullName:
+                isTouched.fullName || prev.fullName
+                  ? prev.fullName
+                  : fullNameFromMatch || prev.fullName,
+              email:
+                isTouched.email || prev.email
+                  ? prev.email
+                  : match.email || prev.email,
+              phone:
+                isTouched.phone || prev.phone
+                  ? prev.phone
+                  : match.phone || prev.phone,
+              address:
+                isTouched.address || prev.address
+                  ? prev.address
+                  : match.address || prev.address,
+            };
+          });
         }
       } catch (e) {
         console.error("Error loading customer for checkout:", e);
@@ -219,6 +280,7 @@ export default function Checkout() {
       HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
     >
   ) => {
+    touchedRef.current[e.target.name] = true;
     setFormData({
       ...formData,
       [e.target.name]: e.target.value,
@@ -269,11 +331,18 @@ export default function Checkout() {
             customerId = existingCustomer.id;
           } else {
             // Customer not found, create new one
+            const pendingReferral = getPendingReferralAttribution();
             const newCustomer = await apiClient.post("/customers", {
               name: formData.fullName,
               email: formData.email || null,
               phone: formData.phone,
               address: formData.address,
+              ...(pendingReferral?.code
+                ? {
+                    ref: pendingReferral.code,
+                    referralChannel: pendingReferral.channel || 'checkout',
+                  }
+                : null),
             });
             customerId = newCustomer.data.id;
           }
@@ -294,6 +363,9 @@ export default function Checkout() {
         customer_phone: formData.phone,
         shipping_address: formData.address,
         notes: formData.notes,
+        ...(formData.offerCode?.trim()
+          ? { offer_code: formData.offerCode.trim() }
+          : {}),
         payment_method: formData.paymentMethod,
         items: cart.map((item) => ({
           product_id: item.id,
@@ -669,6 +741,23 @@ export default function Checkout() {
                       <strong className="text-orange-500">
                         ৳{total.toFixed(2)}
                       </strong>
+                    </div>
+                  </div>
+
+                  <div className="border-t pt-4 mb-6">
+                    <label className="block text-sm font-semibold text-gray-800 mb-2">
+                      Offer / Coupon Code (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      name="offerCode"
+                      value={formData.offerCode}
+                      onChange={handleChange}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-500"
+                      placeholder="Enter offer/coupon code"
+                    />
+                    <div className="text-xs text-gray-600 mt-2">
+                      If you have a referral coupon/offer code, paste it here.
                     </div>
                   </div>
 

@@ -7,6 +7,7 @@ import { OfferReward, RewardType } from './entities/offer-reward.entity';
 import { OfferProduct } from './entities/offer-product.entity';
 import { OfferCategory } from './entities/offer-category.entity';
 import { OfferUsage } from './entities/offer-usage.entity';
+import { OfferCode } from './entities/offer-code.entity';
 
 export interface CartItem {
   id: number;
@@ -40,7 +41,116 @@ export class OffersService {
     private categoryRepo: Repository<OfferCategory>,
     @InjectRepository(OfferUsage)
     private usageRepo: Repository<OfferUsage>,
+    @InjectRepository(OfferCode)
+    private codeRepo: Repository<OfferCode>,
   ) {}
+
+  private normalizeCode(code?: string | null) {
+    const c = typeof code === 'string' ? code.trim() : '';
+    return c ? c.toUpperCase() : '';
+  }
+
+  private now() {
+    return new Date();
+  }
+
+  async getOfferByCode(params: { code: string; customerId?: number | null }) {
+    const code = this.normalizeCode(params.code);
+    if (!code) throw new Error('Invalid offer code');
+
+    const offerCode = await this.codeRepo.findOne({ where: { code } });
+    if (!offerCode || !offerCode.isActive) throw new Error('Offer code not found');
+
+    if (offerCode.maxUses != null && offerCode.currentUses >= offerCode.maxUses) {
+      throw new Error('Offer code usage limit reached');
+    }
+
+    const customerId = params.customerId != null ? Number(params.customerId) : null;
+    if (offerCode.assignedCustomerId != null) {
+      if (!customerId || Number(customerId) !== Number(offerCode.assignedCustomerId)) {
+        throw new Error('Offer code is not valid for this customer');
+      }
+    }
+
+    const now = this.now();
+    if (offerCode.validFrom && now < new Date(offerCode.validFrom)) {
+      throw new Error('Offer code is not active yet');
+    }
+    if (offerCode.validTo && now > new Date(offerCode.validTo)) {
+      throw new Error('Offer code has expired');
+    }
+
+    if (offerCode.maxUsesPerCustomer != null && customerId) {
+      const usedCount = await this.usageRepo.count({ where: { offerId: offerCode.offerId, customerId } });
+      if (usedCount >= Number(offerCode.maxUsesPerCustomer)) {
+        throw new Error('Offer code per-customer usage limit reached');
+      }
+    }
+
+    const offer = await this.findOne(offerCode.offerId);
+    if (!offer) throw new Error('Offer not found for code');
+
+    // Validate offer window/status
+    const offerNow = this.now();
+    if (offer.status !== 'active') throw new Error('Offer is inactive');
+    if (offer.startTime && offerNow < new Date(offer.startTime)) throw new Error('Offer not started');
+    if (offer.endTime && offerNow > new Date(offer.endTime)) throw new Error('Offer ended');
+
+    return { offer, offerCode };
+  }
+
+  async evaluateOfferCode(params: { code: string; cart: CartItem[]; customerId?: number; customerData?: any }) {
+    const { offer, offerCode } = await this.getOfferByCode({ code: params.code, customerId: params.customerId });
+    const evaluation = await this.evaluateSingleOffer(offer, params.cart, params.customerData);
+    if (!evaluation.applicable) {
+      throw new Error(evaluation.reason || 'Offer code is not applicable');
+    }
+    return { ...evaluation, offerCode: offerCode.code };
+  }
+
+  async issueOfferCode(params: {
+    offerId: number;
+    assignedCustomerId?: number | null;
+    prefix?: string;
+    maxUses?: number | null;
+    maxUsesPerCustomer?: number | null;
+    validFrom?: Date | null;
+    validTo?: Date | null;
+  }) {
+    const offerId = Number(params.offerId);
+    if (!Number.isFinite(offerId) || offerId <= 0) throw new Error('Invalid offerId');
+
+    const prefix = (params.prefix || 'TC').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12) || 'TC';
+
+    const makeCode = () => {
+      const rand = Math.random().toString(36).slice(2, 8).toUpperCase();
+      const stamp = Date.now().toString(36).slice(-4).toUpperCase();
+      return `${prefix}-${stamp}${rand}`.slice(0, 50);
+    };
+
+    // retry a few times for uniqueness
+    for (let i = 0; i < 5; i++) {
+      const code = makeCode();
+      const exists = await this.codeRepo.findOne({ where: { code } });
+      if (exists) continue;
+
+      const row = this.codeRepo.create({
+        offerId,
+        code,
+        maxUses: params.maxUses ?? 1,
+        currentUses: 0,
+        isActive: true,
+        assignedCustomerId: params.assignedCustomerId != null ? Number(params.assignedCustomerId) : null,
+        maxUsesPerCustomer: params.maxUsesPerCustomer != null ? Number(params.maxUsesPerCustomer) : null,
+        validFrom: params.validFrom ?? null,
+        validTo: params.validTo ?? null,
+      });
+
+      return await this.codeRepo.save(row);
+    }
+
+    throw new Error('Failed to generate unique offer code');
+  }
 
   // =====================================================
   // ADMIN: CRUD OPERATIONS
@@ -411,6 +521,9 @@ export class OffersService {
 
     // Increment current usage count
     await this.offerRepo.increment({ id: offerId }, 'currentUsage', 1);
+
+    // If the order used a customer-assigned offer code, it should be incremented separately.
+    // We do not have the code value here, so caller is responsible for updating offer_codes.current_uses.
 
     return usage;
   }

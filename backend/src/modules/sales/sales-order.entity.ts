@@ -34,6 +34,15 @@ export class SalesOrder {
   @Column('decimal', { name: 'total_amount', precision: 12, scale: 2 })
   totalAmount!: number;
 
+  @Column('decimal', { name: 'discount_amount', precision: 12, scale: 2, default: 0 })
+  discountAmount!: number;
+
+  @Column({ name: 'offer_id', type: 'int', nullable: true })
+  offerId!: number | null;
+
+  @Column({ name: 'offer_code', type: 'varchar', length: 50, nullable: true })
+  offerCode!: string | null;
+
   // created_by in DB
   @Column({ name: 'created_by', type: 'int', nullable: true })
   createdBy!: number | null;

@@ -18,6 +18,9 @@ import { MeetingService } from './meeting.service';
 import { MeetingController } from './meeting.controller';
 import { EmailTrackingService } from './email-tracking.service';
 import { EmailTrackingController } from './email-tracking.controller';
+import { LoyaltyModule } from '../loyalty/loyalty.module';
+import { CrmReferralsController } from './crm-referrals.controller';
+import { CrmReferralsService } from './crm-referrals.service';
 import { DealStageService } from './deal-stage.service';
 import { DealStageController } from './deal-stage.controller';
 // Phase 1 Services and Controllers
@@ -95,11 +98,12 @@ import { RbacModule } from '../rbac/rbac.module';
       SalesForecast,
       SalesQuota
     ]),
-    RbacModule
+    RbacModule,
+    LoyaltyModule,
   ],
   controllers: [
     // Existing controllers
-    CrmController, 
+    CrmController,
     CrmTeamController, 
     CrmAutomationController,
     DealController,
@@ -113,6 +117,7 @@ import { RbacModule } from '../rbac/rbac.module';
     PipelineController,
     SegmentationController,
     EmailTemplateController,
+    CrmReferralsController,
     ActivityTemplateController,
     ForecastController,
     WorkflowController,
@@ -135,6 +140,7 @@ import { RbacModule } from '../rbac/rbac.module';
     SegmentationService,
     EmailTemplateService,
     ActivityTemplateService,
+    CrmReferralsService,
     ForecastService,
     WorkflowService,
     QuoteTemplateService
