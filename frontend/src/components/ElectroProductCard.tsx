@@ -15,10 +15,25 @@ interface ProductCardProps {
   originalPrice?: number;
   stock?: number;
   image?: string;
+  imageUrl?: string;
+  image_url?: string;
+  thumb?: string;
+  thumbnail?: string;
   rating?: number;
   reviews?: number;
   discount?: number;
 }
+
+const resolveImageUrl = (value: unknown) => {
+  const raw = typeof value === "string" ? value.trim() : "";
+  if (!raw) return "";
+  if (raw.startsWith("http://") || raw.startsWith("https://")) return raw;
+  if (raw.startsWith("/")) return raw;
+
+  const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api";
+  const origin = apiBase.replace(/\/?api\/?$/, "");
+  return `${origin}/uploads/${raw}`;
+};
 
 export default function ElectroProductCard({
   id,
@@ -31,6 +46,10 @@ export default function ElectroProductCard({
   originalPrice,
   stock,
   image,
+  imageUrl,
+  image_url,
+  thumb,
+  thumbnail,
   rating = 5,
   reviews = 0,
   discount,
@@ -42,7 +61,12 @@ export default function ElectroProductCard({
   const displayCategory =
     typeof categoryName === "string" ? categoryName.trim() : "";
   const productUrl = slug ? `/products/${slug}` : `/products/${id}`;
-  const imageUrl = typeof image === "string" ? image.trim() : "";
+  const resolvedImageUrl =
+    resolveImageUrl(imageUrl) ||
+    resolveImageUrl(image_url) ||
+    resolveImageUrl(thumb) ||
+    resolveImageUrl(thumbnail) ||
+    resolveImageUrl(image);
   const priceNum = typeof price === "number" ? price : parseFloat(price) || 0;
   const originalPriceNum = originalPrice
     ? typeof originalPrice === "number"
@@ -56,7 +80,7 @@ export default function ElectroProductCard({
 
   useEffect(() => {
     setImageError(false);
-  }, [imageUrl]);
+  }, [resolvedImageUrl]);
 
   const handleAddToCart = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -136,13 +160,13 @@ export default function ElectroProductCard({
       <Link href={productUrl}>
         {/* Image */}
         <div className="relative h-48 bg-gray-50 flex items-center justify-center overflow-hidden">
-          {imageUrl && !imageError ? (
+          {resolvedImageUrl && !imageError ? (
             <img
-              src={imageUrl}
+              src={resolvedImageUrl}
               alt={displayName}
-              className="object-fit group-hover:scale-110 transition-transform duration-500 w-full h-full"
+              className="object-cover group-hover:scale-110 transition-transform duration-500 w-full h-full"
               onError={(e) => {
-                console.error("Image failed to load:", imageUrl);
+                console.error("Image failed to load:", resolvedImageUrl);
                 setImageError(true);
               }}
             />
@@ -222,7 +246,13 @@ export default function ElectroProductCard({
       <AddToCartPopup
         isOpen={showPopup}
         onClose={() => setShowPopup(false)}
-        product={{ id, name_en: displayName, name: displayName, price, image }}
+        product={{
+          id,
+          name_en: displayName,
+          name: displayName,
+          price,
+          image: resolvedImageUrl || image,
+        }}
       />
     </div>
   );

@@ -35,9 +35,11 @@ export default function ProductCard({
   reviews = 0
 }: ProductCardProps) {
   const [isHovered, setIsHovered] = useState(false);
+  const [imageError, setImageError] = useState(false);
   
   // Use thumb for card display, fallback to image
-  const displayImage = thumb || image;
+  const displayImage = (thumb || image || '').trim();
+  const safeImage = !imageError && displayImage ? displayImage : '/default-product.png';
 
   const addToCart = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -86,7 +88,7 @@ export default function ProductCard({
       <Link href={`/product/${slug || id}`} className="text-decoration-none" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
         <div style={{ position: 'relative', paddingTop: '100%', backgroundColor: '#f5f5f5' }}>
           <img
-            src={displayImage}
+            src={safeImage}
             alt={nameEn}
             style={{
               position: 'absolute',
@@ -98,6 +100,7 @@ export default function ProductCard({
               transition: 'transform 0.3s ease',
               transform: isHovered ? 'scale(1.05)' : 'scale(1)'
             }}
+            onError={() => setImageError(true)}
           />
           {discountPercent > 0 && (
             <span

@@ -22,6 +22,7 @@ interface Product {
   stock_quantity?: number;
   category_name?: string;
   image?: string;
+  image_url?: string;
 }
 
 export default function Products() {
@@ -381,7 +382,7 @@ export default function Products() {
                         price={product.base_price}
                         originalPrice={product.mrp}
                         stock={product.stock_quantity}
-                        image={product.image}
+                        image={product.image || product.image_url}
                         rating={5}
                         reviews={Math.floor(Math.random() * 200)}
                       />
