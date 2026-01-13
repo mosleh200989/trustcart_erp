@@ -71,7 +71,7 @@ export default function Home() {
 
   const loadBanners = async () => {
     try {
-      const response = await apiClient.get("/banners?active=true");
+      const response = await apiClient.get("/banners/public");
       const banners = response.data || [];
       console.log("Banners loaded:", banners);
 
@@ -96,7 +96,7 @@ export default function Home() {
 
   const loadSpecialOffers = async () => {
     try {
-      const response = await apiClient.get("/special-offers?active=true");
+      const response = await apiClient.get("/special-offers/public");
       console.log("Special offers loaded:", response.data);
       setSpecialOffers(response.data || []);
     } catch (error) {

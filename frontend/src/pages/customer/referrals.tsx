@@ -26,8 +26,7 @@ export default function CustomerReferralsPage() {
         }
 
         // Get customer details
-        const allCustomers = await customers.list();
-        const customer = (allCustomers as any[]).find((c) => c.email === user.email);
+        const customer = await customers.me();
         
         if (!customer) {
           setError('Customer profile not found.');
@@ -39,7 +38,7 @@ export default function CustomerReferralsPage() {
 
         // Server-driven referral code (stable, from backend)
         try {
-          const code = await loyalty.getReferralCode(String(customer.id));
+          const code = await loyalty.getMyReferralCode();
           setReferralCode(code);
           if (typeof window !== 'undefined') {
             setReferralLink(`${window.location.origin}/register?ref=${code}`);
@@ -57,8 +56,8 @@ export default function CustomerReferralsPage() {
         // Try to load referrals - handle gracefully if not available
         try {
           const [list, summary] = await Promise.all([
-            loyalty.getReferrals(customer.id),
-            loyalty.getReferralStats(customer.id),
+            loyalty.getMyReferrals(),
+            loyalty.getMyReferralStats(),
           ]);
 
           setReferrals(list);

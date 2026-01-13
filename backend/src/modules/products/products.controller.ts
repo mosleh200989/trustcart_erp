@@ -1,10 +1,15 @@
-import { Controller, Get, Post, Body, Param, Put, Delete, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Put, Delete, Query, UseGuards } from '@nestjs/common';
 import { ProductsService } from './products.service';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Product } from './product.entity';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { PermissionsGuard } from '../../common/guards/permissions.guard';
+import { RequirePermissions } from '../../common/decorators/permissions.decorator';
+import { Public } from '../../common/decorators/public.decorator';
 
 @Controller('products')
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 export class ProductsController {
   constructor(
     private readonly productsService: ProductsService,
@@ -13,6 +18,7 @@ export class ProductsController {
   ) {}
 
   @Get()
+  @Public()
   async findAll() {
     const products = await this.productsService.findAll();
     console.log(`Controller returning ${products.length} products`);
@@ -20,16 +26,19 @@ export class ProductsController {
   }
 
   @Get('categories')
+  @Public()
   async findAllCategories() {
     return await this.productsService.findAllCategories();
   }
 
   @Get('test')
+  @Public()
   async test() {
     return { message: 'API is working', timestamp: new Date() };
   }
 
   @Get('debug-count')
+  @Public()
   async debugCount() {
     console.log('Debug endpoint hit');
     try {
@@ -43,6 +52,7 @@ export class ProductsController {
   }
 
   @Get('search')
+  @Public()
   async search(@Query('q') query: string) {
     if (!query || query.trim() === '') {
       return [];
@@ -51,6 +61,7 @@ export class ProductsController {
   }
 
   @Get('by-slug/:slug')
+  @Public()
   async findBySlug(@Param('slug') slug: string) {
     console.log('Finding product by slug:', slug);
     const product = await this.productsService.findBySlug(slug);
@@ -61,21 +72,25 @@ export class ProductsController {
   }
 
   @Get(':id/images')
+  @Public()
   async getProductImages(@Param('id') id: string) {
     return this.productsService.getProductImages(parseInt(id));
   }
 
   @Post(':id/images')
+  @RequirePermissions('edit-products')
   async addProductImage(@Param('id') id: string, @Body() imageData: { image_url: string; display_order?: number; is_primary?: boolean }) {
     return this.productsService.addProductImage(parseInt(id), imageData);
   }
 
   @Delete(':id/images/:imageId')
+  @RequirePermissions('edit-products')
   async deleteProductImage(@Param('id') id: string, @Param('imageId') imageId: string) {
     return this.productsService.deleteProductImage(parseInt(imageId));
   }
 
   @Put(':id/images/:imageId')
+  @RequirePermissions('edit-products')
   async updateProductImage(
     @Param('id') id: string,
     @Param('imageId') imageId: string,
@@ -85,6 +100,7 @@ export class ProductsController {
   }
 
   @Post()
+  @RequirePermissions('create-products')
   async create(@Body() createProductDto: any) {
     try {
       console.log('POST /products called with:', createProductDto);
@@ -103,6 +119,7 @@ export class ProductsController {
   }
 
   @Put(':id')
+  @RequirePermissions('edit-products')
   async update(@Param('id') id: string, @Body() updateProductDto: any) {
     try {
       console.log('PUT /products/:id called with:', id, updateProductDto);
@@ -114,32 +131,38 @@ export class ProductsController {
   }
 
   @Delete(':id')
+  @RequirePermissions('delete-products')
   async remove(@Param('id') id: string) {
     return this.productsService.remove(id);
   }
 
   // Homepage Features Endpoints
   @Get('featured/deal-of-day')
+  @Public()
   async getDealOfDay() {
     return this.productsService.findDealOfDay();
   }
 
   @Get('featured/popular')
+  @Public()
   async getPopular() {
     return this.productsService.findPopular();
   }
 
   @Get('featured/new-arrivals')
+  @Public()
   async getNewArrivals() {
     return this.productsService.findNewArrivals();
   }
 
   @Get('featured/featured')
+  @Public()
   async getFeatured() {
     return this.productsService.findFeatured();
   }
 
   @Get('related/:productId')
+  @Public()
   async getRelated(
     @Param('productId') productId: string,
     @Query('limit') limit?: string
@@ -151,11 +174,13 @@ export class ProductsController {
   }
 
   @Get('featured/suggested')
+  @Public()
   async getSuggested(@Query('limit') limit?: string) {
     return this.productsService.findSuggested(limit ? parseInt(limit) : 4);
   }
 
   @Get('featured/recently-viewed')
+  @Public()
   async getRecentlyViewed(
     @Query('userId') userId?: string,
     @Query('sessionId') sessionId?: string,
@@ -170,6 +195,7 @@ export class ProductsController {
 
   // Deal of the Day endpoints
   @Get('deal-of-the-day')
+  @Public()
   async getDealOfTheDay() {
     return this.productsService.getDealOfTheDay();
   }
@@ -177,17 +203,20 @@ export class ProductsController {
   // NOTE: Keep this below other static GET routes (e.g. deal-of-the-day)
   // so it doesn't accidentally catch them.
   @Get(':id')
+  @Public()
   async findOne(@Param('id') id: string) {
     return this.productsService.findOne(id);
   }
 
   @Post('admin/deal-of-the-day')
+  @RequirePermissions('manage-discounts')
   async setDealOfTheDay(@Body() body: { productId: number; endDate?: string }) {
     const endDate = body.endDate ? new Date(body.endDate) : undefined;
     return this.productsService.setDealOfTheDay(body.productId, endDate);
   }
 
   @Delete('admin/deal-of-the-day')
+  @RequirePermissions('manage-discounts')
   async removeDealOfTheDay() {
     return this.productsService.removeDealOfTheDay();
   }

@@ -73,7 +73,7 @@ export default function Register() {
 
       const pendingReferral = getPendingReferralAttribution();
 
-      const response = await apiClient.post('/customers', {
+      const response = await apiClient.post('/customers/public', {
         name: firstName,
         lastName,
         email: formData.email.trim() ? formData.email.trim() : null,

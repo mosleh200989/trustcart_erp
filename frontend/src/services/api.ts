@@ -35,17 +35,18 @@ export const auth = {
     if (!token) return null;
 
     try {
-      const res = await apiClient.post('/auth/validate', { token });
-      if (res.data && res.data.valid) {
-        const user = res.data.user as any;
-        return {
-          ...user,
-          id: String(user?.id ?? ''),
-        } as { id: string; email?: string | null; phone?: string | null; roleId?: number; roleSlug?: string };
-      }
-      return null;
+      const res = await apiClient.get('/auth/me');
+      const data = res.data as any;
+      const user = data?.user as any;
+      if (!user) return null;
+      return {
+        ...user,
+        id: String(user?.id ?? ''),
+        roles: data?.roles,
+        permissions: data?.permissions,
+      } as any;
     } catch (err) {
-      console.error('Error validating auth token:', err);
+      console.error('Error loading current user:', err);
       return null;
     }
   },
@@ -242,6 +243,10 @@ export const categories = {
 
 // Customers API
 export const customers = {
+  async me() {
+    const res = await apiClient.get('/customers/me');
+    return res.data;
+  },
   async list() {
     const res = await apiClient.get('/customers');
     return Array.isArray(res.data) ? res.data : [];
@@ -318,6 +323,28 @@ export const sales = {
 
 // Loyalty / Wallet / Referrals API
 export const loyalty = {
+  async getMyWallet() {
+    const res = await apiClient.get(`/loyalty/me/wallet`);
+    return res.data;
+  },
+  async getMyWalletTransactions(limit: number = 20) {
+    const res = await apiClient.get(`/loyalty/me/wallet/transactions`, {
+      params: { limit },
+    });
+    return Array.isArray(res.data) ? res.data : [];
+  },
+  async getMyReferrals() {
+    const res = await apiClient.get(`/loyalty/me/referrals`);
+    return Array.isArray(res.data) ? res.data : [];
+  },
+  async getMyReferralCode() {
+    const res = await apiClient.get(`/loyalty/me/referral-code`);
+    return res.data?.referralCode as string;
+  },
+  async getMyReferralStats() {
+    const res = await apiClient.get(`/loyalty/me/referrals/stats`);
+    return res.data || {};
+  },
   async getWallet(customerId: string) {
     const res = await apiClient.get(`/loyalty/wallet/${customerId}`);
     return res.data;
@@ -423,6 +450,10 @@ export const blog = {
 
 // Users API
 export const users = {
+  async me() {
+    const res = await apiClient.get('/users/me');
+    return res.data;
+  },
   async list() {
     const res = await apiClient.get('/users');
     return Array.isArray(res.data) ? res.data : [];
@@ -439,8 +470,44 @@ export const users = {
     const res = await apiClient.put(`/users/${id}`, data);
     return res.data;
   },
+  async updateMe(data: any) {
+    const res = await apiClient.put('/users/me', data);
+    return res.data;
+  },
   async delete(id: string | number) {
     const res = await apiClient.delete(`/users/${id}`);
+    return res.data;
+  },
+};
+
+// RBAC API
+export const rbac = {
+  async listRoles() {
+    const res = await apiClient.get('/rbac/roles');
+    return Array.isArray(res.data) ? res.data : [];
+  },
+  async getUserRoles(userId: string | number) {
+    const res = await apiClient.get(`/rbac/users/${userId}/roles`);
+    return Array.isArray(res.data) ? res.data : [];
+  },
+  async assignRole(userId: string | number, roleId: number) {
+    const res = await apiClient.post(`/rbac/users/${userId}/roles`, { roleId });
+    return res.data;
+  },
+  async removeRole(userId: string | number, roleId: number) {
+    const res = await apiClient.delete(`/rbac/users/${userId}/roles/${roleId}`);
+    return res.data;
+  },
+  async getUserPermissions(userId: string | number) {
+    const res = await apiClient.get(`/rbac/users/${userId}/permissions`);
+    return Array.isArray(res.data) ? res.data : [];
+  },
+  async grantPermission(userId: string | number, permissionId: number) {
+    const res = await apiClient.post(`/rbac/users/${userId}/permissions`, { permissionId });
+    return res.data;
+  },
+  async revokePermission(userId: string | number, permissionId: number) {
+    const res = await apiClient.delete(`/rbac/users/${userId}/permissions/${permissionId}`);
     return res.data;
   },
 };

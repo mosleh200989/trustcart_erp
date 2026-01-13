@@ -26,8 +26,8 @@ export default function CustomerWalletPage() {
           return;
         }
 
-        const summary = await loyalty.getWallet(user.id);
-        const tx = await loyalty.getWalletTransactions(user.id, 20);
+        const summary = await loyalty.getMyWallet();
+        const tx = await loyalty.getMyWalletTransactions(20);
 
         setWallet({
           balance: Number(summary.balance || 0),

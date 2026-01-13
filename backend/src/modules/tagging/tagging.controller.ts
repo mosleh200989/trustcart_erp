@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { TaggingService } from './tagging.service';
 import { AssignCustomersDto } from './dto/assign-customers.dto';
 import { BulkDeleteDto } from './dto/bulk-delete.dto';
@@ -6,8 +6,13 @@ import { CreateCustomerTagDto } from './dto/create-customer-tag.dto';
 import { ListCustomersQueryDto } from './dto/list-customers.query.dto';
 import { ListTagsQueryDto } from './dto/list-tags.query.dto';
 import { UpdateCustomerTagDto } from './dto/update-customer-tag.dto';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { PermissionsGuard } from '../../common/guards/permissions.guard';
+import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 
 @Controller('tags')
+@UseGuards(JwtAuthGuard, PermissionsGuard)
+@RequirePermissions('customer-segmentation')
 export class TaggingController {
   constructor(private readonly service: TaggingService) {}
 
