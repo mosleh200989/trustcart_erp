@@ -4,8 +4,12 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CustomersService } from '../customers/customers.service';
 import { CancelSalesOrderDto } from './dto/cancel-sales-order.dto';
 import { SpecialOffersService } from '../special-offers/special-offers.service';
+import { PermissionsGuard } from '../../common/guards/permissions.guard';
+import { RequirePermissions } from '../../common/decorators/permissions.decorator';
+import { Public } from '../../common/decorators/public.decorator';
 
 @Controller('sales')
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 export class SalesController {
   constructor(
     private readonly salesService: SalesService,
@@ -34,22 +38,26 @@ export class SalesController {
   }
 
   @Get()
+  @RequirePermissions('view-sales-orders')
   async findAll() {
     return this.salesService.findAll();
   }
 
   @Get('late-deliveries')
+  @RequirePermissions('view-sales-orders')
   async findLateDeliveries(@Query('thresholdDays') thresholdDays?: string) {
     const days = thresholdDays != null ? Number(thresholdDays) : undefined;
     return this.salesService.findLateDeliveries({ thresholdDays: days });
   }
 
   @Get(':id')
+  @RequirePermissions('view-sales-orders')
   async findOne(@Param('id') id: string) {
     return this.salesService.findOne(id);
   }
 
   @Get(':id/items')
+  @RequirePermissions('view-sales-orders')
   async getOrderItems(@Param('id') id: string) {
     return this.salesService.getOrderItems(id);
   }
@@ -78,6 +86,7 @@ export class SalesController {
 
   // Public endpoint (supports guest checkout) to accept the configured thank-you offer
   @Post(':id/accept-thank-you-offer')
+  @Public()
   async acceptThankYouOffer(@Param('id') id: string) {
     try {
       const offer = await this.specialOffersService.findThankYouOffer(false);
@@ -101,16 +110,19 @@ export class SalesController {
   }
 
   @Post()
+  @Public()
   async create(@Body() createSalesDto: any) {
     return this.salesService.create(createSalesDto);
   }
 
   @Put(':id')
+  @RequirePermissions('edit-sales-orders')
   async update(@Param('id') id: string, @Body() updateSalesDto: any) {
     return this.salesService.update(id, updateSalesDto);
   }
 
   @Delete(':id')
+  @RequirePermissions('delete-sales-orders')
   async remove(@Param('id') id: string) {
     return this.salesService.remove(id);
   }

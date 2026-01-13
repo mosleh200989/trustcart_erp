@@ -134,10 +134,7 @@ export default function Checkout() {
         // Optionally resolve a CRM customer + default address
         let match: any | null = null;
         try {
-          const list = await customers.list();
-          match =
-            (list as any[]).find((c) => c.email === (user as any).email) ||
-            null;
+          match = await customers.me();
           if (match) setCustomerProfile(match);
         } catch (err) {
           console.warn(
@@ -311,28 +308,18 @@ export default function Checkout() {
 
       if (!customerId) {
         try {
-          const allCustomers = await apiClient.get("/customers");
-          const customers = allCustomers.data;
+          const lookup = await apiClient.get('/customers/lookup', {
+            params: {
+              phone: formData.phone,
+              email: formData.email || undefined,
+            },
+          });
 
-          // First check by phone
-          let existingCustomer = customers.find(
-            (c: any) => c.phone === formData.phone
-          );
-
-          // If email provided and not found by phone, check by email
-          if (!existingCustomer && formData.email) {
-            existingCustomer = customers.find(
-              (c: any) => c.email === formData.email
-            );
-          }
-
-          if (existingCustomer) {
-            // Customer found, use existing ID
-            customerId = existingCustomer.id;
+          if (lookup.data?.id) {
+            customerId = lookup.data.id;
           } else {
-            // Customer not found, create new one
             const pendingReferral = getPendingReferralAttribution();
-            const newCustomer = await apiClient.post("/customers", {
+            const newCustomer = await apiClient.post('/customers/public', {
               name: formData.fullName,
               email: formData.email || null,
               phone: formData.phone,

@@ -82,8 +82,7 @@ export default function CustomerProfilePage() {
           return;
         }
 
-        const customerId = (user as any).id;
-        const match = await customers.get(customerId);
+        const match = await customers.me();
         if (!match) {
           setError('Customer profile not found for this account.');
           return;

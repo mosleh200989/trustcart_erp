@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 // import QuoteNotifications from '@/components/QuoteNotifications'; // DISABLED
+import { useAuth } from '@/contexts/AuthContext';
 import { 
   FaTachometerAlt, FaBoxes, FaShoppingCart, FaUsers, FaWarehouse, 
   FaShoppingBag, FaUserTie, FaBook, FaBullseye, FaHandshake, 
@@ -13,6 +14,7 @@ interface MenuItem {
   icon: any;
   path?: string;
   children?: MenuItem[];
+  requiredPermissions?: string[]; // any-of
 }
 
 const menuItems: MenuItem[] = [
@@ -21,43 +23,45 @@ const menuItems: MenuItem[] = [
     title: 'Products',
     icon: FaBoxes,
     children: [
-      { title: 'All Products', icon: FaBoxes, path: '/admin/products' },
-      { title: 'Manage Categories', icon: FaBoxes, path: '/admin/categories' },
-      { title: 'Combo Products', icon: FaBoxes, path: '/admin/combo-products' },
-      { title: 'Deal of the Day', icon: FaBoxes, path: '/admin/products/deal-of-the-day' },
-      { title: 'Offers & Promotions', icon: FaBoxes, path: '/admin/offers' },
-      { title: 'Special Offers', icon: FaBoxes, path: '/admin/special-offers' },
+      { title: 'All Products', icon: FaBoxes, path: '/admin/products', requiredPermissions: ['view-products'] },
+      { title: 'Manage Categories', icon: FaBoxes, path: '/admin/categories', requiredPermissions: ['manage-categories'] },
+      { title: 'Combo Products', icon: FaBoxes, path: '/admin/combo-products', requiredPermissions: ['view-products'] },
+      { title: 'Deal of the Day', icon: FaBoxes, path: '/admin/products/deal-of-the-day', requiredPermissions: ['manage-discounts', 'edit-products'] },
+      { title: 'Offers & Promotions', icon: FaBoxes, path: '/admin/offers', requiredPermissions: ['manage-discounts'] },
+      { title: 'Special Offers', icon: FaBoxes, path: '/admin/special-offers', requiredPermissions: ['manage-discounts'] },
     ],
   },
   {
     title: 'Sales',
     icon: FaShoppingCart,
     children: [
-      { title: 'Orders', icon: FaShoppingCart, path: '/admin/sales' },
-      { title: 'Incomplete Order', icon: FaShoppingCart, path: '/admin/sales/incomplete-orders' },
-      { title: 'Late Delivery', icon: FaShoppingCart, path: '/admin/sales/late-delivery' },
+      { title: 'Orders', icon: FaShoppingCart, path: '/admin/sales', requiredPermissions: ['view-sales-orders'] },
+      { title: 'Incomplete Order', icon: FaShoppingCart, path: '/admin/sales/incomplete-orders', requiredPermissions: ['view-sales-orders'] },
+      { title: 'Late Delivery', icon: FaShoppingCart, path: '/admin/sales/late-delivery', requiredPermissions: ['view-sales-orders'] },
     ],
   },
   {
     title: 'Reports',
     icon: FaChartBar,
     children: [
-      { title: 'Overview', icon: FaChartBar, path: '/admin/reports?tab=overview' },
-      { title: 'Sales Reports', icon: FaChartBar, path: '/admin/reports?tab=sales' },
-      { title: 'Customer Reports', icon: FaChartBar, path: '/admin/reports?tab=customers' },
-      { title: 'Product Reports', icon: FaChartBar, path: '/admin/reports?tab=products' },
-      { title: 'Inventory Reports', icon: FaChartBar, path: '/admin/reports?tab=inventory' },
-      { title: 'Marketing Reports', icon: FaChartBar, path: '/admin/reports?tab=marketing' },
+      { title: 'Overview', icon: FaChartBar, path: '/admin/reports?tab=overview', requiredPermissions: ['view-sales-reports','view-product-reports','view-stock-reports','view-crm-reports','view-financial-reports','view-marketing-reports','view-mlm-reports','view-hr-reports','view-recruitment-reports'] },
+      { title: 'Sales Reports', icon: FaChartBar, path: '/admin/reports?tab=sales', requiredPermissions: ['view-sales-reports'] },
+      { title: 'Customer Reports', icon: FaChartBar, path: '/admin/reports?tab=customers', requiredPermissions: ['view-crm-reports','view-customers'] },
+      { title: 'Product Reports', icon: FaChartBar, path: '/admin/reports?tab=products', requiredPermissions: ['view-product-reports'] },
+      { title: 'Inventory Reports', icon: FaChartBar, path: '/admin/reports?tab=inventory', requiredPermissions: ['view-stock-reports'] },
+      { title: 'Marketing Reports', icon: FaChartBar, path: '/admin/reports?tab=marketing', requiredPermissions: ['view-marketing-reports'] },
     ],
   },
   {
     title: 'Customers',
     icon: FaUsers,
-    path: '/admin/customers'
+    path: '/admin/customers',
+    requiredPermissions: ['view-customers']
   },
   {
     title: 'Loyalty',
     icon: FaGift,
+    requiredPermissions: ['view-mlm-reports', 'manage-mlm-settings'],
     children: [
       { title: 'Dashboard', icon: FaTachometerAlt, path: '/admin/loyalty' },
       { title: 'Members', icon: FaUsers, path: '/admin/loyalty/members' },
@@ -70,6 +74,7 @@ const menuItems: MenuItem[] = [
   {
     title: 'Tagging',
     icon: FaTags,
+    requiredPermissions: ['customer-segmentation', 'view-products'],
     children: [
       { title: 'Manage Tags', icon: FaTags, path: '/admin/tagging?tab=manage' },
       { title: 'Tagwise Filter', icon: FaTags, path: '/admin/tagging?tab=filter' },
@@ -78,16 +83,19 @@ const menuItems: MenuItem[] = [
   {
     title: 'Inventory',
     icon: FaWarehouse,
-    path: '/admin/inventory'
+    path: '/admin/inventory',
+    requiredPermissions: ['view-inventory']
   },
   {
     title: 'Purchase',
     icon: FaShoppingBag,
-    path: '/admin/purchase'
+    path: '/admin/purchase',
+    requiredPermissions: ['view-purchase-orders']
   },
   {
     title: 'HR Management',
     icon: FaUserTie,
+    requiredPermissions: ['view-employees', 'manage-attendance', 'process-payroll', 'view-hr-reports'],
     children: [
       { title: 'Branches', icon: FaUserTie, path: '/admin/hrm/branches' },
       { title: 'Departments', icon: FaUserTie, path: '/admin/hrm/departments' },
@@ -231,7 +239,8 @@ const menuItems: MenuItem[] = [
   {
     title: 'Accounting',
     icon: FaBook,
-    path: '/admin/accounting'
+    path: '/admin/accounting',
+    requiredPermissions: ['view-financial-reports', 'view-ledgers', 'view-invoices']
   },
   {
     title: 'Projects',
@@ -246,6 +255,7 @@ const menuItems: MenuItem[] = [
   {
     title: 'CRM',
     icon: FaHandshake,
+    requiredPermissions: ['view-leads', 'view-customers', 'view-crm-reports', 'receive-new-leads'],
     children: [
       { title: 'Dashboard', icon: FaTachometerAlt, path: '/admin/crm' },
       { title: 'Customers', icon: FaUsers, path: '/admin/crm/customers' },
@@ -278,31 +288,103 @@ const menuItems: MenuItem[] = [
   {
     title: 'Support',
     icon: FaHeadset,
-    path: '/admin/support'
+    path: '/admin/support',
+    requiredPermissions: ['view-users', 'view-system-settings']
   },
   {
     title: 'Users',
     icon: FaUser,
-    path: '/admin/users'
+    children: [
+      { title: 'Manage Users', icon: FaUser, path: '/admin/users', requiredPermissions: ['view-users'] },
+      { title: 'Assign Roles', icon: FaUser, path: '/admin/users/roles', requiredPermissions: ['assign-roles'] },
+    ]
   },
+  { title: 'Profile', icon: FaUser, path: '/admin/profile' },
   {
     title: 'Settings',
     icon: FaCog,
+    requiredPermissions: ['manage-system-settings', 'view-system-settings'],
     children: [
       { title: 'Courier Configuration', icon: FaCog, path: '/admin/settings/courier-configuration' },
     ],
   },
 ];
 
+function stripQuery(path: string) {
+  return path.split('?')[0];
+}
+
+function isMenuPathMatch(menuPath: string, currentAsPath: string) {
+  if (menuPath.includes('?')) {
+    return menuPath === currentAsPath;
+  }
+  return stripQuery(menuPath) === stripQuery(currentAsPath);
+}
+
+function filterMenuItems(items: MenuItem[], hasAnyPermission: (slugs: string[]) => boolean, inheritedPermissions: string[] = []): MenuItem[] {
+  const filtered: MenuItem[] = [];
+  for (const item of items) {
+    const effectivePermissions = item.requiredPermissions ?? inheritedPermissions;
+    const isAllowed = hasAnyPermission(effectivePermissions);
+
+    if (item.children && item.children.length > 0) {
+      const nextChildren = filterMenuItems(item.children, hasAnyPermission, effectivePermissions);
+      if (nextChildren.length > 0 && isAllowed) {
+        filtered.push({ ...item, children: nextChildren });
+      }
+      continue;
+    }
+
+    if (isAllowed) {
+      filtered.push(item);
+    }
+  }
+  return filtered;
+}
+
+function findLeafByPath(items: MenuItem[], currentAsPath: string, inheritedPermissions: string[] = []): { item: MenuItem; required: string[] } | null {
+  for (const item of items) {
+    const effectivePermissions = item.requiredPermissions ?? inheritedPermissions;
+
+    if (item.path && isMenuPathMatch(item.path, currentAsPath) && (!item.children || item.children.length === 0)) {
+      return { item, required: effectivePermissions };
+    }
+
+    if (item.children) {
+      const found = findLeafByPath(item.children, currentAsPath, effectivePermissions);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [expandedMenus, setExpandedMenus] = useState<string[]>([]);
   const router = useRouter();
+  const { user, isLoading, hasAnyPermission, logout } = useAuth();
+
+  const visibleMenuItems = useMemo(() => {
+    return filterMenuItems(menuItems, hasAnyPermission);
+  }, [hasAnyPermission]);
+
+  const currentAsPath = useMemo(() => router.asPath || router.pathname, [router.asPath, router.pathname]);
+  const currentPath = useMemo(() => stripQuery(currentAsPath), [currentAsPath]);
+
+  const routeRequirement = useMemo(() => {
+    return findLeafByPath(menuItems, currentAsPath);
+  }, [currentAsPath]);
+
+  const hasRouteAccess = useMemo(() => {
+    if (!routeRequirement) return true;
+    const required = routeRequirement.required;
+    return hasAnyPermission(required);
+  }, [hasAnyPermission, routeRequirement]);
 
   // Helper function to get all parent menu titles for a given path
   const getParentMenuTitles = (items: MenuItem[], currentPath: string, parents: string[] = []): string[] | null => {
     for (const item of items) {
-      if (item.path === currentPath) {
+      if (item.path && isMenuPathMatch(item.path, currentPath)) {
         return parents;
       }
       if (item.children) {
@@ -317,11 +399,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   // Auto-expand menu containing the active page
   useEffect(() => {
-    const parentTitles = getParentMenuTitles(menuItems, router.pathname);
+    const parentTitles = getParentMenuTitles(visibleMenuItems, currentAsPath);
     if (parentTitles && parentTitles.length > 0) {
       setExpandedMenus(parentTitles);
     }
-  }, [router.pathname]);
+  }, [currentAsPath, visibleMenuItems]);
 
   const toggleMenu = (title: string) => {
     setExpandedMenus(prev =>
@@ -330,8 +412,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('admin_token');
-    localStorage.removeItem('authToken');
+    logout();
     router.push('/admin/login');
   };
 
@@ -358,14 +439,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
         {/* Menu Items */}
         <nav className="flex-1 overflow-y-auto py-4">
-          {menuItems.map((item) => (
+          {visibleMenuItems.map((item) => (
             <MenuItem
               key={item.title}
               item={item}
               collapsed={sidebarCollapsed}
               expandedMenus={expandedMenus}
               onToggle={toggleMenu}
-              currentPath={router.pathname}
+              currentPath={currentPath}
             />
           ))}
         </nav>
@@ -381,7 +462,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </div>
             <div className="flex items-center space-x-4">
               {/* <QuoteNotifications /> */} {/* DISABLED */}
-              <span className="text-sm text-gray-700 font-medium">Admin User</span>
+              <span className="text-sm text-gray-700 font-medium">
+                {isLoading ? 'Loading…' : (user?.email || user?.phone || 'User')}
+              </span>
               <button
                 onClick={handleLogout}
                 className="bg-gradient-to-r from-red-500 to-red-600 text-white px-4 py-2 rounded-lg hover:from-red-600 hover:to-red-700 transition-all shadow-md"
@@ -393,7 +476,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </header>
 
         {/* Page Content */}
-        <main className="flex-1 overflow-y-auto bg-gray-100 p-6">{children}</main>
+        <main className="flex-1 overflow-y-auto bg-gray-100 p-6">
+          {!hasRouteAccess ? (
+            <div className="max-w-xl mx-auto bg-white rounded-lg shadow p-6">
+              <h1 className="text-2xl font-bold text-gray-800">403 - Access denied</h1>
+              <p className="text-gray-600 mt-2">Your role does not have permission to view this page.</p>
+            </div>
+          ) : (
+            children
+          )}
+        </main>
       </div>
     </div>
   );
@@ -413,7 +505,7 @@ function MenuItem({
   currentPath: string;
 }) {
   const hasChildren = item.children && item.children.length > 0;
-  const isActive = item.path === currentPath;
+  const isActive = item.path ? stripQuery(item.path) === stripQuery(currentPath) : false;
   const isExpanded = expandedMenus.includes(item.title);
   const IconComponent = item.icon;
 
@@ -460,7 +552,9 @@ function MenuItem({
                             <Link key={grandchild.title} href={grandchild.path || '#'}>
                               <div
                                 className={`flex items-center px-12 py-2 hover:bg-blue-700 transition-colors ${
-                                  currentPath === grandchild.path ? 'bg-gradient-to-r from-blue-500 to-blue-600' : ''
+                                  grandchild.path && stripQuery(currentPath) === stripQuery(grandchild.path)
+                                    ? 'bg-gradient-to-r from-blue-500 to-blue-600'
+                                    : ''
                                 }`}
                               >
                                 <GrandchildIcon className="text-xs" />
@@ -479,7 +573,9 @@ function MenuItem({
                 <Link key={child.title} href={child.path || '#'}>
                   <div
                     className={`flex items-center px-8 py-2 hover:bg-blue-700 transition-colors ${
-                      currentPath === child.path ? 'bg-gradient-to-r from-blue-500 to-blue-600' : ''
+                        child.path && stripQuery(currentPath) === stripQuery(child.path)
+                          ? 'bg-gradient-to-r from-blue-500 to-blue-600'
+                          : ''
                     }`}
                   >
                     <ChildIcon className="text-sm" />

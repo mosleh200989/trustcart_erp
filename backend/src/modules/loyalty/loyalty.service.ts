@@ -57,6 +57,36 @@ export class LoyaltyService {
     return new Date();
   }
 
+  async findCustomerIdForContact(email?: string | null, phone?: string | null): Promise<number | null> {
+    const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
+    const normalizedPhone = typeof phone === 'string' ? phone.trim() : '';
+
+    if (!normalizedEmail && !normalizedPhone) return null;
+
+    try {
+      const rows = await this.walletRepo.query(
+        `SELECT id::int AS id
+         FROM customers
+         WHERE (
+           $1::text IS NOT NULL
+           AND email IS NOT NULL
+           AND lower(email) = $1
+         )
+         OR (
+           $2::text IS NOT NULL
+           AND phone = $2
+         )
+         ORDER BY id ASC
+         LIMIT 1;`,
+        [normalizedEmail || null, normalizedPhone || null],
+      );
+      const id = Number(rows?.[0]?.id);
+      return Number.isFinite(id) ? id : null;
+    } catch {
+      return null;
+    }
+  }
+
   private normalizeTier(tier?: string | null): 'none' | 'silver' | 'gold' | 'permanent' {
     const t = String(tier || '').trim().toLowerCase();
     if (t === 'silver' || t === 'gold' || t === 'permanent') return t;

@@ -1,16 +1,23 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Req } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, Req, UseGuards, UnauthorizedException } from '@nestjs/common';
 import { OrderManagementService } from './order-management.service';
 import { Request } from 'express';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { PermissionsGuard } from '../../common/guards/permissions.guard';
+import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 
 @Controller('order-management')
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 export class OrderManagementController {
   constructor(private readonly orderManagementService: OrderManagementService) {}
 
   // Helper to extract user info from request (adjust based on your auth setup)
   private getUserInfo(req: Request) {
     const user = (req as any).user || {};
+    if (!user?.id) {
+      throw new UnauthorizedException('User not authenticated');
+    }
     return {
-      userId: user.id || 1,
+      userId: user.id,
       userName: user.name || user.username || 'Admin',
       ipAddress: req.ip || req.headers['x-forwarded-for'] as string || 'unknown',
     };
@@ -19,11 +26,13 @@ export class OrderManagementController {
   // ==================== ORDER ITEMS ====================
 
   @Get(':orderId/items')
+  @RequirePermissions('view-sales-orders')
   async getOrderItems(@Param('orderId') orderId: number) {
     return await this.orderManagementService.getOrderItems(orderId);
   }
 
   @Post(':orderId/items')
+  @RequirePermissions('edit-sales-orders')
   async addOrderItem(
     @Param('orderId') orderId: number,
     @Body() body: {
@@ -43,6 +52,7 @@ export class OrderManagementController {
   }
 
   @Put('items/:itemId')
+  @RequirePermissions('edit-sales-orders')
   async updateOrderItem(
     @Param('itemId') itemId: number,
     @Body() body: { quantity?: number; unitPrice?: number },
@@ -56,6 +66,7 @@ export class OrderManagementController {
   }
 
   @Delete('items/:itemId')
+  @RequirePermissions('edit-sales-orders')
   async deleteOrderItem(@Param('itemId') itemId: number, @Req() req: Request) {
     const userInfo = this.getUserInfo(req);
     await this.orderManagementService.deleteOrderItem(
@@ -70,6 +81,7 @@ export class OrderManagementController {
   // ==================== ORDER STATUS ====================
 
   @Post(':orderId/approve')
+  @RequirePermissions('approve-sales-orders')
   async approveOrder(@Param('orderId') orderId: number, @Req() req: Request) {
     const userInfo = this.getUserInfo(req);
     return await this.orderManagementService.approveOrder(
@@ -81,6 +93,7 @@ export class OrderManagementController {
   }
 
   @Post(':orderId/hold')
+  @RequirePermissions('edit-sales-orders')
   async holdOrder(@Param('orderId') orderId: number, @Req() req: Request) {
     const userInfo = this.getUserInfo(req);
     return await this.orderManagementService.holdOrder(
@@ -92,6 +105,7 @@ export class OrderManagementController {
   }
 
   @Post(':orderId/cancel')
+  @RequirePermissions('edit-sales-orders')
   async cancelOrder(
     @Param('orderId') orderId: number,
     @Body() body: { cancelReason: string },
@@ -110,6 +124,7 @@ export class OrderManagementController {
   // ==================== COURIER ====================
 
   @Post(':orderId/ship')
+  @RequirePermissions('edit-sales-orders')
   async shipOrder(
     @Param('orderId') orderId: number,
     @Body() body: {
@@ -128,6 +143,7 @@ export class OrderManagementController {
   }
 
   @Post(':orderId/steadfast/send')
+  @RequirePermissions('edit-sales-orders')
   async sendToSteadfast(@Param('orderId') orderId: number, @Req() req: Request) {
     const userInfo = this.getUserInfo(req);
     return await this.orderManagementService.sendToSteadfast({
@@ -137,6 +153,7 @@ export class OrderManagementController {
   }
 
   @Post(':orderId/courier-status')
+  @RequirePermissions('edit-sales-orders')
   async updateCourierStatus(
     @Param('orderId') orderId: number,
     @Body() body: {
@@ -153,6 +170,7 @@ export class OrderManagementController {
   }
 
   @Get(':orderId/courier-tracking')
+  @RequirePermissions('view-sales-orders')
   async getCourierTracking(@Param('orderId') orderId: number) {
     return await this.orderManagementService.getCourierTrackingHistory(orderId);
   }
@@ -160,6 +178,7 @@ export class OrderManagementController {
   // ==================== NOTES ====================
 
   @Put(':orderId/notes')
+  @RequirePermissions('edit-sales-orders')
   async updateNotes(
     @Param('orderId') orderId: number,
     @Body() body: {
@@ -181,6 +200,7 @@ export class OrderManagementController {
   // ==================== ACTIVITY LOGS ====================
 
   @Get(':orderId/activity-logs')
+  @RequirePermissions('view-sales-orders')
   async getActivityLogs(@Param('orderId') orderId: number) {
     return await this.orderManagementService.getActivityLogs(orderId);
   }
@@ -188,6 +208,7 @@ export class OrderManagementController {
   // ==================== ORDER DETAILS ====================
 
   @Get(':orderId/details')
+  @RequirePermissions('view-sales-orders')
   async getOrderDetails(@Param('orderId') orderId: number) {
     return await this.orderManagementService.getOrderDetails(orderId);
   }
@@ -195,6 +216,7 @@ export class OrderManagementController {
   // ==================== CUSTOMER PRODUCT HISTORY ====================
 
   @Get(':orderId/product-history')
+  @RequirePermissions('view-sales-orders')
   async getCustomerProductHistory(@Param('orderId') orderId: number) {
     return await this.orderManagementService.getCustomerProductHistory(orderId);
   }
@@ -202,6 +224,7 @@ export class OrderManagementController {
   // ==================== ORDER TRACKING ====================
 
   @Put(':orderId/tracking')
+  @RequirePermissions('edit-sales-orders')
   async updateOrderTracking(
     @Param('orderId') orderId: number,
     @Body() body: {

@@ -1,25 +1,31 @@
-import { Controller, Get, Post, Delete, Param, Body, Query, UseGuards, Request } from '@nestjs/common';
+import { Controller, Get, Post, Delete, Param, Body, Query, UseGuards, Request, ForbiddenException } from '@nestjs/common';
 import { RbacService } from './rbac.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { PermissionsGuard } from '../../common/guards/permissions.guard';
+import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 
 @Controller('rbac')
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 export class RbacController {
   constructor(private readonly rbacService: RbacService) {}
 
   // Get all roles
   @Get('roles')
+  @RequirePermissions('view-users')
   async getRoles() {
     return this.rbacService.findAllRoles();
   }
 
   // Get role by slug with permissions
   @Get('roles/:slug')
+  @RequirePermissions('view-users')
   async getRoleBySlug(@Param('slug') slug: string) {
     return this.rbacService.findRoleBySlug(slug);
   }
 
   // Get all permissions
   @Get('permissions')
+  @RequirePermissions('view-users')
   async getPermissions(@Query('module') module?: string) {
     if (module) {
       return this.rbacService.findPermissionsByModule(module);
@@ -29,69 +35,79 @@ export class RbacController {
 
   // Get user permissions
   @Get('users/:userId/permissions')
-  async getUserPermissions(@Param('userId') userId: number) {
-    return this.rbacService.getUserPermissions(userId);
+  @RequirePermissions('view-users')
+  async getUserPermissions(@Param('userId') userId: string) {
+    return this.rbacService.getUserPermissions(Number(userId));
   }
 
   // Get user roles
   @Get('users/:userId/roles')
-  async getUserRoles(@Param('userId') userId: number) {
-    return this.rbacService.getUserRoles(userId);
+  @RequirePermissions('view-users')
+  async getUserRoles(@Param('userId') userId: string) {
+    return this.rbacService.getUserRoles(Number(userId));
   }
 
   // Check permission
   @Get('users/:userId/check/:permissionSlug')
+  @RequirePermissions('view-users')
   async checkPermission(
-    @Param('userId') userId: number,
+    @Param('userId') userId: string,
     @Param('permissionSlug') permissionSlug: string
   ) {
-    const hasPermission = await this.rbacService.checkPermission(userId, permissionSlug);
+    const hasPermission = await this.rbacService.checkPermission(Number(userId), permissionSlug);
     return { hasPermission };
   }
 
   // Assign role to user
   @Post('users/:userId/roles')
+  @RequirePermissions('assign-roles')
   async assignRole(
-    @Param('userId') userId: number,
-    @Body() body: { roleId: number; assignedBy?: number }
+    @Param('userId') userId: string,
+    @Body() body: { roleId: number },
+    @Request() req: any
   ) {
-    await this.rbacService.assignRoleToUser(userId, body.roleId, body.assignedBy);
+    await this.rbacService.assignRoleToUser(Number(userId), body.roleId, req.user?.id);
     return { message: 'Role assigned successfully' };
   }
 
   // Remove role from user
   @Delete('users/:userId/roles/:roleId')
+  @RequirePermissions('assign-roles')
   async removeRole(
-    @Param('userId') userId: number,
-    @Param('roleId') roleId: number
+    @Param('userId') userId: string,
+    @Param('roleId') roleId: string
   ) {
-    await this.rbacService.removeRoleFromUser(userId, roleId);
+    await this.rbacService.removeRoleFromUser(Number(userId), Number(roleId));
     return { message: 'Role removed successfully' };
   }
 
   // Grant permission to user
   @Post('users/:userId/permissions')
+  @RequirePermissions('assign-roles')
   async grantPermission(
-    @Param('userId') userId: number,
-    @Body() body: { permissionId: number; grantedBy?: number }
+    @Param('userId') userId: string,
+    @Body() body: { permissionId: number },
+    @Request() req: any
   ) {
-    await this.rbacService.grantPermissionToUser(userId, body.permissionId, body.grantedBy);
+    await this.rbacService.grantPermissionToUser(Number(userId), body.permissionId, req.user?.id);
     return { message: 'Permission granted successfully' };
   }
 
   // Revoke permission from user
   @Delete('users/:userId/permissions/:permissionId')
+  @RequirePermissions('assign-roles')
   async revokePermission(
-    @Param('userId') userId: number,
-    @Param('permissionId') permissionId: number,
-    @Body() body: { grantedBy?: number }
+    @Param('userId') userId: string,
+    @Param('permissionId') permissionId: string,
+    @Request() req: any
   ) {
-    await this.rbacService.revokePermissionFromUser(userId, permissionId, body.grantedBy);
+    await this.rbacService.revokePermissionFromUser(Number(userId), Number(permissionId), req.user?.id);
     return { message: 'Permission revoked successfully' };
   }
 
   // Get activity logs
   @Get('activity-logs')
+  @RequirePermissions('view-audit-logs')
   async getActivityLogs(
     @Query('userId') userId?: number,
     @Query('module') module?: string,
@@ -110,6 +126,7 @@ export class RbacController {
 
   // Log activity (manual)
   @Post('activity-logs')
+  @RequirePermissions('view-audit-logs')
   async logActivity(@Body() body: any) {
     await this.rbacService.logActivity(body);
     return { message: 'Activity logged successfully' };
@@ -117,8 +134,11 @@ export class RbacController {
 
   // Helper: Auto-assign admin role to current user (development only)
   @Post('dev/make-me-admin')
-  @UseGuards(JwtAuthGuard)
+  @RequirePermissions('assign-roles')
   async makeMeAdmin(@Request() req: any) {
+    if (String(process.env.NODE_ENV || '').toLowerCase() === 'production') {
+      throw new ForbiddenException('Not available in production');
+    }
     const userId = req.user.id;
     
     // Find admin or super-admin role
