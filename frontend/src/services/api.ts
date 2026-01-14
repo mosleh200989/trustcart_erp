@@ -486,6 +486,26 @@ export const rbac = {
     const res = await apiClient.get('/rbac/roles');
     return Array.isArray(res.data) ? res.data : [];
   },
+  async listPermissions(module?: string) {
+    const res = await apiClient.get('/rbac/permissions', { params: module ? { module } : undefined });
+    return Array.isArray(res.data) ? res.data : [];
+  },
+  async getRolePermissions(roleId: string | number) {
+    const res = await apiClient.get(`/rbac/roles/${roleId}/permissions`);
+    return Array.isArray(res.data) ? res.data : [];
+  },
+  async setRolePermissions(roleId: string | number, permissionIds: number[]) {
+    const res = await apiClient.put(`/rbac/roles/${roleId}/permissions`, { permissionIds });
+    return res.data;
+  },
+  async grantRolePermission(roleId: string | number, permissionId: number) {
+    const res = await apiClient.post(`/rbac/roles/${roleId}/permissions`, { permissionId });
+    return res.data;
+  },
+  async revokeRolePermission(roleId: string | number, permissionId: number) {
+    const res = await apiClient.delete(`/rbac/roles/${roleId}/permissions/${permissionId}`);
+    return res.data;
+  },
   async getUserRoles(userId: string | number) {
     const res = await apiClient.get(`/rbac/users/${userId}/roles`);
     return Array.isArray(res.data) ? res.data : [];

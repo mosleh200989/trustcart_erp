@@ -25,15 +25,19 @@ export class AuthService {
 
     // First, try to find in users table
     const user = looksLikeEmail
-      ? await this.usersRepository.findOne({ where: { email: loginValue } })
-      : await this.usersRepository.findOne({ where: { phone: loginValue } });
+      ? await this.usersRepository.findOne({ where: { email: loginValue, isDeleted: false } })
+      : await this.usersRepository.findOne({ where: { phone: loginValue, isDeleted: false } });
     
     // If not found in users, check customers table
     if (!user) {
       const customer = await this.customersRepository.findOne({
         where: looksLikeEmail ? { email: loginValue } : { phone: loginValue },
-        select: ['id', 'email', 'password', 'name', 'lastName', 'phone'],
+        select: ['id', 'email', 'password', 'name', 'lastName', 'phone', 'is_deleted'],
       });
+
+      if (customer && (customer as any).is_deleted) {
+        throw new UnauthorizedException('Account is inactive');
+      }
       
       if (customer && customer.password) {
         // Verify customer password
@@ -44,7 +48,7 @@ export class AuthService {
 
         // Generate token for customer
         const token = jwt.sign(
-          { id: customer.id, email: customer.email, phone: customer.phone, roleSlug: 'customer-account' },
+          { id: customer.id, email: customer.email, phone: customer.phone, roleSlug: 'customer-account', type: 'customer' },
           process.env.JWT_SECRET || 'trustcart-erp-secret-key-2024',
           { expiresIn: '24h' }
         );
@@ -86,8 +90,11 @@ export class AuthService {
           // If user exists but query failed, try to find them
           const existingUser = await this.usersRepository.findOne({ where: { email: loginValue } });
           if (existingUser) {
+            if ((existingUser as any).isDeleted || existingUser.status !== 'active') {
+              throw new UnauthorizedException('Account is inactive');
+            }
             const token = jwt.sign(
-              { id: existingUser.id, email: existingUser.email },
+              { id: existingUser.id, email: existingUser.email, roleId: existingUser.roleId, type: 'user' },
               process.env.JWT_SECRET || 'trustcart-erp-secret-key-2024',
               { expiresIn: '24h' }
             );
@@ -120,7 +127,7 @@ export class AuthService {
         }
 
         const token = jwt.sign(
-          { id: newUser.id, email: newUser.email, roleId: newUser.roleId, roleSlug },
+          { id: newUser.id, email: newUser.email, roleId: newUser.roleId, roleSlug, type: 'user' },
           process.env.JWT_SECRET || 'trustcart-erp-secret-key-2024',
           { expiresIn: '24h' }
         );
@@ -138,6 +145,14 @@ export class AuthService {
         };
       }
       
+      throw new UnauthorizedException('Invalid credentials');
+    }
+
+    if ((user as any).isDeleted || user.status !== 'active') {
+      throw new UnauthorizedException('Account is inactive');
+    }
+
+    if (!user.password) {
       throw new UnauthorizedException('Invalid credentials');
     }
 
@@ -165,7 +180,7 @@ export class AuthService {
 
     // Generate JWT token
     const token = jwt.sign(
-      { id: user.id, email: user.email, roleId: user.roleId, roleSlug },
+      { id: user.id, email: user.email, roleId: user.roleId, roleSlug, type: 'user' },
       process.env.JWT_SECRET || 'trustcart-erp-secret-key-2024',
       { expiresIn: '24h' }
     );
@@ -186,7 +201,7 @@ export class AuthService {
   async register(body: { email: string; password: string; name?: string; last_name?: string; phone?: string }) {
     const { email, password } = body;
 
-    const existingUser = await this.usersRepository.findOne({ where: { email } });
+    const existingUser = await this.usersRepository.findOne({ where: { email, isDeleted: false } });
     if (existingUser) {
       throw new UnauthorizedException('Email already registered');
     }
@@ -255,6 +270,56 @@ export class AuthService {
     return {
       message: 'User registered successfully',
       userId: user.id,
+    };
+  }
+
+  async validateJwtPayload(payload: any) {
+    if (!payload?.id) {
+      throw new UnauthorizedException('Invalid token payload');
+    }
+
+    const tokenType = payload?.type;
+    const treatAsCustomer =
+      tokenType === 'customer' ||
+      (tokenType == null && !payload?.roleId && payload?.roleSlug === 'customer-account');
+
+    if (treatAsCustomer) {
+      const customer = await this.customersRepository.findOne({
+        where: { id: Number(payload.id), is_deleted: false } as any,
+        select: ['id', 'email', 'phone', 'name', 'lastName'],
+      });
+
+      if (!customer) {
+        throw new UnauthorizedException('Invalid token');
+      }
+
+      return {
+        id: customer.id,
+        email: customer.email,
+        phone: customer.phone,
+        roleSlug: 'customer-account',
+        type: 'customer',
+        username: customer.name,
+      };
+    }
+
+    const user = await this.usersRepository.findOne({
+      where: { id: Number(payload.id), isDeleted: false } as any,
+      select: ['id', 'email', 'phone', 'roleId', 'name', 'lastName', 'status', 'isDeleted'],
+    });
+
+    if (!user || (user as any).isDeleted || user.status !== 'active') {
+      throw new UnauthorizedException('Invalid token');
+    }
+
+    return {
+      id: user.id,
+      email: user.email,
+      phone: user.phone,
+      roleId: user.roleId,
+      roleSlug: payload?.roleSlug,
+      type: 'user',
+      username: user.name,
     };
   }
 

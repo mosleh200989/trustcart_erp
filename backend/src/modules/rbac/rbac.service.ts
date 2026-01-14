@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Role } from './role.entity';
@@ -42,6 +42,72 @@ export class RbacService {
       where: { module },
       order: { action: 'ASC' }
     });
+  }
+
+  async getRolePermissions(roleId: number): Promise<Permission[]> {
+    const role = await this.rolesRepository.findOne({ where: { id: roleId } });
+    if (!role) {
+      throw new NotFoundException('Role not found');
+    }
+
+    const result = await this.permissionsRepository.query(`
+      SELECT p.* FROM permissions p
+      INNER JOIN role_permissions rp ON p.id = rp.permission_id
+      WHERE rp.role_id = $1
+      ORDER BY p.module, p.action
+    `, [roleId]);
+
+    return result;
+  }
+
+  async setRolePermissions(roleId: number, permissionIds: number[]): Promise<void> {
+    const role = await this.rolesRepository.findOne({ where: { id: roleId } });
+    if (!role) {
+      throw new NotFoundException('Role not found');
+    }
+
+    const nextIds = Array.from(
+      new Set((Array.isArray(permissionIds) ? permissionIds : []).map((x) => Number(x)).filter((x) => Number.isFinite(x)))
+    );
+
+    await this.rolesRepository.manager.transaction(async (manager) => {
+      await manager.query(`DELETE FROM role_permissions WHERE role_id = $1`, [roleId]);
+      if (nextIds.length === 0) return;
+
+      // Insert in a single query for performance
+      const values = nextIds
+        .map((_, idx) => `($1, $${idx + 2})`)
+        .join(',');
+
+      await manager.query(
+        `INSERT INTO role_permissions (role_id, permission_id) VALUES ${values} ON CONFLICT DO NOTHING`,
+        [roleId, ...nextIds],
+      );
+    });
+  }
+
+  async grantPermissionToRole(roleId: number, permissionId: number): Promise<void> {
+    const role = await this.rolesRepository.findOne({ where: { id: roleId } });
+    if (!role) {
+      throw new NotFoundException('Role not found');
+    }
+
+    await this.rolesRepository.query(`
+      INSERT INTO role_permissions (role_id, permission_id)
+      VALUES ($1, $2)
+      ON CONFLICT DO NOTHING
+    `, [roleId, permissionId]);
+  }
+
+  async revokePermissionFromRole(roleId: number, permissionId: number): Promise<void> {
+    const role = await this.rolesRepository.findOne({ where: { id: roleId } });
+    if (!role) {
+      throw new NotFoundException('Role not found');
+    }
+
+    await this.rolesRepository.query(`
+      DELETE FROM role_permissions WHERE role_id = $1 AND permission_id = $2
+    `, [roleId, permissionId]);
   }
 
   // Check if user has permission

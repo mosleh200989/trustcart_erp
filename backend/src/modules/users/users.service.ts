@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from './user.entity';
@@ -37,6 +37,7 @@ export class UsersService {
     return this.usersRepository
       .createQueryBuilder('u')
       .select(this.safeSelectFields('u'))
+      .where('u.isDeleted = false')
       .getMany();
   }
 
@@ -45,6 +46,7 @@ export class UsersService {
       .createQueryBuilder('u')
       .select(this.safeSelectFields('u'))
       .where('u.id = :id', { id })
+      .andWhere('u.isDeleted = false')
       .getOne();
   }
 
@@ -53,7 +55,7 @@ export class UsersService {
   }
 
   async findByEmail(email: string) {
-    return this.usersRepository.findOne({ where: { email } });
+    return this.usersRepository.findOne({ where: { email, isDeleted: false } });
   }
 
   async create(createUserDto: any) {
@@ -68,6 +70,11 @@ export class UsersService {
   }
 
   async update(id: number, updateUserDto: any) {
+    const existing = await this.findOne(id);
+    if (!existing || existing.isDeleted) {
+      throw new NotFoundException('User not found');
+    }
+
     const nextDto = { ...updateUserDto };
 
     if (typeof nextDto.password === 'string') {
@@ -83,6 +90,22 @@ export class UsersService {
   }
 
   async remove(id: number) {
-    return this.usersRepository.delete(id);
+    const user = await this.findOne(id);
+    if (!user || user.isDeleted) {
+      throw new NotFoundException('User not found');
+    }
+
+    const timestamp = Date.now();
+    const safeDomain = 'trustcart.local';
+    const anonymizedEmail = `deleted+${id}.${timestamp}@${safeDomain}`;
+
+    await this.usersRepository.update(id, {
+      isDeleted: true,
+      status: 'inactive',
+      email: anonymizedEmail,
+      phone: null,
+    });
+
+    return { success: true, message: 'User deactivated' };
   }
 }

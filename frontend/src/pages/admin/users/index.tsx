@@ -1,4 +1,4 @@
-import { useEffect, useState, ChangeEvent, FormEvent } from 'react';
+import { useEffect, useRef, useState, ChangeEvent, FormEvent } from 'react';
 import { useRouter } from 'next/router';
 import AdminLayout from '@/layouts/AdminLayout';
 import Modal from '@/components/admin/Modal';
@@ -12,6 +12,10 @@ export default function AdminUsers() {
   const [loading, setLoading] = useState(true);
   const [roles, setRoles] = useState<any[]>([]);
   const [teamLeaders, setTeamLeaders] = useState<any[]>([]);
+
+  const [selectedUserIds, setSelectedUserIds] = useState<number[]>([]);
+  const [bulkAction, setBulkAction] = useState<string>('');
+  const [bulkWorking, setBulkWorking] = useState(false);
 
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>('');
@@ -45,6 +49,16 @@ export default function AdminUsers() {
     loadRoles();
     loadTeamLeaders();
   }, [router]);
+
+  // Keep selection valid if the list changes (e.g., after deactivate)
+  useEffect(() => {
+    if (!users.length) {
+      if (selectedUserIds.length) setSelectedUserIds([]);
+      return;
+    }
+    const userIdSet = new Set(users.map(u => Number(u.id)));
+    setSelectedUserIds(prev => prev.filter(id => userIdSet.has(id)));
+  }, [users]);
 
   const loadUsers = async () => {
     try {
@@ -163,13 +177,14 @@ export default function AdminUsers() {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm('Are you sure you want to delete this user?')) return;
+    if (!confirm('Are you sure you want to deactivate this user?')) return;
 
     try {
       await usersAPI.delete(id);
       setUsers(users.filter(u => u.id !== id));
+      setSelectedUserIds(prev => prev.filter(x => x !== id));
     } catch (error) {
-      alert('Failed to delete user');
+      alert('Failed to deactivate user');
     }
   };
 
@@ -199,6 +214,80 @@ export default function AdminUsers() {
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
   );
+
+  const pageUserIds = paginatedUsers.map(u => Number(u.id));
+  const allPageSelected = pageUserIds.length > 0 && pageUserIds.every(id => selectedUserIds.includes(id));
+  const somePageSelected = pageUserIds.some(id => selectedUserIds.includes(id));
+  const selectAllRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    if (selectAllRef.current) {
+      selectAllRef.current.indeterminate = somePageSelected && !allPageSelected;
+    }
+  }, [somePageSelected, allPageSelected]);
+
+  const toggleUserSelection = (id: number) => {
+    setSelectedUserIds(prev => (prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]));
+  };
+
+  const toggleSelectAllOnPage = () => {
+    if (allPageSelected) {
+      // Unselect only users on this page
+      setSelectedUserIds(prev => prev.filter(id => !pageUserIds.includes(id)));
+    } else {
+      // Add users from this page
+      setSelectedUserIds(prev => Array.from(new Set([...prev, ...pageUserIds])));
+    }
+  };
+
+  const clearSelection = () => setSelectedUserIds([]);
+
+  const handleBulkApply = async () => {
+    if (!bulkAction) return;
+    if (selectedUserIds.length === 0) {
+      alert('Please select at least one user');
+      return;
+    }
+
+    const actionLabel =
+      bulkAction === 'deactivate'
+        ? 'deactivate'
+        : bulkAction === 'activate'
+          ? 'activate'
+          : bulkAction === 'inactive'
+            ? 'mark inactive'
+            : 'suspend';
+
+    if (!confirm(`Are you sure you want to ${actionLabel} ${selectedUserIds.length} selected user(s)?`)) return;
+
+    setBulkWorking(true);
+    try {
+      const results = await Promise.allSettled(
+        selectedUserIds.map((id) => {
+          if (bulkAction === 'deactivate') return usersAPI.delete(id);
+          if (bulkAction === 'activate') return usersAPI.update(id, { status: 'active' });
+          if (bulkAction === 'inactive') return usersAPI.update(id, { status: 'inactive' });
+          return usersAPI.update(id, { status: 'suspended' });
+        }),
+      );
+
+      const succeeded = results.filter(r => r.status === 'fulfilled').length;
+      const failed = results.length - succeeded;
+
+      await loadUsers();
+      clearSelection();
+      setBulkAction('');
+
+      if (failed > 0) {
+        alert(`Bulk action completed: ${succeeded} succeeded, ${failed} failed.`);
+      }
+    } catch (error) {
+      console.error('Bulk action failed:', error);
+      alert('Bulk action failed');
+    } finally {
+      setBulkWorking(false);
+    }
+  };
 
   return (
     <AdminLayout>
@@ -279,6 +368,54 @@ export default function AdminUsers() {
           </div>
         </div>
 
+        {!loading && users.length > 0 && (
+          <div className="mb-4 bg-white rounded-lg shadow p-4 flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full md:w-auto">
+              <select
+                value={bulkAction}
+                onChange={(e) => setBulkAction(e.target.value)}
+                className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                disabled={bulkWorking}
+              >
+                <option value="">Bulk Actions</option>
+                <option value="deactivate">Deactivate (Delete)</option>
+                <option value="activate">Set Active</option>
+                <option value="inactive">Set Inactive</option>
+                <option value="suspend">Set Suspended</option>
+              </select>
+
+              <button
+                onClick={handleBulkApply}
+                disabled={!bulkAction || selectedUserIds.length === 0 || bulkWorking}
+                className={`px-4 py-2 rounded-lg text-sm text-white ${
+                  !bulkAction || selectedUserIds.length === 0 || bulkWorking
+                    ? 'bg-gray-300 cursor-not-allowed'
+                    : 'bg-blue-600 hover:bg-blue-700'
+                }`}
+              >
+                {bulkWorking ? 'Applying…' : 'Apply'}
+              </button>
+            </div>
+
+            <div className="flex items-center gap-3 text-sm text-gray-700">
+              <span>
+                Selected <span className="font-semibold">{selectedUserIds.length}</span>
+              </span>
+              <button
+                onClick={clearSelection}
+                disabled={selectedUserIds.length === 0 || bulkWorking}
+                className={`px-3 py-2 rounded-lg border text-sm ${
+                  selectedUserIds.length === 0 || bulkWorking
+                    ? 'text-gray-400 border-gray-200 cursor-not-allowed'
+                    : 'text-gray-700 border-gray-300 hover:bg-gray-50'
+                }`}
+              >
+                Clear
+              </button>
+            </div>
+          </div>
+        )}
+
         <div className="bg-white rounded-lg shadow overflow-hidden">
           {loading ? (
             <div className="p-8 text-center text-gray-600">Loading...</div>
@@ -288,6 +425,16 @@ export default function AdminUsers() {
             <table className="w-full">
               <thead className="bg-gray-50 border-b">
                 <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    <input
+                      ref={selectAllRef}
+                      type="checkbox"
+                      checked={allPageSelected}
+                      onChange={toggleSelectAllOnPage}
+                      className="h-4 w-4"
+                      aria-label="Select all users on this page"
+                    />
+                  </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ID</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
@@ -299,6 +446,15 @@ export default function AdminUsers() {
               <tbody className="bg-white divide-y divide-gray-200">
                 {paginatedUsers.map((user) => (
                   <tr key={user.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4">
+                      <input
+                        type="checkbox"
+                        checked={selectedUserIds.includes(Number(user.id))}
+                        onChange={() => toggleUserSelection(Number(user.id))}
+                        className="h-4 w-4"
+                        aria-label={`Select user ${user.id}`}
+                      />
+                    </td>
                     <td className="px-6 py-4 text-sm text-gray-900">{user.id}</td>
                     <td className="px-6 py-4">
                       <div className="text-sm font-medium text-gray-900">
@@ -325,7 +481,7 @@ export default function AdminUsers() {
                         onClick={() => handleDelete(user.id)}
                         className="text-red-600 hover:text-red-900"
                       >
-                        Delete
+                        Deactivate
                       </button>
                     </td>
                   </tr>
