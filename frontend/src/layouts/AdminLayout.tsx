@@ -297,6 +297,7 @@ const menuItems: MenuItem[] = [
     children: [
       { title: 'Manage Users', icon: FaUser, path: '/admin/users', requiredPermissions: ['view-users'] },
       { title: 'Assign Roles', icon: FaUser, path: '/admin/users/roles', requiredPermissions: ['assign-roles'] },
+      { title: 'Role Permissions', icon: FaUser, path: '/admin/users/permissions', requiredPermissions: ['assign-roles'] },
     ]
   },
   { title: 'Profile', icon: FaUser, path: '/admin/profile' },

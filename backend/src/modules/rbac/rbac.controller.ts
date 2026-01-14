@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Delete, Param, Body, Query, UseGuards, Request, ForbiddenException } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Param, Body, Query, UseGuards, Request, ForbiddenException } from '@nestjs/common';
 import { RbacService } from './rbac.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
@@ -31,6 +31,46 @@ export class RbacController {
       return this.rbacService.findPermissionsByModule(module);
     }
     return this.rbacService.findAllPermissions();
+  }
+
+  // Get role permissions
+  @Get('roles/:roleId/permissions')
+  @RequirePermissions('assign-roles')
+  async getRolePermissions(@Param('roleId') roleId: string) {
+    return this.rbacService.getRolePermissions(Number(roleId));
+  }
+
+  // Replace role permissions
+  @Put('roles/:roleId/permissions')
+  @RequirePermissions('assign-roles')
+  async setRolePermissions(
+    @Param('roleId') roleId: string,
+    @Body() body: { permissionIds: number[] },
+  ) {
+    await this.rbacService.setRolePermissions(Number(roleId), body?.permissionIds || []);
+    return { message: 'Role permissions updated successfully' };
+  }
+
+  // Grant permission to role
+  @Post('roles/:roleId/permissions')
+  @RequirePermissions('assign-roles')
+  async grantRolePermission(
+    @Param('roleId') roleId: string,
+    @Body() body: { permissionId: number },
+  ) {
+    await this.rbacService.grantPermissionToRole(Number(roleId), Number(body?.permissionId));
+    return { message: 'Permission granted to role successfully' };
+  }
+
+  // Revoke permission from role
+  @Delete('roles/:roleId/permissions/:permissionId')
+  @RequirePermissions('assign-roles')
+  async revokeRolePermission(
+    @Param('roleId') roleId: string,
+    @Param('permissionId') permissionId: string,
+  ) {
+    await this.rbacService.revokePermissionFromRole(Number(roleId), Number(permissionId));
+    return { message: 'Permission revoked from role successfully' };
   }
 
   // Get user permissions

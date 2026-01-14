@@ -29,6 +29,14 @@ export class AuthController {
   @Get('me')
   @UseGuards(JwtAuthGuard)
   async getMe(@Request() req: any) {
+    if (req.user?.type === 'customer' || req.user?.roleSlug === 'customer-account') {
+      return {
+        user: req.user,
+        roles: [],
+        permissions: [],
+      };
+    }
+
     const userId = req.user.id;
     const [permissions, roles] = await Promise.all([
       this.rbacService.getUserPermissions(userId),
