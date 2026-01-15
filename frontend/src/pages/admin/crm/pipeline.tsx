@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import { Plus, Filter, Search, DollarSign, Calendar, User, Tag, TrendingUp, Eye, Edit, Trash2, X } from 'lucide-react';
 import AdminLayout from '@/layouts/AdminLayout';
+import { apiUrl } from '@/config/backend';
 
 interface Deal {
   id: number;
@@ -146,7 +147,7 @@ const Pipeline = () => {
   const fetchStages = async () => {
     try {
       const token = localStorage.getItem('authToken');
-      const response = await fetch('http://localhost:3001/api/crm/deal-stages', {
+      const response = await fetch(apiUrl('/crm/deal-stages'), {
         headers: { Authorization: `Bearer ${token}` },
       });
       
@@ -177,7 +178,7 @@ const Pipeline = () => {
       if (filterOwner) params.append('ownerId', filterOwner);
       if (filterPriority) params.append('priority', filterPriority);
 
-      const response = await fetch(`http://localhost:3001/api/crm/deals?${params}`, {
+      const response = await fetch(apiUrl(`/crm/deals?${params}`), {
         headers: { Authorization: `Bearer ${token}` },
       });
       
@@ -212,7 +213,7 @@ const Pipeline = () => {
   const fetchStats = async () => {
     try {
       const token = localStorage.getItem('authToken');
-      const response = await fetch('http://localhost:3001/api/crm/deals/pipeline-stats', {
+      const response = await fetch(apiUrl('/crm/deals/pipeline-stats'), {
         headers: { Authorization: `Bearer ${token}` },
       });
       
@@ -258,7 +259,7 @@ const Pipeline = () => {
     // Update backend
     try {
       const token = localStorage.getItem('authToken');
-      await fetch(`http://localhost:3001/api/crm/deals/${draggableId}`, {
+      await fetch(apiUrl(`/crm/deals/${draggableId}`), {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -496,7 +497,7 @@ const DealModal = ({ onClose, onSave, stages }: { onClose: () => void; onSave: (
   const fetchCustomers = async () => {
     try {
       const token = localStorage.getItem('authToken');
-      const response = await fetch('http://localhost:3001/api/customers?limit=100', {
+      const response = await fetch(apiUrl('/customers?limit=100'), {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await response.json();
@@ -510,7 +511,7 @@ const DealModal = ({ onClose, onSave, stages }: { onClose: () => void; onSave: (
     e.preventDefault();
     try {
       const token = localStorage.getItem('authToken');
-      const response = await fetch('http://localhost:3001/api/crm/deals', {
+      const response = await fetch(apiUrl('/crm/deals'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

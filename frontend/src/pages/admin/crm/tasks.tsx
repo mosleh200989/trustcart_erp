@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Plus, Filter, Search, Calendar, User, CheckCircle, Circle, Clock, AlertCircle, X, ChevronDown } from 'lucide-react';
 import AdminLayout from '@/layouts/AdminLayout';
 import { format } from 'date-fns';
+import { apiUrl } from '@/config/backend';
 
 interface Task {
   id: number;
@@ -45,7 +46,7 @@ const TaskManagement = () => {
       if (filterPriority) params.append('priority', filterPriority);
       if (filterAssignee) params.append('assigneeId', filterAssignee);
 
-      const response = await fetch(`http://localhost:3001/api/crm/tasks?${params}`, {
+      const response = await fetch(apiUrl(`/crm/tasks?${params}`), {
         headers: { Authorization: `Bearer ${token}` },
       });
       
@@ -73,7 +74,7 @@ const TaskManagement = () => {
   const fetchStats = async () => {
     try {
       const token = localStorage.getItem('authToken');
-      const response = await fetch('http://localhost:3001/api/crm/tasks/stats', {
+      const response = await fetch(apiUrl('/crm/tasks/stats'), {
         headers: { Authorization: `Bearer ${token}` },
       });
       
@@ -96,7 +97,7 @@ const TaskManagement = () => {
   const updateTaskStatus = async (taskId: number, status: string) => {
     try {
       const token = localStorage.getItem('authToken');
-      await fetch(`http://localhost:3001/api/crm/tasks/${taskId}`, {
+      await fetch(apiUrl(`/crm/tasks/${taskId}`), {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -442,7 +443,7 @@ const TaskModal = ({ onClose, onSave }: { onClose: () => void; onSave: () => voi
   const fetchCustomers = async () => {
     try {
       const token = localStorage.getItem('authToken');
-      const response = await fetch('http://localhost:3001/api/customers?limit=100', {
+      const response = await fetch(apiUrl('/customers?limit=100'), {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await response.json();
@@ -455,7 +456,7 @@ const TaskModal = ({ onClose, onSave }: { onClose: () => void; onSave: () => voi
   const fetchUsers = async () => {
     try {
       const token = localStorage.getItem('authToken');
-      const response = await fetch('http://localhost:3001/api/users', {
+      const response = await fetch(apiUrl('/users'), {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await response.json();
@@ -469,7 +470,7 @@ const TaskModal = ({ onClose, onSave }: { onClose: () => void; onSave: () => voi
     e.preventDefault();
     try {
       const token = localStorage.getItem('authToken');
-      await fetch('http://localhost:3001/api/crm/tasks', {
+      await fetch(apiUrl('/crm/tasks'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

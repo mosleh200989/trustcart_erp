@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Plus, Send, Mail, Eye, MousePointerClick, Reply, X, Search, Filter } from 'lucide-react';
 import AdminLayout from '@/layouts/AdminLayout';
 import { format } from 'date-fns';
+import { apiUrl } from '@/config/backend';
 
 interface Email {
   id: number;
@@ -39,7 +40,7 @@ const EmailCampaigns = () => {
     try {
       setLoading(true);
       const token = localStorage.getItem('authToken');
-      const response = await fetch('http://localhost:3001/api/crm/emails', {
+      const response = await fetch(apiUrl('/crm/emails'), {
         headers: { Authorization: `Bearer ${token}` },
       });
       
@@ -67,7 +68,7 @@ const EmailCampaigns = () => {
   const fetchStats = async () => {
     try {
       const token = localStorage.getItem('authToken');
-      const response = await fetch('http://localhost:3001/api/crm/emails/stats', {
+      const response = await fetch(apiUrl('/crm/emails/stats'), {
         headers: { Authorization: `Bearer ${token}` },
       });
       
@@ -315,7 +316,7 @@ const EmailModal = ({ onClose, onSave }: { onClose: () => void; onSave: () => vo
   const fetchCustomers = async () => {
     try {
       const token = localStorage.getItem('authToken');
-      const response = await fetch('http://localhost:3001/api/customers?limit=100', {
+      const response = await fetch(apiUrl('/customers?limit=100'), {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await response.json();
@@ -344,7 +345,7 @@ const EmailModal = ({ onClose, onSave }: { onClose: () => void; onSave: () => vo
     
     try {
       const token = localStorage.getItem('authToken');
-      await fetch('http://localhost:3001/api/crm/emails', {
+      await fetch(apiUrl('/crm/emails'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

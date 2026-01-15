@@ -12,7 +12,12 @@ async function bootstrap() {
 
   // Enable CORS
   app.enableCors({
-    origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
+    origin: [
+      'https://trustkert.com',
+      'https://www.trustkert.com',
+      'http://localhost:3000',
+      ...(process.env.CORS_ORIGIN ? [process.env.CORS_ORIGIN] : []),
+    ],
     credentials: true,
   });
 

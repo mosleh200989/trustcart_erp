@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { TrendingUp, DollarSign, Users, Target, Calendar, Award, Activity, Filter } from 'lucide-react';
 import AdminLayout from '@/layouts/AdminLayout';
+import { apiUrl } from '@/config/backend';
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
 
@@ -27,16 +28,16 @@ const Analytics = () => {
 
       // Fetch all analytics data
       const [dealsRes, activitiesRes, tasksRes, pipelineRes] = await Promise.all([
-        fetch('http://localhost:3001/api/crm/deals/pipeline-stats', {
+        fetch(apiUrl('/crm/deals/pipeline-stats'), {
           headers: { Authorization: `Bearer ${token}` },
         }),
-        fetch('http://localhost:3001/api/crm/activities/stats', {
+        fetch(apiUrl('/crm/activities/stats'), {
           headers: { Authorization: `Bearer ${token}` },
         }),
-        fetch('http://localhost:3001/api/crm/tasks/stats', {
+        fetch(apiUrl('/crm/tasks/stats'), {
           headers: { Authorization: `Bearer ${token}` },
         }),
-        fetch('http://localhost:3001/api/crm/deals/pipeline-stats', {
+        fetch(apiUrl('/crm/deals/pipeline-stats'), {
           headers: { Authorization: `Bearer ${token}` },
         }),
       ]);

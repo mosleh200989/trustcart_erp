@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useRouter } from "next/router";
 import { FaStar, FaShoppingCart, FaHeart, FaEye, FaTag } from "react-icons/fa";
 import AddToCartPopup from "./AddToCartPopup";
+import { BACKEND_ORIGIN } from "@/config/backend";
 
 interface ProductCardProps {
   id: number;
@@ -30,9 +31,7 @@ const resolveImageUrl = (value: unknown) => {
   if (raw.startsWith("http://") || raw.startsWith("https://")) return raw;
   if (raw.startsWith("/")) return raw;
 
-  const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api";
-  const origin = apiBase.replace(/\/?api\/?$/, "");
-  return `${origin}/uploads/${raw}`;
+  return `${BACKEND_ORIGIN}/uploads/${raw}`;
 };
 
 export default function ElectroProductCard({

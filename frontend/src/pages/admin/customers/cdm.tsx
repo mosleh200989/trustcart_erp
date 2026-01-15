@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import AdminLayout from '@/layouts/AdminLayout';
+import { backendUrl } from '@/config/backend';
 
 interface Customer360 {
   customer_id: number;
@@ -28,7 +29,7 @@ export default function CustomersList360() {
 
   const loadCustomers = async () => {
     try {
-      let url = 'http://localhost:3001/cdm/customer360?limit=100';
+      let url = backendUrl('/cdm/customer360?limit=100');
       if (filterType !== 'all') url += `&customerType=${filterType}`;
       if (filterTemperature !== 'all') url += `&temperature=${filterTemperature}`;
 
