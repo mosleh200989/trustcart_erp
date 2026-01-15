@@ -1,11 +1,11 @@
 import axios from 'axios';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+import { BACKEND_API_BASE_URL } from '@/config/backend';
 
-console.log('API Base URL:', API_BASE_URL);
+console.log('API Base URL:', BACKEND_API_BASE_URL);
 
 const apiClient = axios.create({
-  baseURL: API_BASE_URL,
+  baseURL: BACKEND_API_BASE_URL,
   headers: {
     'Content-Type': 'application/json; charset=utf-8',
     'Accept': 'application/json; charset=utf-8',
@@ -101,7 +101,7 @@ const transformProduct = (p: any) => {
 export const products = {
   async list() {
     try {
-      console.log('Calling API:', `${API_BASE_URL}/products`);
+      console.log('Calling API:', `${BACKEND_API_BASE_URL}/products`);
       const res = await apiClient.get('/products');
       console.log('Raw API response:', res);
       console.log('Response data:', res.data);

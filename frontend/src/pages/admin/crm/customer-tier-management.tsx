@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import AdminLayout from '@/layouts/AdminLayout';
+import { apiUrl, backendUrl } from '@/config/backend';
 
 interface Customer {
   id: number;
@@ -50,7 +51,7 @@ export default function CustomerTierManagementPage() {
     try {
       const token = localStorage.getItem('authToken');
       // Fetch customers from database
-      const response = await fetch('http://localhost:3001/customers', {
+      const response = await fetch(backendUrl('/customers'), {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
@@ -74,7 +75,7 @@ export default function CustomerTierManagementPage() {
       // Fetch tier data for each customer
       const customersWithTiers = await Promise.all(
         customerData.map(async (customer: Customer) => {
-          const tierResponse = await fetch(`http://localhost:3001/api/lead-management/tier/${customer.id}`, {
+          const tierResponse = await fetch(apiUrl(`/lead-management/tier/${customer.id}`), {
             headers: {
               'Authorization': `Bearer ${token}`,
             },
@@ -147,7 +148,7 @@ export default function CustomerTierManagementPage() {
 
     try {
       const token = localStorage.getItem('authToken');
-      const response = await fetch('http://localhost:3001/api/lead-management/tier', {
+      const response = await fetch(apiUrl('/lead-management/tier'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

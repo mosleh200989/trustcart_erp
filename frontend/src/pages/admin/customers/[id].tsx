@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import AdminLayout from '@/layouts/AdminLayout';
+import { backendUrl } from '@/config/backend';
 
 interface Customer360 {
   customer_id: number;
@@ -116,27 +117,27 @@ export default function CustomerProfile() {
       setLoading(true);
       
       // Load customer 360 view
-      const customer360Res = await fetch(`http://localhost:3001/cdm/customer360/${id}`);
+      const customer360Res = await fetch(backendUrl(`/cdm/customer360/${id}`));
       const customer360Data = await customer360Res.json();
       setCustomer(customer360Data);
 
       // Load family members
-      const familyRes = await fetch(`http://localhost:3001/cdm/family/${id}`);
+      const familyRes = await fetch(backendUrl(`/cdm/family/${id}`));
       const familyData = await familyRes.json();
       setFamilyMembers(familyData);
 
       // Load interactions
-      const interactionsRes = await fetch(`http://localhost:3001/cdm/interactions/${id}?limit=20`);
+      const interactionsRes = await fetch(backendUrl(`/cdm/interactions/${id}?limit=20`));
       const interactionsData = await interactionsRes.json();
       setInteractions(interactionsData);
 
       // Load behavior stats
-      const behaviorRes = await fetch(`http://localhost:3001/cdm/behavior/${id}/stats`);
+      const behaviorRes = await fetch(backendUrl(`/cdm/behavior/${id}/stats`));
       const behaviorData = await behaviorRes.json();
       setBehaviors(behaviorData);
 
       // Load AI recommendation
-      const aiRes = await fetch(`http://localhost:3001/cdm/ai/recommendation/${id}`);
+      const aiRes = await fetch(backendUrl(`/cdm/ai/recommendation/${id}`));
       const aiData = await aiRes.json();
       setAiRecommendation(aiData);
 
@@ -149,7 +150,7 @@ export default function CustomerProfile() {
 
   const handleAddFamily = async (formData: any) => {
     try {
-      const res = await fetch('http://localhost:3001/cdm/family', {
+      const res = await fetch(backendUrl('/cdm/family'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...formData, customerId: id }),
@@ -166,7 +167,7 @@ export default function CustomerProfile() {
 
   const handleTrackInteraction = async (formData: any) => {
     try {
-      const res = await fetch('http://localhost:3001/cdm/interactions', {
+      const res = await fetch(backendUrl('/cdm/interactions'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...formData, customerId: id }),

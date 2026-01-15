@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Plus, Calendar as CalendarIcon, Search, Clock, Users, Video, MapPin, CheckCircle, X } from 'lucide-react';
 import AdminLayout from '@/layouts/AdminLayout';
 import { format, addDays, startOfWeek, addWeeks } from 'date-fns';
+import { apiUrl } from '@/config/backend';
 
 interface Meeting {
   id: number;
@@ -35,7 +36,7 @@ const MeetingScheduler = () => {
     try {
       setLoading(true);
       const token = localStorage.getItem('authToken');
-      const response = await fetch('http://localhost:3001/api/crm/meetings', {
+      const response = await fetch(apiUrl('/crm/meetings'), {
         headers: { Authorization: `Bearer ${token}` },
       });
       
@@ -306,7 +307,7 @@ const MeetingModal = ({ selectedDate, onClose, onSave }: { selectedDate: Date | 
   const fetchCustomers = async () => {
     try {
       const token = localStorage.getItem('authToken');
-      const response = await fetch('http://localhost:3001/api/customers?limit=100', {
+      const response = await fetch(apiUrl('/customers?limit=100'), {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await response.json();
@@ -323,7 +324,7 @@ const MeetingModal = ({ selectedDate, onClose, onSave }: { selectedDate: Date | 
       const startDateTime = new Date(`${formData.startDate}T${formData.startTime}`);
       const endDateTime = new Date(`${formData.startDate}T${formData.endTime}`);
 
-      await fetch('http://localhost:3001/api/crm/meetings', {
+      await fetch(apiUrl('/crm/meetings'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

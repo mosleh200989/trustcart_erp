@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import AdminLayout from '@/layouts/AdminLayout';
+import { apiUrl } from '@/config/backend';
 
 interface Lead {
   id: number;
@@ -43,7 +44,7 @@ export default function LeadAssignmentPage() {
   const fetchUnassignedLeads = async () => {
     try {
       const token = localStorage.getItem('authToken');
-      const response = await fetch('http://localhost:3001/api/lead-management/leads/unassigned', {
+      const response = await fetch(apiUrl('/lead-management/leads/unassigned'), {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
@@ -86,7 +87,7 @@ export default function LeadAssignmentPage() {
 
       for (const team of teams) {
         try {
-          const response = await fetch(`http://localhost:3001/api/lead-management/team-member/list/${userId}?teamType=${team}`, {
+          const response = await fetch(apiUrl(`/lead-management/team-member/list/${userId}?teamType=${team}`), {
             headers: {
               'Authorization': `Bearer ${token}`,
             },
@@ -120,7 +121,7 @@ export default function LeadAssignmentPage() {
       const token = localStorage.getItem('authToken');
       const userId = JSON.parse(atob(token!.split('.')[1])).userId;
 
-      const response = await fetch('http://localhost:3001/api/lead-management/assignment', {
+      const response = await fetch(apiUrl('/lead-management/assignment'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import AdminLayout from '@/layouts/AdminLayout';
+import { apiUrl } from '@/config/backend';
 
 export default function TeamDataCollectionPage() {
   const router = useRouter();
@@ -75,7 +76,7 @@ export default function TeamDataCollectionPage() {
       const userId = JSON.parse(atob(token.split('.')[1])).userId;
 
       const response = await fetch(
-        `http://localhost:3001/api/lead-management/assignment?teamType=${activeTeam}&assignedToId=${userId}&status=pending`,
+        apiUrl(`/lead-management/assignment?teamType=${activeTeam}&assignedToId=${userId}&status=pending`),
         {
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -110,7 +111,7 @@ export default function TeamDataCollectionPage() {
     // Load existing data if any
     try {
       const token = localStorage.getItem('authToken');
-      const endpoint = `http://localhost:3001/api/lead-management/team-${activeTeam.toLowerCase()}/${assignment.customerId}`;
+      const endpoint = apiUrl(`/lead-management/team-${activeTeam.toLowerCase()}/${assignment.customerId}`);
       const response = await fetch(endpoint, {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -169,7 +170,7 @@ export default function TeamDataCollectionPage() {
           break;
       }
 
-      const endpoint = `http://localhost:3001/api/lead-management/team-${activeTeam.toLowerCase()}`;
+      const endpoint = apiUrl(`/lead-management/team-${activeTeam.toLowerCase()}`);
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
@@ -181,7 +182,7 @@ export default function TeamDataCollectionPage() {
 
       if (response.ok) {
         // Mark assignment as completed
-        await fetch(`http://localhost:3001/api/lead-management/assignment/${selectedCustomer.id}/status`, {
+        await fetch(apiUrl(`/lead-management/assignment/${selectedCustomer.id}/status`), {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',

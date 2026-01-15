@@ -1,6 +1,7 @@
 // Quote Notifications
 import { useEffect, useState } from 'react';
 import { FaBell, FaTimes, FaFileInvoice, FaCheckCircle, FaTimesCircle } from 'react-icons/fa';
+import { BACKEND_ORIGIN } from '@/config/backend';
 
 interface Notification {
   id: number;
@@ -43,8 +44,9 @@ export default function QuoteNotifications() {
     // WebSocket implementation for real-time notifications
     // This would connect to your backend WebSocket server
     try {
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsUrl = `${protocol}//${window.location.hostname}:3001/ws/notifications`;
+      const backend = new URL(BACKEND_ORIGIN);
+      const protocol = backend.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsUrl = `${protocol}//${backend.host}/ws/notifications`;
       
       const ws = new WebSocket(wsUrl);
       
