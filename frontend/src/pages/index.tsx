@@ -202,56 +202,68 @@ export default function Home() {
           transition={{ duration: 0.5, delay: 0.2 }}
           className="bg-white border-b"
         >
-          <div className="container mx-auto px-4 lg:px-48 xl:px-56 py-8">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <div className="container mx-auto px-4 lg:px-48 xl:px-56 py-4 sm:py-6 md:py-8">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-6">
               <motion.div
                 whileHover={{ scale: 1.05 }}
-                className="flex items-center gap-4"
+                className="flex items-center gap-3 sm:gap-4"
               >
-                <div className="bg-orange-100 p-4 rounded-full">
-                  <FaTruck size={32} className="text-orange-500" />
+                <div className="bg-orange-100 p-2.5 sm:p-4 rounded-full flex-shrink-0">
+                  <FaTruck className="text-orange-500 w-6 h-6 sm:w-8 sm:h-8" />
                 </div>
                 <div>
-                  <h4 className="font-bold text-gray-800">Free Shipping</h4>
-                  <p className="text-sm text-gray-600">On orders over ৳500</p>
+                  <h4 className="font-bold text-gray-800 text-sm sm:text-base leading-tight">
+                    Free Shipping
+                  </h4>
+                  <p className="hidden sm:block text-sm text-gray-600 leading-tight">
+                    On orders over ৳500
+                  </p>
                 </div>
               </motion.div>
               <motion.div
                 whileHover={{ scale: 1.05 }}
-                className="flex items-center gap-4"
+                className="flex items-center gap-3 sm:gap-4"
               >
-                <div className="bg-orange-100 p-4 rounded-full">
-                  <FaUndo size={32} className="text-orange-500" />
+                <div className="bg-orange-100 p-2.5 sm:p-4 rounded-full flex-shrink-0">
+                  <FaUndo className="text-orange-500 w-6 h-6 sm:w-8 sm:h-8" />
                 </div>
                 <div>
-                  <h4 className="font-bold text-gray-800">Easy Returns</h4>
-                  <p className="text-sm text-gray-600">30 days return policy</p>
+                  <h4 className="font-bold text-gray-800 text-sm sm:text-base leading-tight">
+                    Easy Returns
+                  </h4>
+                  <p className="hidden sm:block text-sm text-gray-600 leading-tight">
+                    30 days return policy
+                  </p>
                 </div>
               </motion.div>
               <motion.div
                 whileHover={{ scale: 1.05 }}
-                className="flex items-center gap-4"
+                className="flex items-center gap-3 sm:gap-4"
               >
-                <div className="bg-orange-100 p-4 rounded-full">
-                  <FaHeadset size={32} className="text-orange-500" />
+                <div className="bg-orange-100 p-2.5 sm:p-4 rounded-full flex-shrink-0">
+                  <FaHeadset className="text-orange-500 w-6 h-6 sm:w-8 sm:h-8" />
                 </div>
                 <div>
-                  <h4 className="font-bold text-gray-800">24/7 Support</h4>
-                  <p className="text-sm text-gray-600">
+                  <h4 className="font-bold text-gray-800 text-sm sm:text-base leading-tight">
+                    24/7 Support
+                  </h4>
+                  <p className="hidden sm:block text-sm text-gray-600 leading-tight">
                     Dedicated support team
                   </p>
                 </div>
               </motion.div>
               <motion.div
                 whileHover={{ scale: 1.05 }}
-                className="flex items-center gap-4"
+                className="flex items-center gap-3 sm:gap-4"
               >
-                <div className="bg-orange-100 p-4 rounded-full">
-                  <FaShieldAlt size={32} className="text-orange-500" />
+                <div className="bg-orange-100 p-2.5 sm:p-4 rounded-full flex-shrink-0">
+                  <FaShieldAlt className="text-orange-500 w-6 h-6 sm:w-8 sm:h-8" />
                 </div>
                 <div>
-                  <h4 className="font-bold text-gray-800">Secure Payment</h4>
-                  <p className="text-sm text-gray-600">
+                  <h4 className="font-bold text-gray-800 text-sm sm:text-base leading-tight">
+                    Secure Payment
+                  </h4>
+                  <p className="hidden sm:block text-sm text-gray-600 leading-tight">
                     100% secure transactions
                   </p>
                 </div>

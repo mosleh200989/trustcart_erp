@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { FaChevronLeft, FaChevronRight } from 'react-icons/fa';
 
 interface Banner {
@@ -18,6 +18,7 @@ interface Props {
 }
 
 export default function HeroBannerCarousel({ banners }: Props) {
+  const scrollerRef = useRef<HTMLDivElement | null>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isAutoPlaying, setIsAutoPlaying] = useState(true);
 
@@ -25,26 +26,62 @@ export default function HeroBannerCarousel({ banners }: Props) {
     if (!isAutoPlaying || banners.length <= 1) return;
 
     const interval = setInterval(() => {
-      setCurrentIndex((prev) => (prev + 1) % banners.length);
+      const next = (currentIndex + 1) % banners.length;
+      const el = scrollerRef.current;
+      if (el) {
+        el.scrollTo({ left: next * el.clientWidth, behavior: 'smooth' });
+      }
+      setCurrentIndex(next);
     }, 5000);
 
     return () => clearInterval(interval);
-  }, [isAutoPlaying, banners.length]);
+  }, [isAutoPlaying, banners.length, currentIndex]);
+
+  useEffect(() => {
+    const el = scrollerRef.current;
+    if (!el) return;
+
+    const onScroll = () => {
+      if (el.clientWidth <= 0) return;
+      const idx = Math.round(el.scrollLeft / el.clientWidth);
+      const clamped = Math.min(Math.max(0, idx), Math.max(0, banners.length - 1));
+      setCurrentIndex(clamped);
+    };
+
+    el.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      el.removeEventListener('scroll', onScroll);
+    };
+  }, [banners.length]);
 
   const goToSlide = (index: number) => {
+    const el = scrollerRef.current;
+    if (el) {
+      el.scrollTo({ left: index * el.clientWidth, behavior: 'smooth' });
+    }
     setCurrentIndex(index);
     setIsAutoPlaying(false);
     setTimeout(() => setIsAutoPlaying(true), 10000);
   };
 
   const goToPrevious = () => {
-    setCurrentIndex((prev) => (prev - 1 + banners.length) % banners.length);
+    const prevIndex = (currentIndex - 1 + banners.length) % banners.length;
+    const el = scrollerRef.current;
+    if (el) {
+      el.scrollTo({ left: prevIndex * el.clientWidth, behavior: 'smooth' });
+    }
+    setCurrentIndex(prevIndex);
     setIsAutoPlaying(false);
     setTimeout(() => setIsAutoPlaying(true), 10000);
   };
 
   const goToNext = () => {
-    setCurrentIndex((prev) => (prev + 1) % banners.length);
+    const nextIndex = (currentIndex + 1) % banners.length;
+    const el = scrollerRef.current;
+    if (el) {
+      el.scrollTo({ left: nextIndex * el.clientWidth, behavior: 'smooth' });
+    }
+    setCurrentIndex(nextIndex);
     setIsAutoPlaying(false);
     setTimeout(() => setIsAutoPlaying(true), 10000);
   };
@@ -57,26 +94,45 @@ export default function HeroBannerCarousel({ banners }: Props) {
     );
   }
 
-  const currentBanner = banners[currentIndex];
-
   return (
     <div className="relative overflow-hidden group">
-      {/* Carousel Container */}
-      <a 
-        href={currentBanner.button_link || '#'}
-        className="block relative h-96 transition-all duration-700 ease-in-out cursor-pointer"
+      {/* Swipeable Carousel Track */}
+      <div
+        ref={scrollerRef}
+        className="flex overflow-x-auto scroll-smooth snap-x snap-mandatory touch-pan-x overscroll-x-contain [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+        style={{ WebkitOverflowScrolling: 'touch' }}
       >
-        {/* Banner Image */}
-        <img
-          src={currentBanner.image_url}
-          alt={currentBanner.title}
-          crossOrigin="anonymous"
-          className="w-full h-full object-cover transition-transform duration-700 hover:scale-105"
-          onError={(e) => {
-            console.error('Banner image failed to load:', currentBanner.image_url);
-          }}
-        />
-      </a>
+        {banners.map((banner) => (
+          <a
+            key={banner.id}
+            href={banner.button_link || '#'}
+            className="block relative h-96 w-full flex-none snap-start cursor-pointer"
+            onPointerDown={() => {
+              // pause auto-play as soon as user interacts
+              if (banners.length > 1) {
+                setIsAutoPlaying(false);
+                setTimeout(() => setIsAutoPlaying(true), 10000);
+              }
+            }}
+            onTouchStart={() => {
+              if (banners.length > 1) {
+                setIsAutoPlaying(false);
+                setTimeout(() => setIsAutoPlaying(true), 10000);
+              }
+            }}
+          >
+            <img
+              src={banner.image_url}
+              alt={banner.title}
+              crossOrigin="anonymous"
+              className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+              onError={() => {
+                console.error('Banner image failed to load:', banner.image_url);
+              }}
+            />
+          </a>
+        ))}
+      </div>
 
       {/* Navigation Arrows */}
       {banners.length > 1 && (

@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import Router from 'next/router';
 import { auth } from '@/services/api';
+import { getAuthReturnPath } from '@/utils/authReturnPath';
+import { FaArrowLeft } from 'react-icons/fa';
 
 export default function SupplierLogin() {
   const [email, setEmail] = useState('');
@@ -37,6 +39,15 @@ export default function SupplierLogin() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8">
+        <button
+          type="button"
+          onClick={() => Router.push(getAuthReturnPath('/'))}
+          className="group mb-4 inline-flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60 focus-visible:ring-offset-2 focus-visible:ring-offset-blue-700"
+        >
+          <FaArrowLeft className="text-xs transition-transform group-hover:-translate-x-0.5" />
+          Back
+        </button>
+
         {/* Logo & Title */}
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-blue-600 mb-2">TrustCart ERP</h1>

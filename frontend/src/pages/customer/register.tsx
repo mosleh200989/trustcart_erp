@@ -9,6 +9,8 @@ import {
   getPendingReferralAttribution,
   setPendingReferralAttribution,
 } from '@/utils/referralAttribution';
+import { getAuthReturnPath } from '@/utils/authReturnPath';
+import { FaArrowLeft } from 'react-icons/fa';
 
 export default function CustomerRegister() {
   const router = useRouter();
@@ -93,6 +95,15 @@ export default function CustomerRegister() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-500 to-orange-700 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl p-8">
+        <button
+          type="button"
+          onClick={() => router.push(getAuthReturnPath('/products'))}
+          className="group mb-4 inline-flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60 focus-visible:ring-offset-2 focus-visible:ring-offset-orange-600"
+        >
+          <FaArrowLeft className="text-xs transition-transform group-hover:-translate-x-0.5" />
+          Back
+        </button>
+
         {/* Logo & Title */}
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-orange-600 mb-2">TrustCart ERP</h1>

@@ -9,6 +9,8 @@ import {
   getPendingReferralAttribution,
   setPendingReferralAttribution,
 } from '@/utils/referralAttribution';
+import { getAuthReturnPath } from '@/utils/authReturnPath';
+import { FaArrowLeft } from 'react-icons/fa';
 
 export default function Register() {
   const router = useRouter();
@@ -108,6 +110,15 @@ export default function Register() {
       
       <div className="container mx-auto px-4 py-12">
         <div className="max-w-md mx-auto bg-white rounded-lg shadow-md p-8">
+          <button
+            type="button"
+            onClick={() => router.push(getAuthReturnPath('/products'))}
+            className="group mb-4 inline-flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/40 focus-visible:ring-offset-2"
+          >
+            <FaArrowLeft className="text-xs transition-transform group-hover:-translate-x-0.5" />
+            Back
+          </button>
+
           <h2 className="text-3xl font-bold text-center text-gray-800 mb-2">Customer Registration</h2>
           <p className="text-sm text-center text-gray-500 mb-6">
             For customer accounts only. Admin will create supplier and staff users.

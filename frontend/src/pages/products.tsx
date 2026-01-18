@@ -32,6 +32,7 @@ export default function Products() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
 
   const [filters, setFilters] = useState({
     search: "",
@@ -146,6 +147,115 @@ export default function Products() {
     currentPage * itemsPerPage
   );
 
+  const FiltersPanel = () => (
+    <>
+      <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
+        <FaFilter className="text-orange-500" />
+        Filters
+      </h3>
+
+      {/* Search */}
+      <div className="mb-6">
+        <label className="block text-sm font-semibold mb-2">Search</label>
+        <input
+          type="text"
+          value={filters.search}
+          onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+          placeholder="Search products..."
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-500"
+        />
+      </div>
+
+      {/* Categories */}
+      <div className="mb-6">
+        <label className="block text-sm font-semibold mb-3">Categories</label>
+        <div className="space-y-2">
+          <label className="flex items-center gap-2 cursor-pointer hover:text-orange-500">
+            <input
+              type="radio"
+              name="category"
+              checked={filters.category === ""}
+              onChange={() => setFilters({ ...filters, category: "" })}
+              className="text-orange-500"
+            />
+            <span className="text-sm">All Categories</span>
+          </label>
+          {categories.map((cat) => (
+            <label
+              key={cat.id}
+              className="flex items-center gap-2 cursor-pointer hover:text-orange-500"
+            >
+              <input
+                type="radio"
+                name="category"
+                checked={filters.category === cat.name_en}
+                onChange={() => setFilters({ ...filters, category: cat.name_en })}
+                className="text-orange-500"
+              />
+              <span className="text-sm">
+                {cat.name_en}
+                {cat.name_bn && (
+                  <span className="text-gray-500 ml-1">({cat.name_bn})</span>
+                )}
+              </span>
+            </label>
+          ))}
+        </div>
+      </div>
+
+      {/* Price Range */}
+      <div className="mb-6">
+        <label className="block text-sm font-semibold mb-3">Price Range</label>
+        <div className="flex gap-2">
+          <input
+            type="number"
+            value={filters.minPrice}
+            onChange={(e) => setFilters({ ...filters, minPrice: e.target.value })}
+            placeholder="Min"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-500"
+          />
+          <input
+            type="number"
+            value={filters.maxPrice}
+            onChange={(e) => setFilters({ ...filters, maxPrice: e.target.value })}
+            placeholder="Max"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-500"
+          />
+        </div>
+      </div>
+
+      {/* Stock */}
+      <div className="mb-6">
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={filters.inStock}
+            onChange={(e) => setFilters({ ...filters, inStock: e.target.checked })}
+            className="text-orange-500"
+          />
+          <span className="text-sm font-semibold">In Stock Only</span>
+        </label>
+      </div>
+
+      {/* Reset */}
+      <button
+        onClick={() =>
+          setFilters({
+            search: "",
+            category: "",
+            minPrice: "",
+            maxPrice: "",
+            sortBy: "featured",
+            inStock: false,
+          })
+        }
+        className="w-full bg-gray-200 hover:bg-gray-300 text-gray-800 py-2 rounded-lg font-semibold transition"
+      >
+        Reset Filters
+      </button>
+    </>
+  );
+
   return (
     <div className="min-h-screen bg-gray-50">
       <ElectroNavbar />
@@ -160,142 +270,42 @@ export default function Products() {
           </div>
         </div>
 
-        <div className="container mx-auto px-4 py-8">
-          <div className="flex gap-8">
-            {/* Sidebar */}
-            <div className="w-64 flex-shrink-0">
-              <div className="bg-white rounded-lg shadow-md p-6 sticky top-4">
-                <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
-                  <FaFilter className="text-orange-500" />
-                  Filters
-                </h3>
-
-                {/* Search */}
-                <div className="mb-6">
-                  <label className="block text-sm font-semibold mb-2">
-                    Search
-                  </label>
-                  <input
-                    type="text"
-                    value={filters.search}
-                    onChange={(e) =>
-                      setFilters({ ...filters, search: e.target.value })
-                    }
-                    placeholder="Search products..."
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-500"
-                  />
+        <div className="px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+          {/* Mobile Filters Drawer */}
+          {mobileFiltersOpen && (
+            <div className="fixed inset-0 z-50 lg:hidden">
+              <button
+                aria-label="Close filters"
+                className="absolute inset-0 bg-black/40"
+                onClick={() => setMobileFiltersOpen(false)}
+              />
+              <div className="absolute right-0 top-0 h-full w-full max-w-sm bg-white shadow-xl overflow-y-auto p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="text-lg font-bold">Filters</div>
+                  <button
+                    onClick={() => setMobileFiltersOpen(false)}
+                    className="px-3 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700"
+                  >
+                    Close
+                  </button>
                 </div>
+                <FiltersPanel />
+              </div>
+            </div>
+          )}
 
-                {/* Categories */}
-                <div className="mb-6">
-                  <label className="block text-sm font-semibold mb-3">
-                    Categories
-                  </label>
-                  <div className="space-y-2">
-                    <label className="flex items-center gap-2 cursor-pointer hover:text-orange-500">
-                      <input
-                        type="radio"
-                        name="category"
-                        checked={filters.category === ""}
-                        onChange={() =>
-                          setFilters({ ...filters, category: "" })
-                        }
-                        className="text-orange-500"
-                      />
-                      <span className="text-sm">All Categories</span>
-                    </label>
-                    {categories.map((cat) => (
-                      <label
-                        key={cat.id}
-                        className="flex items-center gap-2 cursor-pointer hover:text-orange-500"
-                      >
-                        <input
-                          type="radio"
-                          name="category"
-                          checked={filters.category === cat.name_en}
-                          onChange={() =>
-                            setFilters({ ...filters, category: cat.name_en })
-                          }
-                          className="text-orange-500"
-                        />
-                        <span className="text-sm">
-                          {cat.name_en}
-                          {cat.name_bn && (
-                            <span className="text-gray-500 ml-1">
-                              ({cat.name_bn})
-                            </span>
-                          )}
-                        </span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Price Range */}
-                <div className="mb-6">
-                  <label className="block text-sm font-semibold mb-3">
-                    Price Range
-                  </label>
-                  <div className="flex gap-2">
-                    <input
-                      type="number"
-                      value={filters.minPrice}
-                      onChange={(e) =>
-                        setFilters({ ...filters, minPrice: e.target.value })
-                      }
-                      placeholder="Min"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-500"
-                    />
-                    <input
-                      type="number"
-                      value={filters.maxPrice}
-                      onChange={(e) =>
-                        setFilters({ ...filters, maxPrice: e.target.value })
-                      }
-                      placeholder="Max"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-500"
-                    />
-                  </div>
-                </div>
-
-                {/* Stock */}
-                <div className="mb-6">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={filters.inStock}
-                      onChange={(e) =>
-                        setFilters({ ...filters, inStock: e.target.checked })
-                      }
-                      className="text-orange-500"
-                    />
-                    <span className="text-sm font-semibold">In Stock Only</span>
-                  </label>
-                </div>
-
-                {/* Reset */}
-                <button
-                  onClick={() =>
-                    setFilters({
-                      search: "",
-                      category: "",
-                      minPrice: "",
-                      maxPrice: "",
-                      sortBy: "featured",
-                      inStock: false,
-                    })
-                  }
-                  className="w-full bg-gray-200 hover:bg-gray-300 text-gray-800 py-2 rounded-lg font-semibold transition"
-                >
-                  Reset Filters
-                </button>
+          <div className="flex flex-col lg:flex-row gap-6 lg:gap-8">
+            {/* Desktop Sidebar */}
+            <div className="hidden lg:block lg:w-72 lg:flex-shrink-0">
+              <div className="bg-white rounded-lg shadow-md p-6 lg:sticky lg:top-4">
+                <FiltersPanel />
               </div>
             </div>
 
             {/* Main Content */}
             <div className="flex-1">
               {/* Toolbar */}
-              <div className="bg-white rounded-lg shadow-md p-4 mb-6 flex items-center justify-between">
+              <div className="bg-white rounded-lg shadow-md p-4 mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="text-gray-600">
                   Showing{" "}
                   <span className="font-semibold text-gray-900">
@@ -308,14 +318,23 @@ export default function Products() {
                   products
                 </div>
 
-                <div className="flex items-center gap-4">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
+                  {/* Mobile Filters */}
+                  <button
+                    onClick={() => setMobileFiltersOpen(true)}
+                    className="lg:hidden inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700"
+                  >
+                    <FaFilter />
+                    Filters
+                  </button>
+
                   {/* Sort */}
                   <select
                     value={filters.sortBy}
                     onChange={(e) =>
                       setFilters({ ...filters, sortBy: e.target.value })
                     }
-                    className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-500"
+                    className="w-full sm:w-auto px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-500"
                   >
                     <option value="featured">Featured</option>
                     <option value="price-low">Price: Low to High</option>
@@ -391,13 +410,13 @@ export default function Products() {
 
                   {/* Pagination */}
                   {totalPages > 1 && (
-                    <div className="mt-8 flex justify-center items-center gap-2">
+                    <div className="mt-8 flex flex-wrap justify-center items-center gap-2">
                       <button
                         onClick={() =>
                           setCurrentPage(Math.max(1, currentPage - 1))
                         }
                         disabled={currentPage === 1}
-                        className="px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-orange-500 hover:text-white hover:border-orange-500 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="px-3 sm:px-4 py-2 text-sm bg-white border border-gray-300 rounded-lg hover:bg-orange-500 hover:text-white hover:border-orange-500 transition disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         Previous
                       </button>
@@ -406,7 +425,7 @@ export default function Products() {
                         <button
                           key={idx}
                           onClick={() => setCurrentPage(idx + 1)}
-                          className={`px-4 py-2 rounded-lg transition ${
+                          className={`px-3 sm:px-4 py-2 text-sm rounded-lg transition ${
                             currentPage === idx + 1
                               ? "bg-orange-500 text-white"
                               : "bg-white border border-gray-300 hover:bg-orange-500 hover:text-white hover:border-orange-500"
@@ -421,7 +440,7 @@ export default function Products() {
                           setCurrentPage(Math.min(totalPages, currentPage + 1))
                         }
                         disabled={currentPage === totalPages}
-                        className="px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-orange-500 hover:text-white hover:border-orange-500 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="px-3 sm:px-4 py-2 text-sm bg-white border border-gray-300 rounded-lg hover:bg-orange-500 hover:text-white hover:border-orange-500 transition disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         Next
                       </button>
