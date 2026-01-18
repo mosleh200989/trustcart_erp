@@ -85,7 +85,7 @@ export default function ElectroFooter() {
             <ul className="space-y-3 text-sm">
               <li className="flex items-start gap-3">
                 <FaMapMarkerAlt className="text-orange-500 mt-1 flex-shrink-0" />
-                <span>123 Street Name, Dhaka, Bangladesh</span>
+                <span>Basabo, Dhaka, Bangladesh</span>
               </li>
               <li className="flex items-center gap-3">
                 <FaPhone className="text-orange-500 flex-shrink-0" />
@@ -112,7 +112,7 @@ export default function ElectroFooter() {
       <div className="bg-gray-950 py-4">
         <div className="container mx-auto px-4">
           <div className="flex flex-col sm:flex-row justify-between items-center text-sm gap-2">
-            <p className="text-center sm:text-left">© 2024 TrustCart. All Rights Reserved.</p>
+            <p className="text-center sm:text-left">© 2026 TrustCart. All Rights Reserved.</p>
             <p className="text-center sm:text-right">
               Designed by <span className="text-orange-500 font-semibold">TrustCart Team</span>
             </p>
