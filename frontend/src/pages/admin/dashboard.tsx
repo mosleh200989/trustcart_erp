@@ -15,6 +15,8 @@ export default function AdminDashboard() {
     pendingOrders: 0,
     lowStockItems: 0
   });
+  const [supportStats, setSupportStats] = useState<any>(null);
+  const [telephonyStats, setTelephonyStats] = useState<any>(null);
 
   useEffect(() => {
     const token = localStorage.getItem('authToken');
@@ -28,9 +30,11 @@ export default function AdminDashboard() {
   const loadStats = async () => {
     try {
       // Load stats from API
-      const [products, customers] = await Promise.all([
+      const [products, customers, support, telephony] = await Promise.all([
         apiClient.get('/products').catch(() => ({ data: [] })),
-        apiClient.get('/customers').catch(() => ({ data: [] }))
+        apiClient.get('/customers').catch(() => ({ data: [] })),
+        apiClient.get('/support/stats?rangeDays=30').catch(() => ({ data: null })),
+        apiClient.get('/telephony/stats?rangeDays=30').catch(() => ({ data: null })),
       ]);
 
       setStats({
@@ -41,6 +45,9 @@ export default function AdminDashboard() {
         pendingOrders: 0,
         lowStockItems: 0
       });
+
+      setSupportStats(support.data || null);
+      setTelephonyStats(telephony.data || null);
     } catch (error) {
       console.error('Failed to load stats:', error);
     }
@@ -114,6 +121,73 @@ export default function AdminDashboard() {
             <h2 className="text-xl font-bold text-gray-800 mb-4">Top Products</h2>
             <div className="space-y-3">
               <p className="text-gray-500 text-center py-4">No data available</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Support & Call Center */}
+        <div className="mt-8">
+          <h2 className="text-xl font-bold text-gray-800 mb-4">Support & Call Center (Last 30 days)</h2>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="bg-white rounded-lg shadow-lg p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-3">Support Tickets</h3>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600">Open Tickets</p>
+                  <p className="text-2xl font-bold text-gray-900">{supportStats?.totalOpen ?? '—'}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm text-gray-600">Total Tickets</p>
+                  <p className="text-2xl font-bold text-gray-900">{supportStats?.total ?? '—'}</p>
+                </div>
+              </div>
+
+              <div className="mt-4">
+                <p className="text-sm font-medium text-gray-700 mb-2">By Status</p>
+                <div className="space-y-1">
+                  {(supportStats?.byStatus || []).map((r: any) => (
+                    <div key={r.status} className="flex items-center justify-between text-sm">
+                      <span className="text-gray-600">{r.status}</span>
+                      <span className="font-semibold text-gray-900">{r.count}</span>
+                    </div>
+                  ))}
+                  {(!supportStats?.byStatus || supportStats.byStatus.length === 0) && (
+                    <p className="text-sm text-gray-500">No ticket data.</p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-lg shadow-lg p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-3">Telephony</h3>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600">Total Calls</p>
+                  <p className="text-2xl font-bold text-gray-900">{telephonyStats?.total ?? '—'}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm text-gray-600">Avg Duration</p>
+                  <p className="text-2xl font-bold text-gray-900">
+                    {telephonyStats?.avgDurationSeconds != null ? `${Math.round(telephonyStats.avgDurationSeconds)}s` : '—'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-4">
+                <p className="text-sm font-medium text-gray-700 mb-2">By Status</p>
+                <div className="space-y-1">
+                  {(telephonyStats?.byStatus || []).map((r: any) => (
+                    <div key={r.status} className="flex items-center justify-between text-sm">
+                      <span className="text-gray-600">{r.status}</span>
+                      <span className="font-semibold text-gray-900">{r.count}</span>
+                    </div>
+                  ))}
+                  {(!telephonyStats?.byStatus || telephonyStats.byStatus.length === 0) && (
+                    <p className="text-sm text-gray-500">No call data.</p>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         </div>

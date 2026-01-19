@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Put, Delete, Request, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Put, Delete, Query, Request, UseGuards } from '@nestjs/common';
 import { SupportService } from './support.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CustomersService } from '../customers/customers.service';
@@ -9,6 +9,9 @@ import {
   UpdateSupportTicketDto,
   UpdateSupportTicketPriorityDto,
   UpdateSupportTicketStatusDto,
+  UpdateSupportTicketRoutingDto,
+  SUPPORT_TICKET_GROUPS,
+  SUPPORT_TICKET_SEVERITIES,
 } from './dto/support-ticket.dto';
 
 @Controller('support')
@@ -34,6 +37,22 @@ export class SupportController {
       return this.supportService.findByCustomerId(String(customer.id));
     }
     return email ? this.supportService.findByCustomerEmail(email) : [];
+  }
+
+  @Get('stats')
+  @UseGuards(JwtAuthGuard)
+  async getDashboardStats(@Query('rangeDays') rangeDays?: string) {
+    const days = rangeDays != null ? Number(rangeDays) : 30;
+    return this.supportService.getDashboardStats(days);
+  }
+
+  @Get('routing/options')
+  @UseGuards(JwtAuthGuard)
+  async getRoutingOptions() {
+    return {
+      groups: SUPPORT_TICKET_GROUPS,
+      severities: SUPPORT_TICKET_SEVERITIES,
+    };
   }
 
   @Get(':id')
@@ -90,5 +109,11 @@ export class SupportController {
   @UseGuards(JwtAuthGuard)
   async assignTicket(@Param('id') id: string, @Body() dto: AssignSupportTicketDto) {
     return this.supportService.assignTicket(+id, dto.assignedTo ?? null);
+  }
+
+  @Put(':id/routing')
+  @UseGuards(JwtAuthGuard)
+  async updateRouting(@Param('id') id: string, @Body() dto: UpdateSupportTicketRoutingDto) {
+    return this.supportService.updateRouting(+id, dto);
   }
 }

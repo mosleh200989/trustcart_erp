@@ -10,6 +10,12 @@ interface SupportTicket {
   message: string;
   status: string;
   priority: string;
+  severity?: string;
+  supportGroup?: string;
+  firstResponseDueAt?: string | null;
+  resolutionDueAt?: string | null;
+  resolvedAt?: string | null;
+  slaBreached?: boolean;
   assignedTo: number | null;
   response: string | null;
   respondedAt: string | null;
@@ -24,10 +30,26 @@ export default function AdminSupport() {
   const [replyText, setReplyText] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterPriority, setFilterPriority] = useState('all');
+  const [routingOptions, setRoutingOptions] = useState<{ groups: string[]; severities: string[] }>({
+    groups: ['general', 'billing', 'delivery', 'account', 'technical'],
+    severities: ['low', 'medium', 'high', 'critical'],
+  });
 
   useEffect(() => {
     fetchTickets();
+    fetchRoutingOptions();
   }, []);
+
+  const fetchRoutingOptions = async () => {
+    try {
+      const res = await apiClient.get('/support/routing/options');
+      if (res?.data?.groups && res?.data?.severities) {
+        setRoutingOptions(res.data);
+      }
+    } catch {
+      // keep defaults
+    }
+  };
 
   const fetchTickets = async () => {
     try {
@@ -90,11 +112,33 @@ export default function AdminSupport() {
     }
   };
 
+  const updateRouting = async (ticketId: number, patch: { supportGroup?: string; severity?: string }) => {
+    try {
+      await apiClient.put(`/support/${ticketId}/routing`, patch);
+      await fetchTickets();
+    } catch (error) {
+      console.error('Error updating routing:', error);
+      alert('Failed to update routing');
+    }
+  };
+
   const filteredTickets = tickets.filter(ticket => {
     if (filterStatus !== 'all' && ticket.status !== filterStatus) return false;
     if (filterPriority !== 'all' && ticket.priority !== filterPriority) return false;
     return true;
   });
+
+  const fmtDateTime = (value?: string | null) => {
+    if (!value) return '—';
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return '—';
+    return d.toLocaleString();
+  };
+
+  const slaBadge = (ticket: SupportTicket) => {
+    if (ticket.slaBreached) return 'bg-red-100 text-red-800';
+    return 'bg-green-100 text-green-800';
+  };
 
   const getStatusBadge = (status: string) => {
     const colors: any = {
@@ -183,6 +227,8 @@ export default function AdminSupport() {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Subject</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Priority</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Group</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Severity</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Created</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
                 </tr>
@@ -217,6 +263,28 @@ export default function AdminSupport() {
                         <option value="medium">Medium</option>
                         <option value="high">High</option>
                         <option value="urgent">Urgent</option>
+                      </select>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <select
+                        value={ticket.supportGroup || 'general'}
+                        onChange={(e) => updateRouting(ticket.id, { supportGroup: e.target.value })}
+                        className="px-2 py-1 text-xs font-semibold rounded border border-gray-200"
+                      >
+                        {routingOptions.groups.map((g) => (
+                          <option key={g} value={g}>{g}</option>
+                        ))}
+                      </select>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <select
+                        value={ticket.severity || 'medium'}
+                        onChange={(e) => updateRouting(ticket.id, { severity: e.target.value })}
+                        className="px-2 py-1 text-xs font-semibold rounded border border-gray-200"
+                      >
+                        {routingOptions.severities.map((s) => (
+                          <option key={s} value={s}>{s}</option>
+                        ))}
                       </select>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -260,6 +328,35 @@ export default function AdminSupport() {
                       <span className={`px-2 py-1 text-xs font-semibold rounded ${getPriorityBadge(selectedTicket.priority)}`}>
                         {selectedTicket.priority.toUpperCase()}
                       </span>
+                      <span className={`px-2 py-1 text-xs font-semibold rounded ${slaBadge(selectedTicket)}`}>
+                        {selectedTicket.slaBreached ? 'SLA BREACHED' : 'SLA OK'}
+                      </span>
+                    </div>
+                    <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-3 text-sm text-gray-700">
+                      <div>
+                        <div className="text-xs text-gray-500">Support Group</div>
+                        <div className="font-medium">{selectedTicket.supportGroup || 'general'}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-gray-500">Severity</div>
+                        <div className="font-medium">{selectedTicket.severity || 'medium'}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-gray-500">First Response Due</div>
+                        <div className="font-medium">{fmtDateTime(selectedTicket.firstResponseDueAt)}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-gray-500">Resolution Due</div>
+                        <div className="font-medium">{fmtDateTime(selectedTicket.resolutionDueAt)}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-gray-500">Responded At</div>
+                        <div className="font-medium">{fmtDateTime(selectedTicket.respondedAt)}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-gray-500">Resolved At</div>
+                        <div className="font-medium">{fmtDateTime(selectedTicket.resolvedAt)}</div>
+                      </div>
                     </div>
                   </div>
                   <button

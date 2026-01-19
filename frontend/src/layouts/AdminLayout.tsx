@@ -6,7 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { 
   FaTachometerAlt, FaBoxes, FaShoppingCart, FaUsers, FaWarehouse, 
   FaShoppingBag, FaUserTie, FaBook, FaBullseye, FaHandshake, 
-  FaHeadset, FaUser, FaCog, FaBars, FaTimes, FaBell, FaChevronDown, FaChartBar, FaTags, FaGift
+  FaHeadset, FaUser, FaCog, FaBars, FaTimes, FaBell, FaChevronDown, FaChartBar, FaTags, FaGift, FaPhone
 } from 'react-icons/fa';
 
 interface MenuItem {
@@ -283,6 +283,15 @@ const menuItems: MenuItem[] = [
           { title: 'Sales Forecasts', icon: FaTachometerAlt, path: '/admin/crm/forecasts' },
         ]
       },
+    ],
+  },
+  {
+    title: 'Telephony',
+    icon: FaPhone,
+    children: [
+      { title: 'PBX Call Logs', icon: FaPhone, path: '/admin/telephony/calls' },
+      { title: 'Reports', icon: FaChartBar, path: '/admin/telephony/reports' },
+      { title: 'Agent Dashboard', icon: FaPhone, path: '/admin/crm/agent-dashboard' },
     ],
   },
   {

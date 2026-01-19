@@ -104,10 +104,10 @@ export class EmailTrackingService {
 
     const [total, opened, clicked, replied, bounced] = await Promise.all([
       baseQuery.clone().getCount(),
-      baseQuery.clone().where('email.opened = true').getCount(),
-      baseQuery.clone().where('email.clicked = true').getCount(),
-      baseQuery.clone().where('email.replied = true').getCount(),
-      baseQuery.clone().where('email.bounced = true').getCount(),
+      baseQuery.clone().andWhere('email.opened = true').getCount(),
+      baseQuery.clone().andWhere('email.clicked = true').getCount(),
+      baseQuery.clone().andWhere('email.replied = true').getCount(),
+      baseQuery.clone().andWhere('email.bounced = true').getCount(),
     ]);
 
     return {

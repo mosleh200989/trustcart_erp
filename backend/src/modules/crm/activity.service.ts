@@ -71,4 +71,31 @@ export class ActivityService {
 
     return await query.getRawMany();
   }
+
+  async getRecentActivities(params?: { userId?: number; rangeDays?: number; limit?: number }) {
+    const safeLimit = Number.isFinite(params?.limit) ? Math.max(1, Math.min(50, Number(params?.limit))) : 10;
+    const safeRangeDays = Number.isFinite(params?.rangeDays)
+      ? Math.max(1, Math.min(3650, Number(params?.rangeDays)))
+      : undefined;
+
+    const query = this.activityRepository
+      .createQueryBuilder('activity')
+      .leftJoinAndSelect('activity.customer', 'customer')
+      .leftJoinAndSelect('activity.user', 'user')
+      .leftJoinAndSelect('activity.deal', 'deal')
+      .orderBy('activity.createdAt', 'DESC')
+      .take(safeLimit);
+
+    if (params?.userId != null) {
+      query.andWhere('activity.userId = :userId', { userId: Number(params.userId) });
+    }
+
+    if (safeRangeDays != null) {
+      const since = new Date();
+      since.setDate(since.getDate() - safeRangeDays);
+      query.andWhere('activity.createdAt >= :since', { since });
+    }
+
+    return query.getMany();
+  }
 }

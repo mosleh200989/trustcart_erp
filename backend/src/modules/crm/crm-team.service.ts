@@ -5,6 +5,7 @@ import { Customer } from '../customers/customer.entity';
 import { SalesTeam } from './entities/sales-team.entity';
 import { User } from '../users/user.entity';
 import { CallTask, TaskPriority, TaskStatus } from './entities/call-task.entity';
+import { Activity } from './entities/activity.entity';
 
 export enum LeadPriority {
   HOT = 'hot',
@@ -23,6 +24,8 @@ export class CrmTeamService {
     private usersRepository: Repository<User>,
     @InjectRepository(CallTask)
     private callTaskRepo: Repository<CallTask>,
+    @InjectRepository(Activity)
+    private activityRepo: Repository<Activity>,
   ) {}
 
   private getDateString(date?: string | Date): string {
@@ -184,6 +187,8 @@ export class CrmTeamService {
     const skip = (page - 1) * limit;
 
     const where: any = {};
+    // Leads are represented as customers in lifecycle_stage='lead'
+    where.lifecycleStage = 'lead';
     if (priority) where.priority = priority;
     if (status) where.status = status;
 
@@ -195,6 +200,54 @@ export class CrmTeamService {
     });
 
     return { data, total };
+  }
+
+  async convertLeadToCustomer(customerId: string, actorUserId: number): Promise<Customer> {
+    const customerIdNum = Number(customerId);
+    if (!Number.isFinite(customerIdNum)) {
+      throw new NotFoundException('Customer not found');
+    }
+
+    const customer = await this.customerRepository.findOne({ where: { id: customerIdNum } });
+    if (!customer) {
+      throw new NotFoundException(`Customer with ID ${customerId} not found`);
+    }
+
+    if (String((customer as any).lifecycleStage || '').toLowerCase() !== 'lead') {
+      // Idempotent: already converted (or was never a lead)
+      return customer;
+    }
+
+    (customer as any).lifecycleStage = 'customer';
+    if (!(customer as any).status) (customer as any).status = 'active';
+    (customer as any).isActive = true;
+    (customer as any).updatedAt = new Date();
+
+    const saved = await this.customerRepository.save(customer);
+
+    // Best-effort audit log in activities
+    try {
+      const activity = this.activityRepo.create({
+        type: 'lead_converted',
+        customerId: (saved as any).id,
+        userId: actorUserId,
+        subject: 'Lead converted to customer',
+        description: `Lead lifecycle_stage changed to 'customer' by user ${actorUserId}.`,
+        outcome: 'converted',
+        completedAt: new Date(),
+        metadata: {
+          from: 'lead',
+          to: 'customer',
+          actorUserId,
+        },
+      } as any);
+
+      await this.activityRepo.save(activity as any);
+    } catch {
+      // never block conversion if logging fails
+    }
+
+    return saved;
   }
 
   async getAgentCustomers(agentId: number, query: any = {}): Promise<{ data: Customer[], total: number }> {

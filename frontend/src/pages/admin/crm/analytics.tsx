@@ -9,13 +9,13 @@ const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'
 const Analytics = () => {
   const [timeRange, setTimeRange] = useState('30');
   const [loading, setLoading] = useState(true);
-  const [dealStats, setDealStats] = useState<any>(null);
-  const [activityStats, setActivityStats] = useState<any>(null);
   const [taskStats, setTaskStats] = useState<any>(null);
   const [pipelineData, setPipelineData] = useState<any[]>([]);
   const [revenueData, setRevenueData] = useState<any[]>([]);
   const [activityData, setActivityData] = useState<any[]>([]);
   const [topPerformers, setTopPerformers] = useState<any[]>([]);
+  const [summary, setSummary] = useState<any>(null);
+  const [recentActivities, setRecentActivities] = useState<any[]>([]);
 
   useEffect(() => {
     fetchAnalytics();
@@ -27,64 +27,30 @@ const Analytics = () => {
       const token = localStorage.getItem('authToken');
 
       // Fetch all analytics data
-      const [dealsRes, activitiesRes, tasksRes, pipelineRes] = await Promise.all([
-        fetch(apiUrl('/crm/deals/pipeline-stats'), {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-        fetch(apiUrl('/crm/activities/stats'), {
+      const [summaryRes, tasksRes, recentRes] = await Promise.all([
+        fetch(apiUrl(`/crm/analytics/summary?rangeDays=${encodeURIComponent(timeRange)}`), {
           headers: { Authorization: `Bearer ${token}` },
         }),
         fetch(apiUrl('/crm/tasks/stats'), {
           headers: { Authorization: `Bearer ${token}` },
         }),
-        fetch(apiUrl('/crm/deals/pipeline-stats'), {
+        fetch(apiUrl(`/crm/activities/recent?rangeDays=${encodeURIComponent(timeRange)}&limit=8`), {
           headers: { Authorization: `Bearer ${token}` },
         }),
       ]);
 
-      // Parse responses safely
-      const deals = dealsRes.ok ? await dealsRes.json() : null;
-      const activities = activitiesRes.ok ? await activitiesRes.json() : null;
+      const summaryData = summaryRes.ok ? await summaryRes.json() : null;
       const tasks = tasksRes.ok ? await tasksRes.json() : null;
+      const recent = recentRes.ok ? await recentRes.json() : [];
 
-      setDealStats(deals);
-      setActivityStats(activities);
+      setSummary(summaryData);
       setTaskStats(tasks);
+      setRecentActivities(Array.isArray(recent) ? recent : []);
 
-      // Mock pipeline data (replace with real API data)
-      setPipelineData([
-        { name: 'New Lead', value: 45000, deals: 15 },
-        { name: 'Contacted', value: 72000, deals: 12 },
-        { name: 'Qualified', value: 108000, deals: 9 },
-        { name: 'Proposal', value: 156000, deals: 6 },
-        { name: 'Negotiation', value: 240000, deals: 4 },
-      ]);
-
-      // Mock revenue data
-      setRevenueData([
-        { month: 'Jan', revenue: 45000, deals: 8 },
-        { month: 'Feb', revenue: 52000, deals: 10 },
-        { month: 'Mar', revenue: 48000, deals: 9 },
-        { month: 'Apr', revenue: 61000, deals: 12 },
-        { month: 'May', revenue: 75000, deals: 14 },
-        { month: 'Jun', revenue: 88000, deals: 16 },
-      ]);
-
-      // Mock activity data
-      setActivityData([
-        { type: 'Calls', count: 145 },
-        { type: 'Emails', count: 287 },
-        { type: 'Meetings', count: 64 },
-        { type: 'Follow-ups', count: 198 },
-      ]);
-
-      // Mock top performers
-      setTopPerformers([
-        { name: 'Sarah Johnson', deals: 24, revenue: 340000 },
-        { name: 'Michael Chen', deals: 19, revenue: 285000 },
-        { name: 'Emily Davis', deals: 16, revenue: 240000 },
-        { name: 'David Wilson', deals: 14, revenue: 210000 },
-      ]);
+      setPipelineData(summaryData?.pipelineByStage || []);
+      setRevenueData(summaryData?.revenueTrend || []);
+      setActivityData(summaryData?.activityDistribution || []);
+      setTopPerformers(summaryData?.topPerformers || []);
 
     } catch (error) {
       console.error('Error fetching analytics:', error);
@@ -136,8 +102,8 @@ const Analytics = () => {
                 <h3 className="text-sm font-medium opacity-90">Total Pipeline Value</h3>
                 <DollarSign className="w-8 h-8 opacity-80" />
               </div>
-              <p className="text-3xl font-bold">$524,000</p>
-              <p className="text-sm opacity-80 mt-2">+12.5% from last month</p>
+              <p className="text-3xl font-bold">${(summary?.keyMetrics?.totalPipelineValue || 0).toLocaleString()}</p>
+              <p className="text-sm opacity-80 mt-2">Last {timeRange} days</p>
             </div>
 
             <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-lg p-6 text-white">
@@ -145,8 +111,8 @@ const Analytics = () => {
                 <h3 className="text-sm font-medium opacity-90">Active Deals</h3>
                 <Target className="w-8 h-8 opacity-80" />
               </div>
-              <p className="text-3xl font-bold">46</p>
-              <p className="text-sm opacity-80 mt-2">8 deals closed this month</p>
+              <p className="text-3xl font-bold">{summary?.keyMetrics?.activeDeals || 0}</p>
+              <p className="text-sm opacity-80 mt-2">Open deals created in range</p>
             </div>
 
             <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg p-6 text-white">
@@ -154,8 +120,8 @@ const Analytics = () => {
                 <h3 className="text-sm font-medium opacity-90">Win Rate</h3>
                 <Award className="w-8 h-8 opacity-80" />
               </div>
-              <p className="text-3xl font-bold">68%</p>
-              <p className="text-sm opacity-80 mt-2">+5% improvement</p>
+              <p className="text-3xl font-bold">{Math.round(summary?.keyMetrics?.winRate || 0)}%</p>
+              <p className="text-sm opacity-80 mt-2">Won vs lost (closed in range)</p>
             </div>
 
             <div className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-lg p-6 text-white">
@@ -163,8 +129,8 @@ const Analytics = () => {
                 <h3 className="text-sm font-medium opacity-90">Avg Deal Size</h3>
                 <Activity className="w-8 h-8 opacity-80" />
               </div>
-              <p className="text-3xl font-bold">$11,391</p>
-              <p className="text-sm opacity-80 mt-2">Across all stages</p>
+              <p className="text-3xl font-bold">${Math.round(summary?.keyMetrics?.avgDealSize || 0).toLocaleString()}</p>
+              <p className="text-sm opacity-80 mt-2">Open deals created in range</p>
             </div>
           </div>
 
@@ -234,6 +200,7 @@ const Analytics = () => {
                     outerRadius={100}
                     fill="#8884d8"
                     dataKey="count"
+                    nameKey="type"
                   >
                     {activityData.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
@@ -302,22 +269,20 @@ const Analytics = () => {
                 <Activity className="w-6 h-6 text-gray-400" />
               </div>
               <div className="space-y-3">
-                <div className="border-l-4 border-blue-500 pl-3 py-2">
-                  <p className="text-sm font-medium text-gray-900">Call with John Doe</p>
-                  <p className="text-xs text-gray-500">2 hours ago</p>
-                </div>
-                <div className="border-l-4 border-green-500 pl-3 py-2">
-                  <p className="text-sm font-medium text-gray-900">Meeting scheduled</p>
-                  <p className="text-xs text-gray-500">5 hours ago</p>
-                </div>
-                <div className="border-l-4 border-purple-500 pl-3 py-2">
-                  <p className="text-sm font-medium text-gray-900">Email sent to client</p>
-                  <p className="text-xs text-gray-500">1 day ago</p>
-                </div>
-                <div className="border-l-4 border-orange-500 pl-3 py-2">
-                  <p className="text-sm font-medium text-gray-900">Quote generated</p>
-                  <p className="text-xs text-gray-500">2 days ago</p>
-                </div>
+                {recentActivities.length === 0 ? (
+                  <p className="text-sm text-gray-500">No activities found in range.</p>
+                ) : (
+                  recentActivities.map((a) => (
+                    <div key={a.id} className="border-l-4 border-blue-500 pl-3 py-2">
+                      <p className="text-sm font-medium text-gray-900">
+                        {(a.type || 'activity').toString().toUpperCase()}: {a.subject || a.description || '—'}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        {a.createdAt ? new Date(a.createdAt).toLocaleString() : ''}
+                      </p>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
 
@@ -329,38 +294,38 @@ const Analytics = () => {
               <div className="space-y-4">
                 <div>
                   <div className="flex justify-between text-sm mb-1">
-                    <span className="text-gray-600">Conversion Rate</span>
-                    <span className="font-semibold text-gray-900">32%</span>
+                    <span className="text-gray-600">Win Rate</span>
+                    <span className="font-semibold text-gray-900">{Math.round(summary?.keyMetrics?.winRate || 0)}%</span>
                   </div>
                   <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div className="bg-blue-600 h-2 rounded-full" style={{ width: '32%' }}></div>
+                    <div className="bg-blue-600 h-2 rounded-full" style={{ width: `${Math.min(100, Math.max(0, summary?.keyMetrics?.winRate || 0))}%` }}></div>
                   </div>
                 </div>
                 <div>
                   <div className="flex justify-between text-sm mb-1">
-                    <span className="text-gray-600">Avg Response Time</span>
-                    <span className="font-semibold text-gray-900">2.4 hrs</span>
+                    <span className="text-gray-600">Closed Deals (range)</span>
+                    <span className="font-semibold text-gray-900">{summary?.closed?.total || 0}</span>
                   </div>
                   <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div className="bg-green-600 h-2 rounded-full" style={{ width: '75%' }}></div>
+                    <div className="bg-green-600 h-2 rounded-full" style={{ width: summary?.closed?.total ? '100%' : '0%' }}></div>
                   </div>
                 </div>
                 <div>
                   <div className="flex justify-between text-sm mb-1">
-                    <span className="text-gray-600">Customer Satisfaction</span>
-                    <span className="font-semibold text-gray-900">4.7/5</span>
+                    <span className="text-gray-600">Overdue Tasks</span>
+                    <span className="font-semibold text-gray-900">{taskStats?.overdue || 0}</span>
                   </div>
                   <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div className="bg-purple-600 h-2 rounded-full" style={{ width: '94%' }}></div>
+                    <div className="bg-purple-600 h-2 rounded-full" style={{ width: taskStats?.overdue ? '100%' : '0%' }}></div>
                   </div>
                 </div>
                 <div>
                   <div className="flex justify-between text-sm mb-1">
-                    <span className="text-gray-600">Follow-up Rate</span>
-                    <span className="font-semibold text-gray-900">89%</span>
+                    <span className="text-gray-600">Activities Logged (range)</span>
+                    <span className="font-semibold text-gray-900">{activityData.reduce((sum, r) => sum + (r?.count || 0), 0)}</span>
                   </div>
                   <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div className="bg-orange-600 h-2 rounded-full" style={{ width: '89%' }}></div>
+                    <div className="bg-orange-600 h-2 rounded-full" style={{ width: activityData.length ? '100%' : '0%' }}></div>
                   </div>
                 </div>
               </div>
