@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { AdminMenuItem } from './admin-menu-item.entity';
 import { CreateAdminMenuItemDto } from './dto/create-admin-menu-item.dto';
 import { UpdateAdminMenuItemDto } from './dto/update-admin-menu-item.dto';
+import { DEFAULT_ADMIN_MENU, type AdminMenuSeedNode } from './admin-menu.defaults';
 
 export type AdminMenuItemNode = AdminMenuItem & { children: AdminMenuItemNode[] };
 
@@ -13,6 +14,66 @@ export class AdminMenuService {
     @InjectRepository(AdminMenuItem)
     private repo: Repository<AdminMenuItem>,
   ) {}
+
+  async disableDbMenu(): Promise<{ disabled: number }> {
+    const result = await this.repo
+      .createQueryBuilder()
+      .update(AdminMenuItem)
+      .set({ isActive: false })
+      .execute();
+
+    return { disabled: result.affected ?? 0 };
+  }
+
+  async seedDefaultMenu(mode: 'replace' | 'merge' = 'replace'): Promise<{ created: number; mode: 'replace' | 'merge' }> {
+    return this.repo.manager.transaction(async (em) => {
+      const repo = em.getRepository(AdminMenuItem);
+
+      if (mode === 'replace') {
+        await repo.createQueryBuilder().delete().from(AdminMenuItem).execute();
+      }
+
+      const insertNode = async (node: AdminMenuSeedNode, parentId: number | null, sortOrder: number): Promise<void> => {
+        if (mode === 'merge') {
+          const existing = await repo.findOne({ where: { title: node.title, path: node.path ?? null, parentId } as any });
+          if (existing) {
+            // Keep existing row intact; still ensure children exist under it.
+            let childIndex = 0;
+            for (const child of node.children || []) {
+              await insertNode(child, existing.id, childIndex++);
+            }
+            return;
+          }
+        }
+
+        const item = repo.create({
+          title: node.title,
+          icon: node.icon ?? null,
+          path: node.path ?? null,
+          parentId,
+          sortOrder,
+          isActive: true,
+          requiredPermissions: (node.requiredPermissions || []).map((x) => String(x).trim()).filter(Boolean),
+        });
+
+        const saved = await repo.save(item);
+        created += 1;
+
+        let childIndex = 0;
+        for (const child of node.children || []) {
+          await insertNode(child, saved.id, childIndex++);
+        }
+      };
+
+      let created = 0;
+      let rootIndex = 0;
+      for (const node of DEFAULT_ADMIN_MENU) {
+        await insertNode(node, null, rootIndex++);
+      }
+
+      return { created, mode };
+    });
+  }
 
   async listFlat(includeInactive = true): Promise<AdminMenuItem[]> {
     const where = includeInactive ? {} : { isActive: true };

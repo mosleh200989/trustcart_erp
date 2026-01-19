@@ -29,6 +29,20 @@ export class AdminMenuController {
     return this.service.create(dto);
   }
 
+  @Post('disable')
+  @RequirePermissions('manage-system-settings')
+  async disableDbMenu() {
+    return this.service.disableDbMenu();
+  }
+
+  @Post('seed-default')
+  @RequirePermissions('manage-system-settings')
+  async seedDefault(@Query('mode') mode?: string) {
+    const normalized = String(mode || 'replace').toLowerCase();
+    const m = normalized === 'merge' ? 'merge' : 'replace';
+    return this.service.seedDefaultMenu(m);
+  }
+
   @Put(':id')
   @RequirePermissions('manage-system-settings')
   async update(@Param('id') id: string, @Body() dto: UpdateAdminMenuItemDto) {
