@@ -45,6 +45,7 @@ import { Category } from './modules/categories/category.entity';
 import { SpecialOffer } from './modules/special-offers/special-offer.entity';
 import { DealOfTheDay } from './modules/products/deal-of-the-day.entity';
 import { CourierConfiguration } from './modules/settings/courier-configuration.entity';
+import { AdminMenuItem } from './modules/settings/admin-menu-item.entity';
 
 // Tagging Entities
 import { CustomerTag } from './modules/tagging/customer-tag.entity';
@@ -177,6 +178,7 @@ import { TaggingModule } from './modules/tagging/tagging.module';
             
             DealOfTheDay,
             CourierConfiguration,
+            AdminMenuItem,
             // Loyalty entities
             CustomerMembership, CustomerWallet, WalletTransaction, CustomerReferral, MonthlyGroceryList, GroceryListItem, PriceLock,
             CustomerPoints, PointTransaction, ProductConsumptionProfile, CustomerProductReminder,

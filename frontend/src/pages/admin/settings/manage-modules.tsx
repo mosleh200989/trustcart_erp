@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
 import AdminLayout from '@/layouts/AdminLayout';
 import apiClient from '@/services/api';
@@ -28,6 +28,8 @@ export default function ManageModulesPage() {
   const router = useRouter();
 
   const [tree, setTree] = useState<AdminMenuNode[]>([]);
+  const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set());
+  const didInitExpanded = useRef(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -71,6 +73,24 @@ export default function ManageModulesPage() {
   }, [router]);
 
   const flat = useMemo(() => flattenTree(tree, []), [tree]);
+
+  useEffect(() => {
+    // First load: expand everything so the page matches the current view.
+    if (didInitExpanded.current) return;
+    const next = new Set<number>();
+    for (const n of flat) next.add(n.id);
+    setExpandedIds(next);
+    didInitExpanded.current = true;
+  }, [flat]);
+
+  const toggleExpanded = (id: number) => {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   const openCreate = (parentId?: number | null) => {
     setMode('create');
@@ -148,13 +168,50 @@ export default function ManageModulesPage() {
     }
   };
 
+  const disableDbMenu = async () => {
+    if (!confirm('Disable DB sidebar menu and use the built-in sidebar instead?')) return;
+    try {
+      await apiClient.post('/settings/admin-menu/disable');
+      await load();
+      alert('DB sidebar menu disabled. Reload the admin panel to see the built-in modules again.');
+    } catch (e: any) {
+      alert(e?.response?.data?.message || 'Failed to disable DB menu');
+    }
+  };
+
+  const seedDefaultMenu = async () => {
+    if (!confirm('Seed DB menu with the current built-in sidebar items? This will REPLACE existing DB menu items.')) return;
+    try {
+      await apiClient.post('/settings/admin-menu/seed-default?mode=replace');
+      await load();
+      alert('DB menu seeded from built-in sidebar. Reload the admin panel to start using it.');
+    } catch (e: any) {
+      alert(e?.response?.data?.message || 'Failed to seed DB menu');
+    }
+  };
+
   const renderNode = (node: AdminMenuNode, depth = 0) => {
     const indent = depth * 16;
+    const hasChildren = !!node.children?.length;
+    const isExpanded = expandedIds.has(node.id);
     return (
       <div key={node.id} className="border rounded-lg mb-2 bg-white">
         <div className="flex items-center justify-between px-4 py-3" style={{ paddingLeft: 16 + indent }}>
           <div className="min-w-0">
             <div className="flex items-center gap-2">
+              {hasChildren ? (
+                <button
+                  type="button"
+                  onClick={() => toggleExpanded(node.id)}
+                  className="w-7 h-7 flex items-center justify-center rounded border bg-white text-gray-700 hover:bg-gray-50"
+                  aria-label={isExpanded ? 'Collapse group' : 'Expand group'}
+                  title={isExpanded ? 'Collapse' : 'Expand'}
+                >
+                  {isExpanded ? '▾' : '▸'}
+                </button>
+              ) : (
+                <div className="w-7 h-7" />
+              )}
               <div className="font-semibold text-gray-800 truncate">{node.title}</div>
               {!node.isActive ? (
                 <span className="text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-600 border">Inactive</span>
@@ -194,7 +251,7 @@ export default function ManageModulesPage() {
           </div>
         </div>
 
-        {node.children?.length ? (
+        {node.children?.length && isExpanded ? (
           <div className="px-2 pb-2">
             {node.children.map((c) => renderNode(c, depth + 1))}
           </div>
@@ -221,6 +278,18 @@ export default function ManageModulesPage() {
             className="px-4 py-2 rounded bg-green-600 text-white hover:bg-green-700"
           >
             + Add Top-Level Menu
+          </button>
+          <button
+            onClick={seedDefaultMenu}
+            className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700"
+          >
+            Seed Built-in Menu
+          </button>
+          <button
+            onClick={disableDbMenu}
+            className="px-4 py-2 rounded bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100"
+          >
+            Use Built-in Sidebar
           </button>
           <button
             onClick={load}
