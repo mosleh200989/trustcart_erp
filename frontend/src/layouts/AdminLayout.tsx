@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 // import QuoteNotifications from '@/components/QuoteNotifications'; // DISABLED
 import { useAuth } from '@/contexts/AuthContext';
+import apiClient from '@/services/api';
 import { 
   FaTachometerAlt, FaBoxes, FaShoppingCart, FaUsers, FaWarehouse, 
   FaShoppingBag, FaUserTie, FaBook, FaBullseye, FaHandshake, 
@@ -316,9 +317,66 @@ const menuItems: MenuItem[] = [
     requiredPermissions: ['manage-system-settings', 'view-system-settings'],
     children: [
       { title: 'Courier Configuration', icon: FaCog, path: '/admin/settings/courier-configuration' },
+      { title: 'Manage Modules', icon: FaCog, path: '/admin/settings/manage-modules', requiredPermissions: ['manage-system-settings'] },
     ],
   },
 ];
+
+const iconMap: Record<string, any> = {
+  FaTachometerAlt,
+  FaBoxes,
+  FaShoppingCart,
+  FaUsers,
+  FaWarehouse,
+  FaShoppingBag,
+  FaUserTie,
+  FaBook,
+  FaBullseye,
+  FaHandshake,
+  FaHeadset,
+  FaUser,
+  FaCog,
+  FaBell,
+  FaChartBar,
+  FaTags,
+  FaGift,
+  FaPhone,
+};
+
+function iconFromKey(key?: string | null) {
+  if (!key) return FaCog;
+  return iconMap[String(key)] || FaCog;
+}
+
+function ensureManageModulesLink(items: MenuItem[]): MenuItem[] {
+  const exists = (arr: MenuItem[]): boolean =>
+    arr.some((x) => x.path === '/admin/settings/manage-modules' || (x.children ? exists(x.children) : false));
+  if (exists(items)) return items;
+
+  const cloned = items.map((x) => ({ ...x, children: x.children ? ensureManageModulesLink(x.children) : x.children }));
+  const settings = cloned.find((x) => x.title === 'Settings');
+  const manageModules: MenuItem = {
+    title: 'Manage Modules',
+    icon: FaCog,
+    path: '/admin/settings/manage-modules',
+    requiredPermissions: ['manage-system-settings'],
+  };
+
+  if (settings) {
+    settings.children = [...(settings.children || []), manageModules];
+    return cloned;
+  }
+
+  return [
+    ...cloned,
+    {
+      title: 'Settings',
+      icon: FaCog,
+      requiredPermissions: ['manage-system-settings', 'view-system-settings'],
+      children: [manageModules],
+    },
+  ];
+}
 
 function stripQuery(path: string) {
   return path.split('?')[0];
@@ -371,19 +429,59 @@ function findLeafByPath(items: MenuItem[], currentAsPath: string, inheritedPermi
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [expandedMenus, setExpandedMenus] = useState<string[]>([]);
+  const [dbMenuItems, setDbMenuItems] = useState<MenuItem[] | null>(null);
   const router = useRouter();
   const { user, isLoading, hasAnyPermission, logout } = useAuth();
 
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await apiClient.get('/settings/admin-menu', { params: { includeInactive: false } });
+        const data = Array.isArray(res.data) ? res.data : [];
+        if (cancelled) return;
+        if (data.length === 0) {
+          setDbMenuItems(null);
+          return;
+        }
+
+        const mapNode = (n: any): MenuItem => {
+          return {
+            title: String(n.title || ''),
+            icon: iconFromKey(n.icon),
+            path: n.path || undefined,
+            requiredPermissions: Array.isArray(n.requiredPermissions) ? n.requiredPermissions : [],
+            children: Array.isArray(n.children) ? n.children.map(mapNode) : undefined,
+          };
+        };
+
+        const mapped = data.map(mapNode);
+        setDbMenuItems(ensureManageModulesLink(mapped));
+      } catch {
+        if (!cancelled) setDbMenuItems(null);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const effectiveMenuItems = useMemo(() => {
+    const base = dbMenuItems && dbMenuItems.length > 0 ? dbMenuItems : menuItems;
+    return ensureManageModulesLink(base);
+  }, [dbMenuItems]);
+
   const visibleMenuItems = useMemo(() => {
-    return filterMenuItems(menuItems, hasAnyPermission);
-  }, [hasAnyPermission]);
+    return filterMenuItems(effectiveMenuItems, hasAnyPermission);
+  }, [effectiveMenuItems, hasAnyPermission]);
 
   const currentAsPath = useMemo(() => router.asPath || router.pathname, [router.asPath, router.pathname]);
   const currentPath = useMemo(() => stripQuery(currentAsPath), [currentAsPath]);
 
   const routeRequirement = useMemo(() => {
-    return findLeafByPath(menuItems, currentAsPath);
-  }, [currentAsPath]);
+    return findLeafByPath(effectiveMenuItems, currentAsPath);
+  }, [currentAsPath, effectiveMenuItems]);
 
   const hasRouteAccess = useMemo(() => {
     if (!routeRequirement) return true;

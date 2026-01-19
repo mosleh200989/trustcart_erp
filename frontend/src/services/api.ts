@@ -486,6 +486,14 @@ export const rbac = {
     const res = await apiClient.get('/rbac/roles');
     return Array.isArray(res.data) ? res.data : [];
   },
+  async createRole(data: { name: string; slug: string; description?: string; priority?: number }) {
+    const res = await apiClient.post('/rbac/roles', data);
+    return res.data;
+  },
+  async deactivateRole(roleId: string | number) {
+    const res = await apiClient.delete(`/rbac/roles/${roleId}`);
+    return res.data;
+  },
   async listPermissions(module?: string) {
     const res = await apiClient.get('/rbac/permissions', { params: module ? { module } : undefined });
     return Array.isArray(res.data) ? res.data : [];
