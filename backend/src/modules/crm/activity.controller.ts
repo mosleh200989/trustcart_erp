@@ -36,6 +36,19 @@ export class ActivityController {
     return await this.activityService.getActivityStats(userId);
   }
 
+  @Get('recent')
+  async getRecent(
+    @Query('userId') userId?: number,
+    @Query('rangeDays') rangeDays?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return await this.activityService.getRecentActivities({
+      userId,
+      rangeDays: rangeDays != null ? Number(rangeDays) : undefined,
+      limit: limit != null ? Number(limit) : 10,
+    });
+  }
+
   @Get(':id')
   async findOne(@Param('id') id: number) {
     return await this.activityService.findOne(id);

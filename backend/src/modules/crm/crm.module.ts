@@ -18,6 +18,8 @@ import { MeetingService } from './meeting.service';
 import { MeetingController } from './meeting.controller';
 import { EmailTrackingService } from './email-tracking.service';
 import { EmailTrackingController } from './email-tracking.controller';
+import { CommunicationsService } from './communications.service';
+import { CommunicationsController } from './communications.controller';
 import { LoyaltyModule } from '../loyalty/loyalty.module';
 import { CrmReferralsController } from './crm-referrals.controller';
 import { CrmReferralsService } from './crm-referrals.service';
@@ -66,6 +68,8 @@ import { QuoteTemplate } from './entities/quote-template.entity';
 import { SalesForecast } from './entities/sales-forecast.entity';
 import { SalesQuota } from './entities/sales-quota.entity';
 import { RbacModule } from '../rbac/rbac.module';
+import { CrmAnalyticsController } from './crm-analytics.controller';
+import { CrmAnalyticsService } from './crm-analytics.service';
 
 @Module({
   imports: [
@@ -113,6 +117,7 @@ import { RbacModule } from '../rbac/rbac.module';
     QuoteController,
     MeetingController,
     EmailTrackingController,
+    CommunicationsController,
     // Phase 1 controllers
     PipelineController,
     SegmentationController,
@@ -121,7 +126,8 @@ import { RbacModule } from '../rbac/rbac.module';
     ActivityTemplateController,
     ForecastController,
     WorkflowController,
-    QuoteTemplateController
+    QuoteTemplateController,
+    CrmAnalyticsController
   ],
   providers: [
     // Existing providers
@@ -135,6 +141,7 @@ import { RbacModule } from '../rbac/rbac.module';
     QuoteService,
     MeetingService,
     EmailTrackingService,
+    CommunicationsService,
     // Phase 1 providers
     PipelineService,
     SegmentationService,
@@ -143,7 +150,8 @@ import { RbacModule } from '../rbac/rbac.module';
     CrmReferralsService,
     ForecastService,
     WorkflowService,
-    QuoteTemplateService
+    QuoteTemplateService,
+    CrmAnalyticsService
   ],
   exports: [
     // Existing exports
@@ -157,6 +165,7 @@ import { RbacModule } from '../rbac/rbac.module';
     QuoteService,
     MeetingService,
     EmailTrackingService,
+    CommunicationsService,
     // Phase 1 exports
     PipelineService,
     SegmentationService,
@@ -164,7 +173,8 @@ import { RbacModule } from '../rbac/rbac.module';
     ActivityTemplateService,
     ForecastService,
     WorkflowService,
-    QuoteTemplateService
+    QuoteTemplateService,
+    CrmAnalyticsService
   ],
 })
 export class CrmModule {}

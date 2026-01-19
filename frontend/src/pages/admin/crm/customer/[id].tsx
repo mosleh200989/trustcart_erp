@@ -22,11 +22,52 @@ const CustomerView = () => {
   const [emails, setEmails] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const [logModalOpen, setLogModalOpen] = useState(false);
+  const [logType, setLogType] = useState<'call' | 'email' | 'sms'>('call');
+  const [logSubject, setLogSubject] = useState('');
+  const [logDescription, setLogDescription] = useState('');
+  const [logOutcome, setLogOutcome] = useState('');
+  const [logDuration, setLogDuration] = useState<string>('');
+  const [logSaving, setLogSaving] = useState(false);
+
   useEffect(() => {
     if (id) {
       fetchCustomerData();
     }
   }, [id]);
+
+  const openLogModal = (type: 'call' | 'email' | 'sms') => {
+    setLogType(type);
+    setLogSubject('');
+    setLogDescription('');
+    setLogOutcome('');
+    setLogDuration('');
+    setLogModalOpen(true);
+  };
+
+  const submitLog = async () => {
+    if (!id) return;
+    try {
+      setLogSaving(true);
+      await api.post('/crm/activities', {
+        type: logType,
+        customerId: Number(id),
+        subject: logSubject || undefined,
+        description: logDescription || undefined,
+        outcome: logOutcome || undefined,
+        duration: logDuration ? Number(logDuration) : undefined,
+        completedAt: new Date().toISOString(),
+      });
+      setLogModalOpen(false);
+      await fetchCustomerData();
+      setActiveTab('activity');
+    } catch (error) {
+      console.error('Failed to log activity:', error);
+      alert('Failed to log activity');
+    } finally {
+      setLogSaving(false);
+    }
+  };
 
   const fetchCustomerData = async () => {
     try {
@@ -149,17 +190,26 @@ const CustomerView = () => {
 
             {/* Quick Actions */}
             <div className="flex space-x-2">
-              <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition flex items-center">
+              <button
+                onClick={() => openLogModal('call')}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition flex items-center"
+              >
                 <Phone className="h-4 w-4 mr-2" />
-                Call
+                Log Call
               </button>
-              <button className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition flex items-center">
+              <button
+                onClick={() => openLogModal('email')}
+                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition flex items-center"
+              >
                 <Mail className="h-4 w-4 mr-2" />
-                Email
+                Log Email
               </button>
-              <button className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition flex items-center">
-                <Video className="h-4 w-4 mr-2" />
-                Meeting
+              <button
+                onClick={() => openLogModal('sms')}
+                className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition flex items-center"
+              >
+                <MessageSquare className="h-4 w-4 mr-2" />
+                Log SMS
               </button>
             </div>
           </div>
@@ -229,6 +279,83 @@ const CustomerView = () => {
             {activeTab === 'emails' && <EmailsTab emails={emails} />}
           </div>
         </div>
+
+        {logModalOpen && (
+          <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg shadow-xl w-full max-w-lg p-6">
+              <div className="flex items-start justify-between">
+                <h3 className="text-lg font-semibold text-gray-800 capitalize">Log {logType}</h3>
+                <button
+                  className="text-gray-500 hover:text-gray-700"
+                  onClick={() => (logSaving ? null : setLogModalOpen(false))}
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="mt-4 space-y-3">
+                <div>
+                  <label className="block text-sm text-gray-600">Subject</label>
+                  <input
+                    className="mt-1 w-full border rounded-lg px-3 py-2 text-sm"
+                    value={logSubject}
+                    onChange={(e) => setLogSubject(e.target.value)}
+                    placeholder="Short summary"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-600">Notes</label>
+                  <textarea
+                    className="mt-1 w-full border rounded-lg px-3 py-2 text-sm"
+                    rows={4}
+                    value={logDescription}
+                    onChange={(e) => setLogDescription(e.target.value)}
+                    placeholder="What happened?"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm text-gray-600">Outcome</label>
+                    <input
+                      className="mt-1 w-full border rounded-lg px-3 py-2 text-sm"
+                      value={logOutcome}
+                      onChange={(e) => setLogOutcome(e.target.value)}
+                      placeholder="e.g. connected / no_answer"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm text-gray-600">Duration (sec)</label>
+                    <input
+                      type="number"
+                      className="mt-1 w-full border rounded-lg px-3 py-2 text-sm"
+                      value={logDuration}
+                      onChange={(e) => setLogDuration(e.target.value)}
+                      placeholder="Optional"
+                      min={0}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-6 flex justify-end gap-2">
+                <button
+                  className="px-4 py-2 border rounded-lg hover:bg-gray-50 disabled:opacity-50"
+                  disabled={logSaving}
+                  onClick={() => setLogModalOpen(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                  disabled={logSaving}
+                  onClick={submitLog}
+                >
+                  {logSaving ? 'Saving…' : 'Save'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </AdminLayout>
   );
@@ -307,8 +434,14 @@ const ActivityTab = ({ activities }: any) => (
             <div className="bg-gray-50 rounded-lg p-4">
               <div className="flex justify-between items-start">
                 <div>
-                  <h4 className="font-medium text-gray-800">{activity.type}</h4>
-                  <p className="text-sm text-gray-600 mt-1">{activity.description}</p>
+                  <h4 className="font-medium text-gray-800">{activity.type}{activity.subject ? `: ${activity.subject}` : ''}</h4>
+                  {activity.outcome && (
+                    <p className="text-xs text-gray-500 mt-1">Outcome: {activity.outcome}{activity.duration ? ` • ${activity.duration}s` : ''}</p>
+                  )}
+                  {activity.description && <p className="text-sm text-gray-600 mt-1">{activity.description}</p>}
+                  {activity.recordingUrl && (
+                    <audio className="mt-3 w-full" controls src={activity.recordingUrl} />
+                  )}
                 </div>
                 <span className="text-xs text-gray-500">
                   {new Date(activity.createdAt).toLocaleString()}

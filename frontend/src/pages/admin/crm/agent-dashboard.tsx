@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import AdminLayout from '@/layouts/AdminLayout';
 import { FaPhone, FaWhatsapp, FaSms, FaEnvelope, FaFire, FaChartLine, FaCheckCircle, FaClock } from 'react-icons/fa';
 import apiClient from '@/services/api';
+import Link from 'next/link';
+import { getTelephonySocket, type IncomingCallPayload } from '@/services/telephonySocket';
 
 interface CallTask {
   id: number;
@@ -14,7 +16,7 @@ interface CallTask {
   notes?: string;
 }
 
-type AgentStatus = 'online' | 'on_call' | 'break';
+type AgentStatus = 'online' | 'on_call' | 'break' | 'offline';
 type MicStatus = 'unknown' | 'granted' | 'denied';
 type CallUiStatus = 'idle' | 'initiating' | 'ringing' | 'connected' | 'ended' | 'failed';
 
@@ -74,6 +76,9 @@ export default function AgentDashboard() {
   const [suggestedScript, setSuggestedScript] = useState<SuggestedScriptResponse | null>(null);
   const [telephonyInfo, setTelephonyInfo] = useState<any>(null);
 
+  const [incomingCall, setIncomingCall] = useState<IncomingCallPayload | null>(null);
+  const [showIncomingCallModal, setShowIncomingCallModal] = useState(false);
+
   const [outcome, setOutcome] = useState('');
   const [notes, setNotes] = useState('');
   const [followUpAt, setFollowUpAt] = useState('');
@@ -81,6 +86,74 @@ export default function AgentDashboard() {
   useEffect(() => {
     loadDashboard();
   }, []);
+
+  useEffect(() => {
+    // Load persisted presence + attach realtime screen-pop.
+    const loadPresence = async () => {
+      try {
+        const res = await apiClient.get('/telephony/agents/me/status');
+        const s = (res.data as any)?.status as AgentStatus;
+        if (s) setAgentStatus(s);
+      } catch {
+        // ignore
+      }
+    };
+
+    loadPresence();
+
+    const socket = getTelephonySocket();
+    const onIncoming = (payload: IncomingCallPayload) => {
+      setIncomingCall(payload);
+      setShowIncomingCallModal(true);
+      const phone = String(payload?.call?.customerPhone || payload?.call?.fromNumber || '').trim();
+      if (phone) setDialNumber(phone);
+    };
+
+    const onCallUpdated = (payload: any) => {
+      const updated = payload?.call;
+      if (!updated) return;
+
+      if (telephonyInfo?.telephonyCallId && Number(updated.id) === Number(telephonyInfo.telephonyCallId)) {
+        setTelephonyInfo((prev: any) => ({ ...(prev || {}), call: updated }));
+      }
+
+      if (updated?.agentUserId && Number(updated.agentUserId) === Number(agentId)) {
+        if (updated?.status === 'answered') {
+          setCallStatus('connected');
+          setAgentStatus('on_call');
+        }
+        if (updated?.status === 'completed' || updated?.status === 'failed' || updated?.status === 'missed') {
+          setCallStatus('ended');
+          setAgentStatus('online');
+        }
+      }
+    };
+
+    const onPresence = (payload: any) => {
+      if (payload?.userId && Number(payload.userId) === Number(agentId) && payload?.status) {
+        setAgentStatus(payload.status);
+      }
+    };
+
+    socket.on('incoming_call', onIncoming);
+    socket.on('call_updated', onCallUpdated);
+    socket.on('agent_presence', onPresence);
+
+    return () => {
+      socket.off('incoming_call', onIncoming);
+      socket.off('call_updated', onCallUpdated);
+      socket.off('agent_presence', onPresence);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [agentId, telephonyInfo?.telephonyCallId]);
+
+  const updatePresence = async (status: AgentStatus) => {
+    try {
+      await apiClient.post('/telephony/agents/me/status', { status });
+    } catch (err) {
+      console.error('Failed to update agent presence', err);
+    }
+  };
 
   const loadDashboard = async () => {
     try {
@@ -192,6 +265,7 @@ export default function AgentDashboard() {
     try {
       setCallStatus('initiating');
       setAgentStatus('on_call');
+      updatePresence('on_call');
       await requestMicPermission();
 
       const res = await apiClient.post('/telephony/calls/initiate', {
@@ -206,12 +280,14 @@ export default function AgentDashboard() {
       console.error('Failed to initiate telephony call:', error);
       setCallStatus('failed');
       setAgentStatus('online');
+      updatePresence('online');
     }
   };
 
   const handleEndCallUi = () => {
     setCallStatus('ended');
     setAgentStatus('online');
+    updatePresence('online');
     setIsMuted(false);
     setIsOnHold(false);
     setIsRecording(false);
@@ -482,6 +558,57 @@ export default function AgentDashboard() {
         </div>
 
         {/* Customer Detail Modal */}
+        {showIncomingCallModal && incomingCall && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg shadow-xl w-full max-w-xl overflow-hidden">
+              <div className="px-6 py-4 border-b flex items-center justify-between">
+                <div>
+                  <h2 className="text-lg font-bold text-gray-800">Incoming Call</h2>
+                  <p className="text-sm text-gray-600">{incomingCall?.call?.customerPhone || incomingCall?.call?.fromNumber || 'Unknown number'}</p>
+                </div>
+                <button
+                  className="text-sm px-3 py-1 rounded border"
+                  onClick={() => {
+                    setShowIncomingCallModal(false);
+                    setIncomingCall(null);
+                  }}
+                >
+                  Close
+                </button>
+              </div>
+
+              <div className="p-6 space-y-4">
+                {incomingCall.customer ? (
+                  <div className="bg-green-50 border border-green-200 rounded p-4">
+                    <div className="text-sm font-semibold text-green-900">Known Caller</div>
+                    <div className="text-sm text-green-900 mt-1">
+                      {incomingCall.customer.name || 'Customer'} (#{incomingCall.customer.id})
+                    </div>
+                    <div className="text-xs text-green-900 mt-1">{incomingCall.customer.phone || ''} {incomingCall.customer.email ? `• ${incomingCall.customer.email}` : ''}</div>
+                    <div className="mt-3">
+                      <Link
+                        className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                        href={`/admin/customers/${incomingCall.customer.id}`}
+                      >
+                        Open customer profile
+                      </Link>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="bg-yellow-50 border border-yellow-200 rounded p-4">
+                    <div className="text-sm font-semibold text-yellow-900">Unknown Caller</div>
+                    <div className="text-xs text-yellow-900 mt-1">No customer matched this phone number</div>
+                  </div>
+                )}
+
+                <div className="text-xs text-gray-600">
+                  Call ID: <span className="font-semibold text-gray-900">{incomingCall?.call?.id ?? '—'}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {showCustomerModal && selectedTask && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-lg shadow-xl w-full max-w-6xl max-h-[92vh] overflow-hidden flex flex-col">
@@ -498,9 +625,17 @@ export default function AgentDashboard() {
                       ? 'bg-red-50 text-red-800 border-red-200'
                       : agentStatus === 'break'
                       ? 'bg-yellow-50 text-yellow-800 border-yellow-200'
+                      : agentStatus === 'offline'
+                      ? 'bg-gray-50 text-gray-800 border-gray-200'
                       : 'bg-green-50 text-green-800 border-green-200'
                   }`}>
-                    {agentStatus === 'on_call' ? 'On Call' : agentStatus === 'break' ? 'Break' : 'Online'}
+                    {agentStatus === 'on_call'
+                      ? 'On Call'
+                      : agentStatus === 'break'
+                      ? 'Break'
+                      : agentStatus === 'offline'
+                      ? 'Offline'
+                      : 'Online'}
                   </span>
 
                   <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${
@@ -516,7 +651,11 @@ export default function AgentDashboard() {
                   <div className="text-sm text-gray-700 font-semibold">Timer: {formatTime(callSeconds)}</div>
 
                   <button
-                    onClick={() => setAgentStatus((s) => (s === 'break' ? 'online' : 'break'))}
+                    onClick={() => {
+                      const next = agentStatus === 'break' ? 'online' : 'break';
+                      setAgentStatus(next);
+                      updatePresence(next);
+                    }}
                     className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm"
                     disabled={callStatus === 'connected' || callStatus === 'initiating'}
                   >

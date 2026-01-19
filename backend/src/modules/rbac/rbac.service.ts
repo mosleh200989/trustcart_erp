@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Role } from './role.entity';
@@ -27,6 +27,47 @@ export class RbacService {
       where: { slug },
       relations: ['permissions']
     });
+  }
+
+  async createRole(input: { name: string; slug: string; description?: string | null; priority?: number | null }): Promise<Role> {
+    const name = String(input?.name || '').trim();
+    const slug = String(input?.slug || '').trim();
+    const description = input?.description == null ? '' : String(input.description);
+    const priority = input?.priority == null ? 0 : Number(input.priority);
+
+    if (!name) throw new BadRequestException('Role name is required');
+    if (!slug) throw new BadRequestException('Role slug is required');
+    if (!Number.isFinite(priority)) throw new BadRequestException('Invalid priority');
+    if (!/^[a-z0-9-]+$/.test(slug)) {
+      throw new BadRequestException('Role slug must be lowercase letters/numbers with hyphens only');
+    }
+
+    const existing = await this.rolesRepository.findOne({ where: [{ slug }, { name }] as any });
+    if (existing) {
+      throw new BadRequestException('A role with this name/slug already exists');
+    }
+
+    const role = new Role();
+    role.name = name;
+    role.slug = slug;
+    role.description = description || '';
+    role.priority = Math.trunc(priority);
+    role.is_active = true;
+
+    return this.rolesRepository.save(role);
+  }
+
+  async deactivateRole(roleId: number): Promise<void> {
+    const role = await this.rolesRepository.findOne({ where: { id: roleId } });
+    if (!role) throw new NotFoundException('Role not found');
+
+    if (role.slug === 'super-admin' || role.slug === 'admin') {
+      throw new BadRequestException('This role cannot be deactivated');
+    }
+
+    if (!role.is_active) return;
+
+    await this.rolesRepository.update({ id: roleId }, { is_active: false });
   }
 
   // Get all permissions
@@ -116,9 +157,10 @@ export class RbacService {
       const result = await this.rolesRepository.query(`
         SELECT EXISTS (
           SELECT 1 FROM user_roles ur
+          INNER JOIN roles r ON r.id = ur.role_id
           INNER JOIN role_permissions rp ON ur.role_id = rp.role_id
           INNER JOIN permissions p ON rp.permission_id = p.id
-          WHERE ur.user_id = $1 AND p.slug = $2
+          WHERE ur.user_id = $1 AND p.slug = $2 AND r.is_active = TRUE
         ) as has_permission
       `, [userId, permissionSlug]);
 
@@ -136,7 +178,8 @@ export class RbacService {
         SELECT DISTINCT p.* FROM permissions p
         INNER JOIN role_permissions rp ON p.id = rp.permission_id
         INNER JOIN user_roles ur ON rp.role_id = ur.role_id
-        WHERE ur.user_id = $1
+        INNER JOIN roles r ON r.id = ur.role_id
+        WHERE ur.user_id = $1 AND r.is_active = TRUE
         ORDER BY p.module, p.action
       `, [userId]);
 
@@ -152,7 +195,7 @@ export class RbacService {
     const result = await this.rolesRepository.query(`
       SELECT r.* FROM roles r
       INNER JOIN user_roles ur ON r.id = ur.role_id
-      WHERE ur.user_id = $1
+      WHERE ur.user_id = $1 AND r.is_active = TRUE
       ORDER BY r.priority DESC
     `, [userId]);
 
@@ -161,6 +204,14 @@ export class RbacService {
 
   // Assign role to user
   async assignRoleToUser(userId: number, roleId: number, assignedBy?: number): Promise<void> {
+    const role = await this.rolesRepository.findOne({ where: { id: roleId } });
+    if (!role) {
+      throw new NotFoundException('Role not found');
+    }
+    if (!role.is_active) {
+      throw new BadRequestException('Cannot assign an inactive role');
+    }
+
     await this.rolesRepository.query(`
       INSERT INTO user_roles (user_id, role_id, assigned_by)
       VALUES ($1, $2, $3)

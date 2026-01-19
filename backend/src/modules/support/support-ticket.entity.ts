@@ -30,6 +30,34 @@ export class SupportTicket {
   })
   priority: string; // low, medium, high, urgent
 
+  @Column({
+    name: 'severity',
+    length: 20,
+    default: 'medium',
+    nullable: true,
+  })
+  severity: string; // low, medium, high, critical
+
+  @Column({
+    name: 'support_group',
+    length: 50,
+    default: 'general',
+    nullable: true,
+  })
+  supportGroup: string; // general, billing, delivery, account, technical, etc.
+
+  @Column({ type: 'timestamp', nullable: true, name: 'first_response_due_at' })
+  firstResponseDueAt: Date | null;
+
+  @Column({ type: 'timestamp', nullable: true, name: 'resolution_due_at' })
+  resolutionDueAt: Date | null;
+
+  @Column({ type: 'timestamp', nullable: true, name: 'resolved_at' })
+  resolvedAt: Date | null;
+
+  @Column({ type: 'boolean', default: false, name: 'sla_breached' })
+  slaBreached: boolean;
+
   @Column({ type: 'int', name: 'assigned_to', nullable: true })
   assignedTo: number | null;
 
@@ -37,7 +65,7 @@ export class SupportTicket {
   response: string | null;
 
   @Column({ type: 'timestamp', nullable: true, name: 'responded_at' })
-  respondedAt: Date;
+  respondedAt: Date | null;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

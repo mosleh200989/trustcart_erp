@@ -16,6 +16,21 @@ export class RbacController {
     return this.rbacService.findAllRoles();
   }
 
+  // Create a role
+  @Post('roles')
+  @RequirePermissions('assign-roles')
+  async createRole(@Body() body: { name: string; slug: string; description?: string; priority?: number }) {
+    return this.rbacService.createRole(body);
+  }
+
+  // Deactivate a role (soft delete)
+  @Delete('roles/:roleId')
+  @RequirePermissions('assign-roles')
+  async deactivateRole(@Param('roleId') roleId: string) {
+    await this.rbacService.deactivateRole(Number(roleId));
+    return { message: 'Role deactivated successfully' };
+  }
+
   // Get role by slug with permissions
   @Get('roles/:slug')
   @RequirePermissions('view-users')

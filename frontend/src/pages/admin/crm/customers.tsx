@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import AdminLayout from '@/layouts/AdminLayout';
 import apiClient from '@/services/api';
 import Link from 'next/link';
-import { FaFileExport, FaTags, FaTrash, FaChevronLeft, FaChevronRight } from 'react-icons/fa';
+import { FaFileExport, FaTags, FaTrash, FaChevronLeft, FaChevronRight, FaSms, FaEnvelope } from 'react-icons/fa';
 
 interface Customer {
   id: number;
@@ -27,6 +27,10 @@ export default function CustomersPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
+  const [smsModalOpen, setSmsModalOpen] = useState(false);
+  const [smsCustomer, setSmsCustomer] = useState<Customer | null>(null);
+  const [smsMessage, setSmsMessage] = useState('');
+  const [smsSending, setSmsSending] = useState(false);
   const itemsPerPage = 10;
 
   useEffect(() => {
@@ -154,6 +158,38 @@ export default function CustomersPage() {
       bronze: 'bg-orange-100 text-orange-800',
     };
     return colors[tier?.toLowerCase() || 'bronze'] || 'bg-gray-100 text-gray-800';
+  };
+
+  const openSmsModal = (customer: Customer) => {
+    setSmsCustomer(customer);
+    setSmsMessage('');
+    setSmsModalOpen(true);
+  };
+
+  const closeSmsModal = () => {
+    setSmsModalOpen(false);
+    setSmsCustomer(null);
+    setSmsMessage('');
+  };
+
+  const sendSms = async () => {
+    if (!smsCustomer) return;
+    if (!smsMessage.trim()) return;
+
+    try {
+      setSmsSending(true);
+      await apiClient.post('/crm/communications/sms', {
+        customerId: smsCustomer.id,
+        message: smsMessage,
+      });
+      alert('SMS sent');
+      closeSmsModal();
+    } catch (error) {
+      console.error('Failed to send SMS', error);
+      alert('Failed to send SMS');
+    } finally {
+      setSmsSending(false);
+    }
   };
 
   return (
@@ -305,12 +341,29 @@ export default function CustomersPage() {
                         ${(customer.totalSpent || 0).toFixed(2)}
                       </td>
                       <td className="px-6 py-4 text-sm">
-                        <Link
-                          href={`/admin/crm/customer/${customer.id}`}
-                          className="text-blue-600 hover:text-blue-800"
-                        >
-                          View Details
-                        </Link>
+                        <div className="flex items-center gap-3">
+                          <button
+                            type="button"
+                            onClick={() => openSmsModal(customer)}
+                            className="text-gray-700 hover:text-gray-900 flex items-center gap-1"
+                            title="Send SMS"
+                          >
+                            <FaSms /> SMS
+                          </button>
+                          <Link
+                            href="/admin/crm/emails"
+                            className="text-gray-700 hover:text-gray-900 flex items-center gap-1"
+                            title="Go to Email Manager"
+                          >
+                            <FaEnvelope /> Email
+                          </Link>
+                          <Link
+                            href={`/admin/crm/customer/${customer.id}`}
+                            className="text-blue-600 hover:text-blue-800"
+                          >
+                            View Details
+                          </Link>
+                        </div>
                       </td>
                     </tr>
                   ))
@@ -346,6 +399,48 @@ export default function CustomersPage() {
             </div>
           </div>
         </div>
+
+        {smsModalOpen && smsCustomer && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg w-full max-w-lg">
+              <div className="p-4 border-b border-gray-200 flex items-center justify-between">
+                <h2 className="text-lg font-semibold text-gray-900">Send SMS</h2>
+                <button onClick={closeSmsModal} className="text-gray-500 hover:text-gray-700">
+                  Close
+                </button>
+              </div>
+
+              <div className="p-4 space-y-3">
+                <div className="text-sm text-gray-700">
+                  To: <span className="font-medium">{smsCustomer.name} {smsCustomer.lastName}</span> ({smsCustomer.phone})
+                </div>
+                <textarea
+                  value={smsMessage}
+                  onChange={(e) => setSmsMessage(e.target.value)}
+                  rows={5}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                  placeholder="Type your SMS message..."
+                />
+                <div className="flex justify-end gap-2">
+                  <button
+                    onClick={closeSmsModal}
+                    className="px-4 py-2 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    disabled={smsSending}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={sendSms}
+                    className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+                    disabled={smsSending || !smsMessage.trim()}
+                  >
+                    {smsSending ? 'Sending...' : 'Send SMS'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </AdminLayout>
   );

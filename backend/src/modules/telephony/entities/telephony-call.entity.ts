@@ -49,6 +49,21 @@ export class TelephonyCall {
   @Column({ name: 'duration_seconds', type: 'int', nullable: true })
   durationSeconds!: number | null;
 
+  @Column({ name: 'queue_name', type: 'varchar', length: 100, nullable: true })
+  queueName!: string | null;
+
+  @Column({ name: 'trunk_name', type: 'varchar', length: 100, nullable: true })
+  trunkName!: string | null;
+
+  @Column({ name: 'wait_seconds', type: 'int', nullable: true })
+  waitSeconds!: number | null;
+
+  @Column({ name: 'hold_seconds', type: 'int', nullable: true })
+  holdSeconds!: number | null;
+
+  @Column({ type: 'varchar', length: 50, nullable: true })
+  disposition!: string | null;
+
   @Column({ name: 'recording_url', type: 'text', nullable: true })
   recordingUrl!: string | null;
 

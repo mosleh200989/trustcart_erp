@@ -2,6 +2,8 @@ import { IsIn, IsInt, IsOptional, IsString, MaxLength, MinLength, ValidateIf } f
 
 export const SUPPORT_TICKET_STATUSES = ['open', 'in_progress', 'in-progress', 'resolved', 'closed'] as const;
 export const SUPPORT_TICKET_PRIORITIES = ['low', 'medium', 'high', 'urgent'] as const;
+export const SUPPORT_TICKET_SEVERITIES = ['low', 'medium', 'high', 'critical'] as const;
+export const SUPPORT_TICKET_GROUPS = ['general', 'billing', 'delivery', 'account', 'technical'] as const;
 
 export class CreateSupportTicketDto {
   @IsString()
@@ -17,6 +19,15 @@ export class CreateSupportTicketDto {
   @IsOptional()
   @IsIn(SUPPORT_TICKET_PRIORITIES as unknown as string[])
   priority?: (typeof SUPPORT_TICKET_PRIORITIES)[number];
+
+  // Optional (typically set by routing/admin)
+  @IsOptional()
+  @IsIn(SUPPORT_TICKET_SEVERITIES as unknown as string[])
+  severity?: (typeof SUPPORT_TICKET_SEVERITIES)[number];
+
+  @IsOptional()
+  @IsIn(SUPPORT_TICKET_GROUPS as unknown as string[])
+  supportGroup?: (typeof SUPPORT_TICKET_GROUPS)[number];
 }
 
 export class UpdateSupportTicketDto {
@@ -39,6 +50,14 @@ export class UpdateSupportTicketDto {
   @IsOptional()
   @IsIn(SUPPORT_TICKET_PRIORITIES as unknown as string[])
   priority?: (typeof SUPPORT_TICKET_PRIORITIES)[number];
+
+  @IsOptional()
+  @IsIn(SUPPORT_TICKET_SEVERITIES as unknown as string[])
+  severity?: (typeof SUPPORT_TICKET_SEVERITIES)[number];
+
+  @IsOptional()
+  @IsIn(SUPPORT_TICKET_GROUPS as unknown as string[])
+  supportGroup?: (typeof SUPPORT_TICKET_GROUPS)[number];
 
   @IsOptional()
   @ValidateIf((o) => o.assignedTo !== null)
@@ -70,4 +89,14 @@ export class UpdateSupportTicketPriorityDto {
 export class AssignSupportTicketDto {
   @IsOptional()
   assignedTo?: number | null;
+}
+
+export class UpdateSupportTicketRoutingDto {
+  @IsOptional()
+  @IsIn(SUPPORT_TICKET_GROUPS as unknown as string[])
+  supportGroup?: (typeof SUPPORT_TICKET_GROUPS)[number];
+
+  @IsOptional()
+  @IsIn(SUPPORT_TICKET_SEVERITIES as unknown as string[])
+  severity?: (typeof SUPPORT_TICKET_SEVERITIES)[number];
 }

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import AdminLayout from '@/layouts/AdminLayout';
 import apiClient from '@/services/api';
 
@@ -21,6 +22,7 @@ interface PaginatedResponse {
 export default function CrmLeadsPage() {
   const [leads, setLeads] = useState<LeadCustomer[]>([]);
   const [loading, setLoading] = useState(true);
+  const [convertingId, setConvertingId] = useState<number | string | null>(null);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [priority, setPriority] = useState<string>('');
@@ -58,6 +60,23 @@ export default function CrmLeadsPage() {
     if (lead.name) return lead.name;
     const full = [lead.name, lead.last_name].filter(Boolean).join(' ');
     return full || 'N/A';
+  };
+
+  const convertLead = async (customerId: number | string) => {
+    if (!customerId) return;
+    const ok = window.confirm('Convert this lead to a customer?');
+    if (!ok) return;
+
+    try {
+      setConvertingId(customerId);
+      await apiClient.post(`/crm/team/leads/${customerId}/convert`);
+      await loadLeads();
+    } catch (error) {
+      console.error('Failed to convert lead', error);
+      alert('Failed to convert lead');
+    } finally {
+      setConvertingId(null);
+    }
   };
 
   return (
@@ -113,6 +132,7 @@ export default function CrmLeadsPage() {
                     <th className="px-4 py-2 text-left font-medium text-gray-500 uppercase">Priority</th>
                     <th className="px-4 py-2 text-left font-medium text-gray-500 uppercase">Status</th>
                     <th className="px-4 py-2 text-left font-medium text-gray-500 uppercase">Assigned To</th>
+                    <th className="px-4 py-2 text-left font-medium text-gray-500 uppercase">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
@@ -125,6 +145,23 @@ export default function CrmLeadsPage() {
                       <td className="px-4 py-2 capitalize">{lead.priority || '-'}</td>
                       <td className="px-4 py-2 capitalize">{lead.status || '-'}</td>
                       <td className="px-4 py-2">{lead.assigned_to ?? 'Unassigned'}</td>
+                      <td className="px-4 py-2">
+                        <div className="flex items-center gap-2">
+                          <Link
+                            className="px-3 py-1 border rounded hover:bg-gray-50"
+                            href={`/admin/crm/customer/${lead.id}`}
+                          >
+                            View
+                          </Link>
+                          <button
+                            className="px-3 py-1 border rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+                            disabled={convertingId === lead.id}
+                            onClick={() => convertLead(lead.id)}
+                          >
+                            {convertingId === lead.id ? 'Converting…' : 'Convert'}
+                          </button>
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>

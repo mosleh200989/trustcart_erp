@@ -27,6 +27,12 @@ export class CrmTeamController {
     return await this.crmTeamService.setLeadPriority(customerId, body.priority);
   }
 
+  @Post('leads/:customerId/convert')
+  @RequirePermissions('edit-leads')
+  async convertLead(@Param('customerId') customerId: string, @Request() req: any) {
+    return await this.crmTeamService.convertLeadToCustomer(customerId, req.user.id);
+  }
+
   @Get('leads')
   @RequirePermissions('receive-new-leads')
   async getTeamLeads(@Query() query: any, @Request() req: any) {
