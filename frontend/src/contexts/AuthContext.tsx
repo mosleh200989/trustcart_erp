@@ -6,6 +6,7 @@ export type AuthPermission = { id: number; slug: string; name: string };
 
 export type AuthUser = {
   id: string;
+  type?: 'user' | 'customer' | string;
   email?: string | null;
   phone?: string | null;
   name?: string | null;
@@ -43,6 +44,8 @@ const ADMIN_ROLE_SLUGS = new Set([
   'brand-manager',
   'recruiter',
 ]);
+
+const NON_ADMIN_PORTAL_ROLE_SLUGS = new Set(['customer-account', 'supplier-account']);
 
 function normalizeUserId(user: any): string {
   return String(user?.id ?? '');
@@ -134,11 +137,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   const isAdminUser = useMemo(() => {
-    const roleSlugs = new Set([
-      ...(roles || []).map((r) => r.slug),
-      ...(user?.roleSlug ? [user.roleSlug] : []),
-    ]);
+    const roleSlugs = new Set(
+      [...(roles || []).map((r) => r.slug), ...(user?.roleSlug ? [user.roleSlug] : [])].filter(Boolean),
+    );
 
+    // Primary rule: any authenticated backoffice/staff user can access the admin portal,
+    // except explicitly customer/supplier portal accounts.
+    const isStaffUser = user?.type === 'user';
+    const isExcludedPortalRole = [...roleSlugs].some((slug) => NON_ADMIN_PORTAL_ROLE_SLUGS.has(slug));
+
+    if (isStaffUser && !isExcludedPortalRole) return true;
+
+    // Fallback allowlist for setups where `type` isn't present.
     for (const slug of roleSlugs) {
       if (ADMIN_ROLE_SLUGS.has(slug)) return true;
     }

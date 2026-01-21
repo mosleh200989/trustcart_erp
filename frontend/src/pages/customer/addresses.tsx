@@ -146,7 +146,7 @@ export default function CustomerAddressesPage() {
   return (
     <CustomerLayout>
       <div className="space-y-6">
-        <div className="flex justify-between items-center">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
           <div>
             <h1 className="text-2xl font-bold">My Addresses</h1>
             <p className="text-gray-600 text-sm mt-1">
@@ -159,7 +159,7 @@ export default function CustomerAddressesPage() {
               setEditingId(null);
               setShowForm(true);
             }}
-            className="bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600"
+            className="w-full sm:w-auto bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600"
           >
             + Add Address
           </button>
@@ -201,7 +201,7 @@ export default function CustomerAddressesPage() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     District
@@ -251,10 +251,10 @@ export default function CustomerAddressesPage() {
                 </label>
               </div>
 
-              <div className="flex gap-3">
+              <div className="flex flex-col sm:flex-row gap-3">
                 <button
                   type="submit"
-                  className="bg-orange-500 text-white px-6 py-2 rounded-lg hover:bg-orange-600"
+                  className="w-full sm:w-auto bg-orange-500 text-white px-6 py-2 rounded-lg hover:bg-orange-600"
                 >
                   Save Address
                 </button>
@@ -265,7 +265,7 @@ export default function CustomerAddressesPage() {
                     setEditingId(null);
                     resetForm();
                   }}
-                  className="bg-gray-300 text-gray-700 px-6 py-2 rounded-lg hover:bg-gray-400"
+                  className="w-full sm:w-auto bg-gray-300 text-gray-700 px-6 py-2 rounded-lg hover:bg-gray-400"
                 >
                   Cancel
                 </button>
@@ -288,7 +288,7 @@ export default function CustomerAddressesPage() {
                   address.isPrimary ? 'border-2 border-orange-500' : ''
                 }`}
               >
-                <div className="flex justify-between items-start">
+                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-2">
                       <h3 className="font-semibold text-lg capitalize">

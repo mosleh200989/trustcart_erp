@@ -12,8 +12,8 @@ export class RbacController {
   // Get all roles
   @Get('roles')
   @RequirePermissions('view-users')
-  async getRoles() {
-    return this.rbacService.findAllRoles();
+  async getRoles(@Query('includeInactive') includeInactive?: string) {
+    return this.rbacService.findAllRoles({ includeInactive: String(includeInactive) === 'true' });
   }
 
   // Create a role
@@ -21,6 +21,17 @@ export class RbacController {
   @RequirePermissions('assign-roles')
   async createRole(@Body() body: { name: string; slug: string; description?: string; priority?: number }) {
     return this.rbacService.createRole(body);
+  }
+
+  // Update a role
+  @Put('roles/:roleId')
+  @RequirePermissions('assign-roles')
+  async updateRole(
+    @Param('roleId') roleId: string,
+    @Body()
+    body: { name?: string; slug?: string; description?: string | null; priority?: number | null; is_active?: boolean },
+  ) {
+    return this.rbacService.updateRole(Number(roleId), body);
   }
 
   // Deactivate a role (soft delete)

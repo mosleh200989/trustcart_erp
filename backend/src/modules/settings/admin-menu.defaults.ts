@@ -312,10 +312,16 @@ export const DEFAULT_ADMIN_MENU: AdminMenuSeedNode[] = [
   {
     title: 'Users',
     icon: 'FaUser',
+    path: '/admin/users',
+    requiredPermissions: ['view-users'],
+  },
+  {
+    title: 'Roles',
+    icon: 'FaUsers',
     children: [
-      { title: 'Manage Users', icon: 'FaUser', path: '/admin/users', requiredPermissions: ['view-users'] },
-      { title: 'Assign Roles', icon: 'FaUser', path: '/admin/users/roles', requiredPermissions: ['assign-roles'] },
-      { title: 'Role Permissions', icon: 'FaUser', path: '/admin/users/permissions', requiredPermissions: ['assign-roles'] },
+      { title: 'Manage Roles', icon: 'FaUsers', path: '/admin/roles', requiredPermissions: ['assign-roles'] },
+      { title: 'Assign Roles', icon: 'FaUsers', path: '/admin/roles/assign', requiredPermissions: ['assign-roles'] },
+      { title: 'Role Permissions', icon: 'FaUsers', path: '/admin/roles/permissions', requiredPermissions: ['assign-roles'] },
     ],
   },
   { title: 'Profile', icon: 'FaUser', path: '/admin/profile' },

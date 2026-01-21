@@ -189,6 +189,9 @@ export class CrmTeamService {
     const where: any = {};
     // Leads are represented as customers in lifecycle_stage='lead'
     where.lifecycleStage = 'lead';
+    // Keep CRM leads aligned with the main Customers list (soft-deleted customers should not appear)
+    where.is_deleted = false;
+    where.isActive = true;
     if (priority) where.priority = priority;
     if (status) where.status = status;
 
@@ -255,7 +258,7 @@ export class CrmTeamService {
     const skip = (page - 1) * limit;
 
     const [data, total] = await this.customerRepository.findAndCount({
-      where: { assigned_to: agentId },
+      where: { assigned_to: agentId, is_deleted: false, isActive: true },
       order: { createdAt: 'DESC' },
       skip,
       take: limit
@@ -303,7 +306,7 @@ export class CrmTeamService {
   async getEscalatedCustomers(teamLeaderId: number): Promise<Customer[]> {
     // Get customers marked for escalation
     return await this.customerRepository.find({
-      where: { is_escalated: true },
+      where: { is_escalated: true, is_deleted: false, isActive: true },
       order: { escalated_at: 'DESC' }
     });
   }
@@ -784,6 +787,57 @@ export class CrmTeamService {
       teamLeaderId,
     });
     return this.salesTeamRepository.save(team);
+  }
+
+  async updateTeam(
+    teamLeaderId: number,
+    teamId: number,
+    data: { name?: string; code?: string | null },
+  ): Promise<SalesTeam> {
+    if (!Number.isFinite(teamId)) {
+      throw new NotFoundException('Team not found');
+    }
+
+    const team = await this.salesTeamRepository.findOne({ where: { id: teamId } });
+    if (!team) {
+      throw new NotFoundException('Team not found');
+    }
+    if (team.teamLeaderId !== teamLeaderId) {
+      throw new ForbiddenException('You are not the leader of this team');
+    }
+
+    if (typeof data.name === 'string') {
+      const name = data.name.trim();
+      if (!name) throw new NotFoundException('Team name is required');
+      team.name = name;
+    }
+
+    if (data.code !== undefined) {
+      const code = data.code === null ? null : String(data.code).trim();
+      team.code = code ? code : null;
+    }
+
+    return this.salesTeamRepository.save(team);
+  }
+
+  async deleteTeam(teamLeaderId: number, teamId: number): Promise<{ success: true }> {
+    if (!Number.isFinite(teamId)) {
+      throw new NotFoundException('Team not found');
+    }
+
+    const team = await this.salesTeamRepository.findOne({ where: { id: teamId } });
+    if (!team) {
+      throw new NotFoundException('Team not found');
+    }
+    if (team.teamLeaderId !== teamLeaderId) {
+      throw new ForbiddenException('You are not the leader of this team');
+    }
+
+    // Unassign any users from this team first (prevents FK issues and avoids leaving users pointing to a deleted team).
+    await this.usersRepository.update({ teamId }, { teamId: null });
+
+    await this.salesTeamRepository.delete({ id: teamId });
+    return { success: true };
   }
 
   async assignAgentToTeam(teamLeaderId: number, teamId: number, agentId: number): Promise<User> {

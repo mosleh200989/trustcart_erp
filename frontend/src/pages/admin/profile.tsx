@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import AdminLayout from '@/layouts/AdminLayout';
+import PasswordInput from '@/components/common/PasswordInput';
 import { users as usersAPI } from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -15,7 +16,7 @@ type Profile = {
 
 export default function AdminProfilePage() {
   const router = useRouter();
-  const { refresh } = useAuth();
+  const { user, roles, refresh } = useAuth();
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -128,6 +129,18 @@ export default function AdminProfilePage() {
         ) : (
           <div className="bg-white rounded-lg shadow p-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
+                <input
+                  value={
+                    (roles && roles.length > 0)
+                      ? roles.map((r) => r.name || r.slug).join(', ')
+                      : (user as any)?.roleSlug || ''
+                  }
+                  disabled
+                  className="w-full px-3 py-2 border border-gray-200 rounded bg-gray-50 text-gray-600"
+                />
+              </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">First name</label>
                 <input
@@ -177,21 +190,19 @@ export default function AdminProfilePage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">New password</label>
-                  <input
-                    type="password"
+                  <PasswordInput
                     value={form.password}
                     onChange={(e) => setForm((p) => ({ ...p, password: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded"
+                    inputClassName="w-full px-3 py-2 border border-gray-300 rounded"
                     placeholder="Leave blank to keep current"
                   />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Confirm password</label>
-                  <input
-                    type="password"
+                  <PasswordInput
                     value={form.confirmPassword}
                     onChange={(e) => setForm((p) => ({ ...p, confirmPassword: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded"
+                    inputClassName="w-full px-3 py-2 border border-gray-300 rounded"
                     placeholder="Repeat new password"
                   />
                 </div>

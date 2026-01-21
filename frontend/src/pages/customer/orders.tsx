@@ -222,7 +222,7 @@ export default function CustomerOrdersPage() {
               </div>
               
               <div className="p-6 space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-1">Order ID</label>
                     <p className="text-gray-900">#{selectedOrder.id}</p>
@@ -243,14 +243,14 @@ export default function CustomerOrdersPage() {
                       {selectedOrder.status}
                     </span>
                   </div>
-                  <div className="col-span-2">
+                  <div className="sm:col-span-2">
                     <label className="block text-sm font-semibold text-gray-700 mb-1">Total Amount</label>
                     <p className="text-2xl font-bold text-gray-900">
                       ৳{Number(selectedOrder.totalAmount || 0).toFixed(2)}
                     </p>
                   </div>
                   {selectedOrder.notes && (
-                    <div className="col-span-2">
+                    <div className="sm:col-span-2">
                       <label className="block text-sm font-semibold text-gray-700 mb-1">Delivery Information</label>
                       <p className="text-gray-900 whitespace-pre-line">{selectedOrder.notes}</p>
                     </div>

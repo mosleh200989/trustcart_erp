@@ -220,11 +220,11 @@ export default function ElectroProductCard({
                 </span>
               )}
             </div>
-            {hasDiscount && originalPriceNum && (
-              <div className="text-xs text-green-600 font-semibold">
-                You save ৳{(originalPriceNum - priceNum).toFixed(2)}
-              </div>
-            )}
+            <div className="text-xs text-green-600 font-semibold min-h-[1rem]">
+              {hasDiscount && originalPriceNum
+                ? `You save ৳${(originalPriceNum - priceNum).toFixed(2)}`
+                : null}
+            </div>
           </div>
         </div>
       </Link>

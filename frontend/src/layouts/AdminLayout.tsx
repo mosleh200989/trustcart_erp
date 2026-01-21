@@ -304,11 +304,17 @@ const menuItems: MenuItem[] = [
   {
     title: 'Users',
     icon: FaUser,
+    path: '/admin/users',
+    requiredPermissions: ['view-users']
+  },
+  {
+    title: 'Roles',
+    icon: FaUsers,
     children: [
-      { title: 'Manage Users', icon: FaUser, path: '/admin/users', requiredPermissions: ['view-users'] },
-      { title: 'Assign Roles', icon: FaUser, path: '/admin/users/roles', requiredPermissions: ['assign-roles'] },
-      { title: 'Role Permissions', icon: FaUser, path: '/admin/users/permissions', requiredPermissions: ['assign-roles'] },
-    ]
+      { title: 'Manage Roles', icon: FaUsers, path: '/admin/roles', requiredPermissions: ['assign-roles'] },
+      { title: 'Assign Roles', icon: FaUsers, path: '/admin/roles/assign', requiredPermissions: ['assign-roles'] },
+      { title: 'Role Permissions', icon: FaUsers, path: '/admin/roles/permissions', requiredPermissions: ['assign-roles'] },
+    ],
   },
   { title: 'Profile', icon: FaUser, path: '/admin/profile' },
   {
@@ -426,12 +432,48 @@ function findLeafByPath(items: MenuItem[], currentAsPath: string, inheritedPermi
   return null;
 }
 
+function flattenSingleChildMenus(items: MenuItem[]): MenuItem[] {
+  return items.map((item) => {
+    const children = item.children ? flattenSingleChildMenus(item.children) : undefined;
+
+    // Special-case: If Users has only Manage Users, render as a single link like Customers.
+    if (item.title === 'Users' && !item.path && children && children.length === 1 && children[0].path) {
+      const only = children[0];
+      return {
+        ...item,
+        path: only.path,
+        requiredPermissions: (only.requiredPermissions && only.requiredPermissions.length > 0)
+          ? only.requiredPermissions
+          : item.requiredPermissions,
+        children: undefined,
+      };
+    }
+
+    return { ...item, ...(children ? { children } : {}) };
+  });
+}
+
+function getPanelTitleFromRoleSlugs(roleSlugs: Set<string>): string {
+  const has = (slug: string) => roleSlugs.has(slug);
+
+  if (has('super-admin') || has('admin')) return 'Admin Panel';
+  if (has('sales-team-leader') || has('sales-executive')) return 'Sales Panel';
+  if (has('inventory-manager')) return 'Inventory Panel';
+  if (has('purchase-manager')) return 'Purchase Panel';
+  if (has('accounts')) return 'Accounts Panel';
+  if (has('hr-manager') || has('recruiter')) return 'HR Panel';
+  if (has('delivery-partner')) return 'Delivery Panel';
+  if (has('brand-manager')) return 'Marketing Panel';
+
+  return 'Admin Panel';
+}
+
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [expandedMenus, setExpandedMenus] = useState<string[]>([]);
   const [dbMenuItems, setDbMenuItems] = useState<MenuItem[] | null>(null);
   const router = useRouter();
-  const { user, isLoading, hasAnyPermission, logout } = useAuth();
+  const { user, roles, isLoading, hasAnyPermission, logout } = useAuth();
 
   useEffect(() => {
     let cancelled = false;
@@ -469,8 +511,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   const effectiveMenuItems = useMemo(() => {
     const base = dbMenuItems && dbMenuItems.length > 0 ? dbMenuItems : menuItems;
-    return ensureManageModulesLink(base);
+    return flattenSingleChildMenus(ensureManageModulesLink(base));
   }, [dbMenuItems]);
+
+  const panelTitle = useMemo(() => {
+    const slugs = new Set<string>();
+    (roles || []).forEach((r: any) => {
+      if (r?.slug) slugs.add(String(r.slug));
+    });
+    if ((user as any)?.roleSlug) slugs.add(String((user as any).roleSlug));
+    return getPanelTitleFromRoleSlugs(slugs);
+  }, [roles, user]);
 
   const visibleMenuItems = useMemo(() => {
     return filterMenuItems(effectiveMenuItems, hasAnyPermission);
@@ -566,7 +617,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <header className="bg-gradient-to-r from-white to-gray-50 shadow-md z-10">
           <div className="flex items-center justify-between px-6 py-4">
             <div className="flex items-center">
-              <h2 className="text-2xl font-bold text-gray-800">Admin Panel</h2>
+              <h2 className="text-2xl font-bold text-gray-800">{panelTitle}</h2>
             </div>
             <div className="flex items-center space-x-4">
               {/* <QuoteNotifications /> */} {/* DISABLED */}

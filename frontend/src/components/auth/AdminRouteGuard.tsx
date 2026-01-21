@@ -1,10 +1,12 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
 import { useAuth } from '@/contexts/AuthContext';
 
 export default function AdminRouteGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-  const { isLoading, user, isAdminUser } = useAuth();
+  const { isLoading, user, isAdminUser, refresh } = useAuth();
+  const lastTokenRef = useRef<string | null>(null);
+  const isRefreshingRef = useRef(false);
 
   useEffect(() => {
     if (!router.isReady) return;
@@ -17,7 +19,24 @@ export default function AdminRouteGuard({ children }: { children: React.ReactNod
     if (isLoading) return;
 
     const token = typeof window !== 'undefined' ? localStorage.getItem('authToken') : null;
-    if (!token || !user) {
+
+    // If the token changed (e.g. just logged in), refresh the auth context first
+    // so we don't redirect based on stale user/roles.
+    if (token && lastTokenRef.current !== token && !isRefreshingRef.current) {
+      lastTokenRef.current = token;
+      isRefreshingRef.current = true;
+      Promise.resolve(refresh()).finally(() => {
+        isRefreshingRef.current = false;
+      });
+      return;
+    }
+
+    if (!token) {
+      router.replace('/admin/login');
+      return;
+    }
+
+    if (!user) {
       router.replace('/admin/login');
       return;
     }
@@ -25,7 +44,7 @@ export default function AdminRouteGuard({ children }: { children: React.ReactNod
     if (!isAdminUser) {
       router.replace('/');
     }
-  }, [router, isLoading, user, isAdminUser]);
+  }, [router, isLoading, user, isAdminUser, refresh]);
 
   return <>{children}</>;
 }

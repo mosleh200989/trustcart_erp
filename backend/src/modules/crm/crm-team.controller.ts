@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Body, Param, Query, UseGuards, Request } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards, Request } from '@nestjs/common';
 import { CrmTeamService } from './crm-team.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
@@ -103,6 +103,22 @@ export class CrmTeamController {
   @RequirePermissions('view-team-leader-dashboard')
   async createTeam(@Body() body: { name: string; code?: string }, @Request() req: any) {
     return await this.crmTeamService.createTeam(req.user.id, body);
+  }
+
+  @Put('teams/:teamId')
+  @RequirePermissions('view-team-leader-dashboard')
+  async updateTeam(
+    @Param('teamId') teamId: string,
+    @Body() body: { name?: string; code?: string | null },
+    @Request() req: any,
+  ) {
+    return await this.crmTeamService.updateTeam(req.user.id, Number(teamId), body);
+  }
+
+  @Delete('teams/:teamId')
+  @RequirePermissions('view-team-leader-dashboard')
+  async deleteTeam(@Param('teamId') teamId: string, @Request() req: any) {
+    return await this.crmTeamService.deleteTeam(req.user.id, Number(teamId));
   }
 
   @Post('teams/:teamId/assign-agent')

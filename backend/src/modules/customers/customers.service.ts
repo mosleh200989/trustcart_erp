@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Customer } from './customer.entity';
@@ -64,13 +64,13 @@ export class CustomersService {
   }
 
   async findAll() {
-    return this.customersRepository.find();
+    return this.customersRepository.find({ where: { is_deleted: false } as any });
   }
 
   async findOne(id: string) {
     const numericId = Number(id);
     if (!Number.isFinite(numericId)) return null;
-    return this.customersRepository.findOne({ where: { id: numericId } });
+    return this.customersRepository.findOne({ where: { id: numericId, is_deleted: false } as any });
   }
 
   async create(createCustomerDto: any) {
@@ -346,8 +346,23 @@ export class CustomersService {
   async remove(id: string) {
     const numericId = Number(id);
     if (!Number.isFinite(numericId)) {
-      throw new Error('Invalid customer id');
+      throw new BadRequestException('Invalid customer id');
     }
-    return this.customersRepository.delete(numericId);
+
+    const existing = await this.customersRepository.findOne({ where: { id: numericId } });
+    if (!existing) {
+      throw new NotFoundException('Customer not found');
+    }
+
+    if ((existing as any).is_deleted) {
+      return { success: true, alreadyDeleted: true };
+    }
+
+    await this.customersRepository.update(numericId, {
+      is_deleted: true,
+      isActive: false,
+    } as any);
+
+    return { success: true, softDeleted: true };
   }
 }
