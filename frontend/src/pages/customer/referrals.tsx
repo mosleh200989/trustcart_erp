@@ -194,13 +194,13 @@ export default function CustomerReferralsPage() {
               
               <div className="bg-gray-50 border rounded-lg p-4 mb-4">
                 <div className="text-sm text-gray-600 mb-2">Your unique referral code:</div>
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="flex-1 bg-white border rounded-lg px-4 py-3 font-mono text-lg font-bold text-purple-600">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-3">
+                  <div className="w-full sm:flex-1 bg-white border rounded-lg px-4 py-3 font-mono text-lg font-bold text-purple-600 break-all">
                     {referralCode}
                   </div>
                   <button
                     onClick={handleCopyLink}
-                    className="flex items-center gap-2 px-4 py-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition font-semibold"
+                    className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition font-semibold"
                   >
                     <FaCopy />
                     {copySuccess ? 'Copied!' : 'Copy Link'}
@@ -218,24 +218,24 @@ export default function CustomerReferralsPage() {
 
                 <div className="border-t pt-4">
                   <div className="text-sm text-gray-600 mb-3">Share via:</div>
-                  <div className="flex gap-3">
+                  <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3">
                     <button
                       onClick={handleShareWhatsApp}
-                      className="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition"
+                      className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition"
                     >
                       <FaWhatsapp className="text-lg" />
                       WhatsApp
                     </button>
                     <button
                       onClick={handleShareFacebook}
-                      className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+                      className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
                     >
                       <FaFacebook className="text-lg" />
                       Facebook
                     </button>
                     <button
                       onClick={handleShareEmail}
-                      className="flex items-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition"
+                      className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition"
                     >
                       <FaEnvelope className="text-lg" />
                       Email

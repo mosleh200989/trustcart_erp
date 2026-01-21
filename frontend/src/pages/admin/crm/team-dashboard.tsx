@@ -47,16 +47,52 @@ const SalesTeamLeaderDashboard = () => {
   return (
     <AdminLayout>
       <div className="container mx-auto px-4 py-8">
-        <h1 className="text-3xl font-bold mb-8">Sales Team Leader Dashboard</h1>
+        <div className="mb-6 flex flex-col gap-4">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+            <h1 className="text-3xl font-bold">Sales Team Leader Dashboard</h1>
 
-        <div className="mb-6 flex gap-3">
-          <button
-            onClick={handleGenerateCalls}
-            disabled={generating}
-            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50"
-          >
-            {generating ? 'Generating...' : 'Generate Today\'s Auto Calls'}
-          </button>
+            <button
+              onClick={handleGenerateCalls}
+              disabled={generating}
+              className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50 w-full md:w-auto"
+            >
+              {generating ? 'Generating...' : 'Generate Today\'s Auto Calls'}
+            </button>
+          </div>
+
+          {/* Quick Actions (moved from bottom) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+            <a
+              href="/admin/crm/leads"
+              className="bg-blue-600 text-white text-center py-3 rounded-lg hover:bg-blue-700"
+            >
+              📊 View All Leads
+            </a>
+            <a
+              href="/admin/crm/team/assign"
+              className="bg-green-600 text-white text-center py-3 rounded-lg hover:bg-green-700"
+            >
+              🎯 Assign Leads
+            </a>
+            <a
+              href="/admin/crm/team/followups"
+              className="bg-yellow-600 text-white text-center py-3 rounded-lg hover:bg-yellow-700"
+            >
+              📞 Track Follow-ups
+            </a>
+            <a
+              href="/admin/crm/reports"
+              className="bg-purple-600 text-white text-center py-3 rounded-lg hover:bg-purple-700"
+            >
+              📈 View Reports
+            </a>
+            <a
+              href="/admin/crm/teams"
+              className="bg-pink-600 text-white text-center py-3 rounded-lg hover:bg-pink-700"
+            >
+              👥 Manage Teams
+            </a>
+          </div>
         </div>
 
         {/* Overview Cards */}
@@ -314,40 +350,6 @@ const SalesTeamLeaderDashboard = () => {
           ) : (
             <p className="text-gray-600">No recent escalations</p>
           )}
-        </div>
-
-        {/* Quick Actions */}
-        <div className="mt-8 grid md:grid-cols-5 gap-4">
-          <a
-            href="/admin/crm/leads"
-            className="bg-blue-600 text-white text-center py-4 rounded-lg hover:bg-blue-700"
-          >
-            📊 View All Leads
-          </a>
-          <a
-            href="/admin/crm/team/assign"
-            className="bg-green-600 text-white text-center py-4 rounded-lg hover:bg-green-700"
-          >
-            🎯 Assign Leads
-          </a>
-          <a
-            href="/admin/crm/team/followups"
-            className="bg-yellow-600 text-white text-center py-4 rounded-lg hover:bg-yellow-700"
-          >
-            📞 Track Follow-ups
-          </a>
-          <a
-            href="/admin/crm/reports"
-            className="bg-purple-600 text-white text-center py-4 rounded-lg hover:bg-purple-700"
-          >
-            📈 View Reports
-          </a>
-          <a
-            href="/admin/crm/teams"
-            className="bg-pink-600 text-white text-center py-4 rounded-lg hover:bg-pink-700"
-          >
-            👥 Manage Teams
-          </a>
         </div>
       </div>
     </AdminLayout>

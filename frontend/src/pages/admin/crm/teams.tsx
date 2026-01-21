@@ -27,6 +27,8 @@ const CrmTeamsAdmin: React.FC = () => {
   const [loading, setLoading] = useState(true);
 
   const [isTeamModalOpen, setIsTeamModalOpen] = useState(false);
+  const [teamModalMode, setTeamModalMode] = useState<'create' | 'edit'>('create');
+  const [editingTeam, setEditingTeam] = useState<Team | null>(null);
   const [teamForm, setTeamForm] = useState({ name: '', code: '' });
 
   const [assignModalOpen, setAssignModalOpen] = useState(false);
@@ -82,7 +84,16 @@ const CrmTeamsAdmin: React.FC = () => {
   };
 
   const openTeamModal = () => {
+    setTeamModalMode('create');
+    setEditingTeam(null);
     setTeamForm({ name: '', code: '' });
+    setIsTeamModalOpen(true);
+  };
+
+  const openEditTeamModal = (team: Team) => {
+    setTeamModalMode('edit');
+    setEditingTeam(team);
+    setTeamForm({ name: team.name || '', code: team.code || '' });
     setIsTeamModalOpen(true);
   };
 
@@ -91,22 +102,45 @@ const CrmTeamsAdmin: React.FC = () => {
     setTeamForm((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleCreateTeam = async (e: React.FormEvent) => {
+  const handleSaveTeam = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!teamForm.name.trim()) {
       alert('Team name is required');
       return;
     }
     try {
-      await api.post('/crm/team/teams', {
-        name: teamForm.name.trim(),
-        code: teamForm.code.trim() || undefined,
-      });
+      if (teamModalMode === 'create') {
+        await api.post('/crm/team/teams', {
+          name: teamForm.name.trim(),
+          code: teamForm.code.trim() || undefined,
+        });
+      } else {
+        if (!editingTeam) {
+          alert('No team selected');
+          return;
+        }
+        await api.put(`/crm/team/teams/${editingTeam.id}`, {
+          name: teamForm.name.trim(),
+          code: teamForm.code.trim() || null,
+        });
+      }
       setIsTeamModalOpen(false);
-      await loadTeams();
+      await Promise.all([loadTeams(), loadAgents()]);
     } catch (error) {
-      console.error('Failed to create team', error);
-      alert('Failed to create team');
+      console.error('Failed to save team', error);
+      alert('Failed to save team');
+    }
+  };
+
+  const handleDeleteTeam = async (team: Team) => {
+    const ok = window.confirm(`Delete team "${team.name}"? Agents in this team will be unassigned.`);
+    if (!ok) return;
+    try {
+      await api.delete(`/crm/team/teams/${team.id}`);
+      await Promise.all([loadTeams(), loadAgents()]);
+    } catch (error) {
+      console.error('Failed to delete team', error);
+      alert('Failed to delete team');
     }
   };
 
@@ -183,12 +217,26 @@ const CrmTeamsAdmin: React.FC = () => {
                         {team.memberCount ?? getMemberCountForTeam(team.id)}
                       </td>
                       <td className="px-6 py-4 text-right text-sm font-medium">
-                        <button
-                          onClick={() => openAssignModal(team)}
-                          className="text-blue-600 hover:text-blue-900"
-                        >
-                          Assign Agent
-                        </button>
+                        <div className="flex items-center justify-end gap-3">
+                          <button
+                            onClick={() => openAssignModal(team)}
+                            className="text-blue-600 hover:text-blue-900"
+                          >
+                            Assign Agent
+                          </button>
+                          <button
+                            onClick={() => openEditTeamModal(team)}
+                            className="text-gray-700 hover:text-gray-900"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => handleDeleteTeam(team)}
+                            className="text-red-600 hover:text-red-900"
+                          >
+                            Delete
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))
@@ -202,7 +250,7 @@ const CrmTeamsAdmin: React.FC = () => {
         <Modal
           isOpen={isTeamModalOpen}
           onClose={() => setIsTeamModalOpen(false)}
-          title="Create New Team"
+          title={teamModalMode === 'create' ? 'Create New Team' : `Edit Team${editingTeam ? `: ${editingTeam.name}` : ''}`}
           size="md"
           footer={
             <>
@@ -218,12 +266,12 @@ const CrmTeamsAdmin: React.FC = () => {
                 form="team-form"
                 className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
               >
-                Create
+                {teamModalMode === 'create' ? 'Create' : 'Save'}
               </button>
             </>
           }
         >
-          <form id="team-form" onSubmit={handleCreateTeam} className="space-y-4">
+          <form id="team-form" onSubmit={handleSaveTeam} className="space-y-4">
             <FormInput
               label="Team Name"
               name="name"

@@ -3,6 +3,7 @@ import { useRouter } from 'next/router';
 import Link from 'next/link';
 import ElectroNavbar from '@/components/ElectroNavbar';
 import ElectroFooter from '@/components/ElectroFooter';
+import PasswordInput from '@/components/common/PasswordInput';
 import apiClient from '@/services/api';
 import {
   clearPendingReferralAttribution,
@@ -174,27 +175,25 @@ export default function Register() {
 
             <div className="mb-4">
               <label className="block text-sm font-semibold mb-2">Password *</label>
-              <input
-                type="password"
+              <PasswordInput
                 name="password"
                 value={formData.password}
                 onChange={handleChange}
                 required
                 minLength={6}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-500"
+                inputClassName="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-500"
               />
               <small className="text-xs text-gray-500">Minimum 6 characters</small>
             </div>
 
             <div className="mb-6">
               <label className="block text-sm font-semibold mb-2">Confirm Password *</label>
-              <input
-                type="password"
+              <PasswordInput
                 name="confirmPassword"
                 value={formData.confirmPassword}
                 onChange={handleChange}
                 required
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-500"
+                inputClassName="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-500"
               />
             </div>
 

@@ -482,12 +482,16 @@ export const users = {
 
 // RBAC API
 export const rbac = {
-  async listRoles() {
-    const res = await apiClient.get('/rbac/roles');
+  async listRoles(includeInactive?: boolean) {
+    const res = await apiClient.get('/rbac/roles', { params: includeInactive ? { includeInactive: true } : undefined });
     return Array.isArray(res.data) ? res.data : [];
   },
   async createRole(data: { name: string; slug: string; description?: string; priority?: number }) {
     const res = await apiClient.post('/rbac/roles', data);
+    return res.data;
+  },
+  async updateRole(roleId: string | number, data: { name?: string; slug?: string; description?: string; priority?: number; is_active?: boolean }) {
+    const res = await apiClient.put(`/rbac/roles/${roleId}`, data);
     return res.data;
   },
   async deactivateRole(roleId: string | number) {

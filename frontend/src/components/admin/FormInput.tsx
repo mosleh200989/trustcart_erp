@@ -1,4 +1,5 @@
 import React from 'react';
+import PasswordInput from '@/components/common/PasswordInput';
 
 interface FormInputProps {
   label: string;
@@ -68,17 +69,30 @@ export default function FormInput({
           ))}
         </select>
       ) : (
-        <input
-          id={name}
-          name={name}
-          type={type}
-          value={value}
-          onChange={onChange}
-          placeholder={placeholder}
-          required={required}
-          disabled={disabled}
-          className={`${baseInputClasses} ${errorClasses}`}
-        />
+        type === 'password' ? (
+          <PasswordInput
+            id={name}
+            name={name}
+            value={value as any}
+            onChange={onChange as any}
+            placeholder={placeholder}
+            required={required}
+            disabled={disabled}
+            inputClassName={`${baseInputClasses} ${errorClasses}`}
+          />
+        ) : (
+          <input
+            id={name}
+            name={name}
+            type={type}
+            value={value}
+            onChange={onChange}
+            placeholder={placeholder}
+            required={required}
+            disabled={disabled}
+            className={`${baseInputClasses} ${errorClasses}`}
+          />
+        )
       )}
       
       {error && (

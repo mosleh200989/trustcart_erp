@@ -14,10 +14,11 @@ export class RbacService {
   ) {}
 
   // Get all roles
-  async findAllRoles(): Promise<Role[]> {
+  async findAllRoles(opts?: { includeInactive?: boolean }): Promise<Role[]> {
+    const includeInactive = Boolean(opts?.includeInactive);
     return this.rolesRepository.find({
-      where: { is_active: true },
-      order: { priority: 'DESC' }
+      where: includeInactive ? {} : { is_active: true },
+      order: { is_active: 'DESC', priority: 'DESC', name: 'ASC' },
     });
   }
 
@@ -53,6 +54,53 @@ export class RbacService {
     role.description = description || '';
     role.priority = Math.trunc(priority);
     role.is_active = true;
+
+    return this.rolesRepository.save(role);
+  }
+
+  async updateRole(
+    roleId: number,
+    input: { name?: string; slug?: string; description?: string | null; priority?: number | null; is_active?: boolean },
+  ): Promise<Role> {
+    const role = await this.rolesRepository.findOne({ where: { id: roleId } });
+    if (!role) throw new NotFoundException('Role not found');
+
+    const isProtected = role.slug === 'super-admin' || role.slug === 'admin';
+    const nextName = input?.name !== undefined ? String(input.name || '').trim() : role.name;
+    const nextSlug = input?.slug !== undefined ? String(input.slug || '').trim() : role.slug;
+    const nextDescription = input?.description !== undefined ? (input.description == null ? '' : String(input.description)) : role.description;
+    const nextPriority = input?.priority !== undefined ? Number(input.priority) : role.priority;
+    const nextIsActive = input?.is_active !== undefined ? Boolean(input.is_active) : role.is_active;
+
+    if (!nextName) throw new BadRequestException('Role name is required');
+    if (!nextSlug) throw new BadRequestException('Role slug is required');
+    if (!Number.isFinite(nextPriority)) throw new BadRequestException('Invalid priority');
+    if (!/^[a-z0-9-]+$/.test(nextSlug)) {
+      throw new BadRequestException('Role slug must be lowercase letters/numbers with hyphens only');
+    }
+
+    if (isProtected) {
+      // Avoid breaking core access assumptions.
+      if (input?.slug !== undefined && nextSlug !== role.slug) {
+        throw new BadRequestException('This role slug cannot be changed');
+      }
+      if (input?.is_active !== undefined && nextIsActive !== true) {
+        throw new BadRequestException('This role cannot be deactivated');
+      }
+    }
+
+    const existing = await this.rolesRepository.findOne({
+      where: [{ slug: nextSlug }, { name: nextName }] as any,
+    });
+    if (existing && existing.id !== role.id) {
+      throw new BadRequestException('A role with this name/slug already exists');
+    }
+
+    role.name = nextName;
+    role.slug = nextSlug;
+    role.description = nextDescription || '';
+    role.priority = Math.trunc(nextPriority);
+    role.is_active = nextIsActive;
 
     return this.rolesRepository.save(role);
   }

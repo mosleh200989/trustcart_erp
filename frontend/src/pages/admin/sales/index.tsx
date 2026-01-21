@@ -700,8 +700,8 @@ export default function AdminSales() {
                 </div>
               </div>
 
-              {/* 2nd line: Status selects */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* 2nd line: Status + date range (single row on desktop) */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
                 <FormInput
                   label="Order Status"
                   name="status"
@@ -727,10 +727,7 @@ export default function AdminSales() {
                   selectPlaceholder="All"
                   options={courierStatusOptions.map((s) => ({ value: s, label: s }))}
                 />
-              </div>
 
-              {/* 3rd line: Date range */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormInput
                   label="Start Date"
                   name="startDate"

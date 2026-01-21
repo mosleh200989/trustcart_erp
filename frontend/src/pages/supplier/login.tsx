@@ -3,6 +3,7 @@ import Router from 'next/router';
 import { auth } from '@/services/api';
 import { getAuthReturnPath } from '@/utils/authReturnPath';
 import { FaArrowLeft } from 'react-icons/fa';
+import PasswordInput from '@/components/common/PasswordInput';
 
 export default function SupplierLogin() {
   const [email, setEmail] = useState('');
@@ -76,16 +77,16 @@ export default function SupplierLogin() {
               required
             />
           </div>
+import PasswordInput from '@/components/common/PasswordInput';
 
           <div className="mb-6">
             <label className="block text-gray-700 font-medium mb-2">
               Password
             </label>
-            <input
-              type="password"
+            <PasswordInput
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              inputClassName="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               placeholder="••••••••"
               required
             />

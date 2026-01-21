@@ -167,7 +167,7 @@ export default function CustomerSupportPage() {
           ) : (
             tickets.map((ticket) => (
               <div key={ticket.id} className="bg-white border rounded-lg p-4 space-y-3">
-                <div className="flex justify-between items-start">
+                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3">
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-2">
                       <h3 className="text-lg font-semibold">#{ticket.id} - {ticket.subject}</h3>
@@ -184,7 +184,7 @@ export default function CustomerSupportPage() {
                   </div>
                   <button
                     onClick={() => setSelectedTicket(selectedTicket?.id === ticket.id ? null : ticket)}
-                    className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition"
+                    className="w-full sm:w-auto px-3 py-2 sm:py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition"
                   >
                     {selectedTicket?.id === ticket.id ? 'Hide' : 'View'}
                   </button>

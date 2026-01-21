@@ -22,6 +22,7 @@ export default function AdminCustomers() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const [selectedCustomerIds, setSelectedCustomerIds] = useState<Array<number>>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<'add' | 'edit' | 'view'>('add');
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
@@ -51,6 +52,8 @@ export default function AdminCustomers() {
       setLoading(false);
     }
   };
+
+  const clearSelection = () => setSelectedCustomerIds([]);
 
   const handleAdd = () => {
     setModalMode('add');
@@ -94,6 +97,34 @@ export default function AdminCustomers() {
       alert('Customer deleted successfully');
     } catch (error) {
       alert('Failed to delete customer');
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedCustomerIds.length === 0) return;
+
+    if (!confirm(`Delete ${selectedCustomerIds.length} selected customer(s)?`)) return;
+
+    const failed: number[] = [];
+    try {
+      setLoading(true);
+      for (const id of selectedCustomerIds) {
+        try {
+          await apiClient.delete(`/customers/${id}`);
+        } catch {
+          failed.push(id);
+        }
+      }
+    } finally {
+      await loadCustomers();
+      setSelectedCustomerIds(failed);
+      setLoading(false);
+    }
+
+    if (failed.length === 0) {
+      alert('Selected customers deleted successfully');
+    } else {
+      alert(`Some deletions failed. ${failed.length} customer(s) still selected.`);
     }
   };
 
@@ -181,10 +212,37 @@ export default function AdminCustomers() {
           </div>
         </div>
 
+        {selectedCustomerIds.length > 0 && (
+          <div className="mb-4 bg-blue-50 border border-blue-200 text-blue-800 px-4 py-3 rounded-lg flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+            <div className="text-sm font-medium">
+              {selectedCustomerIds.length} customer(s) selected
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={clearSelection}
+                className="px-4 py-2 rounded bg-white border border-blue-200 text-blue-700 hover:bg-blue-100"
+              >
+                Clear selection
+              </button>
+              <button
+                onClick={handleBulkDelete}
+                className="px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700"
+              >
+                Delete selected
+              </button>
+            </div>
+          </div>
+        )}
+
         <DataTable
           columns={columns}
           data={paginatedCustomers}
           loading={loading}
+          selection={{
+            selectedRowIds: selectedCustomerIds,
+            onChange: (next) => setSelectedCustomerIds(next.map((x) => Number(x))),
+            getRowId: (row) => Number(row?.id),
+          }}
           onView={handleView}
           onEdit={handleEdit}
           onDelete={handleDelete}

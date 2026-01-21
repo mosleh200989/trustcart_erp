@@ -761,7 +761,7 @@ export default function Checkout() {
                       <h4 className="text-sm font-bold text-gray-800 mb-3">
                         Suggested Products
                       </h4>
-                      <div className="grid grid-cols-1 gap-4">
+                      <div className="grid grid-cols-2 gap-4">
                         {suggestedProducts.slice(0, 3).map((product) => {
                           const price = getProductPrice(product);
                           const imageUrl = getProductImageUrl(product);
