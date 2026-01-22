@@ -2,14 +2,24 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useState, useEffect } from 'react';
 import { FaPhone, FaEnvelope, FaUser, FaShoppingCart, FaHeart, FaBars, FaSearch, FaTimes } from 'react-icons/fa';
-import { auth } from '@/services/api';
-import apiClient from '@/services/api';
+import apiClient, { auth, categories as categoriesAPI } from '@/services/api';
+
+type NavbarCategory = {
+  id: number;
+  name?: string;
+  nameEn?: string;
+  slug?: string;
+  icon?: string;
+};
 
 export default function ElectroNavbar() {
   const router = useRouter();
   const [cartCount, setCartCount] = useState(0);
   const [user, setUser] = useState<any>(null);
   const [showCategories, setShowCategories] = useState(false);
+  const [navbarCategories, setNavbarCategories] = useState<NavbarCategory[]>([]);
+  const [navbarCategoriesLoading, setNavbarCategoriesLoading] = useState(false);
+  const [navbarCategoriesError, setNavbarCategoriesError] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [showSearchResults, setShowSearchResults] = useState(false);
@@ -33,6 +43,23 @@ export default function ElectroNavbar() {
     };
 
     initUser();
+
+    const loadNavbarCategories = async () => {
+      setNavbarCategoriesLoading(true);
+      setNavbarCategoriesError(false);
+      try {
+        const cats = await categoriesAPI.list({ active: true });
+        setNavbarCategories(Array.isArray(cats) ? cats : []);
+      } catch (err) {
+        console.error('Failed to load navbar categories:', err);
+        setNavbarCategories([]);
+        setNavbarCategoriesError(true);
+      } finally {
+        setNavbarCategoriesLoading(false);
+      }
+    };
+
+    loadNavbarCategories();
 
     const handleCartUpdate = () => {
       const updatedCart = JSON.parse(localStorage.getItem('cart') || '[]');
@@ -276,26 +303,44 @@ export default function ElectroNavbar() {
                 <div
                   onMouseEnter={() => setShowCategories(true)}
                   onMouseLeave={() => setShowCategories(false)}
-                  className="absolute top-full left-0 w-64 bg-white shadow-xl z-50"
+                  className="absolute top-full left-0 w-72 bg-white shadow-xl z-50 max-h-96 overflow-y-auto"
                 >
-                  <Link href="/products?category=spices" className="block px-6 py-3 hover:bg-orange-50 hover:text-orange-500 transition border-b">
-                    🌶️ Spices
+                  <Link
+                    href="/products"
+                    className="block px-6 py-3 hover:bg-orange-50 hover:text-orange-500 transition border-b font-medium"
+                    onClick={() => setShowCategories(false)}
+                  >
+                    🛍️ All Products
                   </Link>
-                  <Link href="/products?category=oils" className="block px-6 py-3 hover:bg-orange-50 hover:text-orange-500 transition border-b">
-                    🛢️ Oils & Ghee
-                  </Link>
-                  <Link href="/products?category=dry-fruits" className="block px-6 py-3 hover:bg-orange-50 hover:text-orange-500 transition border-b">
-                    🥜 Dry Fruits & Nuts
-                  </Link>
-                  <Link href="/products?category=beverages" className="block px-6 py-3 hover:bg-orange-50 hover:text-orange-500 transition border-b">
-                    ☕ Beverages
-                  </Link>
-                  <Link href="/products?category=honey" className="block px-6 py-3 hover:bg-orange-50 hover:text-orange-500 transition border-b">
-                    🍯 Honey & Sweet
-                  </Link>
-                  <Link href="/products?category=dairy" className="block px-6 py-3 hover:bg-orange-50 hover:text-orange-500 transition">
-                    🥛 Dairy Products
-                  </Link>
+
+                  {navbarCategoriesLoading && (
+                    <div className="px-6 py-3 text-sm text-gray-600 border-b">Loading categories…</div>
+                  )}
+
+                  {!navbarCategoriesLoading && navbarCategoriesError && (
+                    <div className="px-6 py-3 text-sm text-red-600 border-b">Failed to load categories</div>
+                  )}
+
+                  {!navbarCategoriesLoading && !navbarCategoriesError && navbarCategories.length === 0 && (
+                    <div className="px-6 py-3 text-sm text-gray-600 border-b">No categories found</div>
+                  )}
+
+                  {navbarCategories.map((cat) => {
+                    const label = cat.nameEn || cat.name || 'Category';
+                    const slug = cat.slug;
+                    const href = slug ? `/products?category=${encodeURIComponent(slug)}` : '/products';
+
+                    return (
+                      <Link
+                        key={cat.id}
+                        href={href}
+                        className="block px-6 py-3 hover:bg-orange-50 hover:text-orange-500 transition border-b last:border-b-0"
+                        onClick={() => setShowCategories(false)}
+                      >
+                        {cat.icon || '🗂'} {label}
+                      </Link>
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -365,24 +410,38 @@ export default function ElectroNavbar() {
               {/* Mobile Categories */}
               <div className="pt-4 border-t border-gray-700">
                 <p className="text-sm text-gray-400 mb-2 px-4">Categories</p>
-                <Link href="/products?category=spices" onClick={() => setShowMobileMenu(false)} className="py-2 px-4 hover:bg-orange-500 rounded transition block">
-                  🌶️ Spices
+                <Link href="/products" onClick={() => setShowMobileMenu(false)} className="py-2 px-4 hover:bg-orange-500 rounded transition block">
+                  🛍️ All Products
                 </Link>
-                <Link href="/products?category=oils" onClick={() => setShowMobileMenu(false)} className="py-2 px-4 hover:bg-orange-500 rounded transition block">
-                  🛢️ Oils & Ghee
-                </Link>
-                <Link href="/products?category=dry-fruits" onClick={() => setShowMobileMenu(false)} className="py-2 px-4 hover:bg-orange-500 rounded transition block">
-                  🥜 Dry Fruits & Nuts
-                </Link>
-                <Link href="/products?category=beverages" onClick={() => setShowMobileMenu(false)} className="py-2 px-4 hover:bg-orange-500 rounded transition block">
-                  ☕ Beverages
-                </Link>
-                <Link href="/products?category=honey" onClick={() => setShowMobileMenu(false)} className="py-2 px-4 hover:bg-orange-500 rounded transition block">
-                  🍯 Honey & Sweet
-                </Link>
-                <Link href="/products?category=dairy" onClick={() => setShowMobileMenu(false)} className="py-2 px-4 hover:bg-orange-500 rounded transition block">
-                  🥛 Dairy Products
-                </Link>
+
+                {navbarCategoriesLoading && (
+                  <div className="py-2 px-4 text-sm text-gray-300">Loading categories…</div>
+                )}
+
+                {!navbarCategoriesLoading && navbarCategoriesError && (
+                  <div className="py-2 px-4 text-sm text-red-300">Failed to load categories</div>
+                )}
+
+                {!navbarCategoriesLoading && !navbarCategoriesError && navbarCategories.length === 0 && (
+                  <div className="py-2 px-4 text-sm text-gray-300">No categories found</div>
+                )}
+
+                {navbarCategories.map((cat) => {
+                  const label = cat.nameEn || cat.name || 'Category';
+                  const slug = cat.slug;
+                  const href = slug ? `/products?category=${encodeURIComponent(slug)}` : '/products';
+
+                  return (
+                    <Link
+                      key={cat.id}
+                      href={href}
+                      onClick={() => setShowMobileMenu(false)}
+                      className="py-2 px-4 hover:bg-orange-500 rounded transition block"
+                    >
+                      {cat.icon || '🗂'} {label}
+                    </Link>
+                  );
+                })}
               </div>
             </nav>
           </div>

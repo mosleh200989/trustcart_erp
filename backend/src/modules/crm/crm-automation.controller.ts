@@ -159,9 +159,23 @@ export class CrmAutomationController {
   async getAgentDashboard(@Param('id') id: number) {
     return await this.automationService.getAgentDashboard(id);
   }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('agent/me/dashboard')
+  async getMyAgentDashboard(@Request() req: any) {
+    const agentId = Number(req.user?.id ?? req.user?.userId);
+    return await this.automationService.getAgentDashboard(agentId);
+  }
   
   @Get('agent/:id/next-action')
   async getNextBestAction(@Param('id') id: number) {
     return await this.automationService.getNextBestAction(id);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('agent/me/next-action')
+  async getMyNextBestAction(@Request() req: any) {
+    const agentId = Number(req.user?.id ?? req.user?.userId);
+    return await this.automationService.getNextBestAction(agentId);
   }
 }

@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import AdminLayout from '@/layouts/AdminLayout';
 import { FaPhone, FaWhatsapp, FaSms, FaEnvelope, FaFire, FaChartLine, FaCheckCircle, FaClock } from 'react-icons/fa';
-import apiClient from '@/services/api';
+import apiClient, { auth, users as usersApi } from '@/services/api';
 import Link from 'next/link';
+import { useRouter } from 'next/router';
 import { getTelephonySocket, type IncomingCallPayload } from '@/services/telephonySocket';
 
 interface CallTask {
@@ -54,13 +55,39 @@ interface DashboardStats {
   tasks: CallTask[];
 }
 
+interface AssignedCustomer {
+  id: number | string;
+  name?: string;
+  last_name?: string;
+  email?: string;
+  phone?: string;
+  priority?: string;
+  lifecycleStage?: string;
+  createdAt?: string;
+}
+
+interface PaginatedCustomers {
+  data: AssignedCustomer[];
+  total: number;
+}
+
 export default function AgentDashboard() {
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
-  const [agentId] = useState(1); // TODO: Get from auth context
+  const [agentId, setAgentId] = useState<number | null>(null);
+  const [meRoles, setMeRoles] = useState<any[]>([]);
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [nextAction, setNextAction] = useState<NextAction | null>(null);
   const [selectedTask, setSelectedTask] = useState<CallTask | null>(null);
   const [showCustomerModal, setShowCustomerModal] = useState(false);
+
+  const [assignedCustomers, setAssignedCustomers] = useState<AssignedCustomer[]>([]);
+  const [assignedTotal, setAssignedTotal] = useState(0);
+  const [assignedLoading, setAssignedLoading] = useState(false);
+  const [assignedError, setAssignedError] = useState<string | null>(null);
+
+  const [agentUsers, setAgentUsers] = useState<any[]>([]);
+  const [selectedViewAgentId, setSelectedViewAgentId] = useState<number | null>(null);
 
   // Softphone UI state (UI-only; telephony initiation happens via backend)
   const [agentStatus, setAgentStatus] = useState<AgentStatus>('online');
@@ -84,8 +111,68 @@ export default function AgentDashboard() {
   const [followUpAt, setFollowUpAt] = useState('');
 
   useEffect(() => {
-    loadDashboard();
+    (async () => {
+      try {
+        const me = await auth.getCurrentUser();
+        const id = Number((me as any)?.id);
+        if (!id) throw new Error('Unable to resolve agent id');
+        setAgentId(id);
+        setMeRoles(Array.isArray((me as any)?.roles) ? (me as any).roles : []);
+      } catch (err) {
+        console.error('Failed to load current user', err);
+      }
+    })();
   }, []);
+
+  const canSelectAgent = useMemo(() => {
+    const slugs = new Set(
+      (meRoles || [])
+        .map((r: any) => String(r?.slug || '').toLowerCase())
+        .filter(Boolean),
+    );
+    return slugs.has('admin') || slugs.has('super-admin');
+  }, [meRoles]);
+
+  useEffect(() => {
+    if (!canSelectAgent) return;
+    (async () => {
+      try {
+        const all = await usersApi.list();
+        const arr = Array.isArray(all) ? all : [];
+        setAgentUsers(arr);
+      } catch (err) {
+        console.error('Failed to load users for agent selector', err);
+        setAgentUsers([]);
+      }
+    })();
+  }, [canSelectAgent]);
+
+  useEffect(() => {
+    if (!agentId) return;
+
+    const q = router?.query?.agentId;
+    const fromQuery = Array.isArray(q) ? q[0] : q;
+    const parsed = fromQuery ? Number(fromQuery) : null;
+    if (canSelectAgent && parsed && Number.isFinite(parsed)) {
+      setSelectedViewAgentId(parsed);
+      return;
+    }
+    if (Number.isFinite(Number(agentId))) {
+      setSelectedViewAgentId(agentId);
+    }
+  }, [agentId, canSelectAgent, router?.query?.agentId]);
+
+  useEffect(() => {
+    if (!agentId) return;
+    loadDashboard();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [agentId]);
+
+  useEffect(() => {
+    if (!selectedViewAgentId) return;
+    loadAssignedCustomers(selectedViewAgentId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedViewAgentId]);
 
   useEffect(() => {
     // Load persisted presence + attach realtime screen-pop.
@@ -117,7 +204,7 @@ export default function AgentDashboard() {
         setTelephonyInfo((prev: any) => ({ ...(prev || {}), call: updated }));
       }
 
-      if (updated?.agentUserId && Number(updated.agentUserId) === Number(agentId)) {
+      if (agentId && updated?.agentUserId && Number(updated.agentUserId) === Number(agentId)) {
         if (updated?.status === 'answered') {
           setCallStatus('connected');
           setAgentStatus('on_call');
@@ -130,7 +217,7 @@ export default function AgentDashboard() {
     };
 
     const onPresence = (payload: any) => {
-      if (payload?.userId && Number(payload.userId) === Number(agentId) && payload?.status) {
+      if (agentId && payload?.userId && Number(payload.userId) === Number(agentId) && payload?.status) {
         setAgentStatus(payload.status);
       }
     };
@@ -159,8 +246,8 @@ export default function AgentDashboard() {
     try {
       setLoading(true);
       const [dashboardRes, actionRes] = await Promise.all([
-        apiClient.get(`/crm/automation/agent/${agentId}/dashboard`),
-        apiClient.get(`/crm/automation/agent/${agentId}/next-action`)
+        apiClient.get('/crm/automation/agent/me/dashboard'),
+        apiClient.get('/crm/automation/agent/me/next-action')
       ]);
       
       setStats(dashboardRes.data);
@@ -169,6 +256,33 @@ export default function AgentDashboard() {
       console.error('Failed to load dashboard:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadAssignedCustomers = async (viewAgentId: number) => {
+    try {
+      setAssignedLoading(true);
+      setAssignedError(null);
+      const isMe = agentId && Number(viewAgentId) === Number(agentId);
+      // If the viewer is NOT an admin/super-admin, always use the /me endpoint.
+      // This avoids depending on roleSlug/teamLeaderId for a regular Sales Executive.
+      const url = (!canSelectAgent || isMe)
+        ? '/crm/team/agent/me/customers'
+        : `/crm/team/agent/${viewAgentId}/customers`;
+      const res = await apiClient.get<PaginatedCustomers>(url, { params: { page: 1, limit: 100 } });
+      const data = (res as any)?.data;
+      const rows = Array.isArray(data?.data) ? data.data : [];
+      const total = Number(data?.total || rows.length || 0);
+      setAssignedCustomers(rows);
+      setAssignedTotal(total);
+    } catch (err) {
+      console.error('Failed to load assigned customers', err);
+      setAssignedCustomers([]);
+      setAssignedTotal(0);
+      const message = (err as any)?.response?.data?.message || (err as any)?.message || 'Failed to load assigned leads';
+      setAssignedError(String(message));
+    } finally {
+      setAssignedLoading(false);
     }
   };
 
@@ -213,7 +327,7 @@ export default function AgentDashboard() {
         customer_id: task.customer_id,
         engagement_type: 'call',
         status: 'completed',
-        agent_id: agentId
+        agent_id: agentId ?? undefined
       });
     } catch (error) {
       console.error('Failed to start call:', error);
@@ -436,6 +550,160 @@ export default function AgentDashboard() {
               </div>
               <FaCheckCircle className="text-4xl text-green-500" />
             </div>
+          </div>
+        </div>
+
+        {/* Assigned Leads / Customers */}
+        <div className="bg-white rounded-lg shadow">
+          <div className="p-6 border-b flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h2 className="text-xl font-bold text-gray-800">Assigned Leads</h2>
+              <p className="text-sm text-gray-600">Customers assigned to a Sales Executive</p>
+            </div>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              {canSelectAgent && (
+                <select
+                  value={selectedViewAgentId ?? ''}
+                  onChange={(e) => setSelectedViewAgentId(e.target.value ? Number(e.target.value) : null)}
+                  className="border rounded-lg px-3 py-2 text-sm"
+                >
+                  <option value="">Select agent</option>
+                  {agentUsers.map((u: any) => (
+                    <option key={String(u?.id)} value={Number(u?.id)}>
+                      {(u?.name || 'User')} {(u?.lastName || u?.last_name || '')} (ID: {u?.id})
+                    </option>
+                  ))}
+                </select>
+              )}
+              <button
+                onClick={() => (selectedViewAgentId ? loadAssignedCustomers(selectedViewAgentId) : undefined)}
+                disabled={!selectedViewAgentId || assignedLoading}
+                className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 disabled:opacity-50 text-sm"
+              >
+                {assignedLoading ? 'Loading...' : 'Refresh Leads'}
+              </button>
+            </div>
+          </div>
+
+          <div className="p-6">
+            <div className="text-sm text-gray-600 mb-4">
+              Total assigned: <span className="font-semibold">{assignedTotal}</span>
+            </div>
+
+            {assignedError && (
+              <div className="mb-4 p-3 rounded border border-red-200 bg-red-50 text-red-800 text-sm">
+                {assignedError}
+              </div>
+            )}
+
+            {assignedCustomers.length === 0 ? (
+              <div className="text-center text-gray-500 py-8">
+                No assigned customers found for this agent.
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Phone</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Stage</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Priority</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {assignedCustomers.map((c) => {
+                      const fullName = [String(c?.name || '').trim(), String(c?.last_name || '').trim()]
+                        .filter(Boolean)
+                        .join(' ');
+
+                      const rawPhone = String(c?.phone || '').trim();
+                      const waPhone = rawPhone.replace(/[^0-9]/g, '');
+                      const email = String(c?.email || '').trim();
+
+                      return (
+                        <tr key={String(c.id)} className="hover:bg-gray-50">
+                          <td className="px-4 py-3">
+                            <div className="font-medium text-gray-900">{fullName || 'N/A'}</div>
+                            <div className="text-xs text-gray-500">ID: {String(c.id)}</div>
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-700">{c.phone || '—'}</td>
+                          <td className="px-4 py-3 text-sm text-gray-700">{c.email || '—'}</td>
+                          <td className="px-4 py-3 text-sm text-gray-700 capitalize">{(c.lifecycleStage as any) || '—'}</td>
+                          <td className="px-4 py-3">
+                            <span className="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-700 capitalize">
+                              {c.priority || 'new'}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <Link
+                                href={`/admin/customers/${String(c.id)}`}
+                                className="text-xs px-2 py-1 rounded border border-gray-300 text-gray-700 hover:bg-gray-100"
+                              >
+                                View
+                              </Link>
+
+                              <a
+                                href={rawPhone ? `tel:${rawPhone}` : undefined}
+                                aria-disabled={!rawPhone}
+                                title={rawPhone ? 'Call' : 'No phone'}
+                                className={`p-2 rounded border ${rawPhone ? 'border-green-200 text-green-700 hover:bg-green-50' : 'border-gray-200 text-gray-300 cursor-not-allowed'}`}
+                                onClick={(e) => {
+                                  if (!rawPhone) e.preventDefault();
+                                }}
+                              >
+                                <FaPhone />
+                              </a>
+
+                              <a
+                                href={waPhone ? `https://wa.me/${waPhone}` : undefined}
+                                target="_blank"
+                                rel="noreferrer"
+                                aria-disabled={!waPhone}
+                                title={waPhone ? 'WhatsApp' : 'No phone'}
+                                className={`p-2 rounded border ${waPhone ? 'border-emerald-200 text-emerald-700 hover:bg-emerald-50' : 'border-gray-200 text-gray-300 cursor-not-allowed'}`}
+                                onClick={(e) => {
+                                  if (!waPhone) e.preventDefault();
+                                }}
+                              >
+                                <FaWhatsapp />
+                              </a>
+
+                              <a
+                                href={rawPhone ? `sms:${rawPhone}` : undefined}
+                                aria-disabled={!rawPhone}
+                                title={rawPhone ? 'SMS' : 'No phone'}
+                                className={`p-2 rounded border ${rawPhone ? 'border-blue-200 text-blue-700 hover:bg-blue-50' : 'border-gray-200 text-gray-300 cursor-not-allowed'}`}
+                                onClick={(e) => {
+                                  if (!rawPhone) e.preventDefault();
+                                }}
+                              >
+                                <FaSms />
+                              </a>
+
+                              <a
+                                href={email ? `mailto:${email}` : undefined}
+                                aria-disabled={!email}
+                                title={email ? 'Email' : 'No email'}
+                                className={`p-2 rounded border ${email ? 'border-purple-200 text-purple-700 hover:bg-purple-50' : 'border-gray-200 text-gray-300 cursor-not-allowed'}`}
+                                onClick={(e) => {
+                                  if (!email) e.preventDefault();
+                                }}
+                              >
+                                <FaEnvelope />
+                              </a>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </div>
 

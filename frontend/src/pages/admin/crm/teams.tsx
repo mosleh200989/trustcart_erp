@@ -35,6 +35,9 @@ const CrmTeamsAdmin: React.FC = () => {
   const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
   const [selectedAgentId, setSelectedAgentId] = useState<string>('');
 
+  const [membersModalOpen, setMembersModalOpen] = useState(false);
+  const [membersTeam, setMembersTeam] = useState<Team | null>(null);
+
   useEffect(() => {
     loadInitialData();
   }, []);
@@ -172,6 +175,15 @@ const CrmTeamsAdmin: React.FC = () => {
     return agents.filter((a) => a.teamId === teamId).length;
   };
 
+  const openMembersModal = (team: Team) => {
+    setMembersTeam(team);
+    setMembersModalOpen(true);
+  };
+
+  const membersForSelectedTeam = membersTeam
+    ? agents.filter((a) => a.teamId === membersTeam.id)
+    : [];
+
   return (
     <AdminLayout>
       <div className="p-6">
@@ -218,6 +230,12 @@ const CrmTeamsAdmin: React.FC = () => {
                       </td>
                       <td className="px-6 py-4 text-right text-sm font-medium">
                         <div className="flex items-center justify-end gap-3">
+                          <button
+                            onClick={() => openMembersModal(team)}
+                            className="text-indigo-600 hover:text-indigo-900"
+                          >
+                            View Members
+                          </button>
                           <button
                             onClick={() => openAssignModal(team)}
                             className="text-blue-600 hover:text-blue-900"
@@ -330,6 +348,60 @@ const CrmTeamsAdmin: React.FC = () => {
               </select>
             </div>
           </form>
+        </Modal>
+
+        {/* Members Modal */}
+        <Modal
+          isOpen={membersModalOpen}
+          onClose={() => setMembersModalOpen(false)}
+          title={membersTeam ? `Members of ${membersTeam.name}` : 'Team Members'}
+          size="lg"
+          footer={
+            <>
+              <button
+                type="button"
+                onClick={() => setMembersModalOpen(false)}
+                className="px-4 py-2 text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300"
+              >
+                Close
+              </button>
+            </>
+          }
+        >
+          {membersTeam && (
+            <div className="space-y-3">
+              <div className="text-sm text-gray-600">
+                {membersForSelectedTeam.length} member(s) in this team.
+              </div>
+
+              {membersForSelectedTeam.length === 0 ? (
+                <div className="p-4 bg-yellow-50 text-yellow-800 rounded">
+                  No members assigned yet.
+                </div>
+              ) : (
+                <div className="overflow-x-auto border rounded-lg">
+                  <table className="w-full">
+                    <thead className="bg-gray-50 border-b">
+                      <tr>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">User ID</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                      {membersForSelectedTeam.map((m) => (
+                        <tr key={m.id} className="hover:bg-gray-50">
+                          <td className="px-4 py-2 text-sm text-gray-900">{m.name} {m.lastName}</td>
+                          <td className="px-4 py-2 text-sm text-gray-700">{m.email}</td>
+                          <td className="px-4 py-2 text-sm text-gray-700">{m.id}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
         </Modal>
       </div>
     </AdminLayout>

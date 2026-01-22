@@ -1,11 +1,14 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import AdminLayout from '@/layouts/AdminLayout';
-import { apiUrl } from '@/config/backend';
+import apiClient from '@/services/api';
+
+type TeamTab = { id: number; name: string; code: string };
 
 export default function TeamDataCollectionPage() {
   const router = useRouter();
   const [activeTeam, setActiveTeam] = useState('A');
+  const [teamTabs, setTeamTabs] = useState<TeamTab[]>([]);
   const [assignments, setAssignments] = useState<any[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -60,45 +63,70 @@ export default function TeamDataCollectionPage() {
   });
 
   useEffect(() => {
+    loadTeams();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
     fetchMyAssignments();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTeam]);
+
+  const loadTeams = async () => {
+    try {
+      const token = localStorage.getItem('authToken');
+      if (!token) {
+        router.replace('/admin/login');
+        return;
+      }
+
+      const res = await apiClient.get('/crm/team/teams');
+      const all = Array.isArray((res as any)?.data) ? (res as any).data : [];
+      const allowed = new Set(['A', 'B', 'C', 'D', 'E']);
+      const normalized: TeamTab[] = all
+        .map((t: any) => ({
+          id: Number(t.id),
+          name: String(t.name || '').trim() || `Team ${String(t.code || '').trim()}`,
+          code: String(t.code || '').trim().toUpperCase(),
+        }))
+        .filter((t: TeamTab) => Number.isFinite(t.id) && allowed.has(t.code));
+
+      normalized.sort((a, b) => a.code.localeCompare(b.code));
+      setTeamTabs(normalized);
+
+      // Ensure active tab is valid
+      if (!allowed.has(String(activeTeam || '').toUpperCase())) {
+        setActiveTeam('A');
+        return;
+      }
+      if (normalized.length && !normalized.some((t) => t.code === String(activeTeam).toUpperCase())) {
+        setActiveTeam(normalized[0].code);
+        return;
+      }
+
+      // Assignments are fetched by the activeTeam effect.
+    } catch (error) {
+      console.error('Failed to load teams', error);
+      setTeamTabs([]);
+    }
+  };
 
   const fetchMyAssignments = async () => {
     try {
       const token = localStorage.getItem('authToken');
-      
       if (!token) {
-        console.error('No authentication token found');
-        setLoading(false);
+        router.replace('/admin/login');
         return;
       }
-      
-      const userId = JSON.parse(atob(token.split('.')[1])).userId;
 
-      const response = await fetch(
-        apiUrl(`/lead-management/assignment?teamType=${activeTeam}&assignedToId=${userId}&status=pending`),
-        {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          },
-        }
-      );
-      
-      if (!response.ok) {
-        setAssignments([]);
-        setLoading(false);
-        return;
-      }
-      
-      const data = await response.json();
-      if (Array.isArray(data)) {
-        setAssignments(data);
-      } else {
-        console.error('API response is not an array:', data);
-        setAssignments([]);
-      }
+      const res = await apiClient.get('/lead-management/assignment/my', {
+        params: { teamType: activeTeam, status: 'pending' },
+      });
+      const data = Array.isArray((res as any)?.data) ? (res as any).data : [];
+      setAssignments(data);
     } catch (error) {
       console.error('Error fetching assignments:', error);
+      setAssignments([]);
     } finally {
       setLoading(false);
     }
@@ -110,17 +138,9 @@ export default function TeamDataCollectionPage() {
 
     // Load existing data if any
     try {
-      const token = localStorage.getItem('authToken');
-      const endpoint = apiUrl(`/lead-management/team-${activeTeam.toLowerCase()}/${assignment.customerId}`);
-      const response = await fetch(endpoint, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-
-      if (response.ok) {
-        const existingData = await response.json();
-        if (existingData) {
+      const response = await apiClient.get(`/lead-management/team-${activeTeam.toLowerCase()}/${assignment.customerId}`);
+      const existingData = (response as any)?.data;
+      if (existingData) {
           switch (activeTeam) {
             case 'A':
               setTeamAData(existingData);
@@ -138,7 +158,6 @@ export default function TeamDataCollectionPage() {
               setTeamEData(existingData);
               break;
           }
-        }
       }
     } catch (error) {
       console.error('Error loading existing data:', error);
@@ -149,7 +168,6 @@ export default function TeamDataCollectionPage() {
     if (!selectedCustomer) return;
 
     try {
-      const token = localStorage.getItem('authToken');
       let dataToSave: any = { customerId: selectedCustomer.customerId };
 
       switch (activeTeam) {
@@ -170,31 +188,16 @@ export default function TeamDataCollectionPage() {
           break;
       }
 
-      const endpoint = apiUrl(`/lead-management/team-${activeTeam.toLowerCase()}`);
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify(dataToSave),
+      await apiClient.post(`/lead-management/team-${activeTeam.toLowerCase()}`, dataToSave);
+
+      // Mark assignment as completed
+      await apiClient.put(`/lead-management/assignment/${selectedCustomer.id}/status`, {
+        status: 'completed',
       });
 
-      if (response.ok) {
-        // Mark assignment as completed
-        await fetch(apiUrl(`/lead-management/assignment/${selectedCustomer.id}/status`), {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
-          },
-          body: JSON.stringify({ status: 'completed' }),
-        });
-
-        alert('Data saved successfully!');
-        setShowDataModal(false);
-        fetchMyAssignments();
-      }
+      alert('Data saved successfully!');
+      setShowDataModal(false);
+      fetchMyAssignments();
     } catch (error) {
       console.error('Error saving data:', error);
       alert('Failed to save data');
@@ -485,20 +488,26 @@ export default function TeamDataCollectionPage() {
         {/* Team Tabs */}
         <div className="mb-6">
           <div className="flex space-x-2 border-b">
-            {['A', 'B', 'C', 'D', 'E'].map((team) => (
+            {(teamTabs.length ? teamTabs : [
+              { id: 0, name: 'Team A', code: 'A' },
+              { id: 1, name: 'Team B', code: 'B' },
+              { id: 2, name: 'Team C', code: 'C' },
+              { id: 3, name: 'Team D', code: 'D' },
+              { id: 4, name: 'Team E', code: 'E' },
+            ]).map((team) => (
               <button
-                key={team}
+                key={team.code}
                 onClick={() => {
-                  setActiveTeam(team);
+                  setActiveTeam(team.code);
                   setLoading(true);
                 }}
                 className={`px-6 py-3 font-semibold ${
-                  activeTeam === team
+                  activeTeam === team.code
                     ? 'border-b-2 border-blue-600 text-blue-600'
                     : 'text-gray-600 hover:text-gray-800'
                 }`}
               >
-                Team {team}
+                {team.name}
               </button>
             ))}
           </div>

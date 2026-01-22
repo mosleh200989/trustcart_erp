@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Customer } from '../customers/customer.entity';
@@ -184,24 +184,32 @@ export class CrmTeamService {
   // ==================== TEAM MONITORING ====================
   async getTeamLeads(teamLeaderId: number, query: any = {}): Promise<{ data: Customer[], total: number }> {
     const { page = 1, limit = 20, priority, status } = query;
-    const skip = (page - 1) * limit;
+    const pageNum = Number(page) || 1;
+    const limitNum = Number(limit) || 20;
+    const skip = (pageNum - 1) * limitNum;
 
-    const where: any = {};
-    // Leads are represented as customers in lifecycle_stage='lead'
-    where.lifecycleStage = 'lead';
-    // Keep CRM leads aligned with the main Customers list (soft-deleted customers should not appear)
-    where.is_deleted = false;
-    where.isActive = true;
-    if (priority) where.priority = priority;
-    if (status) where.status = status;
+    // IMPORTANT: "Unassigned Leads" should include ALL customers (even those who already ordered)
+    // and not be restricted to lifecycle_stage='lead'.
+    // We treat "unassigned lead" as any active customer not yet assigned to an agent.
+    const qb = this.customerRepository.createQueryBuilder('c');
+    qb.where('c.is_deleted = false');
+    qb.andWhere('c.is_active = true');
+    qb.andWhere('c.assigned_to IS NULL');
 
-    const [data, total] = await this.customerRepository.findAndCount({
-      where,
-      order: { createdAt: 'DESC' },
-      skip,
-      take: limit
-    });
+    // Scope: TL can see customers they supervise, plus globally-unclaimed customers.
+    qb.andWhere('(c.assigned_supervisor_id IS NULL OR c.assigned_supervisor_id = :tl)', { tl: teamLeaderId });
 
+    if (priority) {
+      qb.andWhere('c.priority = :priority', { priority });
+    }
+    if (status) {
+      qb.andWhere('c.status = :status', { status });
+    }
+
+    qb.orderBy('c.created_at', 'DESC');
+    qb.skip(skip).take(limitNum);
+
+    const [data, total] = await qb.getManyAndCount();
     return { data, total };
   }
 
@@ -265,6 +273,46 @@ export class CrmTeamService {
     });
 
     return { data, total };
+  }
+
+  async getAgentCustomersForRequester(
+    requester: { id: number; roleSlug?: string | null },
+    agentId: number,
+    query: any = {},
+  ): Promise<{ data: Customer[]; total: number }> {
+    if (!requester?.id || !Number.isFinite(Number(requester.id))) {
+      throw new ForbiddenException('Invalid requester');
+    }
+    if (!agentId || !Number.isFinite(Number(agentId))) {
+      throw new NotFoundException('Agent not found');
+    }
+
+    // Agent can always view their own assigned customers.
+    if (Number(requester.id) === Number(agentId)) {
+      return this.getAgentCustomers(agentId, query);
+    }
+
+    const roleSlug = String(requester.roleSlug || '').toLowerCase();
+    const isAdmin = roleSlug === 'admin' || roleSlug === 'super-admin';
+    if (isAdmin) {
+      return this.getAgentCustomers(agentId, query);
+    }
+
+    // Team leader can view customers of agents under them.
+    const agent = await this.usersRepository.findOne({
+      where: { id: agentId, isDeleted: false } as any,
+      select: ['id', 'teamLeaderId', 'status', 'isDeleted'] as any,
+    });
+
+    if (!agent || (agent as any).isDeleted) {
+      throw new NotFoundException('Agent not found');
+    }
+
+    if (agent.teamLeaderId && Number(agent.teamLeaderId) === Number(requester.id)) {
+      return this.getAgentCustomers(agentId, query);
+    }
+
+    throw new ForbiddenException('You are not allowed to view this agent\'s customers');
   }
 
   async getTeamPerformance(teamLeaderId: number): Promise<any> {
@@ -763,8 +811,50 @@ export class CrmTeamService {
 
   // ==================== TEAM MANAGEMENT ====================
 
+  private readonly DEFAULT_TEAM_CODES = ['A', 'B', 'C', 'D', 'E'] as const;
+
+  private async ensureDefaultTeamsForLeader(teamLeaderId: number): Promise<void> {
+    if (!Number.isFinite(teamLeaderId)) return;
+
+    const existing = await this.salesTeamRepository.find({ where: { teamLeaderId } });
+    const byCode = new Map<string, SalesTeam>();
+    for (const t of existing) {
+      const code = String(t.code || '').trim().toUpperCase();
+      if (code) byCode.set(code, t);
+    }
+
+    const toCreate: Array<{ name: string; code: string }> = [];
+    for (const code of this.DEFAULT_TEAM_CODES) {
+      if (!byCode.has(code)) {
+        toCreate.push({ code, name: `Team ${code}` });
+      }
+    }
+
+    if (!toCreate.length) return;
+    await this.salesTeamRepository.save(
+      toCreate.map((t) =>
+        this.salesTeamRepository.create({
+          name: t.name,
+          code: t.code,
+          teamLeaderId,
+        }),
+      ),
+    );
+  }
+
   async getTeamsForLeader(teamLeaderId: number): Promise<any[]> {
+    await this.ensureDefaultTeamsForLeader(teamLeaderId);
     const teams = await this.salesTeamRepository.find({ where: { teamLeaderId } });
+
+    const order = new Map<string, number>(this.DEFAULT_TEAM_CODES.map((c, idx) => [c, idx]));
+    teams.sort((a, b) => {
+      const ac = String(a.code || '').toUpperCase();
+      const bc = String(b.code || '').toUpperCase();
+      const ai = order.has(ac) ? (order.get(ac) as number) : 999;
+      const bi = order.has(bc) ? (order.get(bc) as number) : 999;
+      if (ai !== bi) return ai - bi;
+      return String(a.name || '').localeCompare(String(b.name || ''));
+    });
 
     const result: any[] = [];
     for (const team of teams) {
@@ -781,9 +871,20 @@ export class CrmTeamService {
   }
 
   async createTeam(teamLeaderId: number, data: { name: string; code?: string }): Promise<SalesTeam> {
+    const trimmedCode = String(data.code || '').trim();
+    const normalizedCode = trimmedCode ? trimmedCode.toUpperCase() : '';
+    if (normalizedCode) {
+      const existing = await this.salesTeamRepository.findOne({
+        where: { teamLeaderId, code: normalizedCode },
+      });
+      if (existing) {
+        throw new BadRequestException(`Team code \"${normalizedCode}\" already exists`);
+      }
+    }
+
     const team = this.salesTeamRepository.create({
       name: data.name,
-      code: data.code || null,
+      code: normalizedCode || null,
       teamLeaderId,
     });
     return this.salesTeamRepository.save(team);
@@ -814,7 +915,7 @@ export class CrmTeamService {
 
     if (data.code !== undefined) {
       const code = data.code === null ? null : String(data.code).trim();
-      team.code = code ? code : null;
+      team.code = code ? code.toUpperCase() : null;
     }
 
     return this.salesTeamRepository.save(team);
