@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import AdminLayout from '@/layouts/AdminLayout';
-import { backendUrl } from '@/config/backend';
+import apiClient from '@/services/api';
 
 interface Customer360 {
   customer_id: number;
@@ -99,6 +99,7 @@ export default function CustomerProfile() {
   const [behaviors, setBehaviors] = useState<BehaviorData[]>([]);
   const [aiRecommendation, setAiRecommendation] = useState<AIRecommendation | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'overview' | 'profile' | 'family' | 'interactions' | 'behavior' | 'ai'>('overview');
   
   // Modals
@@ -115,34 +116,45 @@ export default function CustomerProfile() {
   const loadCustomerData = async () => {
     try {
       setLoading(true);
+      setLoadError(null);
       
-      // Load customer 360 view
-      const customer360Res = await fetch(backendUrl(`/cdm/customer360/${id}`));
-      const customer360Data = await customer360Res.json();
-      setCustomer(customer360Data);
+      // CDM routes live under the backend API prefix (NEXT_PUBLIC_API_URL),
+      // so use apiClient (baseURL = .../api) instead of calling the origin.
+      const [customer360Res, familyRes, interactionsRes, behaviorRes, aiRes] = await Promise.all([
+        apiClient.get(`/cdm/customer360/${id}`),
+        apiClient.get(`/cdm/family/${id}`),
+        apiClient.get(`/cdm/interactions/${id}`, { params: { limit: 20 } }),
+        apiClient.get(`/cdm/behavior/${id}/stats`),
+        apiClient.get(`/cdm/ai/recommendation/${id}`),
+      ]);
 
-      // Load family members
-      const familyRes = await fetch(backendUrl(`/cdm/family/${id}`));
-      const familyData = await familyRes.json();
-      setFamilyMembers(familyData);
+      const customer360Data = customer360Res.data as any;
+      if (!customer360Data || typeof customer360Data !== 'object') {
+        setCustomer(null);
+        setLoadError('Customer data not found');
+        return;
+      }
+      if (typeof customer360Data?.statusCode === 'number') {
+        const msg = String(customer360Data?.message || 'Failed to load customer');
+        setCustomer(null);
+        setLoadError(msg);
+        return;
+      }
 
-      // Load interactions
-      const interactionsRes = await fetch(backendUrl(`/cdm/interactions/${id}?limit=20`));
-      const interactionsData = await interactionsRes.json();
-      setInteractions(interactionsData);
-
-      // Load behavior stats
-      const behaviorRes = await fetch(backendUrl(`/cdm/behavior/${id}/stats`));
-      const behaviorData = await behaviorRes.json();
-      setBehaviors(behaviorData);
-
-      // Load AI recommendation
-      const aiRes = await fetch(backendUrl(`/cdm/ai/recommendation/${id}`));
-      const aiData = await aiRes.json();
-      setAiRecommendation(aiData);
+      setCustomer(customer360Data as Customer360);
+      setFamilyMembers(Array.isArray(familyRes.data) ? (familyRes.data as any[]) : []);
+      setInteractions(Array.isArray(interactionsRes.data) ? (interactionsRes.data as any[]) : []);
+      setBehaviors(Array.isArray(behaviorRes.data) ? (behaviorRes.data as any[]) : []);
+      setAiRecommendation(aiRes.data as any);
 
     } catch (error) {
       console.error('Failed to load customer data:', error);
+      setCustomer(null);
+      setFamilyMembers([]);
+      setInteractions([]);
+      setBehaviors([]);
+      setAiRecommendation(null);
+      setLoadError('Failed to load customer data. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -150,16 +162,9 @@ export default function CustomerProfile() {
 
   const handleAddFamily = async (formData: any) => {
     try {
-      const res = await fetch(backendUrl('/cdm/family'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...formData, customerId: id }),
-      });
-
-      if (res.ok) {
-        loadCustomerData();
-        setShowAddFamily(false);
-      }
+      await apiClient.post('/cdm/family', { ...formData, customerId: id });
+      loadCustomerData();
+      setShowAddFamily(false);
     } catch (error) {
       console.error('Failed to add family member:', error);
     }
@@ -167,22 +172,15 @@ export default function CustomerProfile() {
 
   const handleTrackInteraction = async (formData: any) => {
     try {
-      const res = await fetch(backendUrl('/cdm/interactions'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...formData, customerId: id }),
-      });
-
-      if (res.ok) {
-        loadCustomerData();
-        setShowAddInteraction(false);
-      }
+      await apiClient.post('/cdm/interactions', { ...formData, customerId: id });
+      loadCustomerData();
+      setShowAddInteraction(false);
     } catch (error) {
       console.error('Failed to track interaction:', error);
     }
   };
 
-  if (loading || !customer) {
+  if (loading) {
     return (
       <AdminLayout>
         <div className="p-6 flex items-center justify-center h-64">
@@ -192,20 +190,104 @@ export default function CustomerProfile() {
     );
   }
 
-  const temperatureColor = {
+  if (loadError) {
+    return (
+      <AdminLayout>
+        <div className="p-6">
+          <div className="bg-red-50 border border-red-200 text-red-800 rounded-lg p-4">
+            {loadError}
+          </div>
+          <button
+            type="button"
+            onClick={() => router.back()}
+            className="mt-4 bg-white border border-gray-200 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-50"
+          >
+            ← Back
+          </button>
+        </div>
+      </AdminLayout>
+    );
+  }
+
+  if (!customer) {
+    return (
+      <AdminLayout>
+        <div className="p-6">
+          <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 rounded-lg p-4">
+            Customer not found
+          </div>
+          <button
+            type="button"
+            onClick={() => router.back()}
+            className="mt-4 bg-white border border-gray-200 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-50"
+          >
+            ← Back
+          </button>
+        </div>
+      </AdminLayout>
+    );
+  }
+
+  const normalizeTemperature = (value: unknown): Customer360['customer_temperature'] => {
+    return value === 'hot' || value === 'warm' || value === 'cold' ? value : 'cold';
+  };
+
+  const normalizeLifecycleStage = (value: unknown): Customer360['lifecycle_stage'] => {
+    return value === 'lead' || value === 'prospect' || value === 'first_buyer' || value === 'repeat_buyer' || value === 'loyal' || value === 'inactive'
+      ? value
+      : 'lead';
+  };
+
+  const safeTemperature = normalizeTemperature((customer as any)?.customer_temperature);
+  const safeLifecycleStage = normalizeLifecycleStage((customer as any)?.lifecycle_stage);
+
+  const toNumberOrNull = (value: unknown): number | null => {
+    if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      if (!trimmed) return null;
+      const parsed = Number(trimmed);
+      return Number.isFinite(parsed) ? parsed : null;
+    }
+    return null;
+  };
+
+  const formatNumber = (
+    value: unknown,
+    opts?: {
+      fallback?: string;
+      round?: boolean;
+      minimumFractionDigits?: number;
+      maximumFractionDigits?: number;
+    },
+  ): string => {
+    const fallback = opts?.fallback ?? '—';
+    const base = toNumberOrNull(value);
+    if (base === null) return fallback;
+    const n = opts?.round ? Math.round(base) : base;
+    if (!Number.isFinite(n)) return fallback;
+    return n.toLocaleString(undefined, {
+      minimumFractionDigits: opts?.minimumFractionDigits,
+      maximumFractionDigits: opts?.maximumFractionDigits,
+    });
+  };
+
+  const temperatureColorMap: Record<Customer360['customer_temperature'], string> = {
     hot: 'text-red-600 bg-red-100',
     warm: 'text-orange-600 bg-orange-100',
     cold: 'text-blue-600 bg-blue-100',
-  }[customer.customer_temperature];
+  };
+  const temperatureColor = temperatureColorMap[safeTemperature];
 
-  const lifecycleColor = {
+  const lifecycleColorMap: Record<Customer360['lifecycle_stage'], string> = {
     lead: 'bg-gray-100 text-gray-800',
     prospect: 'bg-blue-100 text-blue-800',
     first_buyer: 'bg-green-100 text-green-800',
     repeat_buyer: 'bg-purple-100 text-purple-800',
     loyal: 'bg-yellow-100 text-yellow-800',
     inactive: 'bg-red-100 text-red-800',
-  }[customer.lifecycle_stage];
+  };
+  const lifecycleColor = lifecycleColorMap[safeLifecycleStage];
 
   return (
     <AdminLayout>
@@ -221,10 +303,10 @@ export default function CustomerProfile() {
                 <span>📧 {customer.email}</span>
                 <span>📞 {customer.phone || customer.mobile}</span>
                 <span className={`px-3 py-1 rounded-full text-xs font-semibold ${temperatureColor}`}>
-                  🔥 {customer.customer_temperature.toUpperCase()}
+                  🔥 {String(safeTemperature).toUpperCase()}
                 </span>
                 <span className={`px-3 py-1 rounded-full text-xs font-semibold ${lifecycleColor}`}>
-                  {customer.lifecycle_stage.replace('_', ' ').toUpperCase()}
+                  {String(safeLifecycleStage).split('_').join(' ').toUpperCase()}
                 </span>
               </div>
             </div>
@@ -240,19 +322,19 @@ export default function CustomerProfile() {
           <div className="grid grid-cols-4 gap-4 mt-6">
             <div className="bg-white/20 backdrop-blur rounded-lg p-4">
               <div className="text-sm opacity-90">Lifetime Value</div>
-              <div className="text-2xl font-bold">৳{customer.lifetime_value.toLocaleString()}</div>
+              <div className="text-2xl font-bold">৳{formatNumber((customer as any)?.lifetime_value, { fallback: '0', round: true })}</div>
             </div>
             <div className="bg-white/20 backdrop-blur rounded-lg p-4">
               <div className="text-sm opacity-90">Total Orders</div>
-              <div className="text-2xl font-bold">{customer.total_orders}</div>
+              <div className="text-2xl font-bold">{formatNumber((customer as any)?.total_orders, { fallback: '0', round: true })}</div>
             </div>
             <div className="bg-white/20 backdrop-blur rounded-lg p-4">
               <div className="text-sm opacity-90">Avg Order Value</div>
-              <div className="text-2xl font-bold">৳{Math.round(customer.avg_order_value).toLocaleString()}</div>
+              <div className="text-2xl font-bold">৳{formatNumber((customer as any)?.avg_order_value, { fallback: '0', round: true })}</div>
             </div>
             <div className="bg-white/20 backdrop-blur rounded-lg p-4">
               <div className="text-sm opacity-90">Days Since Last Order</div>
-              <div className="text-2xl font-bold">{customer.days_since_last_order}</div>
+              <div className="text-2xl font-bold">{formatNumber((customer as any)?.days_since_last_order, { fallback: '—', round: true })}</div>
             </div>
           </div>
         </div>
@@ -308,7 +390,7 @@ export default function CustomerProfile() {
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-700">Total Spent:</span>
-                        <span className="font-semibold">৳{customer.lifetime_value.toLocaleString()}</span>
+                        <span className="font-semibold">৳{formatNumber((customer as any)?.lifetime_value, { fallback: '0', round: true })}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-700">Orders:</span>

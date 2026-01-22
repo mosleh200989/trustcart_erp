@@ -7,6 +7,10 @@ import { LeadManagementService } from './lead-management.service';
 export class LeadManagementController {
   constructor(private readonly leadService: LeadManagementService) {}
 
+  private getAuthUserId(req: any): number {
+    return Number(req?.user?.id ?? req?.user?.userId);
+  }
+
   // ============================================
   // SESSION TRACKING
   // ============================================
@@ -92,6 +96,16 @@ export class LeadManagementController {
     return this.leadService.getTeamAssignments(teamType, assignedToId, status);
   }
 
+  @Get('assignment/my')
+  async getMyTeamAssignments(
+    @Request() req: any,
+    @Query('teamType') teamType?: string,
+    @Query('status') status?: string,
+  ) {
+    const userId = this.getAuthUserId(req);
+    return this.leadService.getTeamAssignments(teamType, userId, status);
+  }
+
   @Put('assignment/:id/status')
   async updateAssignmentStatus(
     @Param('id') id: number,
@@ -106,7 +120,7 @@ export class LeadManagementController {
 
   @Post('team-a')
   async saveTeamAData(@Body() data: any, @Request() req: any) {
-    data.collectedById = req.user.userId;
+    data.collectedById = this.getAuthUserId(req);
     return this.leadService.saveTeamAData(data);
   }
 
@@ -121,7 +135,7 @@ export class LeadManagementController {
 
   @Post('team-b')
   async saveTeamBData(@Body() data: any, @Request() req: any) {
-    data.collectedById = req.user.userId;
+    data.collectedById = this.getAuthUserId(req);
     return this.leadService.saveTeamBData(data);
   }
 
@@ -136,7 +150,7 @@ export class LeadManagementController {
 
   @Post('team-c')
   async saveTeamCData(@Body() data: any, @Request() req: any) {
-    data.collectedById = req.user.userId;
+    data.collectedById = this.getAuthUserId(req);
     return this.leadService.saveTeamCData(data);
   }
 
@@ -151,7 +165,7 @@ export class LeadManagementController {
 
   @Post('team-d')
   async saveTeamDData(@Body() data: any, @Request() req: any) {
-    data.collectedById = req.user.userId;
+    data.collectedById = this.getAuthUserId(req);
     return this.leadService.saveTeamDData(data);
   }
 
@@ -166,7 +180,7 @@ export class LeadManagementController {
 
   @Post('team-e')
   async saveTeamEData(@Body() data: any, @Request() req: any) {
-    data.collectedById = req.user.userId;
+    data.collectedById = this.getAuthUserId(req);
     return this.leadService.saveTeamEData(data);
   }
 
@@ -181,8 +195,19 @@ export class LeadManagementController {
 
   @Post('tier')
   async updateCustomerTier(@Body() data: any, @Request() req: any) {
-    data.tierAssignedById = req.user.userId;
+    data.tierAssignedById = this.getAuthUserId(req);
     return this.leadService.updateCustomerTier(data);
+  }
+
+  @Get('team-types')
+  async getTeamTypes() {
+    return [
+      { code: 'A', name: 'Team A' },
+      { code: 'B', name: 'Team B' },
+      { code: 'C', name: 'Team C' },
+      { code: 'D', name: 'Team D' },
+      { code: 'E', name: 'Team E' },
+    ];
   }
 
   @Get('tier/:customerId')

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import AdminLayout from '@/layouts/AdminLayout';
 import ImageUpload from '@/components/admin/ImageUpload';
+import DataTable from '@/components/admin/DataTable';
 import { FaPlus, FaEdit, FaTrash, FaToggleOn, FaToggleOff } from 'react-icons/fa';
 import apiClient from '@/services/api';
 
@@ -22,6 +23,9 @@ export default function CategoriesManagement() {
   const [showModal, setShowModal] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
 
+  const [selectedCategoryIds, setSelectedCategoryIds] = useState<Array<number | string>>([]);
+  const [bulkWorking, setBulkWorking] = useState(false);
+
   const [formData, setFormData] = useState({
     name_en: '',
     name_bn: '',
@@ -40,9 +44,10 @@ export default function CategoriesManagement() {
   const loadCategories = async () => {
     try {
       const response = await apiClient.get('/categories');
-      setCategories(response.data);
+      setCategories(Array.isArray(response.data) ? response.data : []);
     } catch (error) {
       console.error('Failed to load categories:', error);
+      setCategories([]);
     } finally {
       setLoading(false);
     }
@@ -97,6 +102,45 @@ export default function CategoriesManagement() {
     }
   };
 
+  const clearSelection = () => setSelectedCategoryIds([]);
+
+  const handleBulkApply = async (bulkAction: 'delete' | 'activate' | 'deactivate') => {
+    if (selectedCategoryIds.length === 0) {
+      alert('Please select at least one category');
+      return;
+    }
+
+    const actionLabel = bulkAction === 'delete' ? 'delete' : bulkAction === 'activate' ? 'activate' : 'deactivate';
+    if (!confirm(`Are you sure you want to ${actionLabel} ${selectedCategoryIds.length} selected category(s)?`)) return;
+
+    setBulkWorking(true);
+    try {
+      const results = await Promise.allSettled(
+        selectedCategoryIds.map((id) => {
+          const categoryId = Number(id);
+          if (bulkAction === 'delete') return apiClient.delete(`/categories/${categoryId}`);
+          if (bulkAction === 'activate') return apiClient.put(`/categories/${categoryId}`, { is_active: true });
+          return apiClient.put(`/categories/${categoryId}`, { is_active: false });
+        }),
+      );
+
+      const succeeded = results.filter((r) => r.status === 'fulfilled').length;
+      const failed = results.length - succeeded;
+
+      await loadCategories();
+      clearSelection();
+
+      if (failed > 0) {
+        alert(`Bulk action completed: ${succeeded} succeeded, ${failed} failed.`);
+      }
+    } catch (error) {
+      console.error('Bulk action failed:', error);
+      alert('Bulk action failed');
+    } finally {
+      setBulkWorking(false);
+    }
+  };
+
   const resetForm = () => {
     setEditingCategory(null);
     setFormData({
@@ -139,93 +183,110 @@ export default function CategoriesManagement() {
             <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500"></div>
           </div>
         ) : (
-          <div className="bg-white rounded-lg shadow overflow-hidden">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Image
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Name (EN)
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Name (BN)
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Slug
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Order
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {categories.map((category) => (
-                  <tr key={category.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      {category.image_url ? (
-                        <img
-                          src={category.image_url}
-                          alt={category.name_en}
-                          className="w-16 h-16 object-cover rounded"
-                        />
-                      ) : (
-                        <div className="w-16 h-16 bg-gray-200 rounded flex items-center justify-center text-gray-400">
-                          No Image
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900">{category.name_en}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-500">{category.name_bn || '-'}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-500">{category.slug}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-500">{category.display_order}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      {category.is_active ? (
-                        <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
-                          Active
-                        </span>
-                      ) : (
-                        <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">
-                          Inactive
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <button
-                        onClick={() => handleEdit(category)}
-                        className="text-blue-600 hover:text-blue-900 mr-4"
-                        title="Edit"
-                      >
-                        <FaEdit size={18} />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(category.id)}
-                        className="text-red-600 hover:text-red-900"
-                        title="Delete"
-                      >
-                        <FaTrash size={18} />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <>
+            {categories.length > 0 && (
+              <div className="mb-4 bg-white rounded-lg shadow p-4 flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full md:w-auto">
+                  <button
+                    onClick={() => handleBulkApply('activate')}
+                    disabled={selectedCategoryIds.length === 0 || bulkWorking}
+                    className={`px-4 py-2 rounded-lg text-sm text-white ${
+                      selectedCategoryIds.length === 0 || bulkWorking
+                        ? 'bg-gray-300 cursor-not-allowed'
+                        : 'bg-blue-600 hover:bg-blue-700'
+                    }`}
+                  >
+                    {bulkWorking ? 'Working…' : 'Set Active'}
+                  </button>
+
+                  <button
+                    onClick={() => handleBulkApply('deactivate')}
+                    disabled={selectedCategoryIds.length === 0 || bulkWorking}
+                    className={`px-4 py-2 rounded-lg text-sm text-white ${
+                      selectedCategoryIds.length === 0 || bulkWorking
+                        ? 'bg-gray-300 cursor-not-allowed'
+                        : 'bg-amber-600 hover:bg-amber-700'
+                    }`}
+                  >
+                    {bulkWorking ? 'Working…' : 'Set Inactive'}
+                  </button>
+
+                  <button
+                    onClick={() => handleBulkApply('delete')}
+                    disabled={selectedCategoryIds.length === 0 || bulkWorking}
+                    className={`px-4 py-2 rounded-lg text-sm text-white ${
+                      selectedCategoryIds.length === 0 || bulkWorking
+                        ? 'bg-gray-300 cursor-not-allowed'
+                        : 'bg-red-600 hover:bg-red-700'
+                    }`}
+                  >
+                    {bulkWorking ? 'Working…' : 'Delete'}
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-3 text-sm text-gray-700">
+                  <span>
+                    Selected <span className="font-semibold">{selectedCategoryIds.length}</span>
+                  </span>
+                  <button
+                    onClick={clearSelection}
+                    disabled={selectedCategoryIds.length === 0 || bulkWorking}
+                    className={`px-3 py-2 rounded-lg border text-sm ${
+                      selectedCategoryIds.length === 0 || bulkWorking
+                        ? 'text-gray-400 border-gray-200 cursor-not-allowed'
+                        : 'text-gray-700 border-gray-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    Clear
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <DataTable
+              columns={[
+                {
+                  key: 'image_url',
+                  label: 'Image',
+                  render: (value: any, row: Category) =>
+                    value ? (
+                      <img src={String(value)} alt={row.name_en} className="w-16 h-16 object-cover rounded" />
+                    ) : (
+                      <div className="w-16 h-16 bg-gray-200 rounded flex items-center justify-center text-gray-400">
+                        No Image
+                      </div>
+                    ),
+                },
+                { key: 'name_en', label: 'Name (EN)' },
+                {
+                  key: 'name_bn',
+                  label: 'Name (BN)',
+                  render: (value: any) => <span className="text-gray-700">{value || '-'}</span>,
+                },
+                { key: 'slug', label: 'Slug' },
+                { key: 'display_order', label: 'Order' },
+                {
+                  key: 'is_active',
+                  label: 'Status',
+                  render: (value: any) =>
+                    value ? (
+                      <span className="px-2 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800">Active</span>
+                    ) : (
+                      <span className="px-2 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-800">Inactive</span>
+                    ),
+                },
+              ]}
+              data={categories}
+              loading={loading}
+              selection={{
+                selectedRowIds: selectedCategoryIds,
+                onChange: (next) => setSelectedCategoryIds(next),
+                getRowId: (row) => row.id,
+              }}
+              onEdit={handleEdit}
+              onDelete={(row) => handleDelete(row.id)}
+            />
+          </>
         )}
 
         {/* Add/Edit Modal */}

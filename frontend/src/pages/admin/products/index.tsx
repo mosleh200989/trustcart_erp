@@ -31,6 +31,8 @@ export default function AdminProducts() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<'add' | 'edit' | 'view'>('add');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [selectedProductIds, setSelectedProductIds] = useState<Array<number | string>>([]);
+  const [bulkWorking, setBulkWorking] = useState(false);
   const itemsPerPage = 10;
 
   const [additionalInfoRows, setAdditionalInfoRows] = useState<Array<{ key: string; value: string }>>([]);
@@ -181,6 +183,45 @@ export default function AdminProducts() {
       alert('Product deleted successfully');
     } catch (error) {
       alert('Failed to delete product');
+    }
+  };
+
+  const clearSelection = () => setSelectedProductIds([]);
+
+  const handleBulkApply = async (bulkAction: 'delete' | 'activate' | 'deactivate') => {
+    if (selectedProductIds.length === 0) {
+      alert('Please select at least one product');
+      return;
+    }
+
+    const actionLabel = bulkAction === 'delete' ? 'delete' : bulkAction === 'activate' ? 'activate' : 'deactivate';
+    if (!confirm(`Are you sure you want to ${actionLabel} ${selectedProductIds.length} selected product(s)?`)) return;
+
+    setBulkWorking(true);
+    try {
+      const results = await Promise.allSettled(
+        selectedProductIds.map((id) => {
+          const productId = Number(id);
+          if (bulkAction === 'delete') return apiClient.delete(`/products/${productId}`);
+          if (bulkAction === 'activate') return apiClient.put(`/products/${productId}`, { status: 'active' });
+          return apiClient.put(`/products/${productId}`, { status: 'inactive' });
+        }),
+      );
+
+      const succeeded = results.filter((r) => r.status === 'fulfilled').length;
+      const failed = results.length - succeeded;
+
+      await loadProducts();
+      clearSelection();
+
+      if (failed > 0) {
+        alert(`Bulk action completed: ${succeeded} succeeded, ${failed} failed.`);
+      }
+    } catch (error) {
+      console.error('Bulk action failed:', error);
+      alert('Bulk action failed');
+    } finally {
+      setBulkWorking(false);
     }
   };
 
@@ -413,11 +454,76 @@ export default function AdminProducts() {
           </div>
         </div>
 
+        {/* Bulk Actions */}
+        {!loading && products.length > 0 && (
+          <div className="mb-4 bg-white rounded-lg shadow p-4 flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full md:w-auto">
+              <button
+                onClick={() => handleBulkApply('activate')}
+                disabled={selectedProductIds.length === 0 || bulkWorking}
+                className={`px-4 py-2 rounded-lg text-sm text-white ${
+                  selectedProductIds.length === 0 || bulkWorking
+                    ? 'bg-gray-300 cursor-not-allowed'
+                    : 'bg-blue-600 hover:bg-blue-700'
+                }`}
+              >
+                {bulkWorking ? 'Working…' : 'Set Active'}
+              </button>
+
+              <button
+                onClick={() => handleBulkApply('deactivate')}
+                disabled={selectedProductIds.length === 0 || bulkWorking}
+                className={`px-4 py-2 rounded-lg text-sm text-white ${
+                  selectedProductIds.length === 0 || bulkWorking
+                    ? 'bg-gray-300 cursor-not-allowed'
+                    : 'bg-amber-600 hover:bg-amber-700'
+                }`}
+              >
+                {bulkWorking ? 'Working…' : 'Set Inactive'}
+              </button>
+
+              <button
+                onClick={() => handleBulkApply('delete')}
+                disabled={selectedProductIds.length === 0 || bulkWorking}
+                className={`px-4 py-2 rounded-lg text-sm text-white ${
+                  selectedProductIds.length === 0 || bulkWorking
+                    ? 'bg-gray-300 cursor-not-allowed'
+                    : 'bg-red-600 hover:bg-red-700'
+                }`}
+              >
+                {bulkWorking ? 'Working…' : 'Delete'}
+              </button>
+            </div>
+
+            <div className="flex items-center gap-3 text-sm text-gray-700">
+              <span>
+                Selected <span className="font-semibold">{selectedProductIds.length}</span>
+              </span>
+              <button
+                onClick={clearSelection}
+                disabled={selectedProductIds.length === 0 || bulkWorking}
+                className={`px-3 py-2 rounded-lg border text-sm ${
+                  selectedProductIds.length === 0 || bulkWorking
+                    ? 'text-gray-400 border-gray-200 cursor-not-allowed'
+                    : 'text-gray-700 border-gray-300 hover:bg-gray-50'
+                }`}
+              >
+                Clear
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Products Table */}
         <DataTable
           columns={columns}
           data={paginatedProducts}
           loading={loading}
+          selection={{
+            selectedRowIds: selectedProductIds,
+            onChange: (next) => setSelectedProductIds(next),
+            getRowId: (row) => row.id,
+          }}
           onView={handleView}
           onEdit={handleEdit}
           onDelete={handleDelete}

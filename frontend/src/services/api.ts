@@ -234,8 +234,10 @@ const transformCategory = (c: any) => ({
 });
 
 export const categories = {
-  async list() {
-    const res = await apiClient.get('/categories');
+  async list(options?: { active?: boolean }) {
+    const res = await apiClient.get('/categories', {
+      params: options?.active === undefined ? undefined : { active: options.active },
+    });
     const data = Array.isArray(res.data) ? res.data : [];
     return data.map(transformCategory);
   },

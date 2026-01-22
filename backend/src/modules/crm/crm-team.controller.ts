@@ -39,10 +39,22 @@ export class CrmTeamController {
     return await this.crmTeamService.getTeamLeads(req.user.id, query);
   }
 
-  @Get('agent/:agentId/customers')
-  @RequirePermissions('view-team-follow-ups')
-  async getAgentCustomers(@Param('agentId') agentId: number, @Query() query: any) {
+  // Agent self view (no RBAC permission required; returns only own customers)
+  // NOTE: Must be declared before the dynamic `agent/:agentId/...` route.
+  @Get('agent/me/customers')
+  async getMyCustomers(@Query() query: any, @Request() req: any) {
+    const agentId = Number(req.user?.id ?? req.user?.userId);
     return await this.crmTeamService.getAgentCustomers(agentId, query);
+  }
+
+  @Get('agent/:agentId/customers')
+  async getAgentCustomers(@Param('agentId') agentId: string, @Query() query: any, @Request() req: any) {
+    const requesterId = Number(req.user?.id ?? req.user?.userId);
+    return await this.crmTeamService.getAgentCustomersForRequester(
+      { id: requesterId, roleSlug: req.user?.roleSlug },
+      Number(agentId),
+      query,
+    );
   }
 
   @Get('performance')
