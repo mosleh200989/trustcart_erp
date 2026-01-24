@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { SalesService } from './sales.service';
 import { SalesController } from './sales.controller';
@@ -16,6 +16,7 @@ import { User } from '../users/user.entity';
 import { LoyaltyModule } from '../loyalty/loyalty.module';
 import { OffersModule } from '../offers/offers.module';
 import { MessagingModule } from '../messaging/messaging.module';
+import { CrmModule } from '../crm/crm.module';
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { MessagingModule } from '../messaging/messaging.module';
     LoyaltyModule,
     OffersModule,
     MessagingModule,
+    forwardRef(() => CrmModule),
   ],
   controllers: [SalesController, OrderManagementController],
   providers: [SalesService, OrderManagementService],

@@ -49,9 +49,9 @@ export default function CustomerLayout({ children }: { children: ReactNode }) {
 
   const SidebarContent = ({ onNavigate }: { onNavigate?: () => void }) => (
     <>
-      <div className="px-6 py-4 border-b">
-        <h1 className="text-xl font-bold text-orange-600">Customer Portal</h1>
-        <p className="text-xs text-gray-500 mt-1">Customer Account only</p>
+      <div className="px-6 py-4 border-b flex flex-col items-center">
+        <img src="/trust-cart-logo-main.png" alt="TrustCart" className="h-16 object-contain mb-2" />
+        <p className="text-xs text-gray-500">Customer Portal</p>
       </div>
 
       <nav className="flex-1 overflow-y-auto py-4">
