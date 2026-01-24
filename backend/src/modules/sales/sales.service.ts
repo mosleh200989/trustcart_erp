@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject, forwardRef } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { SalesOrder } from './sales-order.entity';
@@ -6,6 +6,7 @@ import { SalesOrderItem } from './sales-order-item.entity';
 import { LoyaltyService } from '../loyalty/loyalty.service';
 import { OffersService } from '../offers/offers.service';
 import { WhatsAppService } from '../messaging/whatsapp.service';
+import { CommissionService } from '../crm/commission.service';
 
 @Injectable()
 export class SalesService {
@@ -17,6 +18,8 @@ export class SalesService {
     private loyaltyService: LoyaltyService,
     private offersService: OffersService,
     private whatsAppService: WhatsAppService,
+    @Inject(forwardRef(() => CommissionService))
+    private commissionService: CommissionService,
   ) {}
 
   private normalizeOfferCode(value: any): string {
@@ -444,6 +447,19 @@ export class SalesService {
           orderId: updated.id,
           customerId: updated.customerId,
         });
+      } catch {
+        // never block order updates
+      }
+
+      // Process commission for the delivering agent
+      try {
+        if (updated.customerId) {
+          await this.commissionService.processOrderForCommission(
+            updated.id,
+            updated.customerId,
+            parseFloat(String(updated.totalAmount || 0)),
+          );
+        }
       } catch {
         // never block order updates
       }

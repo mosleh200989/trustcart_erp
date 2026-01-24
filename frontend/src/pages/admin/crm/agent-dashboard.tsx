@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import AdminLayout from '@/layouts/AdminLayout';
-import { FaPhone, FaWhatsapp, FaSms, FaEnvelope, FaFire, FaChartLine, FaCheckCircle, FaClock } from 'react-icons/fa';
+import { FaPhone, FaWhatsapp, FaSms, FaEnvelope, FaFire, FaChartLine, FaCheckCircle, FaClock, FaMoneyBillWave, FaDollarSign } from 'react-icons/fa';
 import apiClient, { auth, users as usersApi } from '@/services/api';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
@@ -71,6 +71,40 @@ interface PaginatedCustomers {
   total: number;
 }
 
+interface CommissionSummary {
+  agentId: number;
+  agentName: string;
+  totalSales: number;
+  totalCommissionEarned: number;
+  pendingCommission: number;
+  approvedCommission: number;
+  paidCommission: number;
+  totalOrders: number;
+  currentMonthCommission: number;
+  currentMonthSales: number;
+  currentMonthOrders: number;
+}
+
+interface CommissionSettings {
+  configured: boolean;
+  commissionType?: string;
+  fixedAmount?: number | null;
+  percentageRate?: number | null;
+  minOrderValue?: number;
+  maxCommission?: number | null;
+  message?: string;
+}
+
+interface CommissionRecord {
+  id: number;
+  salesOrderId: number;
+  orderAmount: number;
+  commissionAmount: number;
+  commissionType: string;
+  status: string;
+  createdAt: string;
+}
+
 export default function AgentDashboard() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
@@ -88,6 +122,12 @@ export default function AgentDashboard() {
 
   const [agentUsers, setAgentUsers] = useState<any[]>([]);
   const [selectedViewAgentId, setSelectedViewAgentId] = useState<number | null>(null);
+
+  // Commission state
+  const [commissionSummary, setCommissionSummary] = useState<CommissionSummary | null>(null);
+  const [commissionSettings, setCommissionSettings] = useState<CommissionSettings | null>(null);
+  const [recentCommissions, setRecentCommissions] = useState<CommissionRecord[]>([]);
+  const [commissionLoading, setCommissionLoading] = useState(false);
 
   // Softphone UI state (UI-only; telephony initiation happens via backend)
   const [agentStatus, setAgentStatus] = useState<AgentStatus>('online');
@@ -165,6 +205,7 @@ export default function AgentDashboard() {
   useEffect(() => {
     if (!agentId) return;
     loadDashboard();
+    loadCommissionData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [agentId]);
 
@@ -283,6 +324,24 @@ export default function AgentDashboard() {
       setAssignedError(String(message));
     } finally {
       setAssignedLoading(false);
+    }
+  };
+
+  const loadCommissionData = async () => {
+    try {
+      setCommissionLoading(true);
+      const [summaryRes, settingsRes, commissionsRes] = await Promise.all([
+        apiClient.get('/crm/commissions/my/summary'),
+        apiClient.get('/crm/commissions/my/settings'),
+        apiClient.get('/crm/commissions/my', { params: { limit: 5 } }),
+      ]);
+      setCommissionSummary(summaryRes.data);
+      setCommissionSettings(settingsRes.data);
+      setRecentCommissions(Array.isArray(commissionsRes.data?.data) ? commissionsRes.data.data : []);
+    } catch (err) {
+      console.error('Failed to load commission data', err);
+    } finally {
+      setCommissionLoading(false);
     }
   };
 
@@ -551,6 +610,125 @@ export default function AgentDashboard() {
               <FaCheckCircle className="text-4xl text-green-500" />
             </div>
           </div>
+        </div>
+
+        {/* Commission Summary Section */}
+        <div className="bg-gradient-to-r from-green-500 to-emerald-600 rounded-lg shadow-lg p-6 text-white">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-2xl font-bold flex items-center gap-2">
+                <FaMoneyBillWave /> My Commission
+              </h2>
+              <p className="text-green-100 text-sm">Your earnings from sales conversions</p>
+            </div>
+            <button
+              onClick={loadCommissionData}
+              className="px-4 py-2 bg-white/20 rounded-lg hover:bg-white/30 text-sm"
+            >
+              Refresh
+            </button>
+          </div>
+
+          {commissionLoading ? (
+            <div className="text-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mx-auto"></div>
+            </div>
+          ) : commissionSummary ? (
+            <>
+              {/* Commission Rate Info */}
+              {commissionSettings?.configured && (
+                <div className="bg-white/10 rounded-lg p-4 mb-4">
+                  <div className="text-sm text-green-100 mb-1">Your Commission Rate</div>
+                  <div className="text-lg font-bold">
+                    {commissionSettings.commissionType === 'fixed' 
+                      ? `৳${commissionSettings.fixedAmount} per sale`
+                      : `${commissionSettings.percentageRate}% of each sale`}
+                  </div>
+                  {commissionSettings.minOrderValue && commissionSettings.minOrderValue > 0 && (
+                    <div className="text-xs text-green-200 mt-1">
+                      Min order value: ৳{commissionSettings.minOrderValue}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {!commissionSettings?.configured && (
+                <div className="bg-yellow-500/20 rounded-lg p-4 mb-4">
+                  <div className="text-sm text-yellow-100">
+                    <FaClock className="inline mr-1" /> Commission rates not yet configured. Contact your admin.
+                  </div>
+                </div>
+              )}
+
+              {/* Main Stats */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                <div className="bg-white/10 rounded-lg p-4">
+                  <div className="text-3xl font-bold">৳{commissionSummary.totalCommissionEarned.toFixed(0)}</div>
+                  <div className="text-sm text-green-100">Total Earned</div>
+                </div>
+                <div className="bg-white/10 rounded-lg p-4">
+                  <div className="text-3xl font-bold">{commissionSummary.totalOrders}</div>
+                  <div className="text-sm text-green-100">Sales Made</div>
+                </div>
+                <div className="bg-white/10 rounded-lg p-4">
+                  <div className="text-3xl font-bold">৳{commissionSummary.currentMonthCommission.toFixed(0)}</div>
+                  <div className="text-sm text-green-100">This Month</div>
+                </div>
+                <div className="bg-white/10 rounded-lg p-4">
+                  <div className="text-3xl font-bold">{commissionSummary.currentMonthOrders}</div>
+                  <div className="text-sm text-green-100">Orders This Month</div>
+                </div>
+              </div>
+
+              {/* Status Breakdown */}
+              <div className="grid grid-cols-3 gap-4 mb-4">
+                <div className="bg-yellow-400/20 rounded-lg p-3 text-center">
+                  <div className="text-2xl font-bold">৳{commissionSummary.pendingCommission.toFixed(0)}</div>
+                  <div className="text-xs text-yellow-100">Pending</div>
+                </div>
+                <div className="bg-blue-400/20 rounded-lg p-3 text-center">
+                  <div className="text-2xl font-bold">৳{commissionSummary.approvedCommission.toFixed(0)}</div>
+                  <div className="text-xs text-blue-100">Approved</div>
+                </div>
+                <div className="bg-green-300/20 rounded-lg p-3 text-center">
+                  <div className="text-2xl font-bold">৳{commissionSummary.paidCommission.toFixed(0)}</div>
+                  <div className="text-xs text-green-100">Paid Out</div>
+                </div>
+              </div>
+
+              {/* Recent Commissions */}
+              {recentCommissions.length > 0 && (
+                <div className="bg-white/10 rounded-lg p-4">
+                  <div className="text-sm font-semibold mb-3">Recent Commission Records</div>
+                  <div className="space-y-2">
+                    {recentCommissions.map((c) => (
+                      <div key={c.id} className="flex items-center justify-between text-sm bg-white/5 rounded p-2">
+                        <div>
+                          <span className="font-medium">Order #{c.salesOrderId}</span>
+                          <span className="text-green-200 ml-2">৳{c.orderAmount.toFixed(0)} sale</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold">+৳{c.commissionAmount.toFixed(0)}</span>
+                          <span className={`px-2 py-0.5 rounded text-xs ${
+                            c.status === 'pending' ? 'bg-yellow-400/30' :
+                            c.status === 'approved' ? 'bg-blue-400/30' :
+                            c.status === 'paid' ? 'bg-green-300/30' :
+                            'bg-red-400/30'
+                          }`}>
+                            {c.status}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="text-center py-8 text-green-100">
+              No commission data available
+            </div>
+          )}
         </div>
 
         {/* Assigned Leads / Customers */}

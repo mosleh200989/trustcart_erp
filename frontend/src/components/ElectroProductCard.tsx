@@ -163,7 +163,7 @@ export default function ElectroProductCard({
             <img
               src={resolvedImageUrl}
               alt={displayName}
-              className="object-cover group-hover:scale-110 transition-transform duration-500 w-full h-full"
+              className="object-contain group-hover:scale-110 transition-transform duration-500 w-full h-full"
               onError={(e) => {
                 console.error("Image failed to load:", resolvedImageUrl);
                 setImageError(true);
@@ -195,7 +195,7 @@ export default function ElectroProductCard({
 
           {/* Name */}
           <h3
-            className={`font-semibold text-gray-800 text-xl group-hover:text-orange-500 transition-colors text-center ${
+            className={`font-semibold text-gray-800 text-xl group-hover:text-orange-500 transition-colors text-center line-clamp-2 min-h-[3.5rem] ${
               displayCategory ? "mb-1" : "mb-3"
             }`}
           >

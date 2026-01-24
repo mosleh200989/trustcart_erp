@@ -31,7 +31,7 @@ export default function ElectroFooter() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 lg:gap-8">
           {/* About */}
           <div>
-            <h4 className="text-lg lg:text-xl font-bold text-white mb-4">About TrustCart</h4>
+            <img src="/trust-cart-logo-main.png" alt="TrustCart" className="h-16 object-contain mb-4 brightness-0 invert" />
             <p className="text-sm mb-4">
               Your trusted online shop for premium quality products. We deliver excellence with every order.
             </p>

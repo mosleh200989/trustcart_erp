@@ -70,6 +70,11 @@ import { SalesQuota } from './entities/sales-quota.entity';
 import { RbacModule } from '../rbac/rbac.module';
 import { CrmAnalyticsController } from './crm-analytics.controller';
 import { CrmAnalyticsService } from './crm-analytics.service';
+// Commission system
+import { CommissionController } from './commission.controller';
+import { CommissionService } from './commission.service';
+import { AgentCommission } from './entities/agent-commission.entity';
+import { CommissionSettings } from './entities/commission-settings.entity';
 
 @Module({
   imports: [
@@ -100,7 +105,10 @@ import { CrmAnalyticsService } from './crm-analytics.service';
       WorkflowExecution,
       QuoteTemplate,
       SalesForecast,
-      SalesQuota
+      SalesQuota,
+      // Commission entities
+      AgentCommission,
+      CommissionSettings
     ]),
     RbacModule,
     LoyaltyModule,
@@ -127,7 +135,9 @@ import { CrmAnalyticsService } from './crm-analytics.service';
     ForecastController,
     WorkflowController,
     QuoteTemplateController,
-    CrmAnalyticsController
+    CrmAnalyticsController,
+    // Commission controller
+    CommissionController
   ],
   providers: [
     // Existing providers
@@ -151,7 +161,9 @@ import { CrmAnalyticsService } from './crm-analytics.service';
     ForecastService,
     WorkflowService,
     QuoteTemplateService,
-    CrmAnalyticsService
+    CrmAnalyticsService,
+    // Commission service
+    CommissionService
   ],
   exports: [
     // Existing exports
@@ -174,7 +186,9 @@ import { CrmAnalyticsService } from './crm-analytics.service';
     ForecastService,
     WorkflowService,
     QuoteTemplateService,
-    CrmAnalyticsService
+    CrmAnalyticsService,
+    // Commission service
+    CommissionService
   ],
 })
 export class CrmModule {}

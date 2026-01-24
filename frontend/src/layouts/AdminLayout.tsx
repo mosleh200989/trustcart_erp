@@ -7,7 +7,7 @@ import apiClient from '@/services/api';
 import { 
   FaTachometerAlt, FaBoxes, FaShoppingCart, FaUsers, FaWarehouse, 
   FaShoppingBag, FaUserTie, FaBook, FaBullseye, FaHandshake, 
-  FaHeadset, FaUser, FaCog, FaBars, FaTimes, FaBell, FaChevronDown, FaChartBar, FaTags, FaGift, FaPhone
+  FaHeadset, FaUser, FaCog, FaBars, FaTimes, FaBell, FaChevronDown, FaChartBar, FaTags, FaGift, FaPhone, FaMoneyBillWave
 } from 'react-icons/fa';
 
 interface MenuItem {
@@ -254,15 +254,20 @@ const menuItems: MenuItem[] = [
     path: '/admin/tasks'
   },
   {
+    title: 'Commission',
+    icon: FaMoneyBillWave,
+    path: '/admin/crm/commission-settings'
+  },
+  {
     title: 'CRM',
     icon: FaHandshake,
-    requiredPermissions: ['view-leads', 'view-customers', 'view-crm-reports', 'receive-new-leads'],
     children: [
       { title: 'Dashboard', icon: FaTachometerAlt, path: '/admin/crm' },
       { title: 'Customers', icon: FaUsers, path: '/admin/crm/customers' },
       { title: 'Team Dashboard', icon: FaTachometerAlt, path: '/admin/crm/team-dashboard' },
       { title: 'Lead Assignment', icon: FaUsers, path: '/admin/crm/lead-assignment' },
       { title: 'Team Data Collection', icon: FaBullseye, path: '/admin/crm/team-data-collection' },
+      { title: 'Commission Settings', icon: FaMoneyBillWave, path: '/admin/crm/commission-settings' },
       { title: 'Tier Management', icon: FaTachometerAlt, path: '/admin/crm/customer-tier-management' },
       { title: 'Pipeline', icon: FaBullseye, path: '/admin/crm/pipeline' },
       { title: 'Tasks', icon: FaBullseye, path: '/admin/crm/tasks' },
@@ -586,7 +591,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         {/* Logo */}
         <div className="p-4 border-b border-blue-500 flex items-center justify-between">
           {!sidebarCollapsed && (
-            <h1 className="text-xl font-bold">TrustCart ERP</h1>
+            <img src="/trust-cart-logo-main.png" alt="TrustCart ERP" className="h-12 object-contain" />
           )}
           <button
             onClick={() => setSidebarCollapsed(!sidebarCollapsed)}

@@ -107,7 +107,7 @@ export default function CustomerRegister() {
 
         {/* Logo & Title */}
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-orange-600 mb-2">TrustCart ERP</h1>
+          <img src="/trust-cart-logo-main.png" alt="TrustCart" className="h-20 mx-auto mb-4" />
           <p className="text-gray-600">Create Customer Account</p>
         </div>
 

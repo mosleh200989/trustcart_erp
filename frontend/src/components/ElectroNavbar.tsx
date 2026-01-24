@@ -136,10 +136,7 @@ export default function ElectroNavbar() {
 
             {/* Logo */}
             <Link href="/" className="flex items-center">
-              <div className="text-2xl lg:text-3xl font-bold">
-                <span className="text-orange-500">Trust</span>
-                <span className="text-gray-800">Cart</span>
-              </div>
+              <img src="/trust-cart-logo-main.png" alt="TrustCart" className="h-12 lg:h-16 object-contain" />
             </Link>
 
             {/* Search Bar - Desktop */}
