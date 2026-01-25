@@ -142,4 +142,56 @@ export class CrmTeamController {
   ) {
     return await this.crmTeamService.assignAgentToTeam(req.user.id, Number(teamId), body.agentId);
   }
+
+  @Get('available-agents')
+  @RequirePermissions('view-team-leader-dashboard')
+  async getAvailableAgents(@Request() req: any) {
+    return await this.crmTeamService.getAvailableAgentsForTeamLeader(req.user.id);
+  }
+
+  // ==================== TEAM AGENT REPORTS ====================
+
+  @Get('agents')
+  @RequirePermissions('view-team-leader-dashboard')
+  async getTeamAgents(@Request() req: any) {
+    return await this.crmTeamService.getTeamAgents(req.user.id);
+  }
+
+  @Get('agents/report')
+  @RequirePermissions('view-team-leader-dashboard')
+  async getTeamAgentsReport(@Query() query: any, @Request() req: any) {
+    return await this.crmTeamService.getTeamAgentsReport(req.user.id, {
+      from: query.from,
+      to: query.to,
+    });
+  }
+
+  @Get('agents/:agentId/history')
+  @RequirePermissions('view-team-leader-dashboard')
+  async getAgentHistory(
+    @Param('agentId') agentId: string,
+    @Query() query: any,
+    @Request() req: any,
+  ) {
+    return await this.crmTeamService.getAgentHistory(req.user.id, Number(agentId), {
+      from: query.from,
+      to: query.to,
+      type: query.type,
+      page: query.page,
+      limit: query.limit,
+    });
+  }
+
+  @Get('agents/:agentId/report')
+  @RequirePermissions('view-team-leader-dashboard')
+  async getAgentReport(
+    @Param('agentId') agentId: string,
+    @Query() query: any,
+    @Request() req: any,
+  ) {
+    return await this.crmTeamService.getAgentReport(req.user.id, Number(agentId), {
+      from: query.from,
+      to: query.to,
+    });
+  }
 }

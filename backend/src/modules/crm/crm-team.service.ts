@@ -963,6 +963,32 @@ export class CrmTeamService {
     return this.usersRepository.save(agent);
   }
 
+  async getAvailableAgentsForTeamLeader(teamLeaderId: number): Promise<User[]> {
+    // Get users with Sales Executive role that can be assigned to teams
+    const salesExecRole = await this.usersRepository.manager
+      .createQueryBuilder()
+      .select('r.id', 'id')
+      .from('roles', 'r')
+      .where("r.name = :name OR r.slug = :slug OR LOWER(r.name) LIKE :pattern", {
+        name: 'Sales Executive',
+        slug: 'sales-executive',
+        pattern: '%sales executive%',
+      })
+      .getRawOne();
+
+    if (!salesExecRole) {
+      return [];
+    }
+
+    // Return all Sales Executives (can be filtered further if needed)
+    const agents = await this.usersRepository.find({
+      where: { roleId: salesExecRole.id },
+      select: ['id', 'name', 'lastName', 'email', 'phone', 'teamId', 'teamLeaderId', 'status'],
+    });
+
+    return agents;
+  }
+
   async getLeadAging(teamLeaderId: number): Promise<any> {
     // Lead aging analysis
     return {
@@ -970,6 +996,425 @@ export class CrmTeamService {
       '8-14days': 40,
       '15-30days': 35,
       '30+days': 25
+    };
+  }
+
+  // ==================== TEAM AGENT REPORTS ====================
+  /**
+   * Get all agents under the team leader with their basic info
+   */
+  async getTeamAgents(teamLeaderId: number): Promise<any[]> {
+    const agents = await this.usersRepository.find({
+      where: { teamLeaderId, isDeleted: false } as any,
+      select: ['id', 'name', 'lastName', 'email', 'phone', 'status', 'teamId', 'createdAt'],
+    });
+
+    // Enrich with team info
+    const teamIds = [...new Set(agents.map(a => a.teamId).filter(Boolean))];
+    const teams = teamIds.length > 0
+      ? await this.salesTeamRepository.find({ where: { id: teamIds as any } })
+      : [];
+    const teamMap = new Map(teams.map(t => [t.id, t]));
+
+    return agents.map(agent => ({
+      id: agent.id,
+      name: `${agent.name} ${agent.lastName || ''}`.trim(),
+      email: agent.email,
+      phone: agent.phone,
+      status: agent.status,
+      teamId: agent.teamId,
+      teamName: agent.teamId ? teamMap.get(agent.teamId)?.name : null,
+      teamCode: agent.teamId ? teamMap.get(agent.teamId)?.code : null,
+      createdAt: agent.createdAt,
+    }));
+  }
+
+  /**
+   * Get detailed agent history: activities, calls, tasks
+   */
+  async getAgentHistory(
+    teamLeaderId: number,
+    agentId: number,
+    options?: { from?: string; to?: string; type?: string; page?: number; limit?: number },
+  ): Promise<any> {
+    // Verify agent is under this team leader
+    const agent = await this.usersRepository.findOne({
+      where: { id: agentId, isDeleted: false } as any,
+    });
+
+    if (!agent) {
+      throw new NotFoundException('Agent not found');
+    }
+
+    if (agent.teamLeaderId !== teamLeaderId) {
+      throw new ForbiddenException('You can only view history for agents in your team');
+    }
+
+    const page = Number(options?.page) || 1;
+    const limit = Math.min(Number(options?.limit) || 50, 200);
+    const skip = (page - 1) * limit;
+
+    // Build date range
+    const to = options?.to ? new Date(options.to) : new Date();
+    const from = options?.from
+      ? new Date(options.from)
+      : new Date(to.getTime() - 30 * 24 * 60 * 60 * 1000); // Default 30 days
+
+    // Get activities
+    const activityQb = this.activityRepo.createQueryBuilder('a')
+      .where('a.userId = :agentId', { agentId })
+      .andWhere('a.createdAt >= :from AND a.createdAt <= :to', { from, to });
+
+    if (options?.type) {
+      activityQb.andWhere('a.type = :type', { type: options.type });
+    }
+
+    activityQb.orderBy('a.createdAt', 'DESC');
+
+    const [activities, totalActivities] = await activityQb.skip(skip).take(limit).getManyAndCount();
+
+    // Get call tasks
+    const taskQb = this.callTaskRepo.createQueryBuilder('t')
+      .where('t.assigned_agent_id = :agentId', { agentId })
+      .andWhere('t.created_at >= :from AND t.created_at <= :to', { from, to })
+      .orderBy('t.created_at', 'DESC');
+
+    const [tasks, totalTasks] = await taskQb.skip(skip).take(limit).getManyAndCount();
+
+    return {
+      agent: {
+        id: agent.id,
+        name: `${agent.name} ${agent.lastName || ''}`.trim(),
+        email: agent.email,
+        phone: agent.phone,
+        status: agent.status,
+      },
+      dateRange: { from, to },
+      pagination: { page, limit, totalActivities, totalTasks },
+      activities,
+      tasks,
+    };
+  }
+
+  /**
+   * Get aggregated agent statistics/report
+   */
+  async getAgentReport(
+    teamLeaderId: number,
+    agentId: number,
+    options?: { from?: string; to?: string },
+  ): Promise<any> {
+    // Verify agent is under this team leader
+    const agent = await this.usersRepository.findOne({
+      where: { id: agentId, isDeleted: false } as any,
+    });
+
+    if (!agent) {
+      throw new NotFoundException('Agent not found');
+    }
+
+    if (agent.teamLeaderId !== teamLeaderId) {
+      throw new ForbiddenException('You can only view reports for agents in your team');
+    }
+
+    // Build date range
+    const to = options?.to ? new Date(options.to) : new Date();
+    const from = options?.from
+      ? new Date(options.from)
+      : new Date(to.getTime() - 30 * 24 * 60 * 60 * 1000); // Default 30 days
+
+    // Get activity stats
+    const activityStats = await this.activityRepo.query(
+      `
+      SELECT
+        type,
+        COUNT(*)::int AS count,
+        COALESCE(SUM(duration), 0)::int AS total_duration
+      FROM activities
+      WHERE user_id = $1 AND created_at >= $2 AND created_at <= $3
+      GROUP BY type
+      ORDER BY count DESC
+      `,
+      [agentId, from, to],
+    );
+
+    // Get call task stats
+    const taskStats = await this.callTaskRepo.query(
+      `
+      SELECT
+        status,
+        COUNT(*)::int AS count
+      FROM crm_call_tasks
+      WHERE assigned_agent_id = $1 AND created_at >= $2 AND created_at <= $3
+      GROUP BY status
+      `,
+      [agentId, from, to],
+    );
+
+    // Get telephony call stats (if the table exists)
+    let telephonyStats: any = null;
+    try {
+      const callStats = await this.activityRepo.query(
+        `
+        SELECT
+          status,
+          direction,
+          COUNT(*)::int AS count,
+          COALESCE(SUM(duration_seconds), 0)::int AS total_duration,
+          COALESCE(AVG(duration_seconds), 0)::numeric AS avg_duration
+        FROM telephony_calls
+        WHERE agent_user_id = $1 AND started_at >= $2 AND started_at <= $3
+        GROUP BY status, direction
+        ORDER BY count DESC
+        `,
+        [agentId, from, to],
+      );
+      
+      const callSummary = await this.activityRepo.query(
+        `
+        SELECT
+          COUNT(*)::int AS total_calls,
+          COUNT(*) FILTER (WHERE status = 'completed')::int AS completed_calls,
+          COUNT(*) FILTER (WHERE status = 'failed')::int AS failed_calls,
+          COUNT(*) FILTER (WHERE direction = 'outbound')::int AS outbound_calls,
+          COUNT(*) FILTER (WHERE direction = 'inbound')::int AS inbound_calls,
+          COALESCE(SUM(duration_seconds), 0)::int AS total_talk_time,
+          COALESCE(AVG(duration_seconds), 0)::numeric AS avg_call_duration
+        FROM telephony_calls
+        WHERE agent_user_id = $1 AND started_at >= $2 AND started_at <= $3
+        `,
+        [agentId, from, to],
+      );
+
+      telephonyStats = {
+        byStatusAndDirection: callStats,
+        summary: callSummary[0] || {},
+      };
+    } catch {
+      // Table may not exist
+    }
+
+    // Get customer stats
+    const customerStats = await this.customerRepository.query(
+      `
+      SELECT
+        COUNT(*)::int AS total_assigned,
+        COUNT(*) FILTER (WHERE lifecycle_stage = 'customer')::int AS converted,
+        COUNT(*) FILTER (WHERE is_escalated = true)::int AS escalated
+      FROM customers
+      WHERE assigned_to = $1
+      `,
+      [agentId],
+    );
+
+    // Get daily breakdown for chart
+    const dailyBreakdown = await this.activityRepo.query(
+      `
+      SELECT
+        DATE(created_at) AS date,
+        type,
+        COUNT(*)::int AS count
+      FROM activities
+      WHERE user_id = $1 AND created_at >= $2 AND created_at <= $3
+      GROUP BY DATE(created_at), type
+      ORDER BY date DESC
+      `,
+      [agentId, from, to],
+    );
+
+    return {
+      agent: {
+        id: agent.id,
+        name: `${agent.name} ${agent.lastName || ''}`.trim(),
+        email: agent.email,
+        phone: agent.phone,
+        status: agent.status,
+      },
+      dateRange: { from, to },
+      activityStats,
+      taskStats,
+      telephonyStats,
+      customerStats: customerStats[0] || {},
+      dailyBreakdown,
+    };
+  }
+
+  /**
+   * Get aggregated report for all team agents
+   */
+  async getTeamAgentsReport(
+    teamLeaderId: number,
+    options?: { from?: string; to?: string },
+  ): Promise<any> {
+    const agents = await this.usersRepository.find({
+      where: { teamLeaderId, isDeleted: false } as any,
+      select: ['id', 'name', 'lastName', 'email', 'phone', 'status', 'teamId'],
+    });
+
+    if (agents.length === 0) {
+      return { agents: [], summary: {}, dateRange: {} };
+    }
+
+    const agentIds = agents.map(a => a.id);
+
+    // Build date range
+    const to = options?.to ? new Date(options.to) : new Date();
+    const from = options?.from
+      ? new Date(options.from)
+      : new Date(to.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+    // Get activity stats per agent
+    const activityStats = await this.activityRepo.query(
+      `
+      SELECT
+        user_id AS agent_id,
+        type,
+        COUNT(*)::int AS count,
+        COALESCE(SUM(duration), 0)::int AS total_duration
+      FROM activities
+      WHERE user_id = ANY($1) AND created_at >= $2 AND created_at <= $3
+      GROUP BY user_id, type
+      `,
+      [agentIds, from, to],
+    );
+
+    // Get task stats per agent
+    const taskStats = await this.callTaskRepo.query(
+      `
+      SELECT
+        assigned_agent_id AS agent_id,
+        status,
+        COUNT(*)::int AS count
+      FROM crm_call_tasks
+      WHERE assigned_agent_id = ANY($1) AND created_at >= $2 AND created_at <= $3
+      GROUP BY assigned_agent_id, status
+      `,
+      [agentIds, from, to],
+    );
+
+    // Get telephony stats per agent
+    let telephonyStats: any[] = [];
+    try {
+      telephonyStats = await this.activityRepo.query(
+        `
+        SELECT
+          agent_user_id AS agent_id,
+          COUNT(*)::int AS total_calls,
+          COUNT(*) FILTER (WHERE status = 'completed')::int AS completed_calls,
+          COUNT(*) FILTER (WHERE status = 'failed')::int AS failed_calls,
+          COALESCE(SUM(duration_seconds), 0)::int AS total_talk_time,
+          COALESCE(AVG(duration_seconds), 0)::numeric AS avg_call_duration
+        FROM telephony_calls
+        WHERE agent_user_id = ANY($1) AND started_at >= $2 AND started_at <= $3
+        GROUP BY agent_user_id
+        `,
+        [agentIds, from, to],
+      );
+    } catch {
+      // Table may not exist
+    }
+
+    // Get customer stats per agent
+    const customerStats = await this.customerRepository.query(
+      `
+      SELECT
+        assigned_to AS agent_id,
+        COUNT(*)::int AS total_assigned,
+        COUNT(*) FILTER (WHERE lifecycle_stage = 'customer')::int AS converted
+      FROM customers
+      WHERE assigned_to = ANY($1)
+      GROUP BY assigned_to
+      `,
+      [agentIds],
+    );
+
+    // Build per-agent result
+    const activityByAgent = new Map<number, any[]>();
+    for (const row of activityStats) {
+      const id = Number(row.agent_id);
+      if (!activityByAgent.has(id)) activityByAgent.set(id, []);
+      activityByAgent.get(id)!.push(row);
+    }
+
+    const taskByAgent = new Map<number, any[]>();
+    for (const row of taskStats) {
+      const id = Number(row.agent_id);
+      if (!taskByAgent.has(id)) taskByAgent.set(id, []);
+      taskByAgent.get(id)!.push(row);
+    }
+
+    const telephonyByAgent = new Map<number, any>();
+    for (const row of telephonyStats) {
+      telephonyByAgent.set(Number(row.agent_id), row);
+    }
+
+    const customerByAgent = new Map<number, any>();
+    for (const row of customerStats) {
+      customerByAgent.set(Number(row.agent_id), row);
+    }
+
+    const agentReports = agents.map(agent => {
+      const actStats = activityByAgent.get(agent.id) || [];
+      const tskStats = taskByAgent.get(agent.id) || [];
+      const telStats = telephonyByAgent.get(agent.id) || {};
+      const custStats = customerByAgent.get(agent.id) || {};
+
+      // Summarize activities
+      const totalActivities = actStats.reduce((sum, r) => sum + Number(r.count || 0), 0);
+      const callActivities = actStats.filter(r => r.type === 'call').reduce((sum, r) => sum + Number(r.count || 0), 0);
+
+      // Summarize tasks
+      const totalTasks = tskStats.reduce((sum, r) => sum + Number(r.count || 0), 0);
+      const completedTasks = tskStats.filter(r => r.status === 'completed').reduce((sum, r) => sum + Number(r.count || 0), 0);
+      const pendingTasks = tskStats.filter(r => r.status === 'pending').reduce((sum, r) => sum + Number(r.count || 0), 0);
+
+      return {
+        id: agent.id,
+        name: `${agent.name} ${agent.lastName || ''}`.trim(),
+        email: agent.email,
+        phone: agent.phone,
+        status: agent.status,
+        teamId: agent.teamId,
+        activities: {
+          total: totalActivities,
+          calls: callActivities,
+          byType: actStats,
+        },
+        tasks: {
+          total: totalTasks,
+          completed: completedTasks,
+          pending: pendingTasks,
+          byStatus: tskStats,
+        },
+        telephony: {
+          totalCalls: Number(telStats.total_calls || 0),
+          completedCalls: Number(telStats.completed_calls || 0),
+          failedCalls: Number(telStats.failed_calls || 0),
+          totalTalkTime: Number(telStats.total_talk_time || 0),
+          avgCallDuration: Number(telStats.avg_call_duration || 0),
+        },
+        customers: {
+          totalAssigned: Number(custStats.total_assigned || 0),
+          converted: Number(custStats.converted || 0),
+        },
+      };
+    });
+
+    // Overall summary
+    const summary = {
+      totalAgents: agents.length,
+      totalActivities: agentReports.reduce((s, a) => s + a.activities.total, 0),
+      totalCalls: agentReports.reduce((s, a) => s + a.telephony.totalCalls, 0),
+      completedCalls: agentReports.reduce((s, a) => s + a.telephony.completedCalls, 0),
+      totalTasks: agentReports.reduce((s, a) => s + a.tasks.total, 0),
+      completedTasks: agentReports.reduce((s, a) => s + a.tasks.completed, 0),
+      totalCustomersAssigned: agentReports.reduce((s, a) => s + a.customers.totalAssigned, 0),
+    };
+
+    return {
+      dateRange: { from, to },
+      summary,
+      agents: agentReports,
     };
   }
 }

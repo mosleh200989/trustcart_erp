@@ -443,12 +443,14 @@ export class ProductsService {
   // Product Images Methods
   async getProductImages(productId: number) {
     try {
+      console.log('Fetching images for product ID:', productId);
       const images = await this.productsRepository.query(`
         SELECT id, product_id, image_url, display_order, is_primary, created_at
         FROM product_images
         WHERE product_id = $1
         ORDER BY is_primary DESC, display_order ASC
       `, [productId]);
+      console.log('Found images:', images.length, images);
       return images;
     } catch (error) {
       console.error('Error fetching product images:', error);

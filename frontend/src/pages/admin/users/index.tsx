@@ -5,6 +5,7 @@ import Modal from '@/components/admin/Modal';
 import FormInput from '@/components/admin/FormInput';
 import { FaPlus, FaSearch } from 'react-icons/fa';
 import apiClient, { users as usersAPI } from '@/services/api';
+import PhoneInput, { validateBDPhone } from '@/components/PhoneInput';
 
 export default function AdminUsers() {
   const router = useRouter();
@@ -138,6 +139,12 @@ export default function AdminUsers() {
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
+
+    // Validate phone if provided
+    if (formData.phone && !validateBDPhone(formData.phone)) {
+      alert('Please enter a valid 10-digit phone number');
+      return;
+    }
 
     try {
       const payload: any = {
@@ -581,12 +588,15 @@ export default function AdminUsers() {
                 onChange={handleInputChange}
                 required
               />
-              <FormInput
-                label="Phone"
-                name="phone"
-                value={formData.phone}
-                onChange={handleInputChange}
-              />
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+                <PhoneInput
+                  name="phone"
+                  value={formData.phone}
+                  onChange={(value) => setFormData({ ...formData, phone: value })}
+                  placeholder="1712345678"
+                />
+              </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

@@ -5,6 +5,7 @@ import {
   FaShippingFast, FaMapMarkerAlt, FaStickyNote, FaHistory, FaGlobe, 
   FaMobile, FaDesktop, FaChrome, FaExclamationTriangle 
 } from 'react-icons/fa';
+import PhoneInput, { validateBDPhone } from '@/components/PhoneInput';
 
 interface OrderDetailsModalProps {
   orderId: number;
@@ -935,11 +936,19 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                       </div>
                       <div>
                         <label className="block text-sm font-semibold mb-1">Phone</label>
-                        <input className="w-full border p-2 rounded" value={toInputValue(customerForm.phone)} onChange={(e) => setCustomerForm({ ...customerForm, phone: e.target.value })} placeholder="N/A" />
+                        <PhoneInput
+                          value={customerForm.phone || ''}
+                          onChange={(value) => setCustomerForm({ ...customerForm, phone: value })}
+                          placeholder="1712345678"
+                        />
                       </div>
                       <div>
                         <label className="block text-sm font-semibold mb-1">Mobile</label>
-                        <input className="w-full border p-2 rounded" value={toInputValue(customerForm.mobile)} onChange={(e) => setCustomerForm({ ...customerForm, mobile: e.target.value })} placeholder="N/A" />
+                        <PhoneInput
+                          value={customerForm.mobile || ''}
+                          onChange={(value) => setCustomerForm({ ...customerForm, mobile: value })}
+                          placeholder="1712345678"
+                        />
                       </div>
                       <div>
                         <label className="block text-sm font-semibold mb-1">Website</label>

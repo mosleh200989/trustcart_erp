@@ -48,7 +48,7 @@ export class CdmService {
 
     const created = this.customersRepository.create({
       phone: normalizedPhone,
-      name: (suggestedName || '').toString().trim() || null,
+      name: (suggestedName || '').toString().trim() || `Guest ${normalizedPhone.slice(-4)}`,
       isGuest: true,
       status: 'active',
       customerType: 'new',
@@ -285,7 +285,8 @@ export class CdmService {
 
         // Ensure the new reciprocal row exists.
         if (ownerName && afterPhone) {
-          const afterFamilyCustomer = await this.ensureCustomerAccountByPhone(afterPhone);
+          const updatedName = ((updated as any)?.name || (existing as any)?.name || '').toString().trim();
+          const afterFamilyCustomer = await this.ensureCustomerAccountByPhone(afterPhone, updatedName);
           await this.upsertFamilyMemberRow({
             customerId: Number((afterFamilyCustomer as any).id),
             name: ownerName,

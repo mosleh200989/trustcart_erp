@@ -61,7 +61,7 @@ const SalesTeamLeaderDashboard = () => {
           </div>
 
           {/* Quick Actions (moved from bottom) */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
             <a
               href="/admin/crm/leads"
               className="bg-blue-600 text-white text-center py-3 rounded-lg hover:bg-blue-700"
@@ -79,6 +79,12 @@ const SalesTeamLeaderDashboard = () => {
               className="bg-yellow-600 text-white text-center py-3 rounded-lg hover:bg-yellow-700"
             >
               📞 Track Follow-ups
+            </a>
+            <a
+              href="/admin/crm/team-agents-report"
+              className="bg-cyan-600 text-white text-center py-3 rounded-lg hover:bg-cyan-700"
+            >
+              📋 Agent Reports
             </a>
             <a
               href="/admin/crm/reports"

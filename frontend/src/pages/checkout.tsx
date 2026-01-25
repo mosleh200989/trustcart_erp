@@ -15,6 +15,7 @@ import {
 } from "react-icons/fa";
 import apiClient, { auth, customers } from "@/services/api";
 import { TrackingService } from "@/utils/tracking";
+import PhoneInput, { validateBDPhone } from "@/components/PhoneInput";
 
 export default function Checkout() {
   const router = useRouter();
@@ -289,6 +290,11 @@ export default function Checkout() {
 
     if (!formData.fullName || !formData.phone || !formData.address) {
       alert("Please fill in all required fields");
+      return;
+    }
+
+    if (!validateBDPhone(formData.phone)) {
+      alert("Please enter a valid 10-digit phone number");
       return;
     }
 
@@ -593,14 +599,15 @@ export default function Checkout() {
                       <label className="block text-sm font-semibold mb-2">
                         Phone *
                       </label>
-                      <input
-                        type="tel"
+                      <PhoneInput
                         name="phone"
                         value={formData.phone}
-                        onChange={handleChange}
+                        onChange={(value) => {
+                          touchedRef.current['phone'] = true;
+                          setFormData({ ...formData, phone: value });
+                        }}
                         required
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-500"
-                        placeholder="Enter Your Phone Number"
+                        placeholder="1712345678"
                       />
                     </div>
 
