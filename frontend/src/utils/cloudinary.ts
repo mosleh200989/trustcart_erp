@@ -70,7 +70,7 @@ export const fileToBase64 = (file: File): Promise<string> => {
  */
 export const validateImageFile = (file: File): { valid: boolean; error?: string } => {
   const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
-  const maxSize = 5 * 1024 * 1024; // 5MB
+  const maxSize = 20 * 1024 * 1024; // 20MB
 
   if (!allowedTypes.includes(file.type)) {
     return {
@@ -82,7 +82,7 @@ export const validateImageFile = (file: File): { valid: boolean; error?: string 
   if (file.size > maxSize) {
     return {
       valid: false,
-      error: 'File size exceeds 5MB. Please choose a smaller image.',
+      error: 'File size exceeds 20MB. Please choose a smaller image.',
     };
   }
 

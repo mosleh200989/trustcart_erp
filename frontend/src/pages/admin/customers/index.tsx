@@ -5,6 +5,7 @@ import Modal from '@/components/admin/Modal';
 import FormInput from '@/components/admin/FormInput';
 import { FaPlus, FaSearch } from 'react-icons/fa';
 import apiClient from '@/services/api';
+import PhoneInput, { validateBDPhone } from '@/components/PhoneInput';
 
 interface Customer {
   id: number;
@@ -130,6 +131,12 @@ export default function AdminCustomers() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!validateBDPhone(formData.phone)) {
+      alert('Please enter a valid 10-digit phone number');
+      return;
+    }
+    
     try {
       if (modalMode === 'add') {
         const response = await apiClient.post('/customers', formData);
@@ -326,13 +333,16 @@ export default function AdminCustomers() {
                   onChange={handleInputChange}
                   required
                 />
-                <FormInput
-                  label="Phone"
-                  name="phone"
-                  value={formData.phone}
-                  onChange={handleInputChange}
-                  required
-                />
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Phone *</label>
+                  <PhoneInput
+                    name="phone"
+                    value={formData.phone}
+                    onChange={(value) => setFormData({ ...formData, phone: value })}
+                    required
+                    placeholder="1712345678"
+                  />
+                </div>
               </div>
               <FormInput
                 label="Address"

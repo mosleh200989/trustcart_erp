@@ -4,6 +4,7 @@ import Link from 'next/link';
 import ElectroNavbar from '@/components/ElectroNavbar';
 import ElectroFooter from '@/components/ElectroFooter';
 import PasswordInput from '@/components/common/PasswordInput';
+import PhoneInput, { validateBDPhone } from '@/components/PhoneInput';
 import apiClient from '@/services/api';
 import {
   clearPendingReferralAttribution,
@@ -64,6 +65,11 @@ export default function Register() {
 
     if (!formData.phone.trim()) {
       setError('Phone number is required');
+      return;
+    }
+
+    if (!validateBDPhone(formData.phone)) {
+      setError('Please enter a valid 10-digit phone number');
       return;
     }
 
@@ -162,14 +168,13 @@ export default function Register() {
             </div>
 
             <div className="mb-4">
-              <label className="block text-sm font-semibold mb-2">Phone</label>
-              <input
-                type="tel"
+              <label className="block text-sm font-semibold mb-2">Phone *</label>
+              <PhoneInput
                 name="phone"
                 value={formData.phone}
-                onChange={handleChange}
+                onChange={(value) => setFormData({ ...formData, phone: value })}
                 required
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-500"
+                placeholder="1712345678"
               />
             </div>
 

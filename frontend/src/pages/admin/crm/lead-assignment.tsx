@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import AdminLayout from '@/layouts/AdminLayout';
-import apiClient, { users as usersApi } from '@/services/api';
+import apiClient from '@/services/api';
 
 interface LeadCustomer {
   id: number | string;
@@ -53,14 +53,14 @@ export default function LeadAssignmentPage() {
   const loadAll = async () => {
     try {
       setLoading(true);
-      const [teamsRes, usersRes] = await Promise.all([
+      const [teamsRes, agentsRes] = await Promise.all([
         apiClient.get('/crm/team/teams'),
-        usersApi.list(),
+        apiClient.get('/crm/team/available-agents'),
       ]);
 
       const teamsData: Team[] = Array.isArray((teamsRes as any)?.data) ? (teamsRes as any).data : [];
       setTeams(teamsData);
-      setUsers(Array.isArray(usersRes) ? (usersRes as any) : []);
+      setUsers(Array.isArray((agentsRes as any)?.data) ? (agentsRes as any).data : []);
 
       if (!selectedTeamId && teamsData.length) {
         setSelectedTeamId(Number(teamsData[0].id));

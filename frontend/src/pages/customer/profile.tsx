@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import CustomerLayout from '@/layouts/CustomerLayout';
 import { auth, customers, cdm } from '@/services/api';
 import { FaUser, FaEnvelope, FaPhone, FaMapMarkerAlt, FaUsers, FaEdit, FaTrash, FaSave, FaTimes, FaUserPlus } from 'react-icons/fa';
+import PhoneInput, { validateBDPhone } from '@/components/PhoneInput';
 
 interface CustomerProfile {
   id: string;
@@ -134,6 +135,10 @@ export default function CustomerProfilePage() {
         setProfileMessage('Phone number is required.');
         return;
       }
+      if (!validateBDPhone(editPhone)) {
+        setProfileMessage('Please enter a valid 10-digit phone number.');
+        return;
+      }
       const updated = await customers.update(profile.id, {
         name: editName,
         email: editEmail.trim() ? editEmail.trim() : null,
@@ -180,6 +185,10 @@ export default function CustomerProfilePage() {
     }
     if (!newFamilyPhone.trim()) {
       alert('Please enter phone number for the family member.');
+      return;
+    }
+    if (!validateBDPhone(newFamilyPhone)) {
+      alert('Please enter a valid 10-digit phone number for the family member.');
       return;
     }
     try {
@@ -252,6 +261,10 @@ export default function CustomerProfilePage() {
     }
     if (!editFamilyPhone.trim()) {
       alert('Please enter phone number for the family member.');
+      return;
+    }
+    if (!validateBDPhone(editFamilyPhone)) {
+      alert('Please enter a valid 10-digit phone number for the family member.');
       return;
     }
     try {
@@ -363,13 +376,11 @@ export default function CustomerProfilePage() {
                     <FaPhone className="text-gray-400" />
                     Phone Number <span className="text-red-500">*</span>
                   </label>
-                  <input
-                    type="tel"
-                    className="w-full border border-gray-300 rounded-lg px-4 py-3 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                  <PhoneInput
                     value={editPhone}
-                    onChange={(e) => setEditPhone(e.target.value)}
-                    placeholder="Enter your phone number"
+                    onChange={(value) => setEditPhone(value)}
                     required
+                    placeholder="1712345678"
                   />
                 </div>
 
@@ -460,13 +471,11 @@ export default function CustomerProfilePage() {
                                   </option>
                                 ))}
                               </select>
-                              <input
-                                type="tel"
-                                className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                              <PhoneInput
                                 value={editFamilyPhone}
-                                onChange={(e) => setEditFamilyPhone(e.target.value)}
-                                placeholder="Phone number"
+                                onChange={(value) => setEditFamilyPhone(value)}
                                 required
+                                placeholder="1712345678"
                               />
 
                               {relationshipNeedsDob(editFamilyRelationship) && (
@@ -594,13 +603,11 @@ export default function CustomerProfilePage() {
                         </option>
                       ))}
                     </select>
-                    <input
-                      type="tel"
-                      placeholder="Phone number"
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    <PhoneInput
                       value={newFamilyPhone}
-                      onChange={(e) => setNewFamilyPhone(e.target.value)}
+                      onChange={(value) => setNewFamilyPhone(value)}
                       required
+                      placeholder="1712345678"
                     />
 
                     {relationshipNeedsDob(newFamilyRelationship) && (

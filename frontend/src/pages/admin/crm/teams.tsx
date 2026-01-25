@@ -54,10 +54,13 @@ const CrmTeamsAdmin: React.FC = () => {
   const loadRoles = async () => {
     try {
       const res = await api.get('/rbac/roles');
-      setRoles(Array.isArray(res.data) ? res.data : []);
+      const rolesData = Array.isArray(res.data) ? res.data : [];
+      setRoles(rolesData);
+      return rolesData;
     } catch (error) {
       console.error('Failed to load roles', error);
       setRoles([]);
+      return [];
     }
   };
 
@@ -71,15 +74,12 @@ const CrmTeamsAdmin: React.FC = () => {
     }
   };
 
-  const loadAgents = async () => {
+  const loadAgents = async (rolesData?: any[]) => {
     try {
-      const data = await usersApi.list();
-      const salesExecRole = roles.find((r: any) => r.slug === 'sales-executive');
-      const salesExecRoleId = salesExecRole ? salesExecRole.id : null;
-      const filtered = salesExecRoleId
-        ? data.filter((u: any) => u.roleId === salesExecRoleId)
-        : data;
-      setAgents(filtered);
+      // Use the CRM endpoint that Team Leaders have access to
+      const res = await api.get('/crm/team/available-agents');
+      const data = Array.isArray(res.data) ? res.data : [];
+      setAgents(data);
     } catch (error) {
       console.error('Failed to load agents', error);
       setAgents([]);

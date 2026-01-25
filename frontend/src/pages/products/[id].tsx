@@ -67,7 +67,7 @@ export default function ProductDetailsPage() {
     if (!productImages || productImages.length <= 1) return;
     const interval = setInterval(() => {
       setImageSlideIndex((prev) => (prev + 1) % productImages.length);
-    }, 4000);
+    }, 5000);
     return () => clearInterval(interval);
   }, [productImages]);
 
@@ -99,7 +99,26 @@ export default function ProductDetailsPage() {
         const imagesResponse = await apiClient.get(
           `/products/${response.data.id}/images`
         );
-        const images = imagesResponse.data || [];
+        console.log("Product images API response:", imagesResponse.data);
+        let images = imagesResponse.data || [];
+        console.log("Number of images loaded from API:", images.length);
+        
+        // Ensure the main product image_url is included in the gallery
+        const mainImageUrl = response.data.image_url;
+        if (mainImageUrl) {
+          const mainImageExists = images.some(
+            (img: any) => img.image_url === mainImageUrl
+          );
+          if (!mainImageExists) {
+            // Add the main image as primary at the beginning
+            images = [
+              { id: -1, image_url: mainImageUrl, is_primary: true, display_order: -1 },
+              ...images.map((img: any) => ({ ...img, is_primary: false }))
+            ];
+            console.log("Added main product image_url to gallery:", mainImageUrl);
+          }
+        }
+        
         const sortedImages = [...images].sort((a: any, b: any) => {
           const aPrimary = a?.is_primary ? 1 : 0;
           const bPrimary = b?.is_primary ? 1 : 0;
@@ -112,11 +131,14 @@ export default function ProductDetailsPage() {
           return (a?.id ?? 0) - (b?.id ?? 0);
         });
         setProductImages(sortedImages);
+        console.log("Setting productImages to:", sortedImages);
         // Set the first image as selected, or fall back to the main image_url
         if (sortedImages.length > 0) {
           setImageSlideIndex(0);
           setSelectedImage(sortedImages[0].image_url);
+          console.log("Selected image set to:", sortedImages[0].image_url);
         } else if (response.data.image_url) {
+          console.log("No images in product_images, using fallback image_url:", response.data.image_url);
           setSelectedImage(response.data.image_url);
           // If no images in the images table but has image_url, create a temporary image array
           setProductImages([
@@ -349,103 +371,230 @@ export default function ProductDetailsPage() {
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ duration: 0.5, delay: 0.2 }}
               >
-                {/* Main Image with Zoom */}
-                <div
-                  className="relative bg-gray-100 rounded-lg overflow-hidden aspect-square mb-4 cursor-zoom-in"
-                  onMouseEnter={() => setShowZoom(true)}
-                  onMouseLeave={() => setShowZoom(false)}
-                  onMouseMove={handleMouseMove}
-                >
-                  {selectedImage ? (
-                    <>
-                      <img
-                        src={selectedImage}
-                        alt={displayName}
-                        className="w-full h-full object-cover"
-                      />
-                      {/* Zoom Overlay */}
-                      {showZoom && (
-                        <div className="absolute inset-0 bg-white bg-opacity-90 flex items-center justify-center">
-                          <div
-                            className="w-full h-full bg-no-repeat"
-                            style={{
-                              backgroundImage: `url(${selectedImage})`,
-                              backgroundSize: "200%",
-                              backgroundPosition: `${zoomPosition.x}% ${zoomPosition.y}%`,
-                            }}
+                {/* Desktop: Thumbnails on Left + Main Image */}
+                <div className="hidden md:flex gap-4">
+                  {/* Vertical Thumbnail Bar (Left Side) */}
+                  {productImages.length >= 1 && (
+                    <div className="flex flex-col gap-2 w-20 flex-shrink-0">
+                      {productImages.map((img, index) => (
+                        <div
+                          key={img.id || index}
+                          onClick={() => {
+                            setImageSlideIndex(index);
+                            setSelectedImage(img.image_url);
+                          }}
+                          onMouseEnter={() => {
+                            setImageSlideIndex(index);
+                            setSelectedImage(img.image_url);
+                          }}
+                          className={`relative bg-gray-50 rounded-lg overflow-hidden aspect-square cursor-pointer border-2 transition-all duration-200 hover:shadow-md ${
+                            selectedImage === img.image_url
+                              ? "border-orange-500 shadow-md"
+                              : "border-gray-200 hover:border-orange-300"
+                          }`}
+                        >
+                          <img
+                            src={img.image_url}
+                            alt={`${displayName} ${index + 1}`}
+                            className="w-full h-full object-cover"
                           />
+                          {selectedImage === img.image_url && (
+                            <div className="absolute inset-0 bg-orange-500/10" />
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Main Image with Zoom */}
+                  <div className="flex-1">
+                    <div
+                      className="relative bg-gray-100 rounded-lg overflow-hidden aspect-square cursor-zoom-in"
+                      onMouseEnter={() => setShowZoom(true)}
+                      onMouseLeave={() => setShowZoom(false)}
+                      onMouseMove={handleMouseMove}
+                    >
+                      {selectedImage ? (
+                        <>
+                          <img
+                            src={selectedImage}
+                            alt={displayName}
+                            className="w-full h-full object-cover transition-transform duration-300"
+                          />
+                          {/* Zoom Overlay */}
+                          {showZoom && (
+                            <div className="absolute inset-0 bg-white bg-opacity-90 flex items-center justify-center">
+                              <div
+                                className="w-full h-full bg-no-repeat"
+                                style={{
+                                  backgroundImage: `url(${selectedImage})`,
+                                  backgroundSize: "200%",
+                                  backgroundPosition: `${zoomPosition.x}% ${zoomPosition.y}%`,
+                                }}
+                              />
+                            </div>
+                          )}
+                          {/* Zoom Icon */}
+                          <div className="absolute top-4 right-4 bg-white rounded-full p-2 shadow-lg">
+                            <FaSearchPlus className="text-gray-600" />
+                          </div>
+
+                          {/* Slider Controls */}
+                          {productImages.length > 1 && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  goPrevImage();
+                                }}
+                                className="absolute left-3 top-1/2 -translate-y-1/2 bg-white/90 hover:bg-white text-gray-700 p-3 rounded-full shadow-lg transition-all"
+                                aria-label="Previous image"
+                              >
+                                <FaChevronLeft size={18} />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  goNextImage();
+                                }}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 bg-white/90 hover:bg-white text-gray-700 p-3 rounded-full shadow-lg transition-all"
+                                aria-label="Next image"
+                              >
+                                <FaChevronRight size={18} />
+                              </button>
+                            </>
+                          )}
+
+                          {/* Image Counter Badge */}
+                          {productImages.length > 1 && (
+                            <div className="absolute bottom-4 left-4 bg-black/60 text-white text-sm px-3 py-1 rounded-full">
+                              {imageSlideIndex + 1} / {productImages.length}
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-gray-400">
+                          <div className="text-center">
+                            <FaShoppingCart className="text-6xl mx-auto mb-2" />
+                            <p>No Image</p>
+                          </div>
                         </div>
                       )}
-                      {/* Zoom Icon */}
-                      <div className="absolute top-4 right-4 bg-white rounded-full p-2 shadow-lg">
-                        <FaSearchPlus className="text-gray-600" />
-                      </div>
+                    </div>
+                  </div>
+                </div>
 
-                      {/* Slider Controls */}
-                      {productImages.length > 1 && (
-                        <>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              goPrevImage();
-                            }}
-                            className="absolute left-3 top-1/2 -translate-y-1/2 bg-white/90 hover:bg-white text-gray-700 p-3 rounded-full shadow-lg transition-all"
-                            aria-label="Previous image"
-                          >
-                            <FaChevronLeft size={18} />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              goNextImage();
-                            }}
-                            className="absolute right-3 top-1/2 -translate-y-1/2 bg-white/90 hover:bg-white text-gray-700 p-3 rounded-full shadow-lg transition-all"
-                            aria-label="Next image"
-                          >
-                            <FaChevronRight size={18} />
-                          </button>
-                        </>
-                      )}
-                    </>
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-gray-400">
-                      <div className="text-center">
-                        <FaShoppingCart className="text-6xl mx-auto mb-2" />
-                        <p>No Image</p>
+                {/* Mobile: Main Image + Horizontal Thumbnails Below */}
+                <div className="md:hidden">
+                  {/* Main Image with Zoom */}
+                  <div
+                    className="relative bg-gray-100 rounded-lg overflow-hidden aspect-square mb-4 cursor-zoom-in"
+                    onMouseEnter={() => setShowZoom(true)}
+                    onMouseLeave={() => setShowZoom(false)}
+                    onMouseMove={handleMouseMove}
+                  >
+                    {selectedImage ? (
+                      <>
+                        <img
+                          src={selectedImage}
+                          alt={displayName}
+                          className="w-full h-full object-cover"
+                        />
+                        {/* Zoom Overlay */}
+                        {showZoom && (
+                          <div className="absolute inset-0 bg-white bg-opacity-90 flex items-center justify-center">
+                            <div
+                              className="w-full h-full bg-no-repeat"
+                              style={{
+                                backgroundImage: `url(${selectedImage})`,
+                                backgroundSize: "200%",
+                                backgroundPosition: `${zoomPosition.x}% ${zoomPosition.y}%`,
+                              }}
+                            />
+                          </div>
+                        )}
+                        {/* Zoom Icon */}
+                        <div className="absolute top-4 right-4 bg-white rounded-full p-2 shadow-lg">
+                          <FaSearchPlus className="text-gray-600" />
+                        </div>
+
+                        {/* Slider Controls - only show arrows if more than 1 image */}
+                        {productImages.length > 1 && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                goPrevImage();
+                              }}
+                              className="absolute left-3 top-1/2 -translate-y-1/2 bg-white/90 hover:bg-white text-gray-700 p-3 rounded-full shadow-lg transition-all"
+                              aria-label="Previous image"
+                            >
+                              <FaChevronLeft size={18} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                goNextImage();
+                              }}
+                              className="absolute right-3 top-1/2 -translate-y-1/2 bg-white/90 hover:bg-white text-gray-700 p-3 rounded-full shadow-lg transition-all"
+                              aria-label="Next image"
+                            >
+                              <FaChevronRight size={18} />
+                            </button>
+                          </>
+                        )}
+
+                        {/* Image Counter Badge - only show if more than 1 image */}
+                        {productImages.length > 1 && (
+                          <div className="absolute bottom-4 left-4 bg-black/60 text-white text-sm px-3 py-1 rounded-full">
+                            {imageSlideIndex + 1} / {productImages.length}
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-gray-400">
+                        <div className="text-center">
+                          <FaShoppingCart className="text-6xl mx-auto mb-2" />
+                          <p>No Image</p>
+                        </div>
                       </div>
+                    )}
+                  </div>
+
+                  {/* Horizontal Thumbnail Images (Mobile) */}
+                  {productImages.length >= 1 && (
+                    <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+                      {productImages.map((img, index) => (
+                        <div
+                          key={img.id || index}
+                          onClick={() => {
+                            setImageSlideIndex(index);
+                            setSelectedImage(img.image_url);
+                          }}
+                          className={`relative bg-gray-100 rounded-lg overflow-hidden w-16 h-16 flex-shrink-0 cursor-pointer border-2 transition-all ${
+                            selectedImage === img.image_url
+                              ? "border-orange-500 shadow-md"
+                              : "border-transparent hover:border-gray-300"
+                          }`}
+                        >
+                          <img
+                            src={img.image_url}
+                            alt={`${displayName} ${index + 1}`}
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>
-
-                {/* Thumbnail Images */}
-                {productImages.length > 1 && (
-                  <div className="grid grid-cols-4 gap-2">
-                    {productImages.map((img, index) => (
-                      <div
-                        key={img.id || index}
-                        onClick={() => {
-                          setImageSlideIndex(index);
-                          setSelectedImage(img.image_url);
-                        }}
-                        className={`relative bg-gray-100 rounded-lg overflow-hidden aspect-square cursor-pointer border-2 transition ${
-                          selectedImage === img.image_url
-                            ? "border-orange-500"
-                            : "border-transparent hover:border-gray-300"
-                        }`}
-                      >
-                        <img
-                          src={img.image_url}
-                          alt={`${displayName} ${index + 1}`}
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
-                    ))}
-                  </div>
-                )}
               </motion.div>
 
               {/* Product Info */}

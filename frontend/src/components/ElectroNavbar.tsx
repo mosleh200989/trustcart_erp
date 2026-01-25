@@ -106,7 +106,7 @@ export default function ElectroNavbar() {
             <div className="flex items-center gap-6">
               <span className="flex items-center gap-2">
                 <FaPhone size={12} />
-                +880 1707-653536
+                09647248283
               </span>
               <span className="flex items-center gap-2">
                 <FaEnvelope size={12} />

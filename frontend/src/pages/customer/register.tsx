@@ -12,6 +12,7 @@ import {
 import { getAuthReturnPath } from '@/utils/authReturnPath';
 import { FaArrowLeft } from 'react-icons/fa';
 import PasswordInput from '@/components/common/PasswordInput';
+import PhoneInput, { validateBDPhone } from '@/components/PhoneInput';
 
 export default function CustomerRegister() {
   const router = useRouter();
@@ -52,6 +53,12 @@ export default function CustomerRegister() {
 
     if (password.length < 6) {
       setError('Password must be at least 6 characters');
+      setLoading(false);
+      return;
+    }
+
+    if (!validateBDPhone(phone)) {
+      setError('Please enter a valid 10-digit phone number');
       setLoading(false);
       return;
     }
@@ -162,15 +169,13 @@ export default function CustomerRegister() {
 
           <div className="mb-4">
             <label className="block text-gray-700 font-medium mb-2 text-sm">
-              Phone Number
+              Phone Number *
             </label>
-            <input
-              type="tel"
+            <PhoneInput
               value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
-              placeholder="Enter Your Phone Number"
+              onChange={(value) => setPhone(value)}
               required
+              placeholder="1712345678"
             />
           </div>
 

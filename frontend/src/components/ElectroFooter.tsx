@@ -89,7 +89,7 @@ export default function ElectroFooter() {
               </li>
               <li className="flex items-center gap-3">
                 <FaPhone className="text-orange-500 flex-shrink-0" />
-                <span>+880 1707-653536</span>
+                <span>09647248283</span>
               </li>
               <li className="flex items-center gap-3">
                 <FaEnvelope className="text-orange-500 flex-shrink-0" />

@@ -86,6 +86,8 @@ import { WorkflowExecution } from './modules/crm/entities/workflow-execution.ent
 import { QuoteTemplate } from './modules/crm/entities/quote-template.entity';
 import { SalesForecast } from './modules/crm/entities/sales-forecast.entity';
 import { SalesQuota } from './modules/crm/entities/sales-quota.entity';
+import { AgentCommission } from './modules/crm/entities/agent-commission.entity';
+import { CommissionSettings } from './modules/crm/entities/commission-settings.entity';
 
 // Modules
 import { AuthModule } from './modules/auth/auth.module';
@@ -186,6 +188,7 @@ import { TaggingModule } from './modules/tagging/tagging.module';
             Deal, DealStage, Activity, Task, Quote, Meeting, EmailTracking,
             CustomDealStage, SalesPipeline, ActivityTemplate, CustomerSegment, SegmentMember,
             EmailTemplate, AutomationWorkflow, WorkflowExecution, QuoteTemplate, SalesForecast, SalesQuota,
+            AgentCommission, CommissionSettings,
             // Telephony entities
             TelephonyCall,
 

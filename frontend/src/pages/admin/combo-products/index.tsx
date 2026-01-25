@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import AdminLayout from '@/layouts/AdminLayout';
 import Modal from '@/components/admin/Modal';
 import FormInput from '@/components/admin/FormInput';
+import ImageUpload from '@/components/admin/ImageUpload';
 import { FaPlus, FaSearch, FaEdit, FaTrash, FaTimes, FaEye } from 'react-icons/fa';
 import apiClient from '@/services/api';
 
@@ -354,12 +355,11 @@ export default function ComboProductsAdmin() {
               />
             </div>
 
-            <FormInput
-              label="Image URL"
-              name="image_url"
+            <ImageUpload
+              label="Combo Image"
               value={formData.image_url}
-              onChange={handleInputChange}
-              placeholder="https://example.com/combo-image.jpg"
+              onChange={(url) => setFormData({ ...formData, image_url: url })}
+              folder="trustcart/combos"
             />
 
             <FormInput

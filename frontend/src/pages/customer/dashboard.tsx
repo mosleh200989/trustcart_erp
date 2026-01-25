@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import CustomerLayout from '@/layouts/CustomerLayout';
-import apiClient, { auth, sales } from '@/services/api';
+import apiClient, { auth, sales, customers } from '@/services/api';
 import { FaShoppingCart, FaBox, FaClock, FaCheckCircle, FaTimesCircle, FaArrowRight, FaStore } from 'react-icons/fa';
 
 interface DashboardStats {
@@ -52,9 +52,25 @@ export default function CustomerAccountDashboard() {
         return;
       }
 
-      const displayName =
-        (user as any)?.name || (user as any)?.email || (user as any)?.phone || '';
-      if (displayName) setCustomerName(String(displayName));
+      // Fetch customer profile to get the actual name
+      try {
+        const customerProfile = await customers.me();
+        if (customerProfile) {
+          const firstName = ((customerProfile as any)?.name || '').toString().trim();
+          const lastName = ((customerProfile as any)?.lastName || (customerProfile as any)?.last_name || '').toString().trim();
+          const fullName = `${firstName} ${lastName}`.trim();
+          if (fullName) {
+            setCustomerName(fullName);
+          }
+        }
+      } catch (e) {
+        // Fallback to user data if customer profile fetch fails
+        const firstName = ((user as any)?.name || '').toString().trim();
+        const lastName = ((user as any)?.lastName || (user as any)?.last_name || '').toString().trim();
+        const fullName = `${firstName} ${lastName}`.trim();
+        const displayName = fullName || (user as any)?.email || (user as any)?.phone || '';
+        if (displayName) setCustomerName(String(displayName));
+      }
 
       // Get my orders
       const myOrders = await sales.my();

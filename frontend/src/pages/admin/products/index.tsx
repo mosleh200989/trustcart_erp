@@ -19,6 +19,15 @@ interface Product {
   category_name?: string;
   status: string;
   stock_quantity?: number;
+  image_url?: string;
+  description_en?: string;
+}
+
+interface ProductImage {
+  id: number;
+  image_url: string;
+  display_order: number;
+  is_primary: boolean;
 }
 
 export default function AdminProducts() {
@@ -36,6 +45,9 @@ export default function AdminProducts() {
   const itemsPerPage = 10;
 
   const [additionalInfoRows, setAdditionalInfoRows] = useState<Array<{ key: string; value: string }>>([]);
+  const [viewProductImages, setViewProductImages] = useState<ProductImage[]>([]);
+  const [viewProductDetails, setViewProductDetails] = useState<any>(null);
+  const [pendingImages, setPendingImages] = useState<string[]>([]);
 
   const [formData, setFormData] = useState({
     name_en: '',
@@ -112,6 +124,7 @@ export default function AdminProducts() {
       display_position: ''
     });
     setAdditionalInfoRows([]);
+    setPendingImages([]);
     setIsModalOpen(true);
   };
 
@@ -168,10 +181,44 @@ export default function AdminProducts() {
     setIsModalOpen(true);
   };
 
-  const handleView = (product: Product) => {
+  const handleView = async (product: Product) => {
     setModalMode('view');
     setSelectedProduct(product);
+    setViewProductImages([]);
+    setViewProductDetails(null);
     setIsModalOpen(true);
+    
+    // Fetch full product details and images
+    try {
+      const [productRes, imagesRes] = await Promise.all([
+        apiClient.get(`/products/${product.id}`),
+        apiClient.get(`/products/${product.id}/images`)
+      ]);
+      
+      setViewProductDetails(productRes.data);
+      
+      const images = imagesRes.data || [];
+      // Sort images: primary first, then by display_order
+      const sortedImages = [...images].sort((a: ProductImage, b: ProductImage) => {
+        if (a.is_primary && !b.is_primary) return -1;
+        if (!a.is_primary && b.is_primary) return 1;
+        return (a.display_order || 0) - (b.display_order || 0);
+      });
+      
+      // If no images in product_images table, use the legacy image_url
+      if (sortedImages.length === 0 && productRes.data.image_url) {
+        setViewProductImages([{
+          id: 0,
+          image_url: productRes.data.image_url,
+          display_order: 0,
+          is_primary: true
+        }]);
+      } else {
+        setViewProductImages(sortedImages);
+      }
+    } catch (error) {
+      console.error('Error loading product details for view:', error);
+    }
   };
 
   const handleDelete = async (product: Product) => {
@@ -303,7 +350,26 @@ export default function AdminProducts() {
         console.log('Creating new product...');
         const response = await apiClient.post('/products', payload);
         console.log('Create response:', response.data);
+        
+        // If there are pending images, upload them now
+        const newProductId = response.data.id;
+        if (pendingImages.length > 0 && newProductId) {
+          console.log('Uploading pending images for product:', newProductId);
+          for (let i = 0; i < pendingImages.length; i++) {
+            try {
+              await apiClient.post(`/products/${newProductId}/images`, {
+                image_url: pendingImages[i],
+                display_order: i,
+                is_primary: i === 0 // First image is primary
+              });
+            } catch (imgError) {
+              console.error('Failed to upload image:', imgError);
+            }
+          }
+        }
+        
         alert('Product added successfully');
+        setPendingImages([]);
         setIsModalOpen(false);
         loadProducts();
       } else if (modalMode === 'edit' && selectedProduct) {
@@ -569,36 +635,104 @@ export default function AdminProducts() {
         >
           {modalMode === 'view' ? (
             <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Name (English)</label>
-                <p className="mt-1 text-gray-900">{selectedProduct?.name_en}</p>
+              {/* Product Images Gallery */}
+              {viewProductImages.length > 0 && (
+                <div className="mb-6">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Product Images</label>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                    {viewProductImages.map((img, index) => (
+                      <div key={img.id || index} className="relative">
+                        <img
+                          src={img.image_url}
+                          alt={`Product image ${index + 1}`}
+                          className="w-full h-32 object-cover rounded-lg border border-gray-200"
+                        />
+                        {img.is_primary && (
+                          <span className="absolute top-1 left-1 bg-green-500 text-white text-xs px-2 py-0.5 rounded">
+                            Primary
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {viewProductImages.length === 0 && (
+                <div className="mb-6">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Product Images</label>
+                  <p className="text-gray-500 text-sm">No images uploaded for this product.</p>
+                </div>
+              )}
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Name (English)</label>
+                  <p className="mt-1 text-gray-900">{selectedProduct?.name_en}</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Name (Bengali)</label>
+                  <p className="mt-1 text-gray-900">{selectedProduct?.name_bn || 'N/A'}</p>
+                </div>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Name (Bengali)</label>
-                <p className="mt-1 text-gray-900">{selectedProduct?.name_bn}</p>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">SKU</label>
+                  <p className="mt-1 text-gray-900">{selectedProduct?.sku || 'N/A'}</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Slug</label>
+                  <p className="mt-1 text-gray-900">{selectedProduct?.slug || 'N/A'}</p>
+                </div>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Price</label>
-                <p className="mt-1 text-gray-900">৳{Number(selectedProduct?.base_price || 0).toFixed(2)}</p>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Price</label>
+                  <p className="mt-1 text-gray-900">৳{Number(selectedProduct?.base_price || 0).toFixed(2)}</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Category</label>
+                  <p className="mt-1 text-gray-900">{selectedProduct?.category_name || 'N/A'}</p>
+                </div>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Category</label>
-                <p className="mt-1 text-gray-900">{selectedProduct?.category_name || 'N/A'}</p>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Stock</label>
+                  <p className="mt-1 text-gray-900">{selectedProduct?.stock_quantity || 0}</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Status</label>
+                  <p className="mt-1">
+                    <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                      selectedProduct?.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                    }`}>
+                      {selectedProduct?.status}
+                    </span>
+                  </p>
+                </div>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Stock</label>
-                <p className="mt-1 text-gray-900">{selectedProduct?.stock_quantity || 0}</p>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Status</label>
-                <p className="mt-1">
-                  <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                    selectedProduct?.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                  }`}>
-                    {selectedProduct?.status}
-                  </span>
-                </p>
-              </div>
+              
+              {/* Description */}
+              {viewProductDetails?.description_en && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Description</label>
+                  <p className="mt-1 text-gray-900 whitespace-pre-wrap">{viewProductDetails.description_en}</p>
+                </div>
+              )}
+              
+              {/* Additional Info */}
+              {viewProductDetails?.additional_info && Object.keys(viewProductDetails.additional_info).length > 0 && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Additional Information</label>
+                  <div className="bg-gray-50 rounded-lg p-3">
+                    {Object.entries(viewProductDetails.additional_info).map(([key, value]) => (
+                      <div key={key} className="flex justify-between py-1 border-b border-gray-200 last:border-0">
+                        <span className="text-gray-600 font-medium">{key}:</span>
+                        <span className="text-gray-900">{String(value)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
             <form id="product-form" onSubmit={handleSubmit} className="space-y-4">
@@ -678,11 +812,11 @@ export default function AdminProducts() {
               <ImageUpload
                 value={formData.image_url}
                 onChange={(url) => setFormData({ ...formData, image_url: url })}
-                label="Primary Product Image (Legacy)"
+                label="Primary Product Image"
                 folder="trustcart/products"
               />
 
-              {/* Multiple Images Upload - Only show in edit mode */}
+              {/* Multiple Images Upload - Edit mode: direct upload */}
               {modalMode === 'edit' && selectedProduct && (
                 <div className="border-t pt-4 mt-4">
                   <MultipleImageUpload
@@ -692,11 +826,59 @@ export default function AdminProducts() {
                 </div>
               )}
 
+              {/* Multiple Images Upload - Add mode: queue for upload after save */}
               {modalMode === 'add' && (
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mt-4">
-                  <p className="text-sm text-blue-800">
-                    <strong>Note:</strong> You can add multiple images after creating the product. 
-                    Upload the primary image above, then save the product to access the multiple image uploader.
+                <div className="border-t pt-4 mt-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Additional Product Images
+                    </label>
+                    <span className="text-xs text-gray-500">
+                      {pendingImages.length} image(s) queued
+                    </span>
+                  </div>
+                  
+                  {pendingImages.length > 0 && (
+                    <div className="grid grid-cols-4 gap-3 mb-4">
+                      {pendingImages.map((imgUrl, index) => (
+                        <div key={index} className="relative group">
+                          <img
+                            src={imgUrl}
+                            alt={`Pending ${index + 1}`}
+                            className="w-full h-24 object-cover rounded-lg border border-gray-200"
+                          />
+                          {index === 0 && (
+                            <span className="absolute top-1 left-1 bg-green-500 text-white text-xs px-1.5 py-0.5 rounded">
+                              Primary
+                            </span>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => setPendingImages(pendingImages.filter((_, i) => i !== index))}
+                            className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  
+                  <ImageUpload
+                    value=""
+                    onChange={(url) => {
+                      if (url) {
+                        setPendingImages([...pendingImages, url]);
+                      }
+                    }}
+                    label="Add Image"
+                    folder="trustcart/products"
+                  />
+                  
+                  <p className="text-xs text-gray-500 mt-2">
+                    These images will be uploaded when you save the product. The first image will be set as primary.
                   </p>
                 </div>
               )}
