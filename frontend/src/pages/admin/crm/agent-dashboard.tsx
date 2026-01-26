@@ -120,6 +120,13 @@ export default function AgentDashboard() {
   const [assignedLoading, setAssignedLoading] = useState(false);
   const [assignedError, setAssignedError] = useState<string | null>(null);
 
+  // Assigned leads filters
+  const [leadsSearchTerm, setLeadsSearchTerm] = useState('');
+  const [leadsPriorityFilter, setLeadsPriorityFilter] = useState('');
+  const [leadsStageFilter, setLeadsStageFilter] = useState('');
+  const [leadsPage, setLeadsPage] = useState(1);
+  const leadsLimit = 20;
+
   const [agentUsers, setAgentUsers] = useState<any[]>([]);
   const [selectedViewAgentId, setSelectedViewAgentId] = useState<number | null>(null);
 
@@ -300,7 +307,12 @@ export default function AgentDashboard() {
     }
   };
 
-  const loadAssignedCustomers = async (viewAgentId: number) => {
+  const loadAssignedCustomers = async (viewAgentId: number, filters?: {
+    search?: string;
+    priority?: string;
+    stage?: string;
+    page?: number;
+  }) => {
     try {
       setAssignedLoading(true);
       setAssignedError(null);
@@ -310,7 +322,16 @@ export default function AgentDashboard() {
       const url = (!canSelectAgent || isMe)
         ? '/crm/team/agent/me/customers'
         : `/crm/team/agent/${viewAgentId}/customers`;
-      const res = await apiClient.get<PaginatedCustomers>(url, { params: { page: 1, limit: 100 } });
+      
+      const params: any = { 
+        page: filters?.page || leadsPage, 
+        limit: leadsLimit 
+      };
+      if (filters?.search || leadsSearchTerm) params.search = filters?.search || leadsSearchTerm;
+      if (filters?.priority || leadsPriorityFilter) params.priority = filters?.priority || leadsPriorityFilter;
+      if (filters?.stage || leadsStageFilter) params.stage = filters?.stage || leadsStageFilter;
+      
+      const res = await apiClient.get<PaginatedCustomers>(url, { params });
       const data = (res as any)?.data;
       const rows = Array.isArray(data?.data) ? data.data : [];
       const total = Number(data?.total || rows.length || 0);
@@ -612,131 +633,12 @@ export default function AgentDashboard() {
           </div>
         </div>
 
-        {/* Commission Summary Section */}
-        <div className="bg-gradient-to-r from-green-500 to-emerald-600 rounded-lg shadow-lg p-6 text-white">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h2 className="text-2xl font-bold flex items-center gap-2">
-                <FaMoneyBillWave /> My Commission
-              </h2>
-              <p className="text-green-100 text-sm">Your earnings from sales conversions</p>
-            </div>
-            <button
-              onClick={loadCommissionData}
-              className="px-4 py-2 bg-white/20 rounded-lg hover:bg-white/30 text-sm"
-            >
-              Refresh
-            </button>
-          </div>
-
-          {commissionLoading ? (
-            <div className="text-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mx-auto"></div>
-            </div>
-          ) : commissionSummary ? (
-            <>
-              {/* Commission Rate Info */}
-              {commissionSettings?.configured && (
-                <div className="bg-white/10 rounded-lg p-4 mb-4">
-                  <div className="text-sm text-green-100 mb-1">Your Commission Rate</div>
-                  <div className="text-lg font-bold">
-                    {commissionSettings.commissionType === 'fixed' 
-                      ? `৳${commissionSettings.fixedAmount} per sale`
-                      : `${commissionSettings.percentageRate}% of each sale`}
-                  </div>
-                  {commissionSettings.minOrderValue && commissionSettings.minOrderValue > 0 && (
-                    <div className="text-xs text-green-200 mt-1">
-                      Min order value: ৳{commissionSettings.minOrderValue}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {!commissionSettings?.configured && (
-                <div className="bg-yellow-500/20 rounded-lg p-4 mb-4">
-                  <div className="text-sm text-yellow-100">
-                    <FaClock className="inline mr-1" /> Commission rates not yet configured. Contact your admin.
-                  </div>
-                </div>
-              )}
-
-              {/* Main Stats */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                <div className="bg-white/10 rounded-lg p-4">
-                  <div className="text-3xl font-bold">৳{commissionSummary.totalCommissionEarned.toFixed(0)}</div>
-                  <div className="text-sm text-green-100">Total Earned</div>
-                </div>
-                <div className="bg-white/10 rounded-lg p-4">
-                  <div className="text-3xl font-bold">{commissionSummary.totalOrders}</div>
-                  <div className="text-sm text-green-100">Sales Made</div>
-                </div>
-                <div className="bg-white/10 rounded-lg p-4">
-                  <div className="text-3xl font-bold">৳{commissionSummary.currentMonthCommission.toFixed(0)}</div>
-                  <div className="text-sm text-green-100">This Month</div>
-                </div>
-                <div className="bg-white/10 rounded-lg p-4">
-                  <div className="text-3xl font-bold">{commissionSummary.currentMonthOrders}</div>
-                  <div className="text-sm text-green-100">Orders This Month</div>
-                </div>
-              </div>
-
-              {/* Status Breakdown */}
-              <div className="grid grid-cols-3 gap-4 mb-4">
-                <div className="bg-yellow-400/20 rounded-lg p-3 text-center">
-                  <div className="text-2xl font-bold">৳{commissionSummary.pendingCommission.toFixed(0)}</div>
-                  <div className="text-xs text-yellow-100">Pending</div>
-                </div>
-                <div className="bg-blue-400/20 rounded-lg p-3 text-center">
-                  <div className="text-2xl font-bold">৳{commissionSummary.approvedCommission.toFixed(0)}</div>
-                  <div className="text-xs text-blue-100">Approved</div>
-                </div>
-                <div className="bg-green-300/20 rounded-lg p-3 text-center">
-                  <div className="text-2xl font-bold">৳{commissionSummary.paidCommission.toFixed(0)}</div>
-                  <div className="text-xs text-green-100">Paid Out</div>
-                </div>
-              </div>
-
-              {/* Recent Commissions */}
-              {recentCommissions.length > 0 && (
-                <div className="bg-white/10 rounded-lg p-4">
-                  <div className="text-sm font-semibold mb-3">Recent Commission Records</div>
-                  <div className="space-y-2">
-                    {recentCommissions.map((c) => (
-                      <div key={c.id} className="flex items-center justify-between text-sm bg-white/5 rounded p-2">
-                        <div>
-                          <span className="font-medium">Order #{c.salesOrderId}</span>
-                          <span className="text-green-200 ml-2">৳{c.orderAmount.toFixed(0)} sale</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-bold">+৳{c.commissionAmount.toFixed(0)}</span>
-                          <span className={`px-2 py-0.5 rounded text-xs ${
-                            c.status === 'pending' ? 'bg-yellow-400/30' :
-                            c.status === 'approved' ? 'bg-blue-400/30' :
-                            c.status === 'paid' ? 'bg-green-300/30' :
-                            'bg-red-400/30'
-                          }`}>
-                            {c.status}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </>
-          ) : (
-            <div className="text-center py-8 text-green-100">
-              No commission data available
-            </div>
-          )}
-        </div>
-
         {/* Assigned Leads / Customers */}
         <div className="bg-white rounded-lg shadow">
           <div className="p-6 border-b flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
               <h2 className="text-xl font-bold text-gray-800">Assigned Leads</h2>
-              <p className="text-sm text-gray-600">Customers assigned to a Sales Executive</p>
+              <p className="text-sm text-gray-600">All customers assigned to the Sales Executive</p>
             </div>
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
               {canSelectAgent && (
@@ -758,14 +660,93 @@ export default function AgentDashboard() {
                 disabled={!selectedViewAgentId || assignedLoading}
                 className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 disabled:opacity-50 text-sm"
               >
-                {assignedLoading ? 'Loading...' : 'Refresh Leads'}
+                {assignedLoading ? 'Loading...' : 'Refresh'}
               </button>
+            </div>
+          </div>
+
+          {/* Filters Section */}
+          <div className="p-4 border-b bg-gray-50">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Search</label>
+                <input
+                  type="text"
+                  value={leadsSearchTerm}
+                  onChange={(e) => setLeadsSearchTerm(e.target.value)}
+                  placeholder="Name, email, phone..."
+                  className="w-full border rounded-lg px-3 py-2 text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Priority</label>
+                <select
+                  value={leadsPriorityFilter}
+                  onChange={(e) => setLeadsPriorityFilter(e.target.value)}
+                  className="w-full border rounded-lg px-3 py-2 text-sm"
+                >
+                  <option value="">All Priorities</option>
+                  <option value="hot">Hot</option>
+                  <option value="warm">Warm</option>
+                  <option value="cold">Cold</option>
+                  <option value="new">New</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Stage</label>
+                <select
+                  value={leadsStageFilter}
+                  onChange={(e) => setLeadsStageFilter(e.target.value)}
+                  className="w-full border rounded-lg px-3 py-2 text-sm"
+                >
+                  <option value="">All Stages</option>
+                  <option value="lead">Lead</option>
+                  <option value="customer">Customer</option>
+                  <option value="prospect">Prospect</option>
+                </select>
+              </div>
+              <div className="flex items-end gap-2">
+                <button
+                  onClick={() => {
+                    setLeadsPage(1);
+                    if (selectedViewAgentId) {
+                      loadAssignedCustomers(selectedViewAgentId, {
+                        search: leadsSearchTerm,
+                        priority: leadsPriorityFilter,
+                        stage: leadsStageFilter,
+                        page: 1
+                      });
+                    }
+                  }}
+                  disabled={!selectedViewAgentId || assignedLoading}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 text-sm"
+                >
+                  Apply Filters
+                </button>
+                <button
+                  onClick={() => {
+                    setLeadsSearchTerm('');
+                    setLeadsPriorityFilter('');
+                    setLeadsStageFilter('');
+                    setLeadsPage(1);
+                    if (selectedViewAgentId) {
+                      loadAssignedCustomers(selectedViewAgentId, { page: 1 });
+                    }
+                  }}
+                  className="px-3 py-2 text-gray-600 hover:text-gray-800 text-sm"
+                >
+                  Clear
+                </button>
+              </div>
             </div>
           </div>
 
           <div className="p-6">
             <div className="text-sm text-gray-600 mb-4">
               Total assigned: <span className="font-semibold">{assignedTotal}</span>
+              {(leadsSearchTerm || leadsPriorityFilter || leadsStageFilter) && (
+                <span className="ml-2 text-blue-600">(filtered)</span>
+              )}
             </div>
 
             {assignedError && (
@@ -1001,6 +982,125 @@ export default function AgentDashboard() {
               </table>
             )}
           </div>
+        </div>
+
+        {/* Commission Summary Section - Moved to bottom */}
+        <div className="bg-gradient-to-r from-green-500 to-emerald-600 rounded-lg shadow-lg p-6 text-white">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-2xl font-bold flex items-center gap-2">
+                <FaMoneyBillWave /> My Commission
+              </h2>
+              <p className="text-green-100 text-sm">Your earnings from sales conversions</p>
+            </div>
+            <button
+              onClick={loadCommissionData}
+              className="px-4 py-2 bg-white/20 rounded-lg hover:bg-white/30 text-sm"
+            >
+              Refresh
+            </button>
+          </div>
+
+          {commissionLoading ? (
+            <div className="text-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mx-auto"></div>
+            </div>
+          ) : commissionSummary ? (
+            <>
+              {/* Commission Rate Info */}
+              {commissionSettings?.configured && (
+                <div className="bg-white/10 rounded-lg p-4 mb-4">
+                  <div className="text-sm text-green-100 mb-1">Your Commission Rate</div>
+                  <div className="text-lg font-bold">
+                    {commissionSettings.commissionType === 'fixed' 
+                      ? `৳${commissionSettings.fixedAmount} per sale`
+                      : `${commissionSettings.percentageRate}% of each sale`}
+                  </div>
+                  {commissionSettings.minOrderValue && commissionSettings.minOrderValue > 0 && (
+                    <div className="text-xs text-green-200 mt-1">
+                      Min order value: ৳{commissionSettings.minOrderValue}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {!commissionSettings?.configured && (
+                <div className="bg-yellow-500/20 rounded-lg p-4 mb-4">
+                  <div className="text-sm text-yellow-100">
+                    <FaClock className="inline mr-1" /> Commission rates not yet configured. Contact your admin.
+                  </div>
+                </div>
+              )}
+
+              {/* Main Stats */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                <div className="bg-white/10 rounded-lg p-4">
+                  <div className="text-3xl font-bold">৳{commissionSummary.totalCommissionEarned.toFixed(0)}</div>
+                  <div className="text-sm text-green-100">Total Earned</div>
+                </div>
+                <div className="bg-white/10 rounded-lg p-4">
+                  <div className="text-3xl font-bold">{commissionSummary.totalOrders}</div>
+                  <div className="text-sm text-green-100">Sales Made</div>
+                </div>
+                <div className="bg-white/10 rounded-lg p-4">
+                  <div className="text-3xl font-bold">৳{commissionSummary.currentMonthCommission.toFixed(0)}</div>
+                  <div className="text-sm text-green-100">This Month</div>
+                </div>
+                <div className="bg-white/10 rounded-lg p-4">
+                  <div className="text-3xl font-bold">{commissionSummary.currentMonthOrders}</div>
+                  <div className="text-sm text-green-100">Orders This Month</div>
+                </div>
+              </div>
+
+              {/* Status Breakdown */}
+              <div className="grid grid-cols-3 gap-4 mb-4">
+                <div className="bg-yellow-400/20 rounded-lg p-3 text-center">
+                  <div className="text-2xl font-bold">৳{commissionSummary.pendingCommission.toFixed(0)}</div>
+                  <div className="text-xs text-yellow-100">Pending</div>
+                </div>
+                <div className="bg-blue-400/20 rounded-lg p-3 text-center">
+                  <div className="text-2xl font-bold">৳{commissionSummary.approvedCommission.toFixed(0)}</div>
+                  <div className="text-xs text-blue-100">Approved</div>
+                </div>
+                <div className="bg-green-300/20 rounded-lg p-3 text-center">
+                  <div className="text-2xl font-bold">৳{commissionSummary.paidCommission.toFixed(0)}</div>
+                  <div className="text-xs text-green-100">Paid Out</div>
+                </div>
+              </div>
+
+              {/* Recent Commissions */}
+              {recentCommissions.length > 0 && (
+                <div className="bg-white/10 rounded-lg p-4">
+                  <div className="text-sm font-semibold mb-3">Recent Commission Records</div>
+                  <div className="space-y-2">
+                    {recentCommissions.map((c) => (
+                      <div key={c.id} className="flex items-center justify-between text-sm bg-white/5 rounded p-2">
+                        <div>
+                          <span className="font-medium">Order #{c.salesOrderId}</span>
+                          <span className="text-green-200 ml-2">৳{c.orderAmount.toFixed(0)} sale</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold">+৳{c.commissionAmount.toFixed(0)}</span>
+                          <span className={`px-2 py-0.5 rounded text-xs ${
+                            c.status === 'pending' ? 'bg-yellow-400/30' :
+                            c.status === 'approved' ? 'bg-blue-400/30' :
+                            c.status === 'paid' ? 'bg-green-300/30' :
+                            'bg-red-400/30'
+                          }`}>
+                            {c.status}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="text-center py-8 text-green-100">
+              No commission data available
+            </div>
+          )}
         </div>
 
         {/* Customer Detail Modal */}

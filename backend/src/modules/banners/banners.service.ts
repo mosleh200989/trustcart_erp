@@ -63,6 +63,11 @@ export class BannersService {
   }
 
   async create(bannerData: Partial<Banner>): Promise<Banner> {
+    // Shift existing banners with same or greater display_order
+    if (bannerData.display_order !== undefined) {
+      await this.shiftDisplayOrders(bannerData.display_order, bannerData.banner_type);
+    }
+    
     const banner = this.bannersRepository.create({
       ...bannerData,
       uuid: uuidv4(),
@@ -71,8 +76,38 @@ export class BannersService {
   }
 
   async update(id: number, bannerData: Partial<Banner>): Promise<Banner | null> {
+    // If display_order is being changed, shift other banners
+    if (bannerData.display_order !== undefined) {
+      const existingBanner = await this.findOne(id);
+      if (existingBanner && existingBanner.display_order !== bannerData.display_order) {
+        await this.shiftDisplayOrders(bannerData.display_order, bannerData.banner_type || existingBanner.banner_type, id);
+      }
+    }
+    
     await this.bannersRepository.update(id, bannerData);
     return this.findOne(id);
+  }
+
+  /**
+   * Shift display_order of banners >= the given order by +1
+   * Optionally exclude a specific banner ID (useful for updates)
+   */
+  private async shiftDisplayOrders(fromOrder: number, bannerType?: string, excludeId?: number): Promise<void> {
+    let query = this.bannersRepository
+      .createQueryBuilder()
+      .update(Banner)
+      .set({ display_order: () => 'display_order + 1' })
+      .where('display_order >= :fromOrder', { fromOrder });
+    
+    if (bannerType) {
+      query = query.andWhere('banner_type = :bannerType', { bannerType });
+    }
+    
+    if (excludeId) {
+      query = query.andWhere('id != :excludeId', { excludeId });
+    }
+    
+    await query.execute();
   }
 
   async remove(id: number): Promise<void> {

@@ -183,21 +183,43 @@ export class CrmTeamService {
 
   // ==================== TEAM MONITORING ====================
   async getTeamLeads(teamLeaderId: number, query: any = {}): Promise<{ data: Customer[], total: number }> {
-    const { page = 1, limit = 20, priority, status } = query;
+    const { 
+      page = 1, 
+      limit = 20, 
+      priority, 
+      status,
+      assignmentStatus, // 'assigned' | 'unassigned' | 'all'
+      assignedTo,       // specific agent ID
+      search,           // search by name, email, phone
+      dateFrom,         // created_at from
+      dateTo,           // created_at to
+      sortBy = 'created_at',
+      sortOrder = 'DESC'
+    } = query;
+    
     const pageNum = Number(page) || 1;
     const limitNum = Number(limit) || 20;
     const skip = (pageNum - 1) * limitNum;
 
-    // IMPORTANT: "Unassigned Leads" should include ALL customers (even those who already ordered)
-    // and not be restricted to lifecycle_stage='lead'.
-    // We treat "unassigned lead" as any active customer not yet assigned to an agent.
     const qb = this.customerRepository.createQueryBuilder('c');
     qb.where('c.is_deleted = false');
     qb.andWhere('c.is_active = true');
-    qb.andWhere('c.assigned_to IS NULL');
 
     // Scope: TL can see customers they supervise, plus globally-unclaimed customers.
     qb.andWhere('(c.assigned_supervisor_id IS NULL OR c.assigned_supervisor_id = :tl)', { tl: teamLeaderId });
+
+    // Assignment status filter
+    if (assignmentStatus === 'assigned') {
+      qb.andWhere('c.assigned_to IS NOT NULL');
+    } else if (assignmentStatus === 'unassigned') {
+      qb.andWhere('c.assigned_to IS NULL');
+    }
+    // 'all' or undefined = no assignment filter
+
+    // Filter by specific agent
+    if (assignedTo) {
+      qb.andWhere('c.assigned_to = :assignedTo', { assignedTo: Number(assignedTo) });
+    }
 
     if (priority) {
       qb.andWhere('c.priority = :priority', { priority });
@@ -206,11 +228,95 @@ export class CrmTeamService {
       qb.andWhere('c.status = :status', { status });
     }
 
-    qb.orderBy('c.created_at', 'DESC');
+    // Search filter
+    if (search && search.trim()) {
+      const searchTerm = `%${search.trim().toLowerCase()}%`;
+      qb.andWhere(
+        '(LOWER(c.name) LIKE :search OR LOWER(c.last_name) LIKE :search OR LOWER(c.email) LIKE :search OR c.phone LIKE :search)',
+        { search: searchTerm }
+      );
+    }
+
+    // Date range filter
+    if (dateFrom) {
+      qb.andWhere('c.created_at >= :dateFrom', { dateFrom: new Date(dateFrom) });
+    }
+    if (dateTo) {
+      const toDate = new Date(dateTo);
+      toDate.setHours(23, 59, 59, 999);
+      qb.andWhere('c.created_at <= :dateTo', { dateTo: toDate });
+    }
+
+    // Sorting
+    const validSortColumns = ['created_at', 'name', 'email', 'priority'];
+    const sortColumn = validSortColumns.includes(sortBy) ? `c.${sortBy}` : 'c.created_at';
+    const order = sortOrder?.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
+    qb.orderBy(sortColumn, order);
+    
     qb.skip(skip).take(limitNum);
 
     const [data, total] = await qb.getManyAndCount();
     return { data, total };
+  }
+
+  // Bulk assign leads to an agent
+  async bulkAssignLeads(
+    customerIds: (number | string)[], 
+    agentId: number, 
+    teamLeaderId: number
+  ): Promise<{ success: number; failed: number; results: any[] }> {
+    const results: any[] = [];
+    let success = 0;
+    let failed = 0;
+
+    for (const customerId of customerIds) {
+      try {
+        await this.assignLeadToAgent(String(customerId), agentId, teamLeaderId);
+        results.push({ customerId, status: 'success' });
+        success++;
+      } catch (error: any) {
+        results.push({ customerId, status: 'failed', error: error.message });
+        failed++;
+      }
+    }
+
+    return { success, failed, results };
+  }
+
+  // Search agents by name for autocomplete
+  async searchAgents(teamLeaderId: number, searchTerm: string): Promise<User[]> {
+    const salesExecRole = await this.usersRepository.manager
+      .createQueryBuilder()
+      .select('r.id', 'id')
+      .from('roles', 'r')
+      .where("r.name = :name OR r.slug = :slug OR LOWER(r.name) LIKE :pattern", {
+        name: 'Sales Executive',
+        slug: 'sales-executive',
+        pattern: '%sales executive%',
+      })
+      .getRawOne();
+
+    if (!salesExecRole) {
+      return [];
+    }
+
+    const qb = this.usersRepository.createQueryBuilder('u');
+    qb.where('u.role_id = :roleId', { roleId: salesExecRole.id });
+    qb.andWhere('u.is_deleted = false');
+
+    if (searchTerm && searchTerm.trim()) {
+      const term = `%${searchTerm.trim().toLowerCase()}%`;
+      qb.andWhere(
+        '(LOWER(u.name) LIKE :term OR LOWER(u.last_name) LIKE :term OR CAST(u.id AS TEXT) LIKE :term)',
+        { term }
+      );
+    }
+
+    qb.select(['u.id', 'u.name', 'u.lastName', 'u.email', 'u.phone', 'u.teamId', 'u.status']);
+    qb.limit(20);
+    qb.orderBy('u.name', 'ASC');
+
+    return await qb.getMany();
   }
 
   async convertLeadToCustomer(customerId: string, actorUserId: number): Promise<Customer> {

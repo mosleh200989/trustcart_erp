@@ -112,7 +112,7 @@ export default function ImageUpload({ value, onChange, label = 'Image', folder =
           {!preview && (
             <div className="flex items-center gap-2 text-gray-500 text-sm">
               <FaImage />
-              <span>JPEG, PNG, GIF or WebP (max 5MB)</span>
+              <span>JPEG, PNG, GIF or WebP (max 20MB)</span>
             </div>
           )}
         </div>
