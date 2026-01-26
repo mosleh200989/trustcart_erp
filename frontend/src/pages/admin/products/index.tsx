@@ -6,7 +6,7 @@ import Modal from '@/components/admin/Modal';
 import FormInput from '@/components/admin/FormInput';
 import ImageUpload from '@/components/admin/ImageUpload';
 import MultipleImageUpload from '@/components/admin/MultipleImageUpload';
-import { FaPlus, FaSearch } from 'react-icons/fa';
+import { FaPlus, FaSearch, FaEye, FaEyeSlash } from 'react-icons/fa';
 import apiClient from '@/services/api';
 
 interface Product {
@@ -88,7 +88,7 @@ export default function AdminProducts() {
 
   const loadProducts = async () => {
     try {
-      const response = await apiClient.get('/products');
+      const response = await apiClient.get('/products/admin/all');
       setProducts(Array.isArray(response.data) ? response.data : []);
     } catch (error) {
       console.error('Failed to load products:', error);
@@ -230,6 +230,19 @@ export default function AdminProducts() {
       alert('Product deleted successfully');
     } catch (error) {
       alert('Failed to delete product');
+    }
+  };
+
+  const handleToggleVisibility = async (product: Product) => {
+    const newStatus = product.status === 'active' ? 'inactive' : 'active';
+    try {
+      await apiClient.put(`/products/${product.id}`, { status: newStatus });
+      setProducts(products.map(p => 
+        p.id === product.id ? { ...p, status: newStatus } : p
+      ));
+    } catch (error) {
+      console.error('Failed to toggle visibility:', error);
+      alert('Failed to update product visibility');
     }
   };
 
@@ -484,6 +497,26 @@ export default function AdminProducts() {
         }`}>
           {value}
         </span>
+      )
+    },
+    {
+      key: 'visibility',
+      label: 'Visible',
+      render: (_value: any, row: Product) => (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            handleToggleVisibility(row);
+          }}
+          className={`p-2 rounded-lg transition-all ${
+            row.status === 'active'
+              ? 'bg-green-100 text-green-600 hover:bg-green-200'
+              : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
+          }`}
+          title={row.status === 'active' ? 'Click to hide from customers' : 'Click to show to customers'}
+        >
+          {row.status === 'active' ? <FaEye size={18} /> : <FaEyeSlash size={18} />}
+        </button>
       )
     }
   ];

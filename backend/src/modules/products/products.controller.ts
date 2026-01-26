@@ -25,6 +25,14 @@ export class ProductsController {
     return products;
   }
 
+  @Get('admin/all')
+  @RequirePermissions('view-products')
+  async findAllAdmin() {
+    const products = await this.productsService.findAllAdmin();
+    console.log(`Admin controller returning ${products.length} products (including inactive)`);
+    return products;
+  }
+
   @Get('categories')
   @Public()
   async findAllCategories() {

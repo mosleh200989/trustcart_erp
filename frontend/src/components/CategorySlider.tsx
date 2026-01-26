@@ -94,7 +94,20 @@ export default function CategorySlider({ categories }: CategorySliderProps) {
         <>
           <button
             onClick={() => scrollByPage(-1)}
-            className="hidden sm:flex absolute left-0 top-1/2 -translate-y-1/2 z-10 bg-white hover:bg-orange-500 text-gray-700 hover:text-white p-3 rounded-full shadow-lg transition-all hover:scale-110 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="hidden sm:flex absolute left-0 top-1/2 -translate-y-1/2 z-10 p-3 rounded-full shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            style={{ backgroundColor: 'white', color: '#374151' }}
+            onMouseEnter={(e) => {
+              if (canScrollPrev) {
+                e.currentTarget.style.backgroundColor = '#f97316';
+                e.currentTarget.style.color = 'white';
+                e.currentTarget.style.transform = 'translateY(-50%) scale(1.1)';
+              }
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = 'white';
+              e.currentTarget.style.color = '#374151';
+              e.currentTarget.style.transform = 'translateY(-50%) scale(1)';
+            }}
             aria-label="Previous category"
             disabled={!canScrollPrev}
           >
@@ -102,7 +115,20 @@ export default function CategorySlider({ categories }: CategorySliderProps) {
           </button>
           <button
             onClick={() => scrollByPage(1)}
-            className="hidden sm:flex absolute right-0 top-1/2 -translate-y-1/2 z-10 bg-white hover:bg-orange-500 text-gray-700 hover:text-white p-3 rounded-full shadow-lg transition-all hover:scale-110 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="hidden sm:flex absolute right-0 top-1/2 -translate-y-1/2 z-10 p-3 rounded-full shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            style={{ backgroundColor: 'white', color: '#374151' }}
+            onMouseEnter={(e) => {
+              if (canScrollNext) {
+                e.currentTarget.style.backgroundColor = '#f97316';
+                e.currentTarget.style.color = 'white';
+                e.currentTarget.style.transform = 'translateY(-50%) scale(1.1)';
+              }
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = 'white';
+              e.currentTarget.style.color = '#374151';
+              e.currentTarget.style.transform = 'translateY(-50%) scale(1)';
+            }}
             aria-label="Next category"
             disabled={!canScrollNext}
           >
@@ -124,15 +150,15 @@ export default function CategorySlider({ categories }: CategorySliderProps) {
           >
             <Link
               href={`/products?category=${cat.slug}`}
-              className="block pb-3 group bg-white hover:bg-gradient-to-br hover:from-orange-50 hover:to-orange-100 rounded-lg text-center transition-all duration-300 hover:shadow-lg border border-gray-200 h-full"
+              className="block pb-4 group bg-white hover:bg-gradient-to-br hover:from-orange-50 hover:to-orange-100 rounded-lg text-center transition-all duration-300 hover:shadow-lg border border-gray-200 h-full"
             >
               {cat.image_url && (
-                <div className="mb-2 overflow-hidden rounded-lg">
+                <div className="mb-3 overflow-hidden rounded-lg">
                   <img
                     src={cat.image_url}
                     alt={cat.name_en}
                     crossOrigin="anonymous"
-                    className="w-full h-32 object-cover group-hover:scale-110 transition-transform duration-500"
+                    className="w-full h-44 object-cover group-hover:scale-110 transition-transform duration-500"
                     onError={(e) => {
                       console.error('Category image failed to load:', cat.image_url);
                       e.currentTarget.style.display = 'none';
@@ -140,10 +166,10 @@ export default function CategorySlider({ categories }: CategorySliderProps) {
                   />
                 </div>
               )}
-              <h3 className="text-gray-800 font-bold text-sm group-hover:text-orange-600 transition-colors">
+              <h3 className="text-gray-800 font-bold text-base group-hover:text-orange-600 transition-colors px-2">
                 {cat.name_en}
               </h3>
-              {cat.name_bn && <p className="text-xs text-gray-500 mt-1">{cat.name_bn}</p>}
+              {cat.name_bn && <p className="text-sm text-gray-500 mt-1 px-2">{cat.name_bn}</p>}
             </Link>
           </div>
         ))}

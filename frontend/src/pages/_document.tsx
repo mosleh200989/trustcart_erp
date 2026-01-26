@@ -6,6 +6,10 @@ export default function Document() {
       <Head>
         <meta charSet="utf-8" />
         <meta name="description" content="TrustCart ERP - Complete Business Management System" />
+        {/* Favicon */}
+        <link rel="icon" type="image/jpeg" href="/trustcart-logo-tab.jpg" />
+        <link rel="shortcut icon" type="image/jpeg" href="/trustcart-logo-tab.jpg" />
+        <link rel="apple-touch-icon" href="/trustcart-logo-tab.jpg" />
         {/* Google Fonts - Supports Bangla */}
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />

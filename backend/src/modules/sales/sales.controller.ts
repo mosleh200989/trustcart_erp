@@ -17,6 +17,20 @@ export class SalesController {
     private readonly specialOffersService: SpecialOffersService,
   ) {}
 
+  // Public endpoint for thank-you page to get order details
+  @Get('public/:id')
+  @Public()
+  async findOnePublic(@Param('id') id: string) {
+    return this.salesService.findOne(id);
+  }
+
+  // Public endpoint for thank-you page to get order items
+  @Get('public/:id/items')
+  @Public()
+  async getOrderItemsPublic(@Param('id') id: string) {
+    return this.salesService.getOrderItems(id);
+  }
+
   // Customer portal endpoint
   @Get('my')
   @UseGuards(JwtAuthGuard)
