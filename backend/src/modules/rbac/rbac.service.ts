@@ -48,6 +48,9 @@ export class RbacService {
       throw new BadRequestException('A role with this name/slug already exists');
     }
 
+    // Shift existing roles with same or greater priority
+    await this.shiftRolePriorities(priority);
+
     const role = new Role();
     role.name = name;
     role.slug = slug;
@@ -94,6 +97,11 @@ export class RbacService {
     });
     if (existing && existing.id !== role.id) {
       throw new BadRequestException('A role with this name/slug already exists');
+    }
+
+    // If priority is being changed, shift other roles
+    if (input?.priority !== undefined && role.priority !== nextPriority) {
+      await this.shiftRolePriorities(nextPriority, roleId);
     }
 
     role.name = nextName;
@@ -368,5 +376,23 @@ export class RbacService {
     }
 
     return this.rolesRepository.query(query, params);
+  }
+
+  /**
+   * Shift priority of roles >= the given priority by +1
+   * Optionally exclude a specific role ID (useful for updates)
+   */
+  private async shiftRolePriorities(fromPriority: number, excludeId?: number): Promise<void> {
+    let query = this.rolesRepository
+      .createQueryBuilder()
+      .update(Role)
+      .set({ priority: () => 'priority + 1' })
+      .where('priority >= :fromPriority', { fromPriority });
+    
+    if (excludeId) {
+      query = query.andWhere('id != :excludeId', { excludeId });
+    }
+    
+    await query.execute();
   }
 }

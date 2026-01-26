@@ -59,13 +59,44 @@ export class SpecialOffersService {
   }
 
   async create(offerData: Partial<SpecialOffer>): Promise<SpecialOffer> {
+    // Shift existing offers with same or greater display_order
+    if (offerData.display_order !== undefined) {
+      await this.shiftDisplayOrders(offerData.display_order);
+    }
+    
     const offer = this.specialOffersRepository.create(offerData);
     return this.specialOffersRepository.save(offer);
   }
 
   async update(id: number, offerData: Partial<SpecialOffer>): Promise<SpecialOffer | null> {
+    // If display_order is being changed, shift other offers
+    if (offerData.display_order !== undefined) {
+      const existingOffer = await this.findOne(id);
+      if (existingOffer && existingOffer.display_order !== offerData.display_order) {
+        await this.shiftDisplayOrders(offerData.display_order, id);
+      }
+    }
+    
     await this.specialOffersRepository.update(id, offerData);
     return this.findOne(id);
+  }
+
+  /**
+   * Shift display_order of offers >= the given order by +1
+   * Optionally exclude a specific offer ID (useful for updates)
+   */
+  private async shiftDisplayOrders(fromOrder: number, excludeId?: number): Promise<void> {
+    let query = this.specialOffersRepository
+      .createQueryBuilder()
+      .update(SpecialOffer)
+      .set({ display_order: () => 'display_order + 1' })
+      .where('display_order >= :fromOrder', { fromOrder });
+    
+    if (excludeId) {
+      query = query.andWhere('id != :excludeId', { excludeId });
+    }
+    
+    await query.execute();
   }
 
   async remove(id: number): Promise<void> {

@@ -114,6 +114,11 @@ export class AdminMenuService {
   }
 
   async create(dto: CreateAdminMenuItemDto): Promise<AdminMenuItem> {
+    // Shift existing items with same or greater sortOrder (within same parent)
+    if (dto.sortOrder !== undefined) {
+      await this.shiftSortOrders(dto.sortOrder, dto.parentId ?? null);
+    }
+    
     const item = this.repo.create({
       title: dto.title?.trim(),
       icon: dto.icon?.trim() || null,
@@ -130,6 +135,12 @@ export class AdminMenuService {
   async update(id: number, dto: UpdateAdminMenuItemDto): Promise<AdminMenuItem> {
     const existing = await this.repo.findOne({ where: { id } });
     if (!existing) throw new NotFoundException('Menu item not found');
+
+    // If sortOrder is being changed, shift other items
+    if (dto.sortOrder !== undefined && existing.sortOrder !== dto.sortOrder) {
+      const parentId = dto.parentId !== undefined ? (dto.parentId as any) : existing.parentId;
+      await this.shiftSortOrders(dto.sortOrder, parentId, id);
+    }
 
     const next = {
       ...existing,
@@ -156,5 +167,29 @@ export class AdminMenuService {
     const existing = await this.repo.findOne({ where: { id } });
     if (!existing) throw new NotFoundException('Menu item not found');
     await this.repo.delete({ id });
+  }
+
+  /**
+   * Shift sortOrder of menu items >= the given order by +1
+   * Scoped to same parent (null for root items)
+   */
+  private async shiftSortOrders(fromOrder: number, parentId: number | null, excludeId?: number): Promise<void> {
+    let query = this.repo
+      .createQueryBuilder()
+      .update(AdminMenuItem)
+      .set({ sortOrder: () => 'sort_order + 1' })
+      .where('sort_order >= :fromOrder', { fromOrder });
+    
+    if (parentId === null) {
+      query = query.andWhere('parent_id IS NULL');
+    } else {
+      query = query.andWhere('parent_id = :parentId', { parentId });
+    }
+    
+    if (excludeId) {
+      query = query.andWhere('id != :excludeId', { excludeId });
+    }
+    
+    await query.execute();
   }
 }

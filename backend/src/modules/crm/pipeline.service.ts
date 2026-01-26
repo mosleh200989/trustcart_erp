@@ -65,6 +65,13 @@ export class PipelineService {
   }
 
   async createStage(data: Partial<CustomDealStage>) {
+    // If position is specified, shift existing stages
+    if (data.position !== undefined) {
+      await this.shiftStagePositions(data.position, data.pipelineId);
+      const stage = this.stageRepository.create(data);
+      return this.stageRepository.save(stage);
+    }
+    
     // Get max position for this pipeline
     const maxPosition = await this.stageRepository
       .createQueryBuilder('stage')
@@ -84,8 +91,35 @@ export class PipelineService {
     if (stage.isSystem && data.name) {
       throw new Error('Cannot rename system stages');
     }
+    
+    // If position is being changed, shift other stages
+    if (data.position !== undefined && stage.position !== data.position) {
+      await this.shiftStagePositions(data.position, data.pipelineId || stage.pipelineId, id);
+    }
+    
     await this.stageRepository.update(id, data);
     return this.getStageById(id);
+  }
+
+  /**
+   * Shift position of stages >= the given position by +1 (within same pipeline)
+   */
+  private async shiftStagePositions(fromPosition: number, pipelineId?: number, excludeId?: number): Promise<void> {
+    let query = this.stageRepository
+      .createQueryBuilder()
+      .update(CustomDealStage)
+      .set({ position: () => 'position + 1' })
+      .where('position >= :fromPosition', { fromPosition });
+    
+    if (pipelineId) {
+      query = query.andWhere('"pipelineId" = :pipelineId', { pipelineId });
+    }
+    
+    if (excludeId) {
+      query = query.andWhere('id != :excludeId', { excludeId });
+    }
+    
+    await query.execute();
   }
 
   async deleteStage(id: number) {

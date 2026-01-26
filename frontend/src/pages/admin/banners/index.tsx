@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import AdminLayout from '@/layouts/AdminLayout';
 import { FaPlus, FaEdit, FaTrash, FaToggleOn, FaToggleOff, FaArrowUp, FaArrowDown, FaImage } from 'react-icons/fa';
 import apiClient from '@/services/api';
+import ImageUpload from '@/components/admin/ImageUpload';
 
 interface Banner {
   id: number;
@@ -404,20 +405,12 @@ export default function BannersManagement() {
                   </div>
 
                   <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Image URL *
-                    </label>
-                    <input
-                      type="text"
+                    <ImageUpload
                       value={formData.image_url}
-                      onChange={(e) => setFormData({ ...formData, image_url: e.target.value })}
-                      className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500"
-                      required
-                      placeholder="https://example.com/image.jpg"
+                      onChange={(url) => setFormData({ ...formData, image_url: url })}
+                      label="Banner Image *"
+                      folder="trustcart/banners"
                     />
-                    {formData.image_url && (
-                      <img src={formData.image_url} alt="Preview" className="mt-2 max-h-32 rounded" />
-                    )}
                   </div>
 
                   <div>
