@@ -302,6 +302,7 @@ const menuItems: MenuItem[] = [
     icon: FaPhone,
     children: [
       { title: 'Today Tasklist', icon: FaPhone, path: '/admin/telephony/today-tasklist' },
+      { title: 'My Follow-ups', icon: FaPhone, path: '/admin/telephony/my-followups' },
       { title: 'PBX Call Logs', icon: FaPhone, path: '/admin/telephony/calls' },
       { title: 'Reports', icon: FaChartBar, path: '/admin/telephony/reports' },
       { title: 'Agent Dashboard', icon: FaPhone, path: '/admin/crm/agent-dashboard' },

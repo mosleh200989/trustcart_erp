@@ -234,10 +234,27 @@ export default function ElectroProductCard({
         <button
           onClick={handleAddToCart}
           disabled={stock === 0}
-          className="w-full bg-white border-2 border-orange-500 hover:!bg-orange-500 hover:text-white hover:shadow-lg text-orange-500 py-2 rounded-lg font-semibold transition-all duration-300 flex items-center justify-center gap-2 disabled:bg-gray-300 disabled:cursor-not-allowed"
+          className="add-to-cart-btn w-full py-2 rounded-lg font-semibold transition-all duration-300 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          style={{
+            backgroundColor: stock === 0 ? '#d1d5db' : 'white',
+            border: '2px solid #f97316',
+            color: '#f97316',
+          }}
+          onMouseEnter={(e) => {
+            if (stock !== 0) {
+              e.currentTarget.style.backgroundColor = '#f97316';
+              e.currentTarget.style.color = 'white';
+            }
+          }}
+          onMouseLeave={(e) => {
+            if (stock !== 0) {
+              e.currentTarget.style.backgroundColor = 'white';
+              e.currentTarget.style.color = '#f97316';
+            }
+          }}
         >
           <FaShoppingCart size={18} />
-          Add to Cart
+          <span>Add to Cart</span>
         </button>
       </div>
 

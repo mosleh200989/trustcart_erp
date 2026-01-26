@@ -136,7 +136,7 @@ export default function ElectroNavbar() {
 
             {/* Logo */}
             <Link href="/" className="flex items-center">
-              <img src="/trust-cart-logo-main.png" alt="TrustCart" className="h-12 lg:h-16 object-contain" />
+              <img src="/trust-cart-logo-main.png" alt="TrustCart" className="h-14 lg:h-20 object-contain" />
             </Link>
 
             {/* Search Bar - Desktop */}

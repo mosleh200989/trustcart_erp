@@ -69,6 +69,55 @@ export class ProductsService {
     }
   }
 
+  async findAllAdmin() {
+    try {
+      console.log('Starting findAllAdmin query (includes inactive products)...');
+      
+      // Return ALL products including inactive ones for admin
+      const rawResults = await this.productsRepository.query(`
+        SELECT 
+          p.id, p.slug, p.sku, p.product_code, 
+          p.name_en, p.name_bn, p.description_en, 
+          p.category_id, 
+          c.name_en as category_name,
+          p.base_price, 
+          p.base_price as price,
+          p.base_price as selling_price,
+          p.wholesale_price, 
+          p.stock_quantity,
+          p.display_position,
+          p.additional_info,
+          p.status, 
+          COALESCE(p.image_url, pi.image_url) as image_url,
+          p.discount_type,
+          p.discount_value,
+          p.sale_price,
+          p.brand,
+          p.unit_of_measure,
+          p.created_at
+        FROM products p
+        LEFT JOIN LATERAL (
+          SELECT image_url
+          FROM product_images
+          WHERE product_id = p.id
+          ORDER BY is_primary DESC, display_order ASC
+          LIMIT 1
+        ) pi ON TRUE
+        LEFT JOIN categories c ON p.category_id = c.id
+        ORDER BY p.created_at DESC
+      `);
+      console.log(`findAllAdmin found ${rawResults.length} products`);
+      
+      return rawResults;
+    } catch (error) {
+      console.error('Error fetching all products for admin:', error);
+      if (error instanceof Error) {
+        console.error('Error message:', error.message);
+      }
+      return [];
+    }
+  }
+
   async findAllCategories() {
     try {
       const categories = await this.productsRepository.query(`
