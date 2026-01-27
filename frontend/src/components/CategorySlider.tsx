@@ -68,7 +68,7 @@ export default function CategorySlider({ categories }: CategorySliderProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [categories.length]);
 
-  // Auto-slide every 5 seconds (respects scroll boundaries)
+  // Auto-slide every 30 seconds (respects scroll boundaries)
   useEffect(() => {
     if (!isScrollable) return;
     const interval = window.setInterval(() => {
@@ -80,7 +80,7 @@ export default function CategorySlider({ categories }: CategorySliderProps) {
       } else {
         el.scrollBy({ left: el.clientWidth, behavior: 'smooth' });
       }
-    }, 5000);
+    }, 30000);
 
     return () => window.clearInterval(interval);
   }, [isScrollable]);

@@ -124,7 +124,7 @@ export default function ElectroNavbar() {
 
       {/* Main Header */}
       <div className="bg-white border-b">
-        <div className="container mx-auto px-4 py-4">
+        <div className="container mx-auto px-4 py-3">
           <div className="flex items-center justify-between gap-4">
             {/* Mobile Menu Toggle */}
             <button
@@ -135,7 +135,7 @@ export default function ElectroNavbar() {
             </button>
 
             {/* Logo */}
-            <Link href="/" className="flex items-center">
+            <Link href="/" className="flex items-center -my-2">
               <img src="/trust-cart-logo-main.png" alt="TrustCart" className="h-14 lg:h-20 object-contain" />
             </Link>
 

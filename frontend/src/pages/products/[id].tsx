@@ -19,6 +19,13 @@ import {
   FaFacebookMessenger,
 } from "react-icons/fa";
 
+interface SizeVariant {
+  name: string;
+  price: number;
+  stock?: number;
+  sku_suffix?: string;
+}
+
 export default function ProductDetailsPage() {
   const router = useRouter();
   const { id } = router.query;
@@ -37,6 +44,7 @@ export default function ProductDetailsPage() {
   );
   const [showZoom, setShowZoom] = useState(false);
   const [zoomPosition, setZoomPosition] = useState({ x: 0, y: 0 });
+  const [selectedVariant, setSelectedVariant] = useState<SizeVariant | null>(null);
 
   const getSlidesPerView = () => {
     if (typeof window === "undefined") return 4;
@@ -177,18 +185,30 @@ export default function ProductDetailsPage() {
 
   const handleAddToCart = () => {
     const cart = JSON.parse(localStorage.getItem("cart") || "[]");
-    const existingItem = cart.find((item: any) => item.id === product.id);
+    // Create a unique ID that includes variant info
+    const cartItemId = selectedVariant 
+      ? `${product.id}-${selectedVariant.name}` 
+      : product.id.toString();
+    
+    const existingItem = cart.find((item: any) => item.cartItemId === cartItemId || (item.id === product.id && !item.variant && !selectedVariant));
 
-    if (existingItem) {
+    const itemPrice = selectedVariant ? selectedVariant.price : Number(product.base_price);
+
+    if (existingItem && existingItem.cartItemId === cartItemId) {
       existingItem.quantity += quantity;
     } else {
       cart.push({
         id: product.id,
-        name: product.name_en,
+        cartItemId: cartItemId,
+        name: selectedVariant 
+          ? `${product.name_en} (${selectedVariant.name})` 
+          : product.name_en,
         name_en: product.name_en,
-        price: product.base_price,
+        price: itemPrice,
         quantity: quantity,
         image: product.image_url,
+        variant: selectedVariant ? selectedVariant.name : null,
+        variantDetails: selectedVariant || null,
       });
     }
 
@@ -199,18 +219,30 @@ export default function ProductDetailsPage() {
 
   const handleBuyNow = () => {
     const cart = JSON.parse(localStorage.getItem("cart") || "[]");
-    const existingItem = cart.find((item: any) => item.id === product.id);
+    // Create a unique ID that includes variant info
+    const cartItemId = selectedVariant 
+      ? `${product.id}-${selectedVariant.name}` 
+      : product.id.toString();
+    
+    const existingItem = cart.find((item: any) => item.cartItemId === cartItemId || (item.id === product.id && !item.variant && !selectedVariant));
 
-    if (existingItem) {
+    const itemPrice = selectedVariant ? selectedVariant.price : Number(product.base_price);
+
+    if (existingItem && existingItem.cartItemId === cartItemId) {
       existingItem.quantity += quantity;
     } else {
       cart.push({
         id: product.id,
-        name: product.name_en,
+        cartItemId: cartItemId,
+        name: selectedVariant 
+          ? `${product.name_en} (${selectedVariant.name})` 
+          : product.name_en,
         name_en: product.name_en,
-        price: product.base_price,
+        price: itemPrice,
         quantity: quantity,
         image: product.image_url,
+        variant: selectedVariant ? selectedVariant.name : null,
+        variantDetails: selectedVariant || null,
       });
     }
 
@@ -283,8 +315,11 @@ export default function ProductDetailsPage() {
   }
 
   const displayName = product.name_en || product.name_bn || "Product";
-  const price = Number(product.base_price || product.price || 0);
+  const basePrice = Number(product.base_price || product.price || 0);
+  // Use selected variant price if a variant is selected, otherwise use base price
+  const price = selectedVariant ? selectedVariant.price : basePrice;
   const additionalInfo = product.additional_info || {};
+  const sizeVariants: SizeVariant[] = Array.isArray(product.size_variants) ? product.size_variants : [];
 
   const maxRelatedSlide = Math.max(0, relatedProducts.length - slidesPerView);
   const relatedSlideStepPercent = 100 / slidesPerView;
@@ -622,10 +657,62 @@ export default function ProductDetailsPage() {
                   <div className="text-3xl lg:text-4xl font-bold text-orange-500 mb-2">
                     ৳{price.toFixed(2)}
                   </div>
+                  {selectedVariant && basePrice !== selectedVariant.price && (
+                    <p className="text-gray-500 text-sm line-through">
+                      Base price: ৳{basePrice.toFixed(2)}
+                    </p>
+                  )}
                   {product.sku && (
-                    <p className="text-gray-600 text-sm">SKU: {product.sku}</p>
+                    <p className="text-gray-600 text-sm">
+                      SKU: {product.sku}{selectedVariant?.sku_suffix ? `-${selectedVariant.sku_suffix}` : ''}
+                    </p>
                   )}
                 </div>
+
+                {/* Size Variants */}
+                {sizeVariants.length > 0 && (
+                  <div className="mb-6">
+                    <label className="block text-sm font-semibold mb-3">
+                      Select Size
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                      {/* Base option (no variant selected) */}
+                      <button
+                        onClick={() => setSelectedVariant(null)}
+                        className={`px-4 py-2 rounded-lg border-2 transition-all duration-200 font-medium ${
+                          selectedVariant === null
+                            ? 'border-orange-500 bg-orange-50 text-orange-700'
+                            : 'border-gray-300 hover:border-orange-300 text-gray-700'
+                        }`}
+                      >
+                        <span className="block">Default</span>
+                        <span className="block text-sm text-gray-500">৳{basePrice.toFixed(0)}</span>
+                      </button>
+                      {sizeVariants.map((variant, idx) => (
+                        <button
+                          key={idx}
+                          onClick={() => setSelectedVariant(variant)}
+                          className={`px-4 py-2 rounded-lg border-2 transition-all duration-200 font-medium ${
+                            selectedVariant?.name === variant.name
+                              ? 'border-orange-500 bg-orange-50 text-orange-700'
+                              : 'border-gray-300 hover:border-orange-300 text-gray-700'
+                          } ${
+                            variant.stock !== undefined && variant.stock <= 0
+                              ? 'opacity-50 cursor-not-allowed'
+                              : ''
+                          }`}
+                          disabled={variant.stock !== undefined && variant.stock <= 0}
+                        >
+                          <span className="block">{variant.name}</span>
+                          <span className="block text-sm text-gray-500">৳{variant.price.toFixed(0)}</span>
+                          {variant.stock !== undefined && variant.stock <= 0 && (
+                            <span className="block text-xs text-red-500">Out of Stock</span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {/* Stock Status */}
                 <div className="mb-6">

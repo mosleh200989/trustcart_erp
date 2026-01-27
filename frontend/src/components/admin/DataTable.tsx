@@ -84,7 +84,7 @@ export default function DataTable({
 
   return (
     <div className="bg-white rounded-lg shadow">
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto overflow-y-auto max-h-[600px] scrollbar-visible" style={{ scrollbarWidth: 'auto', scrollbarColor: '#cbd5e1 #f1f5f9' }}>
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gradient-to-r from-blue-500 to-blue-600">
             <tr>

@@ -21,6 +21,14 @@ interface Product {
   stock_quantity?: number;
   image_url?: string;
   description_en?: string;
+  size_variants?: SizeVariant[];
+}
+
+interface SizeVariant {
+  name: string;
+  price: number;
+  stock?: number;
+  sku_suffix?: string;
 }
 
 interface ProductImage {
@@ -45,6 +53,7 @@ export default function AdminProducts() {
   const itemsPerPage = 10;
 
   const [additionalInfoRows, setAdditionalInfoRows] = useState<Array<{ key: string; value: string }>>([]);
+  const [sizeVariants, setSizeVariants] = useState<SizeVariant[]>([]);
   const [viewProductImages, setViewProductImages] = useState<ProductImage[]>([]);
   const [viewProductDetails, setViewProductDetails] = useState<any>(null);
   const [pendingImages, setPendingImages] = useState<string[]>([]);
@@ -124,6 +133,7 @@ export default function AdminProducts() {
       display_position: ''
     });
     setAdditionalInfoRows([]);
+    setSizeVariants([]);
     setPendingImages([]);
     setIsModalOpen(true);
   };
@@ -155,6 +165,7 @@ export default function AdminProducts() {
       });
 
       setAdditionalInfoRows(toAdditionalInfoRows(fullProduct.additional_info));
+      setSizeVariants(Array.isArray(fullProduct.size_variants) ? fullProduct.size_variants : []);
       
       console.log('Form data set to:', {
         ...fullProduct,
@@ -177,6 +188,7 @@ export default function AdminProducts() {
         display_position: ''
       });
       setAdditionalInfoRows([]);
+      setSizeVariants([]);
     }
     setIsModalOpen(true);
   };
@@ -354,6 +366,15 @@ export default function AdminProducts() {
       if (Object.keys(additionalInfo).length > 0) {
         payload.additional_info = additionalInfo;
       }
+    }
+
+    // Include size variants if any are defined
+    if (sizeVariants.length > 0) {
+      // Filter out empty variants
+      const validVariants = sizeVariants.filter(v => v.name && v.name.trim() && v.price > 0);
+      payload.size_variants = validVariants;
+    } else {
+      payload.size_variants = [];
     }
 
     console.log('Payload to send:', payload);
@@ -751,6 +772,29 @@ export default function AdminProducts() {
                   <p className="mt-1 text-gray-900 whitespace-pre-wrap">{viewProductDetails.description_en}</p>
                 </div>
               )}
+
+              {/* Size Variants */}
+              {viewProductDetails?.size_variants && viewProductDetails.size_variants.length > 0 && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Size Variants</label>
+                  <div className="bg-purple-50 rounded-lg p-3">
+                    <div className="grid grid-cols-4 gap-2 text-xs font-medium text-gray-600 mb-2 pb-2 border-b border-purple-200">
+                      <span>Size</span>
+                      <span>Price</span>
+                      <span>Stock</span>
+                      <span>SKU Suffix</span>
+                    </div>
+                    {viewProductDetails.size_variants.map((variant: SizeVariant, idx: number) => (
+                      <div key={idx} className="grid grid-cols-4 gap-2 py-1 text-sm">
+                        <span className="text-gray-900 font-medium">{variant.name}</span>
+                        <span className="text-gray-900">৳{variant.price}</span>
+                        <span className="text-gray-900">{variant.stock || 0}</span>
+                        <span className="text-gray-600">{variant.sku_suffix || '—'}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
               
               {/* Additional Info */}
               {viewProductDetails?.additional_info && Object.keys(viewProductDetails.additional_info).length > 0 && (
@@ -925,6 +969,94 @@ export default function AdminProducts() {
                 rows={3}
               />
 
+              {/* Size Variants Section */}
+              <div className="border-t pt-4">
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-medium text-gray-700">
+                    Size Variants <span className="text-gray-400 font-normal">(Optional)</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setSizeVariants([...sizeVariants, { name: '', price: 0, stock: 0, sku_suffix: '' }])}
+                    className="inline-flex items-center gap-2 px-3 py-1.5 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+                  >
+                    <FaPlus className="h-3 w-3" />
+                    Add Variant
+                  </button>
+                </div>
+
+                {sizeVariants.length === 0 ? (
+                  <p className="text-sm text-gray-500">
+                    Add size variants if this product comes in different sizes (e.g., 250g, 500g, 1kg)
+                  </p>
+                ) : (
+                  <div className="space-y-3">
+                    {sizeVariants.map((variant, idx) => (
+                      <div key={idx} className="bg-gray-50 p-3 rounded-lg border border-gray-200">
+                        <div className="grid grid-cols-12 gap-2">
+                          <input
+                            type="text"
+                            value={variant.name}
+                            onChange={(e) => {
+                              const next = [...sizeVariants];
+                              next[idx] = { ...next[idx], name: e.target.value };
+                              setSizeVariants(next);
+                            }}
+                            placeholder="Size name (e.g., 500g, Large)"
+                            className="col-span-4 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                          />
+                          <input
+                            type="number"
+                            value={variant.price || ''}
+                            onChange={(e) => {
+                              const next = [...sizeVariants];
+                              next[idx] = { ...next[idx], price: parseFloat(e.target.value) || 0 };
+                              setSizeVariants(next);
+                            }}
+                            placeholder="Price"
+                            className="col-span-3 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                          />
+                          <input
+                            type="number"
+                            value={variant.stock || ''}
+                            onChange={(e) => {
+                              const next = [...sizeVariants];
+                              next[idx] = { ...next[idx], stock: parseInt(e.target.value) || 0 };
+                              setSizeVariants(next);
+                            }}
+                            placeholder="Stock"
+                            className="col-span-2 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                          />
+                          <input
+                            type="text"
+                            value={variant.sku_suffix || ''}
+                            onChange={(e) => {
+                              const next = [...sizeVariants];
+                              next[idx] = { ...next[idx], sku_suffix: e.target.value };
+                              setSizeVariants(next);
+                            }}
+                            placeholder="SKU suffix"
+                            className="col-span-2 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setSizeVariants(sizeVariants.filter((_, i) => i !== idx))}
+                            className="col-span-1 px-2 py-2 border border-red-300 rounded-lg text-red-600 hover:bg-red-50"
+                            aria-label="Remove variant"
+                            title="Remove variant"
+                          >
+                            ×
+                          </button>
+                        </div>
+                        <div className="mt-1 text-xs text-gray-500">
+                          Size: {variant.name || '—'} | Price: ৳{variant.price || 0} | Stock: {variant.stock || 0}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
               {/* Additional Information Key/Value Editor */}
               <div>
                 <div className="flex items-center justify-between mb-2">
@@ -986,14 +1118,6 @@ export default function AdminProducts() {
                 )}
               </div>
 
-              <FormInput
-                label="Description"
-                name="description_en"
-                type="textarea"
-                value={formData.description_en}
-                onChange={handleInputChange}
-                rows={3}
-              />
               <FormInput
                 label="Status"
                 name="status"

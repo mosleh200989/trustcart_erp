@@ -44,6 +44,32 @@ body {
   display: none;  /* Chrome, Safari and Opera */
 }
 
+/* Visible scrollbar utility class for data tables */
+.scrollbar-visible {
+  scrollbar-width: auto !important;  /* Firefox */
+  scrollbar-color: #94a3b8 #e2e8f0;  /* Firefox */
+}
+.scrollbar-visible::-webkit-scrollbar {
+  display: block !important;
+  width: 10px !important;
+  height: 10px !important;
+}
+.scrollbar-visible::-webkit-scrollbar-track {
+  background: #e2e8f0;
+  border-radius: 5px;
+}
+.scrollbar-visible::-webkit-scrollbar-thumb {
+  background: #94a3b8;
+  border-radius: 5px;
+  border: 2px solid #e2e8f0;
+}
+.scrollbar-visible::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+.scrollbar-visible::-webkit-scrollbar-corner {
+  background: #e2e8f0;
+}
+
 /* Button Styling */
 .btn {
   border-radius: var(--border-radius);
