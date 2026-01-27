@@ -32,7 +32,7 @@ export class Meeting {
   @JoinColumn({ name: 'organizer_id' })
   organizer: User;
 
-  @Column({ type: 'simple-array', nullable: true })
+  @Column({ type: 'int', array: true, nullable: true })
   attendees: number[];
 
   @Column({ name: 'start_time', type: 'timestamp' })
@@ -59,7 +59,7 @@ export class Meeting {
   @Column({ name: 'meeting_notes', type: 'text', nullable: true })
   meetingNotes: string;
 
-  @Column({ type: 'jsonb', nullable: true })
+  @Column({ name: 'action_items', type: 'jsonb', nullable: true })
   actionItems: any[];
 
   @Column({ name: 'next_steps', type: 'text', nullable: true })

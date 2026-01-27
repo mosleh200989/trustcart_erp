@@ -54,7 +54,7 @@ export class Task {
   @Column({ nullable: true })
   category: string;
 
-  @Column({ type: 'simple-array', nullable: true })
+  @Column({ type: 'text', array: true, nullable: true })
   tags: string[];
 
   @Column({ default: 'pending' })
