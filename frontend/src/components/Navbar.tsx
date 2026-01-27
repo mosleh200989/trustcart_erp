@@ -125,11 +125,11 @@ export default function Navbar() {
                   About Us
                 </Link>
               </li>
-              <li className="nav-item">
+              {/* <li className="nav-item">
                 <Link href="/blog" className={`nav-link ${router.pathname === '/blog' ? 'active' : ''}`}>
                   Blog
                 </Link>
-              </li>
+              </li> */}
               <li className="nav-item">
                 <Link href="/contact" className={`nav-link ${router.pathname === '/contact' ? 'active' : ''}`}>
                   Contact Us

@@ -11,7 +11,6 @@ import { TeamCData } from './entities/team-c-data.entity';
 import { TeamDData } from './entities/team-d-data.entity';
 import { TeamEData } from './entities/team-e-data.entity';
 import { CustomerTier } from './entities/customer-tier.entity';
-import { TeamMember } from './entities/team-member.entity';
 
 @Module({
   imports: [
@@ -25,7 +24,6 @@ import { TeamMember } from './entities/team-member.entity';
       TeamDData,
       TeamEData,
       CustomerTier,
-      TeamMember,
     ]),
   ],
   controllers: [LeadManagementController],

@@ -10,7 +10,6 @@ import { TeamCData } from './entities/team-c-data.entity';
 import { TeamDData } from './entities/team-d-data.entity';
 import { TeamEData } from './entities/team-e-data.entity';
 import { CustomerTier } from './entities/customer-tier.entity';
-import { TeamMember } from './entities/team-member.entity';
 
 @Injectable()
 export class LeadManagementService {
@@ -33,8 +32,6 @@ export class LeadManagementService {
     private readonly teamEDataRepo: Repository<TeamEData>,
     @InjectRepository(CustomerTier)
     private readonly customerTierRepo: Repository<CustomerTier>,
-    @InjectRepository(TeamMember)
-    private readonly teamMemberRepo: Repository<TeamMember>,
   ) {}
 
   // ============================================
@@ -132,12 +129,12 @@ export class LeadManagementService {
       WHERE id = $2
     `, [data.assignedToId, data.customerId]);
 
-    // Increment team member's assigned count
-    await this.teamMemberRepo.increment(
-      { userId: data.assignedToId },
-      'assignedLeadsCount',
-      1
-    );
+    // Increment team member's assigned count using raw SQL
+    await this.sessionRepo.query(`
+      UPDATE team_members 
+      SET assigned_leads_count = assigned_leads_count + 1
+      WHERE user_id = $1
+    `, [data.assignedToId]);
 
     return assignment;
   }
@@ -326,20 +323,35 @@ export class LeadManagementService {
   // TEAM MEMBER MANAGEMENT
   // ============================================
 
-  async addTeamMember(data: Partial<TeamMember>) {
-    const member = this.teamMemberRepo.create(data);
-    return this.teamMemberRepo.save(member);
+  async addTeamMember(data: { userId?: number; teamLeaderId?: number; teamType?: string; isActive?: boolean }) {
+    // Use raw SQL to avoid entity metadata issues
+    const result = await this.sessionRepo.query(`
+      INSERT INTO team_members (user_id, team_leader_id, team_type, is_active)
+      VALUES ($1, $2, $3, $4)
+      RETURNING *
+    `, [data.userId, data.teamLeaderId, data.teamType, data.isActive ?? true]);
+    return result[0];
   }
 
   async getTeamMembers(teamLeaderId: number, teamType?: string) {
-    const where: any = { teamLeaderId };
-    if (teamType) where.teamType = teamType;
-
-    return this.teamMemberRepo.find({ where });
+    // Use raw SQL to avoid entity metadata issues
+    let query = `SELECT * FROM team_members WHERE team_leader_id = $1`;
+    const params: any[] = [teamLeaderId];
+    
+    if (teamType) {
+      query += ` AND team_type = $2`;
+      params.push(teamType);
+    }
+    
+    return this.sessionRepo.query(query, params);
   }
 
   async getTeamMemberStats(userId: number) {
-    return this.teamMemberRepo.findOne({ where: { userId } });
+    // Use raw SQL to avoid entity metadata issues
+    const result = await this.sessionRepo.query(`
+      SELECT * FROM team_members WHERE user_id = $1 LIMIT 1
+    `, [userId]);
+    return result[0] || null;
   }
 
   // ============================================

@@ -7,7 +7,7 @@ import apiClient from '@/services/api';
 import { 
   FaTachometerAlt, FaBoxes, FaShoppingCart, FaUsers, FaWarehouse, 
   FaShoppingBag, FaUserTie, FaBook, FaBullseye, FaHandshake, 
-  FaHeadset, FaUser, FaCog, FaBars, FaTimes, FaBell, FaChevronDown, FaChartBar, FaTags, FaGift, FaPhone, FaMoneyBillWave, FaImage
+  FaHeadset, FaUser, FaCog, FaBars, FaTimes, FaBell, FaChevronDown, FaChartBar, FaTags, FaGift, FaPhone, FaMoneyBillWave, FaImage, FaList
 } from 'react-icons/fa';
 
 interface MenuItem {
@@ -254,11 +254,11 @@ const menuItems: MenuItem[] = [
     icon: FaBullseye,
     path: '/admin/projects'
   },
-  {
-    title: 'Tasks',
-    icon: FaBullseye,
-    path: '/admin/tasks'
-  },
+  // {
+  //   title: 'Tasks',
+  //   icon: FaBullseye,
+  //   path: '/admin/tasks'
+  // },
   {
     title: 'Commission',
     icon: FaMoneyBillWave,
@@ -302,6 +302,7 @@ const menuItems: MenuItem[] = [
     icon: FaPhone,
     children: [
       { title: 'Today Tasklist', icon: FaPhone, path: '/admin/telephony/today-tasklist' },
+      { title: 'All Tasks', icon: FaList, path: '/admin/telephony/all-tasks' },
       { title: 'My Follow-ups', icon: FaPhone, path: '/admin/telephony/my-followups' },
       { title: 'PBX Call Logs', icon: FaPhone, path: '/admin/telephony/calls' },
       { title: 'Reports', icon: FaChartBar, path: '/admin/telephony/reports' },
