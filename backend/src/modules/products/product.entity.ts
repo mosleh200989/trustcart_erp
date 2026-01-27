@@ -1,5 +1,12 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn } from 'typeorm';
 
+export interface SizeVariant {
+  name: string;
+  price: number;
+  stock?: number;
+  sku_suffix?: string;
+}
+
 @Entity('products')
 export class Product {
   @PrimaryGeneratedColumn()
@@ -55,6 +62,9 @@ export class Product {
 
   @Column({ type: 'jsonb', nullable: true, name: 'additional_info', default: () => "'{}'::jsonb" })
   additional_info!: Record<string, any>;
+
+  @Column({ type: 'jsonb', nullable: true, name: 'size_variants', default: () => "'[]'::jsonb" })
+  size_variants!: SizeVariant[];
 
   @Column({ nullable: true, default: 'active' })
   status!: string;
