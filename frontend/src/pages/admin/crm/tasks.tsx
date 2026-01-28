@@ -633,7 +633,7 @@ const TaskManagement = () => {
             task={editingTask}
             teamMembers={teamMembers}
             isTeamLeader={isTeamLeaderOrAdmin()}
-            currentUserId={authUser?.id}
+            currentUserId={Number(authUser?.id) || 0}
             onClose={() => {
               setShowTaskModal(false);
               setEditingTask(null);
