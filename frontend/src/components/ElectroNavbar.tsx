@@ -356,9 +356,9 @@ export default function ElectroNavbar() {
               <Link href="/contact" className="py-4 hover:text-orange-400 transition font-medium">
                 Contact
               </Link>
-              <Link href="/blog" className="py-4 hover:text-orange-400 transition font-medium">
+              {/* <Link href="/blog" className="py-4 hover:text-orange-400 transition font-medium">
                 Blog
-              </Link>
+              </Link> */}
             </nav>
 
             {/* Special Offer Badge */}
@@ -388,9 +388,9 @@ export default function ElectroNavbar() {
               <Link href="/contact" onClick={() => setShowMobileMenu(false)} className="py-3 px-4 hover:bg-orange-500 rounded transition">
                 Contact
               </Link>
-              <Link href="/blog" onClick={() => setShowMobileMenu(false)} className="py-3 px-4 hover:bg-orange-500 rounded transition">
+              {/* <Link href="/blog" onClick={() => setShowMobileMenu(false)} className="py-3 px-4 hover:bg-orange-500 rounded transition">
                 Blog
-              </Link>
+              </Link> */}
               <Link href="/wishlist" onClick={() => setShowMobileMenu(false)} className="py-3 px-4 hover:bg-orange-500 rounded transition sm:hidden">
                 Wishlist
               </Link>

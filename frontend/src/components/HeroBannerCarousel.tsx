@@ -88,14 +88,14 @@ export default function HeroBannerCarousel({ banners }: Props) {
 
   if (!banners || banners.length === 0) {
     return (
-      <div className="bg-gradient-to-r from-orange-400 to-red-500 h-96 flex items-center justify-center">
+      <div className="w-full h-48 sm:h-64 md:h-80 lg:h-96 bg-gradient-to-r from-orange-400 to-red-500 flex items-center justify-center">
         <p className="text-white text-xl">No banners available</p>
       </div>
     );
   }
 
   return (
-    <div className="relative overflow-hidden group">
+    <div className="relative overflow-hidden group bg-gray-100">
       {/* Swipeable Carousel Track */}
       <div
         ref={scrollerRef}
@@ -106,9 +106,8 @@ export default function HeroBannerCarousel({ banners }: Props) {
           <a
             key={banner.id}
             href={banner.button_link || '#'}
-            className="block relative h-96 w-full flex-none snap-start cursor-pointer"
+            className="block relative w-full flex-none snap-start cursor-pointer h-48 sm:h-64 md:h-80 lg:h-96"
             onPointerDown={() => {
-              // pause auto-play as soon as user interacts
               if (banners.length > 1) {
                 setIsAutoPlaying(false);
                 setTimeout(() => setIsAutoPlaying(true), 10000);
@@ -125,7 +124,7 @@ export default function HeroBannerCarousel({ banners }: Props) {
               src={banner.image_url}
               alt={banner.title}
               crossOrigin="anonymous"
-              className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+              className="absolute inset-0 w-full h-full object-cover object-center"
               onError={() => {
                 console.error('Banner image failed to load:', banner.image_url);
               }}
@@ -134,37 +133,37 @@ export default function HeroBannerCarousel({ banners }: Props) {
         ))}
       </div>
 
-      {/* Navigation Arrows */}
+      {/* Navigation Arrows - visible on hover (desktop) */}
       {banners.length > 1 && (
         <>
           <button
             onClick={goToPrevious}
-            className="absolute left-4 top-1/2 -translate-y-1/2 bg-black/40 hover:bg-black/60 backdrop-blur-sm p-4 rounded-full transition-all duration-300 opacity-0 group-hover:opacity-100 hover:scale-110 z-20"
+            className="absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white shadow-lg p-2 sm:p-3 rounded-full transition-all duration-300 opacity-70 sm:opacity-0 sm:group-hover:opacity-100 hover:scale-110 z-20"
             aria-label="Previous slide"
           >
-            <FaChevronLeft className="text-white text-2xl" />
+            <FaChevronLeft className="text-gray-800 text-lg sm:text-xl" />
           </button>
           <button
             onClick={goToNext}
-            className="absolute right-4 top-1/2 -translate-y-1/2 bg-black/40 hover:bg-black/60 backdrop-blur-sm p-4 rounded-full transition-all duration-300 opacity-0 group-hover:opacity-100 hover:scale-110 z-20"
+            className="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white shadow-lg p-2 sm:p-3 rounded-full transition-all duration-300 opacity-70 sm:opacity-0 sm:group-hover:opacity-100 hover:scale-110 z-20"
             aria-label="Next slide"
           >
-            <FaChevronRight className="text-white text-2xl" />
+            <FaChevronRight className="text-gray-800 text-lg sm:text-xl" />
           </button>
         </>
       )}
 
       {/* Dots Indicator */}
       {banners.length > 1 && (
-        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-2 z-20 bg-black/30 backdrop-blur-sm px-4 py-2 rounded-full">
+        <div className="absolute bottom-3 sm:bottom-4 left-1/2 -translate-x-1/2 flex gap-1.5 sm:gap-2 z-20">
           {banners.map((_, index) => (
             <button
               key={index}
               onClick={() => goToSlide(index)}
-              className={`rounded-full transition-all duration-300 ${
+              className={`rounded-full transition-all duration-300 shadow-sm ${
                 index === currentIndex
-                  ? 'bg-white w-8 h-3 shadow-lg'
-                  : 'bg-white/60 hover:bg-white/90 w-3 h-3'
+                  ? 'bg-white w-6 sm:w-8 h-2 sm:h-2.5'
+                  : 'bg-white/50 hover:bg-white/80 w-2 sm:w-2.5 h-2 sm:h-2.5'
               }`}
               aria-label={`Go to slide ${index + 1}`}
             />

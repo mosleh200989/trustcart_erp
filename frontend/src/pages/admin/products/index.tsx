@@ -6,6 +6,7 @@ import Modal from '@/components/admin/Modal';
 import FormInput from '@/components/admin/FormInput';
 import ImageUpload from '@/components/admin/ImageUpload';
 import MultipleImageUpload from '@/components/admin/MultipleImageUpload';
+import RichTextEditor from '@/components/admin/RichTextEditor';
 import { FaPlus, FaSearch, FaEye, FaEyeSlash } from 'react-icons/fa';
 import apiClient from '@/services/api';
 
@@ -769,7 +770,10 @@ export default function AdminProducts() {
               {viewProductDetails?.description_en && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700">Description</label>
-                  <p className="mt-1 text-gray-900 whitespace-pre-wrap">{viewProductDetails.description_en}</p>
+                  <div 
+                    className="mt-1 text-gray-900 prose prose-sm max-w-none"
+                    dangerouslySetInnerHTML={{ __html: viewProductDetails.description_en }}
+                  />
                 </div>
               )}
 
@@ -960,13 +964,11 @@ export default function AdminProducts() {
                 </div>
               )}
 
-              <FormInput
+              <RichTextEditor
                 label="Description"
-                name="description_en"
-                type="textarea"
                 value={formData.description_en}
-                onChange={handleInputChange}
-                rows={3}
+                onChange={(value) => setFormData({ ...formData, description_en: value })}
+                placeholder="Enter product description..."
               />
 
               {/* Size Variants Section */}
