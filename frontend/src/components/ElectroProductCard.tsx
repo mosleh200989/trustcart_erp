@@ -157,20 +157,20 @@ export default function ElectroProductCard({
       </div>
 
       <Link href={productUrl}>
-        {/* Image */}
-        <div className="relative h-48 bg-gray-50 flex items-center justify-center overflow-hidden">
+        {/* Image - 1:1 Aspect Ratio for Professional E-commerce Look */}
+        <div className="relative w-full pt-[100%] bg-gray-50 overflow-hidden">
           {resolvedImageUrl && !imageError ? (
             <img
               src={resolvedImageUrl}
               alt={displayName}
-              className="object-contain group-hover:scale-110 transition-transform duration-500 w-full h-full"
+              className="absolute inset-0 w-full h-full object-contain group-hover:scale-110 transition-transform duration-500"
               onError={(e) => {
                 console.error("Image failed to load:", resolvedImageUrl);
                 setImageError(true);
               }}
             />
           ) : (
-            <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-orange-100 to-orange-50">
+            <div className="absolute inset-0 w-full h-full flex items-center justify-center bg-gradient-to-br from-orange-100 to-orange-50">
               <span className="text-6xl">📦</span>
             </div>
           )}
