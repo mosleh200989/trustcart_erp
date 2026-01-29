@@ -272,77 +272,120 @@ export default function Home() {
           </div>
         </motion.div>
 
-        {/* Deal of the Day */}
+        {/* Deal of the Day - Responsive Design: Compact on Mobile, Larger on Desktop */}
         {dealOfTheDay && (
           <motion.div
-            initial={{ opacity: 0, y: 30 }}
+            initial={{ opacity: 0, y: 10 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
-            className="bg-gradient-to-br from-amber-50 to-orange-50 py-12"
+            transition={{ duration: 0.3 }}
+            className="container mx-auto px-4 lg:px-48 xl:px-56 py-4 lg:py-6"
           >
-            <div className="container mx-auto px-4 lg:px-48 xl:px-56">
-              <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-0">
-                  {/* Left Side - Content */}
-                  <div className="p-12 flex flex-col justify-center">
-                    <div className="inline-block bg-orange-100 text-orange-600 px-4 py-2 rounded-full text-xs sm:text-sm font-bold mb-4 w-fit">
-                      🔥 DEAL OF THE DAY
-                    </div>
-                    <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900 mb-4">
-                      {dealOfTheDay.name_en}
-                    </h2>
-                    <p className="text-base sm:text-lg lg:text-xl text-gray-600 mb-6">
-                      {dealOfTheDay.brand || "Premium Quality"}
-                    </p>
-                    <div className="mb-8">
-                      <div className="flex items-end gap-3 mb-2">
-                        <span className="text-4xl sm:text-5xl lg:text-6xl font-bold text-gray-900">
-                          ৳
-                          {Number(
-                            dealOfTheDay.sale_price || dealOfTheDay.base_price
-                          ).toFixed(0)}
-                        </span>
-                        {dealOfTheDay.sale_price && (
-                          <span className="text-xl sm:text-2xl line-through text-gray-400 pb-2">
-                            ৳{Number(dealOfTheDay.base_price).toFixed(0)}
-                          </span>
-                        )}
-                      </div>
-                      {dealOfTheDay.sale_price && (
-                        <div className="inline-block bg-red-100 text-red-600 px-3 py-1 rounded-full text-sm font-bold">
-                          Save ৳
-                          {(
-                            Number(dealOfTheDay.base_price) -
-                            Number(dealOfTheDay.sale_price)
-                          ).toFixed(0)}
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex gap-4">
-                      <a
-                        href={`/products/${dealOfTheDay.slug}`}
-                        className="bg-gradient-to-r from-orange-500 to-orange-600 text-white px-8 py-3 rounded-full font-bold text-lg hover:from-orange-600 hover:to-orange-700 transition-all hover:scale-105 shadow-lg"
-                      >
-                        Grab This Deal Now!
-                      </a>
-                    </div>
-                  </div>
-                  {/* Right Side - Image */}
-                  <div className="flex items-center justify-center overflow-hidden">
-                    {dealOfTheDay.image_url ? (
-                      <img
-                        src={dealOfTheDay.image_url}
-                        alt={dealOfTheDay.name_en}
-                        crossOrigin="anonymous"
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <div className="bg-gradient-to-br from-orange-100 to-orange-200 w-full h-full flex items-center justify-center">
-                        <div className="text-9xl animate-pulse">🏷️</div>
-                      </div>
+            {/* Mobile View - Compact Banner */}
+            <a
+              href={`/products/${dealOfTheDay.slug}`}
+              className="lg:hidden block bg-gradient-to-r from-amber-50 via-orange-50 to-amber-100 border border-orange-200 rounded-xl shadow-sm hover:shadow-md transition-all hover:scale-[1.01] overflow-hidden"
+            >
+              <div className="flex items-center gap-4 p-3 sm:p-4">
+                <div className="w-16 h-16 sm:w-20 sm:h-20 flex-shrink-0 bg-white rounded-lg overflow-hidden border border-orange-100">
+                  {dealOfTheDay.image_url ? (
+                    <img
+                      src={dealOfTheDay.image_url}
+                      alt={dealOfTheDay.name_en}
+                      crossOrigin="anonymous"
+                      className="w-full h-full object-contain"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-3xl">🏷️</div>
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-orange-600 text-xs font-bold uppercase tracking-wide">🔥 Deal of the Day</span>
+                    {dealOfTheDay.sale_price && (
+                      <span className="bg-orange-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">
+                        Save ৳{(Number(dealOfTheDay.base_price) - Number(dealOfTheDay.sale_price)).toFixed(0)}
+                      </span>
                     )}
                   </div>
+                  <h3 className="text-gray-800 font-bold text-base sm:text-lg truncate">
+                    {dealOfTheDay.name_en}
+                  </h3>
+                </div>
+                <div className="flex-shrink-0 text-right">
+                  <div className="text-orange-600 font-bold text-xl sm:text-2xl">
+                    ৳{Number(dealOfTheDay.sale_price || dealOfTheDay.base_price).toFixed(0)}
+                  </div>
+                  {dealOfTheDay.sale_price && (
+                    <div className="text-gray-400 text-xs line-through">
+                      ৳{Number(dealOfTheDay.base_price).toFixed(0)}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </a>
+
+            {/* Desktop View - Larger Card */}
+            <div className="hidden lg:block bg-gradient-to-r from-amber-50 via-orange-50 to-amber-100 border border-orange-200 rounded-2xl shadow-sm overflow-hidden">
+              <div className="flex items-center">
+                {/* Left - Product Image */}
+                <div className="w-40 h-40 xl:w-48 xl:h-48 flex-shrink-0 bg-white m-4 rounded-xl overflow-hidden shadow-sm border border-orange-100">
+                  {dealOfTheDay.image_url ? (
+                    <img
+                      src={dealOfTheDay.image_url}
+                      alt={dealOfTheDay.name_en}
+                      crossOrigin="anonymous"
+                      className="w-full h-full object-contain p-2"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-6xl">🏷️</div>
+                  )}
+                </div>
+                
+                {/* Center - Content */}
+                <div className="flex-1 py-6 px-2">
+                  <div className="flex items-center gap-3 mb-2">
+                    <span className="bg-orange-100 text-orange-600 text-sm font-bold px-4 py-1.5 rounded-full">
+                      🔥 DEAL OF THE DAY
+                    </span>
+                    {dealOfTheDay.sale_price && (
+                      <span className="bg-red-500 text-white text-sm font-bold px-3 py-1.5 rounded-full animate-pulse">
+                        {Math.round(((Number(dealOfTheDay.base_price) - Number(dealOfTheDay.sale_price)) / Number(dealOfTheDay.base_price)) * 100)}% OFF
+                      </span>
+                    )}
+                  </div>
+                  <h3 className="text-gray-800 font-bold text-2xl xl:text-3xl mb-1">
+                    {dealOfTheDay.name_en}
+                  </h3>
+                  {dealOfTheDay.brand && (
+                    <p className="text-gray-500 text-sm mb-3">{dealOfTheDay.brand}</p>
+                  )}
+                  <div className="flex items-end gap-3">
+                    <span className="text-orange-600 font-bold text-4xl xl:text-5xl">
+                      ৳{Number(dealOfTheDay.sale_price || dealOfTheDay.base_price).toFixed(0)}
+                    </span>
+                    {dealOfTheDay.sale_price && (
+                      <span className="text-gray-400 text-xl line-through pb-1">
+                        ৳{Number(dealOfTheDay.base_price).toFixed(0)}
+                      </span>
+                    )}
+                    {dealOfTheDay.sale_price && (
+                      <span className="text-green-600 text-sm font-semibold pb-1.5">
+                        Save ৳{(Number(dealOfTheDay.base_price) - Number(dealOfTheDay.sale_price)).toFixed(0)}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Right - CTA Button */}
+                <div className="pr-6">
+                  <a
+                    href={`/products/${dealOfTheDay.slug}`}
+                    className="inline-flex items-center gap-2 bg-orange-500 text-white px-8 py-4 rounded-full font-bold text-lg hover:bg-orange-600 transition-all hover:scale-105 shadow-md"
+                  >
+                    Grab Deal
+                    <FaArrowRight />
+                  </a>
                 </div>
               </div>
             </div>
