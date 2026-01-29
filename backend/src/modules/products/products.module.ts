@@ -4,9 +4,10 @@ import { ProductsService } from './products.service';
 import { ProductsController } from './products.controller';
 import { Product } from './product.entity';
 import { DealOfTheDay } from './deal-of-the-day.entity';
+import { HotDeal } from './hot-deal.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Product, DealOfTheDay])],
+  imports: [TypeOrmModule.forFeature([Product, DealOfTheDay, HotDeal])],
   controllers: [ProductsController],
   providers: [ProductsService],
   exports: [ProductsService],

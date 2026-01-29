@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Product } from './product.entity';
 import { DealOfTheDay } from './deal-of-the-day.entity';
+import { HotDeal } from './hot-deal.entity';
 
 @Injectable()
 export class ProductsService {
@@ -11,6 +12,8 @@ export class ProductsService {
     private productsRepository: Repository<Product>,
     @InjectRepository(DealOfTheDay)
     private dealOfTheDayRepository: Repository<DealOfTheDay>,
+    @InjectRepository(HotDeal)
+    private hotDealRepository: Repository<HotDeal>,
   ) {}
 
   async findAll() {
@@ -676,6 +679,143 @@ export class ProductsService {
       return { success: true, message: 'Deal of the day removed' };
     } catch (error) {
       console.error('Error removing deal of the day:', error);
+      throw error;
+    }
+  }
+
+  // ==================== HOT DEALS ====================
+
+  async getHotDeals() {
+    try {
+      const deals = await this.hotDealRepository.query(`
+        SELECT 
+          hd.id, hd.product_id, hd.special_price, hd.discount_percent,
+          hd.display_order, hd.start_date, hd.end_date, hd.is_active,
+          hd.created_at, hd.updated_at,
+          p.name_en, p.name_bn, p.slug, p.sku, p.base_price, p.sale_price,
+          p.image_url, p.stock_quantity, p.status as product_status,
+          c.name_en as category_name
+        FROM hot_deals hd
+        JOIN products p ON hd.product_id = p.id
+        LEFT JOIN categories c ON p.category_id = c.id
+        ORDER BY hd.display_order ASC, hd.created_at DESC
+      `);
+      return deals;
+    } catch (error) {
+      console.error('Error fetching hot deals:', error);
+      return [];
+    }
+  }
+
+  async getActiveHotDeals() {
+    try {
+      const now = new Date();
+      const deals = await this.hotDealRepository.query(`
+        SELECT 
+          hd.id, hd.product_id, hd.special_price, hd.discount_percent,
+          hd.display_order, hd.start_date, hd.end_date, hd.is_active,
+          p.name_en, p.name_bn, p.slug, p.sku, p.base_price, p.sale_price,
+          p.image_url, p.stock_quantity,
+          c.name_en as category_name
+        FROM hot_deals hd
+        JOIN products p ON hd.product_id = p.id
+        LEFT JOIN categories c ON p.category_id = c.id
+        WHERE hd.is_active = true
+          AND p.status = 'active'
+          AND (hd.start_date IS NULL OR hd.start_date <= $1)
+          AND (hd.end_date IS NULL OR hd.end_date >= $1)
+        ORDER BY hd.display_order ASC, hd.created_at DESC
+      `, [now]);
+      return deals;
+    } catch (error) {
+      console.error('Error fetching active hot deals:', error);
+      return [];
+    }
+  }
+
+  async addHotDeal(data: {
+    productId: number;
+    specialPrice?: number;
+    discountPercent?: number;
+    displayOrder?: number;
+    startDate?: Date;
+    endDate?: Date;
+  }) {
+    try {
+      // Check if product already exists in hot deals
+      const existing = await this.hotDealRepository.findOne({
+        where: { product_id: data.productId }
+      });
+      if (existing) {
+        throw new BadRequestException('Product is already in hot deals');
+      }
+
+      const hotDeal = this.hotDealRepository.create({
+        product_id: data.productId,
+        special_price: data.specialPrice,
+        discount_percent: data.discountPercent,
+        display_order: data.displayOrder || 0,
+        start_date: data.startDate,
+        end_date: data.endDate,
+        is_active: true,
+      });
+
+      return await this.hotDealRepository.save(hotDeal);
+    } catch (error) {
+      console.error('Error adding hot deal:', error);
+      throw error;
+    }
+  }
+
+  async updateHotDeal(id: number, data: {
+    specialPrice?: number;
+    discountPercent?: number;
+    displayOrder?: number;
+    startDate?: Date;
+    endDate?: Date;
+    isActive?: boolean;
+  }) {
+    try {
+      const hotDeal = await this.hotDealRepository.findOne({ where: { id } });
+      if (!hotDeal) {
+        throw new BadRequestException('Hot deal not found');
+      }
+
+      if (data.specialPrice !== undefined) hotDeal.special_price = data.specialPrice;
+      if (data.discountPercent !== undefined) hotDeal.discount_percent = data.discountPercent;
+      if (data.displayOrder !== undefined) hotDeal.display_order = data.displayOrder;
+      if (data.startDate !== undefined) hotDeal.start_date = data.startDate;
+      if (data.endDate !== undefined) hotDeal.end_date = data.endDate;
+      if (data.isActive !== undefined) hotDeal.is_active = data.isActive;
+
+      return await this.hotDealRepository.save(hotDeal);
+    } catch (error) {
+      console.error('Error updating hot deal:', error);
+      throw error;
+    }
+  }
+
+  async removeHotDeal(id: number) {
+    try {
+      const result = await this.hotDealRepository.delete(id);
+      return { success: true, message: 'Hot deal removed', affected: result.affected };
+    } catch (error) {
+      console.error('Error removing hot deal:', error);
+      throw error;
+    }
+  }
+
+  async toggleHotDealStatus(id: number) {
+    try {
+      const hotDeal = await this.hotDealRepository.findOne({ where: { id } });
+      if (!hotDeal) {
+        throw new BadRequestException('Hot deal not found');
+      }
+
+      hotDeal.is_active = !hotDeal.is_active;
+      return await this.hotDealRepository.save(hotDeal);
+    } catch (error) {
+      console.error('Error toggling hot deal status:', error);
       throw error;
     }
   }

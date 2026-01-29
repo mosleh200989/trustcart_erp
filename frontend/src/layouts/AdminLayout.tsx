@@ -27,6 +27,7 @@ const menuItems: MenuItem[] = [
       { title: 'All Products', icon: FaBoxes, path: '/admin/products', requiredPermissions: ['view-products'] },
       { title: 'Manage Categories', icon: FaBoxes, path: '/admin/categories', requiredPermissions: ['manage-categories'] },
       { title: 'Combo Products', icon: FaBoxes, path: '/admin/combo-products', requiredPermissions: ['view-products'] },
+      { title: 'Hot Deals', icon: FaBoxes, path: '/admin/products/hot-deals', requiredPermissions: ['manage-discounts'] },
       { title: 'Deal of the Day', icon: FaBoxes, path: '/admin/products/deal-of-the-day', requiredPermissions: ['manage-discounts', 'edit-products'] },
       { title: 'Offers & Promotions', icon: FaBoxes, path: '/admin/offers', requiredPermissions: ['manage-discounts'] },
       { title: 'Special Offers', icon: FaBoxes, path: '/admin/special-offers', requiredPermissions: ['manage-discounts'] },
