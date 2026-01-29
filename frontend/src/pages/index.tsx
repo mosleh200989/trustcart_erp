@@ -54,6 +54,7 @@ interface SpecialOffer {
 
 export default function Home() {
   const [featuredProducts, setFeaturedProducts] = useState<any[]>([]);
+  const [hotDeals, setHotDeals] = useState<any[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [carouselBanners, setCarouselBanners] = useState<Banner[]>([]);
   const [sideBanners, setSideBanners] = useState<Banner[]>([]);
@@ -67,6 +68,7 @@ export default function Home() {
     loadBanners();
     loadSpecialOffers();
     loadDealOfTheDay();
+    loadHotDeals();
   }, []);
 
   const loadBanners = async () => {
@@ -111,6 +113,16 @@ export default function Home() {
       setDealOfTheDay(response.data);
     } catch (error) {
       console.error("Failed to load deal of the day:", error);
+    }
+  };
+
+  const loadHotDeals = async () => {
+    try {
+      const response = await apiClient.get("/products/hot-deals");
+      console.log("Hot Deals loaded:", response.data);
+      setHotDeals(response.data || []);
+    } catch (error) {
+      console.error("Failed to load hot deals:", error);
     }
   };
 
@@ -407,61 +419,73 @@ export default function Home() {
         </motion.div>
 
         {/* Hot Deals Section */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          whileInView={{ opacity: 1 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.5 }}
-          className="container mx-auto px-4 lg:px-48 xl:px-56 py-12"
-        >
-          <div className="flex items-center justify-between mb-8">
-            <div>
-              <h2 className="text-3xl font-bold flex items-center gap-3">
-                <span className="text-4xl">🔥</span>
-                Hot Deals
-              </h2>
-              <p className="text-gray-600 mt-2">
-                Biggest discounts of the season
-              </p>
+        {(hotDeals.length > 0 || featuredProducts.filter(p => p.hasDiscount).length > 0) && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            whileInView={{ opacity: 1 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.5 }}
+            className="container mx-auto px-4 lg:px-48 xl:px-56 py-12"
+          >
+            <div className="flex items-center justify-between mb-8">
+              <div>
+                <h2 className="text-3xl font-bold flex items-center gap-3">
+                  <span className="text-4xl">🔥</span>
+                  Hot Deals
+                </h2>
+                <p className="text-gray-600 mt-2">
+                  Biggest discounts of the season
+                </p>
+              </div>
+              <Link
+                href="/products?sort=discount"
+                className="text-orange-500 hover:text-orange-600 font-semibold flex items-center gap-2"
+              >
+                View All Deals
+                <FaArrowRight />
+              </Link>
             </div>
-            <Link
-              href="/products?sort=discount"
-              className="text-orange-500 hover:text-orange-600 font-semibold flex items-center gap-2"
-            >
-              View All Deals
-              <FaArrowRight />
-            </Link>
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {featuredProducts
-              .filter((p) => p.hasDiscount)
-              .slice(0, 4)
-              .map((product) => (
-                <ElectroProductCard
-                  key={product.id}
-                  id={product.id}
-                  slug={product.slug}
-                  name={product.name_en || product.name}
-                  nameBn={product.name_bn}
-                  nameEn={product.name_en}
-                  categoryName={
-                    product.category_name ||
-                    product.category?.name_en ||
-                    product.category?.name
-                  }
-                  price={product.salePrice}
-                  originalPrice={product.base_price || product.price}
-                  stock={product.stock_quantity}
-                  image={product.image_url}
-                  rating={5}
-                  reviews={Math.floor(Math.random() * 200)}
-                  discount={
-                    product.hasDiscount ? product.discountPercent : undefined
-                  }
-                />
-              ))}
-          </div>
-        </motion.div>
+            <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+              {/* Use hot deals from API if available, otherwise fallback to discounted products */}
+              {(hotDeals.length > 0 ? hotDeals : featuredProducts.filter(p => p.hasDiscount))
+                .slice(0, 4)
+                .map((product) => {
+                  // Calculate price - for hot deals, use special_price if set
+                  const basePrice = Number(product.base_price || product.price || 0);
+                  const salePrice = product.special_price 
+                    ? Number(product.special_price) 
+                    : product.sale_price 
+                      ? Number(product.sale_price) 
+                      : product.salePrice || basePrice;
+                  const discountPercent = product.discount_percent 
+                    || (basePrice > salePrice ? Math.round(((basePrice - salePrice) / basePrice) * 100) : 0);
+                  
+                  return (
+                    <ElectroProductCard
+                      key={product.id || product.product_id}
+                      id={product.product_id || product.id}
+                      slug={product.slug}
+                      name={product.name_en || product.name}
+                      nameBn={product.name_bn}
+                      nameEn={product.name_en}
+                      categoryName={
+                        product.category_name ||
+                        product.category?.name_en ||
+                        product.category?.name
+                      }
+                      price={salePrice}
+                      originalPrice={basePrice}
+                      stock={product.stock_quantity}
+                      image={product.image_url}
+                      rating={5}
+                      reviews={Math.floor(Math.random() * 200)}
+                      discount={discountPercent > 0 ? discountPercent : undefined}
+                    />
+                  );
+                })}
+            </div>
+          </motion.div>
+        )}
 
         {/* Featured Products */}
         <motion.div

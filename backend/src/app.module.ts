@@ -44,6 +44,7 @@ import { Banner } from './modules/banners/banner.entity';
 import { Category } from './modules/categories/category.entity';
 import { SpecialOffer } from './modules/special-offers/special-offer.entity';
 import { DealOfTheDay } from './modules/products/deal-of-the-day.entity';
+import { HotDeal } from './modules/products/hot-deal.entity';
 import { CourierConfiguration } from './modules/settings/courier-configuration.entity';
 import { AdminMenuItem } from './modules/settings/admin-menu-item.entity';
 
@@ -179,6 +180,7 @@ import { TaggingModule } from './modules/tagging/tagging.module';
             
             
             DealOfTheDay,
+            HotDeal,
             CourierConfiguration,
             AdminMenuItem,
             // Loyalty entities

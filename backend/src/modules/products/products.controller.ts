@@ -208,6 +208,71 @@ export class ProductsController {
     return this.productsService.getDealOfTheDay();
   }
 
+  // Hot Deals endpoints
+  @Get('hot-deals')
+  @Public()
+  async getActiveHotDeals() {
+    return this.productsService.getActiveHotDeals();
+  }
+
+  @Get('admin/hot-deals')
+  @RequirePermissions('manage-discounts')
+  async getAllHotDeals() {
+    return this.productsService.getHotDeals();
+  }
+
+  @Post('admin/hot-deals')
+  @RequirePermissions('manage-discounts')
+  async addHotDeal(@Body() body: {
+    productId: number;
+    specialPrice?: number;
+    discountPercent?: number;
+    displayOrder?: number;
+    startDate?: string;
+    endDate?: string;
+  }) {
+    return this.productsService.addHotDeal({
+      productId: body.productId,
+      specialPrice: body.specialPrice,
+      discountPercent: body.discountPercent,
+      displayOrder: body.displayOrder,
+      startDate: body.startDate ? new Date(body.startDate) : undefined,
+      endDate: body.endDate ? new Date(body.endDate) : undefined,
+    });
+  }
+
+  @Put('admin/hot-deals/:id')
+  @RequirePermissions('manage-discounts')
+  async updateHotDeal(@Param('id') id: string, @Body() body: {
+    specialPrice?: number;
+    discountPercent?: number;
+    displayOrder?: number;
+    startDate?: string;
+    endDate?: string;
+    isActive?: boolean;
+  }) {
+    return this.productsService.updateHotDeal(parseInt(id), {
+      specialPrice: body.specialPrice,
+      discountPercent: body.discountPercent,
+      displayOrder: body.displayOrder,
+      startDate: body.startDate ? new Date(body.startDate) : undefined,
+      endDate: body.endDate ? new Date(body.endDate) : undefined,
+      isActive: body.isActive,
+    });
+  }
+
+  @Delete('admin/hot-deals/:id')
+  @RequirePermissions('manage-discounts')
+  async removeHotDeal(@Param('id') id: string) {
+    return this.productsService.removeHotDeal(parseInt(id));
+  }
+
+  @Put('admin/hot-deals/:id/toggle')
+  @RequirePermissions('manage-discounts')
+  async toggleHotDealStatus(@Param('id') id: string) {
+    return this.productsService.toggleHotDealStatus(parseInt(id));
+  }
+
   // NOTE: Keep this below other static GET routes (e.g. deal-of-the-day)
   // so it doesn't accidentally catch them.
   @Get(':id')
