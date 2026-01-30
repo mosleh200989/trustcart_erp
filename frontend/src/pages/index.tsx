@@ -429,23 +429,23 @@ export default function Home() {
           >
             <div className="flex items-center justify-between mb-8">
               <div>
-                <h2 className="text-3xl font-bold flex items-center gap-3">
-                  <span className="text-4xl">🔥</span>
+                <h2 className="text-2xl xl:text-3xl font-bold flex items-center gap-3">
+                  <span className="text-3xl xl:text-4xl">🔥</span>
                   Hot Deals
                 </h2>
-                <p className="text-gray-600 mt-2">
+                <p className="text-gray-600 mt-1">
                   Biggest discounts of the season
                 </p>
               </div>
               <Link
                 href="/products?sort=discount"
-                className="text-orange-500 hover:text-orange-600 font-semibold flex items-center gap-2"
+                className="text-orange-500 hover:text-orange-600 font-semibold flex items-center gap-2 ml-0.5"
               >
                 View All Deals
                 <FaArrowRight />
               </Link>
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4 lg:gap-6">
               {/* Use hot deals from API if available, otherwise fallback to discounted products */}
               {(hotDeals.length > 0 ? hotDeals : featuredProducts.filter(p => p.hasDiscount))
                 .slice(0, 4)
@@ -497,8 +497,8 @@ export default function Home() {
         >
           <div className="flex items-center justify-between mb-8">
             <div>
-              <h2 className="text-3xl font-bold">Featured Products</h2>
-              <p className="text-gray-600 mt-2">
+              <h2 className="text-2xl xl:text-3xl font-bold">Featured Products</h2>
+              <p className="text-gray-600 mt-1">
                 Check out our best selling products
               </p>
             </div>
@@ -516,7 +516,7 @@ export default function Home() {
               <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500"></div>
             </div>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4 lg:gap-6">
               {featuredProducts.slice(0, 8).map((product) => (
                 <ElectroProductCard
                   key={product.id}
@@ -551,6 +551,16 @@ export default function Home() {
               ))}
             </div>
           )}
+
+          {/* View All Button */}
+          <div className="text-center mt-8">
+            <Link
+              href="/products"
+              className="inline-block bg-orange-500 hover:bg-orange-600 text-white font-semibold px-8 py-3 rounded-full transition-all duration-300 shadow-lg hover:shadow-xl"
+            >
+              View All Products
+            </Link>
+          </div>
         </motion.div>
 
         {/* Newsletter Banner */}
