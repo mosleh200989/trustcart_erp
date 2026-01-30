@@ -180,7 +180,7 @@ export default function ElectroProductCard({
         </div>
 
         {/* Content */}
-        <div className="py-1 px-3">
+        <div className="py-1 px-2 sm:px-3">
           {/* Rating */}
           {/* <div className="flex items-center gap-1 mb-2">
             {[...Array(5)].map((_, i) => (
@@ -195,32 +195,32 @@ export default function ElectroProductCard({
 
           {/* Name */}
           <h3
-            className={`font-semibold text-gray-800 text-xl group-hover:text-orange-500 transition-colors text-center line-clamp-2 min-h-[3.5rem] ${
-              displayCategory ? "mb-1" : "mb-3"
+            className={`font-semibold text-gray-800 text-sm sm:text-base lg:text-xl group-hover:text-orange-500 transition-colors text-center line-clamp-2 min-h-[2.5rem] sm:min-h-[3rem] lg:min-h-[3.5rem] ${
+              displayCategory ? "mb-1" : "mb-2 sm:mb-3"
             }`}
           >
             {displayName}
           </h3>
 
           {displayCategory && (
-            <div className="text-sm text-gray-500 mb-3 text-center line-clamp-1">
+            <div className="text-xs sm:text-sm text-gray-500 mb-2 sm:mb-3 text-center line-clamp-1">
               {displayCategory}
             </div>
           )}
 
           {/* Price */}
-          <div className="mb-3 text-center">
-            <div className="flex items-center justify-center gap-2 mb-1">
-              <span className="text-2xl font-bold text-orange-500">
+          <div className="mb-2 sm:mb-3 text-center">
+            <div className="flex items-center justify-center gap-1 sm:gap-2 mb-1">
+              <span className="text-base sm:text-lg lg:text-2xl font-bold text-orange-500">
                 ৳{priceNum.toFixed(2)}
               </span>
               {hasDiscount && originalPriceNum && (
-                <span className="text-sm text-gray-400 line-through">
+                <span className="text-xs sm:text-sm text-gray-400 line-through">
                   ৳{originalPriceNum.toFixed(2)}
                 </span>
               )}
             </div>
-            <div className="text-xs text-green-600 font-semibold min-h-[1rem]">
+            <div className="text-[10px] sm:text-xs text-green-600 font-semibold min-h-[1rem]">
               {hasDiscount && originalPriceNum
                 ? `You save ৳${(originalPriceNum - priceNum).toFixed(2)}`
                 : null}
@@ -230,11 +230,11 @@ export default function ElectroProductCard({
       </Link>
 
       {/* Add to Cart Button */}
-      <div className="px-3 pb-4">
+      <div className="px-2 sm:px-3 pb-2 sm:pb-4">
         <button
           onClick={handleAddToCart}
           disabled={stock === 0}
-          className="add-to-cart-btn w-full py-2 rounded-lg font-semibold transition-all duration-300 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="add-to-cart-btn w-full py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all duration-300 flex items-center justify-center gap-1 sm:gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           style={{
             backgroundColor: stock === 0 ? '#d1d5db' : 'white',
             border: '2px solid #f97316',

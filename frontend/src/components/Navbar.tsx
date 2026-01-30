@@ -135,6 +135,11 @@ export default function Navbar() {
                   Contact Us
                 </Link>
               </li>
+              <li className="nav-item">
+                <Link href="/track-order" className={`nav-link ${router.pathname === '/track-order' ? 'active' : ''}`}>
+                  Track Order
+                </Link>
+              </li>
             </ul>
             
             {/* Right - Cart, Login/Register */}

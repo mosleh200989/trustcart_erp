@@ -261,6 +261,7 @@ export default function CartPage() {
                   <ElectroProductCard
                     key={product.id}
                     id={product.id}
+                    slug={product.slug}
                     nameEn={product.name_en}
                     nameBn={product.name_bn}
                     categoryName={
@@ -271,7 +272,7 @@ export default function CartPage() {
                     price={product.base_price}
                     originalPrice={product.mrp}
                     stock={product.stock_quantity}
-                    image={product.image}
+                    image={product.image_url || product.image}
                     rating={5}
                     reviews={Math.floor(Math.random() * 200)}
                   />
