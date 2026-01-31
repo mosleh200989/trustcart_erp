@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import AdminLayout from '@/layouts/AdminLayout';
 import Link from 'next/link';
 import apiClient from '@/services/api';
+import { useToast } from '@/contexts/ToastContext';
 
 interface KPIData {
   total_customers: number;
@@ -31,6 +32,7 @@ interface DueReminderRow {
 }
 
 export default function LoyaltyKPIDashboard() {
+  const toast = useToast();
   const [kpis, setKpis] = useState<KPIData | null>(null);
   const [loading, setLoading] = useState(true);
   const [remindersLoading, setRemindersLoading] = useState(false);
@@ -72,10 +74,10 @@ export default function LoyaltyKPIDashboard() {
       setRemindersLoading(true);
       await apiClient.post('/loyalty/reminders/generate');
       await loadDueReminders();
-      alert('Reminders generated and CRM call tasks created (due reminders).');
+      toast.success('Reminders generated and CRM call tasks created (due reminders).');
     } catch (error) {
       console.error('Failed to generate reminders:', error);
-      alert('Failed to generate reminders');
+      toast.error('Failed to generate reminders');
     } finally {
       setRemindersLoading(false);
     }

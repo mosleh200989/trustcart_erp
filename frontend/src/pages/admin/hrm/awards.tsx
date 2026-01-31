@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import AdminLayout from '../../../layouts/AdminLayout';
 import api from '../../../services/api';
+import { useToast } from '@/contexts/ToastContext';
 
 interface Award {
   id: number;
@@ -13,6 +14,7 @@ interface Award {
 }
 
 export default function AwardsPage() {
+  const toast = useToast();
   const [awards, setAwards] = useState<Award[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -55,7 +57,7 @@ export default function AwardsPage() {
       resetForm();
     } catch (error) {
       console.error('Failed to save award:', error);
-      alert('Failed to save. Please try again.');
+      toast.error('Failed to save. Please try again.');
     }
   };
 
@@ -78,7 +80,7 @@ export default function AwardsPage() {
         fetchAwards();
       } catch (error) {
         console.error('Failed to delete award:', error);
-        alert('Failed to delete. Please try again.');
+        toast.error('Failed to delete. Please try again.');
       }
     }
   };

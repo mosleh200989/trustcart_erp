@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import AdminLayout from '@/layouts/AdminLayout';
 import apiClient from '@/services/api';
+import { useToast } from '@/contexts/ToastContext';
 
 interface AutomationWorkflow {
   id: number;
@@ -30,6 +31,7 @@ interface WorkflowExecution {
 }
 
 export default function WorkflowsPage() {
+  const toast = useToast();
   const [workflows, setWorkflows] = useState<AutomationWorkflow[]>([]);
   const [selectedWorkflow, setSelectedWorkflow] = useState<AutomationWorkflow | null>(null);
   const [executions, setExecutions] = useState<WorkflowExecution[]>([]);
@@ -79,7 +81,7 @@ export default function WorkflowsPage() {
       loadWorkflows();
     } catch (error) {
       console.error('Failed to toggle workflow', error);
-      alert('Failed to toggle workflow');
+      toast.error('Failed to toggle workflow');
     }
   };
 
@@ -95,7 +97,7 @@ export default function WorkflowsPage() {
       setEditingWorkflow(null);
     } catch (error) {
       console.error('Failed to save workflow', error);
-      alert('Failed to save workflow');
+      toast.error('Failed to save workflow');
     }
   };
 
@@ -110,7 +112,7 @@ export default function WorkflowsPage() {
       }
     } catch (error) {
       console.error('Failed to delete workflow', error);
-      alert('Failed to delete workflow');
+      toast.error('Failed to delete workflow');
     }
   };
 

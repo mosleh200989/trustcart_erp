@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useToast } from '@/contexts/ToastContext';
 import AdminLayout from '@/layouts/AdminLayout';
 import { apiUrl } from '@/config/backend';
 import { useAuth } from '@/contexts/AuthContext';
@@ -65,6 +66,7 @@ type FilterPriority = '' | 'low' | 'medium' | 'high' | 'urgent';
 type FilterStatus = '' | 'pending' | 'in_progress' | 'completed' | 'cancelled';
 
 export default function TodayTasklistPage() {
+  const toast = useToast();
   const { user: authUser } = useAuth();
   const [loading, setLoading] = useState(true);
   
@@ -250,11 +252,11 @@ export default function TodayTasklistPage() {
         setSelectedOrderId(orders[0].id);
         setShowOrderModal(true);
       } else {
-        alert('No orders found for this customer');
+        toast.warning('No orders found for this customer');
       }
     } catch (err) {
       console.error('Failed to fetch customer orders:', err);
-      alert('Failed to load customer orders');
+      toast.error('Failed to load customer orders');
     }
   };
 

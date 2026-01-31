@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import AdminLayout from '@/layouts/AdminLayout';
 import apiClient from '@/services/api';
 import { useRouter } from 'next/router';
+import { useToast } from '@/contexts/ToastContext';
 
 interface CustomerSegment {
   id: number;
@@ -19,6 +20,7 @@ interface CustomerSegment {
 
 export default function CustomerSegmentsPage() {
   const router = useRouter();
+  const toast = useToast();
   const [segments, setSegments] = useState<CustomerSegment[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -48,7 +50,7 @@ export default function CustomerSegmentsPage() {
       loadSegments();
     } catch (error) {
       console.error('Failed to delete segment', error);
-      alert('Failed to delete segment');
+      toast.error('Failed to delete segment');
     }
   };
 
@@ -56,10 +58,10 @@ export default function CustomerSegmentsPage() {
     try {
       await apiClient.post(`/crm/segments/${id}/calculate`);
       loadSegments();
-      alert('Segment recalculated successfully');
+      toast.success('Segment recalculated successfully');
     } catch (error) {
       console.error('Failed to recalculate segment', error);
-      alert('Failed to recalculate segment');
+      toast.error('Failed to recalculate segment');
     }
   };
 
@@ -152,6 +154,7 @@ export default function CustomerSegmentsPage() {
               setShowModal(false);
               loadSegments();
             }}
+            toast={toast}
           />
         )}
       </div>
@@ -162,9 +165,11 @@ export default function CustomerSegmentsPage() {
 function SegmentModal({
   onClose,
   onSaved,
+  toast,
 }: {
   onClose: () => void;
   onSaved: () => void;
+  toast: ReturnType<typeof useToast>;
 }) {
   const [formData, setFormData] = useState({
     name: '',
@@ -206,7 +211,7 @@ function SegmentModal({
       onSaved();
     } catch (error) {
       console.error('Failed to create segment', error);
-      alert('Failed to create segment');
+      toast.error('Failed to create segment');
     }
   };
 

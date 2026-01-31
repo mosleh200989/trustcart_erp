@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import AdminLayout from '@/layouts/AdminLayout';
 import DataTable from '@/components/admin/DataTable';
+import { useToast } from '@/contexts/ToastContext';
 import Modal from '@/components/admin/Modal';
 import FormInput from '@/components/admin/FormInput';
 import ImageUpload from '@/components/admin/ImageUpload';
@@ -33,6 +34,7 @@ interface ProductOption {
 }
 
 export default function AdminSpecialOffers() {
+  const toast = useToast();
   const [activeTab, setActiveTab] = useState<'homepage' | 'thankYou'>('homepage');
 
   const [offers, setOffers] = useState<SpecialOffer[]>([]);
@@ -139,10 +141,10 @@ export default function AdminSpecialOffers() {
       };
 
       await apiClient.put('/special-offers/thank-you', payload);
-      alert('Thank You offer updated successfully');
+      toast.success('Thank You offer updated successfully');
       loadThankYouTab();
     } catch (error: any) {
-      alert(`Error: ${error.response?.data?.message || error.message}`);
+      toast.error(`Error: ${error.response?.data?.message || error.message}`);
     }
   };
 
@@ -192,9 +194,9 @@ export default function AdminSpecialOffers() {
     try {
       await apiClient.delete(`/special-offers/${offer.id}`);
       setOffers(offers.filter((o) => o.id !== offer.id));
-      alert('Special offer deleted successfully');
+      toast.success('Special offer deleted successfully');
     } catch (error) {
-      alert('Failed to delete special offer');
+      toast.error('Failed to delete special offer');
     }
   };
 
@@ -210,15 +212,15 @@ export default function AdminSpecialOffers() {
     try {
       if (modalMode === 'add') {
         await apiClient.post('/special-offers', payload);
-        alert('Special offer added successfully');
+        toast.success('Special offer added successfully');
       } else if (modalMode === 'edit' && selectedOffer) {
         await apiClient.put(`/special-offers/${selectedOffer.id}`, payload);
-        alert('Special offer updated successfully');
+        toast.success('Special offer updated successfully');
       }
       setIsModalOpen(false);
       loadOffers();
     } catch (error: any) {
-      alert(`Error: ${error.response?.data?.message || error.message}`);
+      toast.error(`Error: ${error.response?.data?.message || error.message}`);
     }
   };
 

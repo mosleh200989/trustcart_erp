@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import AdminLayout from '@/layouts/AdminLayout';
 import Modal from '@/components/admin/Modal';
+import { useToast } from '@/contexts/ToastContext';
 import FormInput from '@/components/admin/FormInput';
 import ImageUpload from '@/components/admin/ImageUpload';
 import { FaPlus, FaSearch, FaEdit, FaTrash, FaTimes, FaEye } from 'react-icons/fa';
@@ -25,6 +26,7 @@ interface Product {
 }
 
 export default function ComboProductsAdmin() {
+  const toast = useToast();
   const [combos, setCombos] = useState<Combo[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -111,9 +113,9 @@ export default function ComboProductsAdmin() {
     try {
       await apiClient.delete(`/combos/${combo.id}`);
       setCombos(combos.filter(c => c.id !== combo.id));
-      alert('Combo deleted successfully');
+      toast.success('Combo deleted successfully');
     } catch (error) {
-      alert('Failed to delete combo');
+      toast.error('Failed to delete combo');
     }
   };
 
@@ -121,12 +123,12 @@ export default function ComboProductsAdmin() {
     e.preventDefault();
 
     if (!formData.name) {
-      alert('Combo name is required');
+      toast.warning('Combo name is required');
       return;
     }
 
     if (comboProducts.length === 0) {
-      alert('Please add at least one product to the combo');
+      toast.warning('Please add at least one product to the combo');
       return;
     }
 
@@ -149,12 +151,12 @@ export default function ComboProductsAdmin() {
         console.log('Creating new combo...');
         const response = await apiClient.post('/combos', payload);
         console.log('Create response:', response.data);
-        alert('Combo created successfully');
+        toast.success('Combo created successfully');
       } else if (modalMode === 'edit' && selectedCombo) {
         console.log('Updating combo:', selectedCombo.id);
         const response = await apiClient.put(`/combos/${selectedCombo.id}`, payload);
         console.log('Update response:', response.data);
-        alert('Combo updated successfully');
+        toast.success('Combo updated successfully');
       }
       setIsModalOpen(false);
       loadCombos();
@@ -162,7 +164,7 @@ export default function ComboProductsAdmin() {
       console.error('Submit error:', error);
       console.error('Error response:', error.response);
       const errorMsg = error.response?.data?.message || error.message || 'Operation failed';
-      alert(`Error: ${errorMsg}`);
+      toast.error(`Error: ${errorMsg}`);
     }
   };
 

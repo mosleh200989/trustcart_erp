@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useToast } from '@/contexts/ToastContext';
 import AdminLayout from '@/layouts/AdminLayout';
 import DataTable from '@/components/admin/DataTable';
 import Modal from '@/components/admin/Modal';
@@ -39,6 +40,7 @@ interface Product {
 }
 
 export default function HotDealsManager() {
+  const toast = useToast();
   const [hotDeals, setHotDeals] = useState<HotDeal[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -116,10 +118,10 @@ export default function HotDealsManager() {
     try {
       await apiClient.delete(`/products/admin/hot-deals/${deal.id}`);
       await loadHotDeals();
-      alert('Hot deal removed successfully');
+      toast.success('Hot deal removed successfully');
     } catch (error) {
       console.error('Error removing hot deal:', error);
-      alert('Failed to remove hot deal');
+      toast.error('Failed to remove hot deal');
     }
   };
 
@@ -129,7 +131,7 @@ export default function HotDealsManager() {
       await loadHotDeals();
     } catch (error) {
       console.error('Error toggling status:', error);
-      alert('Failed to toggle status');
+      toast.error('Failed to toggle status');
     }
   };
 
@@ -137,7 +139,7 @@ export default function HotDealsManager() {
     e.preventDefault();
 
     if (modalMode === 'add' && !selectedProductId) {
-      alert('Please select a product');
+      toast.warning('Please select a product');
       return;
     }
 
@@ -153,16 +155,16 @@ export default function HotDealsManager() {
     try {
       if (modalMode === 'add') {
         await apiClient.post('/products/admin/hot-deals', payload);
-        alert('Product added to hot deals successfully!');
+        toast.success('Product added to hot deals successfully!');
       } else if (selectedDeal) {
         await apiClient.put(`/products/admin/hot-deals/${selectedDeal.id}`, payload);
-        alert('Hot deal updated successfully!');
+        toast.success('Hot deal updated successfully!');
       }
       setIsModalOpen(false);
       await loadHotDeals();
     } catch (error: any) {
       console.error('Error saving hot deal:', error);
-      alert(error.response?.data?.message || 'Failed to save hot deal');
+      toast.error(error.response?.data?.message || 'Failed to save hot deal');
     }
   };
 

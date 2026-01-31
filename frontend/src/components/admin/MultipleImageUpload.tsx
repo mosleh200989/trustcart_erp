@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { FaPlus, FaTimes, FaStar, FaArrowUp, FaArrowDown } from 'react-icons/fa';
 import ImageUpload from './ImageUpload';
 import apiClient from '@/services/api';
+import { useToast } from '@/contexts/ToastContext';
 
 interface ProductImage {
   id?: number;
@@ -17,6 +18,7 @@ interface MultipleImageUploadProps {
 }
 
 export default function MultipleImageUpload({ productId, onImagesChange, folder = 'trustcart/products' }: MultipleImageUploadProps) {
+  const toast = useToast();
   const [images, setImages] = useState<ProductImage[]>([]);
   const [showUpload, setShowUpload] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -57,7 +59,7 @@ export default function MultipleImageUpload({ productId, onImagesChange, folder 
         setShowUpload(false);
       } catch (error) {
         console.error('Error adding image:', error);
-        alert('Failed to add image');
+        toast.error('Failed to add image');
       }
     } else {
       // If no productId, just manage locally
@@ -79,7 +81,7 @@ export default function MultipleImageUpload({ productId, onImagesChange, folder 
         onImagesChange?.(updatedImages);
       } catch (error) {
         console.error('Error removing image:', error);
-        alert('Failed to remove image');
+        toast.error('Failed to remove image');
       }
     } else {
       const updatedImages = images.filter((_, i) => i !== index);
@@ -103,7 +105,7 @@ export default function MultipleImageUpload({ productId, onImagesChange, folder 
         onImagesChange?.(updatedImages);
       } catch (error) {
         console.error('Error setting primary image:', error);
-        alert('Failed to set primary image');
+        toast.error('Failed to set primary image');
       }
     } else {
       setImages(updatedImages);
@@ -143,7 +145,7 @@ export default function MultipleImageUpload({ productId, onImagesChange, folder 
         onImagesChange?.(updatedImages);
       } catch (error) {
         console.error('Error reordering images:', error);
-        alert('Failed to reorder images');
+        toast.error('Failed to reorder images');
       }
     } else {
       setImages(updatedImages);

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
+import { useToast } from '@/contexts/ToastContext';
 import AdminLayout from '@/layouts/AdminLayout';
 import DataTable from '@/components/admin/DataTable';
 import Modal from '@/components/admin/Modal';
@@ -21,6 +22,7 @@ interface Product {
 
 export default function AdminProducts() {
   const router = useRouter();
+  const toast = useToast();
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -103,9 +105,9 @@ export default function AdminProducts() {
     try {
       await apiClient.delete(`/products/${product.id}`);
       setProducts(products.filter(p => p.id !== product.id));
-      alert('Product deleted successfully');
+      toast.success('Product deleted successfully');
     } catch (error) {
-      alert('Failed to delete product');
+      toast.error('Failed to delete product');
     }
   };
 
@@ -115,16 +117,16 @@ export default function AdminProducts() {
       if (modalMode === 'add') {
         const response = await apiClient.post('/products', formData);
         setProducts([...products, response.data]);
-        alert('Product added successfully');
+        toast.success('Product added successfully');
       } else if (modalMode === 'edit' && selectedProduct) {
         const response = await apiClient.put(`/products/${selectedProduct.id}`, formData);
         setProducts(products.map(p => p.id === selectedProduct.id ? response.data : p));
-        alert('Product updated successfully');
+        toast.success('Product updated successfully');
       }
       setIsModalOpen(false);
       loadProducts();
     } catch (error) {
-      alert('Operation failed');
+      toast.error('Operation failed');
     }
   };
 

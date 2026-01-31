@@ -3,6 +3,7 @@ import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea
 import { Plus, Filter, Search, DollarSign, Calendar, User, Tag, TrendingUp, Eye, Edit, Trash2, X } from 'lucide-react';
 import AdminLayout from '@/layouts/AdminLayout';
 import { apiUrl } from '@/config/backend';
+import { useToast } from '@/contexts/ToastContext';
 
 interface Deal {
   id: number;
@@ -128,6 +129,7 @@ const DealCard = ({ deal, index }: { deal: Deal; index: number }) => {
 };
 
 const Pipeline = () => {
+  const toast = useToast();
   const [stages, setStages] = useState<Stage[]>([]);
   const [deals, setDeals] = useState<{ [key: string]: Deal[] }>({});
   const [loading, setLoading] = useState(true);
@@ -469,6 +471,7 @@ const Pipeline = () => {
               fetchStats();
             }}
             stages={stages}
+            toast={toast}
           />
         )}
       </div>
@@ -477,7 +480,7 @@ const Pipeline = () => {
 };
 
 // Deal Creation Modal Component
-const DealModal = ({ onClose, onSave, stages }: { onClose: () => void; onSave: () => void; stages: Stage[] }) => {
+const DealModal = ({ onClose, onSave, stages, toast }: { onClose: () => void; onSave: () => void; stages: Stage[]; toast: ReturnType<typeof useToast> }) => {
   const [formData, setFormData] = useState({
     name: '',
     customerId: '',
@@ -529,11 +532,11 @@ const DealModal = ({ onClose, onSave, stages }: { onClose: () => void; onSave: (
         onSave(); // Only call onSave after successful creation
       } else {
         const errorData = await response.json();
-        alert(`Failed to create deal: ${errorData.message || 'Unknown error'}`);
+        toast.error(`Failed to create deal: ${errorData.message || 'Unknown error'}`);
       }
     } catch (error) {
       console.error('Error creating deal:', error);
-      alert('Failed to create deal. Please try again.');
+      toast.error('Failed to create deal. Please try again.');
     }
   };
 

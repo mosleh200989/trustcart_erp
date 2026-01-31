@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import AdminLayout from '../../../../layouts/AdminLayout';
 import api from '../../../../services/api';
+import { useToast } from '@/contexts/ToastContext';
 
 interface OfferTemplate {
   id: number;
@@ -11,6 +12,7 @@ interface OfferTemplate {
 }
 
 export default function OfferTemplatePage() {
+  const toast = useToast();
   const [offerTemplates, setOfferTemplates] = useState<OfferTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -52,7 +54,7 @@ export default function OfferTemplatePage() {
       resetForm();
     } catch (error) {
       console.error('Failed to save offer templates:', error);
-      alert('Failed to save. Please try again.');
+      toast.error('Failed to save. Please try again.');
     }
   };
 
@@ -74,7 +76,7 @@ export default function OfferTemplatePage() {
         fetchOfferTemplates();
       } catch (error) {
         console.error('Failed to delete offer templates:', error);
-        alert('Failed to delete. Please try again.');
+        toast.error('Failed to delete. Please try again.');
       }
     }
   };

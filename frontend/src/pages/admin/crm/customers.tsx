@@ -3,6 +3,7 @@ import AdminLayout from '@/layouts/AdminLayout';
 import apiClient from '@/services/api';
 import Link from 'next/link';
 import { FaFileExport, FaTags, FaTrash, FaChevronLeft, FaChevronRight, FaSms, FaEnvelope } from 'react-icons/fa';
+import { useToast } from '@/contexts/ToastContext';
 
 interface Customer {
   id: number;
@@ -19,6 +20,7 @@ interface Customer {
 }
 
 export default function CustomersPage() {
+  const toast = useToast();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -125,11 +127,11 @@ export default function CustomersPage() {
         customerIds: selectedCustomers,
         tag,
       });
-      alert(`Tagged ${selectedCustomers.length} customers`);
+      toast.success(`Tagged ${selectedCustomers.length} customers`);
       setSelectedCustomers([]);
     } catch (error) {
       console.error('Failed to tag customers', error);
-      alert('Failed to tag customers');
+      toast.error('Failed to tag customers');
     }
   };
 
@@ -141,12 +143,12 @@ export default function CustomersPage() {
       await apiClient.post('/customers/bulk-delete', {
         customerIds: selectedCustomers,
       });
-      alert(`Deleted ${selectedCustomers.length} customers`);
+      toast.success(`Deleted ${selectedCustomers.length} customers`);
       setSelectedCustomers([]);
       loadCustomers();
     } catch (error) {
       console.error('Failed to delete customers', error);
-      alert('Failed to delete customers');
+      toast.error('Failed to delete customers');
     }
   };
 
@@ -182,11 +184,11 @@ export default function CustomersPage() {
         customerId: smsCustomer.id,
         message: smsMessage,
       });
-      alert('SMS sent');
+      toast.success('SMS sent');
       closeSmsModal();
     } catch (error) {
       console.error('Failed to send SMS', error);
-      alert('Failed to send SMS');
+      toast.error('Failed to send SMS');
     } finally {
       setSmsSending(false);
     }

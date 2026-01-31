@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useToast } from '@/contexts/ToastContext';
 import AdminLayout from '@/layouts/AdminLayout';
 import apiClient from '@/services/api';
 
@@ -24,6 +25,7 @@ interface SupportTicket {
 }
 
 export default function AdminSupport() {
+  const toast = useToast();
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedTicket, setSelectedTicket] = useState<SupportTicket | null>(null);
@@ -85,7 +87,7 @@ export default function AdminSupport() {
       closeModal();
     } catch (error) {
       console.error('Error replying to ticket:', error);
-      alert('Failed to send reply');
+      toast.error('Failed to send reply');
     }
   };
 
@@ -98,7 +100,7 @@ export default function AdminSupport() {
       }
     } catch (error) {
       console.error('Error updating status:', error);
-      alert('Failed to update status');
+      toast.error('Failed to update status');
     }
   };
 
@@ -108,7 +110,7 @@ export default function AdminSupport() {
       await fetchTickets();
     } catch (error) {
       console.error('Error updating priority:', error);
-      alert('Failed to update priority');
+      toast.error('Failed to update priority');
     }
   };
 
@@ -118,7 +120,7 @@ export default function AdminSupport() {
       await fetchTickets();
     } catch (error) {
       console.error('Error updating routing:', error);
-      alert('Failed to update routing');
+      toast.error('Failed to update routing');
     }
   };
 

@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import AdminLayout from '../../../layouts/AdminLayout';
 import api from '../../../services/api';
+import { useToast } from '@/contexts/ToastContext';
 
 interface Termination {
   id: number;
@@ -12,6 +13,7 @@ interface Termination {
 }
 
 export default function TerminationsPage() {
+  const toast = useToast();
   const [terminations, setTerminations] = useState<Termination[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -53,7 +55,7 @@ export default function TerminationsPage() {
       resetForm();
     } catch (error) {
       console.error('Failed to save termination:', error);
-      alert('Failed to save. Please try again.');
+      toast.error('Failed to save. Please try again.');
     }
   };
 
@@ -75,7 +77,7 @@ export default function TerminationsPage() {
         fetchTerminations();
       } catch (error) {
         console.error('Failed to delete termination:', error);
-        alert('Failed to delete. Please try again.');
+        toast.error('Failed to delete. Please try again.');
       }
     }
   };

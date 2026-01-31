@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useToast } from '@/contexts/ToastContext';
 import AdminLayout from '@/layouts/AdminLayout';
 import apiClient, { auth } from '@/services/api';
 import { 
@@ -38,6 +39,7 @@ type FilterStatus = '' | 'pending' | 'in_progress' | 'completed' | 'failed';
 type FilterDateRange = '' | 'today' | 'week' | 'month' | 'all';
 
 export default function MyFollowupsPage() {
+  const toast = useToast();
   const [loading, setLoading] = useState(true);
   const [agentId, setAgentId] = useState<number | null>(null);
   const [followUps, setFollowUps] = useState<FollowUp[]>([]);
@@ -129,11 +131,11 @@ export default function MyFollowupsPage() {
         setSelectedOrderId(orders[0].id);
         setShowOrderModal(true);
       } else {
-        alert('No orders found for this customer');
+        toast.warning('No orders found for this customer');
       }
     } catch (err) {
       console.error('Failed to fetch customer orders:', err);
-      alert('Failed to load customer orders');
+      toast.error('Failed to load customer orders');
     }
   };
 
@@ -178,7 +180,7 @@ export default function MyFollowupsPage() {
     e.preventDefault();
     
     if (!formData.customer_id) {
-      alert('Please select a customer');
+      toast.warning('Please select a customer');
       return;
     }
     
@@ -195,13 +197,13 @@ export default function MyFollowupsPage() {
         task_date: formData.task_date,
       });
       
-      alert('Follow-up added successfully!');
+      toast.success('Follow-up added successfully!');
       setShowAddModal(false);
       resetForm();
       await loadFollowUps();
     } catch (error: any) {
       console.error('Failed to add follow-up:', error);
-      alert(error.response?.data?.message || 'Failed to add follow-up');
+      toast.error(error.response?.data?.message || 'Failed to add follow-up');
     } finally {
       setSaving(false);
     }
@@ -220,13 +222,13 @@ export default function MyFollowupsPage() {
         notes: formData.notes,
       });
       
-      alert('Follow-up updated successfully!');
+      toast.success('Follow-up updated successfully!');
       setShowEditModal(false);
       setSelectedFollowUp(null);
       await loadFollowUps();
     } catch (error: any) {
       console.error('Failed to update follow-up:', error);
-      alert(error.response?.data?.message || 'Failed to update follow-up');
+      toast.error(error.response?.data?.message || 'Failed to update follow-up');
     } finally {
       setSaving(false);
     }
@@ -238,7 +240,7 @@ export default function MyFollowupsPage() {
       await loadFollowUps();
     } catch (error) {
       console.error('Failed to update status:', error);
-      alert('Failed to update status');
+      toast.error('Failed to update status');
     }
   };
 

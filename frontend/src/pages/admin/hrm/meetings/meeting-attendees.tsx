@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import AdminLayout from '../../../../layouts/AdminLayout';
 import api from '../../../../services/api';
+import { useToast } from '@/contexts/ToastContext';
 
 interface MeetingAttendee {
   id: number;
@@ -10,6 +11,7 @@ interface MeetingAttendee {
 }
 
 export default function MeetingAttendeePage() {
+  const toast = useToast();
   const [meetingAttendees, setMeetingAttendees] = useState<MeetingAttendee[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -50,7 +52,7 @@ export default function MeetingAttendeePage() {
       resetForm();
     } catch (error) {
       console.error('Failed to save', error);
-      alert('Failed to save. Please try again.');
+      toast.error('Failed to save. Please try again.');
     }
   };
 
@@ -71,7 +73,7 @@ export default function MeetingAttendeePage() {
         fetchMeetingAttendees();
       } catch (error) {
         console.error('Failed to delete', error);
-        alert('Failed to delete. Please try again.');
+        toast.error('Failed to delete. Please try again.');
       }
     }
   };

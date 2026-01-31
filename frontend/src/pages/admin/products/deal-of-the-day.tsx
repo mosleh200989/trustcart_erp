@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
+import { useToast } from '@/contexts/ToastContext';
 import AdminLayout from '@/layouts/AdminLayout';
 import { FaFire, FaTimes, FaCheck, FaCalendar } from 'react-icons/fa';
 import apiClient from '@/services/api';
 
 export default function DealOfTheDayManager() {
+  const toast = useToast();
   const [products, setProducts] = useState<any[]>([]);
   const [currentDeal, setCurrentDeal] = useState<any>(null);
   const [selectedProductId, setSelectedProductId] = useState<number | null>(null);
@@ -36,7 +38,7 @@ export default function DealOfTheDayManager() {
 
   const handleSetDeal = async () => {
     if (!selectedProductId) {
-      alert('Please select a product');
+      toast.warning('Please select a product');
       return;
     }
 
@@ -46,13 +48,13 @@ export default function DealOfTheDayManager() {
         productId: selectedProductId,
         endDate: endDate || undefined,
       });
-      alert('Deal of the Day set successfully!');
+      toast.success('Deal of the Day set successfully!');
       await loadCurrentDeal();
       setSelectedProductId(null);
       setEndDate('');
     } catch (error) {
       console.error('Error setting deal:', error);
-      alert('Failed to set Deal of the Day');
+      toast.error('Failed to set Deal of the Day');
     } finally {
       setLoading(false);
     }
@@ -66,11 +68,11 @@ export default function DealOfTheDayManager() {
     setLoading(true);
     try {
       await apiClient.delete('/products/admin/deal-of-the-day');
-      alert('Deal of the Day removed successfully!');
+      toast.success('Deal of the Day removed successfully!');
       await loadCurrentDeal();
     } catch (error) {
       console.error('Error removing deal:', error);
-      alert('Failed to remove Deal of the Day');
+      toast.error('Failed to remove Deal of the Day');
     } finally {
       setLoading(false);
     }

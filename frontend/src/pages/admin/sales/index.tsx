@@ -4,6 +4,7 @@ import DataTable from '@/components/admin/DataTable';
 import Modal from '@/components/admin/Modal';
 import FormInput from '@/components/admin/FormInput';
 import AdminOrderDetailsModal from '@/components/AdminOrderDetailsModal';
+import { useToast } from '@/contexts/ToastContext';
 import { FaPlus } from 'react-icons/fa';
 import apiClient from '@/services/api';
 
@@ -104,6 +105,7 @@ interface SalesOrder {
 }
 
 export default function AdminSales() {
+  const toast = useToast();
   const [orders, setOrders] = useState<SalesOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState(INITIAL_FILTERS);
@@ -252,9 +254,9 @@ export default function AdminSales() {
     try {
       await apiClient.delete(`/sales/${order.id}`);
       setOrders(orders.filter(o => o.id !== order.id));
-      alert('Order deleted successfully');
+      toast.success('Order deleted successfully');
     } catch (error) {
-      alert('Failed to delete order');
+      toast.error('Failed to delete order');
     }
   };
 
@@ -264,11 +266,11 @@ export default function AdminSales() {
       .filter((id) => Number.isFinite(id));
 
     if (!bulkAction) {
-      alert('Select a bulk action first');
+      toast.warning('Select a bulk action first');
       return;
     }
     if (ids.length === 0) {
-      alert('Select at least one order');
+      toast.warning('Select at least one order');
       return;
     }
 
@@ -279,9 +281,9 @@ export default function AdminSales() {
         setSelectedRowIds([]);
         setBulkAction('');
         await loadOrders();
-        alert('Selected orders deleted');
+        toast.success('Selected orders deleted');
       } catch (e) {
-        alert('Failed to delete selected orders');
+        toast.error('Failed to delete selected orders');
       }
       return;
     }
@@ -292,9 +294,9 @@ export default function AdminSales() {
       setSelectedRowIds([]);
       setBulkAction('');
       await loadOrders();
-      alert('Selected orders updated');
+      toast.success('Selected orders updated');
     } catch (e) {
-      alert('Failed to update selected orders');
+      toast.error('Failed to update selected orders');
     }
   };
 
@@ -304,7 +306,7 @@ export default function AdminSales() {
       .filter((id) => Number.isFinite(id));
 
     if (ids.length === 0) {
-      alert('Select at least one order');
+      toast.warning('Select at least one order');
       return;
     }
 
@@ -317,11 +319,11 @@ export default function AdminSales() {
     const successCount = results.filter((r) => r.status === 'fulfilled').length;
     const failedCount = results.length - successCount;
 
-    alert(
-      failedCount === 0
-        ? `Sent ${successCount} order(s) to Steadfast.`
-        : `Sent ${successCount} order(s) to Steadfast. Failed: ${failedCount}.`,
-    );
+    if (failedCount === 0) {
+      toast.success(`Sent ${successCount} order(s) to Steadfast.`);
+    } else {
+      toast.warning(`Sent ${successCount} order(s) to Steadfast. Failed: ${failedCount}.`);
+    }
 
     setSelectedRowIds([]);
     await loadOrders();
@@ -333,7 +335,7 @@ export default function AdminSales() {
       .filter((id) => Number.isFinite(id));
 
     if (ids.length === 0) {
-      alert('Select at least one order');
+      toast.warning('Select at least one order');
       return;
     }
 
@@ -352,11 +354,11 @@ export default function AdminSales() {
     const successCount = results.filter((r) => r.status === 'fulfilled').length;
     const failedCount = results.length - successCount;
 
-    alert(
-      failedCount === 0
-        ? `Sent ${successCount} order(s) to Pathao.`
-        : `Sent ${successCount} order(s) to Pathao. Failed: ${failedCount}.`,
-    );
+    if (failedCount === 0) {
+      toast.success(`Sent ${successCount} order(s) to Pathao.`);
+    } else {
+      toast.warning(`Sent ${successCount} order(s) to Pathao. Failed: ${failedCount}.`);
+    }
 
     setSelectedRowIds([]);
     await loadOrders();
@@ -403,16 +405,16 @@ export default function AdminSales() {
       if (modalMode === 'add') {
         const response = await apiClient.post('/sales', payload);
         setOrders([...orders, response.data]);
-        alert('Order added successfully');
+        toast.success('Order added successfully');
       } else if (modalMode === 'edit' && selectedOrder) {
         const response = await apiClient.put(`/sales/${selectedOrder.id}`, payload);
         setOrders(orders.map(o => o.id === selectedOrder.id ? response.data : o));
-        alert('Order updated successfully');
+        toast.success('Order updated successfully');
       }
       setIsModalOpen(false);
       loadOrders();
     } catch (error) {
-      alert('Operation failed');
+      toast.error('Operation failed');
     }
   };
 

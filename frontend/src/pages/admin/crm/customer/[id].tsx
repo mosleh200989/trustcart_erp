@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import AdminLayout from '../../../../layouts/AdminLayout';
 import api from '../../../../services/api';
+import { useToast } from '@/contexts/ToastContext';
 import { 
   User, Mail, Phone, Building2, MapPin, Calendar, 
   DollarSign, TrendingUp, Activity, FileText, CheckSquare,
@@ -10,6 +11,7 @@ import {
 import { motion } from 'framer-motion';
 
 const CustomerView = () => {
+  const toast = useToast();
   const router = useRouter();
   const { id } = router.query;
   const [customer, setCustomer] = useState<any>(null);
@@ -63,7 +65,7 @@ const CustomerView = () => {
       setActiveTab('activity');
     } catch (error) {
       console.error('Failed to log activity:', error);
-      alert('Failed to log activity');
+      toast.error('Failed to log activity');
     } finally {
       setLogSaving(false);
     }

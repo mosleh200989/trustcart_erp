@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import AdminLayout from '../../../../layouts/AdminLayout';
 import api from '../../../../services/api';
+import { useToast } from '@/contexts/ToastContext';
 
 interface JobLocation {
   id: number;
@@ -11,6 +12,7 @@ interface JobLocation {
 }
 
 export default function JobLocationPage() {
+  const toast = useToast();
   const [jobLocations, setJobLocations] = useState<JobLocation[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -52,7 +54,7 @@ export default function JobLocationPage() {
       resetForm();
     } catch (error) {
       console.error('Failed to save job locations:', error);
-      alert('Failed to save. Please try again.');
+      toast.error('Failed to save. Please try again.');
     }
   };
 
@@ -74,7 +76,7 @@ export default function JobLocationPage() {
         fetchJobLocations();
       } catch (error) {
         console.error('Failed to delete job locations:', error);
-        alert('Failed to delete. Please try again.');
+        toast.error('Failed to delete. Please try again.');
       }
     }
   };

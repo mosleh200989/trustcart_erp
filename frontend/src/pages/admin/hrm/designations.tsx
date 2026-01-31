@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import AdminLayout from '../../../layouts/AdminLayout';
 import api from '../../../services/api';
+import { useToast } from '@/contexts/ToastContext';
 
 interface Designation {
   id: number;
@@ -12,6 +13,7 @@ interface Designation {
 }
 
 export default function DesignationsPage() {
+  const toast = useToast();
   const [designations, setDesignations] = useState<Designation[]>([]);
   const [departments, setDepartments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -76,7 +78,7 @@ export default function DesignationsPage() {
       resetForm();
     } catch (error) {
       console.error('Failed to save designation:', error);
-      alert('Failed to save. Please try again.');
+      toast.error('Failed to save. Please try again.');
     }
   };
 
@@ -98,7 +100,7 @@ export default function DesignationsPage() {
         fetchDesignations();
       } catch (error) {
         console.error('Failed to delete designation:', error);
-        alert('Failed to delete. Please try again.');
+        toast.error('Failed to delete. Please try again.');
       }
     }
   };

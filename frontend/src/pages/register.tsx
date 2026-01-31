@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
+import { useToast } from '@/contexts/ToastContext';
 import Link from 'next/link';
 import ElectroNavbar from '@/components/ElectroNavbar';
 import ElectroFooter from '@/components/ElectroFooter';
@@ -16,6 +17,7 @@ import { FaArrowLeft } from 'react-icons/fa';
 
 export default function Register() {
   const router = useRouter();
+  const toast = useToast();
   const referralFromQuery = useMemo(() => {
     const raw = router.query?.ref;
     return typeof raw === 'string' ? raw.trim() : '';
@@ -100,7 +102,7 @@ export default function Register() {
 
       if (response.data) {
         clearPendingReferralAttribution();
-        alert('Registration successful! Please login as a customer.');
+        toast.success('Registration successful! Please login as a customer.');
         router.push('/customer/login');
       }
     } catch (err: any) {

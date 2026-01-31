@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import AdminLayout from '@/layouts/AdminLayout';
 import apiClient from '@/services/api';
+import { useToast } from '@/contexts/ToastContext';
 
 interface Quote {
   id: number;
@@ -15,6 +16,7 @@ interface Quote {
 }
 
 export default function QuoteApprovalsPage() {
+  const toast = useToast();
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -40,10 +42,10 @@ export default function QuoteApprovalsPage() {
     try {
       await apiClient.post(`/crm/quotes/${quoteId}/approve`, { comments });
       loadPendingQuotes();
-      alert('Quote approved successfully');
+      toast.success('Quote approved successfully');
     } catch (error) {
       console.error('Failed to approve quote', error);
-      alert('Failed to approve quote');
+      toast.error('Failed to approve quote');
     }
   };
 
@@ -54,10 +56,10 @@ export default function QuoteApprovalsPage() {
     try {
       await apiClient.post(`/crm/quotes/${quoteId}/reject-approval`, { comments });
       loadPendingQuotes();
-      alert('Quote rejected');
+      toast.success('Quote rejected');
     } catch (error) {
       console.error('Failed to reject quote', error);
-      alert('Failed to reject quote');
+      toast.error('Failed to reject quote');
     }
   };
 
@@ -75,7 +77,7 @@ export default function QuoteApprovalsPage() {
       link.remove();
     } catch (error) {
       console.error('Failed to download PDF', error);
-      alert('Failed to download PDF');
+      toast.error('Failed to download PDF');
     }
   };
 

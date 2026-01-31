@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import AdminLayout from '@/layouts/AdminLayout';
 import apiClient from '@/services/api';
 import { FaCog, FaPlus, FaEdit, FaTrash, FaSave, FaTimes, FaUsers, FaChartLine, FaMoneyBillWave } from 'react-icons/fa';
+import { useToast } from '@/contexts/ToastContext';
 
 interface CommissionSettings {
   id: number;
@@ -56,6 +57,7 @@ interface User {
 }
 
 export default function CommissionSettingsPage() {
+  const toast = useToast();
   const [activeTab, setActiveTab] = useState<'settings' | 'commissions' | 'report'>('settings');
   const [settings, setSettings] = useState<CommissionSettings[]>([]);
   const [commissions, setCommissions] = useState<CommissionRecord[]>([]);
@@ -220,7 +222,7 @@ export default function CommissionSettingsPage() {
       await apiClient.put(`/crm/commissions/${commissionId}/approve`);
       await loadCommissions();
     } catch (err: any) {
-      alert(err?.response?.data?.message || 'Failed to approve commission');
+      toast.error(err?.response?.data?.message || 'Failed to approve commission');
     }
   };
 
@@ -229,7 +231,7 @@ export default function CommissionSettingsPage() {
       await apiClient.put(`/crm/commissions/${commissionId}/paid`);
       await loadCommissions();
     } catch (err: any) {
-      alert(err?.response?.data?.message || 'Failed to mark as paid');
+      toast.error(err?.response?.data?.message || 'Failed to mark as paid');
     }
   };
 
@@ -241,13 +243,13 @@ export default function CommissionSettingsPage() {
       await apiClient.put(`/crm/commissions/${commissionId}/cancel`, { reason });
       await loadCommissions();
     } catch (err: any) {
-      alert(err?.response?.data?.message || 'Failed to cancel commission');
+      toast.error(err?.response?.data?.message || 'Failed to cancel commission');
     }
   };
 
   const handleBulkApprove = async () => {
     if (selectedCommissions.length === 0) {
-      alert('Please select commissions to approve');
+      toast.warning('Please select commissions to approve');
       return;
     }
 
@@ -255,11 +257,11 @@ export default function CommissionSettingsPage() {
       const res = await apiClient.post('/crm/commissions/bulk-approve', {
         commissionIds: selectedCommissions,
       });
-      alert(`Successfully approved ${res.data.approvedCount} commissions`);
+      toast.success(`Successfully approved ${res.data.approvedCount} commissions`);
       setSelectedCommissions([]);
       await loadCommissions();
     } catch (err: any) {
-      alert(err?.response?.data?.message || 'Failed to bulk approve');
+      toast.error(err?.response?.data?.message || 'Failed to bulk approve');
     }
   };
 

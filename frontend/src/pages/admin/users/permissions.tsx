@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
 import AdminLayout from '@/layouts/AdminLayout';
 import { rbac } from '@/services/api';
+import { useToast } from '@/contexts/ToastContext';
 
 type Role = { id: number; name: string; slug: string };
 type Permission = { id: number; name: string; slug: string; module: string; action: string; description?: string };
@@ -14,6 +15,7 @@ function titleize(s: string) {
 
 export default function AdminRolePermissions() {
   const router = useRouter();
+  const toast = useToast();
   const [roles, setRoles] = useState<Role[]>([]);
   const [allPermissions, setAllPermissions] = useState<Permission[]>([]);
 
@@ -152,17 +154,17 @@ export default function AdminRolePermissions() {
 
   const handleSave = async () => {
     if (selectedRoleId === '') {
-      alert('Please select a role');
+      toast.warning('Please select a role');
       return;
     }
 
     setSaving(true);
     try {
       await rbac.setRolePermissions(selectedRoleId, Array.from(selectedPermissionIds));
-      alert('Role permissions updated successfully');
+      toast.success('Role permissions updated successfully');
     } catch (e) {
       console.error('Failed to save role permissions:', e);
-      alert('Failed to update role permissions');
+      toast.error('Failed to update role permissions');
     } finally {
       setSaving(false);
     }
@@ -173,11 +175,11 @@ export default function AdminRolePermissions() {
     const slug = newRole.slug.trim();
 
     if (!name) {
-      alert('Role name is required');
+      toast.warning('Role name is required');
       return;
     }
     if (!slug) {
-      alert('Role slug is required');
+      toast.warning('Role slug is required');
       return;
     }
 
@@ -192,10 +194,10 @@ export default function AdminRolePermissions() {
       setShowCreateRole(false);
       setNewRole({ name: '', slug: '', description: '', priority: 0 });
       await refreshRoles(Number(created?.id));
-      alert('Role created');
+      toast.success('Role created');
     } catch (e: any) {
       console.error('Failed to create role:', e);
-      alert(e?.response?.data?.message || 'Failed to create role');
+      toast.error(e?.response?.data?.message || 'Failed to create role');
     } finally {
       setCreatingRole(false);
     }
@@ -208,10 +210,10 @@ export default function AdminRolePermissions() {
       await rbac.deactivateRole(selectedRole.id);
       await refreshRoles('');
       setSelectedPermissionIds(new Set());
-      alert('Role deactivated');
+      toast.success('Role deactivated');
     } catch (e: any) {
       console.error('Failed to deactivate role:', e);
-      alert(e?.response?.data?.message || 'Failed to deactivate role');
+      toast.error(e?.response?.data?.message || 'Failed to deactivate role');
     }
   };
 

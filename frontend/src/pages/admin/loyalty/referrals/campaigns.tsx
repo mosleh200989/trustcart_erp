@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import AdminLayout from '@/layouts/AdminLayout';
 import apiClient from '@/services/api';
+import { useToast } from '@/contexts/ToastContext';
 
 type RewardType = 'wallet' | 'points' | 'coupon' | 'free_product' | 'membership';
 
@@ -23,6 +24,7 @@ type Campaign = {
 };
 
 export default function AdminReferralCampaigns() {
+  const toast = useToast();
   const [rows, setRows] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -137,10 +139,10 @@ export default function AdminReferralCampaigns() {
 
       await load();
       resetForm();
-      alert('Saved');
+      toast.success('Campaign saved successfully');
     } catch (e) {
       console.error('Failed to save campaign', e);
-      alert('Failed to save campaign');
+      toast.error('Failed to save campaign');
     } finally {
       setSaving(false);
     }

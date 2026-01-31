@@ -4,6 +4,7 @@ import { useRouter } from "next/router";
 import { FaStar, FaShoppingCart, FaHeart, FaEye, FaTag } from "react-icons/fa";
 import AddToCartPopup from "./AddToCartPopup";
 import { BACKEND_ORIGIN } from "@/config/backend";
+import { useToast } from "@/contexts/ToastContext";
 
 interface ProductCardProps {
   id: number;
@@ -53,6 +54,7 @@ export default function ElectroProductCard({
   reviews = 0,
   discount,
 }: ProductCardProps) {
+  const toast = useToast();
   const [showPopup, setShowPopup] = useState(false);
   const [imageError, setImageError] = useState(false);
   const router = useRouter();
@@ -108,7 +110,7 @@ export default function ElectroProductCard({
     e.preventDefault();
     const token = localStorage.getItem("authToken");
     if (!token) {
-      alert("Please login to add items to your wishlist.");
+      toast.warning("Please login to add items to your wishlist.");
       router.push("/customer/login");
       return;
     }
@@ -118,7 +120,7 @@ export default function ElectroProductCard({
       wishlist.push({ id, name: displayName, price: priceNum, image });
       localStorage.setItem("wishlist", JSON.stringify(wishlist));
       window.dispatchEvent(new Event("wishlistUpdated"));
-      alert("Added to your wishlist.");
+      toast.success("Added to your wishlist.");
     }
   };
 

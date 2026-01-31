@@ -3,6 +3,7 @@ import type { AppProps } from 'next/app';
 import { useRouter } from 'next/router';
 import '@/styles/globals.css';
 import { AuthProvider } from '@/contexts/AuthContext';
+import { ToastProvider } from '@/contexts/ToastContext';
 import AdminRouteGuard from '@/components/auth/AdminRouteGuard';
 import { isAuthPath, setAuthReturnPath } from '@/utils/authReturnPath';
 
@@ -27,9 +28,11 @@ export default function App({ Component, pageProps }: AppProps) {
 
   return (
     <AuthProvider>
-      <AdminRouteGuard>
-        <Component {...pageProps} />
-      </AdminRouteGuard>
+      <ToastProvider>
+        <AdminRouteGuard>
+          <Component {...pageProps} />
+        </AdminRouteGuard>
+      </ToastProvider>
     </AuthProvider>
   );
 }

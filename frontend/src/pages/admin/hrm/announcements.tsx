@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import AdminLayout from '../../../layouts/AdminLayout';
 import api from '../../../services/api';
+import { useToast } from '@/contexts/ToastContext';
 
 interface Announcement {
   id: number;
@@ -11,6 +12,7 @@ interface Announcement {
 }
 
 export default function AnnouncementsPage() {
+  const toast = useToast();
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -51,7 +53,7 @@ export default function AnnouncementsPage() {
       resetForm();
     } catch (error) {
       console.error('Failed to save announcement:', error);
-      alert('Failed to save. Please try again.');
+      toast.error('Failed to save. Please try again.');
     }
   };
 
@@ -72,7 +74,7 @@ export default function AnnouncementsPage() {
         fetchAnnouncements();
       } catch (error) {
         console.error('Failed to delete announcement:', error);
-        alert('Failed to delete. Please try again.');
+        toast.error('Failed to delete. Please try again.');
       }
     }
   };

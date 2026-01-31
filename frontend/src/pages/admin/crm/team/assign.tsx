@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import AdminLayout from '@/layouts/AdminLayout';
 import apiClient from '@/services/api';
+import { useToast } from '@/contexts/ToastContext';
 
 interface LeadCustomer {
   id: number | string;
@@ -25,6 +26,7 @@ interface User {
 }
 
 export default function CrmAssignLeadsPage() {
+  const toast = useToast();
   const [leads, setLeads] = useState<LeadCustomer[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedLead, setSelectedLead] = useState<LeadCustomer | null>(null);
@@ -113,14 +115,14 @@ export default function CrmAssignLeadsPage() {
       await apiClient.post(`/crm/team/leads/${selectedLead.id}/assign`, {
         agentId: Number(selectedAgent.id)
       });
-      alert('Lead assigned successfully');
+      toast.success('Lead assigned successfully');
       setSelectedAgent(null);
       setAgentSearchTerm('');
       setSelectedLead(null);
       loadUnassignedLeads();
     } catch (error) {
       console.error('Failed to assign lead', error);
-      alert('Failed to assign lead');
+      toast.error('Failed to assign lead');
     }
   };
 

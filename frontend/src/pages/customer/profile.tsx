@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import CustomerLayout from '@/layouts/CustomerLayout';
 import { auth, customers, cdm } from '@/services/api';
+import { useToast } from '@/contexts/ToastContext';
 import { FaUser, FaEnvelope, FaPhone, FaMapMarkerAlt, FaUsers, FaEdit, FaTrash, FaSave, FaTimes, FaUserPlus } from 'react-icons/fa';
 import PhoneInput, { validateBDPhone } from '@/components/PhoneInput';
 
@@ -45,6 +46,7 @@ const normalizeOptionalIsoDate = (label: string, value: string): string | undefi
 };
 
 export default function CustomerProfilePage() {
+  const toast = useToast();
   const [profile, setProfile] = useState<CustomerProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -180,15 +182,15 @@ export default function CustomerProfilePage() {
   const handleAddFamily = async () => {
     if (!profile) return;
     if (!newFamilyName || !newFamilyRelationship) {
-      alert('Please enter name and relationship for the family member.');
+      toast.warning('Please enter name and relationship for the family member.');
       return;
     }
     if (!newFamilyPhone.trim()) {
-      alert('Please enter phone number for the family member.');
+      toast.warning('Please enter phone number for the family member.');
       return;
     }
     if (!validateBDPhone(newFamilyPhone)) {
-      alert('Please enter a valid 10-digit phone number for the family member.');
+      toast.warning('Please enter a valid 10-digit phone number for the family member.');
       return;
     }
     try {
@@ -208,7 +210,7 @@ export default function CustomerProfilePage() {
         if (anniversary) payload.anniversaryDate = anniversary;
       }
       await cdm.addFamily(payload);
-      alert('Family member added. An account is created/linked for this phone, and they can register once using the same phone number.');
+      toast.success('Family member added. An account is created/linked for this phone, and they can register once using the same phone number.');
       setNewFamilyName('');
       setNewFamilyPhone('');
       setNewFamilyRelationship('');
@@ -217,7 +219,7 @@ export default function CustomerProfilePage() {
       await loadFamily(profile.id);
     } catch (e) {
       console.error('Error adding family member:', e);
-      alert(e instanceof Error ? e.message : 'Failed to add family member.');
+      toast.error(e instanceof Error ? e.message : 'Failed to add family member.');
     } finally {
       setIsAddingFamily(false);
     }
@@ -231,7 +233,7 @@ export default function CustomerProfilePage() {
       await loadFamily(profile.id);
     } catch (e) {
       console.error('Error deleting family member:', e);
-      alert('Failed to remove family member.');
+      toast.error('Failed to remove family member.');
     }
   };
 
@@ -256,15 +258,15 @@ export default function CustomerProfilePage() {
   const handleSaveFamily = async () => {
     if (!profile || editingFamilyId == null) return;
     if (!editFamilyName || !editFamilyRelationship) {
-      alert('Please enter name and relationship for the family member.');
+      toast.warning('Please enter name and relationship for the family member.');
       return;
     }
     if (!editFamilyPhone.trim()) {
-      alert('Please enter phone number for the family member.');
+      toast.warning('Please enter phone number for the family member.');
       return;
     }
     if (!validateBDPhone(editFamilyPhone)) {
-      alert('Please enter a valid 10-digit phone number for the family member.');
+      toast.warning('Please enter a valid 10-digit phone number for the family member.');
       return;
     }
     try {
@@ -290,7 +292,7 @@ export default function CustomerProfilePage() {
       await loadFamily(profile.id);
     } catch (e) {
       console.error('Error updating family member:', e);
-      alert(e instanceof Error ? e.message : 'Failed to update family member.');
+      toast.error(e instanceof Error ? e.message : 'Failed to update family member.');
     } finally {
       setIsSavingFamily(false);
     }

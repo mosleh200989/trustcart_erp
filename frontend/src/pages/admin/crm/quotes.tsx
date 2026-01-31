@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Plus, Search, Eye, Send, Download, CheckCircle, XCircle, Clock, Edit, Trash2, X, FileText } from 'lucide-react';
 import AdminLayout from '@/layouts/AdminLayout';
 import apiClient from '@/services/api';
+import { useToast } from '@/contexts/ToastContext';
 // import { addQuoteNotification } from '@/components/QuoteNotifications'; // DISABLED
 import { format } from 'date-fns';
 
@@ -25,6 +26,7 @@ interface Quote {
 }
 
 const QuoteManagement = () => {
+  const toast = useToast();
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -115,7 +117,7 @@ const QuoteManagement = () => {
       window.URL.revokeObjectURL(url);
     } catch (error) {
       console.error('Error downloading PDF:', error);
-      alert('Failed to download PDF');
+      toast.error('Failed to download PDF');
     }
   };
 

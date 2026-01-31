@@ -2,8 +2,10 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { FaPhone, FaFire, FaClock, FaRobot, FaChartLine, FaBolt, FaUsers } from 'react-icons/fa';
 import apiClient from '@/services/api';
+import { useToast } from '@/contexts/ToastContext';
 
 export default function CrmQuickActions() {
+  const toast = useToast();
   const [stats, setStats] = useState({
     hotCustomers: 0,
     warmCustomers: 0,
@@ -40,11 +42,11 @@ export default function CrmQuickActions() {
   const generateTasks = async () => {
     try {
       await apiClient.post('/crm/automation/tasks/generate');
-      alert('Daily tasks generated successfully!');
+      toast.success('Daily tasks generated successfully!');
       loadStats();
     } catch (error) {
       console.error('Failed to generate tasks:', error);
-      alert('Failed to generate tasks');
+      toast.error('Failed to generate tasks');
     }
   };
 

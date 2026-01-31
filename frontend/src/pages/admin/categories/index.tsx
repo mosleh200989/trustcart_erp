@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import AdminLayout from '@/layouts/AdminLayout';
 import ImageUpload from '@/components/admin/ImageUpload';
+import { useToast } from '@/contexts/ToastContext';
 import DataTable from '@/components/admin/DataTable';
 import { FaPlus, FaEdit, FaTrash, FaToggleOn, FaToggleOff, FaEye, FaEyeSlash } from 'react-icons/fa';
 import apiClient from '@/services/api';
@@ -19,6 +20,7 @@ interface Category {
 }
 
 export default function CategoriesManagement() {
+  const toast = useToast();
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -72,7 +74,7 @@ export default function CategoriesManagement() {
       loadCategories();
     } catch (error) {
       console.error('Failed to save category:', error);
-      alert('Failed to save category');
+      toast.error('Failed to save category');
     }
   };
 
@@ -99,7 +101,7 @@ export default function CategoriesManagement() {
       loadCategories();
     } catch (error) {
       console.error('Failed to delete category:', error);
-      alert('Failed to delete category');
+      toast.error('Failed to delete category');
     }
   };
 
@@ -112,14 +114,14 @@ export default function CategoriesManagement() {
       ));
     } catch (error) {
       console.error('Failed to toggle visibility:', error);
-      alert('Failed to update category visibility');
+      toast.error('Failed to update category visibility');
     }
   };
   const clearSelection = () => setSelectedCategoryIds([]);
 
   const handleBulkApply = async (bulkAction: 'delete' | 'activate' | 'deactivate') => {
     if (selectedCategoryIds.length === 0) {
-      alert('Please select at least one category');
+      toast.warning('Please select at least one category');
       return;
     }
 
@@ -144,11 +146,11 @@ export default function CategoriesManagement() {
       clearSelection();
 
       if (failed > 0) {
-        alert(`Bulk action completed: ${succeeded} succeeded, ${failed} failed.`);
+        toast.warning(`Bulk action completed: ${succeeded} succeeded, ${failed} failed.`);
       }
     } catch (error) {
       console.error('Bulk action failed:', error);
-      alert('Bulk action failed');
+      toast.error('Bulk action failed');
     } finally {
       setBulkWorking(false);
     }

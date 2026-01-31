@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import AdminLayout from '@/layouts/AdminLayout';
 import DataTable from '@/components/admin/DataTable';
+import { useToast } from '@/contexts/ToastContext';
 import Modal from '@/components/admin/Modal';
 import FormInput from '@/components/admin/FormInput';
 import { FaPlus, FaSearch } from 'react-icons/fa';
@@ -19,6 +20,7 @@ interface Customer {
 }
 
 export default function AdminCustomers() {
+  const toast = useToast();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -95,9 +97,9 @@ export default function AdminCustomers() {
     try {
       await apiClient.delete(`/customers/${customer.id}`);
       setCustomers(customers.filter(c => c.id !== customer.id));
-      alert('Customer deleted successfully');
+      toast.success('Customer deleted successfully');
     } catch (error) {
-      alert('Failed to delete customer');
+      toast.error('Failed to delete customer');
     }
   };
 
@@ -123,9 +125,9 @@ export default function AdminCustomers() {
     }
 
     if (failed.length === 0) {
-      alert('Selected customers deleted successfully');
+      toast.success('Selected customers deleted successfully');
     } else {
-      alert(`Some deletions failed. ${failed.length} customer(s) still selected.`);
+      toast.warning(`Some deletions failed. ${failed.length} customer(s) still selected.`);
     }
   };
 
@@ -133,7 +135,7 @@ export default function AdminCustomers() {
     e.preventDefault();
     
     if (!validateBDPhone(formData.phone)) {
-      alert('Please enter a valid 10-digit phone number');
+      toast.warning('Please enter a valid 10-digit phone number');
       return;
     }
     
@@ -141,16 +143,16 @@ export default function AdminCustomers() {
       if (modalMode === 'add') {
         const response = await apiClient.post('/customers', formData);
         setCustomers([...customers, response.data]);
-        alert('Customer added successfully');
+        toast.success('Customer added successfully');
       } else if (modalMode === 'edit' && selectedCustomer) {
         const response = await apiClient.put(`/customers/${selectedCustomer.id}`, formData);
         setCustomers(customers.map(c => c.id === selectedCustomer.id ? response.data : c));
-        alert('Customer updated successfully');
+        toast.success('Customer updated successfully');
       }
       setIsModalOpen(false);
       loadCustomers();
     } catch (error) {
-      alert('Operation failed');
+      toast.error('Operation failed');
     }
   };
 

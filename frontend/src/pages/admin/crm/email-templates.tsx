@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import AdminLayout from '@/layouts/AdminLayout';
 import apiClient from '@/services/api';
 import { useRouter } from 'next/router';
+import { useToast } from '@/contexts/ToastContext';
 
 interface EmailTemplate {
   id: number;
@@ -19,6 +20,7 @@ interface EmailTemplate {
 }
 
 export default function EmailTemplatesPage() {
+  const toast = useToast();
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -54,7 +56,7 @@ export default function EmailTemplatesPage() {
       setEditingTemplate(null);
     } catch (error) {
       console.error('Failed to save template', error);
-      alert('Failed to save template');
+      toast.error('Failed to save template');
     }
   };
 
@@ -66,7 +68,7 @@ export default function EmailTemplatesPage() {
       loadTemplates();
     } catch (error) {
       console.error('Failed to delete template', error);
-      alert('Failed to delete template');
+      toast.error('Failed to delete template');
     }
   };
 
@@ -76,7 +78,7 @@ export default function EmailTemplatesPage() {
       loadTemplates();
     } catch (error) {
       console.error('Failed to duplicate template', error);
-      alert('Failed to duplicate template');
+      toast.error('Failed to duplicate template');
     }
   };
 

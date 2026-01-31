@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import AdminLayout from '../../../layouts/AdminLayout';
 import api from '../../../services/api';
+import { useToast } from '@/contexts/ToastContext';
 
 interface Branch {
   id: number;
@@ -13,6 +14,7 @@ interface Branch {
 }
 
 export default function BranchesPage() {
+  const toast = useToast();
   const [branches, setBranches] = useState<Branch[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -71,7 +73,7 @@ export default function BranchesPage() {
       resetForm();
     } catch (error) {
       console.error('Failed to save branch:', error);
-      alert('Failed to save branch. Please try again.');
+      toast.error('Failed to save branch. Please try again.');
     }
   };
 
@@ -95,7 +97,7 @@ export default function BranchesPage() {
         fetchBranches();
       } catch (error) {
         console.error('Failed to delete', error);
-        alert('Failed to delete. Please try again.');
+        toast.error('Failed to delete. Please try again.');
       }
     }
   };
