@@ -594,7 +594,7 @@ export default function AdminUsers() {
                   name="phone"
                   value={formData.phone}
                   onChange={(value) => setFormData({ ...formData, phone: value })}
-                  placeholder="1712345678"
+                  placeholder="01712345678"
                 />
               </div>
             </div>

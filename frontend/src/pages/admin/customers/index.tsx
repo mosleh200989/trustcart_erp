@@ -340,7 +340,7 @@ export default function AdminCustomers() {
                     value={formData.phone}
                     onChange={(value) => setFormData({ ...formData, phone: value })}
                     required
-                    placeholder="1712345678"
+                    placeholder="01712345678"
                   />
                 </div>
               </div>

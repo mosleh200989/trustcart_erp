@@ -939,7 +939,7 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                         <PhoneInput
                           value={customerForm.phone || ''}
                           onChange={(value) => setCustomerForm({ ...customerForm, phone: value })}
-                          placeholder="1712345678"
+                          placeholder="01712345678"
                         />
                       </div>
                       <div>
@@ -947,7 +947,7 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                         <PhoneInput
                           value={customerForm.mobile || ''}
                           onChange={(value) => setCustomerForm({ ...customerForm, mobile: value })}
-                          placeholder="1712345678"
+                          placeholder="01712345678"
                         />
                       </div>
                       <div>

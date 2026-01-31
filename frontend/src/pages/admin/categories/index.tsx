@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import AdminLayout from '@/layouts/AdminLayout';
 import ImageUpload from '@/components/admin/ImageUpload';
 import DataTable from '@/components/admin/DataTable';
-import { FaPlus, FaEdit, FaTrash, FaToggleOn, FaToggleOff } from 'react-icons/fa';
+import { FaPlus, FaEdit, FaTrash, FaToggleOn, FaToggleOff, FaEye, FaEyeSlash } from 'react-icons/fa';
 import apiClient from '@/services/api';
 
 interface Category {
@@ -15,6 +15,7 @@ interface Category {
   parent_id: number | null;
   display_order: number;
   is_active: boolean;
+  product_count?: number;
 }
 
 export default function CategoriesManagement() {
@@ -102,6 +103,18 @@ export default function CategoriesManagement() {
     }
   };
 
+  const handleToggleVisibility = async (category: Category) => {
+    const newStatus = !category.is_active;
+    try {
+      await apiClient.put(`/categories/${category.id}`, { is_active: newStatus });
+      setCategories(categories.map(c => 
+        c.id === category.id ? { ...c, is_active: newStatus } : c
+      ));
+    } catch (error) {
+      console.error('Failed to toggle visibility:', error);
+      alert('Failed to update category visibility');
+    }
+  };
   const clearSelection = () => setSelectedCategoryIds([]);
 
   const handleBulkApply = async (bulkAction: 'delete' | 'activate' | 'deactivate') => {
@@ -264,6 +277,15 @@ export default function CategoriesManagement() {
                   render: (value: any) => <span className="text-gray-700">{value || '-'}</span>,
                 },
                 { key: 'slug', label: 'Slug' },
+                {
+                  key: 'product_count',
+                  label: 'Products',
+                  render: (value: any) => (
+                    <span className="px-2 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-800">
+                      {value || 0}
+                    </span>
+                  ),
+                },
                 { key: 'display_order', label: 'Order' },
                 {
                   key: 'is_active',
@@ -274,6 +296,26 @@ export default function CategoriesManagement() {
                     ) : (
                       <span className="px-2 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-800">Inactive</span>
                     ),
+                },
+                {
+                  key: 'visibility',
+                  label: 'Visible',
+                  render: (_value: any, row: Category) => (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleToggleVisibility(row);
+                      }}
+                      className={`p-2 rounded-lg transition-all ${
+                        row.is_active
+                          ? 'bg-green-100 text-green-600 hover:bg-green-200'
+                          : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
+                      }`}
+                      title={row.is_active ? 'Click to hide from customers' : 'Click to show to customers'}
+                    >
+                      {row.is_active ? <FaEye size={18} /> : <FaEyeSlash size={18} />}
+                    </button>
+                  )
                 },
               ]}
               data={categories}

@@ -307,7 +307,7 @@ export default function ElectroNavbar() {
                     className="block px-6 py-3 hover:bg-orange-50 hover:text-orange-500 transition border-b font-medium"
                     onClick={() => setShowCategories(false)}
                   >
-                    🛍️ All Products
+                    All Products
                   </Link>
 
                   {navbarCategoriesLoading && (
@@ -331,10 +331,10 @@ export default function ElectroNavbar() {
                       <Link
                         key={cat.id}
                         href={href}
-                        className="block px-6 py-3 hover:bg-orange-50 hover:text-orange-500 transition border-b last:border-b-0"
+                        className="block px-6 py-2 hover:bg-orange-50 hover:text-orange-500 transition border-b last:border-b-0"
                         onClick={() => setShowCategories(false)}
                       >
-                        {cat.icon || '🗂'} {label}
+                        {label}
                       </Link>
                     );
                   })}
@@ -379,33 +379,33 @@ export default function ElectroNavbar() {
         <div className="lg:hidden bg-gray-900 text-white">
           <div className="container mx-auto px-4 py-4">
             <nav className="flex flex-col space-y-2">
-              <Link href="/" onClick={() => setShowMobileMenu(false)} className="py-3 px-4 hover:bg-orange-500 rounded transition">
+              <Link href="/" onClick={() => setShowMobileMenu(false)} className="py-2 px-4 hover:bg-orange-500 rounded transition">
                 Home
               </Link>
-              <Link href="/products" onClick={() => setShowMobileMenu(false)} className="py-3 px-4 hover:bg-orange-500 rounded transition">
+              <Link href="/products" onClick={() => setShowMobileMenu(false)} className="py-2 px-4 hover:bg-orange-500 rounded transition">
                 Products
               </Link>
-              <Link href="/about" onClick={() => setShowMobileMenu(false)} className="py-3 px-4 hover:bg-orange-500 rounded transition">
+              <Link href="/about" onClick={() => setShowMobileMenu(false)} className="py-2 px-4 hover:bg-orange-500 rounded transition">
                 About Us
               </Link>
-              <Link href="/contact" onClick={() => setShowMobileMenu(false)} className="py-3 px-4 hover:bg-orange-500 rounded transition">
+              <Link href="/contact" onClick={() => setShowMobileMenu(false)} className="py-2 px-4 hover:bg-orange-500 rounded transition">
                 Contact
               </Link>
-              <Link href="/track-order" onClick={() => setShowMobileMenu(false)} className="py-3 px-4 hover:bg-orange-500 rounded transition">
+              <Link href="/track-order" onClick={() => setShowMobileMenu(false)} className="py-2 px-4 hover:bg-orange-500 rounded transition">
                 Track Order
               </Link>
-              {/* <Link href="/blog" onClick={() => setShowMobileMenu(false)} className="py-3 px-4 hover:bg-orange-500 rounded transition">
+              {/* <Link href="/blog" onClick={() => setShowMobileMenu(false)} className="py-2 px-4 hover:bg-orange-500 rounded transition">
                 Blog
               </Link> */}
-              <Link href="/wishlist" onClick={() => setShowMobileMenu(false)} className="py-3 px-4 hover:bg-orange-500 rounded transition sm:hidden">
+              <Link href="/wishlist" onClick={() => setShowMobileMenu(false)} className="py-2 px-4 hover:bg-orange-500 rounded transition sm:hidden">
                 Wishlist
               </Link>
               {user ? (
-                <Link href="/customer/dashboard" onClick={() => setShowMobileMenu(false)} className="py-3 px-4 hover:bg-orange-500 rounded transition sm:hidden">
+                <Link href="/customer/dashboard" onClick={() => setShowMobileMenu(false)} className="py-2 px-4 hover:bg-orange-500 rounded transition sm:hidden">
                   My Account
                 </Link>
               ) : (
-                <Link href="/customer/login" onClick={() => setShowMobileMenu(false)} className="py-3 px-4 hover:bg-orange-500 rounded transition sm:hidden">
+                <Link href="/customer/login" onClick={() => setShowMobileMenu(false)} className="py-2 px-4 hover:bg-orange-500 rounded transition sm:hidden">
                   Sign In
                 </Link>
               )}
@@ -414,7 +414,7 @@ export default function ElectroNavbar() {
               <div className="pt-4 border-t border-gray-700">
                 <p className="text-sm text-gray-400 mb-2 px-4">Categories</p>
                 <Link href="/products" onClick={() => setShowMobileMenu(false)} className="py-2 px-4 hover:bg-orange-500 rounded transition block">
-                  🛍️ All Products
+                  All Products
                 </Link>
 
                 {navbarCategoriesLoading && (
@@ -441,7 +441,7 @@ export default function ElectroNavbar() {
                       onClick={() => setShowMobileMenu(false)}
                       className="py-2 px-4 hover:bg-orange-500 rounded transition block"
                     >
-                      {cat.icon || '🗂'} {label}
+                      {label}
                     </Link>
                   );
                 })}

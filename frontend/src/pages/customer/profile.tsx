@@ -380,7 +380,7 @@ export default function CustomerProfilePage() {
                     value={editPhone}
                     onChange={(value) => setEditPhone(value)}
                     required
-                    placeholder="1712345678"
+                    placeholder="01712345678"
                   />
                 </div>
 
@@ -475,7 +475,7 @@ export default function CustomerProfilePage() {
                                 value={editFamilyPhone}
                                 onChange={(value) => setEditFamilyPhone(value)}
                                 required
-                                placeholder="1712345678"
+                                placeholder="01712345678"
                               />
 
                               {relationshipNeedsDob(editFamilyRelationship) && (
