@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import AdminLayout from '../../../layouts/AdminLayout';
 import api from '../../../services/api';
+import { useToast } from '@/contexts/ToastContext';
 
 const SalesTeamLeaderDashboard = () => {
+  const toast = useToast();
   const [dashboard, setDashboard] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
@@ -27,10 +29,10 @@ const SalesTeamLeaderDashboard = () => {
       setGenerating(true);
       await api.post('/crm/team/ops/generate-calls', {});
       await fetchDashboard();
-      alert('Daily auto calls generated');
+      toast.success('Daily auto calls generated');
     } catch (error) {
       console.error('Failed to generate calls', error);
-      alert('Failed to generate calls');
+      toast.error('Failed to generate calls');
     } finally {
       setGenerating(false);
     }

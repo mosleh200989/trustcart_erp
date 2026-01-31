@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import AdminLayout from '@/layouts/AdminLayout';
 import apiClient from '@/services/api';
+import { useToast } from '@/contexts/ToastContext';
 
 type Partner = {
   id: string;
@@ -13,6 +14,7 @@ type Partner = {
 };
 
 export default function AdminReferralPartners() {
+  const toast = useToast();
   const [rows, setRows] = useState<Partner[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -74,10 +76,10 @@ export default function AdminReferralPartners() {
 
       await load();
       resetForm();
-      alert('Saved');
+      toast.success('Partner saved successfully');
     } catch (e) {
       console.error('Failed to save partner', e);
-      alert('Failed to save partner');
+      toast.error('Failed to save partner');
     } finally {
       setSaving(false);
     }
@@ -91,7 +93,7 @@ export default function AdminReferralPartners() {
     } catch (e) {
       console.error('Failed to load report', e);
       setReport(null);
-      alert('Failed to load report');
+      toast.error('Failed to load report');
     } finally {
       setReportLoading(false);
     }

@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import AdminLayout from '../../../layouts/AdminLayout';
 import api from '../../../services/api';
+import { useToast } from '@/contexts/ToastContext';
 
 interface Warning {
   id: number;
@@ -14,6 +15,7 @@ interface Warning {
 }
 
 export default function WarningsPage() {
+  const toast = useToast();
   const [warnings, setWarnings] = useState<Warning[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -57,7 +59,7 @@ export default function WarningsPage() {
       resetForm();
     } catch (error) {
       console.error('Failed to save warning:', error);
-      alert('Failed to save. Please try again.');
+      toast.error('Failed to save. Please try again.');
     }
   };
 
@@ -81,7 +83,7 @@ export default function WarningsPage() {
         fetchWarnings();
       } catch (error) {
         console.error('Failed to delete warning:', error);
-        alert('Failed to delete. Please try again.');
+        toast.error('Failed to delete. Please try again.');
       }
     }
   };

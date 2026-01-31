@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import { FaUpload, FaTrash, FaImage, FaSpinner } from 'react-icons/fa';
 import { uploadImageToCloudinary, validateImageFile } from '@/utils/cloudinary';
+import { useToast } from '@/contexts/ToastContext';
 
 interface ImageUploadProps {
   value: string;
@@ -10,6 +11,7 @@ interface ImageUploadProps {
 }
 
 export default function ImageUpload({ value, onChange, label = 'Image', folder = 'trustcart/products' }: ImageUploadProps) {
+  const toast = useToast();
   const [uploading, setUploading] = useState(false);
   const [preview, setPreview] = useState(value);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -21,7 +23,7 @@ export default function ImageUpload({ value, onChange, label = 'Image', folder =
     // Validate file
     const validation = validateImageFile(file);
     if (!validation.valid) {
-      alert(validation.error);
+      toast.error(validation.error || 'Invalid file');
       return;
     }
 
@@ -41,7 +43,7 @@ export default function ImageUpload({ value, onChange, label = 'Image', folder =
       setPreview(result.url);
     } catch (error) {
       console.error('Upload failed:', error);
-      alert('Failed to upload image. Please try again.');
+      toast.error('Failed to upload image. Please try again.');
       setPreview(value);
     } finally {
       setUploading(false);

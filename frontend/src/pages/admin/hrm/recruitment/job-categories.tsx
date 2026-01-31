@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import AdminLayout from '../../../../layouts/AdminLayout';
 import api from '../../../../services/api';
+import { useToast } from '@/contexts/ToastContext';
 
 interface JobCategory {
   id: number;
@@ -11,6 +12,7 @@ interface JobCategory {
 }
 
 export default function JobCategoryPage() {
+  const toast = useToast();
   const [jobCategorys, setJobCategorys] = useState<JobCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -52,7 +54,7 @@ export default function JobCategoryPage() {
       resetForm();
     } catch (error) {
       console.error('Failed to save job categories:', error);
-      alert('Failed to save. Please try again.');
+      toast.error('Failed to save. Please try again.');
     }
   };
 
@@ -74,7 +76,7 @@ export default function JobCategoryPage() {
         fetchJobCategorys();
       } catch (error) {
         console.error('Failed to delete job categories:', error);
-        alert('Failed to delete. Please try again.');
+        toast.error('Failed to delete. Please try again.');
       }
     }
   };

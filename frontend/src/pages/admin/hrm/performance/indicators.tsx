@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import AdminLayout from '../../../../layouts/AdminLayout';
 import api from '../../../../services/api';
+import { useToast } from '@/contexts/ToastContext';
 
 interface Indicator {
   id: number;
@@ -12,6 +13,7 @@ interface Indicator {
 }
 
 export default function IndicatorsPage() {
+  const toast = useToast();
   const [indicators, setIndicators] = useState<Indicator[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -54,7 +56,7 @@ export default function IndicatorsPage() {
       resetForm();
     } catch (error) {
       console.error('Failed to save', error);
-      alert('Failed to save. Please try again.');
+      toast.error('Failed to save. Please try again.');
     }
   };
 
@@ -77,7 +79,7 @@ export default function IndicatorsPage() {
         fetchIndicators();
       } catch (error) {
         console.error('Failed to delete', error);
-        alert('Failed to delete. Please try again.');
+        toast.error('Failed to delete. Please try again.');
       }
     }
   };

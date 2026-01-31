@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import AdminLayout from '@/layouts/AdminLayout';
 import apiClient from '@/services/api';
+import { useToast } from '@/contexts/ToastContext';
 
 interface ActivityTemplate {
   id: number;
@@ -16,6 +17,7 @@ interface ActivityTemplate {
 }
 
 export default function ActivityTemplatesPage() {
+  const toast = useToast();
   const [templates, setTemplates] = useState<ActivityTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -51,7 +53,7 @@ export default function ActivityTemplatesPage() {
       setEditingTemplate(null);
     } catch (error) {
       console.error('Failed to save template', error);
-      alert('Failed to save template');
+      toast.error('Failed to save template');
     }
   };
 
@@ -63,7 +65,7 @@ export default function ActivityTemplatesPage() {
       loadTemplates();
     } catch (error) {
       console.error('Failed to delete template', error);
-      alert('Failed to delete template');
+      toast.error('Failed to delete template');
     }
   };
 
@@ -73,7 +75,7 @@ export default function ActivityTemplatesPage() {
       loadTemplates();
     } catch (error) {
       console.error('Failed to duplicate template', error);
-      alert('Failed to duplicate template');
+      toast.error('Failed to duplicate template');
     }
   };
 

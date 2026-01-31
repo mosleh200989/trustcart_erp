@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/router";
+import { useToast } from '@/contexts/ToastContext';
 import Link from "next/link";
 import ElectroNavbar from "@/components/ElectroNavbar";
 import ElectroFooter from "@/components/ElectroFooter";
@@ -74,6 +75,7 @@ function formatDate(date: Date): string {
 
 export default function ThankYouPage() {
   const router = useRouter();
+  const toast = useToast();
   const orderId = useMemo(() => {
     const raw = router.query.orderId;
     const value = Array.isArray(raw) ? raw[0] : raw;
@@ -173,7 +175,7 @@ export default function ThankYouPage() {
       await loadOrder(orderId);
       setOfferAccepted(true);
     } catch (e: any) {
-      alert(
+      toast.error(
         e?.response?.data?.message || e?.message || "Failed to accept offer"
       );
     } finally {

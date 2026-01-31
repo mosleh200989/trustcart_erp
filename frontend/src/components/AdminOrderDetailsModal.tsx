@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import apiClient from '@/services/api';
+import { useToast } from '@/contexts/ToastContext';
 import { 
   FaTimes, FaEdit, FaTrash, FaPlus, FaSave, FaCheck, FaPause, FaBan, 
   FaShippingFast, FaMapMarkerAlt, FaStickyNote, FaHistory, FaGlobe, 
@@ -14,6 +15,7 @@ interface OrderDetailsModalProps {
 }
 
 export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: OrderDetailsModalProps) {
+  const toast = useToast();
   const [order, setOrder] = useState<any>(null);
   const [items, setItems] = useState<any[]>([]);
   const [activityLogs, setActivityLogs] = useState<any[]>([]);
@@ -140,7 +142,7 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
       });
     } catch (error) {
       console.error('Error loading order details:', error);
-      alert('Failed to load order details');
+      toast.error('Failed to load order details');
     } finally {
       setLoading(false);
     }
@@ -187,11 +189,11 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
     if (!confirm('Send this order to Steadfast?')) return;
     try {
       const res = await apiClient.post(`/order-management/${currentOrderId}/steadfast/send`);
-      alert(res.data?.message || 'Sent to Steadfast');
+      toast.success(res.data?.message || 'Sent to Steadfast');
       loadOrderDetails();
       onUpdate();
     } catch (e: any) {
-      alert(e.response?.data?.message || 'Failed to send to Steadfast');
+      toast.error(e.response?.data?.message || 'Failed to send to Steadfast');
     }
   };
 
@@ -229,11 +231,11 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
         status: customerForm.status || null,
         priority: customerForm.priority || null,
       });
-      alert('Customer updated successfully');
+      toast.success('Customer updated successfully');
       setIsEditingCustomer(false);
       loadOrderDetails();
     } catch (e: any) {
-      alert(e.response?.data?.message || 'Failed to update customer');
+      toast.error(e.response?.data?.message || 'Failed to update customer');
     }
   };
 
@@ -256,11 +258,11 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
         utmMedium: trackingForm.utmMedium || null,
         utmCampaign: trackingForm.utmCampaign || null,
       });
-      alert('Tracking updated successfully');
+      toast.success('Tracking updated successfully');
       loadOrderDetails();
       onUpdate();
     } catch (e: any) {
-      alert(e.response?.data?.message || 'Failed to update tracking');
+      toast.error(e.response?.data?.message || 'Failed to update tracking');
     }
   };
 
@@ -276,20 +278,20 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
       const qty = Number.parseInt(String(editItemData.quantity ?? ''), 10);
       const unit = Number.parseFloat(String(editItemData.unitPrice ?? ''));
       if (!Number.isFinite(qty) || qty < 1) {
-        alert('Quantity must be at least 1');
+        toast.warning('Quantity must be at least 1');
         return;
       }
       if (!Number.isFinite(unit) || unit < 0) {
-        alert('Unit price must be a valid number');
+        toast.warning('Unit price must be a valid number');
         return;
       }
       await apiClient.put(`/order-management/items/${itemId}`, { quantity: qty, unitPrice: unit });
-      alert('Item updated successfully');
+      toast.success('Item updated successfully');
       loadOrderDetails();
       setEditingItem(null);
       onUpdate();
     } catch (error) {
-      alert('Failed to update item');
+      toast.error('Failed to update item');
     }
   };
 
@@ -298,17 +300,17 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
     
     try {
       await apiClient.delete(`/order-management/items/${itemId}`);
-      alert('Item deleted successfully');
+      toast.success('Item deleted successfully');
       loadOrderDetails();
       onUpdate();
     } catch (error) {
-      alert('Failed to delete item');
+      toast.error('Failed to delete item');
     }
   };
 
   const addNewProduct = async () => {
     if (!newProduct.productName || newProduct.quantity < 1 || newProduct.unitPrice <= 0) {
-      alert('Please fill all product details');
+      toast.warning('Please fill all product details');
       return;
     }
 
@@ -319,13 +321,13 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
         quantity: newProduct.quantity,
         unitPrice: newProduct.unitPrice,
       });
-      alert('Product added successfully');
+      toast.success('Product added successfully');
       loadOrderDetails();
       setShowAddProduct(false);
       setNewProduct({ productId: '', productName: '', quantity: 1, unitPrice: 0 });
       onUpdate();
     } catch (error) {
-      alert('Failed to add product');
+      toast.error('Failed to add product');
     }
   };
 
@@ -336,11 +338,11 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
     
     try {
       await apiClient.post(`/order-management/${currentOrderId}/approve`);
-      alert('Order approved');
+      toast.success('Order approved');
       loadOrderDetails();
       onUpdate();
     } catch (error: any) {
-      alert(error.response?.data?.message || 'Failed to approve order');
+      toast.error(error.response?.data?.message || 'Failed to approve order');
     }
   };
 
@@ -349,28 +351,28 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
     
     try {
       await apiClient.post(`/order-management/${currentOrderId}/hold`);
-      alert('Order put on hold');
+      toast.success('Order put on hold');
       loadOrderDetails();
       onUpdate();
     } catch (error: any) {
-      alert(error.response?.data?.message || 'Failed to hold order');
+      toast.error(error.response?.data?.message || 'Failed to hold order');
     }
   };
 
   const cancelOrder = async () => {
     if (!cancelReason.trim()) {
-      alert('Please select a cancel reason');
+      toast.warning('Please select a cancel reason');
       return;
     }
 
     try {
       await apiClient.post(`/order-management/${currentOrderId}/cancel`, { cancelReason });
-      alert('Order cancelled');
+      toast.success('Order cancelled');
       setShowCancelModal(false);
       loadOrderDetails();
       onUpdate();
     } catch (error: any) {
-      alert(error.response?.data?.message || 'Failed to cancel order');
+      toast.error(error.response?.data?.message || 'Failed to cancel order');
     }
   };
 
@@ -378,18 +380,18 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
 
   const shipOrder = async () => {
     if (!courierData.courierCompany || !courierData.trackingId) {
-      alert('Please fill courier company and tracking ID');
+      toast.warning('Please fill courier company and tracking ID');
       return;
     }
 
     try {
       await apiClient.post(`/order-management/${currentOrderId}/ship`, courierData);
-      alert('Order marked as shipped');
+      toast.success('Order marked as shipped');
       setShowShipModal(false);
       loadOrderDetails();
       onUpdate();
     } catch (error) {
-      alert('Failed to ship order');
+      toast.error('Failed to ship order');
     }
   };
 
@@ -403,11 +405,11 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
         riderInstructions,
         internalNotes,
       });
-      alert('Notes updated successfully');
+      toast.success('Notes updated successfully');
       loadOrderDetails();
       onUpdate();
     } catch (error) {
-      alert('Failed to update notes');
+      toast.error('Failed to update notes');
     }
   };
 
@@ -1407,7 +1409,7 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                     
                     <button 
                       className="w-full bg-blue-600 text-white px-4 py-3 rounded-lg hover:bg-blue-700 flex items-center justify-center gap-2 font-semibold"
-                      onClick={() => alert('Steadfast fraud check will be implemented')}
+                      onClick={() => toast.info('Steadfast fraud check will be implemented')}
                     >
                       <FaShippingFast /> Check with Steadfast
                     </button>
@@ -1448,7 +1450,7 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                     
                     <button 
                       className="w-full bg-red-600 text-white px-4 py-3 rounded-lg hover:bg-red-700 flex items-center justify-center gap-2 font-semibold"
-                      onClick={() => alert('Pathao fraud check will be implemented')}
+                      onClick={() => toast.info('Pathao fraud check will be implemented')}
                     >
                       <FaShippingFast /> Check with Pathao
                     </button>

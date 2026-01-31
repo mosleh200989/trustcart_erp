@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
 import AdminLayout from '@/layouts/AdminLayout';
+import { useToast } from '@/contexts/ToastContext';
 import DataTable from '@/components/admin/DataTable';
 import Modal from '@/components/admin/Modal';
 import FormInput from '@/components/admin/FormInput';
@@ -38,6 +39,7 @@ const safeArray = <T,>(value: any): T[] => (Array.isArray(value) ? (value as T[]
 
 export default function AdminTaggingPage() {
   const router = useRouter();
+  const toast = useToast();
 
   const tab: TabKey = useMemo(() => {
     const q = String(router.query.tab ?? 'manage');
@@ -203,7 +205,7 @@ export default function AdminTaggingPage() {
       await loadTags();
     } catch (e: any) {
       console.error('Failed to save tag', e);
-      alert(e?.response?.data?.message || 'Failed to save tag');
+      toast.error(e?.response?.data?.message || 'Failed to save tag');
     } finally {
       setSavingTag(false);
     }
@@ -216,7 +218,7 @@ export default function AdminTaggingPage() {
       await loadTags();
     } catch (e: any) {
       console.error('Failed to delete tag', e);
-      alert(e?.response?.data?.message || 'Failed to delete tag');
+      toast.error(e?.response?.data?.message || 'Failed to delete tag');
     }
   };
 
@@ -229,12 +231,15 @@ export default function AdminTaggingPage() {
       await loadTags();
     } catch (e: any) {
       console.error('Failed to bulk delete tags', e);
-      alert(e?.response?.data?.message || 'Failed to bulk delete tags');
+      toast.error(e?.response?.data?.message || 'Failed to bulk delete tags');
     }
   };
 
   const assignSelectedCustomers = async () => {
-    if (!selectedTagId) return alert('Select a tag first');
+    if (!selectedTagId) {
+      toast.warning('Select a tag first');
+      return;
+    }
     if (selectedCustomerIds.length === 0) return;
     try {
       await apiClient.post(`/tags/${selectedTagId}/customers`, { customerIds: selectedCustomerIds });
@@ -243,12 +248,15 @@ export default function AdminTaggingPage() {
       await loadTags();
     } catch (e: any) {
       console.error('Failed to assign customers', e);
-      alert(e?.response?.data?.message || 'Failed to assign customers');
+      toast.error(e?.response?.data?.message || 'Failed to assign customers');
     }
   };
 
   const removeSelectedCustomers = async () => {
-    if (!selectedTagId) return alert('Select a tag first');
+    if (!selectedTagId) {
+      toast.warning('Select a tag first');
+      return;
+    }
     if (selectedCustomerIds.length === 0) return;
     try {
       await apiClient.post(`/tags/${selectedTagId}/customers/remove`, { customerIds: selectedCustomerIds });
@@ -257,7 +265,7 @@ export default function AdminTaggingPage() {
       await loadTags();
     } catch (e: any) {
       console.error('Failed to remove customers', e);
-      alert(e?.response?.data?.message || 'Failed to remove customers');
+      toast.error(e?.response?.data?.message || 'Failed to remove customers');
     }
   };
 

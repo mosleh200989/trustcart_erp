@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import AdminLayout from '@/layouts/AdminLayout';
 import { apiUrl, backendUrl } from '@/config/backend';
+import { useToast } from '@/contexts/ToastContext';
 
 interface Customer {
   id: number;
@@ -23,6 +24,7 @@ interface CustomerTier {
 }
 
 export default function CustomerTierManagementPage() {
+  const toast = useToast();
   const [customers, setCustomers] = useState<any[]>([]);
   const [filter, setFilter] = useState({ tier: 'all', status: 'all' });
   const [loading, setLoading] = useState(true);
@@ -161,13 +163,13 @@ export default function CustomerTierManagementPage() {
       });
 
       if (response.ok) {
-        alert('Tier updated successfully!');
+        toast.success('Tier updated successfully!');
         setShowTierModal(false);
         fetchCustomers();
       }
     } catch (error) {
       console.error('Error updating tier:', error);
-      alert('Failed to update tier');
+      toast.error('Failed to update tier');
     }
   };
 

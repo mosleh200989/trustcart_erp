@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import AdminLayout from '../../../../layouts/AdminLayout';
 import api from '../../../../services/api';
+import { useToast } from '@/contexts/ToastContext';
 
 interface TrainingSession {
   id: number;
@@ -12,6 +13,7 @@ interface TrainingSession {
 }
 
 export default function TrainingSessionsPage() {
+  const toast = useToast();
   const [trainingSessions, setTrainingSessions] = useState<TrainingSession[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -53,7 +55,7 @@ export default function TrainingSessionsPage() {
       resetForm();
     } catch (error) {
       console.error('Failed to save training session:', error);
-      alert('Failed to save. Please try again.');
+      toast.error('Failed to save. Please try again.');
     }
   };
 
@@ -75,7 +77,7 @@ export default function TrainingSessionsPage() {
         fetchTrainingSessions();
       } catch (error) {
         console.error('Failed to delete training session:', error);
-        alert('Failed to delete. Please try again.');
+        toast.error('Failed to delete. Please try again.');
       }
     }
   };

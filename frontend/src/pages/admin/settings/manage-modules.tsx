@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
 import AdminLayout from '@/layouts/AdminLayout';
+import { useToast } from '@/contexts/ToastContext';
 import apiClient from '@/services/api';
 
 type AdminMenuItem = {
@@ -26,6 +27,7 @@ function flattenTree(nodes: AdminMenuNode[], out: AdminMenuNode[] = []): AdminMe
 
 export default function ManageModulesPage() {
   const router = useRouter();
+  const toast = useToast();
 
   const [tree, setTree] = useState<AdminMenuNode[]>([]);
   const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set());
@@ -125,7 +127,7 @@ export default function ManageModulesPage() {
   const save = async () => {
     const title = form.title.trim();
     if (!title) {
-      alert('Title is required');
+      toast.warning('Title is required');
       return;
     }
 
@@ -152,7 +154,7 @@ export default function ManageModulesPage() {
       setShowModal(false);
       await load();
     } catch (e: any) {
-      alert(e?.response?.data?.message || 'Failed to save');
+      toast.error(e?.response?.data?.message || 'Failed to save');
     } finally {
       setSaving(false);
     }
@@ -164,7 +166,7 @@ export default function ManageModulesPage() {
       await apiClient.delete(`/settings/admin-menu/${id}`);
       await load();
     } catch (e: any) {
-      alert(e?.response?.data?.message || 'Failed to delete');
+      toast.error(e?.response?.data?.message || 'Failed to delete');
     }
   };
 
@@ -173,9 +175,9 @@ export default function ManageModulesPage() {
     try {
       await apiClient.post('/settings/admin-menu/disable');
       await load();
-      alert('DB sidebar menu disabled. Reload the admin panel to see the built-in modules again.');
+      toast.success('DB sidebar menu disabled. Reload the admin panel to see the built-in modules again.');
     } catch (e: any) {
-      alert(e?.response?.data?.message || 'Failed to disable DB menu');
+      toast.error(e?.response?.data?.message || 'Failed to disable DB menu');
     }
   };
 
@@ -184,9 +186,9 @@ export default function ManageModulesPage() {
     try {
       await apiClient.post('/settings/admin-menu/seed-default?mode=replace');
       await load();
-      alert('DB menu seeded from built-in sidebar. Reload the admin panel to start using it.');
+      toast.success('DB menu seeded from built-in sidebar. Reload the admin panel to start using it.');
     } catch (e: any) {
-      alert(e?.response?.data?.message || 'Failed to seed DB menu');
+      toast.error(e?.response?.data?.message || 'Failed to seed DB menu');
     }
   };
 

@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import AdminLayout from '../../../layouts/AdminLayout';
 import api from '../../../services/api';
+import { useToast } from '@/contexts/ToastContext';
 
 interface Promotion {
   id: number;
@@ -14,6 +15,7 @@ interface Promotion {
 }
 
 export default function PromotionsPage() {
+  const toast = useToast();
   const [promotions, setPromotions] = useState<Promotion[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -57,7 +59,7 @@ export default function PromotionsPage() {
       resetForm();
     } catch (error) {
       console.error('Failed to save promotion:', error);
-      alert('Failed to save. Please try again.');
+      toast.error('Failed to save. Please try again.');
     }
   };
 
@@ -81,7 +83,7 @@ export default function PromotionsPage() {
         fetchPromotions();
       } catch (error) {
         console.error('Failed to delete promotion:', error);
-        alert('Failed to delete. Please try again.');
+        toast.error('Failed to delete. Please try again.');
       }
     }
   };

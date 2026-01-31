@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import AdminLayout from '@/layouts/AdminLayout';
 import apiClient from '@/services/api';
+import { useToast } from '@/contexts/ToastContext';
 
 interface QuoteTemplate {
   id: number;
@@ -18,6 +19,7 @@ interface QuoteTemplate {
 }
 
 export default function QuoteTemplatesPage() {
+  const toast = useToast();
   const [templates, setTemplates] = useState<QuoteTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -52,7 +54,7 @@ export default function QuoteTemplatesPage() {
       setEditingTemplate(null);
     } catch (error) {
       console.error('Failed to save template', error);
-      alert('Failed to save template');
+      toast.error('Failed to save template');
     }
   };
 
@@ -64,7 +66,7 @@ export default function QuoteTemplatesPage() {
       loadTemplates();
     } catch (error) {
       console.error('Failed to delete template', error);
-      alert('Failed to delete template. Default template cannot be deleted.');
+      toast.error('Failed to delete template. Default template cannot be deleted.');
     }
   };
 
@@ -74,7 +76,7 @@ export default function QuoteTemplatesPage() {
       loadTemplates();
     } catch (error) {
       console.error('Failed to set default template', error);
-      alert('Failed to set default template');
+      toast.error('Failed to set default template');
     }
   };
 

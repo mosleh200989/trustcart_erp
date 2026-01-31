@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import CustomerLayout from '@/layouts/CustomerLayout';
 import apiClient, { auth, sales } from '@/services/api';
 import { FaEye, FaTimes, FaTruck } from 'react-icons/fa';
+import { useToast } from '@/contexts/ToastContext';
 
 interface OrderItem {
   id: number;
@@ -24,6 +25,7 @@ interface OrderProduct {
 }
 
 export default function CustomerOrdersPage() {
+  const toast = useToast();
   const [orders, setOrders] = useState<OrderItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -95,15 +97,15 @@ export default function CustomerOrdersPage() {
     try {
       await sales.cancel(order.id.toString());
       setOrders(orders.map(o => o.id === order.id ? { ...o, status: 'cancelled' } : o));
-      alert('Order cancelled successfully');
+      toast.success('Order cancelled successfully');
     } catch (e) {
       console.error('Error cancelling order:', e);
-      alert('Failed to cancel order');
+      toast.error('Failed to cancel order');
     }
   };
 
   const handleTrackOrder = (order: OrderItem) => {
-    alert(`Tracking order ${order.salesOrderNumber}\nStatus: ${order.status}\nThis feature will be enhanced with real-time tracking.`);
+    toast.info(`Tracking order ${order.salesOrderNumber} - Status: ${order.status}. This feature will be enhanced with real-time tracking.`);
   };
 
   const getStatusBadgeClass = (status: string) => {

@@ -3,6 +3,7 @@ import AdminLayout from '../../../layouts/AdminLayout';
 import api, { users as usersApi } from '../../../services/api';
 import Modal from '../../../components/admin/Modal';
 import FormInput from '../../../components/admin/FormInput';
+import { useToast } from '@/contexts/ToastContext';
 
 interface Team {
   id: number;
@@ -21,6 +22,7 @@ interface User {
 }
 
 const CrmTeamsAdmin: React.FC = () => {
+  const toast = useToast();
   const [teams, setTeams] = useState<Team[]>([]);
   const [agents, setAgents] = useState<User[]>([]);
   const [roles, setRoles] = useState<any[]>([]);
@@ -108,7 +110,7 @@ const CrmTeamsAdmin: React.FC = () => {
   const handleSaveTeam = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!teamForm.name.trim()) {
-      alert('Team name is required');
+      toast.warning('Team name is required');
       return;
     }
     try {
@@ -119,7 +121,7 @@ const CrmTeamsAdmin: React.FC = () => {
         });
       } else {
         if (!editingTeam) {
-          alert('No team selected');
+          toast.warning('No team selected');
           return;
         }
         await api.put(`/crm/team/teams/${editingTeam.id}`, {
@@ -131,7 +133,7 @@ const CrmTeamsAdmin: React.FC = () => {
       await Promise.all([loadTeams(), loadAgents()]);
     } catch (error) {
       console.error('Failed to save team', error);
-      alert('Failed to save team');
+      toast.error('Failed to save team');
     }
   };
 
@@ -143,7 +145,7 @@ const CrmTeamsAdmin: React.FC = () => {
       await Promise.all([loadTeams(), loadAgents()]);
     } catch (error) {
       console.error('Failed to delete team', error);
-      alert('Failed to delete team');
+      toast.error('Failed to delete team');
     }
   };
 
@@ -156,7 +158,7 @@ const CrmTeamsAdmin: React.FC = () => {
   const handleAssignAgent = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedTeam || !selectedAgentId) {
-      alert('Please select an agent');
+      toast.warning('Please select an agent');
       return;
     }
     try {
@@ -167,7 +169,7 @@ const CrmTeamsAdmin: React.FC = () => {
       await Promise.all([loadTeams(), loadAgents()]);
     } catch (error) {
       console.error('Failed to assign agent', error);
-      alert('Failed to assign agent');
+      toast.error('Failed to assign agent');
     }
   };
 

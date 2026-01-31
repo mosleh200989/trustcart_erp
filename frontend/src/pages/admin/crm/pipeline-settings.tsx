@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import AdminLayout from '@/layouts/AdminLayout';
 import apiClient from '@/services/api';
 import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
+import { useToast } from '@/contexts/ToastContext';
 
 interface CustomDealStage {
   id: number;
@@ -27,6 +28,7 @@ interface SalesPipeline {
 }
 
 export default function PipelineSettingsPage() {
+  const toast = useToast();
   const [pipelines, setPipelines] = useState<SalesPipeline[]>([]);
   const [selectedPipeline, setSelectedPipeline] = useState<number | null>(null);
   const [stages, setStages] = useState<CustomDealStage[]>([]);
@@ -114,7 +116,7 @@ export default function PipelineSettingsPage() {
       setEditingStage(null);
     } catch (error) {
       console.error('Failed to save stage', error);
-      alert('Failed to save stage');
+      toast.error('Failed to save stage');
     }
   };
 
@@ -126,7 +128,7 @@ export default function PipelineSettingsPage() {
       if (selectedPipeline) loadStages(selectedPipeline);
     } catch (error) {
       console.error('Failed to delete stage', error);
-      alert('Failed to delete stage. System stages cannot be deleted.');
+      toast.error('Failed to delete stage. System stages cannot be deleted.');
     }
   };
 
@@ -137,11 +139,11 @@ export default function PipelineSettingsPage() {
         await loadPipelines(); // Wait for pipelines to reload
         setShowPipelineModal(false);
       } else {
-        alert('Failed to save pipeline');
+        toast.error('Failed to save pipeline');
       }
     } catch (error) {
       console.error('Failed to save pipeline', error);
-      alert('Failed to save pipeline');
+      toast.error('Failed to save pipeline');
     }
   };
 

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import AdminLayout from '../../../../layouts/AdminLayout';
 import api from '../../../../services/api';
+import { useToast } from '@/contexts/ToastContext';
 
 interface ContractRenewal {
   id: number;
@@ -11,6 +12,7 @@ interface ContractRenewal {
 }
 
 export default function ContractRenewalPage() {
+  const toast = useToast();
   const [contractRenewals, setContractRenewals] = useState<ContractRenewal[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -52,7 +54,7 @@ export default function ContractRenewalPage() {
       resetForm();
     } catch (error) {
       console.error('Failed to save', error);
-      alert('Failed to save. Please try again.');
+      toast.error('Failed to save. Please try again.');
     }
   };
 
@@ -74,7 +76,7 @@ export default function ContractRenewalPage() {
         fetchContractRenewals();
       } catch (error) {
         console.error('Failed to delete', error);
-        alert('Failed to delete. Please try again.');
+        toast.error('Failed to delete. Please try again.');
       }
     }
   };

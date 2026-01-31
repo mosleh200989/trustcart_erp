@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import AdminLayout from '../../../../layouts/AdminLayout';
 import api from '../../../../services/api';
+import { useToast } from '@/contexts/ToastContext';
 
 interface OnboardingChecklist {
   id: number;
@@ -10,6 +11,7 @@ interface OnboardingChecklist {
 }
 
 export default function OnboardingChecklistPage() {
+  const toast = useToast();
   const [onboardingChecklists, setOnboardingChecklists] = useState<OnboardingChecklist[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -50,7 +52,7 @@ export default function OnboardingChecklistPage() {
       resetForm();
     } catch (error) {
       console.error('Failed to save onboarding checklists:', error);
-      alert('Failed to save. Please try again.');
+      toast.error('Failed to save. Please try again.');
     }
   };
 
@@ -71,7 +73,7 @@ export default function OnboardingChecklistPage() {
         fetchOnboardingChecklists();
       } catch (error) {
         console.error('Failed to delete onboarding checklists:', error);
-        alert('Failed to delete. Please try again.');
+        toast.error('Failed to delete. Please try again.');
       }
     }
   };

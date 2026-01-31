@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import AdminLayout from '../../../../layouts/AdminLayout';
 import api from '../../../../services/api';
+import { useToast } from '@/contexts/ToastContext';
 
 interface ChecklistItem {
   id: number;
@@ -11,6 +12,7 @@ interface ChecklistItem {
 }
 
 export default function ChecklistItemPage() {
+  const toast = useToast();
   const [checklistItems, setChecklistItems] = useState<ChecklistItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -52,7 +54,7 @@ export default function ChecklistItemPage() {
       resetForm();
     } catch (error) {
       console.error('Failed to save checklist items:', error);
-      alert('Failed to save. Please try again.');
+      toast.error('Failed to save. Please try again.');
     }
   };
 
@@ -74,7 +76,7 @@ export default function ChecklistItemPage() {
         fetchChecklistItems();
       } catch (error) {
         console.error('Failed to delete checklist items:', error);
-        alert('Failed to delete. Please try again.');
+        toast.error('Failed to delete. Please try again.');
       }
     }
   };

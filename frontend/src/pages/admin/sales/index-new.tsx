@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useToast } from '@/contexts/ToastContext';
 import AdminLayout from '@/layouts/AdminLayout';
 import DataTable from '@/components/admin/DataTable';
 import Modal from '@/components/admin/Modal';
@@ -17,6 +18,7 @@ interface SalesOrder {
 }
 
 export default function AdminSales() {
+  const toast = useToast();
   const [orders, setOrders] = useState<SalesOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -91,9 +93,9 @@ export default function AdminSales() {
     try {
       await apiClient.delete(`/sales/${order.id}`);
       setOrders(orders.filter(o => o.id !== order.id));
-      alert('Order deleted successfully');
+      toast.success('Order deleted successfully');
     } catch (error) {
-      alert('Failed to delete order');
+      toast.error('Failed to delete order');
     }
   };
 
@@ -103,16 +105,16 @@ export default function AdminSales() {
       if (modalMode === 'add') {
         const response = await apiClient.post('/sales', formData);
         setOrders([...orders, response.data]);
-        alert('Order added successfully');
+        toast.success('Order added successfully');
       } else if (modalMode === 'edit' && selectedOrder) {
         const response = await apiClient.put(`/sales/${selectedOrder.id}`, formData);
         setOrders(orders.map(o => o.id === selectedOrder.id ? response.data : o));
-        alert('Order updated successfully');
+        toast.success('Order updated successfully');
       }
       setIsModalOpen(false);
       loadOrders();
     } catch (error) {
-      alert('Operation failed');
+      toast.error('Operation failed');
     }
   };
 

@@ -1,8 +1,10 @@
 import { useState } from 'react';
+import { useToast } from '@/contexts/ToastContext';
 import ElectroNavbar from '@/components/ElectroNavbar';
 import ElectroFooter from '@/components/ElectroFooter';
 
 export default function Contact() {
+  const toast = useToast();
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -20,7 +22,7 @@ export default function Contact() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    alert('Thank you for contacting us! We will get back to you soon.');
+    toast.success('Thank you for contacting us! We will get back to you soon.');
     setFormData({
       name: '',
       email: '',

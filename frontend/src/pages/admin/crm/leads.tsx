@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import AdminLayout from '@/layouts/AdminLayout';
 import apiClient from '@/services/api';
+import { useToast } from '@/contexts/ToastContext';
 
 interface LeadCustomer {
   id: number | string;
@@ -20,6 +21,7 @@ interface PaginatedResponse {
 }
 
 export default function CrmLeadsPage() {
+  const toast = useToast();
   const [leads, setLeads] = useState<LeadCustomer[]>([]);
   const [loading, setLoading] = useState(true);
   const [convertingId, setConvertingId] = useState<number | string | null>(null);
@@ -73,7 +75,7 @@ export default function CrmLeadsPage() {
       await loadLeads();
     } catch (error) {
       console.error('Failed to convert lead', error);
-      alert('Failed to convert lead');
+      toast.error('Failed to convert lead');
     } finally {
       setConvertingId(null);
     }

@@ -2,11 +2,13 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import AdminLayout from '@/layouts/AdminLayout';
 import apiClient from '@/services/api';
+import { useToast } from '@/contexts/ToastContext';
 
 type TeamTab = { id: number; name: string; code: string };
 
 export default function TeamDataCollectionPage() {
   const router = useRouter();
+  const toast = useToast();
   const [activeTeam, setActiveTeam] = useState('A');
   const [teamTabs, setTeamTabs] = useState<TeamTab[]>([]);
   const [assignments, setAssignments] = useState<any[]>([]);
@@ -195,12 +197,12 @@ export default function TeamDataCollectionPage() {
         status: 'completed',
       });
 
-      alert('Data saved successfully!');
+      toast.success('Data saved successfully!');
       setShowDataModal(false);
       fetchMyAssignments();
     } catch (error) {
       console.error('Error saving data:', error);
-      alert('Failed to save data');
+      toast.error('Failed to save data');
     }
   };
 

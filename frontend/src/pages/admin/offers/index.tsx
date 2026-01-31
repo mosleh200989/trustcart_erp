@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useToast } from '@/contexts/ToastContext';
 import AdminLayout from '@/layouts/AdminLayout';
 import apiClient from '@/services/api';
 import { FaGift, FaPlus, FaEdit, FaTrash, FaEye, FaClock, FaCheckCircle, FaTimesCircle } from 'react-icons/fa';
@@ -24,6 +25,7 @@ interface Offer {
 
 export default function OffersManagement() {
   const router = useRouter();
+  const toast = useToast();
   const [offers, setOffers] = useState<Offer[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('active');
@@ -49,11 +51,11 @@ export default function OffersManagement() {
     
     try {
       await apiClient.delete(`/offers/${id}`);
-      alert('Offer deleted successfully');
+      toast.success('Offer deleted successfully');
       loadOffers();
     } catch (error) {
       console.error('Error deleting offer:', error);
-      alert('Failed to delete offer');
+      toast.error('Failed to delete offer');
     }
   };
 

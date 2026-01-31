@@ -6,6 +6,7 @@ import AdminOrderDetailsModal from '@/components/AdminOrderDetailsModal';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { getTelephonySocket, type IncomingCallPayload } from '@/services/telephonySocket';
+import { useToast } from '@/contexts/ToastContext';
 
 interface CallTask {
   id: number;
@@ -108,6 +109,7 @@ interface CommissionRecord {
 
 export default function AgentDashboard() {
   const router = useRouter();
+  const toast = useToast();
   const [loading, setLoading] = useState(true);
   const [agentId, setAgentId] = useState<number | null>(null);
   const [meRoles, setMeRoles] = useState<any[]>([]);
@@ -431,10 +433,10 @@ export default function AgentDashboard() {
       
       setShowCustomerModal(false);
       loadDashboard();
-      alert('Task completed successfully!');
+      toast.success('Task completed successfully!');
     } catch (error) {
       console.error('Failed to complete task:', error);
-      alert('Failed to complete task');
+      toast.error('Failed to complete task');
     }
   };
 
@@ -504,11 +506,11 @@ export default function AgentDashboard() {
         setSelectedOrderId(latestOrder.id);
         setShowOrderModal(true);
       } else {
-        alert('No orders found for this customer');
+        toast.warning('No orders found for this customer');
       }
     } catch (error: any) {
       console.error('Error fetching customer orders:', error);
-      alert('Failed to fetch customer orders');
+      toast.error('Failed to fetch customer orders');
     }
   };
 

@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import AdminLayout from '../../../layouts/AdminLayout';
 import api from '../../../services/api';
+import { useToast } from '@/contexts/ToastContext';
 
 interface DocumentType {
   id: number;
@@ -11,6 +12,7 @@ interface DocumentType {
 }
 
 export default function DocumentTypesPage() {
+  const toast = useToast();
   const [documentTypes, setDocumentTypes] = useState<DocumentType[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -51,7 +53,7 @@ export default function DocumentTypesPage() {
       resetForm();
     } catch (error) {
       console.error('Failed to save document type:', error);
-      alert('Failed to save. Please try again.');
+      toast.error('Failed to save. Please try again.');
     }
   };
 
@@ -72,7 +74,7 @@ export default function DocumentTypesPage() {
         fetchDocumentTypes();
       } catch (error) {
         console.error('Failed to delete document type:', error);
-        alert('Failed to delete. Please try again.');
+        toast.error('Failed to delete. Please try again.');
       }
     }
   };

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import AdminLayout from '@/layouts/AdminLayout';
 import { FaPlus, FaEdit, FaTrash, FaToggleOn, FaToggleOff, FaChartBar } from 'react-icons/fa';
 import apiClient from '@/services/api';
+import { useToast } from '@/contexts/ToastContext';
 
 interface RecommendationRule {
   id: number;
@@ -33,6 +34,7 @@ interface MarketingCampaign {
 }
 
 export default function CrmAutomationAdmin() {
+  const toast = useToast();
   const [activeTab, setActiveTab] = useState<'rules' | 'campaigns' | 'intelligence'>('rules');
   const [rules, setRules] = useState<RecommendationRule[]>([]);
   const [campaigns, setCampaigns] = useState<MarketingCampaign[]>([]);
@@ -98,10 +100,10 @@ export default function CrmAutomationAdmin() {
       });
       setIsRuleModalOpen(false);
       loadData();
-      alert('Rule created successfully!');
+      toast.success('Rule created successfully!');
     } catch (error) {
       console.error('Failed to create rule:', error);
-      alert('Failed to create rule');
+      toast.error('Failed to create rule');
     }
   };
 
@@ -118,10 +120,10 @@ export default function CrmAutomationAdmin() {
       });
       setIsRuleModalOpen(false);
       loadData();
-      alert('Rule updated successfully!');
+      toast.success('Rule updated successfully!');
     } catch (error) {
       console.error('Failed to update rule:', error);
-      alert('Failed to update rule');
+      toast.error('Failed to update rule');
     }
   };
 
@@ -130,10 +132,10 @@ export default function CrmAutomationAdmin() {
     try {
       await apiClient.delete(`/crm/automation/recommendation-rules/${id}`);
       loadData();
-      alert('Rule deleted successfully!');
+      toast.success('Rule deleted successfully!');
     } catch (error) {
       console.error('Failed to delete rule:', error);
-      alert('Failed to delete rule');
+      toast.error('Failed to delete rule');
     }
   };
 
@@ -142,10 +144,10 @@ export default function CrmAutomationAdmin() {
       await apiClient.post('/crm/automation/campaigns', campaignForm);
       setIsCampaignModalOpen(false);
       loadData();
-      alert('Campaign created successfully!');
+      toast.success('Campaign created successfully!');
     } catch (error) {
       console.error('Failed to create campaign:', error);
-      alert('Failed to create campaign');
+      toast.error('Failed to create campaign');
     }
   };
 
@@ -163,10 +165,10 @@ export default function CrmAutomationAdmin() {
     try {
       await apiClient.delete(`/crm/automation/campaigns/${id}`);
       loadData();
-      alert('Campaign deleted successfully!');
+      toast.success('Campaign deleted successfully!');
     } catch (error) {
       console.error('Failed to delete campaign:', error);
-      alert('Failed to delete campaign');
+      toast.error('Failed to delete campaign');
     }
   };
 

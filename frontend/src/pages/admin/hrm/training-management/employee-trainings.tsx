@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import AdminLayout from '../../../../layouts/AdminLayout';
 import api from '../../../../services/api';
+import { useToast } from '@/contexts/ToastContext';
 
 interface EmployeeTraining {
   id: number;
@@ -13,6 +14,7 @@ interface EmployeeTraining {
 }
 
 export default function EmployeeTrainingsPage() {
+  const toast = useToast();
   const [employeeTrainings, setEmployeeTrainings] = useState<EmployeeTraining[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -55,7 +57,7 @@ export default function EmployeeTrainingsPage() {
       resetForm();
     } catch (error) {
       console.error('Failed to save employee training:', error);
-      alert('Failed to save. Please try again.');
+      toast.error('Failed to save. Please try again.');
     }
   };
 
@@ -78,7 +80,7 @@ export default function EmployeeTrainingsPage() {
         fetchEmployeeTrainings();
       } catch (error) {
         console.error('Failed to delete employee training:', error);
-        alert('Failed to delete. Please try again.');
+        toast.error('Failed to delete. Please try again.');
       }
     }
   };

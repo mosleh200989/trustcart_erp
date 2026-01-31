@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import AdminLayout from '../../../../layouts/AdminLayout';
 import api from '../../../../services/api';
+import { useToast } from '@/contexts/ToastContext';
 
 interface Interview {
   id: number;
@@ -12,6 +13,7 @@ interface Interview {
 }
 
 export default function InterviewPage() {
+  const toast = useToast();
   const [interviews, setInterviews] = useState<Interview[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -54,7 +56,7 @@ export default function InterviewPage() {
       resetForm();
     } catch (error) {
       console.error('Failed to save interviews:', error);
-      alert('Failed to save. Please try again.');
+      toast.error('Failed to save. Please try again.');
     }
   };
 
@@ -77,7 +79,7 @@ export default function InterviewPage() {
         fetchInterviews();
       } catch (error) {
         console.error('Failed to delete interviews:', error);
-        alert('Failed to delete. Please try again.');
+        toast.error('Failed to delete. Please try again.');
       }
     }
   };

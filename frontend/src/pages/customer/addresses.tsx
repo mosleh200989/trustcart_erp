@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import CustomerLayout from '@/layouts/CustomerLayout';
 import apiClient from '@/services/api';
+import { useToast } from '@/contexts/ToastContext';
 
 interface Address {
   id: number;
@@ -13,6 +14,7 @@ interface Address {
 }
 
 export default function CustomerAddressesPage() {
+  const toast = useToast();
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -72,7 +74,7 @@ export default function CustomerAddressesPage() {
       fetchAddresses();
     } catch (error) {
       console.error('Failed to save address:', error);
-      alert('Failed to save address');
+      toast.error('Failed to save address');
     }
   };
 
@@ -107,7 +109,7 @@ export default function CustomerAddressesPage() {
       fetchAddresses();
     } catch (error) {
       console.error('Failed to delete address:', error);
-      alert('Failed to delete address');
+      toast.error('Failed to delete address');
     }
   };
 
@@ -120,7 +122,7 @@ export default function CustomerAddressesPage() {
       fetchAddresses();
     } catch (error) {
       console.error('Failed to set default:', error);
-      alert('Failed to set default address');
+      toast.error('Failed to set default address');
     }
   };
 

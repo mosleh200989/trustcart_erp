@@ -4,6 +4,7 @@ import AdminLayout from '@/layouts/AdminLayout';
 import { format } from 'date-fns';
 import { apiUrl } from '@/config/backend';
 import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/contexts/ToastContext';
 
 interface TeamMember {
   id: number;
@@ -39,6 +40,7 @@ interface Task {
 
 const TaskManagement = () => {
   const { user: authUser, roles } = useAuth();
+  const toast = useToast();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [loading, setLoading] = useState(true);
@@ -224,7 +226,7 @@ const TaskManagement = () => {
       fetchStats();
     } catch (error) {
       console.error('Error updating task:', error);
-      alert('Failed to update task status');
+      toast.error('Failed to update task status');
     }
   };
 
@@ -241,7 +243,7 @@ const TaskManagement = () => {
       fetchStats();
     } catch (error) {
       console.error('Error deleting task:', error);
-      alert('Failed to delete task');
+      toast.error('Failed to delete task');
     }
   };
 
@@ -662,6 +664,7 @@ interface TaskModalProps {
 }
 
 const TaskModal = ({ task, teamMembers, isTeamLeader, currentUserId, onClose, onSave }: TaskModalProps) => {
+  const toast = useToast();
   const [formData, setFormData] = useState({
     title: task?.title || '',
     description: task?.description || '',
@@ -717,12 +720,12 @@ const TaskModal = ({ task, teamMembers, isTeamLeader, currentUserId, onClose, on
     e.preventDefault();
     
     if (!formData.title.trim()) {
-      alert('Task title is required');
+      toast.warning('Task title is required');
       return;
     }
 
     if (isTeamLeader && !formData.assignedTo) {
-      alert('Please select a team member to assign this task');
+      toast.warning('Please select a team member to assign this task');
       return;
     }
 
@@ -765,7 +768,7 @@ const TaskModal = ({ task, teamMembers, isTeamLeader, currentUserId, onClose, on
       onSave();
     } catch (error) {
       console.error('Error saving task:', error);
-      alert('Failed to save task. Please try again.');
+      toast.error('Failed to save task. Please try again.');
     } finally {
       setSubmitting(false);
     }

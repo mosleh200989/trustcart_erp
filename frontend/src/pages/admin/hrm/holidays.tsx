@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import AdminLayout from '../../../layouts/AdminLayout';
 import api from '../../../services/api';
+import { useToast } from '@/contexts/ToastContext';
 
 interface Holiday {
   id: number;
@@ -12,6 +13,7 @@ interface Holiday {
 }
 
 export default function HolidaysPage() {
+  const toast = useToast();
   const [holidays, setHolidays] = useState<Holiday[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -53,7 +55,7 @@ export default function HolidaysPage() {
       resetForm();
     } catch (error) {
       console.error('Failed to save holiday:', error);
-      alert('Failed to save. Please try again.');
+      toast.error('Failed to save. Please try again.');
     }
   };
 
@@ -75,7 +77,7 @@ export default function HolidaysPage() {
         fetchHolidays();
       } catch (error) {
         console.error('Failed to delete holiday:', error);
-        alert('Failed to delete. Please try again.');
+        toast.error('Failed to delete. Please try again.');
       }
     }
   };

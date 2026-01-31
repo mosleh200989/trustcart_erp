@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, ChangeEvent, FormEvent } from 'react';
 import { useRouter } from 'next/router';
 import AdminLayout from '@/layouts/AdminLayout';
+import { useToast } from '@/contexts/ToastContext';
 import Modal from '@/components/admin/Modal';
 import FormInput from '@/components/admin/FormInput';
 import { FaPlus, FaSearch } from 'react-icons/fa';
@@ -9,6 +10,7 @@ import PhoneInput, { validateBDPhone } from '@/components/PhoneInput';
 
 export default function AdminUsers() {
   const router = useRouter();
+  const toast = useToast();
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [roles, setRoles] = useState<any[]>([]);
@@ -142,7 +144,7 @@ export default function AdminUsers() {
 
     // Validate phone if provided
     if (formData.phone && !validateBDPhone(formData.phone)) {
-      alert('Please enter a valid 10-digit phone number');
+      toast.warning('Please enter a valid 10-digit phone number');
       return;
     }
 
@@ -159,27 +161,27 @@ export default function AdminUsers() {
 
       if (modalMode === 'add') {
         if (!formData.password) {
-          alert('Password is required for new user');
+          toast.warning('Password is required for new user');
           return;
         }
         payload.password = formData.password;
         const created = await usersAPI.create(payload);
         setUsers((prev) => [...prev, created]);
-        alert('User added successfully');
+        toast.success('User added successfully');
       } else if (modalMode === 'edit' && selectedUser) {
         if (formData.password) {
           payload.password = formData.password;
         }
         const updated = await usersAPI.update(selectedUser.id, payload);
         setUsers((prev) => prev.map((u) => (u.id === selectedUser.id ? updated : u)));
-        alert('User updated successfully');
+        toast.success('User updated successfully');
       }
 
       setIsModalOpen(false);
       loadUsers();
     } catch (error) {
       console.error('Failed to save user:', error);
-      alert('Operation failed');
+      toast.error('Operation failed');
     }
   };
 
@@ -191,7 +193,7 @@ export default function AdminUsers() {
       setUsers(users.filter(u => u.id !== id));
       setSelectedUserIds(prev => prev.filter(x => x !== id));
     } catch (error) {
-      alert('Failed to deactivate user');
+      toast.error('Failed to deactivate user');
     }
   };
 
@@ -252,7 +254,7 @@ export default function AdminUsers() {
   const handleBulkApply = async () => {
     if (!bulkAction) return;
     if (selectedUserIds.length === 0) {
-      alert('Please select at least one user');
+      toast.warning('Please select at least one user');
       return;
     }
 
@@ -286,11 +288,11 @@ export default function AdminUsers() {
       setBulkAction('');
 
       if (failed > 0) {
-        alert(`Bulk action completed: ${succeeded} succeeded, ${failed} failed.`);
+        toast.warning(`Bulk action completed: ${succeeded} succeeded, ${failed} failed.`);
       }
     } catch (error) {
       console.error('Bulk action failed:', error);
-      alert('Bulk action failed');
+      toast.error('Bulk action failed');
     } finally {
       setBulkWorking(false);
     }

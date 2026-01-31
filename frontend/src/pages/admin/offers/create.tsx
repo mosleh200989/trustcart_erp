@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useToast } from '@/contexts/ToastContext';
 import AdminLayout from '@/layouts/AdminLayout';
 import apiClient from '@/services/api';
 import { useRouter } from 'next/router';
@@ -6,6 +7,7 @@ import { FaGift, FaSave, FaTimes } from 'react-icons/fa';
 
 export default function CreateOffer() {
   const router = useRouter();
+  const toast = useToast();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
@@ -47,11 +49,11 @@ export default function CreateOffer() {
       };
 
       await apiClient.post('/offers', offerData);
-      alert('Offer created successfully!');
+      toast.success('Offer created successfully!');
       router.push('/admin/offers');
     } catch (error: any) {
       console.error('Error creating offer:', error);
-      alert('Failed to create offer: ' + (error.response?.data?.message || error.message));
+      toast.error('Failed to create offer: ' + (error.response?.data?.message || error.message));
     } finally {
       setLoading(false);
     }

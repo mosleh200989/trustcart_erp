@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { useState } from 'react';
+import { useToast } from '@/contexts/ToastContext';
 
 interface ProductCardProps {
   id: number;
@@ -34,6 +35,7 @@ export default function ProductCard({
   rating = 5,
   reviews = 0
 }: ProductCardProps) {
+  const toast = useToast();
   const [isHovered, setIsHovered] = useState(false);
   const [imageError, setImageError] = useState(false);
   
@@ -63,7 +65,7 @@ export default function ProductCard({
     window.dispatchEvent(new Event('cartUpdated'));
     
     // Show toast notification
-    alert(`✅ ${nameEn} added to cart!`);
+    toast.success(`${nameEn} added to cart!`);
   };
 
   const discountPercent = discount || (originalPrice ? Math.round(((originalPrice - price) / originalPrice) * 100) : 0);

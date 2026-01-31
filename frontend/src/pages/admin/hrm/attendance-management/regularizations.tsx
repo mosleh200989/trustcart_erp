@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import AdminLayout from '../../../../layouts/AdminLayout';
 import api from '../../../../services/api';
+import { useToast } from '@/contexts/ToastContext';
 
 interface Regularization {
   id: number;
@@ -16,6 +17,7 @@ interface Regularization {
 }
 
 export default function RegularizationsPage() {
+  const toast = useToast();
   const [regularizations, setRegularizations] = useState<Regularization[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -60,7 +62,7 @@ export default function RegularizationsPage() {
       resetForm();
     } catch (error) {
       console.error('Failed to save', error);
-      alert('Failed to save. Please try again.');
+      toast.error('Failed to save. Please try again.');
     }
   };
 
@@ -85,7 +87,7 @@ export default function RegularizationsPage() {
         fetchRegularizations();
       } catch (error) {
         console.error('Failed to delete', error);
-        alert('Failed to delete. Please try again.');
+        toast.error('Failed to delete. Please try again.');
       }
     }
   };

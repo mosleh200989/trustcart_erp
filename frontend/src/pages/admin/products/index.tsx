@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import AdminLayout from '@/layouts/AdminLayout';
+import { useToast } from '@/contexts/ToastContext';
 import DataTable from '@/components/admin/DataTable';
 import Modal from '@/components/admin/Modal';
 import FormInput from '@/components/admin/FormInput';
@@ -41,6 +42,7 @@ interface ProductImage {
 
 export default function AdminProducts() {
   const router = useRouter();
+  const toast = useToast();
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -174,7 +176,7 @@ export default function AdminProducts() {
       });
     } catch (error) {
       console.error('Error loading product details:', error);
-      alert('Failed to load product details. Using basic data.');
+      toast.error('Failed to load product details. Using basic data.');
       setFormData({
         name_en: product.name_en,
         name_bn: product.name_bn,
@@ -240,9 +242,9 @@ export default function AdminProducts() {
     try {
       await apiClient.delete(`/products/${product.id}`);
       setProducts(products.filter(p => p.id !== product.id));
-      alert('Product deleted successfully');
+      toast.success('Product deleted successfully');
     } catch (error) {
-      alert('Failed to delete product');
+      toast.error('Failed to delete product');
     }
   };
 
@@ -255,7 +257,7 @@ export default function AdminProducts() {
       ));
     } catch (error) {
       console.error('Failed to toggle visibility:', error);
-      alert('Failed to update product visibility');
+      toast.error('Failed to update product visibility');
     }
   };
 
@@ -263,7 +265,7 @@ export default function AdminProducts() {
 
   const handleBulkApply = async (bulkAction: 'delete' | 'activate' | 'deactivate') => {
     if (selectedProductIds.length === 0) {
-      alert('Please select at least one product');
+      toast.warning('Please select at least one product');
       return;
     }
 
@@ -288,11 +290,11 @@ export default function AdminProducts() {
       clearSelection();
 
       if (failed > 0) {
-        alert(`Bulk action completed: ${succeeded} succeeded, ${failed} failed.`);
+        toast.warning(`Bulk action completed: ${succeeded} succeeded, ${failed} failed.`);
       }
     } catch (error) {
       console.error('Bulk action failed:', error);
-      alert('Bulk action failed');
+      toast.error('Bulk action failed');
     } finally {
       setBulkWorking(false);
     }
@@ -307,22 +309,22 @@ export default function AdminProducts() {
     
     // Validation
     if (!formData.sku || !formData.slug) {
-      alert('SKU and Slug are required fields');
+      toast.warning('SKU and Slug are required fields');
       return;
     }
 
     if (!formData.category_id) {
-      alert('Category is required');
+      toast.warning('Category is required');
       return;
     }
 
     if (!formData.name_en) {
-      alert('Product name (English) is required');
+      toast.warning('Product name (English) is required');
       return;
     }
 
     if (!formData.base_price || parseFloat(formData.base_price) <= 0) {
-      alert('Valid price is required');
+      toast.warning('Valid price is required');
       return;
     }
     
@@ -359,7 +361,7 @@ export default function AdminProducts() {
 
       const duplicates = keys.filter((k, idx) => keys.indexOf(k) !== idx);
       if (duplicates.length > 0) {
-        alert(`Duplicate keys in Additional Information: ${Array.from(new Set(duplicates)).join(', ')}`);
+        toast.warning(`Duplicate keys in Additional Information: ${Array.from(new Set(duplicates)).join(', ')}`);
         return;
       }
 
@@ -403,7 +405,7 @@ export default function AdminProducts() {
           }
         }
         
-        alert('Product added successfully');
+        toast.success('Product added successfully');
         setPendingImages([]);
         setIsModalOpen(false);
         loadProducts();
@@ -411,7 +413,7 @@ export default function AdminProducts() {
         console.log('Updating product:', selectedProduct.id);
         const response = await apiClient.put(`/products/${selectedProduct.id}`, payload);
         console.log('Update response:', response.data);
-        alert('Product updated successfully');
+        toast.success('Product updated successfully');
         setIsModalOpen(false);
         loadProducts();
       }
@@ -431,7 +433,7 @@ export default function AdminProducts() {
         errorMsg = error.message;
       }
       
-      alert(`Error: ${errorMsg}`);
+      toast.error(`Error: ${errorMsg}`);
     }
   };
 

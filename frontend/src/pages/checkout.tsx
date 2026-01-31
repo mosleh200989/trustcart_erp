@@ -1,6 +1,7 @@
 import { getPendingReferralAttribution } from "@/utils/referralAttribution";
 import React, { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/router";
+import { useToast } from '@/contexts/ToastContext';
 import Link from "next/link";
 import ElectroNavbar from "@/components/ElectroNavbar";
 import ElectroFooter from "@/components/ElectroFooter";
@@ -19,6 +20,7 @@ import PhoneInput, { validateBDPhone } from "@/components/PhoneInput";
 
 export default function Checkout() {
   const router = useRouter();
+  const toast = useToast();
   const touchedRef = useRef<Record<string, boolean>>({});
   const [cart, setCart] = useState<any[]>([]);
   const [subtotal, setSubtotal] = useState(0);
@@ -289,17 +291,17 @@ export default function Checkout() {
     e.preventDefault();
 
     if (!formData.fullName || !formData.phone || !formData.address) {
-      alert("Please fill in all required fields");
+      toast.warning("Please fill in all required fields");
       return;
     }
 
     if (!validateBDPhone(formData.phone)) {
-      alert("Please enter a valid 10-digit phone number");
+      toast.warning("Please enter a valid 10-digit phone number");
       return;
     }
 
     if (cart.length === 0) {
-      alert("Your cart is empty");
+      toast.warning("Your cart is empty");
       return;
     }
 
@@ -394,7 +396,7 @@ export default function Checkout() {
       }
     } catch (error: any) {
       console.error("Order submission error:", error);
-      alert(
+      toast.error(
         "Failed to place order: " +
           (error.response?.data?.message || error.message)
       );

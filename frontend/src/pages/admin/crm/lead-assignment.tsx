@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import AdminLayout from '@/layouts/AdminLayout';
 import apiClient from '@/services/api';
+import { useToast } from '@/contexts/ToastContext';
 
 interface LeadCustomer {
   id: number | string;
@@ -36,6 +37,7 @@ interface User {
 }
 
 export default function LeadAssignmentPage() {
+  const toast = useToast();
   const [loading, setLoading] = useState(true);
   const [teams, setTeams] = useState<Team[]>([]);
   const [users, setUsers] = useState<User[]>([]);
@@ -198,7 +200,7 @@ export default function LeadAssignmentPage() {
         agentId: Number(selectedAgent.id),
       });
 
-      alert('Lead assigned successfully');
+      toast.success('Lead assigned successfully');
       setShowAssignModal(false);
       setSelectedLead(null);
       setSelectedAgent(null);
@@ -206,7 +208,7 @@ export default function LeadAssignmentPage() {
       await loadLeads();
     } catch (error) {
       console.error('Failed to assign lead', error);
-      alert('Failed to assign lead');
+      toast.error('Failed to assign lead');
     }
   };
 
@@ -245,7 +247,7 @@ export default function LeadAssignmentPage() {
       });
       
       const result = (res as any)?.data;
-      alert(`Bulk assign completed!\nSuccess: ${result?.success || 0}\nFailed: ${result?.failed || 0}`);
+      toast.success(`Bulk assign completed! Success: ${result?.success || 0}, Failed: ${result?.failed || 0}`);
       
       setShowBulkAssignModal(false);
       setSelectedLeadIds(new Set());
@@ -254,7 +256,7 @@ export default function LeadAssignmentPage() {
       await loadLeads();
     } catch (error) {
       console.error('Failed to bulk assign leads', error);
-      alert('Failed to bulk assign leads');
+      toast.error('Failed to bulk assign leads');
     }
   };
 

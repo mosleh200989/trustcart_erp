@@ -3,6 +3,7 @@ import AdminLayout from '@/layouts/AdminLayout';
 import { FaPlus, FaEdit, FaTrash, FaToggleOn, FaToggleOff, FaArrowUp, FaArrowDown, FaImage } from 'react-icons/fa';
 import apiClient from '@/services/api';
 import ImageUpload from '@/components/admin/ImageUpload';
+import { useToast } from '@/contexts/ToastContext';
 
 interface Banner {
   id: number;
@@ -23,6 +24,7 @@ interface Banner {
 }
 
 export default function BannersManagement() {
+  const toast = useToast();
   const [banners, setBanners] = useState<Banner[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -80,7 +82,7 @@ export default function BannersManagement() {
       loadBanners();
     } catch (error) {
       console.error('Failed to save banner:', error);
-      alert('Failed to save banner');
+      toast.error('Failed to save banner');
     }
   };
 
@@ -112,7 +114,7 @@ export default function BannersManagement() {
       loadBanners();
     } catch (error) {
       console.error('Failed to delete banner:', error);
-      alert('Failed to delete banner');
+      toast.error('Failed to delete banner');
     }
   };
 

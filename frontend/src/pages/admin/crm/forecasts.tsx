@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import AdminLayout from '@/layouts/AdminLayout';
 import apiClient from '@/services/api';
 import { Line, Bar } from 'react-chartjs-2';
+import { useToast } from '@/contexts/ToastContext';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -42,6 +43,7 @@ interface SalesForecast {
 }
 
 export default function ForecastDashboardPage() {
+  const toast = useToast();
   const [quotas, setQuotas] = useState<SalesQuota[]>([]);
   const [forecasts, setForecasts] = useState<SalesForecast[]>([]);
   const [loading, setLoading] = useState(true);
@@ -85,7 +87,7 @@ export default function ForecastDashboardPage() {
       setShowForecastModal(false);
     } catch (error) {
       console.error('Failed to generate forecast', error);
-      alert('Failed to generate forecast');
+      toast.error('Failed to generate forecast');
     }
   };
 
@@ -291,6 +293,7 @@ export default function ForecastDashboardPage() {
               loadData();
             }}
             period={period}
+            toast={toast}
           />
         )}
 
@@ -309,10 +312,12 @@ function QuotaModal({
   onClose,
   onSaved,
   period,
+  toast,
 }: {
   onClose: () => void;
   onSaved: () => void;
   period: string;
+  toast: ReturnType<typeof useToast>;
 }) {
   const [formData, setFormData] = useState({
     quotaAmount: '',
@@ -328,7 +333,7 @@ function QuotaModal({
       onSaved();
     } catch (error) {
       console.error('Failed to set quota', error);
-      alert('Failed to set quota');
+      toast.error('Failed to set quota');
     }
   };
 

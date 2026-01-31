@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/router";
+import { useToast } from '@/contexts/ToastContext';
 import { motion } from "framer-motion";
 import ElectroNavbar from "@/components/ElectroNavbar";
 import ElectroFooter from "@/components/ElectroFooter";
@@ -28,6 +29,7 @@ interface SizeVariant {
 
 export default function ProductDetailsPage() {
   const router = useRouter();
+  const toast = useToast();
   const { id } = router.query;
   const [product, setProduct] = useState<any>(null);
   const [productImages, setProductImages] = useState<any[]>([]);
@@ -255,7 +257,7 @@ export default function ProductDetailsPage() {
     if (!product) return;
     const token = localStorage.getItem("authToken");
     if (!token) {
-      alert("Please login to add items to your wishlist.");
+      toast.warning("Please login to add items to your wishlist.");
       router.push("/customer/login");
       return;
     }
@@ -270,7 +272,7 @@ export default function ProductDetailsPage() {
       });
       localStorage.setItem("wishlist", JSON.stringify(wishlist));
       window.dispatchEvent(new Event("wishlistUpdated"));
-      alert("Added to your wishlist.");
+      toast.success("Added to your wishlist.");
     }
   };
 

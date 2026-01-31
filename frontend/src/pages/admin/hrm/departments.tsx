@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import AdminLayout from '../../../layouts/AdminLayout';
 import api from '../../../services/api';
+import { useToast } from '@/contexts/ToastContext';
 
 interface Department {
   id: number;
@@ -12,6 +13,7 @@ interface Department {
 }
 
 export default function DepartmentsPage() {
+  const toast = useToast();
   const [departments, setDepartments] = useState<Department[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -54,7 +56,7 @@ export default function DepartmentsPage() {
       resetForm();
     } catch (error) {
       console.error('Failed to save department:', error);
-      alert('Failed to save. Please try again.');
+      toast.error('Failed to save. Please try again.');
     }
   };
 
@@ -77,7 +79,7 @@ export default function DepartmentsPage() {
         fetchDepartments();
       } catch (error) {
         console.error('Failed to delete department:', error);
-        alert('Failed to delete. Please try again.');
+        toast.error('Failed to delete. Please try again.');
       }
     }
   };
