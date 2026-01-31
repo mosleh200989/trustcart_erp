@@ -5,6 +5,7 @@ export default function ElectroFooter() {
   return (
     <footer className="bg-gray-900 text-gray-300">
       {/* Newsletter */}
+      {/*}
       <div className="bg-gray-800 py-6 lg:py-8">
         <div className="container mx-auto px-4 lg:px-36">
           <div className="flex flex-col lg:flex-row items-center justify-between gap-4">
@@ -25,6 +26,7 @@ export default function ElectroFooter() {
           </div>
         </div>
       </div>
+      */}
 
       {/* Main Footer */}
       <div className="container mx-auto px-4 lg:px-36 py-8 lg:py-12">
@@ -33,7 +35,7 @@ export default function ElectroFooter() {
           <div>
             <img src="/trust-cart-logo-main.png" alt="TrustCart" className="h-16 object-contain mb-4 brightness-0 invert" />
             <p className="text-sm mb-4">
-              Your trusted online shop for premium quality products. We deliver excellence with every order.
+              TrustCart - Pure Products. Honest Promise. Trusted Service.
             </p>
             <div className="flex gap-3">
               <a href="https://facebook.com" target="_blank" rel="noopener noreferrer" 

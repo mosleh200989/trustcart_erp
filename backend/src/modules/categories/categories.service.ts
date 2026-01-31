@@ -10,12 +10,29 @@ export class CategoriesService {
     private categoriesRepository: Repository<Category>,
   ) {}
 
-  async findAll(): Promise<Category[]> {
-    return this.categoriesRepository.find({
-      order: {
-        display_order: 'ASC',
-      },
-    });
+  async findAll(): Promise<any[]> {
+    // Use raw SQL query for accurate product count
+    const categoriesWithCounts = await this.categoriesRepository.query(`
+      SELECT 
+        c.id,
+        c.name_en,
+        c.name_bn,
+        c.slug,
+        c.description,
+        c.image_url,
+        c.parent_id,
+        c.display_order,
+        c.is_active,
+        c.created_at,
+        c.updated_at,
+        COALESCE(COUNT(p.id), 0)::int as product_count
+      FROM categories c
+      LEFT JOIN products p ON p.category_id = c.id
+      GROUP BY c.id, c.name_en, c.name_bn, c.slug, c.description, c.image_url, c.parent_id, c.display_order, c.is_active, c.created_at, c.updated_at
+      ORDER BY c.display_order ASC
+    `);
+
+    return categoriesWithCounts;
   }
 
   async findActive(): Promise<Category[]> {

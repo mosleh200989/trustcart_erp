@@ -607,7 +607,7 @@ export default function Checkout() {
                           setFormData({ ...formData, phone: value });
                         }}
                         required
-                        placeholder="1712345678"
+                        placeholder="01712345678"
                       />
                     </div>
 

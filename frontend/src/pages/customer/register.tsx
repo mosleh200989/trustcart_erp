@@ -175,7 +175,7 @@ export default function CustomerRegister() {
               value={phone}
               onChange={(value) => setPhone(value)}
               required
-              placeholder="1712345678"
+              placeholder="01712345678"
             />
           </div>
 

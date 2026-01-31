@@ -575,7 +575,7 @@ export default function AdminSpecialOffers() {
                     name="secondary_button_link"
                     value={formData.secondary_button_link}
                     onChange={handleInputChange}
-                    placeholder="tel:+8801234567890"
+                    placeholder="tel:+880123456789012"
                   />
                 </div>
 

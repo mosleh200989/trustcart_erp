@@ -15,6 +15,39 @@ export class AuthService {
     private customersRepository: Repository<Customer>,
   ) {}
 
+  /**
+   * Normalize phone number to support both formats:
+   * - With +88 prefix: +8801712345678
+   * - Without prefix: 01712345678
+   * Returns both variants to search in database
+   */
+  private normalizePhoneForLogin(phone: string): string[] {
+    const cleaned = phone.replace(/[\s\-\(\)]/g, ''); // Remove spaces, dashes, parentheses
+    const variants: string[] = [];
+    
+    if (cleaned.startsWith('+88')) {
+      // Input has +88 prefix
+      variants.push(cleaned); // +8801712345678
+      variants.push(cleaned.slice(3)); // 01712345678
+    } else if (cleaned.startsWith('88') && cleaned.length > 10) {
+      // Input has 88 prefix without +
+      variants.push('+' + cleaned); // +8801712345678
+      variants.push(cleaned.slice(2)); // 01712345678
+    } else if (cleaned.startsWith('0')) {
+      // Input starts with 0 (local format)
+      variants.push(cleaned); // 01712345678
+      variants.push('+88' + cleaned); // +8801712345678
+    } else {
+      // Input is raw digits without any prefix (e.g., 1712345678)
+      variants.push(cleaned);
+      variants.push('0' + cleaned); // 01712345678
+      variants.push('+88' + cleaned); // +881712345678
+      variants.push('+880' + cleaned); // +8801712345678
+    }
+    
+    return [...new Set(variants)]; // Remove duplicates
+  }
+
   async login(identifier: string, password: string) {
     const loginValue = (identifier || '').toString().trim();
     if (!loginValue) {
@@ -22,18 +55,40 @@ export class AuthService {
     }
 
     const looksLikeEmail = loginValue.includes('@');
+    
+    // Get phone variants for searching
+    const phoneVariants = !looksLikeEmail ? this.normalizePhoneForLogin(loginValue) : [];
 
     // First, try to find in users table
-    const user = looksLikeEmail
-      ? await this.usersRepository.findOne({ where: { email: loginValue, isDeleted: false } })
-      : await this.usersRepository.findOne({ where: { phone: loginValue, isDeleted: false } });
+    let user = null;
+    if (looksLikeEmail) {
+      user = await this.usersRepository.findOne({ where: { email: loginValue, isDeleted: false } });
+    } else {
+      // Try all phone variants
+      for (const phoneVariant of phoneVariants) {
+        user = await this.usersRepository.findOne({ where: { phone: phoneVariant, isDeleted: false } });
+        if (user) break;
+      }
+    }
     
     // If not found in users, check customers table
     if (!user) {
-      const customer = await this.customersRepository.findOne({
-        where: looksLikeEmail ? { email: loginValue } : { phone: loginValue },
-        select: ['id', 'email', 'password', 'name', 'lastName', 'phone', 'is_deleted'],
-      });
+      let customer = null;
+      if (looksLikeEmail) {
+        customer = await this.customersRepository.findOne({
+          where: { email: loginValue },
+          select: ['id', 'email', 'password', 'name', 'lastName', 'phone', 'is_deleted'],
+        });
+      } else {
+        // Try all phone variants for customers
+        for (const phoneVariant of phoneVariants) {
+          customer = await this.customersRepository.findOne({
+            where: { phone: phoneVariant },
+            select: ['id', 'email', 'password', 'name', 'lastName', 'phone', 'is_deleted'],
+          });
+          if (customer) break;
+        }
+      }
 
       if (customer && (customer as any).is_deleted) {
         throw new UnauthorizedException('Account is inactive');
