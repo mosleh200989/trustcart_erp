@@ -1044,4 +1044,162 @@ export class OrderManagementService {
 
     return { summary, products: productsHistory };
   }
+
+  // ==================== STEADFAST WEBHOOK HANDLER ====================
+
+  /**
+   * Handle webhook callbacks from Steadfast for delivery status updates.
+   * Steadfast sends status updates when delivery status changes.
+   * 
+   * Expected payload structure from Steadfast webhook:
+   * {
+   *   "consignment_id": 1424107,
+   *   "invoice": "SO-12345",
+   *   "tracking_code": "15BAEB8A",
+   *   "status": "delivered",
+   *   "delivery_status": "delivered",
+   *   ...
+   * }
+   */
+  async handleSteadfastWebhook(
+    body: any,
+    headers: Record<string, any>,
+  ): Promise<{ success: boolean; message: string }> {
+    // Optional: Verify webhook signature if Steadfast provides one
+    // const signature = headers['x-steadfast-signature'];
+    // if (process.env.STEADFAST_WEBHOOK_SECRET && !this.verifySteadfastSignature(body, signature)) {
+    //   return { success: false, message: 'Invalid signature' };
+    // }
+
+    const consignmentId = body?.consignment_id ?? body?.consignment?.consignment_id;
+    const trackingCode = body?.tracking_code ?? body?.consignment?.tracking_code;
+    const invoice = body?.invoice ?? body?.consignment?.invoice;
+    const newStatus = this.extractSteadfastStatus(body);
+
+    if (!newStatus) {
+      return { success: false, message: 'No status in webhook payload' };
+    }
+
+    // Find the order by consignment_id (courierOrderId) or tracking_code (trackingId)
+    let order: SalesOrder | null = null;
+
+    if (consignmentId) {
+      order = await this.salesOrderRepository.findOne({
+        where: { courierOrderId: String(consignmentId), courierCompany: 'Steadfast' },
+      });
+    }
+
+    if (!order && trackingCode) {
+      order = await this.salesOrderRepository.findOne({
+        where: { trackingId: String(trackingCode), courierCompany: 'Steadfast' },
+      });
+    }
+
+    if (!order && invoice) {
+      // Try to match by sales order number
+      order = await this.salesOrderRepository.findOne({
+        where: { salesOrderNumber: invoice, courierCompany: 'Steadfast' },
+      });
+    }
+
+    if (!order) {
+      return { success: false, message: `Order not found for webhook: CID=${consignmentId}, TC=${trackingCode}, INV=${invoice}` };
+    }
+
+    // Check if status actually changed
+    if (String(order.courierStatus || '').trim() === newStatus.trim()) {
+      return { success: true, message: 'Status unchanged' };
+    }
+
+    const prevStatus = order.courierStatus;
+    order.courierStatus = newStatus;
+
+    const becameDelivered = this.isDeliveredStatus(newStatus) && order.status !== 'delivered';
+
+    if (becameDelivered) {
+      order.status = 'delivered';
+      order.deliveredAt = new Date();
+    }
+
+    const saved = await this.salesOrderRepository.save(order);
+
+    // Post-delivery actions
+    if (becameDelivered) {
+      try {
+        await this.loyaltyService.autoCompleteReferralForDeliveredOrder({
+          orderId: saved.id,
+          customerId: saved.customerId,
+        });
+      } catch {
+        // never block webhook processing
+      }
+
+      try {
+        await this.whatsAppService.sendReferralNudgeOnDeliveredOrder({
+          orderId: saved.id,
+          customerId: saved.customerId,
+        });
+      } catch {
+        // never block webhook processing
+      }
+    }
+
+    // Log tracking history
+    await this.courierTrackingRepository.save({
+      orderId: saved.id,
+      courierCompany: 'Steadfast',
+      trackingId: saved.trackingId,
+      status: saved.courierStatus,
+      remarks: `Steadfast webhook: ${prevStatus || 'null'} → ${newStatus}`,
+    });
+
+    // Activity log
+    await this.logActivity({
+      orderId: saved.id,
+      actionType: 'courier_status_webhook',
+      actionDescription: `Steadfast webhook: status updated to ${newStatus}`,
+      oldValue: { courierStatus: prevStatus },
+      newValue: { courierStatus: newStatus },
+      performedBy: undefined,
+      performedByName: 'Steadfast Webhook',
+    });
+
+    return {
+      success: true,
+      message: `Order #${saved.id} status updated: ${prevStatus || 'null'} → ${newStatus}`,
+    };
+  }
+
+  /**
+   * Sync status for all orders that are sent to Steadfast but not yet delivered.
+   * Useful for batch syncing or recovery.
+   */
+  async syncAllSteadfastStatuses(): Promise<{
+    total: number;
+    synced: number;
+    failed: number;
+    errors: string[];
+  }> {
+    const orders = await this.salesOrderRepository.find({
+      where: {
+        courierCompany: 'Steadfast',
+        status: In(['shipped', 'processing', 'approved']),
+      },
+    });
+
+    const results = { total: orders.length, synced: 0, failed: 0, errors: [] as string[] };
+
+    for (const order of orders) {
+      try {
+        // eslint-disable-next-line no-await-in-loop
+        await this.tryRefreshSteadfastCourierStatus(order);
+        results.synced++;
+      } catch (e: any) {
+        results.failed++;
+        results.errors.push(`Order #${order.id}: ${e.message || 'Unknown error'}`);
+      }
+    }
+
+    return results;
+  }
 }

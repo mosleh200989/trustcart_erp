@@ -1,9 +1,10 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Req, UseGuards, UnauthorizedException } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, Req, UseGuards, UnauthorizedException, Headers } from '@nestjs/common';
 import { OrderManagementService } from './order-management.service';
 import { Request } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
+import { Public } from '../../common/decorators/public.decorator';
 
 @Controller('order-management')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -249,5 +250,30 @@ export class OrderManagementController {
       userIp: body.userIp ?? ipAddress,
       browserInfo: body.browserInfo ?? ua,
     });
+  }
+
+  // ==================== STEADFAST WEBHOOK ====================
+
+  /**
+   * Webhook endpoint for Steadfast to push delivery status updates.
+   * This endpoint does NOT require JWT authentication since it's called by Steadfast servers.
+   */
+  @Public()
+  @Post('webhook/steadfast')
+  async steadfastWebhook(
+    @Body() body: any,
+    @Headers() headers: Record<string, string>
+  ) {
+    return await this.orderManagementService.handleSteadfastWebhook(body, headers);
+  }
+
+  /**
+   * Manual trigger to sync all Steadfast orders' statuses.
+   * Useful for batch syncing or recovery.
+   */
+  @Post('steadfast/sync-all')
+  @RequirePermissions('edit-sales-orders')
+  async syncAllSteadfastStatuses() {
+    return await this.orderManagementService.syncAllSteadfastStatuses();
   }
 }
