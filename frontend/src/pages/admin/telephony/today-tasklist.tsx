@@ -6,10 +6,12 @@ import {
   FaPhone, FaFire, FaCheckCircle, FaClock, FaList, FaCalendarDay, 
   FaUserClock, FaPlay, FaSearch, FaFilter, FaTimes, FaInfoCircle,
   FaThermometerHalf, FaSnowflake, FaRedo, FaChevronDown, FaChevronUp,
-  FaTasks, FaUserPlus, FaExclamationTriangle, FaEdit
+  FaTasks, FaUserPlus, FaExclamationTriangle, FaEdit, FaEye, FaShoppingCart
 } from 'react-icons/fa';
 import Link from 'next/link';
 import { format } from 'date-fns';
+import AdminOrderDetailsModal from '@/components/AdminOrderDetailsModal';
+import apiClient from '@/services/api';
 
 // CRM Task interface
 interface CrmTask {
@@ -70,6 +72,10 @@ export default function TodayTasklistPage() {
   const [crmTasks, setCrmTasks] = useState<CrmTask[]>([]);
   const [allTasks, setAllTasks] = useState<CrmTask[]>([]);
   const [todayLeads, setTodayLeads] = useState<Lead[]>([]);
+  
+  // Order Details Modal
+  const [showOrderModal, setShowOrderModal] = useState(false);
+  const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
   
   // Filters
   const [searchTerm, setSearchTerm] = useState('');
@@ -232,6 +238,25 @@ export default function TodayTasklistPage() {
       return dueDate < new Date();
     });
   }, [allTasks]);
+
+  // View customer's latest order in modal
+  const handleViewOrder = async (customerId: number) => {
+    try {
+      // Fetch customer's orders
+      const res = await apiClient.get(`/order-management/customer/${customerId}/orders`);
+      const orders = res.data || [];
+      if (orders.length > 0) {
+        // Open modal with the most recent order
+        setSelectedOrderId(orders[0].id);
+        setShowOrderModal(true);
+      } else {
+        alert('No orders found for this customer');
+      }
+    } catch (err) {
+      console.error('Failed to fetch customer orders:', err);
+      alert('Failed to load customer orders');
+    }
+  };
 
   const clearFilters = () => {
     setSearchTerm('');
@@ -410,11 +435,19 @@ export default function TodayTasklistPage() {
               <FaPhone size={10} /> Call
             </a>
           )}
+          {((lead.totalOrders ?? lead.total_orders) ?? 0) > 0 && (
+            <button
+              onClick={() => handleViewOrder(lead.id)}
+              className="px-3 py-1.5 bg-orange-600 text-white text-sm rounded hover:bg-orange-700 flex items-center gap-1"
+            >
+              <FaShoppingCart size={10} /> View Order
+            </button>
+          )}
           <Link
             href={`/admin/crm/customer/${lead.id}`}
-            className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded hover:bg-blue-700"
+            className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 flex items-center gap-1"
           >
-            View Details
+            <FaEye size={10} /> View Details
           </Link>
         </div>
       </div>
@@ -700,6 +733,18 @@ export default function TodayTasklistPage() {
           </div>
         </div>
       </div>
+
+      {/* Order Details Modal */}
+      {showOrderModal && selectedOrderId && (
+        <AdminOrderDetailsModal
+          orderId={selectedOrderId}
+          onClose={() => {
+            setShowOrderModal(false);
+            setSelectedOrderId(null);
+          }}
+          onUpdate={() => {}}
+        />
+      )}
     </AdminLayout>
   );
 }

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import AdminLayout from '@/layouts/AdminLayout';
 import { FaPhone, FaWhatsapp, FaSms, FaEnvelope, FaFire, FaChartLine, FaCheckCircle, FaClock, FaMoneyBillWave, FaDollarSign } from 'react-icons/fa';
 import apiClient, { auth, users as usersApi } from '@/services/api';
+import AdminOrderDetailsModal from '@/components/AdminOrderDetailsModal';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { getTelephonySocket, type IncomingCallPayload } from '@/services/telephonySocket';
@@ -148,6 +149,10 @@ export default function AgentDashboard() {
   const timerRef = useRef<number | null>(null);
 
   const [suggestedScript, setSuggestedScript] = useState<SuggestedScriptResponse | null>(null);
+
+  // Order modal state
+  const [showOrderModal, setShowOrderModal] = useState(false);
+  const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
   const [telephonyInfo, setTelephonyInfo] = useState<any>(null);
 
   const [incomingCall, setIncomingCall] = useState<IncomingCallPayload | null>(null);
@@ -487,6 +492,26 @@ export default function AgentDashboard() {
     setIsRecording(false);
   };
 
+  // Handle viewing order details for a customer
+  const handleViewOrder = async (customerId: number | string) => {
+    try {
+      // Fetch customer's orders
+      const response = await apiClient.get(`/order-management/customer/${customerId}/orders`);
+      const orders = response.data?.data || response.data || [];
+      if (orders.length > 0) {
+        // Get the most recent order
+        const latestOrder = orders[0];
+        setSelectedOrderId(latestOrder.id);
+        setShowOrderModal(true);
+      } else {
+        alert('No orders found for this customer');
+      }
+    } catch (error: any) {
+      console.error('Error fetching customer orders:', error);
+      alert('Failed to fetch customer orders');
+    }
+  };
+
   useEffect(() => {
     if (!showCustomerModal) return;
     requestMicPermission();
@@ -798,12 +823,12 @@ export default function AgentDashboard() {
                           </td>
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-2">
-                              <Link
-                                href={`/admin/customers/${String(c.id)}`}
+                              <button
+                                onClick={() => handleViewOrder(c.id)}
                                 className="text-xs px-2 py-1 rounded border border-gray-300 text-gray-700 hover:bg-gray-100"
                               >
                                 View
-                              </Link>
+                              </button>
 
                               <a
                                 href={rawPhone ? `tel:${rawPhone}` : undefined}
@@ -1540,6 +1565,20 @@ export default function AgentDashboard() {
               </div>
             </div>
           </div>
+        )}
+
+        {/* Order Details Modal */}
+        {showOrderModal && selectedOrderId && (
+          <AdminOrderDetailsModal
+            orderId={selectedOrderId}
+            onClose={() => {
+              setShowOrderModal(false);
+              setSelectedOrderId(null);
+            }}
+            onUpdate={() => {
+              // Refresh data if needed
+            }}
+          />
         )}
       </div>
     </AdminLayout>

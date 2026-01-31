@@ -505,7 +505,7 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
         {/* Tabs */}
         <div className="border-b">
           <div className="flex gap-1 p-2 bg-gray-50">
-            {['items', 'customer', 'product', 'order history', 'delivery', 'notes', 'tracking', 'logs'].map((tab) => (
+            {['items', 'customer', 'product', 'order history', 'delivery', 'notes', 'tracking', 'fraud', 'logs'].map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab === 'order history' ? 'order-history' : tab)}
@@ -1361,6 +1361,109 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                 <button onClick={saveTracking} className="mt-4 bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 flex items-center gap-2">
                   <FaSave /> Save Tracking
                 </button>
+              </div>
+            </div>
+          )}
+
+          {/* FRAUD CHECK TAB */}
+          {activeTab === 'fraud' && (
+            <div>
+              <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
+                <FaExclamationTriangle className="text-orange-500" /> Fraud Check
+              </h3>
+              
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Steadfast Fraud Check */}
+                <div className="bg-white border rounded-lg p-6">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+                      <FaShippingFast className="text-blue-600 text-xl" />
+                    </div>
+                    <div>
+                      <h4 className="text-lg font-bold text-gray-900">Steadfast</h4>
+                      <p className="text-sm text-gray-500">Delivery fraud verification</p>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-3">
+                    <div className="bg-gray-50 p-4 rounded-lg">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-medium text-gray-600">Phone Number</span>
+                        <span className="text-sm text-gray-900">{customer?.phone || customerRecord?.phone || 'N/A'}</span>
+                      </div>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-medium text-gray-600">Address</span>
+                        <span className="text-sm text-gray-900 text-right max-w-[200px] truncate">{shippingAddress || 'N/A'}</span>
+                      </div>
+                    </div>
+                    
+                    <div className="bg-yellow-50 border border-yellow-200 p-4 rounded-lg">
+                      <div className="flex items-center gap-2 text-yellow-700">
+                        <FaExclamationTriangle />
+                        <span className="font-medium">Verification Status</span>
+                      </div>
+                      <p className="text-sm text-yellow-600 mt-1">Not yet verified</p>
+                    </div>
+                    
+                    <button 
+                      className="w-full bg-blue-600 text-white px-4 py-3 rounded-lg hover:bg-blue-700 flex items-center justify-center gap-2 font-semibold"
+                      onClick={() => alert('Steadfast fraud check will be implemented')}
+                    >
+                      <FaShippingFast /> Check with Steadfast
+                    </button>
+                  </div>
+                </div>
+
+                {/* Pathao Fraud Check */}
+                <div className="bg-white border rounded-lg p-6">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
+                      <FaShippingFast className="text-red-600 text-xl" />
+                    </div>
+                    <div>
+                      <h4 className="text-lg font-bold text-gray-900">Pathao</h4>
+                      <p className="text-sm text-gray-500">Delivery fraud verification</p>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-3">
+                    <div className="bg-gray-50 p-4 rounded-lg">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-medium text-gray-600">Phone Number</span>
+                        <span className="text-sm text-gray-900">{customer?.phone || customerRecord?.phone || 'N/A'}</span>
+                      </div>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-medium text-gray-600">Address</span>
+                        <span className="text-sm text-gray-900 text-right max-w-[200px] truncate">{shippingAddress || 'N/A'}</span>
+                      </div>
+                    </div>
+                    
+                    <div className="bg-yellow-50 border border-yellow-200 p-4 rounded-lg">
+                      <div className="flex items-center gap-2 text-yellow-700">
+                        <FaExclamationTriangle />
+                        <span className="font-medium">Verification Status</span>
+                      </div>
+                      <p className="text-sm text-yellow-600 mt-1">Not yet verified</p>
+                    </div>
+                    
+                    <button 
+                      className="w-full bg-red-600 text-white px-4 py-3 rounded-lg hover:bg-red-700 flex items-center justify-center gap-2 font-semibold"
+                      onClick={() => alert('Pathao fraud check will be implemented')}
+                    >
+                      <FaShippingFast /> Check with Pathao
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Fraud History Section */}
+              <div className="mt-6">
+                <h4 className="text-lg font-bold mb-4">Fraud Check History</h4>
+                <div className="bg-gray-50 border rounded-lg p-6 text-center text-gray-500">
+                  <FaHistory className="mx-auto mb-2 text-2xl" />
+                  <p>No fraud checks performed yet</p>
+                  <p className="text-sm mt-1">Run a fraud check above to see results here</p>
+                </div>
               </div>
             </div>
           )}

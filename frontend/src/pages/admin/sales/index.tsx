@@ -482,6 +482,11 @@ export default function AdminSales() {
         (o as any).shipping_thana ??
         '';
 
+      const shippingAddress =
+        (o as any).shippingAddress ??
+        (o as any).shipping_address ??
+        '';
+
       // Global search
       const q = normalize(filters.q);
       if (q) {
@@ -494,6 +499,7 @@ export default function AdminSales() {
           courierOrderId,
           district,
           thana,
+          shippingAddress,
         ]
           .map((v) => normalize(v))
           .join(' ');

@@ -6,10 +6,12 @@ import {
   FaPhone, FaFire, FaCheckCircle, FaClock, FaList, FaCalendarDay, 
   FaPlay, FaSearch, FaFilter, FaTimes, FaInfoCircle,
   FaThermometerHalf, FaSnowflake, FaRedo, FaChevronDown, FaChevronUp,
-  FaTasks, FaExclamationTriangle, FaEdit, FaCalendarAlt, FaSortAmountDown
+  FaTasks, FaExclamationTriangle, FaEdit, FaCalendarAlt, FaSortAmountDown, FaShoppingCart, FaEye
 } from 'react-icons/fa';
 import Link from 'next/link';
 import { format, isToday, isTomorrow, isPast, isThisWeek, addDays, startOfDay } from 'date-fns';
+import AdminOrderDetailsModal from '@/components/AdminOrderDetailsModal';
+import apiClient from '@/services/api';
 
 // CRM Task interface
 interface CrmTask {
@@ -51,6 +53,10 @@ export default function AllTasksPage() {
   
   // Data
   const [tasks, setTasks] = useState<CrmTask[]>([]);
+  
+  // Order Details Modal
+  const [showOrderModal, setShowOrderModal] = useState(false);
+  const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
   
   // Filters
   const [searchTerm, setSearchTerm] = useState('');
@@ -145,6 +151,25 @@ export default function AllTasksPage() {
       await loadTasks();
     } catch (error) {
       console.error('Failed to update task status:', error);
+    }
+  };
+
+  // View customer's latest order in modal
+  const handleViewOrder = async (customerId: number) => {
+    try {
+      // Fetch customer's orders
+      const res = await apiClient.get(`/order-management/customer/${customerId}/orders`);
+      const orders = res.data || [];
+      if (orders.length > 0) {
+        // Open modal with the most recent order
+        setSelectedOrderId(orders[0].id);
+        setShowOrderModal(true);
+      } else {
+        alert('No orders found for this customer');
+      }
+    } catch (err) {
+      console.error('Failed to fetch customer orders:', err);
+      alert('Failed to load customer orders');
     }
   };
 
@@ -361,6 +386,15 @@ export default function AllTasksPage() {
           </div>
           
           <div className="flex items-center gap-2 flex-shrink-0">
+            {task.customer && (
+              <button
+                onClick={() => handleViewOrder(task.customer!.id)}
+                className="px-3 py-1.5 bg-orange-600 text-white text-sm rounded hover:bg-orange-700 flex items-center gap-1"
+                title="View Order"
+              >
+                <FaShoppingCart size={10} /> Order
+              </button>
+            )}
             {task.status === 'pending' && (
               <button
                 onClick={() => handleUpdateTaskStatus(task.id, 'in_progress')}
@@ -691,6 +725,18 @@ export default function AllTasksPage() {
           </div>
         )}
       </div>
+
+      {/* Order Details Modal */}
+      {showOrderModal && selectedOrderId && (
+        <AdminOrderDetailsModal
+          orderId={selectedOrderId}
+          onClose={() => {
+            setShowOrderModal(false);
+            setSelectedOrderId(null);
+          }}
+          onUpdate={loadTasks}
+        />
+      )}
     </AdminLayout>
   );
 }

@@ -4,9 +4,10 @@ import apiClient, { auth } from '@/services/api';
 import { 
   FaPlus, FaSearch, FaFilter, FaTimes, FaPhone, FaCalendarAlt, 
   FaUser, FaClock, FaCheckCircle, FaSpinner, FaEdit, FaTrash,
-  FaChevronDown, FaFire, FaThermometerHalf, FaSnowflake, FaInfoCircle
+  FaChevronDown, FaFire, FaThermometerHalf, FaSnowflake, FaInfoCircle, FaShoppingCart
 } from 'react-icons/fa';
 import Link from 'next/link';
+import AdminOrderDetailsModal from '@/components/AdminOrderDetailsModal';
 
 interface FollowUp {
   id: number;
@@ -53,6 +54,10 @@ export default function MyFollowupsPage() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedFollowUp, setSelectedFollowUp] = useState<FollowUp | null>(null);
   const [saving, setSaving] = useState(false);
+  
+  // Order Details Modal
+  const [showOrderModal, setShowOrderModal] = useState(false);
+  const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
   
   // Customer search
   const [customerSearch, setCustomerSearch] = useState('');
@@ -110,6 +115,25 @@ export default function MyFollowupsPage() {
       console.error('Failed to load follow-ups:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // View customer's latest order in modal
+  const handleViewOrder = async (customerId: string) => {
+    try {
+      // Fetch customer's orders
+      const res = await apiClient.get(`/order-management/customer/${customerId}/orders`);
+      const orders = res.data || [];
+      if (orders.length > 0) {
+        // Open modal with the most recent order
+        setSelectedOrderId(orders[0].id);
+        setShowOrderModal(true);
+      } else {
+        alert('No orders found for this customer');
+      }
+    } catch (err) {
+      console.error('Failed to fetch customer orders:', err);
+      alert('Failed to load customer orders');
     }
   };
 
@@ -591,6 +615,13 @@ export default function MyFollowupsPage() {
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => handleViewOrder(followUp.customer_id)}
+                            className="p-2 text-orange-600 hover:bg-orange-50 rounded-lg transition-colors"
+                            title="View Order"
+                          >
+                            <FaShoppingCart />
+                          </button>
                           <Link
                             href={`/admin/customers/${followUp.customer_id}`}
                             className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
@@ -865,6 +896,18 @@ export default function MyFollowupsPage() {
             </form>
           </div>
         </div>
+      )}
+
+      {/* Order Details Modal */}
+      {showOrderModal && selectedOrderId && (
+        <AdminOrderDetailsModal
+          orderId={selectedOrderId}
+          onClose={() => {
+            setShowOrderModal(false);
+            setSelectedOrderId(null);
+          }}
+          onUpdate={loadFollowUps}
+        />
       )}
     </AdminLayout>
   );
