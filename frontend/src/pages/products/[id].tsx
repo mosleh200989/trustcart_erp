@@ -103,6 +103,9 @@ export default function ProductDetailsPage() {
 
       const response = await apiClient.get(endpoint);
       setProduct(response.data);
+      
+      // Debug: Log description to see what format it's in
+      // console.log("Product description_en:", response.data.description_en);
 
       // Load product images
       try {
@@ -644,7 +647,7 @@ export default function ProductDetailsPage() {
                   {displayName}
                 </h1>
 
-                {/* Rating */}
+                {/* Rating - TODO: Uncomment when review system is implemented
                 <div className="flex items-center mb-4">
                   <div className="flex text-yellow-400 mr-2">
                     {[1, 2, 3, 4, 5].map((star) => (
@@ -653,6 +656,7 @@ export default function ProductDetailsPage() {
                   </div>
                   <span className="text-gray-600 text-sm">(125 reviews)</span>
                 </div>
+                */}
 
                 {/* Price */}
                 <div className="mb-6">
@@ -869,9 +873,26 @@ export default function ProductDetailsPage() {
                       Product Description
                     </h3>
                     {product.description_en ? (
-                      <p className="text-gray-700 leading-relaxed whitespace-pre-line">
-                        {product.description_en}
-                      </p>
+                      // Check if description contains HTML tags
+                      /<[a-z][\s\S]*>/i.test(product.description_en) ? (
+                        // Render as HTML if it contains HTML tags
+                        <div 
+                          className="text-gray-700 leading-relaxed prose prose-sm sm:prose lg:prose-lg max-w-none
+                            [&>p]:mb-4 [&>ul]:list-disc [&>ul]:pl-5 [&>ul]:mb-4 
+                            [&>ol]:list-decimal [&>ol]:pl-5 [&>ol]:mb-4
+                            [&>li]:mb-2 [&>h1]:text-2xl [&>h1]:font-bold [&>h1]:mb-3
+                            [&>h2]:text-xl [&>h2]:font-bold [&>h2]:mb-3
+                            [&>h3]:text-lg [&>h3]:font-semibold [&>h3]:mb-2
+                            [&>strong]:font-bold [&>em]:italic
+                            [&>a]:text-orange-500 [&>a]:underline"
+                          dangerouslySetInnerHTML={{ __html: product.description_en }}
+                        />
+                      ) : (
+                        // Render as plain text with preserved line breaks
+                        <p className="text-gray-700 leading-relaxed whitespace-pre-line">
+                          {product.description_en}
+                        </p>
+                      )
                     ) : (
                       <p className="text-gray-500 italic">
                         No description available for this product.
