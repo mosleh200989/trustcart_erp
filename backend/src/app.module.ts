@@ -147,6 +147,7 @@ import { SpecialOffersModule } from './modules/special-offers/special-offers.mod
 import { TelephonyModule } from './modules/telephony/telephony.module';
 import { SettingsModule } from './modules/settings/settings.module';
 import { TaggingModule } from './modules/tagging/tagging.module';
+import { LegacyMigrationModule } from './modules/legacy-migration/legacy-migration.module';
 
 @Module({
   imports: [
@@ -247,6 +248,7 @@ import { TaggingModule } from './modules/tagging/tagging.module';
     TelephonyModule,
     SettingsModule,
     TaggingModule,
+    LegacyMigrationModule,
   ],
   controllers: [],
   providers: [],
