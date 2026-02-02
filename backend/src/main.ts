@@ -10,7 +10,7 @@ async function bootstrap() {
   // Set global API prefix
   app.setGlobalPrefix('api');
 
-  // Enable CORS
+  // Enable CORS with Private Network Access support
   app.enableCors({
     origin: [
       'https://trustkert.com',
@@ -21,6 +21,17 @@ async function bootstrap() {
       ...(process.env.CORS_ORIGIN ? [process.env.CORS_ORIGIN] : []),
     ],
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  });
+
+  // Handle Private Network Access preflight (Chrome's local network access prompt)
+  app.use((req: any, res: any, next: any) => {
+    // Respond to Private Network Access preflight requests
+    if (req.headers['access-control-request-private-network']) {
+      res.setHeader('Access-Control-Allow-Private-Network', 'true');
+    }
+    next();
   });
 
   // Set response headers for UTF-8 encoding
