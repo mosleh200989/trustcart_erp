@@ -12,6 +12,7 @@ async function bootstrap() {
 
   // Enable CORS with Private Network Access support
   app.enableCors({
+    // origin: true, // Allow all origins temporarily for debugging - change back to array for production
     origin: [
       'https://trustkert.com',
       'https://www.trustkert.com',
@@ -21,8 +22,8 @@ async function bootstrap() {
       ...(process.env.CORS_ORIGIN ? [process.env.CORS_ORIGIN] : []),
     ],
     credentials: true,
-    // methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    // allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
   });
 
   // Handle Private Network Access preflight (Chrome's local network access prompt)
