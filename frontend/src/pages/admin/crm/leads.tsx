@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import AdminLayout from '@/layouts/AdminLayout';
+import PageSizeSelector from '@/components/admin/PageSizeSelector';
 import apiClient from '@/services/api';
 import { useToast } from '@/contexts/ToastContext';
 import AdminOrderDetailsModal from '@/components/AdminOrderDetailsModal';
@@ -35,7 +36,7 @@ export default function CrmLeadsPage() {
   const [showOrderModal, setShowOrderModal] = useState(false);
   const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
 
-  const pageSize = 20;
+  const [pageSize, setPageSize] = useState(20);
 
   useEffect(() => {
     loadLeads();
@@ -139,7 +140,16 @@ export default function CrmLeadsPage() {
         </div>
 
         <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-xl font-semibold text-gray-800 mb-4">Team Leads</h2>
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-semibold text-gray-800">Team Leads</h2>
+            <PageSizeSelector
+              value={pageSize}
+              onChange={(size) => {
+                setPageSize(size);
+                setPage(1);
+              }}
+            />
+          </div>
           {loading ? (
             <div className="text-center text-gray-500">Loading leads...</div>
           ) : leads.length === 0 ? (

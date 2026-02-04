@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useToast } from '@/contexts/ToastContext';
 import AdminLayout from '@/layouts/AdminLayout';
+import PageSizeSelector from '@/components/admin/PageSizeSelector';
 import { apiUrl } from '@/config/backend';
 import { useAuth } from '@/contexts/AuthContext';
 import { 
@@ -72,7 +73,7 @@ export default function AllTasksPage() {
   
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 20;
+  const [itemsPerPage, setItemsPerPage] = useState(20);
 
   // Stats
   const [stats, setStats] = useState<Stats>({
@@ -652,6 +653,13 @@ export default function AllTasksPage() {
             Showing {paginatedTasks.length} of {filteredTasks.length} tasks
             {hasActiveFilters && ` (filtered from ${tasks.length} total)`}
           </span>
+          <PageSizeSelector
+            value={itemsPerPage}
+            onChange={(size) => {
+              setItemsPerPage(size);
+              setCurrentPage(1);
+            }}
+          />
         </div>
 
         {/* Task List */}

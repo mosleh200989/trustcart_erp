@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import AdminLayout from '@/layouts/AdminLayout';
 import DataTable from '@/components/admin/DataTable';
+import PageSizeSelector from '@/components/admin/PageSizeSelector';
 import Modal from '@/components/admin/Modal';
 import FormInput from '@/components/admin/FormInput';
 import { FaPlus, FaSearch } from 'react-icons/fa';
@@ -28,7 +29,7 @@ export default function AdminCustomers() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<'add' | 'edit' | 'view'>('add');
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
-  const itemsPerPage = 10;
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -235,6 +236,16 @@ export default function AdminCustomers() {
             </div>
           </div>
         )}
+
+        <div className="mb-4 flex justify-end">
+          <PageSizeSelector
+            value={itemsPerPage}
+            onChange={(size) => {
+              setItemsPerPage(size);
+              setCurrentPage(1);
+            }}
+          />
+        </div>
 
         <DataTable
           columns={columns}
