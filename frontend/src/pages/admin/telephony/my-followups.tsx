@@ -4,10 +4,9 @@ import AdminLayout from '@/layouts/AdminLayout';
 import apiClient, { auth } from '@/services/api';
 import { 
   FaPlus, FaSearch, FaFilter, FaTimes, FaPhone, FaCalendarAlt, 
-  FaUser, FaClock, FaCheckCircle, FaSpinner, FaEdit, FaTrash,
-  FaChevronDown, FaFire, FaThermometerHalf, FaSnowflake, FaInfoCircle, FaShoppingCart
+  FaClock, FaCheckCircle, FaSpinner, FaEdit, FaTrash,
+  FaChevronDown, FaFire, FaThermometerHalf, FaSnowflake, FaInfoCircle, FaEye
 } from 'react-icons/fa';
-import Link from 'next/link';
 import AdminOrderDetailsModal from '@/components/AdminOrderDetailsModal';
 
 interface FollowUp {
@@ -619,18 +618,11 @@ export default function MyFollowupsPage() {
                         <div className="flex items-center gap-2">
                           <button
                             onClick={() => handleViewOrder(followUp.customer_id)}
-                            className="p-2 text-orange-600 hover:bg-orange-50 rounded-lg transition-colors"
-                            title="View Order"
-                          >
-                            <FaShoppingCart />
-                          </button>
-                          <Link
-                            href={`/admin/customers/${followUp.customer_id}`}
                             className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                            title="View Customer"
+                            title="View"
                           >
-                            <FaUser />
-                          </Link>
+                            <FaEye />
+                          </button>
                           <button
                             onClick={() => openEditModal(followUp)}
                             className="p-2 text-gray-600 hover:bg-gray-50 rounded-lg transition-colors"

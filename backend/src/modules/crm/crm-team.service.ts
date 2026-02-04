@@ -256,7 +256,25 @@ export class CrmTeamService {
     qb.skip(skip).take(limitNum);
 
     const [data, total] = await qb.getManyAndCount();
-    return { data, total };
+
+    // Enrich with agent names
+    const agentIds = Array.from(new Set(data.map(c => c.assigned_to).filter(id => id != null)));
+    let agentMap = new Map<number, string>();
+    
+    if (agentIds.length > 0) {
+      const agents = await this.usersRepository.findByIds(agentIds);
+      agents.forEach(agent => {
+        const fullName = [agent.name, agent.lastName].filter(Boolean).join(' ').trim() || `Agent #${agent.id}`;
+        agentMap.set(agent.id, fullName);
+      });
+    }
+
+    const enrichedData = data.map(c => ({
+      ...c,
+      assigned_to_name: c.assigned_to ? (agentMap.get(c.assigned_to) || `Agent #${c.assigned_to}`) : null,
+    }));
+
+    return { data: enrichedData, total };
   }
 
   // Bulk assign leads to an agent

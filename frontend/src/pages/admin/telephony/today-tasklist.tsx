@@ -445,12 +445,12 @@ export default function TodayTasklistPage() {
               <FaShoppingCart size={10} /> View Order
             </button>
           )}
-          <Link
-            href={`/admin/crm/customer/${lead.id}`}
+          <button
+            onClick={() => handleViewOrder(lead.id)}
             className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 flex items-center gap-1"
           >
-            <FaEye size={10} /> View Details
-          </Link>
+            <FaEye size={10} /> View
+          </button>
         </div>
       </div>
     </div>

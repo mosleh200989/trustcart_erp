@@ -817,6 +817,31 @@ export class OrderManagementService {
     return await this.salesOrderRepository.save(order);
   }
 
+  // ==================== CUSTOMER ORDERS ====================
+
+  async getCustomerOrders(customerId: number): Promise<any[]> {
+    const orders = await this.salesOrderRepository.find({
+      where: { customerId },
+      order: { createdAt: 'DESC' },
+      take: 50, // Limit to most recent 50 orders
+    });
+
+    return orders.map((order) => ({
+      id: order.id,
+      salesOrderNumber: order.salesOrderNumber,
+      customerId: order.customerId,
+      customerName: order.customerName,
+      customerPhone: order.customerPhone,
+      customerEmail: order.customerEmail,
+      totalAmount: parseFloat(order.totalAmount?.toString() || '0'),
+      status: order.status,
+      orderDate: order.orderDate || order.createdAt,
+      createdAt: order.createdAt,
+      shippingAddress: order.shippingAddress,
+      courierStatus: order.courierStatus,
+    }));
+  }
+
   async getOrderDetails(orderId: number): Promise<any> {
     const order = await this.salesOrderRepository.findOne({ where: { id: orderId } });
     if (!order) throw new Error('Order not found');
