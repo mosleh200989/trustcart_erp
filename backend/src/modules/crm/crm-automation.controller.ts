@@ -97,6 +97,17 @@ export class CrmAutomationController {
   async trackEngagement(@Body() data: any) {
     return await this.automationService.trackEngagement(data);
   }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('customer/:customerId/mark-called')
+  async markCustomerAsCalled(
+    @Param('customerId') customerId: string,
+    @Body() body: { notes?: string; taskId?: number },
+    @Request() req: any
+  ) {
+    const agentId = Number(req.user?.id ?? req.user?.userId);
+    return await this.automationService.markCustomerAsCalled(customerId, agentId, body.notes, body.taskId);
+  }
   
   @Get('engagement/:customerId')
   async getEngagementHistory(

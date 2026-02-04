@@ -33,6 +33,7 @@ import { SalesOrderItem } from './modules/sales/sales-order-item.entity';
 import { OrderItem } from './modules/sales/entities/order-item.entity';
 import { OrderActivityLog } from './modules/sales/entities/order-activity-log.entity';
 import { CourierTrackingHistory } from './modules/sales/entities/courier-tracking-history.entity';
+import { FraudCheck } from './modules/sales/entities/fraud-check.entity';
 import { SupportTicket } from './modules/support/support-ticket.entity';
 import { Offer } from './modules/offers/entities/offer.entity';
 import { OfferCondition } from './modules/offers/entities/offer-condition.entity';
@@ -175,7 +176,7 @@ import { LegacyMigrationModule } from './modules/legacy-migration/legacy-migrati
             JobPost, JobApplication, Interview,
             FamilyMember, CustomerInteraction, CustomerBehavior, CustomerDropoff, CustomerAddress,
             CallTask, RecommendationRule, EngagementHistory, MarketingCampaign,
-            SalesTeam, SalesOrder, SalesOrderItem, OrderItem, OrderActivityLog, CourierTrackingHistory, SupportTicket,
+            SalesTeam, SalesOrder, SalesOrderItem, OrderItem, OrderActivityLog, CourierTrackingHistory, FraudCheck, SupportTicket,
 
             Offer, OfferCondition, OfferReward, OfferProduct, OfferCategory, OfferUsage, Banner, Category, SpecialOffer,
             

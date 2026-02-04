@@ -58,6 +58,29 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
   // Tracking edit
   const [trackingForm, setTrackingForm] = useState<any>({});
 
+  // Create new order
+  const [showCreateOrderModal, setShowCreateOrderModal] = useState(false);
+  const [creatingOrder, setCreatingOrder] = useState(false);
+  const [newOrderForm, setNewOrderForm] = useState({
+    notes: '',
+    shippingAddress: '',
+    status: 'pending',
+    productId: null as number | null,
+    productName: '',
+    quantity: 1,
+    unitPrice: 0
+  });
+  const [productSearchQuery, setProductSearchQuery] = useState('');
+  const [productSearchResults, setProductSearchResults] = useState<any[]>([]);
+  const [searchingProducts, setSearchingProducts] = useState(false);
+  const [showProductDropdown, setShowProductDropdown] = useState(false);
+
+  // Fraud Check states
+  const [fraudCheckLoading, setFraudCheckLoading] = useState(false);
+  const [fraudCheckResult, setFraudCheckResult] = useState<any>(null);
+  const [fraudCheckHistory, setFraudCheckHistory] = useState<any[]>([]);
+  const [fraudHistoryLoading, setFraudHistoryLoading] = useState(false);
+
   useEffect(() => {
     setCurrentOrderId(orderId);
   }, [orderId]);
@@ -65,6 +88,26 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
   useEffect(() => {
     loadOrderDetails();
   }, [currentOrderId]);
+
+  // Load fraud check history when fraud tab is opened
+  useEffect(() => {
+    if (activeTab === 'fraud' && currentOrderId) {
+      loadFraudHistory();
+    }
+  }, [activeTab, currentOrderId]);
+
+  // Define loadFraudHistory early so it can be used in useEffect
+  const loadFraudHistory = async () => {
+    try {
+      setFraudHistoryLoading(true);
+      const response = await apiClient.get(`/sales/fraud-check/order/${currentOrderId}/history`);
+      setFraudCheckHistory(response.data?.data || []);
+    } catch (error) {
+      console.error('Failed to load fraud history:', error);
+    } finally {
+      setFraudHistoryLoading(false);
+    }
+  };
 
   const loadOrderDetails = async () => {
     try {
@@ -331,6 +374,107 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
     }
   };
 
+  // ==================== CREATE NEW ORDER ====================
+
+  // Product search for new order
+  const searchProductsForNewOrder = async (query: string) => {
+    setProductSearchQuery(query);
+    if (!query.trim()) {
+      setProductSearchResults([]);
+      setShowProductDropdown(false);
+      return;
+    }
+    
+    setSearchingProducts(true);
+    try {
+      const response = await apiClient.get(`/products/search?q=${encodeURIComponent(query)}`);
+      setProductSearchResults(response.data || []);
+      setShowProductDropdown(true);
+    } catch (error) {
+      console.error('Product search failed:', error);
+      setProductSearchResults([]);
+    } finally {
+      setSearchingProducts(false);
+    }
+  };
+
+  const selectProductForNewOrder = (product: any) => {
+    setNewOrderForm({
+      ...newOrderForm,
+      productId: product.id,
+      productName: product.name_en || product.name,
+      unitPrice: product.sale_price || product.base_price || product.price || 0
+    });
+    setProductSearchQuery(product.name_en || product.name);
+    setShowProductDropdown(false);
+  };
+
+  const handleCreateNewOrder = async () => {
+    if (!customer && !customerRecord) {
+      toast.error('No customer information available');
+      return;
+    }
+
+    // Validate product is selected if quantity > 0
+    if (newOrderForm.quantity > 0 && !newOrderForm.productId) {
+      toast.error('Please select a product');
+      return;
+    }
+
+    setCreatingOrder(true);
+    try {
+      const customerId = customerRecord?.id || customer?.customerId || order?.customerId;
+      
+      // Calculate total amount based on product
+      const totalAmount = newOrderForm.productId ? newOrderForm.quantity * newOrderForm.unitPrice : 0;
+      
+      const payload = {
+        customerId: customerId ? Number(customerId) : null,
+        customerName: customerRecord?.name || customer?.customerName || order?.customerName || null,
+        customerEmail: customerRecord?.email || customer?.customerEmail || order?.customerEmail || null,
+        customerPhone: customerRecord?.phone || customer?.customerPhone || order?.customerPhone || null,
+        shippingAddress: newOrderForm.shippingAddress || null,
+        notes: newOrderForm.notes || null,
+        status: newOrderForm.status,
+        orderDate: new Date().toISOString(),
+        totalAmount: totalAmount,
+      };
+
+      const response = await apiClient.post('/sales', payload);
+      const newOrderId = response.data?.id;
+      
+      // If a product was selected, add it as an order item
+      if (newOrderId && newOrderForm.productId) {
+        try {
+          await apiClient.post(`/order-management/${newOrderId}/items`, {
+            productId: newOrderForm.productId,
+            productName: newOrderForm.productName,
+            quantity: newOrderForm.quantity,
+            unitPrice: newOrderForm.unitPrice,
+          });
+        } catch (itemError) {
+          console.error('Failed to add product to order:', itemError);
+          toast.warning('Order created but failed to add product');
+        }
+      }
+      
+      toast.success('New order created successfully');
+      setShowCreateOrderModal(false);
+      
+      // Switch to the new order
+      if (newOrderId) {
+        setCurrentOrderId(newOrderId);
+      }
+      
+      onUpdate();
+    } catch (error: any) {
+      console.error('Failed to create order:', error);
+      toast.error(error.response?.data?.message || 'Failed to create new order');
+    } finally {
+      setCreatingOrder(false);
+    }
+  };
+
   // ==================== STATUS MANAGEMENT ====================
 
   const approveOrder = async () => {
@@ -413,6 +557,61 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
     }
   };
 
+  // ==================== FRAUD CHECK ====================
+
+  const runFraudCheck = async () => {
+    const phone = customer?.phone || customerRecord?.phone || order?.customerPhone;
+    if (!phone) {
+      toast.error('No phone number available for fraud check');
+      return;
+    }
+
+    setFraudCheckLoading(true);
+    setFraudCheckResult(null);
+    
+    try {
+      const response = await apiClient.get('/sales/fraud-check/courier', {
+        params: {
+          phone,
+          orderId: currentOrderId,
+        },
+      });
+      
+      if (response.data?.success) {
+        setFraudCheckResult(response.data.data);
+        toast.success('Fraud check completed');
+        loadFraudHistory(); // Refresh history
+      } else {
+        toast.error(response.data?.error || 'Fraud check failed');
+      }
+    } catch (error: any) {
+      const message = error.response?.data?.message || error.message || 'Failed to run fraud check';
+      toast.error(message);
+      console.error('Fraud check error:', error);
+    } finally {
+      setFraudCheckLoading(false);
+    }
+  };
+
+  // Helper to get risk level color
+  const getRiskLevelColor = (riskLevel: string) => {
+    switch (riskLevel) {
+      case 'low': return 'bg-green-100 text-green-800 border-green-200';
+      case 'medium': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+      case 'high': return 'bg-red-100 text-red-800 border-red-200';
+      default: return 'bg-gray-100 text-gray-800 border-gray-200';
+    }
+  };
+
+  const getRiskLevelIcon = (riskLevel: string) => {
+    switch (riskLevel) {
+      case 'low': return '✅';
+      case 'medium': return '⚠️';
+      case 'high': return '🚨';
+      default: return '❓';
+    }
+  };
+
   const viewCustomer: any = {
     ...(customerRecord || {}),
     id: customerRecord?.id ?? customer?.customerId ?? order?.customerId ?? null,
@@ -462,6 +661,27 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
 
         {/* Action Buttons */}
         <div className="p-6 border-b bg-gray-50 flex gap-3 flex-wrap">
+          <button 
+            onClick={() => {
+              setNewOrderForm({
+                notes: '',
+                shippingAddress: order?.shippingAddress || customerRecord?.address || '',
+                status: 'pending',
+                productId: null,
+                productName: '',
+                quantity: 1,
+                unitPrice: 0
+              });
+              setProductSearchQuery('');
+              setProductSearchResults([]);
+              setShowProductDropdown(false);
+              setShowCreateOrderModal(true);
+            }} 
+            className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 flex items-center gap-2"
+          >
+            <FaPlus /> Create New Order
+          </button>
+
           {order.status !== 'approved' && order.status !== 'shipped' && order.status !== 'delivered' && (
             <button onClick={approveOrder} className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2">
               <FaCheck /> Approve
@@ -1133,7 +1353,6 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                             <button
                               onClick={() => {
                                 setCurrentOrderId(Number(h.id));
-                                setActiveTab('items');
                               }}
                               className="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700"
                               disabled={Number(h.id) === Number(currentOrderId)}
@@ -1374,98 +1593,191 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                 <FaExclamationTriangle className="text-orange-500" /> Fraud Check
               </h3>
               
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Steadfast Fraud Check */}
-                <div className="bg-white border rounded-lg p-6">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
-                      <FaShippingFast className="text-blue-600 text-xl" />
-                    </div>
-                    <div>
-                      <h4 className="text-lg font-bold text-gray-900">Steadfast</h4>
-                      <p className="text-sm text-gray-500">Delivery fraud verification</p>
-                    </div>
+              {/* Main Fraud Check Card */}
+              <div className="bg-white border rounded-lg p-6 mb-6">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-12 h-12 bg-indigo-100 rounded-full flex items-center justify-center">
+                    <FaShippingFast className="text-indigo-600 text-xl" />
                   </div>
-                  
-                  <div className="space-y-3">
-                    <div className="bg-gray-50 p-4 rounded-lg">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm font-medium text-gray-600">Phone Number</span>
-                        <span className="text-sm text-gray-900">{customer?.phone || customerRecord?.phone || 'N/A'}</span>
-                      </div>
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm font-medium text-gray-600">Address</span>
-                        <span className="text-sm text-gray-900 text-right max-w-[200px] truncate">{shippingAddress || 'N/A'}</span>
-                      </div>
-                    </div>
-                    
-                    <div className="bg-yellow-50 border border-yellow-200 p-4 rounded-lg">
-                      <div className="flex items-center gap-2 text-yellow-700">
-                        <FaExclamationTriangle />
-                        <span className="font-medium">Verification Status</span>
-                      </div>
-                      <p className="text-sm text-yellow-600 mt-1">Not yet verified</p>
-                    </div>
-                    
-                    <button 
-                      className="w-full bg-blue-600 text-white px-4 py-3 rounded-lg hover:bg-blue-700 flex items-center justify-center gap-2 font-semibold"
-                      onClick={() => toast.info('Steadfast fraud check will be implemented')}
-                    >
-                      <FaShippingFast /> Check with Steadfast
-                    </button>
+                  <div>
+                    <h4 className="text-lg font-bold text-gray-900">Hoorin Courier Check</h4>
+                    <p className="text-sm text-gray-500">Check delivery history across Steadfast, RedX, Pathao, Paperfly</p>
                   </div>
                 </div>
-
-                {/* Pathao Fraud Check */}
-                <div className="bg-white border rounded-lg p-6">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
-                      <FaShippingFast className="text-red-600 text-xl" />
+                
+                <div className="space-y-4">
+                  {/* Customer Info */}
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-medium text-gray-600">Phone Number</span>
+                      <span className="text-sm text-gray-900 font-mono">{customer?.phone || customerRecord?.phone || order?.customerPhone || 'N/A'}</span>
                     </div>
-                    <div>
-                      <h4 className="text-lg font-bold text-gray-900">Pathao</h4>
-                      <p className="text-sm text-gray-500">Delivery fraud verification</p>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-gray-600">Customer Name</span>
+                      <span className="text-sm text-gray-900">{customer?.customerName || customerRecord?.name || order?.customerName || 'N/A'}</span>
                     </div>
                   </div>
                   
-                  <div className="space-y-3">
-                    <div className="bg-gray-50 p-4 rounded-lg">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm font-medium text-gray-600">Phone Number</span>
-                        <span className="text-sm text-gray-900">{customer?.phone || customerRecord?.phone || 'N/A'}</span>
+                  {/* Run Check Button */}
+                  <button 
+                    className="w-full bg-indigo-600 text-white px-4 py-3 rounded-lg hover:bg-indigo-700 flex items-center justify-center gap-2 font-semibold disabled:opacity-50"
+                    onClick={runFraudCheck}
+                    disabled={fraudCheckLoading || (!customer?.phone && !customerRecord?.phone && !order?.customerPhone)}
+                  >
+                    {fraudCheckLoading ? (
+                      <>
+                        <span className="animate-spin">⏳</span> Checking...
+                      </>
+                    ) : (
+                      <>
+                        <FaShippingFast /> Run Fraud Check
+                      </>
+                    )}
+                  </button>
+                  
+                  {/* Results Display */}
+                  {fraudCheckResult && (
+                    <div className="space-y-4 mt-4">
+                      {/* Risk Summary */}
+                      <div className={`p-4 rounded-lg border-2 ${getRiskLevelColor(fraudCheckResult.riskLevel)}`}>
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-lg font-bold flex items-center gap-2">
+                            {getRiskLevelIcon(fraudCheckResult.riskLevel)} Risk Level
+                          </span>
+                          <span className="text-lg font-bold uppercase">{fraudCheckResult.riskLevel}</span>
+                        </div>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
+                          <div className="text-center p-2 bg-white bg-opacity-50 rounded">
+                            <div className="text-2xl font-bold">{fraudCheckResult.totalParcels}</div>
+                            <div className="text-xs">Total Parcels</div>
+                          </div>
+                          <div className="text-center p-2 bg-white bg-opacity-50 rounded">
+                            <div className="text-2xl font-bold text-green-700">{fraudCheckResult.totalDelivered}</div>
+                            <div className="text-xs">Delivered</div>
+                          </div>
+                          <div className="text-center p-2 bg-white bg-opacity-50 rounded">
+                            <div className="text-2xl font-bold text-red-700">{fraudCheckResult.totalCanceled}</div>
+                            <div className="text-xs">Canceled</div>
+                          </div>
+                          <div className="text-center p-2 bg-white bg-opacity-50 rounded">
+                            <div className="text-2xl font-bold">{fraudCheckResult.cancellationRate}%</div>
+                            <div className="text-xs">Cancel Rate</div>
+                          </div>
+                        </div>
                       </div>
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm font-medium text-gray-600">Address</span>
-                        <span className="text-sm text-gray-900 text-right max-w-[200px] truncate">{shippingAddress || 'N/A'}</span>
+                      
+                      {/* Courier Breakdown */}
+                      <div className="bg-white border rounded-lg p-4">
+                        <h5 className="font-bold text-gray-800 mb-3">Courier Breakdown</h5>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          {Object.entries(fraudCheckResult.summaries || {}).map(([courier, data]: [string, any]) => (
+                            <div key={courier} className="bg-gray-50 p-3 rounded-lg border">
+                              <div className="font-semibold text-gray-800 mb-2 flex items-center gap-2">
+                                <FaShippingFast className={courier === 'Steadfast' ? 'text-blue-600' : courier === 'Pathao' ? 'text-red-600' : courier === 'RedX' ? 'text-orange-600' : 'text-green-600'} />
+                                {courier}
+                              </div>
+                              <div className="grid grid-cols-3 gap-2 text-sm">
+                                <div className="text-center">
+                                  <div className="font-bold">{data['Total Parcels'] ?? data['Total Delivery'] ?? 0}</div>
+                                  <div className="text-xs text-gray-500">Total</div>
+                                </div>
+                                <div className="text-center">
+                                  <div className="font-bold text-green-600">{data['Delivered Parcels'] ?? data['Successful Delivery'] ?? 0}</div>
+                                  <div className="text-xs text-gray-500">Delivered</div>
+                                </div>
+                                <div className="text-center">
+                                  <div className="font-bold text-red-600">{data['Canceled Parcels'] ?? data['Canceled Delivery'] ?? 0}</div>
+                                  <div className="text-xs text-gray-500">Canceled</div>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                          {Object.keys(fraudCheckResult.summaries || {}).length === 0 && (
+                            <div className="col-span-2 text-center text-gray-500 py-4">
+                              No courier history found for this phone number
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
-                    
-                    <div className="bg-yellow-50 border border-yellow-200 p-4 rounded-lg">
-                      <div className="flex items-center gap-2 text-yellow-700">
-                        <FaExclamationTriangle />
-                        <span className="font-medium">Verification Status</span>
-                      </div>
-                      <p className="text-sm text-yellow-600 mt-1">Not yet verified</p>
-                    </div>
-                    
-                    <button 
-                      className="w-full bg-red-600 text-white px-4 py-3 rounded-lg hover:bg-red-700 flex items-center justify-center gap-2 font-semibold"
-                      onClick={() => toast.info('Pathao fraud check will be implemented')}
-                    >
-                      <FaShippingFast /> Check with Pathao
-                    </button>
-                  </div>
+                  )}
                 </div>
               </div>
 
               {/* Fraud History Section */}
               <div className="mt-6">
-                <h4 className="text-lg font-bold mb-4">Fraud Check History</h4>
-                <div className="bg-gray-50 border rounded-lg p-6 text-center text-gray-500">
-                  <FaHistory className="mx-auto mb-2 text-2xl" />
-                  <p>No fraud checks performed yet</p>
-                  <p className="text-sm mt-1">Run a fraud check above to see results here</p>
+                <div className="flex items-center justify-between mb-4">
+                  <h4 className="text-lg font-bold">Fraud Check History</h4>
+                  <button 
+                    onClick={loadFraudHistory}
+                    className="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1"
+                  >
+                    <FaHistory /> Refresh History
+                  </button>
                 </div>
+                
+                {fraudHistoryLoading ? (
+                  <div className="bg-gray-50 border rounded-lg p-6 text-center text-gray-500">
+                    <span className="animate-spin inline-block">⏳</span> Loading history...
+                  </div>
+                ) : fraudCheckHistory.length > 0 ? (
+                  <div className="space-y-3">
+                    {fraudCheckHistory.map((check) => (
+                      <div key={check.id} className={`border rounded-lg p-4 ${
+                        check.status === 'success' 
+                          ? check.riskLevel === 'high' ? 'border-red-200 bg-red-50' 
+                            : check.riskLevel === 'medium' ? 'border-yellow-200 bg-yellow-50'
+                            : 'border-green-200 bg-green-50'
+                          : 'border-gray-200 bg-gray-50'
+                      }`}>
+                        <div className="flex justify-between items-start mb-2">
+                          <div className="flex items-center gap-2">
+                            <span className="font-semibold">{check.provider?.toUpperCase()}</span>
+                            <span className="text-xs px-2 py-1 rounded bg-white">{check.checkType}</span>
+                            {check.riskLevel && (
+                              <span className={`text-xs px-2 py-1 rounded font-bold ${getRiskLevelColor(check.riskLevel)}`}>
+                                {getRiskLevelIcon(check.riskLevel)} {check.riskLevel?.toUpperCase()}
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-xs text-gray-500">
+                            {new Date(check.createdAt).toLocaleString()}
+                          </span>
+                        </div>
+                        
+                        <div className="flex flex-wrap gap-4 text-sm">
+                          <span><strong>Phone:</strong> {check.phoneNumber}</span>
+                          {check.totalParcels !== null && (
+                            <>
+                              <span><strong>Total:</strong> {check.totalParcels}</span>
+                              <span className="text-green-700"><strong>Delivered:</strong> {check.totalDelivered}</span>
+                              <span className="text-red-700"><strong>Canceled:</strong> {check.totalCanceled}</span>
+                              <span><strong>Cancel Rate:</strong> {check.cancellationRate}%</span>
+                            </>
+                          )}
+                        </div>
+                        
+                        {check.checkedByUser && (
+                          <div className="text-xs text-gray-500 mt-2">
+                            Checked by: {check.checkedByUser.name} {check.checkedByUser.lastName || ''}
+                          </div>
+                        )}
+                        
+                        {check.status === 'error' && (
+                          <div className="text-sm text-red-600 mt-2">
+                            Error: {check.errorMessage}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="bg-gray-50 border rounded-lg p-6 text-center text-gray-500">
+                    <FaHistory className="mx-auto mb-2 text-2xl" />
+                    <p>No fraud checks performed yet</p>
+                    <p className="text-sm mt-1">Run a fraud check above to see results here</p>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -1617,6 +1929,146 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                 </button>
                 <button onClick={() => setShowCancelModal(false)} className="bg-gray-400 text-white px-6 py-2 rounded hover:bg-gray-500">
                   Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Create New Order Modal */}
+        {showCreateOrderModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white p-6 rounded-lg max-w-lg w-full max-h-[90vh] overflow-y-auto">
+              <h3 className="text-xl font-bold mb-4 text-purple-600">Create New Order</h3>
+              <p className="text-gray-600 mb-4">
+                Create a new order for: <strong>{customerRecord?.name || customer?.customerName || order?.customerName || 'Customer'}</strong>
+              </p>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="block font-semibold mb-1">Shipping Address</label>
+                  <textarea
+                    value={newOrderForm.shippingAddress}
+                    onChange={(e) => setNewOrderForm({ ...newOrderForm, shippingAddress: e.target.value })}
+                    className="w-full border p-2 rounded"
+                    rows={3}
+                    placeholder="Enter shipping address..."
+                  />
+                </div>
+
+                {/* Product Selection */}
+                <div className="relative">
+                  <label className="block font-semibold mb-1">Product <span className="text-red-500">*</span></label>
+                  <input
+                    type="text"
+                    value={productSearchQuery}
+                    onChange={(e) => searchProductsForNewOrder(e.target.value)}
+                    onFocus={() => productSearchResults.length > 0 && setShowProductDropdown(true)}
+                    className="w-full border p-2 rounded"
+                    placeholder="Search for product..."
+                  />
+                  {searchingProducts && (
+                    <span className="absolute right-3 top-9 text-gray-400 text-sm">Searching...</span>
+                  )}
+                  {showProductDropdown && productSearchResults.length > 0 && (
+                    <div className="absolute z-10 w-full mt-1 bg-white border rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                      {productSearchResults.map((product) => (
+                        <div
+                          key={product.id}
+                          onClick={() => selectProductForNewOrder(product)}
+                          className="p-3 hover:bg-gray-100 cursor-pointer border-b last:border-b-0"
+                        >
+                          <div className="font-medium">{product.name_en}</div>
+                          <div className="text-sm text-gray-500">
+                            Price: ৳{product.sale_price || product.base_price || product.price || 0}
+                            {product.sku && <span className="ml-2">SKU: {product.sku}</span>}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {newOrderForm.productId && (
+                    <div className="mt-1 text-sm text-green-600">
+                      ✓ Selected: {newOrderForm.productName}
+                    </div>
+                  )}
+                </div>
+
+                {/* Quantity and Unit Price in a row */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block font-semibold mb-1">Quantity <span className="text-red-500">*</span></label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={newOrderForm.quantity}
+                      onChange={(e) => setNewOrderForm({ ...newOrderForm, quantity: parseInt(e.target.value) || 1 })}
+                      className="w-full border p-2 rounded"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-semibold mb-1">Unit Price (৳)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={newOrderForm.unitPrice}
+                      onChange={(e) => setNewOrderForm({ ...newOrderForm, unitPrice: parseFloat(e.target.value) || 0 })}
+                      className="w-full border p-2 rounded"
+                    />
+                  </div>
+                </div>
+
+                {/* Total display */}
+                {newOrderForm.productId && (
+                  <div className="bg-gray-50 p-3 rounded border">
+                    <div className="flex justify-between items-center">
+                      <span className="font-semibold">Total Amount:</span>
+                      <span className="text-lg font-bold text-purple-600">
+                        ৳{(newOrderForm.quantity * newOrderForm.unitPrice).toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+                )}
+                
+                <div>
+                  <label className="block font-semibold mb-1">Initial Status</label>
+                  <select
+                    value={newOrderForm.status}
+                    onChange={(e) => setNewOrderForm({ ...newOrderForm, status: e.target.value })}
+                    className="w-full border p-2 rounded"
+                  >
+                    <option value="pending">Pending</option>
+                    <option value="approved">Approved</option>
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block font-semibold mb-1">Notes</label>
+                  <textarea
+                    value={newOrderForm.notes}
+                    onChange={(e) => setNewOrderForm({ ...newOrderForm, notes: e.target.value })}
+                    className="w-full border p-2 rounded"
+                    rows={2}
+                    placeholder="Add any notes for this order..."
+                  />
+                </div>
+              </div>
+              
+              <div className="flex gap-3 mt-6">
+                <button 
+                  onClick={handleCreateNewOrder} 
+                  disabled={creatingOrder || !newOrderForm.productId}
+                  className="bg-purple-600 text-white px-6 py-2 rounded hover:bg-purple-700 flex-1 disabled:opacity-50"
+                >
+                  {creatingOrder ? 'Creating...' : 'Create Order'}
+                </button>
+                <button 
+                  onClick={() => setShowCreateOrderModal(false)} 
+                  disabled={creatingOrder}
+                  className="bg-gray-400 text-white px-6 py-2 rounded hover:bg-gray-500"
+                >
+                  Cancel
                 </button>
               </div>
             </div>

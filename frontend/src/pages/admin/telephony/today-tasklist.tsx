@@ -7,7 +7,8 @@ import {
   FaPhone, FaFire, FaCheckCircle, FaClock, FaList, FaCalendarDay, 
   FaUserClock, FaPlay, FaSearch, FaFilter, FaTimes, FaInfoCircle,
   FaThermometerHalf, FaSnowflake, FaRedo, FaChevronDown, FaChevronUp,
-  FaTasks, FaUserPlus, FaExclamationTriangle, FaEdit, FaEye, FaShoppingCart
+  FaTasks, FaUserPlus, FaExclamationTriangle, FaEdit, FaEye, FaShoppingCart,
+  FaStickyNote, FaCalendarAlt, FaCheckDouble, FaThumbsUp, FaThumbsDown
 } from 'react-icons/fa';
 import Link from 'next/link';
 import { format } from 'date-fns';
@@ -64,6 +65,8 @@ interface Stats {
 
 type FilterPriority = '' | 'low' | 'medium' | 'high' | 'urgent';
 type FilterStatus = '' | 'pending' | 'in_progress' | 'completed' | 'cancelled';
+type FilterCalledStatus = '' | 'called' | 'not_called';
+type FilterOutcome = '' | 'positive' | 'negative' | 'neutral' | 'no_answer';
 
 export default function TodayTasklistPage() {
   const toast = useToast();
@@ -83,7 +86,29 @@ export default function TodayTasklistPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [priorityFilter, setPriorityFilter] = useState<FilterPriority>('');
   const [statusFilter, setStatusFilter] = useState<FilterStatus>('');
+  const [calledFilter, setCalledFilter] = useState<FilterCalledStatus>('');
+  const [outcomeFilter, setOutcomeFilter] = useState<FilterOutcome>('');
   const [showFilters, setShowFilters] = useState(false);
+
+  // Action Modals
+  const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+  const [showFollowUpModal, setShowFollowUpModal] = useState(false);
+  const [showNotesModal, setShowNotesModal] = useState(false);
+  const [showOutcomeModal, setShowOutcomeModal] = useState(false);
+  
+  // Form data for modals
+  const [followUpDate, setFollowUpDate] = useState('');
+  const [followUpTime, setFollowUpTime] = useState('');
+  const [followUpNotes, setFollowUpNotes] = useState('');
+  const [callNotes, setCallNotes] = useState('');
+  const [callOutcome, setCallOutcome] = useState<'positive' | 'negative' | 'neutral' | 'no_answer' | ''>('');
+  const [outcomeNotes, setOutcomeNotes] = useState('');
+  
+  // Action loading states
+  const [markingAsCalled, setMarkingAsCalled] = useState<number | null>(null);
+  const [savingFollowUp, setSavingFollowUp] = useState(false);
+  const [savingNotes, setSavingNotes] = useState(false);
+  const [savingOutcome, setSavingOutcome] = useState(false);
   
   // Expanded sections
   const [expandedSections, setExpandedSections] = useState({
@@ -264,9 +289,156 @@ export default function TodayTasklistPage() {
     setSearchTerm('');
     setPriorityFilter('');
     setStatusFilter('');
+    setCalledFilter('');
+    setOutcomeFilter('');
   };
 
-  const hasActiveFilters = searchTerm || priorityFilter || statusFilter;
+  const hasActiveFilters = searchTerm || priorityFilter || statusFilter || calledFilter || outcomeFilter;
+
+  // ==================== LEAD ACTION HANDLERS ====================
+
+  const handleMarkAsCalled = async (lead: Lead) => {
+    setMarkingAsCalled(lead.id);
+    try {
+      await apiClient.post(`/crm/automation/customer/${lead.id}/mark-called`, {
+        notes: 'Marked as called from Today Tasklist'
+      });
+      toast.success('Customer marked as called today!');
+      await loadTodayData();
+    } catch (error) {
+      console.error('Failed to mark as called:', error);
+      toast.error('Failed to mark customer as called');
+    } finally {
+      setMarkingAsCalled(null);
+    }
+  };
+
+  const openFollowUpModal = (lead: Lead) => {
+    setSelectedLead(lead);
+    setFollowUpDate('');
+    setFollowUpTime('');
+    setFollowUpNotes('');
+    setShowFollowUpModal(true);
+  };
+
+  const handleSaveFollowUp = async () => {
+    if (!selectedLead || !followUpDate) {
+      toast.warning('Please select a follow-up date');
+      return;
+    }
+    
+    setSavingFollowUp(true);
+    try {
+      // Combine date and time
+      const followUpDateTime = followUpTime 
+        ? `${followUpDate}T${followUpTime}:00` 
+        : `${followUpDate}T09:00:00`;
+      
+      await apiClient.put(`/customers/${selectedLead.id}`, {
+        next_follow_up: followUpDateTime
+      });
+      
+      // Also track engagement
+      await apiClient.post('/crm/automation/engagement', {
+        customer_id: String(selectedLead.id),
+        engagement_type: 'call',
+        status: 'completed',
+        message_content: `Follow-up scheduled for ${followUpDate}${followUpTime ? ' at ' + followUpTime : ''}. ${followUpNotes}`,
+        metadata: { follow_up_date: followUpDateTime, notes: followUpNotes }
+      });
+      
+      toast.success('Follow-up scheduled successfully!');
+      setShowFollowUpModal(false);
+      setSelectedLead(null);
+      await loadTodayData();
+    } catch (error) {
+      console.error('Failed to save follow-up:', error);
+      toast.error('Failed to schedule follow-up');
+    } finally {
+      setSavingFollowUp(false);
+    }
+  };
+
+  const openNotesModal = (lead: Lead) => {
+    setSelectedLead(lead);
+    setCallNotes('');
+    setShowNotesModal(true);
+  };
+
+  const handleSaveNotes = async () => {
+    if (!selectedLead || !callNotes.trim()) {
+      toast.warning('Please enter some notes');
+      return;
+    }
+    
+    setSavingNotes(true);
+    try {
+      // Track engagement with notes
+      await apiClient.post('/crm/automation/engagement', {
+        customer_id: String(selectedLead.id),
+        engagement_type: 'call',
+        status: 'completed',
+        message_content: callNotes,
+        metadata: { type: 'call_notes', notes: callNotes }
+      });
+      
+      toast.success('Notes saved successfully!');
+      setShowNotesModal(false);
+      setSelectedLead(null);
+    } catch (error) {
+      console.error('Failed to save notes:', error);
+      toast.error('Failed to save notes');
+    } finally {
+      setSavingNotes(false);
+    }
+  };
+
+  const openOutcomeModal = (lead: Lead) => {
+    setSelectedLead(lead);
+    setCallOutcome('');
+    setOutcomeNotes('');
+    setShowOutcomeModal(true);
+  };
+
+  const handleSaveOutcome = async () => {
+    if (!selectedLead || !callOutcome) {
+      toast.warning('Please select an outcome');
+      return;
+    }
+    
+    setSavingOutcome(true);
+    try {
+      // Update customer with outcome info
+      const leadStatus = callOutcome === 'positive' ? 'qualified' 
+        : callOutcome === 'negative' ? 'not_interested' 
+        : callOutcome === 'no_answer' ? 'no_answer'
+        : 'contacted';
+      
+      await apiClient.put(`/customers/${selectedLead.id}`, {
+        leadStatus: leadStatus,
+        last_contact_date: new Date().toISOString()
+      });
+      
+      // Track engagement with outcome
+      await apiClient.post('/crm/automation/engagement', {
+        customer_id: String(selectedLead.id),
+        engagement_type: 'call',
+        status: 'completed',
+        message_content: `Call outcome: ${callOutcome}. ${outcomeNotes}`,
+        metadata: { outcome: callOutcome, notes: outcomeNotes }
+      });
+      
+      toast.success('Outcome saved successfully!');
+      setShowOutcomeModal(false);
+      setSelectedLead(null);
+      await loadTodayData();
+    } catch (error) {
+      console.error('Failed to save outcome:', error);
+      toast.error('Failed to save outcome');
+    } finally {
+      setSavingOutcome(false);
+    }
+  };
 
   const getPriorityBadge = (priority: string) => {
     const colors: Record<string, string> = {
@@ -380,17 +552,22 @@ export default function TodayTasklistPage() {
 
   // Lead Card Component
   const LeadCard = ({ lead }: { lead: Lead }) => (
-    <div className="bg-white border rounded-lg p-4 hover:shadow-md transition-shadow border-green-200 bg-green-50">
+    <div className="bg-green-50 border rounded-lg p-4 hover:shadow-md transition-shadow border-green-200">
       <div className="flex items-start justify-between">
         <div className="flex-1">
-          <div className="flex items-center gap-2 mb-2">
+          <div className="flex items-center gap-2 mb-2 flex-wrap">
             <FaUserPlus className="text-green-500" />
             <span className="px-2 py-0.5 text-xs rounded bg-green-100 text-green-800">
               NEW LEAD ASSIGNED TODAY
             </span>
-            {(lead.leadStatus || lead.leadStatus) && (
-              <span className="px-2 py-0.5 text-xs rounded bg-blue-100 text-blue-800">
-                {(lead.leadStatus || '').toUpperCase()}
+            {lead.leadStatus && (
+              <span className={`px-2 py-0.5 text-xs rounded ${
+                lead.leadStatus === 'qualified' || lead.leadStatus === 'positive' ? 'bg-green-100 text-green-800' :
+                lead.leadStatus === 'not_interested' || lead.leadStatus === 'negative' ? 'bg-red-100 text-red-800' :
+                lead.leadStatus === 'no_answer' ? 'bg-yellow-100 text-yellow-800' :
+                'bg-blue-100 text-blue-800'
+              }`}>
+                {(lead.leadStatus || '').toUpperCase().replace('_', ' ')}
               </span>
             )}
           </div>
@@ -428,28 +605,72 @@ export default function TodayTasklistPage() {
           )}
         </div>
         
+        {/* Action Buttons Column */}
         <div className="flex flex-col gap-2 ml-4">
-          {lead.phone && (
-            <a
-              href={`tel:${lead.phone}`}
-              className="px-3 py-1.5 bg-green-600 text-white text-sm rounded hover:bg-green-700 flex items-center gap-1"
-            >
-              <FaPhone size={10} /> Call
-            </a>
-          )}
-          {((lead.totalOrders ?? lead.total_orders) ?? 0) > 0 && (
+          {/* Row 1: Call & View Order */}
+          <div className="flex gap-2">
+            {lead.phone && (
+              <a
+                href={`tel:${lead.phone}`}
+                className="px-3 py-1.5 bg-green-600 text-white text-sm rounded hover:bg-green-700 flex items-center gap-1"
+              >
+                <FaPhone size={10} /> Call
+              </a>
+            )}
+            {((lead.totalOrders ?? lead.total_orders) ?? 0) > 0 && (
+              <button
+                onClick={() => handleViewOrder(lead.id)}
+                className="px-3 py-1.5 bg-orange-600 text-white text-sm rounded hover:bg-orange-700 flex items-center gap-1"
+              >
+                <FaShoppingCart size={10} /> Order
+              </button>
+            )}
+          </div>
+          
+          {/* Row 2: Mark Called & Set Follow-up */}
+          <div className="flex gap-2">
             <button
-              onClick={() => handleViewOrder(lead.id)}
-              className="px-3 py-1.5 bg-orange-600 text-white text-sm rounded hover:bg-orange-700 flex items-center gap-1"
+              onClick={() => handleMarkAsCalled(lead)}
+              disabled={markingAsCalled === lead.id}
+              className="px-3 py-1.5 bg-purple-600 text-white text-sm rounded hover:bg-purple-700 flex items-center gap-1 disabled:opacity-50"
             >
-              <FaShoppingCart size={10} /> View Order
+              {markingAsCalled === lead.id ? (
+                <span className="animate-spin">⏳</span>
+              ) : (
+                <FaCheckDouble size={10} />
+              )}
+              Called
             </button>
-          )}
+            <button
+              onClick={() => openFollowUpModal(lead)}
+              className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 flex items-center gap-1"
+            >
+              <FaCalendarAlt size={10} /> Follow-up
+            </button>
+          </div>
+          
+          {/* Row 3: Notes & Outcome */}
+          <div className="flex gap-2">
+            <button
+              onClick={() => openNotesModal(lead)}
+              className="px-3 py-1.5 bg-gray-600 text-white text-sm rounded hover:bg-gray-700 flex items-center gap-1"
+            >
+              <FaStickyNote size={10} /> Notes
+            </button>
+            <button
+              onClick={() => openOutcomeModal(lead)}
+              className="px-3 py-1.5 bg-indigo-600 text-white text-sm rounded hover:bg-indigo-700 flex items-center gap-1"
+            >
+              <FaThumbsUp size={10} /> Outcome
+            </button>
+          </div>
+          
+          {/* Row 4: View Details */}
           <button
             onClick={() => handleViewOrder(lead.id)}
-            className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 flex items-center gap-1"
+            className="px-3 py-1.5 bg-gray-200 text-gray-700 text-sm rounded hover:bg-gray-300 flex items-center gap-1 justify-center"
           >
-            <FaEye size={10} /> View
+            <FaEye size={10} /> View Details
           </button>
         </div>
       </div>
@@ -615,7 +836,7 @@ export default function TodayTasklistPage() {
                 </div>
               </div>
               
-              <div className="min-w-[150px]">
+              <div className="min-w-[130px]">
                 <label className="block text-xs text-gray-600 mb-1">Priority</label>
                 <select
                   value={priorityFilter}
@@ -630,7 +851,7 @@ export default function TodayTasklistPage() {
                 </select>
               </div>
               
-              <div className="min-w-[150px]">
+              <div className="min-w-[130px]">
                 <label className="block text-xs text-gray-600 mb-1">Status</label>
                 <select
                   value={statusFilter}
@@ -644,13 +865,41 @@ export default function TodayTasklistPage() {
                   <option value="cancelled">Cancelled</option>
                 </select>
               </div>
+
+              <div className="min-w-[130px]">
+                <label className="block text-xs text-gray-600 mb-1">Called Status</label>
+                <select
+                  value={calledFilter}
+                  onChange={(e) => setCalledFilter(e.target.value as FilterCalledStatus)}
+                  className="w-full px-3 py-2 border rounded text-sm"
+                >
+                  <option value="">All</option>
+                  <option value="called">✅ Called</option>
+                  <option value="not_called">❌ Not Called</option>
+                </select>
+              </div>
+
+              <div className="min-w-[130px]">
+                <label className="block text-xs text-gray-600 mb-1">Outcome</label>
+                <select
+                  value={outcomeFilter}
+                  onChange={(e) => setOutcomeFilter(e.target.value as FilterOutcome)}
+                  className="w-full px-3 py-2 border rounded text-sm"
+                >
+                  <option value="">All Outcomes</option>
+                  <option value="positive">👍 Positive</option>
+                  <option value="negative">👎 Negative</option>
+                  <option value="neutral">➖ Neutral</option>
+                  <option value="no_answer">📵 No Answer</option>
+                </select>
+              </div>
               
               {hasActiveFilters && (
                 <button
                   onClick={clearFilters}
                   className="px-4 py-2 text-sm text-red-600 hover:bg-red-50 rounded flex items-center gap-1"
                 >
-                  <FaTimes /> Clear Filters
+                  <FaTimes /> Clear
                 </button>
               )}
             </div>
@@ -746,6 +995,229 @@ export default function TodayTasklistPage() {
           }}
           onUpdate={() => {}}
         />
+      )}
+
+      {/* Follow-Up Modal */}
+      {showFollowUpModal && selectedLead && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+            <h3 className="text-xl font-bold text-gray-800 mb-2 flex items-center gap-2">
+              <FaCalendarAlt className="text-blue-600" />
+              Schedule Follow-up
+            </h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Set a follow-up date for: <strong>{selectedLead.name || `Customer #${selectedLead.id}`}</strong>
+            </p>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Follow-up Date *</label>
+                <input
+                  type="date"
+                  value={followUpDate}
+                  onChange={(e) => setFollowUpDate(e.target.value)}
+                  min={new Date().toISOString().split('T')[0]}
+                  className="w-full px-3 py-2 border rounded-lg"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Time (Optional)</label>
+                <input
+                  type="time"
+                  value={followUpTime}
+                  onChange={(e) => setFollowUpTime(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-lg"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Notes (Optional)</label>
+                <textarea
+                  value={followUpNotes}
+                  onChange={(e) => setFollowUpNotes(e.target.value)}
+                  rows={3}
+                  className="w-full px-3 py-2 border rounded-lg"
+                  placeholder="Any notes for the follow-up..."
+                />
+              </div>
+            </div>
+            
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={handleSaveFollowUp}
+                disabled={savingFollowUp || !followUpDate}
+                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {savingFollowUp ? 'Saving...' : <>
+                  <FaCalendarAlt /> Schedule Follow-up
+                </>}
+              </button>
+              <button
+                onClick={() => {
+                  setShowFollowUpModal(false);
+                  setSelectedLead(null);
+                }}
+                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Notes Modal */}
+      {showNotesModal && selectedLead && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+            <h3 className="text-xl font-bold text-gray-800 mb-2 flex items-center gap-2">
+              <FaStickyNote className="text-gray-600" />
+              Add Call Notes
+            </h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Add notes for: <strong>{selectedLead.name || `Customer #${selectedLead.id}`}</strong>
+            </p>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Call Notes *</label>
+              <textarea
+                value={callNotes}
+                onChange={(e) => setCallNotes(e.target.value)}
+                rows={5}
+                className="w-full px-3 py-2 border rounded-lg"
+                placeholder="Summarize the call... What was discussed? Any key points?"
+              />
+            </div>
+            
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={handleSaveNotes}
+                disabled={savingNotes || !callNotes.trim()}
+                className="flex-1 px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-800 disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {savingNotes ? 'Saving...' : <>
+                  <FaStickyNote /> Save Notes
+                </>}
+              </button>
+              <button
+                onClick={() => {
+                  setShowNotesModal(false);
+                  setSelectedLead(null);
+                }}
+                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Outcome Modal */}
+      {showOutcomeModal && selectedLead && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+            <h3 className="text-xl font-bold text-gray-800 mb-2 flex items-center gap-2">
+              <FaThumbsUp className="text-indigo-600" />
+              Set Call Outcome
+            </h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Set outcome for: <strong>{selectedLead.name || `Customer #${selectedLead.id}`}</strong>
+            </p>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Call Outcome *</label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    onClick={() => setCallOutcome('positive')}
+                    className={`p-3 rounded-lg border-2 flex flex-col items-center gap-1 transition-all ${
+                      callOutcome === 'positive' 
+                        ? 'border-green-500 bg-green-50 text-green-700' 
+                        : 'border-gray-200 hover:border-green-300'
+                    }`}
+                  >
+                    <FaThumbsUp className="text-xl text-green-600" />
+                    <span className="text-sm font-medium">Positive</span>
+                    <span className="text-xs text-gray-500">Interested / Order</span>
+                  </button>
+                  
+                  <button
+                    onClick={() => setCallOutcome('negative')}
+                    className={`p-3 rounded-lg border-2 flex flex-col items-center gap-1 transition-all ${
+                      callOutcome === 'negative' 
+                        ? 'border-red-500 bg-red-50 text-red-700' 
+                        : 'border-gray-200 hover:border-red-300'
+                    }`}
+                  >
+                    <FaThumbsDown className="text-xl text-red-600" />
+                    <span className="text-sm font-medium">Negative</span>
+                    <span className="text-xs text-gray-500">Not Interested</span>
+                  </button>
+                  
+                  <button
+                    onClick={() => setCallOutcome('neutral')}
+                    className={`p-3 rounded-lg border-2 flex flex-col items-center gap-1 transition-all ${
+                      callOutcome === 'neutral' 
+                        ? 'border-gray-500 bg-gray-50 text-gray-700' 
+                        : 'border-gray-200 hover:border-gray-400'
+                    }`}
+                  >
+                    <span className="text-xl">➖</span>
+                    <span className="text-sm font-medium">Neutral</span>
+                    <span className="text-xs text-gray-500">Undecided</span>
+                  </button>
+                  
+                  <button
+                    onClick={() => setCallOutcome('no_answer')}
+                    className={`p-3 rounded-lg border-2 flex flex-col items-center gap-1 transition-all ${
+                      callOutcome === 'no_answer' 
+                        ? 'border-yellow-500 bg-yellow-50 text-yellow-700' 
+                        : 'border-gray-200 hover:border-yellow-300'
+                    }`}
+                  >
+                    <span className="text-xl">📵</span>
+                    <span className="text-sm font-medium">No Answer</span>
+                    <span className="text-xs text-gray-500">Didn't pick up</span>
+                  </button>
+                </div>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Additional Notes (Optional)</label>
+                <textarea
+                  value={outcomeNotes}
+                  onChange={(e) => setOutcomeNotes(e.target.value)}
+                  rows={3}
+                  className="w-full px-3 py-2 border rounded-lg"
+                  placeholder="Any additional details about the outcome..."
+                />
+              </div>
+            </div>
+            
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={handleSaveOutcome}
+                disabled={savingOutcome || !callOutcome}
+                className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {savingOutcome ? 'Saving...' : <>
+                  <FaCheckCircle /> Save Outcome
+                </>}
+              </button>
+              <button
+                onClick={() => {
+                  setShowOutcomeModal(false);
+                  setSelectedLead(null);
+                }}
+                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </AdminLayout>
   );
