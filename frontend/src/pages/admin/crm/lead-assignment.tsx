@@ -2,8 +2,10 @@ import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import AdminLayout from '@/layouts/AdminLayout';
 import PageSizeSelector from '@/components/admin/PageSizeSelector';
+import AdminOrderDetailsModal from '@/components/AdminOrderDetailsModal';
 import apiClient from '@/services/api';
 import { useToast } from '@/contexts/ToastContext';
+import { FaEye } from 'react-icons/fa';
 
 interface LeadCustomer {
   id: number | string;
@@ -65,6 +67,10 @@ export default function LeadAssignmentPage() {
   // Bulk selection
   const [selectedLeadIds, setSelectedLeadIds] = useState<Set<number | string>>(new Set());
   const [showBulkAssignModal, setShowBulkAssignModal] = useState(false);
+
+  // Order Details Modal
+  const [showOrderModal, setShowOrderModal] = useState(false);
+  const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
 
   // Agent autocomplete
   const [agentSearchTerm, setAgentSearchTerm] = useState('');
@@ -184,6 +190,23 @@ export default function LeadAssignmentPage() {
   const formatDate = (dateStr?: string) => {
     if (!dateStr) return 'N/A';
     return new Date(dateStr).toLocaleDateString();
+  };
+
+  // Handle viewing order details for a lead/customer
+  const handleViewOrder = async (customerId: number | string) => {
+    try {
+      const response = await apiClient.get(`/order-management/customer/${customerId}/orders`);
+      const orders = response.data?.data || response.data || [];
+      if (orders.length > 0) {
+        setSelectedOrderId(orders[0].id);
+        setShowOrderModal(true);
+      } else {
+        toast.warning('No orders found for this customer');
+      }
+    } catch (error: any) {
+      console.error('Error fetching customer orders:', error);
+      toast.error('Failed to fetch customer orders');
+    }
   };
 
   // Single assign
@@ -581,12 +604,20 @@ export default function LeadAssignmentPage() {
                           {lead.first_order_date ? formatDate(lead.first_order_date) : 'No orders'}
                         </td>
                         <td className="px-4 py-4">
-                          <button
-                            onClick={() => openAssignModal(lead)}
-                            className="bg-green-600 text-white px-3 py-1.5 rounded text-sm hover:bg-green-700"
-                          >
-                            {lead.assigned_to ? 'Reassign' : 'Assign'}
-                          </button>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => handleViewOrder(lead.id)}
+                              className="bg-blue-600 text-white px-3 py-1.5 rounded text-sm hover:bg-blue-700 flex items-center gap-1"
+                            >
+                              <FaEye size={12} /> View
+                            </button>
+                            <button
+                              onClick={() => openAssignModal(lead)}
+                              className="bg-green-600 text-white px-3 py-1.5 rounded text-sm hover:bg-green-700"
+                            >
+                              {lead.assigned_to ? 'Reassign' : 'Assign'}
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -711,6 +742,18 @@ export default function LeadAssignmentPage() {
               </div>
             </div>
           </div>
+        )}
+
+        {/* Order Details Modal */}
+        {showOrderModal && selectedOrderId && (
+          <AdminOrderDetailsModal
+            orderId={selectedOrderId}
+            onClose={() => {
+              setShowOrderModal(false);
+              setSelectedOrderId(null);
+            }}
+            onUpdate={loadLeads}
+          />
         )}
       </div>
     </AdminLayout>
