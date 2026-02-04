@@ -3,6 +3,7 @@ import { useRouter } from 'next/router';
 import AdminLayout from '@/layouts/AdminLayout';
 import { useToast } from '@/contexts/ToastContext';
 import DataTable from '@/components/admin/DataTable';
+import PageSizeSelector from '@/components/admin/PageSizeSelector';
 import Modal from '@/components/admin/Modal';
 import FormInput from '@/components/admin/FormInput';
 import ImageUpload from '@/components/admin/ImageUpload';
@@ -53,7 +54,7 @@ export default function AdminProducts() {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [selectedProductIds, setSelectedProductIds] = useState<Array<number | string>>([]);
   const [bulkWorking, setBulkWorking] = useState(false);
-  const itemsPerPage = 10;
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
   const [additionalInfoRows, setAdditionalInfoRows] = useState<Array<{ key: string; value: string }>>([]);
   const [sizeVariants, setSizeVariants] = useState<SizeVariant[]>([]);
@@ -638,6 +639,15 @@ export default function AdminProducts() {
         )}
 
         {/* Products Table */}
+        <div className="mb-4 flex justify-end">
+          <PageSizeSelector
+            value={itemsPerPage}
+            onChange={(size) => {
+              setItemsPerPage(size);
+              setCurrentPage(1);
+            }}
+          />
+        </div>
         <DataTable
           columns={columns}
           data={paginatedProducts}

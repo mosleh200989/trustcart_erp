@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import AdminLayout from '@/layouts/AdminLayout';
+import PageSizeSelector from '@/components/admin/PageSizeSelector';
 import apiClient from '@/services/api';
 import { FaSearch, FaUser } from 'react-icons/fa';
 
@@ -10,7 +11,7 @@ export default function LoyaltyMembersList() {
   const [query, setQuery] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 20;
+  const [itemsPerPage, setItemsPerPage] = useState(20);
 
   useEffect(() => {
     const load = async () => {
@@ -83,6 +84,16 @@ export default function LoyaltyMembersList() {
         )}
 
         <div className="bg-white rounded-lg shadow overflow-x-auto">
+          <div className="p-4 border-b flex justify-between items-center">
+            <div className="text-sm text-gray-600">{filtered.length} customers</div>
+            <PageSizeSelector
+              value={itemsPerPage}
+              onChange={(size) => {
+                setItemsPerPage(size);
+                setCurrentPage(1);
+              }}
+            />
+          </div>
           <table className="min-w-full">
             <thead className="bg-gray-50">
               <tr>

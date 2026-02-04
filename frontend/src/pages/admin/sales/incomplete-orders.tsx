@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import AdminLayout from '@/layouts/AdminLayout';
 import DataTable from '@/components/admin/DataTable';
+import PageSizeSelector from '@/components/admin/PageSizeSelector';
 import FormInput from '@/components/admin/FormInput';
 import { FaSearch } from 'react-icons/fa';
 import apiClient from '@/services/api';
@@ -46,7 +47,7 @@ export default function AdminSalesIncompleteOrders() {
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState(INITIAL_FILTERS);
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
   useEffect(() => {
     load();
@@ -265,6 +266,16 @@ export default function AdminSalesIncompleteOrders() {
             <FormInput label="Created From" name="createdFrom" type="date" value={filters.createdFrom} onChange={handleFilterChange} />
             <FormInput label="Created To" name="createdTo" type="date" value={filters.createdTo} onChange={handleFilterChange} />
           </div>
+        </div>
+
+        <div className="mb-4 flex justify-end">
+          <PageSizeSelector
+            value={itemsPerPage}
+            onChange={(size) => {
+              setItemsPerPage(size);
+              setCurrentPage(1);
+            }}
+          />
         </div>
 
         <DataTable

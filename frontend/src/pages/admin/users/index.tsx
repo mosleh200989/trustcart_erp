@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, ChangeEvent, FormEvent } from 'react';
 import { useRouter } from 'next/router';
 import AdminLayout from '@/layouts/AdminLayout';
+import PageSizeSelector from '@/components/admin/PageSizeSelector';
 import { useToast } from '@/contexts/ToastContext';
 import Modal from '@/components/admin/Modal';
 import FormInput from '@/components/admin/FormInput';
@@ -25,7 +26,7 @@ export default function AdminUsers() {
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [teamLeaderFilter, setTeamLeaderFilter] = useState<string>('');
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<'add' | 'edit'>('add');
@@ -424,6 +425,16 @@ export default function AdminUsers() {
             </div>
           </div>
         )}
+
+        <div className="mb-4 flex justify-end">
+          <PageSizeSelector
+            value={itemsPerPage}
+            onChange={(size) => {
+              setItemsPerPage(size);
+              setCurrentPage(1);
+            }}
+          />
+        </div>
 
         <div className="bg-white rounded-lg shadow overflow-hidden">
           {loading ? (

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import AdminLayout from '@/layouts/AdminLayout';
+import PageSizeSelector from '@/components/admin/PageSizeSelector';
 import apiClient from '@/services/api';
 import Link from 'next/link';
 import { FaFileExport, FaTags, FaTrash, FaChevronLeft, FaChevronRight, FaSms, FaEnvelope } from 'react-icons/fa';
@@ -33,7 +34,7 @@ export default function CustomersPage() {
   const [smsCustomer, setSmsCustomer] = useState<Customer | null>(null);
   const [smsMessage, setSmsMessage] = useState('');
   const [smsSending, setSmsSending] = useState(false);
-  const itemsPerPage = 10;
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
   useEffect(() => {
     loadCustomers();
@@ -269,6 +270,15 @@ export default function CustomersPage() {
 
         {/* Customers Table */}
         <div className="bg-white rounded-lg shadow">
+          <div className="p-4 border-b flex justify-end">
+            <PageSizeSelector
+              value={itemsPerPage}
+              onChange={(size) => {
+                setItemsPerPage(size);
+                setCurrentPage(1);
+              }}
+            />
+          </div>
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead className="bg-gray-50 border-b">

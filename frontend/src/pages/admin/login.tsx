@@ -102,15 +102,6 @@ export default function AdminLogin() {
           </button>
         </form>
 
-        {/* Demo Credentials */}
-        <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-          <p className="text-xs text-gray-600 text-center mb-2">Demo Credentials:</p>
-          <p className="text-xs text-gray-700 text-center">
-            Email: admin@trustcart.com<br />
-            Password: admin123
-          </p>
-        </div>
-
         {/* Customer Login Link */}
         <div className="mt-4 text-center text-xs text-gray-600">
           Customer account?{' '}

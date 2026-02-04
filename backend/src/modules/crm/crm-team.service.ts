@@ -182,7 +182,7 @@ export class CrmTeamService {
   }
 
   // ==================== TEAM MONITORING ====================
-  async getTeamLeads(teamLeaderId: number, query: any = {}): Promise<{ data: Customer[], total: number }> {
+  async getTeamLeads(teamLeaderId: number, query: any = {}): Promise<{ data: any[], total: number }> {
     const { 
       page = 1, 
       limit = 20, 
@@ -191,8 +191,8 @@ export class CrmTeamService {
       assignmentStatus, // 'assigned' | 'unassigned' | 'all'
       assignedTo,       // specific agent ID
       search,           // search by name, email, phone
-      dateFrom,         // created_at from
-      dateTo,           // created_at to
+      dateFrom,         // order_date from (first order date)
+      dateTo,           // order_date to (first order date)
       sortBy = 'created_at',
       sortOrder = 'DESC'
     } = query;
@@ -202,6 +202,13 @@ export class CrmTeamService {
     const skip = (pageNum - 1) * limitNum;
 
     const qb = this.customerRepository.createQueryBuilder('c');
+    
+    // Add subquery to get first order date for each customer
+    qb.addSelect(
+      `(SELECT MIN(so.order_date) FROM sales_orders so WHERE so.customer_id = c.id)`,
+      'first_order_date'
+    );
+    
     qb.where('c.is_deleted = false');
     qb.andWhere('c.is_active = true');
 
@@ -237,14 +244,20 @@ export class CrmTeamService {
       );
     }
 
-    // Date range filter
+    // Date range filter - now filters by first order date instead of customer created_at
     if (dateFrom) {
-      qb.andWhere('c.created_at >= :dateFrom', { dateFrom: new Date(dateFrom) });
+      qb.andWhere(
+        `(SELECT MIN(so.order_date) FROM sales_orders so WHERE so.customer_id = c.id) >= :dateFrom`,
+        { dateFrom: new Date(dateFrom) }
+      );
     }
     if (dateTo) {
       const toDate = new Date(dateTo);
       toDate.setHours(23, 59, 59, 999);
-      qb.andWhere('c.created_at <= :dateTo', { dateTo: toDate });
+      qb.andWhere(
+        `(SELECT MIN(so.order_date) FROM sales_orders so WHERE so.customer_id = c.id) <= :dateTo`,
+        { dateTo: toDate }
+      );
     }
 
     // Sorting
@@ -255,7 +268,58 @@ export class CrmTeamService {
     
     qb.skip(skip).take(limitNum);
 
-    const [data, total] = await qb.getManyAndCount();
+    const rawResults = await qb.getRawAndEntities();
+    const data = rawResults.entities;
+    const rawData = rawResults.raw;
+    
+    // Create a map of customer id to first_order_date
+    const orderDateMap = new Map<number, Date | null>();
+    rawData.forEach((row: any) => {
+      orderDateMap.set(row.c_id, row.first_order_date || null);
+    });
+    
+    // Get total count (need separate query without the select for accurate count)
+    const countQb = this.customerRepository.createQueryBuilder('c');
+    countQb.where('c.is_deleted = false');
+    countQb.andWhere('c.is_active = true');
+    countQb.andWhere('(c.assigned_supervisor_id IS NULL OR c.assigned_supervisor_id = :tl)', { tl: teamLeaderId });
+    
+    if (assignmentStatus === 'assigned') {
+      countQb.andWhere('c.assigned_to IS NOT NULL');
+    } else if (assignmentStatus === 'unassigned') {
+      countQb.andWhere('c.assigned_to IS NULL');
+    }
+    if (assignedTo) {
+      countQb.andWhere('c.assigned_to = :assignedTo', { assignedTo: Number(assignedTo) });
+    }
+    if (priority) {
+      countQb.andWhere('c.priority = :priority', { priority });
+    }
+    if (status) {
+      countQb.andWhere('c.status = :status', { status });
+    }
+    if (search && search.trim()) {
+      const searchTerm = `%${search.trim().toLowerCase()}%`;
+      countQb.andWhere(
+        '(LOWER(c.name) LIKE :search OR LOWER(c.last_name) LIKE :search OR LOWER(c.email) LIKE :search OR c.phone LIKE :search)',
+        { search: searchTerm }
+      );
+    }
+    if (dateFrom) {
+      countQb.andWhere(
+        `(SELECT MIN(so.order_date) FROM sales_orders so WHERE so.customer_id = c.id) >= :dateFrom`,
+        { dateFrom: new Date(dateFrom) }
+      );
+    }
+    if (dateTo) {
+      const toDate = new Date(dateTo);
+      toDate.setHours(23, 59, 59, 999);
+      countQb.andWhere(
+        `(SELECT MIN(so.order_date) FROM sales_orders so WHERE so.customer_id = c.id) <= :dateTo`,
+        { dateTo: toDate }
+      );
+    }
+    const total = await countQb.getCount();
 
     // Enrich with agent names
     const agentIds = Array.from(new Set(data.map(c => c.assigned_to).filter(id => id != null)));
@@ -272,6 +336,7 @@ export class CrmTeamService {
     const enrichedData = data.map(c => ({
       ...c,
       assigned_to_name: c.assigned_to ? (agentMap.get(c.assigned_to) || `Agent #${c.assigned_to}`) : null,
+      first_order_date: orderDateMap.get(c.id) || null,
     }));
 
     return { data: enrichedData, total };

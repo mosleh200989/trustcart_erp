@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import AdminLayout from '@/layouts/AdminLayout';
+import PageSizeSelector from '@/components/admin/PageSizeSelector';
 import apiClient from '@/services/api';
 import { useToast } from '@/contexts/ToastContext';
 
@@ -13,6 +14,7 @@ interface LeadCustomer {
   priority?: string;
   assigned_to?: number | null;
   created_at?: string;
+  first_order_date?: string;
 }
 
 interface PaginatedResponse {
@@ -51,7 +53,7 @@ export default function LeadAssignmentPage() {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [page, setPage] = useState(1);
-  const [limit] = useState(20);
+  const [limit, setLimit] = useState(20);
 
   // Team selection
   const [selectedTeamId, setSelectedTeamId] = useState<number | null>(null);
@@ -439,7 +441,7 @@ export default function LeadAssignmentPage() {
 
             {/* Date From */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Created From</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Order Date From</label>
               <input
                 type="date"
                 value={dateFrom}
@@ -453,7 +455,7 @@ export default function LeadAssignmentPage() {
 
             {/* Date To */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Created To</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Order Date To</label>
               <input
                 type="date"
                 value={dateTo}
@@ -500,6 +502,13 @@ export default function LeadAssignmentPage() {
               {assignmentStatus === 'unassigned' ? 'Unassigned Leads' : 
                assignmentStatus === 'assigned' ? 'Assigned Leads' : 'All Leads'}
             </h2>
+            <PageSizeSelector
+              value={limit}
+              onChange={(size) => {
+                setLimit(size);
+                setPage(1);
+              }}
+            />
           </div>
 
           {loading ? (
@@ -524,7 +533,7 @@ export default function LeadAssignmentPage() {
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Contact</th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Priority</th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Created</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Order Date</th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Action</th>
                     </tr>
                   </thead>
@@ -569,7 +578,7 @@ export default function LeadAssignmentPage() {
                           )}
                         </td>
                         <td className="px-4 py-4 text-sm text-gray-600">
-                          {formatDate(lead.created_at)}
+                          {lead.first_order_date ? formatDate(lead.first_order_date) : 'No orders'}
                         </td>
                         <td className="px-4 py-4">
                           <button
