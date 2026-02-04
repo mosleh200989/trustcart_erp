@@ -29,6 +29,8 @@ export class LegacyMigrationService {
   // Product Mapping Configuration
   // Priority: 1. platform field, 2. product_details keywords
   private readonly productMappings: ProductMapping[] = [
+    // Bedsheet - check first as it has specific keywords in product_details
+    { platform: 'bedsheet', keywords: ['waterproof', 'Waterproof', 'WATERPROOF', 'বেডশীট', 'code', 'Code', 'CODE', 'কোড'], productId: 314 },
     { platform: 'painoil', keywords: ['kasri', 'Kasri', 'KASRI', 'কাসরি'], productId: 311 },
     { platform: 'leoqone', keywords: ['leoqone', 'Leoqone', 'LEOQONE', 'লিওকুওন'], productId: 312 },
     { platform: 'Allergy-Cure', keywords: ['allergy', 'Allergy', 'ALLERGY', 'এলার্জি'], productId: 313 },
@@ -213,22 +215,27 @@ export class LegacyMigrationService {
 
     while (true) {
       const url = this.buildApiUrl(date, start, Math.min(batchSize, limit - allOrders.length));
-      this.logger.debug(`Fetching from API: ${url}`);
+      this.logger.log(`Fetching from API: ${url}`);
 
       try {
         const response = await fetch(url);
+        this.logger.log(`API Response status: ${response.status}`);
         if (!response.ok) {
-          throw new Error(`API returned status ${response.status}`);
+          const errorBody = await response.text();
+          this.logger.error(`API Error body: ${errorBody}`);
+          throw new Error(`API returned status ${response.status}: ${errorBody}`);
         }
 
         const data = (await response.json()) as LegacyApiResponse;
+        this.logger.log(`API Response: status=${data.status}, total=${data.total}, data.length=${data.data?.length || 0}`);
 
         if (!data.status || !data.data || data.data.length === 0) {
+          this.logger.log(`No more data: status=${data.status}, data=${data.data?.length || 0}`);
           break;
         }
 
         allOrders.push(...data.data);
-        this.logger.debug(`Fetched batch: ${data.data.length} orders (total: ${allOrders.length})`);
+        this.logger.log(`Fetched batch: ${data.data.length} orders (total: ${allOrders.length})`);
 
         // Check if we've reached the total or our limit
         if (allOrders.length >= data.total || allOrders.length >= limit) {
@@ -256,7 +263,7 @@ export class LegacyMigrationService {
       'api-key': this.API_KEY,
       created_by: this.CREATED_BY,
       date: date,
-      is_sent_trustcart: '1',
+      is_sent_trustcart: '0',  // Fetch only unsynced orders
     });
     return `${this.API_BASE_URL}?${params.toString()}`;
   }
@@ -495,7 +502,8 @@ export class LegacyMigrationService {
   ): Partial<SalesOrder> {
     const totalAmount = parseFloat(legacyOrder.total_amount) || 0;
     const orderDate = this.parseDate(legacyOrder.date);
-    const dailySerial = legacyOrder.daily_serial || '000';
+    // Use legacy ID for unique order number to avoid duplicates when daily_serial is null
+    const uniqueId = legacyOrder.daily_serial || legacyOrder.id;
     const dateStr = orderDate.toISOString().split('T')[0].replace(/-/g, '');
 
     // Combine both note fields
@@ -514,7 +522,7 @@ export class LegacyMigrationService {
     ].filter(Boolean).join('\n');
 
     return {
-      salesOrderNumber: `LEG-${dateStr}-${dailySerial}`,
+      salesOrderNumber: `LEG-${dateStr}-${uniqueId}`,
       customerId: customerId,
       customerPhone: this.normalizePhone(legacyOrder.mobile_no),
       orderDate: orderDate,
