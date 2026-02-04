@@ -500,7 +500,7 @@ export default function AgentDashboard() {
   // ==================== LEAD ACTION HANDLERS ====================
 
   const handleMarkLeadAsCalled = async (lead: AssignedCustomer) => {
-    setMarkingLeadAsCalled(lead.id);
+    setMarkingLeadAsCalled(Number(lead.id));
     try {
       await apiClient.post(`/crm/automation/customer/${lead.id}/mark-called`, {
         notes: 'Marked as called from Agent Dashboard'
