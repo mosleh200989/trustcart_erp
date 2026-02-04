@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
 import AdminLayout from '@/layouts/AdminLayout';
 import apiClient from '@/services/api';
 import { useToast } from '@/contexts/ToastContext';
+import AdminOrderDetailsModal from '@/components/AdminOrderDetailsModal';
 
 interface LeadCustomer {
   id: number | string;
@@ -13,6 +13,7 @@ interface LeadCustomer {
   priority?: string;
   status?: string;
   assigned_to?: number | null;
+  assigned_to_name?: string | null;
 }
 
 interface PaginatedResponse {
@@ -29,6 +30,10 @@ export default function CrmLeadsPage() {
   const [total, setTotal] = useState(0);
   const [priority, setPriority] = useState<string>('');
   const [status, setStatus] = useState<string>('');
+  
+  // Order Details Modal
+  const [showOrderModal, setShowOrderModal] = useState(false);
+  const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
 
   const pageSize = 20;
 
@@ -78,6 +83,23 @@ export default function CrmLeadsPage() {
       toast.error('Failed to convert lead');
     } finally {
       setConvertingId(null);
+    }
+  };
+
+  // Handle viewing order details for a lead/customer
+  const handleViewOrder = async (customerId: number | string) => {
+    try {
+      const response = await apiClient.get(`/order-management/customer/${customerId}/orders`);
+      const orders = response.data?.data || response.data || [];
+      if (orders.length > 0) {
+        setSelectedOrderId(orders[0].id);
+        setShowOrderModal(true);
+      } else {
+        toast.warning('No orders found for this customer');
+      }
+    } catch (error: any) {
+      console.error('Error fetching customer orders:', error);
+      toast.error('Failed to fetch customer orders');
     }
   };
 
@@ -146,15 +168,15 @@ export default function CrmLeadsPage() {
                       <td className="px-4 py-2">{lead.phone || 'N/A'}</td>
                       <td className="px-4 py-2 capitalize">{lead.priority || '-'}</td>
                       <td className="px-4 py-2 capitalize">{lead.status || '-'}</td>
-                      <td className="px-4 py-2">{lead.assigned_to ?? 'Unassigned'}</td>
+                      <td className="px-4 py-2">{lead.assigned_to_name || (lead.assigned_to ? `Agent #${lead.assigned_to}` : 'Unassigned')}</td>
                       <td className="px-4 py-2">
                         <div className="flex items-center gap-2">
-                          <Link
+                          <button
                             className="px-3 py-1 border rounded hover:bg-gray-50"
-                            href={`/admin/crm/customer/${lead.id}`}
+                            onClick={() => handleViewOrder(lead.id)}
                           >
                             View
-                          </Link>
+                          </button>
                           <button
                             className="px-3 py-1 border rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
                             disabled={convertingId === lead.id}
@@ -194,6 +216,18 @@ export default function CrmLeadsPage() {
           </div>
         </div>
       </div>
+
+      {/* Order Details Modal */}
+      {showOrderModal && selectedOrderId && (
+        <AdminOrderDetailsModal
+          orderId={selectedOrderId}
+          onClose={() => {
+            setShowOrderModal(false);
+            setSelectedOrderId(null);
+          }}
+          onUpdate={loadLeads}
+        />
+      )}
     </AdminLayout>
   );
 }

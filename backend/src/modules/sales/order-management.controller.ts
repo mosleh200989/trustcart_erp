@@ -206,6 +206,14 @@ export class OrderManagementController {
     return await this.orderManagementService.getActivityLogs(orderId);
   }
 
+  // ==================== CUSTOMER ORDERS ====================
+
+  @Get('customer/:customerId/orders')
+  @RequirePermissions('view-sales-orders')
+  async getCustomerOrders(@Param('customerId') customerId: number) {
+    return await this.orderManagementService.getCustomerOrders(customerId);
+  }
+
   // ==================== ORDER DETAILS ====================
 
   @Get(':orderId/details')
