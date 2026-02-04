@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import AdminLayout from '@/layouts/AdminLayout';
-import { FaPhone, FaWhatsapp, FaSms, FaEnvelope, FaFire, FaChartLine, FaCheckCircle, FaClock, FaMoneyBillWave, FaDollarSign } from 'react-icons/fa';
+import { 
+  FaPhone, FaWhatsapp, FaSms, FaEnvelope, FaFire, FaChartLine, FaCheckCircle, FaClock, 
+  FaMoneyBillWave, FaDollarSign, FaStickyNote, FaCalendarAlt, FaCheckDouble, FaThumbsUp, FaThumbsDown 
+} from 'react-icons/fa';
 import apiClient, { auth, users as usersApi } from '@/services/api';
 import AdminOrderDetailsModal from '@/components/AdminOrderDetailsModal';
 import Link from 'next/link';
@@ -107,6 +110,10 @@ interface CommissionRecord {
   createdAt: string;
 }
 
+// Filter types for leads
+type FilterCalledStatus = 'all' | 'called' | 'not_called';
+type FilterOutcome = 'all' | 'positive' | 'negative' | 'neutral' | 'no_answer';
+
 export default function AgentDashboard() {
   const router = useRouter();
   const toast = useToast();
@@ -127,6 +134,8 @@ export default function AgentDashboard() {
   const [leadsSearchTerm, setLeadsSearchTerm] = useState('');
   const [leadsPriorityFilter, setLeadsPriorityFilter] = useState('');
   const [leadsStageFilter, setLeadsStageFilter] = useState('');
+  const [leadsCalledFilter, setLeadsCalledFilter] = useState<FilterCalledStatus>('all');
+  const [leadsOutcomeFilter, setLeadsOutcomeFilter] = useState<FilterOutcome>('all');
   const [leadsPage, setLeadsPage] = useState(1);
   const leadsLimit = 20;
 
@@ -163,6 +172,24 @@ export default function AgentDashboard() {
   const [outcome, setOutcome] = useState('');
   const [notes, setNotes] = useState('');
   const [followUpAt, setFollowUpAt] = useState('');
+
+  // Mark as called state
+  const [markingAsCalled, setMarkingAsCalled] = useState(false);
+  const [calledToday, setCalledToday] = useState(false);
+
+  // Lead action modals
+  const [selectedLeadForAction, setSelectedLeadForAction] = useState<AssignedCustomer | null>(null);
+  const [showLeadFollowUpModal, setShowLeadFollowUpModal] = useState(false);
+  const [showLeadNotesModal, setShowLeadNotesModal] = useState(false);
+  const [showLeadOutcomeModal, setShowLeadOutcomeModal] = useState(false);
+  const [leadFollowUpDate, setLeadFollowUpDate] = useState('');
+  const [leadFollowUpTime, setLeadFollowUpTime] = useState('');
+  const [leadFollowUpNotes, setLeadFollowUpNotes] = useState('');
+  const [leadCallNotes, setLeadCallNotes] = useState('');
+  const [leadCallOutcome, setLeadCallOutcome] = useState<'positive' | 'negative' | 'neutral' | 'no_answer' | ''>('');
+  const [leadOutcomeNotes, setLeadOutcomeNotes] = useState('');
+  const [savingLeadAction, setSavingLeadAction] = useState(false);
+  const [markingLeadAsCalled, setMarkingLeadAsCalled] = useState<number | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -318,6 +345,8 @@ export default function AgentDashboard() {
     search?: string;
     priority?: string;
     stage?: string;
+    calledStatus?: FilterCalledStatus;
+    outcome?: FilterOutcome;
     page?: number;
   }) => {
     try {
@@ -337,6 +366,12 @@ export default function AgentDashboard() {
       if (filters?.search || leadsSearchTerm) params.search = filters?.search || leadsSearchTerm;
       if (filters?.priority || leadsPriorityFilter) params.priority = filters?.priority || leadsPriorityFilter;
       if (filters?.stage || leadsStageFilter) params.stage = filters?.stage || leadsStageFilter;
+      
+      // Add new filters
+      const calledStatus = filters?.calledStatus ?? leadsCalledFilter;
+      const outcome = filters?.outcome ?? leadsOutcomeFilter;
+      if (calledStatus && calledStatus !== 'all') params.calledStatus = calledStatus;
+      if (outcome && outcome !== 'all') params.outcome = outcome;
       
       const res = await apiClient.get<PaginatedCustomers>(url, { params });
       const data = (res as any)?.data;
@@ -398,6 +433,7 @@ export default function AgentDashboard() {
       setOutcome('');
       setNotes('');
       setFollowUpAt('');
+      setCalledToday(false); // Reset called today state for new task
 
       const customerPhone = String(intelRes?.data?.phone || task.customer_id || '').trim();
       setDialNumber(customerPhone);
@@ -437,6 +473,167 @@ export default function AgentDashboard() {
     } catch (error) {
       console.error('Failed to complete task:', error);
       toast.error('Failed to complete task');
+    }
+  };
+
+  const handleMarkAsCalled = async () => {
+    if (!selectedTask) return;
+    
+    setMarkingAsCalled(true);
+    try {
+      await apiClient.post(`/crm/automation/customer/${selectedTask.customer_id}/mark-called`, {
+        notes: notes || 'Customer called via softphone',
+        taskId: selectedTask.id
+      });
+      
+      setCalledToday(true);
+      toast.success('Customer marked as called today!');
+      loadDashboard();
+    } catch (error) {
+      console.error('Failed to mark as called:', error);
+      toast.error('Failed to mark customer as called');
+    } finally {
+      setMarkingAsCalled(false);
+    }
+  };
+
+  // ==================== LEAD ACTION HANDLERS ====================
+
+  const handleMarkLeadAsCalled = async (lead: AssignedCustomer) => {
+    setMarkingLeadAsCalled(lead.id);
+    try {
+      await apiClient.post(`/crm/automation/customer/${lead.id}/mark-called`, {
+        notes: 'Marked as called from Agent Dashboard'
+      });
+      toast.success('Customer marked as called today!');
+      if (selectedViewAgentId) loadAssignedCustomers(selectedViewAgentId);
+    } catch (error) {
+      console.error('Failed to mark as called:', error);
+      toast.error('Failed to mark customer as called');
+    } finally {
+      setMarkingLeadAsCalled(null);
+    }
+  };
+
+  const openLeadFollowUpModal = (lead: AssignedCustomer) => {
+    setSelectedLeadForAction(lead);
+    setLeadFollowUpDate('');
+    setLeadFollowUpTime('');
+    setLeadFollowUpNotes('');
+    setShowLeadFollowUpModal(true);
+  };
+
+  const handleSaveLeadFollowUp = async () => {
+    if (!selectedLeadForAction || !leadFollowUpDate) {
+      toast.warning('Please select a follow-up date');
+      return;
+    }
+    
+    setSavingLeadAction(true);
+    try {
+      const followUpDateTime = leadFollowUpTime 
+        ? `${leadFollowUpDate}T${leadFollowUpTime}:00` 
+        : `${leadFollowUpDate}T09:00:00`;
+      
+      await apiClient.put(`/customers/${selectedLeadForAction.id}`, {
+        next_follow_up: followUpDateTime
+      });
+      
+      await apiClient.post('/crm/automation/engagement', {
+        customer_id: String(selectedLeadForAction.id),
+        engagement_type: 'call',
+        status: 'completed',
+        message_content: `Follow-up scheduled for ${leadFollowUpDate}${leadFollowUpTime ? ' at ' + leadFollowUpTime : ''}. ${leadFollowUpNotes}`,
+        metadata: { follow_up_date: followUpDateTime, notes: leadFollowUpNotes }
+      });
+      
+      toast.success('Follow-up scheduled successfully!');
+      setShowLeadFollowUpModal(false);
+      setSelectedLeadForAction(null);
+      if (selectedViewAgentId) loadAssignedCustomers(selectedViewAgentId);
+    } catch (error) {
+      console.error('Failed to save follow-up:', error);
+      toast.error('Failed to schedule follow-up');
+    } finally {
+      setSavingLeadAction(false);
+    }
+  };
+
+  const openLeadNotesModal = (lead: AssignedCustomer) => {
+    setSelectedLeadForAction(lead);
+    setLeadCallNotes('');
+    setShowLeadNotesModal(true);
+  };
+
+  const handleSaveLeadNotes = async () => {
+    if (!selectedLeadForAction || !leadCallNotes.trim()) {
+      toast.warning('Please enter some notes');
+      return;
+    }
+    
+    setSavingLeadAction(true);
+    try {
+      await apiClient.post('/crm/automation/engagement', {
+        customer_id: String(selectedLeadForAction.id),
+        engagement_type: 'call',
+        status: 'completed',
+        message_content: leadCallNotes,
+        metadata: { type: 'call_notes', notes: leadCallNotes }
+      });
+      
+      toast.success('Notes saved successfully!');
+      setShowLeadNotesModal(false);
+      setSelectedLeadForAction(null);
+    } catch (error) {
+      console.error('Failed to save notes:', error);
+      toast.error('Failed to save notes');
+    } finally {
+      setSavingLeadAction(false);
+    }
+  };
+
+  const openLeadOutcomeModal = (lead: AssignedCustomer) => {
+    setSelectedLeadForAction(lead);
+    setLeadCallOutcome('');
+    setLeadOutcomeNotes('');
+    setShowLeadOutcomeModal(true);
+  };
+
+  const handleSaveLeadOutcome = async () => {
+    if (!selectedLeadForAction || !leadCallOutcome) {
+      toast.warning('Please select an outcome');
+      return;
+    }
+    
+    setSavingLeadAction(true);
+    try {
+      const leadStatus = leadCallOutcome === 'positive' ? 'qualified' 
+        : leadCallOutcome === 'negative' ? 'not_interested' 
+        : leadCallOutcome === 'no_answer' ? 'no_answer'
+        : 'contacted';
+      
+      await apiClient.put(`/customers/${selectedLeadForAction.id}`, {
+        leadStatus: leadStatus,
+        last_contact_date: new Date().toISOString()
+      });
+      
+      await apiClient.post('/crm/automation/engagement', {
+        customer_id: String(selectedLeadForAction.id),
+        engagement_type: 'call',
+        status: 'completed',
+        message_content: `Call outcome: ${leadCallOutcome}. ${leadOutcomeNotes}`,
+        metadata: { outcome: leadCallOutcome, notes: leadOutcomeNotes }
+      });
+      
+      toast.success('Outcome saved successfully!');
+      setShowLeadOutcomeModal(false);
+      setSelectedLeadForAction(null);
+      if (selectedViewAgentId) loadAssignedCustomers(selectedViewAgentId);
+    } catch (error) {
+      console.error('Failed to save outcome:', error);
+      toast.error('Failed to save outcome');
+    } finally {
+      setSavingLeadAction(false);
     }
   };
 
@@ -694,7 +891,7 @@ export default function AgentDashboard() {
 
           {/* Filters Section */}
           <div className="p-4 border-b bg-gray-50">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-3">
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Search</label>
                 <input
@@ -732,6 +929,32 @@ export default function AgentDashboard() {
                   <option value="prospect">Prospect</option>
                 </select>
               </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Called Status</label>
+                <select
+                  value={leadsCalledFilter}
+                  onChange={(e) => setLeadsCalledFilter(e.target.value as FilterCalledStatus)}
+                  className="w-full border rounded-lg px-3 py-2 text-sm"
+                >
+                  <option value="all">All</option>
+                  <option value="called">Called Today</option>
+                  <option value="not_called">Not Called</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Outcome</label>
+                <select
+                  value={leadsOutcomeFilter}
+                  onChange={(e) => setLeadsOutcomeFilter(e.target.value as FilterOutcome)}
+                  className="w-full border rounded-lg px-3 py-2 text-sm"
+                >
+                  <option value="all">All Outcomes</option>
+                  <option value="positive">Positive</option>
+                  <option value="negative">Negative</option>
+                  <option value="neutral">Neutral</option>
+                  <option value="no_answer">No Answer</option>
+                </select>
+              </div>
               <div className="flex items-end gap-2">
                 <button
                   onClick={() => {
@@ -741,6 +964,8 @@ export default function AgentDashboard() {
                         search: leadsSearchTerm,
                         priority: leadsPriorityFilter,
                         stage: leadsStageFilter,
+                        calledStatus: leadsCalledFilter,
+                        outcome: leadsOutcomeFilter,
                         page: 1
                       });
                     }
@@ -755,6 +980,8 @@ export default function AgentDashboard() {
                     setLeadsSearchTerm('');
                     setLeadsPriorityFilter('');
                     setLeadsStageFilter('');
+                    setLeadsCalledFilter('all');
+                    setLeadsOutcomeFilter('all');
                     setLeadsPage(1);
                     if (selectedViewAgentId) {
                       loadAssignedCustomers(selectedViewAgentId, { page: 1 });
@@ -771,7 +998,7 @@ export default function AgentDashboard() {
           <div className="p-6">
             <div className="text-sm text-gray-600 mb-4">
               Total assigned: <span className="font-semibold">{assignedTotal}</span>
-              {(leadsSearchTerm || leadsPriorityFilter || leadsStageFilter) && (
+              {(leadsSearchTerm || leadsPriorityFilter || leadsStageFilter || leadsCalledFilter !== 'all' || leadsOutcomeFilter !== 'all') && (
                 <span className="ml-2 text-blue-600">(filtered)</span>
               )}
             </div>
@@ -824,7 +1051,8 @@ export default function AgentDashboard() {
                             </span>
                           </td>
                           <td className="px-4 py-3">
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-1 flex-wrap">
+                              {/* Row 1: View & Contact */}
                               <button
                                 onClick={() => handleViewOrder(c.id)}
                                 className="text-xs px-2 py-1 rounded border border-gray-300 text-gray-700 hover:bg-gray-100"
@@ -836,12 +1064,12 @@ export default function AgentDashboard() {
                                 href={rawPhone ? `tel:${rawPhone}` : undefined}
                                 aria-disabled={!rawPhone}
                                 title={rawPhone ? 'Call' : 'No phone'}
-                                className={`p-2 rounded border ${rawPhone ? 'border-green-200 text-green-700 hover:bg-green-50' : 'border-gray-200 text-gray-300 cursor-not-allowed'}`}
+                                className={`p-1.5 rounded border ${rawPhone ? 'border-green-200 text-green-700 hover:bg-green-50' : 'border-gray-200 text-gray-300 cursor-not-allowed'}`}
                                 onClick={(e) => {
                                   if (!rawPhone) e.preventDefault();
                                 }}
                               >
-                                <FaPhone />
+                                <FaPhone size={12} />
                               </a>
 
                               <a
@@ -850,37 +1078,71 @@ export default function AgentDashboard() {
                                 rel="noreferrer"
                                 aria-disabled={!waPhone}
                                 title={waPhone ? 'WhatsApp' : 'No phone'}
-                                className={`p-2 rounded border ${waPhone ? 'border-emerald-200 text-emerald-700 hover:bg-emerald-50' : 'border-gray-200 text-gray-300 cursor-not-allowed'}`}
+                                className={`p-1.5 rounded border ${waPhone ? 'border-emerald-200 text-emerald-700 hover:bg-emerald-50' : 'border-gray-200 text-gray-300 cursor-not-allowed'}`}
                                 onClick={(e) => {
                                   if (!waPhone) e.preventDefault();
                                 }}
                               >
-                                <FaWhatsapp />
+                                <FaWhatsapp size={12} />
                               </a>
 
                               <a
                                 href={rawPhone ? `sms:${rawPhone}` : undefined}
                                 aria-disabled={!rawPhone}
                                 title={rawPhone ? 'SMS' : 'No phone'}
-                                className={`p-2 rounded border ${rawPhone ? 'border-blue-200 text-blue-700 hover:bg-blue-50' : 'border-gray-200 text-gray-300 cursor-not-allowed'}`}
+                                className={`p-1.5 rounded border ${rawPhone ? 'border-blue-200 text-blue-700 hover:bg-blue-50' : 'border-gray-200 text-gray-300 cursor-not-allowed'}`}
                                 onClick={(e) => {
                                   if (!rawPhone) e.preventDefault();
                                 }}
                               >
-                                <FaSms />
+                                <FaSms size={12} />
                               </a>
 
                               <a
                                 href={email ? `mailto:${email}` : undefined}
                                 aria-disabled={!email}
                                 title={email ? 'Email' : 'No email'}
-                                className={`p-2 rounded border ${email ? 'border-purple-200 text-purple-700 hover:bg-purple-50' : 'border-gray-200 text-gray-300 cursor-not-allowed'}`}
+                                className={`p-1.5 rounded border ${email ? 'border-purple-200 text-purple-700 hover:bg-purple-50' : 'border-gray-200 text-gray-300 cursor-not-allowed'}`}
                                 onClick={(e) => {
                                   if (!email) e.preventDefault();
                                 }}
                               >
-                                <FaEnvelope />
+                                <FaEnvelope size={12} />
                               </a>
+
+                              {/* Row 2: Actions */}
+                              <button
+                                onClick={() => handleMarkLeadAsCalled(c)}
+                                disabled={markingLeadAsCalled === c.id}
+                                title="Mark as Called"
+                                className="p-1.5 rounded border border-purple-200 text-purple-700 hover:bg-purple-50 disabled:opacity-50"
+                              >
+                                {markingLeadAsCalled === c.id ? <span className="animate-spin text-xs">⏳</span> : <FaCheckDouble size={12} />}
+                              </button>
+
+                              <button
+                                onClick={() => openLeadFollowUpModal(c)}
+                                title="Set Follow-up"
+                                className="p-1.5 rounded border border-blue-200 text-blue-700 hover:bg-blue-50"
+                              >
+                                <FaCalendarAlt size={12} />
+                              </button>
+
+                              <button
+                                onClick={() => openLeadNotesModal(c)}
+                                title="Add Notes"
+                                className="p-1.5 rounded border border-gray-200 text-gray-700 hover:bg-gray-50"
+                              >
+                                <FaStickyNote size={12} />
+                              </button>
+
+                              <button
+                                onClick={() => openLeadOutcomeModal(c)}
+                                title="Set Outcome"
+                                className="p-1.5 rounded border border-indigo-200 text-indigo-700 hover:bg-indigo-50"
+                              >
+                                <FaThumbsUp size={12} />
+                              </button>
                             </div>
                           </td>
                         </tr>
@@ -1389,6 +1651,31 @@ export default function AgentDashboard() {
                       )}
                     </div>
 
+                    {/* Mark as Called Today Button */}
+                    <div className="mt-4">
+                      {calledToday ? (
+                        <div className="w-full px-4 py-3 bg-green-100 text-green-800 rounded-lg font-semibold flex items-center justify-center gap-2 border border-green-300">
+                          <FaCheckCircle /> Called Today ✓
+                        </div>
+                      ) : (
+                        <button
+                          onClick={handleMarkAsCalled}
+                          disabled={markingAsCalled || callStatus === 'initiating'}
+                          className="w-full px-4 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-semibold flex items-center justify-center gap-2 disabled:opacity-50"
+                        >
+                          {markingAsCalled ? (
+                            <>
+                              <span className="animate-spin">⏳</span> Marking...
+                            </>
+                          ) : (
+                            <>
+                              <FaCheckCircle /> Mark as Called Today
+                            </>
+                          )}
+                        </button>
+                      )}
+                    </div>
+
                     <div className="grid grid-cols-3 gap-2 mt-4">
                       <button
                         onClick={() => setIsMuted((v) => !v)}
@@ -1581,6 +1868,219 @@ export default function AgentDashboard() {
               // Refresh data if needed
             }}
           />
+        )}
+
+        {/* Lead Follow-Up Modal */}
+        {showLeadFollowUpModal && selectedLeadForAction && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+              <h3 className="text-xl font-bold text-gray-800 mb-2 flex items-center gap-2">
+                <FaCalendarAlt className="text-blue-600" />
+                Schedule Follow-up
+              </h3>
+              <p className="text-sm text-gray-600 mb-4">
+                Set follow-up for: <strong>{selectedLeadForAction.name || `Customer #${selectedLeadForAction.id}`}</strong>
+              </p>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Follow-up Date *</label>
+                  <input
+                    type="date"
+                    value={leadFollowUpDate}
+                    onChange={(e) => setLeadFollowUpDate(e.target.value)}
+                    min={new Date().toISOString().split('T')[0]}
+                    className="w-full px-3 py-2 border rounded-lg"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Time (Optional)</label>
+                  <input
+                    type="time"
+                    value={leadFollowUpTime}
+                    onChange={(e) => setLeadFollowUpTime(e.target.value)}
+                    className="w-full px-3 py-2 border rounded-lg"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Notes (Optional)</label>
+                  <textarea
+                    value={leadFollowUpNotes}
+                    onChange={(e) => setLeadFollowUpNotes(e.target.value)}
+                    rows={3}
+                    className="w-full px-3 py-2 border rounded-lg"
+                    placeholder="Any notes for the follow-up..."
+                  />
+                </div>
+              </div>
+              
+              <div className="flex gap-3 mt-6">
+                <button
+                  onClick={handleSaveLeadFollowUp}
+                  disabled={savingLeadAction || !leadFollowUpDate}
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {savingLeadAction ? 'Saving...' : <><FaCalendarAlt /> Schedule</>}
+                </button>
+                <button
+                  onClick={() => {
+                    setShowLeadFollowUpModal(false);
+                    setSelectedLeadForAction(null);
+                  }}
+                  className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Lead Notes Modal */}
+        {showLeadNotesModal && selectedLeadForAction && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+              <h3 className="text-xl font-bold text-gray-800 mb-2 flex items-center gap-2">
+                <FaStickyNote className="text-gray-600" />
+                Add Call Notes
+              </h3>
+              <p className="text-sm text-gray-600 mb-4">
+                Notes for: <strong>{selectedLeadForAction.name || `Customer #${selectedLeadForAction.id}`}</strong>
+              </p>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Call Notes *</label>
+                <textarea
+                  value={leadCallNotes}
+                  onChange={(e) => setLeadCallNotes(e.target.value)}
+                  rows={5}
+                  className="w-full px-3 py-2 border rounded-lg"
+                  placeholder="Summarize the call... What was discussed?"
+                />
+              </div>
+              
+              <div className="flex gap-3 mt-6">
+                <button
+                  onClick={handleSaveLeadNotes}
+                  disabled={savingLeadAction || !leadCallNotes.trim()}
+                  className="flex-1 px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-800 disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {savingLeadAction ? 'Saving...' : <><FaStickyNote /> Save Notes</>}
+                </button>
+                <button
+                  onClick={() => {
+                    setShowLeadNotesModal(false);
+                    setSelectedLeadForAction(null);
+                  }}
+                  className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Lead Outcome Modal */}
+        {showLeadOutcomeModal && selectedLeadForAction && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+              <h3 className="text-xl font-bold text-gray-800 mb-2 flex items-center gap-2">
+                <FaThumbsUp className="text-indigo-600" />
+                Set Call Outcome
+              </h3>
+              <p className="text-sm text-gray-600 mb-4">
+                Outcome for: <strong>{selectedLeadForAction.name || `Customer #${selectedLeadForAction.id}`}</strong>
+              </p>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Call Outcome *</label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      onClick={() => setLeadCallOutcome('positive')}
+                      className={`p-3 rounded-lg border-2 flex flex-col items-center gap-1 transition-all ${
+                        leadCallOutcome === 'positive' 
+                          ? 'border-green-500 bg-green-50 text-green-700' 
+                          : 'border-gray-200 hover:border-green-300'
+                      }`}
+                    >
+                      <FaThumbsUp className="text-xl text-green-600" />
+                      <span className="text-sm font-medium">Positive</span>
+                    </button>
+                    
+                    <button
+                      onClick={() => setLeadCallOutcome('negative')}
+                      className={`p-3 rounded-lg border-2 flex flex-col items-center gap-1 transition-all ${
+                        leadCallOutcome === 'negative' 
+                          ? 'border-red-500 bg-red-50 text-red-700' 
+                          : 'border-gray-200 hover:border-red-300'
+                      }`}
+                    >
+                      <FaThumbsDown className="text-xl text-red-600" />
+                      <span className="text-sm font-medium">Negative</span>
+                    </button>
+                    
+                    <button
+                      onClick={() => setLeadCallOutcome('neutral')}
+                      className={`p-3 rounded-lg border-2 flex flex-col items-center gap-1 transition-all ${
+                        leadCallOutcome === 'neutral' 
+                          ? 'border-gray-500 bg-gray-50 text-gray-700' 
+                          : 'border-gray-200 hover:border-gray-400'
+                      }`}
+                    >
+                      <span className="text-xl">➖</span>
+                      <span className="text-sm font-medium">Neutral</span>
+                    </button>
+                    
+                    <button
+                      onClick={() => setLeadCallOutcome('no_answer')}
+                      className={`p-3 rounded-lg border-2 flex flex-col items-center gap-1 transition-all ${
+                        leadCallOutcome === 'no_answer' 
+                          ? 'border-yellow-500 bg-yellow-50 text-yellow-700' 
+                          : 'border-gray-200 hover:border-yellow-300'
+                      }`}
+                    >
+                      <span className="text-xl">📵</span>
+                      <span className="text-sm font-medium">No Answer</span>
+                    </button>
+                  </div>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Notes (Optional)</label>
+                  <textarea
+                    value={leadOutcomeNotes}
+                    onChange={(e) => setLeadOutcomeNotes(e.target.value)}
+                    rows={3}
+                    className="w-full px-3 py-2 border rounded-lg"
+                    placeholder="Additional details..."
+                  />
+                </div>
+              </div>
+              
+              <div className="flex gap-3 mt-6">
+                <button
+                  onClick={handleSaveLeadOutcome}
+                  disabled={savingLeadAction || !leadCallOutcome}
+                  className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {savingLeadAction ? 'Saving...' : <><FaCheckCircle /> Save Outcome</>}
+                </button>
+                <button
+                  onClick={() => {
+                    setShowLeadOutcomeModal(false);
+                    setSelectedLeadForAction(null);
+                  }}
+                  className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </AdminLayout>

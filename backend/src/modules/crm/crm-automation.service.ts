@@ -286,6 +286,49 @@ export class CrmAutomationService {
     const engagement = this.engagementRepo.create(data);
     return await this.engagementRepo.save(engagement);
   }
+
+  async markCustomerAsCalled(customerId: string, agentId: number, notes?: string, taskId?: number) {
+    const callDateTime = new Date();
+    
+    // 1. Create engagement history record
+    const engagement = this.engagementRepo.create({
+      customer_id: customerId,
+      engagement_type: 'call' as any,
+      status: 'completed' as any,
+      channel: 'phone',
+      agent_id: agentId,
+      message_content: notes || 'Customer called',
+      metadata: {
+        call_date: callDateTime.toISOString(),
+        marked_as_called: true,
+        task_id: taskId
+      }
+    });
+    await this.engagementRepo.save(engagement);
+    
+    // 2. Update customer's last_contact_date
+    await this.engagementRepo.query(`
+      UPDATE customers 
+      SET last_contact_date = $1 
+      WHERE id = $2 OR phone = $2
+    `, [callDateTime, customerId]);
+    
+    // 3. If taskId provided, update the task status
+    if (taskId) {
+      await this.callTaskRepo.update(taskId, {
+        status: TaskStatus.COMPLETED,
+        call_outcome: 'called',
+        notes: notes || 'Marked as called'
+      });
+    }
+    
+    return {
+      success: true,
+      message: 'Customer marked as called',
+      callDateTime,
+      engagementId: engagement.id
+    };
+  }
   
   async getCustomerEngagementHistory(customerId: string, limit: number = 50) {
     return await this.engagementRepo.find({
