@@ -12,6 +12,8 @@ import { CustomerDropoff } from './entities/customer-dropoff.entity';
 import { CustomerAddress } from './entities/customer-address.entity';
 import { CustomerAddressesController } from './customer-addresses.controller';
 import { CustomerAddressesService } from './customer-addresses.service';
+import { CustomerEnrichmentService } from './customer-enrichment.service';
+import { CustomerEnrichmentController } from './customer-enrichment.controller';
 import { LoyaltyModule } from '../loyalty/loyalty.module';
 
 @Module({
@@ -26,8 +28,8 @@ import { LoyaltyModule } from '../loyalty/loyalty.module';
     ]),
     LoyaltyModule,
   ],
-  controllers: [CustomersController, CdmController, CustomerAddressesController],
-  providers: [CustomersService, CdmService, CustomerAddressesService],
-  exports: [CustomersService, CdmService, CustomerAddressesService],
+  controllers: [CustomersController, CdmController, CustomerAddressesController, CustomerEnrichmentController],
+  providers: [CustomersService, CdmService, CustomerAddressesService, CustomerEnrichmentService],
+  exports: [CustomersService, CdmService, CustomerAddressesService, CustomerEnrichmentService],
 })
 export class CustomersModule {}
