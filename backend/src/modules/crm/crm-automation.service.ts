@@ -44,6 +44,109 @@ export class CrmAutomationService {
     
     return tasks;
   }
+
+  async getAgentFollowUpTasks(agentId: number, dateRange?: string, specificDate?: string) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const qb = this.callTaskRepo.createQueryBuilder('t')
+      .where('t.assigned_agent_id = :agentId', { agentId })
+      .andWhere("(t.call_reason ILIKE '%follow%' OR t.call_reason ILIKE '%reminder%' OR t.call_reason ILIKE '%callback%')");
+    
+    // Specific date filter (takes priority over date range)
+    if (specificDate) {
+      qb.andWhere('t.task_date = :specificDate', { specificDate });
+    } else if (dateRange === 'today') {
+      qb.andWhere('t.task_date = :today', { today: today.toISOString().split('T')[0] });
+    } else if (dateRange === 'tomorrow') {
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      qb.andWhere('t.task_date = :tomorrow', { tomorrow: tomorrow.toISOString().split('T')[0] });
+    } else if (dateRange === 'this_week') {
+      const endOfWeek = new Date(today);
+      endOfWeek.setDate(endOfWeek.getDate() + (7 - today.getDay()));
+      qb.andWhere('t.task_date >= :today AND t.task_date <= :endOfWeek', { 
+        today: today.toISOString().split('T')[0],
+        endOfWeek: endOfWeek.toISOString().split('T')[0]
+      });
+    } else if (dateRange === 'next_week') {
+      const endOfThisWeek = new Date(today);
+      endOfThisWeek.setDate(endOfThisWeek.getDate() + (7 - today.getDay()));
+      const startOfNextWeek = new Date(endOfThisWeek);
+      startOfNextWeek.setDate(startOfNextWeek.getDate() + 1);
+      const endOfNextWeek = new Date(startOfNextWeek);
+      endOfNextWeek.setDate(endOfNextWeek.getDate() + 6);
+      qb.andWhere('t.task_date >= :startOfNextWeek AND t.task_date <= :endOfNextWeek', { 
+        startOfNextWeek: startOfNextWeek.toISOString().split('T')[0],
+        endOfNextWeek: endOfNextWeek.toISOString().split('T')[0]
+      });
+    } else if (dateRange === 'this_month') {
+      const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+      qb.andWhere('t.task_date >= :today AND t.task_date <= :endOfMonth', { 
+        today: today.toISOString().split('T')[0],
+        endOfMonth: endOfMonth.toISOString().split('T')[0]
+      });
+    } else if (dateRange === 'next_month') {
+      const startOfNextMonth = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+      const endOfNextMonth = new Date(today.getFullYear(), today.getMonth() + 2, 0);
+      qb.andWhere('t.task_date >= :startOfNextMonth AND t.task_date <= :endOfNextMonth', { 
+        startOfNextMonth: startOfNextMonth.toISOString().split('T')[0],
+        endOfNextMonth: endOfNextMonth.toISOString().split('T')[0]
+      });
+    } else if (dateRange === 'overdue') {
+      qb.andWhere('t.task_date < :today', { today: today.toISOString().split('T')[0] });
+      qb.andWhere("t.status NOT IN ('completed', 'failed')");
+    } else if (dateRange === 'week') {
+      // Legacy: next 7 days
+      const weekEnd = new Date(today);
+      weekEnd.setDate(weekEnd.getDate() + 7);
+      qb.andWhere('t.task_date >= :today AND t.task_date <= :weekEnd', { 
+        today: today.toISOString().split('T')[0],
+        weekEnd: weekEnd.toISOString().split('T')[0]
+      });
+    } else if (dateRange === 'month') {
+      // Legacy: next 30 days
+      const monthEnd = new Date(today);
+      monthEnd.setMonth(monthEnd.getMonth() + 1);
+      qb.andWhere('t.task_date >= :today AND t.task_date <= :monthEnd', { 
+        today: today.toISOString().split('T')[0],
+        monthEnd: monthEnd.toISOString().split('T')[0]
+      });
+    }
+    // 'all' or undefined = no date filter
+    
+    qb.orderBy('t.task_date', 'ASC')
+      .addOrderBy('t.scheduled_time', 'ASC')
+      .addOrderBy('t.priority', 'ASC');
+    
+    const tasks = await qb.getMany();
+    
+    // Enrich with customer info
+    const enrichedTasks = await Promise.all(tasks.map(async (task) => {
+      try {
+        const customerResult = await this.callTaskRepo.query(
+          'SELECT id, name, phone, email FROM customers WHERE id = $1',
+          [Number(task.customer_id)]
+        );
+        const customer = customerResult[0];
+        return {
+          ...task,
+          customer_name: customer?.name || 'Unknown',
+          customer_phone: customer?.phone || '',
+          customer_email: customer?.email || ''
+        };
+      } catch {
+        return {
+          ...task,
+          customer_name: 'Unknown',
+          customer_phone: '',
+          customer_email: ''
+        };
+      }
+    }));
+    
+    return enrichedTasks;
+  }
   
   async updateCallTaskStatus(taskId: number, status: TaskStatus, outcome?: string, notes?: string) {
     const task = await this.callTaskRepo.findOne({ where: { id: taskId } });
@@ -71,6 +174,30 @@ export class CrmAutomationService {
     task.assigned_agent_id = agentId;
     task.status = TaskStatus.IN_PROGRESS;
     
+    return await this.callTaskRepo.save(task);
+  }
+
+  async createCallTask(dto: {
+    customer_id: string;
+    assigned_agent_id?: number;
+    priority?: string;
+    call_reason?: string;
+    notes?: string;
+    scheduled_time?: string;
+    task_date?: string;
+  }) {
+    const taskData: Partial<CallTask> = {
+      customer_id: dto.customer_id,
+      assigned_agent_id: dto.assigned_agent_id,
+      priority: (dto.priority as TaskPriority) || TaskPriority.WARM,
+      call_reason: dto.call_reason || 'Follow-up Call',
+      notes: dto.notes || undefined,
+      scheduled_time: dto.scheduled_time || undefined,
+      task_date: dto.task_date ? new Date(dto.task_date) : new Date(),
+      status: TaskStatus.PENDING,
+    };
+    
+    const task = this.callTaskRepo.create(taskData);
     return await this.callTaskRepo.save(task);
   }
   
@@ -307,11 +434,21 @@ export class CrmAutomationService {
     await this.engagementRepo.save(engagement);
     
     // 2. Update customer's last_contact_date
-    await this.engagementRepo.query(`
-      UPDATE customers 
-      SET last_contact_date = $1 
-      WHERE id = $2 OR phone = $2
-    `, [callDateTime, customerId]);
+    // Check if customerId is numeric (id) or string (phone)
+    const isNumericId = /^\d+$/.test(String(customerId));
+    if (isNumericId) {
+      await this.engagementRepo.query(`
+        UPDATE customers 
+        SET last_contact_date = $1 
+        WHERE id = $2
+      `, [callDateTime, Number(customerId)]);
+    } else {
+      await this.engagementRepo.query(`
+        UPDATE customers 
+        SET last_contact_date = $1 
+        WHERE phone = $2
+      `, [callDateTime, customerId]);
+    }
     
     // 3. If taskId provided, update the task status
     if (taskId) {

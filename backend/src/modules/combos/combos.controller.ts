@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards, Query } from '@nestjs/common';
 import { CombosService } from './combos.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
@@ -12,8 +12,18 @@ export class CombosController {
 
   @Get()
   @Public()
-  async findAll() {
-    return this.combosService.findAll();
+  async findAll(@Query('includeInactive') includeInactive?: string) {
+    // If includeInactive=true, return all combos (for admin)
+    // Otherwise return only active combos (for public/storefront)
+    const showAll = includeInactive === 'true';
+    return this.combosService.findAll(showAll);
+  }
+
+  @Get('admin/all')
+  @RequirePermissions('view-products')
+  async findAllAdmin() {
+    // Admin endpoint to get all combos including inactive
+    return this.combosService.findAll(true);
   }
 
   @Get(':slug')

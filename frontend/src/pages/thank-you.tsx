@@ -202,7 +202,7 @@ export default function ThankYouPage() {
   }, [order]);
 
   const discount = useMemo(() => {
-    const raw = order?.discount ?? order?.discount_amount ?? 0;
+    const raw = order?.discountAmount ?? order?.discount ?? order?.discount_amount ?? 0;
     const num = Number(raw);
     return Number.isFinite(num) ? num : 0;
   }, [order]);

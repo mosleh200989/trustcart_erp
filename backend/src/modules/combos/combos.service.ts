@@ -10,10 +10,15 @@ export class CombosService {
     private comboDealsRepository: Repository<ComboDeal>,
   ) {}
 
-  async findAll() {
+  async findAll(includeInactive: boolean = false) {
     try {
+      const whereClause = includeInactive 
+        ? '' 
+        : 'WHERE cd.is_active = TRUE AND (cd.expires_at IS NULL OR cd.expires_at > NOW())';
+      
       const results = await this.comboDealsRepository.query(`
         SELECT cd.*, 
+               CASE WHEN cd.is_active THEN 'active' ELSE 'inactive' END as status,
                ARRAY_AGG(
                  DISTINCT jsonb_build_object(
                    'id', p.id,
@@ -27,8 +32,7 @@ export class CombosService {
         FROM combo_deals cd
         LEFT JOIN combo_deal_products cdp ON cd.id = cdp.combo_deal_id
         LEFT JOIN products p ON cdp.product_id = p.id
-        WHERE cd.is_active = TRUE
-          AND (cd.expires_at IS NULL OR cd.expires_at > NOW())
+        ${whereClause}
         GROUP BY cd.id
         ORDER BY cd.created_at DESC
       `);
@@ -43,6 +47,7 @@ export class CombosService {
     try {
       const results = await this.comboDealsRepository.query(`
         SELECT cd.*, 
+               CASE WHEN cd.is_active THEN 'active' ELSE 'inactive' END as status,
                ARRAY_AGG(
                  DISTINCT jsonb_build_object(
                    'id', p.id,
@@ -73,11 +78,16 @@ export class CombosService {
     try {
       console.log('Creating combo with data:', createComboDto);
       
-      // Generate slug from name
-      const slug = createComboDto.name
+      // Generate slug from name - handle Bengali names by adding timestamp
+      let slug = createComboDto.name
         .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/[^a-z0-9\u0980-\u09FF]+/g, '-')  // Keep Bengali characters (Unicode range)
         .replace(/^-+|-+$/g, '');
+      
+      // If slug is empty or only Bengali chars (which may not work well in URLs), use timestamp
+      if (!slug || !/[a-z0-9]/.test(slug)) {
+        slug = `combo-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
+      }
       
       const combo = this.comboDealsRepository.create({
         name: createComboDto.name,
@@ -127,10 +137,16 @@ export class CombosService {
       };
       
       if (updateComboDto.name) {
-        updateData.slug = updateComboDto.name
+        let slug = updateComboDto.name
           .toLowerCase()
-          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/[^a-z0-9\u0980-\u09FF]+/g, '-')  // Keep Bengali characters
           .replace(/^-+|-+$/g, '');
+        
+        // If slug is empty or only Bengali chars, use timestamp
+        if (!slug || !/[a-z0-9]/.test(slug)) {
+          slug = `combo-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
+        }
+        updateData.slug = slug;
       }
 
       console.log('Update data prepared:', updateData);
@@ -196,8 +212,16 @@ export class CombosService {
 
   async remove(id: string) {
     try {
-      // Soft delete by setting is_active to false
-      await this.comboDealsRepository.update(parseInt(id), { is_active: false });
+      // First delete associated products from combo_deal_products
+      await this.comboDealsRepository.query(`
+        DELETE FROM combo_deal_products WHERE combo_deal_id = $1
+      `, [parseInt(id)]);
+      
+      // Then hard delete the combo deal
+      await this.comboDealsRepository.query(`
+        DELETE FROM combo_deals WHERE id = $1
+      `, [parseInt(id)]);
+      
       return { message: 'Combo deal deleted successfully' };
     } catch (error) {
       console.error('Error deleting combo deal:', error);

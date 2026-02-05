@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import AdminLayout from '@/layouts/AdminLayout';
 import Modal from '@/components/admin/Modal';
+import ConfirmationModal from '@/components/admin/ConfirmationModal';
 import { useToast } from '@/contexts/ToastContext';
 import FormInput from '@/components/admin/FormInput';
 import ImageUpload from '@/components/admin/ImageUpload';
@@ -49,6 +50,11 @@ export default function ComboProductsAdmin() {
   const [searchResults, setSearchResults] = useState<Product[]>([]);
   const [comboProducts, setComboProducts] = useState<Product[]>([]);
   const [showSearchResults, setShowSearchResults] = useState(false);
+  
+  // Delete confirmation modal
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [comboToDelete, setComboToDelete] = useState<Combo | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     loadCombos();
@@ -56,7 +62,8 @@ export default function ComboProductsAdmin() {
 
   const loadCombos = async () => {
     try {
-      const response = await apiClient.get('/combos');
+      // Use includeInactive=true to show all combos in admin (including inactive)
+      const response = await apiClient.get('/combos?includeInactive=true');
       setCombos(Array.isArray(response.data) ? response.data : []);
     } catch (error) {
       console.error('Failed to load combos:', error);
@@ -107,15 +114,25 @@ export default function ComboProductsAdmin() {
     setIsViewModalOpen(true);
   };
 
-  const handleDelete = async (combo: Combo) => {
-    if (!confirm(`Are you sure you want to delete "${combo.name}"?`)) return;
+  const handleDelete = (combo: Combo) => {
+    setComboToDelete(combo);
+    setShowDeleteModal(true);
+  };
 
+  const confirmDelete = async () => {
+    if (!comboToDelete) return;
+
+    setDeleting(true);
     try {
-      await apiClient.delete(`/combos/${combo.id}`);
-      setCombos(combos.filter(c => c.id !== combo.id));
+      await apiClient.delete(`/combos/${comboToDelete.id}`);
+      setCombos(combos.filter(c => c.id !== comboToDelete.id));
       toast.success('Combo deleted successfully');
+      setShowDeleteModal(false);
+      setComboToDelete(null);
     } catch (error) {
       toast.error('Failed to delete combo');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -558,6 +575,34 @@ export default function ComboProductsAdmin() {
             </div>
           )}
         </Modal>
+
+        {/* Delete Confirmation Modal */}
+        <ConfirmationModal
+          isOpen={showDeleteModal}
+          onClose={() => {
+            setShowDeleteModal(false);
+            setComboToDelete(null);
+          }}
+          onConfirm={confirmDelete}
+          type="delete"
+          title="Delete Combo?"
+          message={
+            <>
+              <p className="text-gray-600 mb-2">You are about to delete:</p>
+              <p className="text-lg font-semibold text-gray-800">
+                "{comboToDelete?.name}"
+              </p>
+            </>
+          }
+          subMessage={
+            comboToDelete?.products && comboToDelete.products.length > 0
+              ? `This combo contains ${comboToDelete.products.length} product(s)`
+              : undefined
+          }
+          warningMessage="This action cannot be undone. The combo will be permanently removed."
+          confirmText="Yes, Delete"
+          loading={deleting}
+        />
       </div>
     </AdminLayout>
   );
