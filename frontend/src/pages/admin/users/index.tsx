@@ -577,16 +577,9 @@ export default function AdminUsers() {
           <form id="user-form" onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <FormInput
-                label="First Name"
+                label="Name"
                 name="name"
                 value={formData.name}
-                onChange={handleInputChange}
-                required
-              />
-              <FormInput
-                label="Last Name"
-                name="lastName"
-                value={formData.lastName}
                 onChange={handleInputChange}
                 required
               />

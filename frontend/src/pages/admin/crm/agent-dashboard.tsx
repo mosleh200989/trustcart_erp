@@ -69,6 +69,7 @@ interface AssignedCustomer {
   priority?: string;
   lifecycleStage?: string;
   createdAt?: string;
+  last_contact_date?: string;
 }
 
 interface PaginatedCustomers {
@@ -113,6 +114,25 @@ interface CommissionRecord {
 // Filter types for leads
 type FilterCalledStatus = 'all' | 'called' | 'not_called';
 type FilterOutcome = 'all' | 'positive' | 'negative' | 'neutral' | 'no_answer';
+
+// Helper function to format last called date
+const formatLastCalled = (dateStr?: string | null): { text: string; color: string } => {
+  if (!dateStr) return { text: 'Never', color: 'text-red-600' };
+  
+  const date = new Date(dateStr);
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const callDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const diffDays = Math.floor((today.getTime() - callDate.getTime()) / (1000 * 60 * 60 * 24));
+  
+  if (diffDays === 0) return { text: 'Today', color: 'text-green-600 font-semibold' };
+  if (diffDays === 1) return { text: 'Yesterday', color: 'text-blue-600' };
+  if (diffDays === 2) return { text: '2 days ago', color: 'text-yellow-600' };
+  if (diffDays <= 7) return { text: `${diffDays} days ago`, color: 'text-orange-600' };
+  if (diffDays <= 14) return { text: '1 week ago', color: 'text-orange-700' };
+  if (diffDays <= 30) return { text: `${Math.floor(diffDays / 7)} weeks ago`, color: 'text-red-500' };
+  return { text: `${Math.floor(diffDays / 30)} months ago`, color: 'text-red-600' };
+};
 
 export default function AgentDashboard() {
   const router = useRouter();
@@ -177,8 +197,17 @@ export default function AgentDashboard() {
   const [markingAsCalled, setMarkingAsCalled] = useState(false);
   const [calledToday, setCalledToday] = useState(false);
 
-  // Lead action modals
+  // Unified Call Action Modal (combines Mark as Called, Follow-up, Notes, Outcome)
+  const [showCallActionModal, setShowCallActionModal] = useState(false);
   const [selectedLeadForAction, setSelectedLeadForAction] = useState<AssignedCustomer | null>(null);
+  const [callActionFollowUpDate, setCallActionFollowUpDate] = useState('');
+  const [callActionFollowUpTime, setCallActionFollowUpTime] = useState('');
+  const [callActionNotes, setCallActionNotes] = useState('');
+  const [callActionOutcome, setCallActionOutcome] = useState<'connected' | 'no_answer' | 'busy' | 'callback_requested' | 'not_interested' | 'order_placed' | ''>('');
+  const [savingCallAction, setSavingCallAction] = useState(false);
+  const [markingLeadAsCalled, setMarkingLeadAsCalled] = useState<number | null>(null);
+
+  // Legacy modals (keeping for backward compatibility if needed)
   const [showLeadFollowUpModal, setShowLeadFollowUpModal] = useState(false);
   const [showLeadNotesModal, setShowLeadNotesModal] = useState(false);
   const [showLeadOutcomeModal, setShowLeadOutcomeModal] = useState(false);
@@ -189,7 +218,6 @@ export default function AgentDashboard() {
   const [leadCallOutcome, setLeadCallOutcome] = useState<'positive' | 'negative' | 'neutral' | 'no_answer' | ''>('');
   const [leadOutcomeNotes, setLeadOutcomeNotes] = useState('');
   const [savingLeadAction, setSavingLeadAction] = useState(false);
-  const [markingLeadAsCalled, setMarkingLeadAsCalled] = useState<number | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -507,11 +535,105 @@ export default function AgentDashboard() {
       });
       toast.success('Customer marked as called today!');
       if (selectedViewAgentId) loadAssignedCustomers(selectedViewAgentId);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to mark as called:', error);
-      toast.error('Failed to mark customer as called');
+      toast.error(error?.response?.data?.message || 'Failed to mark customer as called');
     } finally {
       setMarkingLeadAsCalled(null);
+    }
+  };
+
+  // Open unified call action modal
+  const openCallActionModal = (lead: AssignedCustomer) => {
+    setSelectedLeadForAction(lead);
+    setCallActionFollowUpDate('');
+    setCallActionFollowUpTime('');
+    setCallActionNotes('');
+    setCallActionOutcome('');
+    setShowCallActionModal(true);
+  };
+
+  // Handle unified call action submission
+  const handleSubmitCallAction = async () => {
+    if (!selectedLeadForAction) return;
+    
+    // Validate required fields
+    if (!callActionNotes.trim()) {
+      toast.warning('Please enter call notes');
+      return;
+    }
+    if (!callActionOutcome) {
+      toast.warning('Please select a call outcome');
+      return;
+    }
+    
+    setSavingCallAction(true);
+    try {
+      // 1. Mark as called
+      await apiClient.post(`/crm/automation/customer/${selectedLeadForAction.id}/mark-called`, {
+        notes: callActionNotes
+      });
+      
+      // 2. Save notes to customer
+      await apiClient.put(`/customers/${selectedLeadForAction.id}`, {
+        notes: callActionNotes,
+        last_contact_date: new Date().toISOString()
+      });
+      
+      // 3. Create engagement record with outcome
+      await apiClient.post('/crm/automation/engagement', {
+        customer_id: String(selectedLeadForAction.id),
+        engagement_type: 'call',
+        status: 'completed',
+        message_content: callActionNotes,
+        metadata: { 
+          outcome: callActionOutcome, 
+          notes: callActionNotes,
+          follow_up_scheduled: !!callActionFollowUpDate
+        }
+      });
+      
+      // 4. Update lead status based on outcome
+      const leadStatus = callActionOutcome === 'order_placed' ? 'converted'
+        : callActionOutcome === 'connected' ? 'qualified'
+        : callActionOutcome === 'callback_requested' ? 'follow_up'
+        : callActionOutcome === 'not_interested' ? 'not_interested'
+        : callActionOutcome === 'no_answer' || callActionOutcome === 'busy' ? 'no_answer'
+        : 'contacted';
+      
+      await apiClient.put(`/customers/${selectedLeadForAction.id}`, {
+        leadStatus: leadStatus
+      });
+      
+      // 5. If follow-up date is set, create a follow-up task
+      if (callActionFollowUpDate) {
+        const followUpDateTime = callActionFollowUpTime 
+          ? `${callActionFollowUpDate}T${callActionFollowUpTime}:00` 
+          : `${callActionFollowUpDate}T09:00:00`;
+        
+        await apiClient.post('/crm/automation/tasks', {
+          customer_id: String(selectedLeadForAction.id),
+          priority: selectedLeadForAction.priority || 'warm',
+          call_reason: 'Follow-up Call',
+          notes: `Follow-up from call on ${new Date().toLocaleDateString()}. Previous outcome: ${callActionOutcome}`,
+          scheduled_time: callActionFollowUpTime || '09:00',
+          task_date: callActionFollowUpDate
+        });
+        
+        await apiClient.put(`/customers/${selectedLeadForAction.id}`, {
+          next_follow_up: followUpDateTime
+        });
+      }
+      
+      toast.success('Call logged successfully!');
+      setShowCallActionModal(false);
+      setSelectedLeadForAction(null);
+      if (selectedViewAgentId) loadAssignedCustomers(selectedViewAgentId);
+    } catch (error: any) {
+      console.error('Failed to save call action:', error);
+      toast.error(error?.response?.data?.message || 'Failed to log call');
+    } finally {
+      setSavingCallAction(false);
     }
   };
 
@@ -535,25 +657,27 @@ export default function AgentDashboard() {
         ? `${leadFollowUpDate}T${leadFollowUpTime}:00` 
         : `${leadFollowUpDate}T09:00:00`;
       
-      await apiClient.put(`/customers/${selectedLeadForAction.id}`, {
-        next_follow_up: followUpDateTime
+      // Create a call task for the follow-up
+      await apiClient.post('/crm/automation/tasks', {
+        customer_id: String(selectedLeadForAction.id),
+        priority: selectedLeadForAction.priority || 'warm',
+        call_reason: 'Follow-up Call',
+        notes: leadFollowUpNotes || `Follow-up scheduled for ${leadFollowUpDate}${leadFollowUpTime ? ' at ' + leadFollowUpTime : ''}`,
+        scheduled_time: leadFollowUpTime || '09:00',
+        task_date: leadFollowUpDate
       });
       
-      await apiClient.post('/crm/automation/engagement', {
-        customer_id: String(selectedLeadForAction.id),
-        engagement_type: 'call',
-        status: 'completed',
-        message_content: `Follow-up scheduled for ${leadFollowUpDate}${leadFollowUpTime ? ' at ' + leadFollowUpTime : ''}. ${leadFollowUpNotes}`,
-        metadata: { follow_up_date: followUpDateTime, notes: leadFollowUpNotes }
+      await apiClient.put(`/customers/${selectedLeadForAction.id}`, {
+        next_follow_up: followUpDateTime
       });
       
       toast.success('Follow-up scheduled successfully!');
       setShowLeadFollowUpModal(false);
       setSelectedLeadForAction(null);
       if (selectedViewAgentId) loadAssignedCustomers(selectedViewAgentId);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to save follow-up:', error);
-      toast.error('Failed to schedule follow-up');
+      toast.error(error?.response?.data?.message || 'Failed to schedule follow-up');
     } finally {
       setSavingLeadAction(false);
     }
@@ -573,6 +697,7 @@ export default function AgentDashboard() {
     
     setSavingLeadAction(true);
     try {
+      // Save as call engagement with notes in metadata
       await apiClient.post('/crm/automation/engagement', {
         customer_id: String(selectedLeadForAction.id),
         engagement_type: 'call',
@@ -581,12 +706,17 @@ export default function AgentDashboard() {
         metadata: { type: 'call_notes', notes: leadCallNotes }
       });
       
+      // Also update customer notes field
+      await apiClient.put(`/customers/${selectedLeadForAction.id}`, {
+        notes: leadCallNotes
+      });
+      
       toast.success('Notes saved successfully!');
       setShowLeadNotesModal(false);
       setSelectedLeadForAction(null);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to save notes:', error);
-      toast.error('Failed to save notes');
+      toast.error(error?.response?.data?.message || 'Failed to save notes');
     } finally {
       setSavingLeadAction(false);
     }
@@ -629,9 +759,9 @@ export default function AgentDashboard() {
       setShowLeadOutcomeModal(false);
       setSelectedLeadForAction(null);
       if (selectedViewAgentId) loadAssignedCustomers(selectedViewAgentId);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to save outcome:', error);
-      toast.error('Failed to save outcome');
+      toast.error(error?.response?.data?.message || 'Failed to save outcome');
     } finally {
       setSavingLeadAction(false);
     }
@@ -1023,6 +1153,7 @@ export default function AgentDashboard() {
                       <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
                       <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Stage</th>
                       <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Priority</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Last Called</th>
                       <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Action</th>
                     </tr>
                   </thead>
@@ -1049,6 +1180,16 @@ export default function AgentDashboard() {
                             <span className="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-700 capitalize">
                               {c.priority || 'new'}
                             </span>
+                          </td>
+                          <td className="px-4 py-3">
+                            {(() => {
+                              const lastCalled = formatLastCalled(c.last_contact_date);
+                              return (
+                                <span className={`text-sm ${lastCalled.color}`}>
+                                  {lastCalled.text}
+                                </span>
+                              );
+                            })()}
                           </td>
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-1 flex-wrap">
@@ -1110,38 +1251,14 @@ export default function AgentDashboard() {
                                 <FaEnvelope size={12} />
                               </a>
 
-                              {/* Row 2: Actions */}
+                              {/* Log Call Button - Opens unified modal */}
                               <button
-                                onClick={() => handleMarkLeadAsCalled(c)}
-                                disabled={markingLeadAsCalled === c.id}
-                                title="Mark as Called"
-                                className="p-1.5 rounded border border-purple-200 text-purple-700 hover:bg-purple-50 disabled:opacity-50"
+                                type="button"
+                                onClick={() => openCallActionModal(c)}
+                                title="Log Call"
+                                className="px-3 py-1.5 rounded bg-green-600 text-white hover:bg-green-700 flex items-center gap-1 text-xs font-medium"
                               >
-                                {markingLeadAsCalled === c.id ? <span className="animate-spin text-xs">⏳</span> : <FaCheckDouble size={12} />}
-                              </button>
-
-                              <button
-                                onClick={() => openLeadFollowUpModal(c)}
-                                title="Set Follow-up"
-                                className="p-1.5 rounded border border-blue-200 text-blue-700 hover:bg-blue-50"
-                              >
-                                <FaCalendarAlt size={12} />
-                              </button>
-
-                              <button
-                                onClick={() => openLeadNotesModal(c)}
-                                title="Add Notes"
-                                className="p-1.5 rounded border border-gray-200 text-gray-700 hover:bg-gray-50"
-                              >
-                                <FaStickyNote size={12} />
-                              </button>
-
-                              <button
-                                onClick={() => openLeadOutcomeModal(c)}
-                                title="Set Outcome"
-                                className="p-1.5 rounded border border-indigo-200 text-indigo-700 hover:bg-indigo-50"
-                              >
-                                <FaThumbsUp size={12} />
+                                <FaPhone size={10} /> Log Call
                               </button>
                             </div>
                           </td>
@@ -1868,6 +1985,114 @@ export default function AgentDashboard() {
               // Refresh data if needed
             }}
           />
+        )}
+
+        {/* Unified Call Action Modal */}
+        {showCallActionModal && selectedLeadForAction && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg shadow-xl max-w-lg w-full p-6 max-h-[90vh] overflow-y-auto">
+              <h3 className="text-xl font-bold text-gray-800 mb-2 flex items-center gap-2">
+                <FaPhone className="text-green-600" />
+                Log Call
+              </h3>
+              <p className="text-sm text-gray-600 mb-4">
+                Customer: <strong>{selectedLeadForAction.name || `Customer #${selectedLeadForAction.id}`}</strong>
+                {selectedLeadForAction.phone && <span className="ml-2 text-gray-500">({selectedLeadForAction.phone})</span>}
+              </p>
+              
+              <div className="space-y-4">
+                {/* Call Outcome - Required */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Call Outcome <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={callActionOutcome}
+                    onChange={(e) => setCallActionOutcome(e.target.value as any)}
+                    className="w-full px-3 py-2 border rounded-lg"
+                    required
+                  >
+                    <option value="">Select outcome...</option>
+                    <option value="connected">Connected - Spoke with customer</option>
+                    <option value="order_placed">Order Placed</option>
+                    <option value="callback_requested">Callback Requested</option>
+                    <option value="no_answer">No Answer</option>
+                    <option value="busy">Busy / Line Engaged</option>
+                    <option value="not_interested">Not Interested</option>
+                  </select>
+                </div>
+
+                {/* Call Notes - Required */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Call Notes <span className="text-red-500">*</span>
+                  </label>
+                  <textarea
+                    value={callActionNotes}
+                    onChange={(e) => setCallActionNotes(e.target.value)}
+                    rows={4}
+                    className="w-full px-3 py-2 border rounded-lg"
+                    placeholder="Describe the conversation, customer feedback, interests, concerns..."
+                    required
+                  />
+                </div>
+
+                {/* Schedule Follow-up - Optional */}
+                <div className="border-t pt-4">
+                  <label className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                    <FaCalendarAlt className="text-blue-500" />
+                    Schedule Next Follow-up <span className="text-gray-400 text-xs font-normal">(Optional)</span>
+                  </label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <input
+                        type="date"
+                        value={callActionFollowUpDate}
+                        onChange={(e) => setCallActionFollowUpDate(e.target.value)}
+                        min={new Date().toISOString().split('T')[0]}
+                        className="w-full px-3 py-2 border rounded-lg text-sm"
+                        placeholder="Date"
+                      />
+                    </div>
+                    <div>
+                      <input
+                        type="time"
+                        value={callActionFollowUpTime}
+                        onChange={(e) => setCallActionFollowUpTime(e.target.value)}
+                        className="w-full px-3 py-2 border rounded-lg text-sm"
+                        placeholder="Time"
+                      />
+                    </div>
+                  </div>
+                  {callActionFollowUpDate && (
+                    <p className="text-xs text-blue-600 mt-1">
+                      A follow-up task will be created for {callActionFollowUpDate}
+                      {callActionFollowUpTime && ` at ${callActionFollowUpTime}`}
+                    </p>
+                  )}
+                </div>
+              </div>
+              
+              <div className="flex gap-3 mt-6">
+                <button
+                  onClick={handleSubmitCallAction}
+                  disabled={savingCallAction || !callActionNotes.trim() || !callActionOutcome}
+                  className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {savingCallAction ? 'Saving...' : <><FaCheckCircle /> Save Call Log</>}
+                </button>
+                <button
+                  onClick={() => {
+                    setShowCallActionModal(false);
+                    setSelectedLeadForAction(null);
+                  }}
+                  className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
         )}
 
         {/* Lead Follow-Up Modal */}

@@ -144,8 +144,7 @@ export default function EmployeesPage() {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">First Name</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Last Name</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Phone</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
@@ -156,9 +155,8 @@ export default function EmployeesPage() {
                 {employees.map((employee) => (
                   <tr key={employee.id}>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {employee.firstName}
+                      {employee.firstName} {employee.lastName}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{employee.lastName}</td>
                     <td className="px-6 py-4 text-sm text-gray-500">{employee.email}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{employee.phone || '-'}</td>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -199,22 +197,12 @@ export default function EmployeesPage() {
               </h2>
               <form onSubmit={handleSubmit}>
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">First Name</label>
+                  <div className="mb-4 md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Name</label>
                     <input
                       type="text"
                       value={formData.firstName}
                       onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      required
-                    />
-                  </div>
-                  <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Last Name</label>
-                    <input
-                      type="text"
-                      value={formData.lastName}
-                      onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                       required
                     />

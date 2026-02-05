@@ -4,7 +4,7 @@ import { useToast } from '@/contexts/ToastContext';
 import { 
   FaTimes, FaEdit, FaTrash, FaPlus, FaSave, FaCheck, FaPause, FaBan, 
   FaShippingFast, FaMapMarkerAlt, FaStickyNote, FaHistory, FaGlobe, 
-  FaMobile, FaDesktop, FaChrome, FaExclamationTriangle 
+  FaMobile, FaDesktop, FaChrome, FaExclamationTriangle, FaPhone, FaPhoneSlash 
 } from 'react-icons/fa';
 import PhoneInput, { validateBDPhone } from '@/components/PhoneInput';
 
@@ -81,6 +81,10 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
   const [fraudCheckHistory, setFraudCheckHistory] = useState<any[]>([]);
   const [fraudHistoryLoading, setFraudHistoryLoading] = useState(false);
 
+  // Call Logs state
+  const [callLogs, setCallLogs] = useState<any[]>([]);
+  const [callLogsLoading, setCallLogsLoading] = useState(false);
+
   useEffect(() => {
     setCurrentOrderId(orderId);
   }, [orderId]);
@@ -106,6 +110,45 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
       console.error('Failed to load fraud history:', error);
     } finally {
       setFraudHistoryLoading(false);
+    }
+  };
+
+  // Load call logs when logs tab is opened
+  useEffect(() => {
+    if (activeTab === 'logs' && customerRecord?.id) {
+      loadCallLogs();
+    }
+  }, [activeTab, customerRecord?.id]);
+
+  // Load call logs for the customer
+  const loadCallLogs = async () => {
+    if (!customerRecord?.id) return;
+    try {
+      setCallLogsLoading(true);
+      const response = await apiClient.get(`/crm/automation/engagement/${customerRecord.id}`);
+      const engagements = response.data?.data || response.data || [];
+      // Filter to only call-related engagement types (handle both snake_case and camelCase)
+      const calls = engagements.filter((e: any) => {
+        const type = e.engagement_type || e.engagementType || '';
+        return type === 'call' || type === 'follow_up_call' || type === 'phone_call';
+      }).map((e: any) => ({
+        ...e,
+        // Normalize field names
+        engagementType: e.engagement_type || e.engagementType,
+        messageContent: e.message_content || e.messageContent,
+        createdAt: e.created_at || e.createdAt,
+        notes: e.message_content || e.messageContent || e.metadata?.notes || '',
+        outcome: e.metadata?.outcome || e.call_outcome || e.outcome || '',
+        agentName: e.agent_name || e.agentName || '',
+        duration: e.metadata?.duration || e.duration || '',
+        callType: e.metadata?.type || e.callType || ''
+      }));
+      setCallLogs(calls);
+    } catch (error) {
+      console.error('Failed to load call logs:', error);
+      setCallLogs([]);
+    } finally {
+      setCallLogsLoading(false);
     }
   };
 
@@ -976,12 +1019,8 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                         <div className="font-semibold">{displayOrNA(viewCustomer.title)}</div>
                       </div>
                       <div>
-                        <div className="text-sm text-gray-600">First Name</div>
+                        <div className="text-sm text-gray-600">Name</div>
                         <div className="font-semibold">{displayOrNA(viewCustomer.name)}</div>
-                      </div>
-                      <div>
-                        <div className="text-sm text-gray-600">Last Name</div>
-                        <div className="font-semibold">{displayOrNA(viewCustomer.lastName)}</div>
                       </div>
                       <div>
                         <div className="text-sm text-gray-600">Company</div>
@@ -1112,12 +1151,8 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                         <input className="w-full border p-2 rounded" value={toInputValue(customerForm.title)} onChange={(e) => setCustomerForm({ ...customerForm, title: e.target.value })} placeholder="N/A" />
                       </div>
                       <div>
-                        <label className="block text-sm font-semibold mb-1">First Name</label>
+                        <label className="block text-sm font-semibold mb-1">Name</label>
                         <input className="w-full border p-2 rounded" value={toInputValue(customerForm.name)} onChange={(e) => setCustomerForm({ ...customerForm, name: e.target.value })} placeholder="N/A" />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-semibold mb-1">Last Name</label>
-                        <input className="w-full border p-2 rounded" value={toInputValue(customerForm.lastName)} onChange={(e) => setCustomerForm({ ...customerForm, lastName: e.target.value })} placeholder="N/A" />
                       </div>
                       <div className="md:col-span-2">
                         <label className="block text-sm font-semibold mb-1">Company Name</label>
@@ -1841,6 +1876,68 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                 
                 {activityLogs.length === 0 && (
                   <p className="text-gray-500 text-center py-8">No activity logs found</p>
+                )}
+              </div>
+
+              {/* Call Logs Section */}
+              <div className="mt-8 border-t pt-6">
+                <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
+                  <FaPhone className="text-green-600" /> Call Logs
+                </h3>
+                
+                {callLogsLoading ? (
+                  <div className="text-center py-8 text-gray-500">Loading call logs...</div>
+                ) : callLogs.length > 0 ? (
+                  <div className="space-y-3">
+                    {callLogs.map((call) => (
+                      <div key={call.id} className="bg-green-50 p-4 rounded-lg border-l-4 border-green-500">
+                        <div className="flex justify-between items-start mb-2">
+                          <div className="flex items-center gap-2">
+                            {call.outcome === 'connected' || call.outcome === 'successful' ? (
+                              <FaPhone className="text-green-600" />
+                            ) : (
+                              <FaPhoneSlash className="text-red-500" />
+                            )}
+                            <span className="font-semibold text-green-800 uppercase">
+                              {call.engagementType?.replace(/_/g, ' ') || 'Call'}
+                            </span>
+                            {call.outcome && (
+                              <span className={`text-xs px-2 py-1 rounded ${
+                                call.outcome === 'connected' || call.outcome === 'successful' 
+                                  ? 'bg-green-200 text-green-800'
+                                  : call.outcome === 'no_answer' || call.outcome === 'busy'
+                                  ? 'bg-yellow-200 text-yellow-800'
+                                  : 'bg-red-200 text-red-800'
+                              }`}>
+                                {call.outcome.replace(/_/g, ' ').toUpperCase()}
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-xs text-gray-500">
+                            {new Date(call.engagementDate || call.createdAt).toLocaleString()}
+                          </span>
+                        </div>
+                        
+                        {call.notes && (
+                          <p className="text-gray-700 mt-2">{call.notes}</p>
+                        )}
+                        
+                        <div className="flex items-center gap-4 text-sm text-gray-600 mt-2">
+                          {call.agentName && (
+                            <span><strong>Agent:</strong> {call.agentName}</span>
+                          )}
+                          {call.duration && (
+                            <span><strong>Duration:</strong> {call.duration}s</span>
+                          )}
+                          {call.callType && (
+                            <span><strong>Type:</strong> {call.callType}</span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-gray-500 text-center py-8">No call logs found for this customer</p>
                 )}
               </div>
             </div>

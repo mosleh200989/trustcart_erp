@@ -6,6 +6,7 @@ import { SalesTeam } from './entities/sales-team.entity';
 import { User } from '../users/user.entity';
 import { CallTask, TaskPriority, TaskStatus } from './entities/call-task.entity';
 import { Activity } from './entities/activity.entity';
+import { EngagementHistory } from './entities/engagement-history.entity';
 
 export enum LeadPriority {
   HOT = 'hot',
@@ -26,6 +27,8 @@ export class CrmTeamService {
     private callTaskRepo: Repository<CallTask>,
     @InjectRepository(Activity)
     private activityRepo: Repository<Activity>,
+    @InjectRepository(EngagementHistory)
+    private engagementRepository: Repository<EngagementHistory>,
   ) {}
 
   private getDateString(date?: string | Date): string {
@@ -451,15 +454,107 @@ export class CrmTeamService {
   }
 
   async getAgentCustomers(agentId: number, query: any = {}): Promise<{ data: Customer[], total: number }> {
-    const { page = 1, limit = 20 } = query;
+    const { page = 1, limit = 20, search, priority, stage, calledStatus, outcome } = query;
     const skip = (page - 1) * limit;
 
-    const [data, total] = await this.customerRepository.findAndCount({
-      where: { assigned_to: agentId, is_deleted: false, isActive: true },
-      order: { createdAt: 'DESC' },
-      skip,
-      take: limit
-    });
+    // Use query builder for complex filtering
+    const qb = this.customerRepository.createQueryBuilder('c')
+      .where('c.assigned_to = :agentId', { agentId })
+      .andWhere('c.is_deleted = false')
+      .andWhere('c.is_active = true');
+
+    // Search filter (name, email, phone)
+    if (search && search.trim()) {
+      qb.andWhere(
+        `(LOWER(c.name) LIKE LOWER(:search) OR LOWER(c.last_name) LIKE LOWER(:search) OR LOWER(c.email) LIKE LOWER(:search) OR c.phone LIKE :search)`,
+        { search: `%${search.trim()}%` }
+      );
+    }
+
+    // Priority filter
+    if (priority && priority !== 'all') {
+      qb.andWhere('c.priority = :priority', { priority });
+    }
+
+    // Stage/Lifecycle filter
+    if (stage && stage !== 'all') {
+      qb.andWhere('c.lifecycle_stage = :stage', { stage });
+    }
+
+    // Called Status filter - based on last_contact_date being today
+    if (calledStatus && calledStatus !== 'all') {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+
+      if (calledStatus === 'called') {
+        // Called today: last_contact_date is today
+        qb.andWhere('c.last_contact_date >= :today AND c.last_contact_date < :tomorrow', { today, tomorrow });
+      } else if (calledStatus === 'not_called') {
+        // Not called today: last_contact_date is null or before today
+        qb.andWhere('(c.last_contact_date IS NULL OR c.last_contact_date < :today)', { today });
+      }
+    }
+
+    // Outcome filter - check latest engagement metadata
+    if (outcome && outcome !== 'all') {
+      // Subquery to find customers with matching outcome in their latest engagement
+      qb.andWhere(`EXISTS (
+        SELECT 1 FROM customer_engagement_history eh 
+        WHERE eh.customer_id = CAST(c.id AS TEXT) 
+        AND eh.engagement_type = 'call'
+        AND eh.metadata->>'outcome' = :outcome
+        AND eh.created_at = (
+          SELECT MAX(eh2.created_at) 
+          FROM customer_engagement_history eh2 
+          WHERE eh2.customer_id = CAST(c.id AS TEXT) 
+          AND eh2.engagement_type = 'call'
+          AND eh2.metadata->>'outcome' IS NOT NULL
+        )
+      )`, { outcome });
+    }
+
+    // Order by created date desc
+    qb.orderBy('c.created_at', 'DESC');
+
+    // Get total count before pagination
+    const total = await qb.getCount();
+
+    // Apply pagination
+    qb.skip(skip).take(limit);
+
+    const data = await qb.getMany();
+
+    // Enrich with last outcome and last notes from engagement history
+    if (data.length > 0) {
+      const customerIds = data.map(c => String(c.id));
+      
+      // Get latest engagement for each customer
+      const latestEngagements = await this.engagementRepository
+        .createQueryBuilder('eh')
+        .where('eh.customer_id IN (:...customerIds)', { customerIds })
+        .andWhere('eh.engagement_type = :type', { type: 'call' })
+        .orderBy('eh.created_at', 'DESC')
+        .getMany();
+
+      // Create a map of customer_id -> latest engagement
+      const engagementMap = new Map<string, any>();
+      for (const eng of latestEngagements) {
+        if (!engagementMap.has(eng.customer_id)) {
+          engagementMap.set(eng.customer_id, eng);
+        }
+      }
+
+      // Attach lastOutcome and lastNotes to each customer
+      for (const customer of data) {
+        const eng = engagementMap.get(String(customer.id));
+        if (eng) {
+          (customer as any).lastOutcome = eng.metadata?.outcome || null;
+          (customer as any).lastNotes = eng.message_content || null;
+        }
+      }
+    }
 
     return { data, total };
   }

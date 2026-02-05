@@ -142,18 +142,10 @@ export default function AdminProfilePage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">First name</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
                 <input
                   value={form.name}
                   onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Last name</label>
-                <input
-                  value={form.lastName}
-                  onChange={(e) => setForm((p) => ({ ...p, lastName: e.target.value }))}
                   className="w-full px-3 py-2 border border-gray-300 rounded"
                 />
               </div>

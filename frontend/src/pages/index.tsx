@@ -55,6 +55,7 @@ interface SpecialOffer {
 export default function Home() {
   const [featuredProducts, setFeaturedProducts] = useState<any[]>([]);
   const [hotDeals, setHotDeals] = useState<any[]>([]);
+  const [combosDeals, setCombosDeals] = useState<any[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [carouselBanners, setCarouselBanners] = useState<Banner[]>([]);
   const [sideBanners, setSideBanners] = useState<Banner[]>([]);
@@ -69,6 +70,7 @@ export default function Home() {
     loadSpecialOffers();
     loadDealOfTheDay();
     loadHotDeals();
+    loadCombos();
   }, []);
 
   const loadBanners = async () => {
@@ -123,6 +125,16 @@ export default function Home() {
       setHotDeals(response.data || []);
     } catch (error) {
       console.error("Failed to load hot deals:", error);
+    }
+  };
+
+  const loadCombos = async () => {
+    try {
+      const response = await apiClient.get("/combos");
+      console.log("Combos loaded:", response.data);
+      setCombosDeals(Array.isArray(response.data) ? response.data : []);
+    } catch (error) {
+      console.error("Failed to load combos:", error);
     }
   };
 
@@ -483,6 +495,84 @@ export default function Home() {
                     />
                   );
                 })}
+            </div>
+          </motion.div>
+        )}
+
+        {/* Combo Deals Section */}
+        {combosDeals.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            whileInView={{ opacity: 1 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.5 }}
+            className="container mx-auto px-4 lg:px-48 xl:px-56 py-12"
+          >
+            <div className="flex items-center justify-between mb-8">
+              <div>
+                <h2 className="text-2xl xl:text-3xl font-bold flex items-center gap-3">
+                  Combo Deals
+                </h2>
+                <p className="text-gray-600 mt-1">
+                  Buy together and save more
+                </p>
+              </div>
+              <Link
+                href="/products?type=combo"
+                className="text-orange-500 hover:text-orange-600 font-semibold flex items-center gap-2"
+              >
+                View All
+                <FaArrowRight />
+              </Link>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4 lg:gap-6">
+              {combosDeals.slice(0, 4).map((combo) => {
+                // Calculate total original price
+                const totalOriginalPrice = combo.products?.reduce(
+                  (sum: number, p: any) => sum + Number(p.base_price || 0), 0
+                ) || 0;
+                const comboPrice = Number(combo.combo_price) || totalOriginalPrice;
+                const discountPercent = totalOriginalPrice > 0 
+                  ? Math.round(((totalOriginalPrice - comboPrice) / totalOriginalPrice) * 100) 
+                  : 0;
+                
+                return (
+                  <Link
+                    key={combo.id}
+                    href={`/combo/${combo.slug}`}
+                    className="group bg-white rounded-lg shadow-sm overflow-hidden border border-gray-100 hover:shadow-md transition-all"
+                  >
+                    <div className="relative">
+                      <img
+                        src={combo.image_url || combo.products?.[0]?.image_url || 'https://via.placeholder.com/300x200?text=Combo'}
+                        alt={combo.name}
+                        className="w-full h-32 sm:h-40 lg:h-48 object-cover group-hover:scale-105 transition-transform duration-300"
+                      />
+                      {discountPercent > 0 && (
+                        <div className="absolute top-2 left-2 bg-orange-500 text-white px-2 py-0.5 rounded text-xs font-semibold">
+                          -{discountPercent}%
+                        </div>
+                      )}
+                      <div className="absolute top-2 right-2 bg-green-500 text-white px-2 py-0.5 rounded text-xs font-semibold">
+                        {combo.products?.length || 0} items
+                      </div>
+                    </div>
+                    <div className="p-3">
+                      <h3 className="font-semibold text-sm sm:text-base mb-1 line-clamp-1 group-hover:text-orange-500 transition-colors">
+                        {combo.name}
+                      </h3>
+                      <p className="text-gray-500 text-xs mb-2 line-clamp-1">{combo.description}</p>
+                      
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg font-bold text-orange-500">৳{comboPrice}</span>
+                        {totalOriginalPrice > comboPrice && (
+                          <span className="text-xs text-gray-400 line-through">৳{totalOriginalPrice}</span>
+                        )}
+                      </div>
+                    </div>
+                  </Link>
+                );
+              })}
             </div>
           </motion.div>
         )}

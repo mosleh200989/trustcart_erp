@@ -45,15 +45,25 @@ export const ToastProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   return (
     <ToastContext.Provider value={{ showToast, success, error, warning, info }}>
       {children}
-      {/* Toast Container */}
+      {/* Toast Container - rendered directly without portal */}
       <div 
-        className="fixed top-4 right-4 z-[9999] flex flex-col gap-3 pointer-events-none"
+        id="toast-container"
+        style={{
+          position: 'fixed',
+          top: '80px',
+          right: '16px',
+          zIndex: 2147483647,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '12px',
+          pointerEvents: 'none'
+        }}
         aria-live="polite"
         aria-atomic="true"
       >
-        {toasts.map((toast) => (
-          <div key={toast.id} className="pointer-events-auto">
-            <Toast toast={toast} onClose={removeToast} />
+        {toasts.map((t) => (
+          <div key={t.id} style={{ pointerEvents: 'auto' }}>
+            <Toast toast={t} onClose={removeToast} />
           </div>
         ))}
       </div>

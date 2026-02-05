@@ -12,6 +12,17 @@ export class CrmAutomationController {
   async getTodayTasks(@Query('agentId') agentId?: number) {
     return await this.automationService.getTodayCallTasks(agentId);
   }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('tasks/my-followups')
+  async getMyFollowUps(
+    @Request() req: any, 
+    @Query('dateRange') dateRange?: string,
+    @Query('specificDate') specificDate?: string
+  ) {
+    const agentId = req.user?.id || req.user?.userId;
+    return await this.automationService.getAgentFollowUpTasks(agentId, dateRange, specificDate);
+  }
   
   @Put('tasks/:id/status')
   async updateTaskStatus(
@@ -34,6 +45,23 @@ export class CrmAutomationController {
   @Post('tasks/generate')
   async generateDailyTasks() {
     return await this.automationService.generateDailyCallTasks();
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('tasks')
+  async createTask(@Request() req: any, @Body() body: {
+    customer_id: string;
+    priority?: string;
+    call_reason?: string;
+    notes?: string;
+    scheduled_time?: string;
+    task_date?: string;
+  }) {
+    const agentId = req.user?.id || req.user?.userId;
+    return await this.automationService.createCallTask({
+      ...body,
+      assigned_agent_id: agentId,
+    });
   }
   
   // ==================== CUSTOMER INTELLIGENCE ====================

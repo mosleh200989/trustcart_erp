@@ -162,7 +162,26 @@ export class SalesService {
   }
 
   async findOne(id: string) {
-    return this.salesRepository.findOne({ where: { id: Number(id) } });
+    const order = await this.salesRepository.findOne({ where: { id: Number(id) } });
+    if (!order) return null;
+
+    // Calculate subtotal from order items
+    const items = await this.orderItemsRepository.find({
+      where: { salesOrderId: order.id },
+    });
+    const subtotal = items.reduce((sum, item) => sum + Number(item.lineTotal || 0), 0);
+    
+    // Calculate delivery charge: totalAmount = subtotal + deliveryCharge - discountAmount
+    // Therefore: deliveryCharge = totalAmount - subtotal + discountAmount
+    const totalAmount = Number(order.totalAmount || 0);
+    const discountAmount = Number(order.discountAmount || 0);
+    const deliveryCharge = Math.max(0, totalAmount - subtotal + discountAmount);
+
+    return {
+      ...order,
+      subtotal,
+      deliveryCharge,
+    };
   }
 
   async create(createSalesDto: any) {
@@ -532,6 +551,8 @@ export class SalesService {
         'item.sales_order_id as "salesOrderId"',
         'item.product_id as "productId"',
         'product.name_en as "productName"',
+        'product.image_url as "productImage"',
+        'product.sku as "productSku"',
         'item.quantity as quantity',
         'item.unit_price as "unitPrice"',
         'item.line_total as "lineTotal"',

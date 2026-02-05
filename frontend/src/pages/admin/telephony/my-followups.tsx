@@ -5,7 +5,8 @@ import apiClient, { auth } from '@/services/api';
 import { 
   FaPlus, FaSearch, FaFilter, FaTimes, FaPhone, FaCalendarAlt, 
   FaClock, FaCheckCircle, FaSpinner, FaEdit, FaTrash,
-  FaChevronDown, FaFire, FaThermometerHalf, FaSnowflake, FaInfoCircle, FaEye
+  FaChevronDown, FaFire, FaThermometerHalf, FaSnowflake, FaInfoCircle, FaEye,
+  FaWhatsapp, FaSms, FaEnvelope
 } from 'react-icons/fa';
 import AdminOrderDetailsModal from '@/components/AdminOrderDetailsModal';
 
@@ -14,6 +15,7 @@ interface FollowUp {
   customer_id: string;
   customer_name?: string;
   customer_phone?: string;
+  customer_email?: string;
   priority: 'hot' | 'warm' | 'cold';
   call_reason: string;
   notes?: string;
@@ -35,7 +37,7 @@ interface Customer {
 
 type FilterPriority = '' | 'hot' | 'warm' | 'cold';
 type FilterStatus = '' | 'pending' | 'in_progress' | 'completed' | 'failed';
-type FilterDateRange = '' | 'today' | 'week' | 'month' | 'all';
+type FilterDateRange = '' | 'today' | 'tomorrow' | 'this_week' | 'next_week' | 'this_month' | 'next_month' | 'overdue' | 'all';
 
 export default function MyFollowupsPage() {
   const toast = useToast();
@@ -48,6 +50,7 @@ export default function MyFollowupsPage() {
   const [priorityFilter, setPriorityFilter] = useState<FilterPriority>('');
   const [statusFilter, setStatusFilter] = useState<FilterStatus>('');
   const [dateRangeFilter, setDateRangeFilter] = useState<FilterDateRange>('');
+  const [specificDate, setSpecificDate] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   
   // Modal states
@@ -59,6 +62,15 @@ export default function MyFollowupsPage() {
   // Order Details Modal
   const [showOrderModal, setShowOrderModal] = useState(false);
   const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
+  
+  // Log Call Modal (unified call action - like Agent Dashboard)
+  const [showLogCallModal, setShowLogCallModal] = useState(false);
+  const [selectedFollowUpForLog, setSelectedFollowUpForLog] = useState<FollowUp | null>(null);
+  const [logCallOutcome, setLogCallOutcome] = useState<'connected' | 'no_answer' | 'busy' | 'callback_requested' | 'not_interested' | 'order_placed' | ''>('');
+  const [logCallNotes, setLogCallNotes] = useState('');
+  const [logCallFollowUpDate, setLogCallFollowUpDate] = useState('');
+  const [logCallFollowUpTime, setLogCallFollowUpTime] = useState('');
+  const [savingLogCall, setSavingLogCall] = useState(false);
   
   // Customer search
   const [customerSearch, setCustomerSearch] = useState('');
@@ -95,23 +107,21 @@ export default function MyFollowupsPage() {
     if (!agentId) return;
     loadFollowUps();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [agentId]);
+  }, [agentId, dateRangeFilter, specificDate]);
 
   const loadFollowUps = async () => {
     try {
       setLoading(true);
-      // Load all tasks assigned to this agent
-      const res = await apiClient.get('/crm/automation/tasks/today');
-      const allTasks: FollowUp[] = Array.isArray(res.data) ? res.data : [];
+      // Load follow-up tasks assigned to the current agent
+      const dateRangeParam = dateRangeFilter || 'all';
+      let url = `/crm/automation/tasks/my-followups?dateRange=${dateRangeParam}`;
+      if (specificDate) {
+        url += `&specificDate=${specificDate}`;
+      }
+      const res = await apiClient.get(url);
+      const tasks: FollowUp[] = Array.isArray(res.data) ? res.data : [];
       
-      // Filter to only follow-up related tasks
-      const followUpTasks = allTasks.filter(t => 
-        t.call_reason?.toLowerCase().includes('follow') ||
-        t.call_reason?.toLowerCase().includes('reminder') ||
-        t.call_reason?.toLowerCase().includes('callback')
-      );
-      
-      setFollowUps(followUpTasks);
+      setFollowUps(tasks);
     } catch (error) {
       console.error('Failed to load follow-ups:', error);
     } finally {
@@ -292,24 +302,49 @@ export default function MyFollowupsPage() {
     // Status filter
     if (statusFilter && followUp.status !== statusFilter) return false;
     
-    // Date range filter
-    if (dateRangeFilter) {
+    // Date range filter (client-side additional filtering)
+    if (dateRangeFilter && dateRangeFilter !== 'all') {
       const now = new Date();
+      now.setHours(0, 0, 0, 0);
       const taskDate = followUp.task_date ? new Date(followUp.task_date) : new Date(followUp.created_at || '');
+      taskDate.setHours(0, 0, 0, 0);
+      
+      const tomorrow = new Date(now);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      
+      const endOfWeek = new Date(now);
+      endOfWeek.setDate(endOfWeek.getDate() + (7 - now.getDay()));
+      
+      const startOfNextWeek = new Date(endOfWeek);
+      startOfNextWeek.setDate(startOfNextWeek.getDate() + 1);
+      const endOfNextWeek = new Date(startOfNextWeek);
+      endOfNextWeek.setDate(endOfNextWeek.getDate() + 6);
       
       switch (dateRangeFilter) {
         case 'today':
-          if (taskDate.toDateString() !== now.toDateString()) return false;
+          if (taskDate.getTime() !== now.getTime()) return false;
           break;
-        case 'week':
-          const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-          if (taskDate < weekAgo) return false;
+        case 'tomorrow':
+          if (taskDate.getTime() !== tomorrow.getTime()) return false;
           break;
-        case 'month':
-          const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-          if (taskDate < monthAgo) return false;
+        case 'this_week':
+          if (taskDate < now || taskDate > endOfWeek) return false;
+          break;
+        case 'next_week':
+          if (taskDate < startOfNextWeek || taskDate > endOfNextWeek) return false;
+          break;
+        case 'overdue':
+          if (taskDate >= now) return false;
           break;
       }
+    }
+    
+    // Specific date filter
+    if (specificDate) {
+      const taskDate = followUp.task_date ? new Date(followUp.task_date) : null;
+      if (!taskDate) return false;
+      const filterDate = new Date(specificDate);
+      if (taskDate.toDateString() !== filterDate.toDateString()) return false;
     }
     
     return true;
@@ -320,9 +355,10 @@ export default function MyFollowupsPage() {
     setPriorityFilter('');
     setStatusFilter('');
     setDateRangeFilter('');
+    setSpecificDate('');
   };
 
-  const hasActiveFilters = searchTerm || priorityFilter || statusFilter || dateRangeFilter;
+  const hasActiveFilters = searchTerm || priorityFilter || statusFilter || dateRangeFilter || specificDate;
 
   const getPriorityIcon = (priority: string) => {
     switch (priority) {
@@ -341,6 +377,110 @@ export default function MyFollowupsPage() {
       failed: 'bg-red-100 text-red-800',
     };
     return styles[status] || 'bg-gray-100 text-gray-800';
+  };
+
+  // Open Log Call Modal
+  const openLogCallModal = (followUp: FollowUp) => {
+    setSelectedFollowUpForLog(followUp);
+    setLogCallOutcome('');
+    setLogCallNotes('');
+    setLogCallFollowUpDate('');
+    setLogCallFollowUpTime('');
+    setShowLogCallModal(true);
+  };
+
+  // Handle Log Call submission (similar to Agent Dashboard)
+  const handleSubmitLogCall = async () => {
+    if (!selectedFollowUpForLog) return;
+
+    // Validate required fields
+    if (!logCallNotes.trim()) {
+      toast.warning('Please enter call notes');
+      return;
+    }
+    if (!logCallOutcome) {
+      toast.warning('Please select a call outcome');
+      return;
+    }
+
+    setSavingLogCall(true);
+    try {
+      const customerId = selectedFollowUpForLog.customer_id;
+
+      // 1. Mark as called
+      await apiClient.post(`/crm/automation/customer/${customerId}/mark-called`, {
+        notes: logCallNotes
+      });
+
+      // 2. Save notes to customer
+      await apiClient.put(`/customers/${customerId}`, {
+        notes: logCallNotes,
+        last_contact_date: new Date().toISOString()
+      });
+
+      // 3. Create engagement record with outcome
+      await apiClient.post('/crm/automation/engagement', {
+        customer_id: String(customerId),
+        engagement_type: 'call',
+        status: 'completed',
+        message_content: logCallNotes,
+        metadata: {
+          outcome: logCallOutcome,
+          notes: logCallNotes,
+          follow_up_scheduled: !!logCallFollowUpDate,
+          original_task_id: selectedFollowUpForLog.id
+        }
+      });
+
+      // 4. Update lead status based on outcome
+      const leadStatus = logCallOutcome === 'order_placed' ? 'converted'
+        : logCallOutcome === 'connected' ? 'qualified'
+        : logCallOutcome === 'callback_requested' ? 'follow_up'
+        : logCallOutcome === 'not_interested' ? 'not_interested'
+        : logCallOutcome === 'no_answer' || logCallOutcome === 'busy' ? 'no_answer'
+        : 'contacted';
+
+      await apiClient.put(`/customers/${customerId}`, {
+        leadStatus: leadStatus
+      });
+
+      // 5. Update current task status to completed
+      const taskStatus = logCallOutcome === 'no_answer' || logCallOutcome === 'busy' ? 'failed' : 'completed';
+      await apiClient.put(`/crm/automation/tasks/${selectedFollowUpForLog.id}/status`, {
+        status: taskStatus,
+        notes: logCallNotes
+      });
+
+      // 6. If follow-up date is set, create a new follow-up task
+      if (logCallFollowUpDate) {
+        const followUpDateTime = logCallFollowUpTime
+          ? `${logCallFollowUpDate}T${logCallFollowUpTime}:00`
+          : `${logCallFollowUpDate}T09:00:00`;
+
+        await apiClient.post('/crm/automation/tasks', {
+          customer_id: String(customerId),
+          priority: selectedFollowUpForLog.priority || 'warm',
+          call_reason: 'Follow-up Call',
+          notes: `Follow-up from call on ${new Date().toLocaleDateString()}. Previous outcome: ${logCallOutcome}`,
+          scheduled_time: logCallFollowUpTime || '09:00',
+          task_date: logCallFollowUpDate
+        });
+
+        await apiClient.put(`/customers/${customerId}`, {
+          next_follow_up: followUpDateTime
+        });
+      }
+
+      toast.success('Call logged successfully!');
+      setShowLogCallModal(false);
+      setSelectedFollowUpForLog(null);
+      await loadFollowUps();
+    } catch (error: any) {
+      console.error('Failed to save call action:', error);
+      toast.error(error?.response?.data?.message || 'Failed to log call');
+    } finally {
+      setSavingLogCall(false);
+    }
   };
 
   const formatDate = (dateStr?: string) => {
@@ -417,7 +557,7 @@ export default function MyFollowupsPage() {
 
           {/* Expanded Filters */}
           {showFilters && (
-            <div className="mt-4 pt-4 border-t grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="mt-4 pt-4 border-t grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
               {/* Priority Filter */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Priority</label>
@@ -454,14 +594,35 @@ export default function MyFollowupsPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Date Range</label>
                 <select
                   value={dateRangeFilter}
-                  onChange={(e) => setDateRangeFilter(e.target.value as FilterDateRange)}
+                  onChange={(e) => {
+                    setDateRangeFilter(e.target.value as FilterDateRange);
+                    if (e.target.value) setSpecificDate('');
+                  }}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="">All Time</option>
                   <option value="today">Today</option>
-                  <option value="week">Last 7 Days</option>
-                  <option value="month">Last 30 Days</option>
+                  <option value="tomorrow">Tomorrow</option>
+                  <option value="this_week">This Week</option>
+                  <option value="next_week">Next Week</option>
+                  <option value="this_month">This Month</option>
+                  <option value="next_month">Next Month</option>
+                  <option value="overdue">Overdue</option>
                 </select>
+              </div>
+              
+              {/* Specific Date Filter */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Specific Date</label>
+                <input
+                  type="date"
+                  value={specificDate}
+                  onChange={(e) => {
+                    setSpecificDate(e.target.value);
+                    if (e.target.value) setDateRangeFilter('');
+                  }}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
               </div>
               
               {/* Clear Filters */}
@@ -559,88 +720,129 @@ export default function MyFollowupsPage() {
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gradient-to-r from-blue-500 to-blue-600">
+              <table className="w-full">
+                <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-white uppercase">Customer</th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-white uppercase">Priority</th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-white uppercase">Reason</th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-white uppercase">Scheduled</th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-white uppercase">Status</th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-white uppercase">Actions</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Phone</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Priority</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Reason</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Scheduled</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Action</th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {filteredFollowUps.map((followUp) => (
-                    <tr key={followUp.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4">
-                        <div>
-                          <p className="font-medium text-gray-800">{followUp.customer_name || 'Unknown'}</p>
-                          <p className="text-sm text-gray-500">{followUp.customer_phone || followUp.customer_id}</p>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-2">
-                          {getPriorityIcon(followUp.priority)}
-                          <span className="capitalize">{followUp.priority}</span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <p className="text-gray-800">{followUp.call_reason}</p>
-                        {followUp.notes && (
-                          <p className="text-sm text-gray-500 truncate max-w-xs">{followUp.notes}</p>
-                        )}
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-2">
-                          <FaCalendarAlt className="text-gray-400" />
-                          <div>
-                            <p className="text-gray-800">{formatDate(followUp.task_date || followUp.scheduled_time)}</p>
-                            {followUp.scheduled_time && (
-                              <p className="text-sm text-gray-500">{formatTime(followUp.scheduled_time)}</p>
-                            )}
+                <tbody className="divide-y divide-gray-200">
+                  {filteredFollowUps.map((followUp) => {
+                    const rawPhone = String(followUp.customer_phone || '').trim();
+                    const waPhone = rawPhone.replace(/[^0-9]/g, '');
+                    const email = String(followUp.customer_email || '').trim();
+
+                    return (
+                      <tr key={followUp.id} className="hover:bg-gray-50">
+                        <td className="px-4 py-3">
+                          <div className="font-medium text-gray-900">{followUp.customer_name || 'Unknown'}</div>
+                          <div className="text-xs text-gray-500">ID: {followUp.customer_id}</div>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-700">{rawPhone || '—'}</td>
+                        <td className="px-4 py-3">
+                          <span className={`text-xs px-2 py-1 rounded-full capitalize ${
+                            followUp.priority === 'hot' ? 'bg-red-100 text-red-700' :
+                            followUp.priority === 'warm' ? 'bg-orange-100 text-orange-700' :
+                            'bg-blue-100 text-blue-700'
+                          }`}>
+                            {followUp.priority}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="text-sm text-gray-800">{followUp.call_reason}</div>
+                          {followUp.notes && (
+                            <div className="text-xs text-gray-500 truncate max-w-[150px]" title={followUp.notes}>{followUp.notes}</div>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="text-sm text-gray-800">{formatDate(followUp.task_date || followUp.scheduled_time)}</div>
+                          {followUp.scheduled_time && (
+                            <div className="text-xs text-gray-500">{formatTime(followUp.scheduled_time)}</div>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          <select
+                            value={followUp.status}
+                            onChange={(e) => handleStatusChange(followUp, e.target.value)}
+                            className={`text-xs px-2 py-1 rounded-full font-semibold ${getStatusBadge(followUp.status)} border-0 cursor-pointer`}
+                          >
+                            <option value="pending">Pending</option>
+                            <option value="in_progress">In Progress</option>
+                            <option value="completed">Completed</option>
+                            <option value="failed">Failed</option>
+                          </select>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-1 flex-wrap">
+                            <button
+                              onClick={() => handleViewOrder(followUp.customer_id)}
+                              className="text-xs px-2 py-1 rounded border border-gray-300 text-gray-700 hover:bg-gray-100"
+                            >
+                              View
+                            </button>
+
+                            <a
+                              href={rawPhone ? `tel:${rawPhone}` : undefined}
+                              aria-disabled={!rawPhone}
+                              title={rawPhone ? 'Call' : 'No phone'}
+                              className={`p-1.5 rounded border ${rawPhone ? 'border-green-200 text-green-700 hover:bg-green-50' : 'border-gray-200 text-gray-300 cursor-not-allowed'}`}
+                              onClick={(e) => { if (!rawPhone) e.preventDefault(); }}
+                            >
+                              <FaPhone size={12} />
+                            </a>
+
+                            <a
+                              href={waPhone ? `https://wa.me/${waPhone}` : undefined}
+                              target="_blank"
+                              rel="noreferrer"
+                              aria-disabled={!waPhone}
+                              title={waPhone ? 'WhatsApp' : 'No phone'}
+                              className={`p-1.5 rounded border ${waPhone ? 'border-emerald-200 text-emerald-700 hover:bg-emerald-50' : 'border-gray-200 text-gray-300 cursor-not-allowed'}`}
+                              onClick={(e) => { if (!waPhone) e.preventDefault(); }}
+                            >
+                              <FaWhatsapp size={12} />
+                            </a>
+
+                            <a
+                              href={rawPhone ? `sms:${rawPhone}` : undefined}
+                              aria-disabled={!rawPhone}
+                              title={rawPhone ? 'SMS' : 'No phone'}
+                              className={`p-1.5 rounded border ${rawPhone ? 'border-blue-200 text-blue-700 hover:bg-blue-50' : 'border-gray-200 text-gray-300 cursor-not-allowed'}`}
+                              onClick={(e) => { if (!rawPhone) e.preventDefault(); }}
+                            >
+                              <FaSms size={12} />
+                            </a>
+
+                            <a
+                              href={email ? `mailto:${email}` : undefined}
+                              aria-disabled={!email}
+                              title={email ? 'Email' : 'No email'}
+                              className={`p-1.5 rounded border ${email ? 'border-purple-200 text-purple-700 hover:bg-purple-50' : 'border-gray-200 text-gray-300 cursor-not-allowed'}`}
+                              onClick={(e) => { if (!email) e.preventDefault(); }}
+                            >
+                              <FaEnvelope size={12} />
+                            </a>
+
+                            {/* Log Call Button - Opens unified modal with outcome, notes, and optional follow-up */}
+                            <button
+                              type="button"
+                              onClick={() => openLogCallModal(followUp)}
+                              title="Log Call"
+                              className="px-3 py-1.5 rounded bg-green-600 text-white hover:bg-green-700 flex items-center gap-1 text-xs font-medium"
+                            >
+                              <FaPhone size={10} /> Log Call
+                            </button>
                           </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <select
-                          value={followUp.status}
-                          onChange={(e) => handleStatusChange(followUp, e.target.value)}
-                          className={`px-3 py-1 rounded-full text-sm font-semibold ${getStatusBadge(followUp.status)} border-0 cursor-pointer`}
-                        >
-                          <option value="pending">Pending</option>
-                          <option value="in_progress">In Progress</option>
-                          <option value="completed">Completed</option>
-                          <option value="failed">Failed</option>
-                        </select>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => handleViewOrder(followUp.customer_id)}
-                            className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                            title="View"
-                          >
-                            <FaEye />
-                          </button>
-                          <button
-                            onClick={() => openEditModal(followUp)}
-                            className="p-2 text-gray-600 hover:bg-gray-50 rounded-lg transition-colors"
-                            title="Edit Follow-up"
-                          >
-                            <FaEdit />
-                          </button>
-                          <a
-                            href={`tel:${followUp.customer_phone}`}
-                            className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-                            title="Call Customer"
-                          >
-                            <FaPhone />
-                          </a>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -902,6 +1104,114 @@ export default function MyFollowupsPage() {
           }}
           onUpdate={loadFollowUps}
         />
+      )}
+
+      {/* Log Call Modal (Unified Call Action - like Agent Dashboard) */}
+      {showLogCallModal && selectedFollowUpForLog && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-lg w-full p-6 max-h-[90vh] overflow-y-auto">
+            <h3 className="text-xl font-bold text-gray-800 mb-2 flex items-center gap-2">
+              <FaPhone className="text-green-600" />
+              Log Call
+            </h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Customer: <strong>{selectedFollowUpForLog.customer_name || `Customer #${selectedFollowUpForLog.customer_id}`}</strong>
+              {selectedFollowUpForLog.customer_phone && <span className="ml-2 text-gray-500">({selectedFollowUpForLog.customer_phone})</span>}
+            </p>
+            
+            <div className="space-y-4">
+              {/* Call Outcome - Required */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Call Outcome <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={logCallOutcome}
+                  onChange={(e) => setLogCallOutcome(e.target.value as any)}
+                  className="w-full px-3 py-2 border rounded-lg"
+                  required
+                >
+                  <option value="">Select outcome...</option>
+                  <option value="connected">Connected - Spoke with customer</option>
+                  <option value="order_placed">Order Placed</option>
+                  <option value="callback_requested">Callback Requested</option>
+                  <option value="no_answer">No Answer</option>
+                  <option value="busy">Busy / Line Engaged</option>
+                  <option value="not_interested">Not Interested</option>
+                </select>
+              </div>
+
+              {/* Call Notes - Required */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Call Notes <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  value={logCallNotes}
+                  onChange={(e) => setLogCallNotes(e.target.value)}
+                  rows={4}
+                  className="w-full px-3 py-2 border rounded-lg"
+                  placeholder="Describe the conversation, customer feedback, interests, concerns..."
+                  required
+                />
+              </div>
+
+              {/* Schedule Follow-up - Optional */}
+              <div className="border-t pt-4">
+                <label className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                  <FaCalendarAlt className="text-blue-500" />
+                  Schedule Next Follow-up <span className="text-gray-400 text-xs font-normal">(Optional)</span>
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <input
+                      type="date"
+                      value={logCallFollowUpDate}
+                      onChange={(e) => setLogCallFollowUpDate(e.target.value)}
+                      min={new Date().toISOString().split('T')[0]}
+                      className="w-full px-3 py-2 border rounded-lg text-sm"
+                      placeholder="Date"
+                    />
+                  </div>
+                  <div>
+                    <input
+                      type="time"
+                      value={logCallFollowUpTime}
+                      onChange={(e) => setLogCallFollowUpTime(e.target.value)}
+                      className="w-full px-3 py-2 border rounded-lg text-sm"
+                      placeholder="Time"
+                    />
+                  </div>
+                </div>
+                {logCallFollowUpDate && (
+                  <p className="text-xs text-blue-600 mt-1">
+                    A new follow-up task will be created for {logCallFollowUpDate}
+                    {logCallFollowUpTime && ` at ${logCallFollowUpTime}`}
+                  </p>
+                )}
+              </div>
+            </div>
+            
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={handleSubmitLogCall}
+                disabled={savingLogCall || !logCallNotes.trim() || !logCallOutcome}
+                className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {savingLogCall ? 'Saving...' : <><FaCheckCircle /> Save Call Log</>}
+              </button>
+              <button
+                onClick={() => {
+                  setShowLogCallModal(false);
+                  setSelectedFollowUpForLog(null);
+                }}
+                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </AdminLayout>
   );
