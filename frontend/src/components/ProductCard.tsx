@@ -143,27 +143,31 @@ export default function ProductCard({
 
         <div style={{ padding: '12px', flex: 1, display: 'flex', flexDirection: 'column' }}>
           <div style={{ marginBottom: '8px', minHeight: '45px' }}>
-            {nameBn && nameEn && (
+            {nameBn && (
               <div style={{
                 fontSize: '0.95rem',
-                fontWeight: '500',
+                fontWeight: '600',
                 color: '#323232',
                 marginBottom: '2px',
-                lineHeight: '1.3'
+                lineHeight: '1.3',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap'
               }}>
-                {nameBn} | {nameEn}
+                {nameBn}
               </div>
             )}
-            {!nameBn && (
-              <div style={{
-                fontSize: '0.95rem',
-                fontWeight: '500',
-                color: '#323232',
-                lineHeight: '1.3'
-              }}>
-                {nameEn}
-              </div>
-            )}
+            <div style={{
+              fontSize: '0.9rem',
+              fontWeight: '500',
+              color: '#555555',
+              lineHeight: '1.3',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap'
+            }}>
+              {nameEn}
+            </div>
           </div>
 
           <div style={{ marginTop: 'auto' }}>
