@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import AdminLayout from '@/layouts/AdminLayout';
 import apiClient from '@/services/api';
 
@@ -18,17 +18,89 @@ interface PaginatedResponse {
   total: number;
 }
 
+interface Agent {
+  id: number;
+  name: string;
+  lastName?: string;
+  email?: string;
+  teamId?: number | null;
+}
+
 export default function CrmFollowupsPage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
-  const [agentId, setAgentId] = useState('1'); // default to agent 1
+  
+  // Agent search autocomplete states
+  const [agents, setAgents] = useState<Agent[]>([]);
+  const [agentSearchTerm, setAgentSearchTerm] = useState('');
+  const [agentSuggestions, setAgentSuggestions] = useState<Agent[]>([]);
+  const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
+  const [showAgentDropdown, setShowAgentDropdown] = useState(false);
+  const agentInputRef = useRef<HTMLInputElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Load available agents on mount
+  useEffect(() => {
+    loadAvailableAgents();
+  }, []);
+
+  // Load follow-ups when agent is selected
+  useEffect(() => {
+    if (selectedAgent) {
+      loadFollowups(selectedAgent.id);
+    } else {
+      setCustomers([]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedAgent]);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setShowAgentDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Agent search with debounce
+  const searchAgents = useCallback(async (term: string) => {
+    if (!term.trim()) {
+      setAgentSuggestions(agents);
+      return;
+    }
+    try {
+      const res = await apiClient.get('/crm/team/agents/search', { params: { q: term } });
+      setAgentSuggestions(Array.isArray((res as any)?.data) ? (res as any).data : []);
+    } catch {
+      setAgentSuggestions([]);
+    }
+  }, [agents]);
 
   useEffect(() => {
-    loadFollowups();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [agentId]);
+    const timer = setTimeout(() => {
+      if (showAgentDropdown) {
+        searchAgents(agentSearchTerm);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [agentSearchTerm, showAgentDropdown, searchAgents]);
 
-  const loadFollowups = async () => {
+  const loadAvailableAgents = async () => {
+    try {
+      const res = await apiClient.get('/crm/team/available-agents');
+      const agentsData = Array.isArray((res as any)?.data) ? (res as any).data : [];
+      setAgents(agentsData);
+      setAgentSuggestions(agentsData);
+    } catch (error) {
+      console.error('Failed to load available agents', error);
+      setAgents([]);
+    }
+  };
+
+  const loadFollowups = async (agentId: number) => {
     try {
       setLoading(true);
       const res = await apiClient.get<PaginatedResponse>(`/crm/team/agent/${agentId}/customers`, {
@@ -49,26 +121,90 @@ export default function CrmFollowupsPage() {
     return full || 'N/A';
   };
 
+  const handleAgentSelect = (agent: Agent) => {
+    setSelectedAgent(agent);
+    setShowAgentDropdown(false);
+  };
+
+  const clearAgentSelection = () => {
+    setSelectedAgent(null);
+    setAgentSearchTerm('');
+    setAgentSuggestions(agents);
+    agentInputRef.current?.focus();
+  };
+
   return (
     <AdminLayout>
       <div className="p-6 space-y-6">
         <div className="flex justify-between items-center">
           <h1 className="text-3xl font-bold text-gray-800">CRM Follow-ups</h1>
           <div className="flex items-center gap-2">
-            <span className="text-sm text-gray-600">Agent ID:</span>
-            <input
-              type="number"
-              className="border rounded-lg px-3 py-1 text-sm w-24"
-              value={agentId}
-              onChange={(e) => setAgentId(e.target.value || '1')}
-              min={1}
-            />
+            <span className="text-sm text-gray-600">Select Agent:</span>
+            <div className="relative" ref={dropdownRef}>
+              <input
+                ref={agentInputRef}
+                type="text"
+                value={selectedAgent ? `${selectedAgent.name} ${selectedAgent.lastName || ''} (ID: ${selectedAgent.id})` : agentSearchTerm}
+                onChange={(e) => {
+                  setAgentSearchTerm(e.target.value);
+                  setSelectedAgent(null);
+                  setShowAgentDropdown(true);
+                }}
+                onFocus={() => {
+                  setShowAgentDropdown(true);
+                  if (!agentSearchTerm) {
+                    setAgentSuggestions(agents);
+                  }
+                }}
+                placeholder="Type agent name..."
+                className="w-64 border rounded-lg px-3 py-1.5 text-sm pr-8"
+              />
+              {selectedAgent && (
+                <button
+                  type="button"
+                  onClick={clearAgentSelection}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  ✕
+                </button>
+              )}
+              
+              {showAgentDropdown && !selectedAgent && (
+                <div className="absolute z-50 w-full mt-1 bg-white border rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                  {agentSuggestions.length === 0 ? (
+                    <div className="p-3 text-gray-500 text-sm">No agents found</div>
+                  ) : (
+                    agentSuggestions.map((agent) => (
+                      <button
+                        key={agent.id}
+                        type="button"
+                        onClick={() => handleAgentSelect(agent)}
+                        className="w-full text-left px-3 py-2 hover:bg-blue-50 flex items-center justify-between border-b last:border-b-0"
+                      >
+                        <div>
+                          <div className="font-medium text-gray-800">
+                            {agent.name} {agent.lastName || ''}
+                          </div>
+                          <div className="text-xs text-gray-500">{agent.email || ''}</div>
+                        </div>
+                        <span className="text-xs bg-gray-100 px-2 py-1 rounded">ID: {agent.id}</span>
+                      </button>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
         <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-lg font-semibold mb-4">Assigned Customers</h2>
-          {loading ? (
+          <h2 className="text-lg font-semibold mb-4">
+            Assigned Customers
+            {selectedAgent && <span className="text-sm font-normal text-gray-500 ml-2">for {selectedAgent.name} {selectedAgent.lastName || ''}</span>}
+          </h2>
+          {!selectedAgent ? (
+            <div className="text-gray-500">Please select an agent to view assigned customers.</div>
+          ) : loading ? (
             <div className="text-gray-500">Loading follow-ups...</div>
           ) : customers.length === 0 ? (
             <div className="text-gray-500">No customers assigned to this agent.</div>
