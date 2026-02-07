@@ -600,39 +600,108 @@ export class CrmTeamService {
   }
 
   async getTeamPerformance(teamLeaderId: number): Promise<any> {
-    // Get all teams under this team leader
-    const teams = await this.salesTeamRepository.find({ where: { teamLeaderId } });
+    // Get all customers under this team leader
+    const customers = await this.getLeaderCustomers(teamLeaderId);
 
-    // For each team, count telesales agents (users) in that team
-    const teamSummaries = [] as any[];
-    let totalMembers = 0;
+    // Calculate lead counts
+    const totalLeads = customers.length;
+    const assignedLeads = customers.filter(c => c.assigned_to !== null && c.assigned_to !== undefined).length;
+    const unassignedLeads = customers.filter(c => c.assigned_to === null || c.assigned_to === undefined).length;
+
+    // Count by priority
+    const hotLeads = customers.filter(c => c.priority === LeadPriority.HOT).length;
+    const warmLeads = customers.filter(c => c.priority === LeadPriority.WARM).length;
+    const coldLeads = customers.filter(c => c.priority === LeadPriority.COLD).length;
+
+    // Calculate conversion rate (leads with lifecycle_stage = 'customer')
+    const convertedLeads = customers.filter(c => c.lifecycleStage === 'customer').length;
+    const conversionRate = totalLeads > 0 ? Math.round((convertedLeads / totalLeads) * 100 * 100) / 100 : 0;
+
+    // Calculate average response time from activities
+    let averageResponseTime = 'N/A';
+    try {
+      const agentIds = (await this.usersRepository.find({ where: { teamLeaderId } })).map(u => u.id);
+      if (agentIds.length > 0) {
+        const avgTimeResult = await this.activityRepo
+          .createQueryBuilder('a')
+          .select('AVG(EXTRACT(EPOCH FROM (a.createdAt - c.createdAt)))', 'avgSeconds')
+          .innerJoin(Customer, 'c', 'c.id = a.customerId')
+          .where('a.userId IN (:...agentIds)', { agentIds })
+          .andWhere('a.type = :type', { type: 'first_contact' })
+          .getRawOne();
+
+        if (avgTimeResult?.avgSeconds && !isNaN(avgTimeResult.avgSeconds)) {
+          const hours = Math.round(avgTimeResult.avgSeconds / 3600);
+          if (hours < 24) {
+            averageResponseTime = `${hours} hours`;
+          } else {
+            averageResponseTime = `${Math.round(hours / 24)} days`;
+          }
+        }
+      }
+    } catch {
+      // If activity query fails, keep N/A
+    }
+
+    // Get team members
+    const teams = await this.salesTeamRepository.find({ where: { teamLeaderId } });
+    const teamMembers: any[] = [];
 
     for (const team of teams) {
       const members = await this.usersRepository.find({ where: { teamId: team.id } });
-      const memberCount = members.length;
-      totalMembers += memberCount;
-
-      teamSummaries.push({
-        teamId: team.id,
-        teamName: team.name,
-        memberCount,
-        // Placeholders for future detailed performance metrics per team
-        totalLeads: 0,
-        convertedLeads: 0,
-        conversionRate: 0,
-      });
+      for (const member of members) {
+        const memberCustomers = customers.filter(c => c.assigned_to === member.id);
+        teamMembers.push({
+          id: member.id,
+          name: `${member.name} ${member.lastName || ''}`.trim(),
+          email: member.email,
+          teamName: team.name,
+          assignedLeads: memberCustomers.length,
+          convertedLeads: memberCustomers.filter(c => c.lifecycleStage === 'customer').length,
+        });
+      }
     }
 
     return {
-      totalTeams: teams.length,
-      totalMembers,
-      teams: teamSummaries,
+      totalLeads,
+      assignedLeads,
+      unassignedLeads,
+      hotLeads,
+      warmLeads,
+      coldLeads,
+      conversionRate,
+      averageResponseTime,
+      teamMembers,
     };
   }
 
   async getMissedFollowups(teamLeaderId: number): Promise<any[]> {
-    // Implementation for missed follow-ups tracking
-    return [];
+    const today = new Date();
+    const customers = await this.getLeaderCustomers(teamLeaderId);
+
+    // Filter customers with next_follow_up in the past
+    const missedFollowups = customers
+      .filter(c => c.next_follow_up && new Date(c.next_follow_up) < today)
+      .map(c => {
+        const followUpDate = new Date(c.next_follow_up);
+        const daysOverdue = Math.floor((today.getTime() - followUpDate.getTime()) / (1000 * 60 * 60 * 24));
+        return {
+          customer_id: c.id,
+          customer_name: `${c.name || ''} ${c.lastName || ''}`.trim() || 'N/A',
+          email: c.email,
+          phone: c.phone,
+          last_contact_date: c.last_contact_date
+            ? new Date(c.last_contact_date).toLocaleDateString()
+            : 'Never',
+          next_follow_up: followUpDate.toLocaleDateString(),
+          days_overdue: daysOverdue,
+          priority: c.priority,
+          assigned_to: c.assigned_to,
+        };
+      })
+      .sort((a, b) => b.days_overdue - a.days_overdue);
+
+    return missedFollowups;
   }
 
   async getEscalatedCustomers(teamLeaderId: number): Promise<Customer[]> {
@@ -1274,13 +1343,33 @@ export class CrmTeamService {
   }
 
   async getLeadAging(teamLeaderId: number): Promise<any> {
-    // Lead aging analysis
-    return {
-      '0-7days': 50,
-      '8-14days': 40,
-      '15-30days': 35,
-      '30+days': 25
+    // Calculate real lead aging based on customer creation dates
+    const customers = await this.getLeaderCustomers(teamLeaderId);
+    const today = new Date();
+
+    const aging = {
+      '0-7 days': 0,
+      '8-14 days': 0,
+      '15-30 days': 0,
+      '30+ days': 0,
     };
+
+    for (const customer of customers) {
+      const createdAt = customer.createdAt ? new Date(customer.createdAt) : today;
+      const daysSinceCreation = Math.floor((today.getTime() - createdAt.getTime()) / (1000 * 60 * 60 * 24));
+
+      if (daysSinceCreation <= 7) {
+        aging['0-7 days']++;
+      } else if (daysSinceCreation <= 14) {
+        aging['8-14 days']++;
+      } else if (daysSinceCreation <= 30) {
+        aging['15-30 days']++;
+      } else {
+        aging['30+ days']++;
+      }
+    }
+
+    return aging;
   }
 
   // ==================== TEAM AGENT REPORTS ====================
