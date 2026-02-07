@@ -41,6 +41,7 @@ export class ProductsService {
           p.sale_price,
           p.brand,
           p.unit_of_measure,
+          p.size_variants,
           p.created_at
         FROM products p
         LEFT JOIN LATERAL (
@@ -97,6 +98,7 @@ export class ProductsService {
           p.sale_price,
           p.brand,
           p.unit_of_measure,
+          p.size_variants,
           p.created_at
         FROM products p
         LEFT JOIN LATERAL (
@@ -211,6 +213,7 @@ export class ProductsService {
           COALESCE(p.image_url, pi.image_url) as image_url,
           p.status,
           p.additional_info,
+          p.size_variants,
           p.discount_type,
           p.discount_value,
           p.sale_price,
