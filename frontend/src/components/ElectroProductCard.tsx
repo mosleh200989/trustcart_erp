@@ -5,6 +5,7 @@ import { FaStar, FaShoppingCart, FaHeart, FaEye, FaTag } from "react-icons/fa";
 import AddToCartPopup from "./AddToCartPopup";
 import { BACKEND_ORIGIN } from "@/config/backend";
 import { useToast } from "@/contexts/ToastContext";
+import { trackAddToCart } from "@/utils/gtm";
 
 interface ProductCardProps {
   id: number;
@@ -103,6 +104,16 @@ export default function ElectroProductCard({
 
     localStorage.setItem("cart", JSON.stringify(cart));
     window.dispatchEvent(new Event("cartUpdated"));
+    
+    // Track add to cart event for GTM/Analytics
+    trackAddToCart({
+      id,
+      name: displayName,
+      price: priceNum,
+      quantity: 1,
+      category: displayCategory || 'Products',
+    });
+    
     setShowPopup(true);
   };
 

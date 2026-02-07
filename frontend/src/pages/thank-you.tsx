@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useRef } from "react";
 import { useRouter } from "next/router";
 import { useToast } from '@/contexts/ToastContext';
 import Link from "next/link";
@@ -6,6 +6,7 @@ import ElectroNavbar from "@/components/ElectroNavbar";
 import ElectroFooter from "@/components/ElectroFooter";
 import ElectroProductCard from "@/components/ElectroProductCard";
 import apiClient from "@/services/api";
+import { trackPurchase } from "@/utils/gtm";
 import { 
   FaCheckCircle, 
   FaShoppingCart, 
@@ -76,6 +77,7 @@ function formatDate(date: Date): string {
 export default function ThankYouPage() {
   const router = useRouter();
   const toast = useToast();
+  const purchaseTrackedRef = useRef(false);
   const orderId = useMemo(() => {
     const raw = router.query.orderId;
     const value = Array.isArray(raw) ? raw[0] : raw;
@@ -231,6 +233,34 @@ export default function ThankYouPage() {
     };
     return statusMap[orderStatus?.toLowerCase()] ?? 0;
   }, [orderStatus]);
+
+  // Backup purchase tracking - fires once when order data is loaded
+  // This ensures purchase is tracked even if checkout tracking failed
+  useEffect(() => {
+    if (!order || !items || items.length === 0 || purchaseTrackedRef.current) return;
+    
+    // Check sessionStorage to prevent duplicate tracking on page refresh
+    const trackedKey = `purchase_tracked_${orderId}`;
+    if (sessionStorage.getItem(trackedKey)) return;
+    
+    // Track purchase event
+    trackPurchase({
+      orderId: order.orderNumber || order.id || orderId,
+      totalValue: totalAmount,
+      shipping: deliveryCharge,
+      discount: discount,
+      items: items.map((item) => ({
+        id: item.productId,
+        name: item.productName || `Product ${item.productId}`,
+        price: Number(item.unitPrice) || 0,
+        quantity: item.quantity || 1,
+      })),
+    });
+    
+    // Mark as tracked
+    sessionStorage.setItem(trackedKey, 'true');
+    purchaseTrackedRef.current = true;
+  }, [order, items, orderId, totalAmount, deliveryCharge, discount]);
 
   const courierName = useMemo(() => {
     return order?.courierName ?? order?.courier_name ?? null;

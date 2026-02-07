@@ -17,6 +17,7 @@ import {
 import apiClient, { auth, customers } from "@/services/api";
 import { TrackingService } from "@/utils/tracking";
 import PhoneInput, { validateBDPhone } from "@/components/PhoneInput";
+import { trackBeginCheckout, trackAddPaymentInfo, trackPurchase } from "@/utils/gtm";
 
 export default function Checkout() {
   const router = useRouter();
@@ -97,6 +98,23 @@ export default function Checkout() {
     const stored = localStorage.getItem("cart");
     const cartData = stored ? JSON.parse(stored) : [];
     applyCart(cartData);
+    
+    // Track begin checkout event for GTM/Analytics
+    if (cartData.length > 0) {
+      const cartTotal = cartData.reduce(
+        (sum: number, item: any) => sum + item.price * (item.quantity || 1),
+        0
+      );
+      trackBeginCheckout(
+        cartData.map((item: any) => ({
+          id: item.id,
+          name: item.name || item.name_en,
+          price: item.price,
+          quantity: item.quantity || 1,
+        })),
+        cartTotal
+      );
+    }
 
     const handleCartUpdate = () => {
       const updated = localStorage.getItem("cart");
@@ -391,6 +409,33 @@ export default function Checkout() {
       const response = await apiClient.post("/sales", orderData);
 
       if (response.data) {
+        // Track purchase event for GTM/Analytics
+        trackPurchase({
+          orderId: response.data.id || response.data.orderNumber,
+          totalValue: total,
+          shipping: deliveryCharge,
+          discount: response.data.discountAmount || 0,
+          coupon: formData.offerCode || undefined,
+          items: cart.map((item) => ({
+            id: item.id,
+            name: item.name || item.name_en,
+            price: item.price,
+            quantity: item.quantity || 1,
+          })),
+        });
+        
+        // Also track payment info
+        trackAddPaymentInfo(
+          cart.map((item) => ({
+            id: item.id,
+            name: item.name || item.name_en,
+            price: item.price,
+            quantity: item.quantity || 1,
+          })),
+          total,
+          formData.paymentMethod
+        );
+        
         localStorage.removeItem("cart");
         router.push(`/thank-you?orderId=${response.data.id}`);
       }
