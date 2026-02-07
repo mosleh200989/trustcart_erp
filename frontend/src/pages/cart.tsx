@@ -4,6 +4,7 @@ import ElectroNavbar from "@/components/ElectroNavbar";
 import ElectroFooter from "@/components/ElectroFooter";
 import ElectroProductCard from "@/components/ElectroProductCard";
 import apiClient from "@/services/api";
+import { trackViewCart, trackRemoveFromCart } from "@/utils/gtm";
 import {
   FaTrash,
   FaMinus,
@@ -29,6 +30,19 @@ export default function CartPage() {
     );
     setSubtotal(total);
 
+    // Track view cart event for GTM/Analytics
+    if (cartData.length > 0) {
+      trackViewCart(
+        cartData.map((item: any) => ({
+          id: item.id,
+          name: item.name || item.name_en,
+          price: item.price,
+          quantity: item.quantity || 1,
+        })),
+        total
+      );
+    }
+
     // Load suggested products
     loadSuggestedProducts();
   }, []);
@@ -49,6 +63,17 @@ export default function CartPage() {
   }
 
   function removeItem(index: number) {
+    // Track remove from cart event for GTM/Analytics
+    const removedItem = cart[index];
+    if (removedItem) {
+      trackRemoveFromCart({
+        id: removedItem.id,
+        name: removedItem.name || removedItem.name_en,
+        price: removedItem.price,
+        quantity: removedItem.quantity || 1,
+      });
+    }
+    
     const newCart = cart.filter((_, i) => i !== index);
     localStorage.setItem("cart", JSON.stringify(newCart));
     setCart(newCart);

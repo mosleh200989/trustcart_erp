@@ -7,6 +7,7 @@ import ElectroFooter from "@/components/ElectroFooter";
 import ElectroProductCard from "@/components/ElectroProductCard";
 import AddToCartPopup from "@/components/AddToCartPopup";
 import apiClient from "@/services/api";
+import { trackViewItem, trackAddToCart } from "@/utils/gtm";
 import {
   FaStar,
   FaShoppingCart,
@@ -103,6 +104,14 @@ export default function ProductDetailsPage() {
 
       const response = await apiClient.get(endpoint);
       setProduct(response.data);
+      
+      // Track product view for GTM/Analytics
+      trackViewItem({
+        id: response.data.id,
+        name: response.data.name_en || response.data.name,
+        price: Number(response.data.sale_price || response.data.base_price || 0),
+        category: response.data.category?.name || 'Products',
+      });
       
       // Debug: Log description to see what format it's in
       // console.log("Product description_en:", response.data.description_en);
@@ -219,6 +228,19 @@ export default function ProductDetailsPage() {
 
     localStorage.setItem("cart", JSON.stringify(cart));
     window.dispatchEvent(new Event("cartUpdated"));
+    
+    // Track add to cart event for GTM/Analytics
+    trackAddToCart({
+      id: product.id,
+      name: selectedVariant 
+        ? `${product.name_en} (${selectedVariant.name})` 
+        : product.name_en,
+      price: itemPrice,
+      quantity: quantity,
+      category: product.category?.name || 'Products',
+      variant: selectedVariant?.name,
+    });
+    
     setShowCartPopup(true);
   };
 
