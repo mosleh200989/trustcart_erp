@@ -138,6 +138,9 @@ export class Customer {
   @Column({ nullable: true, name: 'lifecycle_stage', default: 'lead' })
   lifecycleStage!: string;
 
+  @Column({ nullable: true, name: 'lead_status' })
+  leadStatus!: string;
+
   @Column({ nullable: true })
   status!: string;
 
