@@ -6,7 +6,7 @@ import ElectroNavbar from "@/components/ElectroNavbar";
 import ElectroFooter from "@/components/ElectroFooter";
 import ElectroProductCard from "@/components/ElectroProductCard";
 import apiClient from "@/services/api";
-import { trackPurchase } from "@/utils/gtm";
+import { trackPurchaseWithUser, extractLocationFromAddress } from "@/utils/gtm";
 import { 
   FaCheckCircle, 
   FaShoppingCart, 
@@ -243,8 +243,20 @@ export default function ThankYouPage() {
     const trackedKey = `purchase_tracked_${orderId}`;
     if (sessionStorage.getItem(trackedKey)) return;
     
-    // Track purchase event
-    trackPurchase({
+    // Extract user info from order
+    const customerNameValue = order?.customerName ?? order?.customer_name ?? order?.customer?.name ?? undefined;
+    const customerPhoneValue = order?.customerPhone ?? order?.customer_phone ?? order?.phone ?? order?.customer?.phone ?? undefined;
+    const customerEmailValue = order?.customerEmail ?? order?.customer_email ?? order?.email ?? order?.customer?.email ?? undefined;
+    const customerAddressValue = order?.shippingAddress ?? order?.shipping_address ?? order?.address ?? '';
+    const addressStr = typeof customerAddressValue === 'object' 
+      ? [customerAddressValue.city, customerAddressValue.area, customerAddressValue.address].filter(Boolean).join(", ")
+      : customerAddressValue;
+    
+    // Extract city/district from address
+    const location = extractLocationFromAddress(addressStr);
+    
+    // Track purchase event with user info
+    trackPurchaseWithUser({
       orderId: order.orderNumber || order.id || orderId,
       totalValue: totalAmount,
       shipping: deliveryCharge,
@@ -255,6 +267,15 @@ export default function ThankYouPage() {
         price: Number(item.unitPrice) || 0,
         quantity: item.quantity || 1,
       })),
+      user: {
+        name: customerNameValue,
+        phone: customerPhoneValue,
+        email: customerEmailValue,
+        city: location.city,
+        district: location.district,
+        area: location.area,
+        address: addressStr,
+      },
     });
     
     // Mark as tracked

@@ -17,7 +17,7 @@ import {
 import apiClient, { auth, customers } from "@/services/api";
 import { TrackingService } from "@/utils/tracking";
 import PhoneInput, { validateBDPhone } from "@/components/PhoneInput";
-import { trackBeginCheckout, trackAddPaymentInfo, trackPurchase } from "@/utils/gtm";
+import { trackBeginCheckout, trackAddPaymentInfo, trackPurchaseWithUser, extractLocationFromAddress } from "@/utils/gtm";
 
 export default function Checkout() {
   const router = useRouter();
@@ -409,8 +409,11 @@ export default function Checkout() {
       const response = await apiClient.post("/sales", orderData);
 
       if (response.data) {
-        // Track purchase event for GTM/Analytics
-        trackPurchase({
+        // Extract city/district from address
+        const location = extractLocationFromAddress(formData.address);
+        
+        // Track purchase event for GTM/Analytics with user info
+        trackPurchaseWithUser({
           orderId: response.data.id || response.data.orderNumber,
           totalValue: total,
           shipping: deliveryCharge,
@@ -421,7 +424,17 @@ export default function Checkout() {
             name: item.name || item.name_en,
             price: item.price,
             quantity: item.quantity || 1,
+            category: item.category || item.categoryName || undefined,
           })),
+          user: {
+            name: formData.fullName,
+            phone: formData.phone,
+            email: formData.email || undefined,
+            city: location.city,
+            district: location.district,
+            area: location.area,
+            address: formData.address,
+          },
         });
         
         // Also track payment info

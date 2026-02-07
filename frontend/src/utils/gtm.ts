@@ -351,3 +351,159 @@ export const trackCustomEvent = (eventName: string, eventData?: Record<string, a
     ...eventData,
   });
 };
+
+// ============ ADDRESS PARSING ============
+
+/**
+ * Bangladesh districts for address parsing
+ * This list covers all 64 districts of Bangladesh
+ */
+const BANGLADESH_DISTRICTS = [
+  // Dhaka Division
+  'Dhaka', 'Faridpur', 'Gazipur', 'Gopalganj', 'Kishoreganj', 'Madaripur', 'Manikganj',
+  'Munshiganj', 'Narayanganj', 'Narsingdi', 'Rajbari', 'Shariatpur', 'Tangail',
+  // Chittagong Division  
+  'Bandarban', 'Brahmanbaria', 'Chandpur', 'Chittagong', 'Chattogram', 'Comilla', 'Cumilla',
+  "Cox's Bazar", 'Coxs Bazar', 'Cox Bazar', 'Feni', 'Khagrachhari', 'Khagrachari', 'Lakshmipur',
+  'Noakhali', 'Rangamati',
+  // Rajshahi Division
+  'Bogra', 'Bogura', 'Chapainawabganj', 'Joypurhat', 'Naogaon', 'Natore', 'Nawabganj',
+  'Pabna', 'Rajshahi', 'Sirajganj',
+  // Khulna Division
+  'Bagerhat', 'Chuadanga', 'Jessore', 'Jashore', 'Jhenaidah', 'Khulna', 'Kushtia',
+  'Magura', 'Meherpur', 'Narail', 'Satkhira',
+  // Barisal Division
+  'Barguna', 'Barisal', 'Barishal', 'Bhola', 'Jhalokati', 'Jhalokathi', 'Patuakhali', 'Pirojpur',
+  // Sylhet Division
+  'Habiganj', 'Moulvibazar', 'Sunamganj', 'Sylhet',
+  // Rangpur Division
+  'Dinajpur', 'Gaibandha', 'Kurigram', 'Lalmonirhat', 'Nilphamari', 'Panchagarh',
+  'Rangpur', 'Thakurgaon',
+  // Mymensingh Division
+  'Jamalpur', 'Mymensingh', 'Netrokona', 'Sherpur',
+];
+
+/**
+ * Common area names within Dhaka for more precise location
+ */
+const DHAKA_AREAS = [
+  'Gulshan', 'Banani', 'Dhanmondi', 'Uttara', 'Mirpur', 'Mohammadpur', 'Bashundhara',
+  'Baridhara', 'Motijheel', 'Tejgaon', 'Farmgate', 'Mohakhali', 'Badda', 'Rampura',
+  'Khilgaon', 'Malibagh', 'Shantinagar', 'Wari', 'Old Dhaka', 'Puran Dhaka',
+  'Lalmatia', 'Jigatola', 'Hazaribagh', 'Kamrangirchar', 'Jatrabari', 'Demra',
+  'Keraniganj', 'Savar', 'Tongi', 'Ashulia', 'Pallabi', 'Kafrul', 'Cantonment',
+];
+
+/**
+ * Extract city and district from a Bangladesh address
+ * @param address - Full address string
+ * @returns Object with city and district
+ */
+export const extractLocationFromAddress = (address: string): { city?: string; district?: string; area?: string } => {
+  if (!address) return {};
+  
+  const normalizedAddress = address.toLowerCase();
+  let district: string | undefined;
+  let city: string | undefined;
+  let area: string | undefined;
+  
+  // First, try to find a district match
+  for (const d of BANGLADESH_DISTRICTS) {
+    if (normalizedAddress.includes(d.toLowerCase())) {
+      district = d;
+      // Normalize district names (e.g., Chattogram -> Chittagong)
+      if (d === 'Chattogram') district = 'Chittagong';
+      if (d === 'Cumilla') district = 'Comilla';
+      if (d === 'Barishal') district = 'Barisal';
+      if (d === 'Bogura') district = 'Bogra';
+      if (d === 'Jashore') district = 'Jessore';
+      break;
+    }
+  }
+  
+  // For Dhaka, try to find more specific area
+  if (district === 'Dhaka' || normalizedAddress.includes('dhaka')) {
+    district = 'Dhaka';
+    for (const a of DHAKA_AREAS) {
+      if (normalizedAddress.includes(a.toLowerCase())) {
+        area = a;
+        break;
+      }
+    }
+  }
+  
+  // City is typically the same as district for Bangladesh
+  city = district;
+  
+  return { city, district, area };
+};
+
+// ============ ENHANCED USER TRACKING ============
+
+export interface UserInfo {
+  name?: string;
+  phone?: string;
+  email?: string;
+  city?: string;
+  district?: string;
+  area?: string;
+  address?: string;
+}
+
+/**
+ * Track a completed purchase with user information (Enhanced)
+ * This is the most important e-commerce event!
+ */
+export const trackPurchaseWithUser = (order: {
+  orderId: string | number;
+  totalValue: number;
+  shipping?: number;
+  tax?: number;
+  discount?: number;
+  coupon?: string;
+  items: Array<{
+    id: string | number;
+    name: string;
+    price: number;
+    quantity: number;
+    category?: string;
+  }>;
+  user?: UserInfo;
+}) => {
+  clearEcommerce();
+  
+  const purchaseData: Record<string, any> = {
+    event: 'purchase',
+    ecommerce: {
+      transaction_id: String(order.orderId),
+      currency: 'BDT',
+      value: order.totalValue,
+      shipping: order.shipping || 0,
+      tax: order.tax || 0,
+      discount: order.discount || 0,
+      coupon: order.coupon || undefined,
+      items: order.items.map(item => ({
+        item_id: String(item.id),
+        item_name: item.name,
+        price: item.price,
+        quantity: item.quantity,
+        item_category: item.category || 'Products',
+      })),
+    },
+  };
+  
+  // Add user information if available
+  if (order.user) {
+    purchaseData.user_data = {
+      customer_name: order.user.name || undefined,
+      customer_phone: order.user.phone || undefined,
+      customer_email: order.user.email || undefined,
+      customer_city: order.user.city || undefined,
+      customer_district: order.user.district || undefined,
+      customer_area: order.user.area || undefined,
+      customer_country: 'Bangladesh',
+    };
+  }
+  
+  pushToDataLayer(purchaseData);
+};

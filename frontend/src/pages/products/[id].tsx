@@ -110,7 +110,7 @@ export default function ProductDetailsPage() {
         id: response.data.id,
         name: response.data.name_en || response.data.name,
         price: Number(response.data.sale_price || response.data.base_price || 0),
-        category: response.data.category?.name || 'Products',
+        category: response.data.category?.name || response.data.category?.name_en || undefined,
       });
       
       // Debug: Log description to see what format it's in
@@ -223,6 +223,7 @@ export default function ProductDetailsPage() {
         image: product.image_url,
         variant: selectedVariant ? selectedVariant.name : null,
         variantDetails: selectedVariant || null,
+        category: product.category?.name || product.category?.name_en || undefined,
       });
     }
 
@@ -237,7 +238,7 @@ export default function ProductDetailsPage() {
         : product.name_en,
       price: itemPrice,
       quantity: quantity,
-      category: product.category?.name || 'Products',
+      category: product.category?.name || product.category?.name_en || undefined,
       variant: selectedVariant?.name,
     });
     
@@ -270,6 +271,7 @@ export default function ProductDetailsPage() {
         image: product.image_url,
         variant: selectedVariant ? selectedVariant.name : null,
         variantDetails: selectedVariant || null,
+        category: product.category?.name || product.category?.name_en || undefined,
       });
     }
 

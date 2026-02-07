@@ -99,6 +99,7 @@ export default function ElectroProductCard({
         price: priceNum,
         quantity: 1,
         image,
+        category: displayCategory || undefined,
       });
     }
 
@@ -111,7 +112,7 @@ export default function ElectroProductCard({
       name: displayName,
       price: priceNum,
       quantity: 1,
-      category: displayCategory || 'Products',
+      category: displayCategory || undefined,
     });
     
     setShowPopup(true);
