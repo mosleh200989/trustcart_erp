@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useToast } from '@/contexts/ToastContext';
 import AdminLayout from '@/layouts/AdminLayout';
 import apiClient, { auth } from '@/services/api';
@@ -6,7 +6,7 @@ import {
   FaPlus, FaSearch, FaFilter, FaTimes, FaPhone, FaCalendarAlt, 
   FaClock, FaCheckCircle, FaSpinner, FaEdit, FaTrash,
   FaChevronDown, FaFire, FaThermometerHalf, FaSnowflake, FaInfoCircle, FaEye,
-  FaWhatsapp, FaSms, FaEnvelope
+  FaWhatsapp, FaSms, FaEnvelope, FaChevronLeft, FaChevronRight
 } from 'react-icons/fa';
 import AdminOrderDetailsModal from '@/components/AdminOrderDetailsModal';
 
@@ -52,6 +52,10 @@ export default function MyFollowupsPage() {
   const [dateRangeFilter, setDateRangeFilter] = useState<FilterDateRange>('');
   const [specificDate, setSpecificDate] = useState('');
   const [showFilters, setShowFilters] = useState(false);
+  
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
   
   // Modal states
   const [showAddModal, setShowAddModal] = useState(false);
@@ -356,9 +360,22 @@ export default function MyFollowupsPage() {
     setStatusFilter('');
     setDateRangeFilter('');
     setSpecificDate('');
+    setCurrentPage(1);
   };
 
   const hasActiveFilters = searchTerm || priorityFilter || statusFilter || dateRangeFilter || specificDate;
+
+  // Pagination
+  const totalPages = Math.ceil(filteredFollowUps.length / itemsPerPage);
+  const paginatedFollowUps = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return filteredFollowUps.slice(start, start + itemsPerPage);
+  }, [filteredFollowUps, currentPage, itemsPerPage]);
+
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, priorityFilter, statusFilter, dateRangeFilter, specificDate]);
 
   const getPriorityIcon = (priority: string) => {
     switch (priority) {
@@ -719,8 +736,9 @@ export default function MyFollowupsPage() {
               </button>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
+            <>
+              <div className="overflow-x-auto">
+                <table className="w-full">
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
@@ -733,7 +751,7 @@ export default function MyFollowupsPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
-                  {filteredFollowUps.map((followUp) => {
+                  {paginatedFollowUps.map((followUp) => {
                     const rawPhone = String(followUp.customer_phone || '').trim();
                     const waPhone = rawPhone.replace(/[^0-9]/g, '');
                     const email = String(followUp.customer_email || '').trim();
@@ -846,6 +864,46 @@ export default function MyFollowupsPage() {
                 </tbody>
               </table>
             </div>
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className="bg-gray-50 px-4 py-3 border-t flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-gray-700">Show</span>
+                  <select
+                    value={itemsPerPage}
+                    onChange={(e) => { setItemsPerPage(Number(e.target.value)); setCurrentPage(1); }}
+                    className="border rounded px-2 py-1 text-sm"
+                  >
+                    <option value={10}>10</option>
+                    <option value={25}>25</option>
+                    <option value={50}>50</option>
+                    <option value={100}>100</option>
+                  </select>
+                  <span className="text-sm text-gray-700">per page</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-gray-700">
+                    Page {currentPage} of {totalPages} ({filteredFollowUps.length} total)
+                  </span>
+                  <button
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                    className="px-3 py-1 border rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100 flex items-center gap-1"
+                  >
+                    <FaChevronLeft size={10} /> Previous
+                  </button>
+                  <button
+                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                    disabled={currentPage === totalPages}
+                    className="px-3 py-1 border rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100 flex items-center gap-1"
+                  >
+                    Next <FaChevronRight size={10} />
+                  </button>
+                </div>
+              </div>
+            )}
+            </>
           )}
         </div>
       </div>

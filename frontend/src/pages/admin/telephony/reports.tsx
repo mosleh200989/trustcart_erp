@@ -2,10 +2,15 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import AdminLayout from '@/layouts/AdminLayout';
 import apiClient from '@/services/api';
+import { FaChevronLeft, FaChevronRight } from 'react-icons/fa';
 
 export default function TelephonyReportsPage() {
   const [rangeDays, setRangeDays] = useState<number>(7);
   const [loading, setLoading] = useState<boolean>(false);
+
+  // CDR Pagination
+  const [cdrPage, setCdrPage] = useState<number>(1);
+  const [cdrLimit, setCdrLimit] = useState<number>(25);
 
   const [cdr, setCdr] = useState<any>(null);
   const [queues, setQueues] = useState<any>(null);
@@ -24,7 +29,7 @@ export default function TelephonyReportsPage() {
     setLoading(true);
     try {
       const [cdrRes, queuesRes, trunksRes, agentCallsRes, agentPresenceRes, waitHoldRes] = await Promise.all([
-        apiClient.get(`/telephony/reports/cdr?${qs}&limit=50&page=1`),
+        apiClient.get(`/telephony/reports/cdr?${qs}&limit=${cdrLimit}&page=${cdrPage}`),
         apiClient.get(`/telephony/reports/queues?${qs}`),
         apiClient.get(`/telephony/reports/trunks?${qs}`),
         apiClient.get(`/telephony/reports/agents/calls?${qs}`),
@@ -48,7 +53,7 @@ export default function TelephonyReportsPage() {
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [qs]);
+  }, [qs, cdrPage, cdrLimit]);
 
   const fmt = (value: any) => {
     if (!value) return '—';
@@ -176,6 +181,45 @@ export default function TelephonyReportsPage() {
               </tbody>
             </table>
           </div>
+
+          {/* CDR Pagination */}
+          {(cdr?.total ?? 0) > 0 && (
+            <div className="bg-gray-50 px-4 py-3 border-t flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-700">Show</span>
+                <select
+                  value={cdrLimit}
+                  onChange={(e) => { setCdrLimit(Number(e.target.value)); setCdrPage(1); }}
+                  className="border rounded px-2 py-1 text-sm"
+                >
+                  <option value={10}>10</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
+                <span className="text-sm text-gray-700">per page</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-700">
+                  Page {cdrPage} of {Math.ceil((cdr?.total ?? 0) / cdrLimit)} ({cdr?.total ?? 0} total)
+                </span>
+                <button
+                  onClick={() => setCdrPage(p => Math.max(1, p - 1))}
+                  disabled={cdrPage === 1}
+                  className="px-3 py-1 border rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100 flex items-center gap-1"
+                >
+                  <FaChevronLeft size={10} /> Previous
+                </button>
+                <button
+                  onClick={() => setCdrPage(p => Math.min(Math.ceil((cdr?.total ?? 0) / cdrLimit), p + 1))}
+                  disabled={cdrPage >= Math.ceil((cdr?.total ?? 0) / cdrLimit)}
+                  className="px-3 py-1 border rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100 flex items-center gap-1"
+                >
+                  Next <FaChevronRight size={10} />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

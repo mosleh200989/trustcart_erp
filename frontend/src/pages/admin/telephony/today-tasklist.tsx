@@ -8,7 +8,8 @@ import {
   FaUserClock, FaPlay, FaSearch, FaFilter, FaTimes, FaInfoCircle,
   FaThermometerHalf, FaSnowflake, FaRedo, FaChevronDown, FaChevronUp,
   FaTasks, FaUserPlus, FaExclamationTriangle, FaEdit, FaEye, FaShoppingCart,
-  FaStickyNote, FaCalendarAlt, FaCheckDouble, FaThumbsUp, FaThumbsDown
+  FaStickyNote, FaCalendarAlt, FaCheckDouble, FaThumbsUp, FaThumbsDown,
+  FaChevronLeft, FaChevronRight
 } from 'react-icons/fa';
 import Link from 'next/link';
 import { format } from 'date-fns';
@@ -89,6 +90,11 @@ export default function TodayTasklistPage() {
   const [calledFilter, setCalledFilter] = useState<FilterCalledStatus>('');
   const [outcomeFilter, setOutcomeFilter] = useState<FilterOutcome>('');
   const [showFilters, setShowFilters] = useState(false);
+
+  // Pagination for sections
+  const [tasksPage, setTasksPage] = useState(1);
+  const [leadsPage, setLeadsPage] = useState(1);
+  const itemsPerPage = 10;
 
   // Action Modals
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
@@ -265,6 +271,25 @@ export default function TodayTasklistPage() {
       return dueDate < new Date();
     });
   }, [allTasks]);
+
+  // Pagination for CRM Tasks section
+  const tasksTotalPages = Math.ceil(filteredCrmTasks.length / itemsPerPage);
+  const paginatedTasks = useMemo(() => {
+    const start = (tasksPage - 1) * itemsPerPage;
+    return filteredCrmTasks.slice(start, start + itemsPerPage);
+  }, [filteredCrmTasks, tasksPage, itemsPerPage]);
+
+  // Pagination for Leads section
+  const leadsTotalPages = Math.ceil(todayLeads.length / itemsPerPage);
+  const paginatedLeads = useMemo(() => {
+    const start = (leadsPage - 1) * itemsPerPage;
+    return todayLeads.slice(start, start + itemsPerPage);
+  }, [todayLeads, leadsPage, itemsPerPage]);
+
+  // Reset pagination when filters change
+  useEffect(() => {
+    setTasksPage(1);
+  }, [searchTerm, priorityFilter, statusFilter]);
 
   // View customer's latest order in modal
   const handleViewOrder = async (customerId: number) => {
@@ -685,7 +710,11 @@ export default function TodayTasklistPage() {
     sectionKey,
     children,
     emptyMessage,
-    badgeColor = 'bg-gray-100 text-gray-600'
+    badgeColor = 'bg-gray-100 text-gray-600',
+    // Pagination props
+    currentPage,
+    totalPages,
+    onPageChange
   }: { 
     title: string; 
     icon: React.ReactNode; 
@@ -694,6 +723,9 @@ export default function TodayTasklistPage() {
     children: React.ReactNode;
     emptyMessage: string;
     badgeColor?: string;
+    currentPage?: number;
+    totalPages?: number;
+    onPageChange?: (page: number) => void;
   }) => (
     <div className="bg-white rounded-lg shadow">
       <div 
@@ -718,9 +750,35 @@ export default function TodayTasklistPage() {
               <p>{emptyMessage}</p>
             </div>
           ) : (
-            <div className="space-y-3">
-              {children}
-            </div>
+            <>
+              <div className="space-y-3">
+                {children}
+              </div>
+              {/* Pagination */}
+              {totalPages && totalPages > 1 && currentPage && onPageChange && (
+                <div className="mt-4 pt-4 border-t flex items-center justify-between">
+                  <span className="text-sm text-gray-600">
+                    Page {currentPage} of {totalPages}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); onPageChange(Math.max(1, currentPage - 1)); }}
+                      disabled={currentPage === 1}
+                      className="px-3 py-1 border rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100 flex items-center gap-1"
+                    >
+                      <FaChevronLeft size={10} /> Previous
+                    </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); onPageChange(Math.min(totalPages, currentPage + 1)); }}
+                      disabled={currentPage === totalPages}
+                      className="px-3 py-1 border rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100 flex items-center gap-1"
+                    >
+                      Next <FaChevronRight size={10} />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
       )}
@@ -932,8 +990,11 @@ export default function TodayTasklistPage() {
             sectionKey="crmTasks"
             emptyMessage="No tasks due today. Great job!"
             badgeColor="bg-blue-100 text-blue-800"
+            currentPage={tasksPage}
+            totalPages={tasksTotalPages}
+            onPageChange={setTasksPage}
           >
-            {filteredCrmTasks.map(task => (
+            {paginatedTasks.map(task => (
               <CrmTaskCard key={task.id} task={task} />
             ))}
           </TaskSection>
@@ -946,8 +1007,11 @@ export default function TodayTasklistPage() {
             sectionKey="leadsToday"
             emptyMessage="No new leads assigned today."
             badgeColor="bg-green-100 text-green-800"
+            currentPage={leadsPage}
+            totalPages={leadsTotalPages}
+            onPageChange={setLeadsPage}
           >
-            {todayLeads.map(lead => (
+            {paginatedLeads.map(lead => (
               <LeadCard key={lead.id} lead={lead} />
             ))}
           </TaskSection>
