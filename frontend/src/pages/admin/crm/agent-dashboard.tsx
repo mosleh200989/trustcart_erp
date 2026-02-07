@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import AdminLayout from '@/layouts/AdminLayout';
 import { 
   FaPhone, FaWhatsapp, FaSms, FaEnvelope, FaFire, FaChartLine, FaCheckCircle, FaClock, 
-  FaMoneyBillWave, FaDollarSign, FaStickyNote, FaCalendarAlt, FaCheckDouble, FaThumbsUp, FaThumbsDown 
+  FaMoneyBillWave, FaDollarSign, FaStickyNote, FaCalendarAlt, FaCheckDouble, FaThumbsUp, FaThumbsDown,
+  FaChevronLeft, FaChevronRight
 } from 'react-icons/fa';
 import apiClient, { auth, users as usersApi } from '@/services/api';
 import AdminOrderDetailsModal from '@/components/AdminOrderDetailsModal';
@@ -158,6 +159,10 @@ export default function AgentDashboard() {
   const [leadsOutcomeFilter, setLeadsOutcomeFilter] = useState<FilterOutcome>('all');
   const [leadsPage, setLeadsPage] = useState(1);
   const leadsLimit = 20;
+
+  // Tasks pagination
+  const [tasksPage, setTasksPage] = useState(1);
+  const tasksPerPage = 10;
 
   const [agentUsers, setAgentUsers] = useState<any[]>([]);
   const [selectedViewAgentId, setSelectedViewAgentId] = useState<number | null>(null);
@@ -887,6 +892,17 @@ export default function AgentDashboard() {
     return lifetimeValue >= 20000 || avgOrderValue >= 3000;
   }, [customerIntel]);
 
+  // Paginated tasks
+  const tasksTotalPages = useMemo(() => {
+    return Math.ceil((stats?.tasks?.length || 0) / tasksPerPage);
+  }, [stats?.tasks?.length, tasksPerPage]);
+
+  const paginatedTasks = useMemo(() => {
+    if (!stats?.tasks) return [];
+    const start = (tasksPage - 1) * tasksPerPage;
+    return stats.tasks.slice(start, start + tasksPerPage);
+  }, [stats?.tasks, tasksPage, tasksPerPage]);
+
   const daysSinceLastOrder = Number(customerIntel?.days_since_last_order || 0);
 
   const getPriorityBadge = (priority: string) => {
@@ -1269,6 +1285,43 @@ export default function AgentDashboard() {
                 </table>
               </div>
             )}
+
+            {/* Pagination for Assigned Customers */}
+            {assignedTotal > leadsLimit && (
+              <div className="bg-gray-50 px-4 py-3 border-t flex items-center justify-between">
+                <div className="text-sm text-gray-700">
+                  Showing {((leadsPage - 1) * leadsLimit) + 1} - {Math.min(leadsPage * leadsLimit, assignedTotal)} of {assignedTotal} leads
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-gray-700">
+                    Page {leadsPage} of {Math.ceil(assignedTotal / leadsLimit)}
+                  </span>
+                  <button
+                    onClick={() => {
+                      const newPage = Math.max(1, leadsPage - 1);
+                      setLeadsPage(newPage);
+                      if (selectedViewAgentId) loadAssignedCustomers(selectedViewAgentId, { page: newPage });
+                    }}
+                    disabled={leadsPage === 1}
+                    className="px-3 py-1 border rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100 flex items-center gap-1"
+                  >
+                    <FaChevronLeft size={10} /> Previous
+                  </button>
+                  <button
+                    onClick={() => {
+                      const totalPages = Math.ceil(assignedTotal / leadsLimit);
+                      const newPage = Math.min(totalPages, leadsPage + 1);
+                      setLeadsPage(newPage);
+                      if (selectedViewAgentId) loadAssignedCustomers(selectedViewAgentId, { page: newPage });
+                    }}
+                    disabled={leadsPage >= Math.ceil(assignedTotal / leadsLimit)}
+                    className="px-3 py-1 border rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100 flex items-center gap-1"
+                  >
+                    Next <FaChevronRight size={10} />
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -1352,7 +1405,7 @@ export default function AgentDashboard() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
-                  {stats.tasks.map((task) => (
+                  {paginatedTasks.map((task) => (
                     <tr key={task.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4">
                         <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold border ${getPriorityBadge(task.priority)}`}>
@@ -1386,6 +1439,34 @@ export default function AgentDashboard() {
                   ))}
                 </tbody>
               </table>
+            )}
+
+            {/* Pagination for Tasks */}
+            {stats?.tasks && stats.tasks.length > tasksPerPage && (
+              <div className="bg-gray-50 px-4 py-3 border-t flex items-center justify-between">
+                <div className="text-sm text-gray-700">
+                  Showing {((tasksPage - 1) * tasksPerPage) + 1} - {Math.min(tasksPage * tasksPerPage, stats.tasks.length)} of {stats.tasks.length} tasks
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-gray-700">
+                    Page {tasksPage} of {tasksTotalPages}
+                  </span>
+                  <button
+                    onClick={() => setTasksPage(p => Math.max(1, p - 1))}
+                    disabled={tasksPage === 1}
+                    className="px-3 py-1 border rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100 flex items-center gap-1"
+                  >
+                    <FaChevronLeft size={10} /> Previous
+                  </button>
+                  <button
+                    onClick={() => setTasksPage(p => Math.min(tasksTotalPages, p + 1))}
+                    disabled={tasksPage >= tasksTotalPages}
+                    className="px-3 py-1 border rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100 flex items-center gap-1"
+                  >
+                    Next <FaChevronRight size={10} />
+                  </button>
+                </div>
+              </div>
             )}
           </div>
         </div>
