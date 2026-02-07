@@ -208,13 +208,20 @@ export default function ElectroProductCard({
           </div> */}
 
           {/* Name */}
-          <h3
-            className={`font-semibold text-gray-800 text-sm sm:text-base lg:text-xl group-hover:text-orange-500 transition-colors text-center line-clamp-2 min-h-[2.5rem] sm:min-h-[3rem] lg:min-h-[3.5rem] ${
+          <div
+            className={`text-center min-h-[2.5rem] sm:min-h-[3rem] lg:min-h-[3.5rem] ${
               displayCategory ? "mb-1" : "mb-2 sm:mb-3"
             }`}
           >
-            {displayName}
-          </h3>
+            {nameBn && (
+              <h3 className="font-semibold text-gray-800 text-sm sm:text-base lg:text-xl group-hover:text-orange-500 transition-colors line-clamp-1">
+                {nameBn}
+              </h3>
+            )}
+            <p className="text-sm sm:text-base text-gray-600 font-medium line-clamp-1">
+              {nameEn || name || "Product"}
+            </p>
+          </div>
 
           {displayCategory && (
             <div className="text-xs sm:text-sm text-gray-500 mb-2 sm:mb-3 text-center line-clamp-1">

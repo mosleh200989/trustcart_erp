@@ -1433,18 +1433,64 @@ export class CrmTeamService {
       ? new Date(options.from)
       : new Date(to.getTime() - 30 * 24 * 60 * 60 * 1000); // Default 30 days
 
-    // Get activities
-    const activityQb = this.activityRepo.createQueryBuilder('a')
-      .where('a.userId = :agentId', { agentId })
-      .andWhere('a.createdAt >= :from AND a.createdAt <= :to', { from, to });
+    // Get activities/engagements from customer_engagement_history (used by agent dashboard)
+    let activities: any[] = [];
+    let totalActivities = 0;
+    try {
+      let query = `
+        SELECT 
+          id, 
+          customer_id AS "customerId", 
+          engagement_type AS type, 
+          channel, 
+          status, 
+          message_content AS notes, 
+          agent_id AS "userId",
+          created_at AS "createdAt",
+          metadata
+        FROM customer_engagement_history
+        WHERE agent_id = $1 AND created_at >= $2 AND created_at <= $3
+      `;
+      const params: any[] = [agentId, from, to];
+      
+      if (options?.type) {
+        query += ` AND engagement_type = $4`;
+        params.push(options.type);
+      }
+      
+      query += ` ORDER BY created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+      params.push(limit, skip);
+      
+      activities = await this.engagementRepository.query(query, params);
+      
+      // Get total count
+      let countQuery = `
+        SELECT COUNT(*)::int AS count
+        FROM customer_engagement_history
+        WHERE agent_id = $1 AND created_at >= $2 AND created_at <= $3
+      `;
+      const countParams: any[] = [agentId, from, to];
+      if (options?.type) {
+        countQuery += ` AND engagement_type = $4`;
+        countParams.push(options.type);
+      }
+      const countResult = await this.engagementRepository.query(countQuery, countParams);
+      totalActivities = countResult[0]?.count || 0;
+    } catch {
+      // Fall back to activities table
+      const activityQb = this.activityRepo.createQueryBuilder('a')
+        .where('a.userId = :agentId', { agentId })
+        .andWhere('a.createdAt >= :from AND a.createdAt <= :to', { from, to });
 
-    if (options?.type) {
-      activityQb.andWhere('a.type = :type', { type: options.type });
+      if (options?.type) {
+        activityQb.andWhere('a.type = :type', { type: options.type });
+      }
+
+      activityQb.orderBy('a.createdAt', 'DESC');
+      const result = await activityQb.skip(skip).take(limit).getManyAndCount();
+      activities = result[0];
+      totalActivities = result[1];
     }
-
-    activityQb.orderBy('a.createdAt', 'DESC');
-
-    const [activities, totalActivities] = await activityQb.skip(skip).take(limit).getManyAndCount();
 
     // Get call tasks
     const taskQb = this.callTaskRepo.createQueryBuilder('t')
@@ -1496,20 +1542,38 @@ export class CrmTeamService {
       ? new Date(options.from)
       : new Date(to.getTime() - 30 * 24 * 60 * 60 * 1000); // Default 30 days
 
-    // Get activity stats
-    const activityStats = await this.activityRepo.query(
-      `
-      SELECT
-        type,
-        COUNT(*)::int AS count,
-        COALESCE(SUM(duration), 0)::int AS total_duration
-      FROM activities
-      WHERE user_id = $1 AND created_at >= $2 AND created_at <= $3
-      GROUP BY type
-      ORDER BY count DESC
-      `,
-      [agentId, from, to],
-    );
+    // Get activity stats from customer_engagement_history (used by agent dashboard)
+    let activityStats: any[] = [];
+    try {
+      activityStats = await this.engagementRepository.query(
+        `
+        SELECT
+          engagement_type AS type,
+          COUNT(*)::int AS count,
+          0::int AS total_duration
+        FROM customer_engagement_history
+        WHERE agent_id = $1 AND created_at >= $2 AND created_at <= $3
+        GROUP BY engagement_type
+        ORDER BY count DESC
+        `,
+        [agentId, from, to],
+      );
+    } catch {
+      // Fall back to activities table if engagement_history doesn't exist
+      activityStats = await this.activityRepo.query(
+        `
+        SELECT
+          type,
+          COUNT(*)::int AS count,
+          COALESCE(SUM(duration), 0)::int AS total_duration
+        FROM activities
+        WHERE user_id = $1 AND created_at >= $2 AND created_at <= $3
+        GROUP BY type
+        ORDER BY count DESC
+        `,
+        [agentId, from, to],
+      );
+    }
 
     // Get call task stats
     const taskStats = await this.callTaskRepo.query(
@@ -1580,20 +1644,38 @@ export class CrmTeamService {
       [agentId],
     );
 
-    // Get daily breakdown for chart
-    const dailyBreakdown = await this.activityRepo.query(
-      `
-      SELECT
-        DATE(created_at) AS date,
-        type,
-        COUNT(*)::int AS count
-      FROM activities
-      WHERE user_id = $1 AND created_at >= $2 AND created_at <= $3
-      GROUP BY DATE(created_at), type
-      ORDER BY date DESC
-      `,
-      [agentId, from, to],
-    );
+    // Get daily breakdown for chart from customer_engagement_history
+    let dailyBreakdown: any[] = [];
+    try {
+      dailyBreakdown = await this.engagementRepository.query(
+        `
+        SELECT
+          DATE(created_at) AS date,
+          engagement_type AS type,
+          COUNT(*)::int AS count
+        FROM customer_engagement_history
+        WHERE agent_id = $1 AND created_at >= $2 AND created_at <= $3
+        GROUP BY DATE(created_at), engagement_type
+        ORDER BY date DESC
+        `,
+        [agentId, from, to],
+      );
+    } catch {
+      // Fall back to activities table
+      dailyBreakdown = await this.activityRepo.query(
+        `
+        SELECT
+          DATE(created_at) AS date,
+          type,
+          COUNT(*)::int AS count
+        FROM activities
+        WHERE user_id = $1 AND created_at >= $2 AND created_at <= $3
+        GROUP BY DATE(created_at), type
+        ORDER BY date DESC
+        `,
+        [agentId, from, to],
+      );
+    }
 
     return {
       agent: {
@@ -1636,20 +1718,38 @@ export class CrmTeamService {
       ? new Date(options.from)
       : new Date(to.getTime() - 30 * 24 * 60 * 60 * 1000);
 
-    // Get activity stats per agent
-    const activityStats = await this.activityRepo.query(
-      `
-      SELECT
-        user_id AS agent_id,
-        type,
-        COUNT(*)::int AS count,
-        COALESCE(SUM(duration), 0)::int AS total_duration
-      FROM activities
-      WHERE user_id = ANY($1) AND created_at >= $2 AND created_at <= $3
-      GROUP BY user_id, type
-      `,
-      [agentIds, from, to],
-    );
+    // Get activity stats per agent from customer_engagement_history (used by agent dashboard)
+    let activityStats: any[] = [];
+    try {
+      activityStats = await this.engagementRepository.query(
+        `
+        SELECT
+          agent_id,
+          engagement_type AS type,
+          COUNT(*)::int AS count,
+          0::int AS total_duration
+        FROM customer_engagement_history
+        WHERE agent_id = ANY($1) AND created_at >= $2 AND created_at <= $3
+        GROUP BY agent_id, engagement_type
+        `,
+        [agentIds, from, to],
+      );
+    } catch {
+      // Fall back to activities table if engagement_history doesn't exist
+      activityStats = await this.activityRepo.query(
+        `
+        SELECT
+          user_id AS agent_id,
+          type,
+          COUNT(*)::int AS count,
+          COALESCE(SUM(duration), 0)::int AS total_duration
+        FROM activities
+        WHERE user_id = ANY($1) AND created_at >= $2 AND created_at <= $3
+        GROUP BY user_id, type
+        `,
+        [agentIds, from, to],
+      );
+    }
 
     // Get task stats per agent
     const taskStats = await this.callTaskRepo.query(
