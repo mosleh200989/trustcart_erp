@@ -105,6 +105,11 @@ export default function ProductDetailsPage() {
       const response = await apiClient.get(endpoint);
       setProduct(response.data);
       
+      // Auto-select the first size variant if available
+      if (Array.isArray(response.data.size_variants) && response.data.size_variants.length > 0) {
+        setSelectedVariant(response.data.size_variants[0]);
+      }
+      
       // Track product view for GTM/Analytics
       trackViewItem({
         id: response.data.id,
@@ -667,9 +672,17 @@ export default function ProductDetailsPage() {
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ duration: 0.5, delay: 0.3 }}
               >
-                <h1 className="text-2xl lg:text-3xl font-bold text-gray-900 mb-4">
-                  {displayName}
-                </h1>
+                {/* Product Name - Bengali first, English second */}
+                <div className="mb-4">
+                  {product.name_bn && (
+                    <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">
+                      {product.name_bn}
+                    </h1>
+                  )}
+                  <p className={`text-lg lg:text-xl text-gray-600 ${product.name_bn ? 'mt-1' : 'text-2xl lg:text-3xl font-bold text-gray-900'}`}>
+                    {product.name_en || product.name || 'Product'}
+                  </p>
+                </div>
 
                 {/* Rating - TODO: Uncomment when review system is implemented
                 <div className="flex items-center mb-4">
@@ -706,18 +719,6 @@ export default function ProductDetailsPage() {
                       Select Size
                     </label>
                     <div className="flex flex-wrap gap-2">
-                      {/* Base option (no variant selected) */}
-                      <button
-                        onClick={() => setSelectedVariant(null)}
-                        className={`px-4 py-2 rounded-lg border-2 transition-all duration-200 font-medium ${
-                          selectedVariant === null
-                            ? 'border-orange-500 bg-orange-50 text-orange-700'
-                            : 'border-gray-300 hover:border-orange-300 text-gray-700'
-                        }`}
-                      >
-                        <span className="block">Default</span>
-                        <span className="block text-sm text-gray-500">৳{basePrice.toFixed(0)}</span>
-                      </button>
                       {sizeVariants.map((variant, idx) => (
                         <button
                           key={idx}

@@ -558,15 +558,87 @@ export class CrmAutomationService {
   // ==================== AGENT PERFORMANCE ====================
   
   async getAgentPerformance(agentId?: number) {
-    let query = 'SELECT * FROM agent_performance_dashboard';
+    // Get performance from customer_engagement_history for accurate call counts
     const params: any[] = [];
+    let agentFilter = '';
     
     if (agentId) {
-      query += ' WHERE agent_id = $1';
+      agentFilter = 'WHERE agent_id = $1';
       params.push(agentId);
     }
     
-    const results = await this.callTaskRepo.query(query, params);
+    // Get engagement-based performance (calls logged by agents)
+    const engagementStats = await this.engagementRepo.query(`
+      SELECT 
+        agent_id,
+        COUNT(*) as total_calls,
+        COUNT(*) FILTER (WHERE status = 'completed') as completed_calls,
+        COUNT(DISTINCT customer_id) as unique_customers_contacted,
+        MAX(created_at) as last_call_time
+      FROM customer_engagement_history
+      WHERE engagement_type = 'call'
+        AND created_at >= CURRENT_DATE - INTERVAL '30 days'
+        ${agentId ? 'AND agent_id = $1' : ''}
+      GROUP BY agent_id
+    `, params);
+    
+    // Also get task-based performance for pending tasks
+    const taskStats = await this.callTaskRepo.query(`
+      SELECT 
+        assigned_agent_id as agent_id,
+        COUNT(*) as total_tasks,
+        COUNT(*) FILTER (WHERE status = 'pending') as pending_calls,
+        COUNT(*) FILTER (WHERE priority = 'hot') as hot_leads,
+        COUNT(*) FILTER (WHERE priority = 'warm') as warm_leads
+      FROM crm_call_tasks
+      WHERE task_date >= CURRENT_DATE - INTERVAL '30 days'
+        ${agentId ? 'AND assigned_agent_id = $1' : ''}
+      GROUP BY assigned_agent_id
+    `, params);
+    
+    // Merge the stats
+    const engagementMap = new Map();
+    for (const row of engagementStats) {
+      engagementMap.set(Number(row.agent_id), row);
+    }
+    
+    const results = taskStats.map((task: any) => {
+      const engagement = engagementMap.get(Number(task.agent_id)) || {};
+      const totalCalls = Number(engagement.total_calls || 0);
+      const completedCalls = Number(engagement.completed_calls || 0);
+      const totalTasks = Number(task.total_tasks || 0);
+      
+      return {
+        agent_id: Number(task.agent_id),
+        total_tasks: totalTasks,
+        completed_calls: completedCalls,
+        pending_calls: Number(task.pending_calls || 0),
+        hot_leads: Number(task.hot_leads || 0),
+        warm_leads: Number(task.warm_leads || 0),
+        completion_rate: totalTasks > 0 ? Math.round((completedCalls / totalTasks) * 100 * 100) / 100 : 0,
+        unique_customers_contacted: Number(engagement.unique_customers_contacted || 0),
+        last_call_time: engagement.last_call_time || task.last_call_time,
+      };
+    });
+    
+    // Add any agents that have engagement records but no tasks
+    for (const [agentIdKey, engagement] of engagementMap) {
+      if (!taskStats.find((t: any) => Number(t.agent_id) === agentIdKey)) {
+        const eng = engagement as any;
+        results.push({
+          agent_id: agentIdKey,
+          total_tasks: 0,
+          completed_calls: Number(eng.completed_calls || 0),
+          pending_calls: 0,
+          hot_leads: 0,
+          warm_leads: 0,
+          completion_rate: 0,
+          unique_customers_contacted: Number(eng.unique_customers_contacted || 0),
+          last_call_time: eng.last_call_time,
+        });
+      }
+    }
+    
     return results;
   }
   

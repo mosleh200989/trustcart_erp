@@ -121,9 +121,16 @@ export class CrmAutomationController {
   
   // ==================== ENGAGEMENT TRACKING ====================
   
+  @UseGuards(JwtAuthGuard)
   @Post('engagement')
-  async trackEngagement(@Body() data: any) {
-    return await this.automationService.trackEngagement(data);
+  async trackEngagement(@Body() data: any, @Request() req: any) {
+    // Auto-inject agent_id from authenticated user if not provided
+    const agentId = Number(req.user?.id ?? req.user?.userId);
+    const engagementData = {
+      ...data,
+      agent_id: data.agent_id || agentId,
+    };
+    return await this.automationService.trackEngagement(engagementData);
   }
 
   @UseGuards(JwtAuthGuard)
