@@ -1,6 +1,8 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import AdminLayout from '@/layouts/AdminLayout';
 import apiClient from '@/services/api';
+import PageSizeSelector from '@/components/admin/PageSizeSelector';
+import Pagination from '@/components/admin/Pagination';
 
 interface Customer {
   id: number | string;
@@ -29,6 +31,17 @@ interface Agent {
 export default function CrmFollowupsPage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
+  const [totalCustomers, setTotalCustomers] = useState(0);
+  
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const totalPages = Math.max(1, Math.ceil(totalCustomers / itemsPerPage));
+  
+  // Date filter states
+  const today = new Date().toISOString().split('T')[0];
+  const [dateFilter, setDateFilter] = useState({ startDate: '', endDate: '' });
+  const [todayOnly, setTodayOnly] = useState(false);
   
   // Agent search autocomplete states
   const [agents, setAgents] = useState<Agent[]>([]);
@@ -44,15 +57,16 @@ export default function CrmFollowupsPage() {
     loadAvailableAgents();
   }, []);
 
-  // Load follow-ups when agent is selected
+  // Load follow-ups when agent is selected or date filters change
   useEffect(() => {
     if (selectedAgent) {
       loadFollowups(selectedAgent.id);
     } else {
       setCustomers([]);
+      setTotalCustomers(0);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedAgent]);
+  }, [selectedAgent, dateFilter, todayOnly, currentPage, itemsPerPage]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -103,13 +117,25 @@ export default function CrmFollowupsPage() {
   const loadFollowups = async (agentId: number) => {
     try {
       setLoading(true);
+      
+      // Build date params
+      const params: any = { page: currentPage, limit: itemsPerPage };
+      if (todayOnly) {
+        params.followUpDate = today;
+      } else {
+        if (dateFilter.startDate) params.startDate = dateFilter.startDate;
+        if (dateFilter.endDate) params.endDate = dateFilter.endDate;
+      }
+      
       const res = await apiClient.get<PaginatedResponse>(`/crm/team/agent/${agentId}/customers`, {
-        params: { page: 1, limit: 50 }
+        params
       });
       setCustomers(res.data?.data ?? []);
+      setTotalCustomers(res.data?.total ?? 0);
     } catch (error) {
       console.error('Failed to load follow-ups', error);
       setCustomers([]);
+      setTotalCustomers(0);
     } finally {
       setLoading(false);
     }
@@ -121,16 +147,33 @@ export default function CrmFollowupsPage() {
     return full || 'N/A';
   };
 
+  const handleTodayToggle = () => {
+    if (!todayOnly) {
+      // Switching to today only - clear date filters
+      setDateFilter({ startDate: '', endDate: '' });
+    }
+    setTodayOnly(!todayOnly);
+    setCurrentPage(1);
+  };
+
   const handleAgentSelect = (agent: Agent) => {
     setSelectedAgent(agent);
     setShowAgentDropdown(false);
+    setCurrentPage(1);
   };
 
   const clearAgentSelection = () => {
     setSelectedAgent(null);
     setAgentSearchTerm('');
     setAgentSuggestions(agents);
+    setCurrentPage(1);
     agentInputRef.current?.focus();
+  };
+
+  const handleDateFilterChange = (field: 'startDate' | 'endDate', value: string) => {
+    setTodayOnly(false);
+    setDateFilter({ ...dateFilter, [field]: value });
+    setCurrentPage(1);
   };
 
   return (
@@ -197,19 +240,83 @@ export default function CrmFollowupsPage() {
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-lg font-semibold mb-4">
-            Assigned Customers
-            {selectedAgent && <span className="text-sm font-normal text-gray-500 ml-2">for {selectedAgent.name} {selectedAgent.lastName || ''}</span>}
-          </h2>
+        {/* Date Filters and Stats */}
+        <div className="bg-white rounded-lg shadow p-4">
+          <div className="flex flex-wrap items-center gap-4">
+            {/* Today Checkbox */}
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={todayOnly}
+                onChange={handleTodayToggle}
+                className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+              />
+              <span className="text-sm font-medium text-gray-700">Today Only</span>
+            </label>
+
+            {/* Date Range Filters */}
+            <div className="flex items-center gap-2">
+              <label className="text-sm text-gray-600">From:</label>
+              <input
+                type="date"
+                value={dateFilter.startDate}
+                onChange={(e) => handleDateFilterChange('startDate', e.target.value)}
+                disabled={todayOnly}
+                className="border rounded-lg px-3 py-1.5 text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <label className="text-sm text-gray-600">To:</label>
+              <input
+                type="date"
+                value={dateFilter.endDate}
+                onChange={(e) => handleDateFilterChange('endDate', e.target.value)}
+                disabled={todayOnly}
+                className="border rounded-lg px-3 py-1.5 text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
+              />
+            </div>
+
+            {/* Stats */}
+            {selectedAgent && (
+              <div className="ml-auto flex items-center gap-4">
+                <div className="bg-blue-50 px-4 py-2 rounded-lg">
+                  <span className="text-sm text-blue-600 font-medium">
+                    Total Customers: <span className="text-lg font-bold">{totalCustomers}</span>
+                  </span>
+                </div>
+                <div className="bg-green-50 px-4 py-2 rounded-lg">
+                  <span className="text-sm text-green-600 font-medium">
+                    Showing: <span className="text-lg font-bold">{customers.length}</span>
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="bg-white rounded-lg shadow">
+          <div className="p-4 border-b flex justify-between items-center">
+            <h2 className="text-lg font-semibold">
+              Assigned Customers
+              {selectedAgent && <span className="text-sm font-normal text-gray-500 ml-2">for {selectedAgent.name} {selectedAgent.lastName || ''}</span>}
+            </h2>
+            <PageSizeSelector
+              value={itemsPerPage}
+              onChange={(size) => {
+                setItemsPerPage(size);
+                setCurrentPage(1);
+              }}
+            />
+          </div>
+          <div className="p-6 pt-0">
           {!selectedAgent ? (
-            <div className="text-gray-500">Please select an agent to view assigned customers.</div>
+            <div className="text-gray-500 pt-4">Please select an agent to view assigned customers.</div>
           ) : loading ? (
-            <div className="text-gray-500">Loading follow-ups...</div>
+            <div className="text-gray-500 pt-4">Loading follow-ups...</div>
           ) : customers.length === 0 ? (
-            <div className="text-gray-500">No customers assigned to this agent.</div>
+            <div className="text-gray-500 pt-4">No customers assigned to this agent.</div>
           ) : (
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto pt-4">
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 border-b">
                   <tr>
@@ -238,6 +345,21 @@ export default function CrmFollowupsPage() {
               </table>
             </div>
           )}
+          
+          {/* Pagination */}
+          {selectedAgent && totalCustomers > 0 && (
+            <div className="pt-4 border-t mt-4">
+              <Pagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                totalItems={totalCustomers}
+                itemsPerPage={itemsPerPage}
+                onPageChange={setCurrentPage}
+                showInfo={true}
+              />
+            </div>
+          )}
+          </div>
         </div>
       </div>
     </AdminLayout>

@@ -7,6 +7,7 @@ import { User } from '../users/user.entity';
 import { CallTask, TaskPriority, TaskStatus } from './entities/call-task.entity';
 import { Activity } from './entities/activity.entity';
 import { EngagementHistory } from './entities/engagement-history.entity';
+import { DashboardConfig } from './entities/dashboard-config.entity';
 
 export enum LeadPriority {
   HOT = 'hot',
@@ -29,6 +30,8 @@ export class CrmTeamService {
     private activityRepo: Repository<Activity>,
     @InjectRepository(EngagementHistory)
     private engagementRepository: Repository<EngagementHistory>,
+    @InjectRepository(DashboardConfig)
+    private dashboardConfigRepo: Repository<DashboardConfig>,
   ) {}
 
   private getDateString(date?: string | Date): string {
@@ -196,6 +199,8 @@ export class CrmTeamService {
       search,           // search by name, email, phone
       dateFrom,         // order_date from (first order date)
       dateTo,           // order_date to (first order date)
+      customerType,     // 'vip' | 'platinum' | 'gold' | 'silver' | 'new' | 'repeat'
+      purchaseStage,    // 'new' | 'repeat_2' | 'repeat_3' | 'regular' | 'permanent'
       sortBy = 'created_at',
       sortOrder = 'DESC'
     } = query;
@@ -210,6 +215,12 @@ export class CrmTeamService {
     qb.addSelect(
       `(SELECT MIN(so.order_date) FROM sales_orders so WHERE so.customer_id = c.id)`,
       'first_order_date'
+    );
+    
+    // Add subquery to get order count for each customer
+    qb.addSelect(
+      `(SELECT COUNT(*)::int FROM sales_orders so WHERE so.customer_id = c.id)`,
+      'order_count'
     );
     
     qb.where('c.is_deleted = false');
@@ -236,6 +247,36 @@ export class CrmTeamService {
     }
     if (status) {
       qb.andWhere('c.status = :status', { status });
+    }
+
+    // Customer type filter (VIP, Platinum, Gold, Silver, New, Repeat)
+    if (customerType) {
+      qb.andWhere('c.customer_type = :customerType', { customerType });
+    }
+
+    // Purchase stage filter based on order count
+    if (purchaseStage) {
+      if (purchaseStage === 'new') {
+        qb.andWhere(
+          `(SELECT COUNT(*)::int FROM sales_orders so WHERE so.customer_id = c.id) <= 1`
+        );
+      } else if (purchaseStage === 'repeat_2') {
+        qb.andWhere(
+          `(SELECT COUNT(*)::int FROM sales_orders so WHERE so.customer_id = c.id) = 2`
+        );
+      } else if (purchaseStage === 'repeat_3') {
+        qb.andWhere(
+          `(SELECT COUNT(*)::int FROM sales_orders so WHERE so.customer_id = c.id) = 3`
+        );
+      } else if (purchaseStage === 'regular') {
+        qb.andWhere(
+          `(SELECT COUNT(*)::int FROM sales_orders so WHERE so.customer_id = c.id) >= 4 AND (SELECT COUNT(*)::int FROM sales_orders so WHERE so.customer_id = c.id) < 8`
+        );
+      } else if (purchaseStage === 'permanent') {
+        qb.andWhere(
+          `(SELECT COUNT(*)::int FROM sales_orders so WHERE so.customer_id = c.id) >= 8`
+        );
+      }
     }
 
     // Search filter
@@ -275,10 +316,12 @@ export class CrmTeamService {
     const data = rawResults.entities;
     const rawData = rawResults.raw;
     
-    // Create a map of customer id to first_order_date
+    // Create a map of customer id to first_order_date and order_count
     const orderDateMap = new Map<number, Date | null>();
+    const orderCountMap = new Map<number, number>();
     rawData.forEach((row: any) => {
       orderDateMap.set(row.c_id, row.first_order_date || null);
+      orderCountMap.set(row.c_id, parseInt(row.order_count, 10) || 0);
     });
     
     // Get total count (need separate query without the select for accurate count)
@@ -300,6 +343,24 @@ export class CrmTeamService {
     }
     if (status) {
       countQb.andWhere('c.status = :status', { status });
+    }
+    // Customer type filter for count
+    if (customerType) {
+      countQb.andWhere('c.customer_type = :customerType', { customerType });
+    }
+    // Purchase stage filter for count
+    if (purchaseStage) {
+      if (purchaseStage === 'new') {
+        countQb.andWhere(`(SELECT COUNT(*)::int FROM sales_orders so WHERE so.customer_id = c.id) <= 1`);
+      } else if (purchaseStage === 'repeat_2') {
+        countQb.andWhere(`(SELECT COUNT(*)::int FROM sales_orders so WHERE so.customer_id = c.id) = 2`);
+      } else if (purchaseStage === 'repeat_3') {
+        countQb.andWhere(`(SELECT COUNT(*)::int FROM sales_orders so WHERE so.customer_id = c.id) = 3`);
+      } else if (purchaseStage === 'regular') {
+        countQb.andWhere(`(SELECT COUNT(*)::int FROM sales_orders so WHERE so.customer_id = c.id) >= 4 AND (SELECT COUNT(*)::int FROM sales_orders so WHERE so.customer_id = c.id) < 8`);
+      } else if (purchaseStage === 'permanent') {
+        countQb.andWhere(`(SELECT COUNT(*)::int FROM sales_orders so WHERE so.customer_id = c.id) >= 8`);
+      }
     }
     if (search && search.trim()) {
       const searchTerm = `%${search.trim().toLowerCase()}%`;
@@ -340,6 +401,7 @@ export class CrmTeamService {
       ...c,
       assigned_to_name: c.assigned_to ? (agentMap.get(c.assigned_to) || `Agent #${c.assigned_to}`) : null,
       first_order_date: orderDateMap.get(c.id) || null,
+      order_count: orderCountMap.get(c.id) || 0,
     }));
 
     return { data: enrichedData, total };
@@ -405,7 +467,11 @@ export class CrmTeamService {
     return await qb.getMany();
   }
 
-  async convertLeadToCustomer(customerId: string, actorUserId: number): Promise<Customer> {
+  async convertLeadToCustomer(
+    customerId: string, 
+    actorUserId: number,
+    options?: { customerType?: string }
+  ): Promise<Customer> {
     const customerIdNum = Number(customerId);
     if (!Number.isFinite(customerIdNum)) {
       throw new NotFoundException('Customer not found');
@@ -425,6 +491,11 @@ export class CrmTeamService {
     if (!(customer as any).status) (customer as any).status = 'active';
     (customer as any).isActive = true;
     (customer as any).updatedAt = new Date();
+    
+    // Update customer type if provided
+    if (options?.customerType) {
+      (customer as any).customerType = options.customerType;
+    }
 
     const saved = await this.customerRepository.save(customer);
 
@@ -435,12 +506,13 @@ export class CrmTeamService {
         customerId: (saved as any).id,
         userId: actorUserId,
         subject: 'Lead converted to customer',
-        description: `Lead lifecycle_stage changed to 'customer' by user ${actorUserId}.`,
+        description: `Lead lifecycle_stage changed to 'customer'${options?.customerType ? ` with type '${options.customerType}'` : ''} by user ${actorUserId}.`,
         outcome: 'converted',
         completedAt: new Date(),
         metadata: {
           from: 'lead',
           to: 'customer',
+          customerType: options?.customerType || null,
           actorUserId,
         },
       } as any);
@@ -454,7 +526,7 @@ export class CrmTeamService {
   }
 
   async getAgentCustomers(agentId: number, query: any = {}): Promise<{ data: Customer[], total: number }> {
-    const { page = 1, limit = 20, search, priority, stage, calledStatus, outcome } = query;
+    const { page = 1, limit = 20, search, priority, stage, calledStatus, outcome, startDate, endDate, followUpDate } = query;
     const skip = (page - 1) * limit;
 
     // Use query builder for complex filtering
@@ -479,6 +551,28 @@ export class CrmTeamService {
     // Stage/Lifecycle filter
     if (stage && stage !== 'all') {
       qb.andWhere('c.lifecycle_stage = :stage', { stage });
+    }
+
+    // Follow-up date filters
+    if (followUpDate) {
+      // Filter for a specific follow-up date (today only mode)
+      const targetDate = new Date(followUpDate);
+      targetDate.setHours(0, 0, 0, 0);
+      const nextDay = new Date(targetDate);
+      nextDay.setDate(nextDay.getDate() + 1);
+      qb.andWhere('c.next_follow_up >= :targetDate AND c.next_follow_up < :nextDay', { targetDate, nextDay });
+    } else {
+      // Filter by date range
+      if (startDate) {
+        const start = new Date(startDate);
+        start.setHours(0, 0, 0, 0);
+        qb.andWhere('c.next_follow_up >= :startDate', { startDate: start });
+      }
+      if (endDate) {
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
+        qb.andWhere('c.next_follow_up <= :endDate', { endDate: end });
+      }
     }
 
     // Called Status filter - based on last_contact_date being today
@@ -687,7 +781,7 @@ export class CrmTeamService {
         const daysOverdue = Math.floor((today.getTime() - followUpDate.getTime()) / (1000 * 60 * 60 * 24));
         return {
           customer_id: c.id,
-          customer_name: `${c.name || ''} ${c.lastName || ''}`.trim() || 'N/A',
+          customer_name: c.name || 'N/A',
           email: c.email,
           phone: c.phone,
           last_contact_date: c.last_contact_date
@@ -772,13 +866,15 @@ export class CrmTeamService {
     const agentPerformance = await this.callTaskRepo.query(
       `
       SELECT
-        assigned_agent_id AS agent_id,
-        COUNT(*) FILTER (WHERE task_date = $1)::int AS total_today,
-        COUNT(*) FILTER (WHERE task_date = $1 AND status = 'completed')::int AS completed_today,
-        COUNT(*) FILTER (WHERE task_date = $1 AND status = 'failed')::int AS failed_today
-      FROM crm_call_tasks
-      WHERE task_date = $1
-      GROUP BY assigned_agent_id
+        ct.assigned_agent_id AS agent_id,
+        COALESCE(u.name || ' ' || COALESCE(u.last_name, ''), 'Agent #' || ct.assigned_agent_id::text) AS agent_name,
+        COUNT(*) FILTER (WHERE ct.task_date = $1)::int AS total_today,
+        COUNT(*) FILTER (WHERE ct.task_date = $1 AND ct.status = 'completed')::int AS completed_today,
+        COUNT(*) FILTER (WHERE ct.task_date = $1 AND ct.status = 'failed')::int AS failed_today
+      FROM crm_call_tasks ct
+      LEFT JOIN users u ON u.id = ct.assigned_agent_id
+      WHERE ct.task_date = $1
+      GROUP BY ct.assigned_agent_id, u.name, u.last_name
       ORDER BY total_today DESC
       `,
       [today],
@@ -1350,7 +1446,8 @@ export class CrmTeamService {
     const aging = {
       '0-7 days': 0,
       '8-14 days': 0,
-      '15-30 days': 0,
+      '15-25 days': 0,
+      '26-30 days': 0,
       '30+ days': 0,
     };
 
@@ -1362,8 +1459,10 @@ export class CrmTeamService {
         aging['0-7 days']++;
       } else if (daysSinceCreation <= 14) {
         aging['8-14 days']++;
+      } else if (daysSinceCreation <= 25) {
+        aging['15-25 days']++;
       } else if (daysSinceCreation <= 30) {
-        aging['15-30 days']++;
+        aging['26-30 days']++;
       } else {
         aging['30+ days']++;
       }
@@ -1889,5 +1988,62 @@ export class CrmTeamService {
       summary,
       agents: agentReports,
     };
+  }
+
+  // ==================== DASHBOARD CONFIG METHODS ====================
+
+  /**
+   * Get dashboard configuration for a team leader
+   */
+  async getDashboardConfig(teamLeaderId: number, configKey: string): Promise<any> {
+    const config = await this.dashboardConfigRepo.findOne({
+      where: { teamLeaderId, configKey },
+    });
+    return config?.value || null;
+  }
+
+  /**
+   * Get all dashboard configurations for a team leader
+   */
+  async getAllDashboardConfigs(teamLeaderId: number): Promise<Record<string, any>> {
+    const configs = await this.dashboardConfigRepo.find({
+      where: { teamLeaderId },
+    });
+    
+    const result: Record<string, any> = {};
+    for (const config of configs) {
+      result[config.configKey] = config.value;
+    }
+    return result;
+  }
+
+  /**
+   * Save dashboard configuration for a team leader
+   */
+  async saveDashboardConfig(teamLeaderId: number, configKey: string, value: any): Promise<DashboardConfig> {
+    let config = await this.dashboardConfigRepo.findOne({
+      where: { teamLeaderId, configKey },
+    });
+
+    if (config) {
+      config.value = value;
+      config.updatedAt = new Date();
+    } else {
+      config = this.dashboardConfigRepo.create({
+        teamLeaderId,
+        configKey,
+        value,
+      });
+    }
+
+    return await this.dashboardConfigRepo.save(config);
+  }
+
+  /**
+   * Delete dashboard configuration for a team leader
+   */
+  async deleteDashboardConfig(teamLeaderId: number, configKey: string): Promise<boolean> {
+    const result = await this.dashboardConfigRepo.delete({ teamLeaderId, configKey });
+    return (result.affected ?? 0) > 0;
   }
 }

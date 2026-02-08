@@ -1,8 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, DataSource } from 'typeorm';
 import { Activity } from './entities/activity.entity';
 import { Deal } from './entities/deal.entity';
+import { Task } from './entities/task.entity';
+import { CallTask } from './entities/call-task.entity';
+import { Customer } from '../customers/customer.entity';
 
 @Injectable()
 export class CrmAnalyticsService {
@@ -11,6 +14,13 @@ export class CrmAnalyticsService {
     private readonly dealRepository: Repository<Deal>,
     @InjectRepository(Activity)
     private readonly activityRepository: Repository<Activity>,
+    @InjectRepository(Task)
+    private readonly taskRepository: Repository<Task>,
+    @InjectRepository(CallTask)
+    private readonly callTaskRepository: Repository<CallTask>,
+    @InjectRepository(Customer)
+    private readonly customerRepository: Repository<Customer>,
+    private readonly dataSource: DataSource,
   ) {}
 
   async getSummary(rangeDays: number = 30) {
@@ -123,6 +133,111 @@ export class CrmAnalyticsService {
         revenue: Number(r.revenue || 0),
       })),
       closed: { won, lost, total: closedTotal },
+    };
+  }
+
+  async getDashboardStats() {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    // Total customers count
+    const totalCustomers = await this.customerRepository
+      .createQueryBuilder('c')
+      .where('c.is_deleted = :deleted', { deleted: false })
+      .getCount();
+
+    // Hot leads (customers with priority = 'hot')
+    const hotLeads = await this.customerRepository
+      .createQueryBuilder('c')
+      .where('c.is_deleted = :deleted', { deleted: false })
+      .andWhere('c.priority = :priority', { priority: 'hot' })
+      .getCount();
+
+    // Warm leads
+    const warmLeads = await this.customerRepository
+      .createQueryBuilder('c')
+      .where('c.is_deleted = :deleted', { deleted: false })
+      .andWhere('c.priority = :priority', { priority: 'warm' })
+      .getCount();
+
+    // Cold leads
+    const coldLeads = await this.customerRepository
+      .createQueryBuilder('c')
+      .where('c.is_deleted = :deleted', { deleted: false })
+      .andWhere('c.priority = :priority', { priority: 'cold' })
+      .getCount();
+
+    // Today's active tasks (tasks due today that are not completed)
+    let todayActiveTasks = 0;
+    try {
+      todayActiveTasks = await this.taskRepository
+        .createQueryBuilder('t')
+        .where('t.dueDate >= :today', { today })
+        .andWhere('t.dueDate < :tomorrow', { tomorrow })
+        .andWhere('t.status != :completed', { completed: 'completed' })
+        .getCount();
+    } catch (e) {
+      console.error('Error getting today active tasks:', e);
+    }
+
+    // Today's total calls (call tasks scheduled for today)
+    let todayTotalCalls = 0;
+    try {
+      todayTotalCalls = await this.callTaskRepository
+        .createQueryBuilder('ct')
+        .where('ct.scheduledDate >= :today', { today })
+        .andWhere('ct.scheduledDate < :tomorrow', { tomorrow })
+        .getCount();
+    } catch (e) {
+      console.error('Error getting today calls:', e);
+    }
+
+    // Today's completed calls
+    let todayCompletedCalls = 0;
+    try {
+      todayCompletedCalls = await this.callTaskRepository
+        .createQueryBuilder('ct')
+        .where('ct.scheduledDate >= :today', { today })
+        .andWhere('ct.scheduledDate < :tomorrow', { tomorrow })
+        .andWhere('ct.status = :completed', { completed: 'completed' })
+        .getCount();
+    } catch (e) {
+      console.error('Error getting today completed calls:', e);
+    }
+
+    // Overdue tasks
+    let overdueTasks = 0;
+    try {
+      overdueTasks = await this.taskRepository
+        .createQueryBuilder('t')
+        .where('t.dueDate < :today', { today })
+        .andWhere('t.status != :completed', { completed: 'completed' })
+        .getCount();
+    } catch (e) {
+      console.error('Error getting overdue tasks:', e);
+    }
+
+    // Recent leads (last 7 days)
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    const recentLeads = await this.customerRepository
+      .createQueryBuilder('c')
+      .where('c.is_deleted = :deleted', { deleted: false })
+      .andWhere('c.createdAt >= :since', { since: sevenDaysAgo })
+      .getCount();
+
+    return {
+      totalCustomers,
+      hotLeads,
+      warmLeads,
+      coldLeads,
+      todayActiveTasks,
+      todayTotalCalls,
+      todayCompletedCalls,
+      overdueTasks,
+      recentLeads,
     };
   }
 }

@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import AdminLayout from '@/layouts/AdminLayout';
 import { apiUrl, backendUrl } from '@/config/backend';
 import { useToast } from '@/contexts/ToastContext';
+import PageSizeSelector from '@/components/admin/PageSizeSelector';
+import Pagination from '@/components/admin/Pagination';
 
 interface Customer {
   id: number;
@@ -9,6 +11,14 @@ interface Customer {
   last_name: string;
   email: string;
   phone: string;
+  assigned_to?: number;
+  agent_name?: string;
+}
+
+interface Agent {
+  id: number;
+  name: string;
+  lastName?: string;
 }
 
 interface CustomerTier {
@@ -26,7 +36,7 @@ interface CustomerTier {
 export default function CustomerTierManagementPage() {
   const toast = useToast();
   const [customers, setCustomers] = useState<any[]>([]);
-  const [filter, setFilter] = useState({ tier: 'all', status: 'all' });
+  const [filter, setFilter] = useState({ tier: 'all', status: 'all', agent: 'all' });
   const [loading, setLoading] = useState(true);
   const [showTierModal, setShowTierModal] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
@@ -36,6 +46,15 @@ export default function CustomerTierManagementPage() {
     notes: '',
   });
 
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(50);
+  const [totalItems, setTotalItems] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+
+  // Agents state
+  const [agents, setAgents] = useState<Agent[]>([]);
+
   const [stats, setStats] = useState({
     totalActive: 0,
     totalInactive: 0,
@@ -43,85 +62,83 @@ export default function CustomerTierManagementPage() {
     gold: 0,
     platinum: 0,
     vip: 0,
+    noTier: 0,
   });
 
   useEffect(() => {
+    fetchAgents();
+  }, []);
+
+  useEffect(() => {
     fetchCustomers();
-  }, [filter]);
+  }, [filter, currentPage, itemsPerPage]);
+
+  const fetchAgents = async () => {
+    try {
+      const token = localStorage.getItem('authToken');
+      const response = await fetch(apiUrl('/crm/team/available-agents'), {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setAgents(data || []);
+      }
+    } catch (error) {
+      console.error('Error fetching agents:', error);
+    }
+  };
 
   const fetchCustomers = async () => {
     try {
+      setLoading(true);
       const token = localStorage.getItem('authToken');
-      // Fetch customers from database
-      const response = await fetch(backendUrl('/customers'), {
+      
+      // Build query params
+      const params = new URLSearchParams();
+      if (filter.tier !== 'all') params.append('tier', filter.tier);
+      if (filter.status !== 'all') params.append('status', filter.status);
+      if (filter.agent !== 'all') params.append('assignedTo', filter.agent);
+      params.append('page', currentPage.toString());
+      params.append('limit', itemsPerPage.toString());
+      
+      // Use optimized endpoint that returns all customers with tiers in one call
+      const response = await fetch(apiUrl(`/lead-management/tiers/all?${params}`), {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
       });
       
       if (!response.ok) {
+        console.error('Failed to fetch tier data:', response.statusText);
         setCustomers([]);
         setLoading(false);
         return;
       }
       
-      const customerData = await response.json();
+      const data = await response.json();
       
-      if (!Array.isArray(customerData)) {
-        console.error('API response is not an array:', customerData);
+      if (data && data.customers) {
+        setCustomers(data.customers);
+        setStats(data.stats || {
+          totalActive: 0,
+          totalInactive: 0,
+          silver: 0,
+          gold: 0,
+          platinum: 0,
+          vip: 0,
+          noTier: 0,
+        });
+        // Set pagination data
+        if (data.pagination) {
+          setTotalItems(data.pagination.total);
+          setTotalPages(data.pagination.totalPages);
+        }
+      } else {
         setCustomers([]);
-        setLoading(false);
-        return;
       }
-
-      // Fetch tier data for each customer
-      const customersWithTiers = await Promise.all(
-        customerData.map(async (customer: Customer) => {
-          const tierResponse = await fetch(apiUrl(`/lead-management/tier/${customer.id}`), {
-            headers: {
-              'Authorization': `Bearer ${token}`,
-            },
-          });
-
-          if (tierResponse.ok) {
-            const tierData = await tierResponse.json();
-            return { ...customer, tierData };
-          }
-          return { ...customer, tierData: null };
-        })
-      );
-
-      // Filter customers
-      let filtered = customersWithTiers;
-      if (filter.tier !== 'all') {
-        filtered = filtered.filter(c => c.tierData?.tier === filter.tier);
-      }
-      if (filter.status === 'active') {
-        filtered = filtered.filter(c => c.tierData?.isActive === true);
-      } else if (filter.status === 'inactive') {
-        filtered = filtered.filter(c => c.tierData?.isActive === false);
-      }
-
-      setCustomers(filtered);
-
-      // Calculate stats
-      const activeCount = customersWithTiers.filter(c => c.tierData?.isActive === true).length;
-      const inactiveCount = customersWithTiers.filter(c => c.tierData?.isActive === false).length;
-      const silverCount = customersWithTiers.filter(c => c.tierData?.tier === 'silver').length;
-      const goldCount = customersWithTiers.filter(c => c.tierData?.tier === 'gold').length;
-      const platinumCount = customersWithTiers.filter(c => c.tierData?.tier === 'platinum').length;
-      const vipCount = customersWithTiers.filter(c => c.tierData?.tier === 'vip').length;
-
-      setStats({
-        totalActive: activeCount,
-        totalInactive: inactiveCount,
-        silver: silverCount,
-        gold: goldCount,
-        platinum: platinumCount,
-        vip: vipCount,
-      });
     } catch (error) {
       console.error('Error fetching customers:', error);
+      setCustomers([]);
     } finally {
       setLoading(false);
     }
@@ -231,12 +248,12 @@ export default function CustomerTierManagementPage() {
 
         {/* Filters */}
         <div className="bg-white p-4 rounded-lg shadow mb-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-medium mb-2">Filter by Tier</label>
               <select
                 value={filter.tier}
-                onChange={(e) => setFilter({ ...filter, tier: e.target.value })}
+                onChange={(e) => { setFilter({ ...filter, tier: e.target.value }); setCurrentPage(1); }}
                 className="w-full border rounded-lg p-2"
               >
                 <option value="all">All Tiers</option>
@@ -251,7 +268,7 @@ export default function CustomerTierManagementPage() {
               <label className="block text-sm font-medium mb-2">Filter by Status</label>
               <select
                 value={filter.status}
-                onChange={(e) => setFilter({ ...filter, status: e.target.value })}
+                onChange={(e) => { setFilter({ ...filter, status: e.target.value }); setCurrentPage(1); }}
                 className="w-full border rounded-lg p-2"
               >
                 <option value="all">All Status</option>
@@ -259,13 +276,36 @@ export default function CustomerTierManagementPage() {
                 <option value="inactive">Inactive</option>
               </select>
             </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-2">Filter by Agent</label>
+              <select
+                value={filter.agent}
+                onChange={(e) => { setFilter({ ...filter, agent: e.target.value }); setCurrentPage(1); }}
+                className="w-full border rounded-lg p-2"
+              >
+                <option value="all">All Agents</option>
+                {agents.map((agent) => (
+                  <option key={agent.id} value={agent.id.toString()}>
+                    {agent.name} {agent.lastName || ''}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
 
         {/* Customers Table */}
         <div className="bg-white rounded-lg shadow">
-          <div className="px-6 py-4 border-b">
-            <h2 className="text-xl font-semibold">Customers ({customers.length})</h2>
+          <div className="px-6 py-4 border-b flex flex-wrap items-center justify-between">
+            <h2 className="text-xl font-semibold">
+              Customers ({customers.length} of {totalItems})
+            </h2>
+            <PageSizeSelector
+              value={itemsPerPage}
+              onChange={(val) => { setItemsPerPage(val); setCurrentPage(1); }}
+              options={[10, 20, 50, 100, 200]}
+            />
           </div>
 
           {loading ? (
@@ -319,8 +359,8 @@ export default function CustomerTierManagementPage() {
                           <span className="text-sm text-gray-400">-</span>
                         )}
                       </td>
-                      <td className="px-6 py-4 text-sm">{customer.tierData?.totalPurchases || 0}</td>
-                      <td className="px-6 py-4 text-sm">৳{customer.tierData?.totalSpent || 0}</td>
+                      <td className="px-6 py-4 text-sm">{customer.order_count || customer.tierData?.totalPurchases || 0}</td>
+                      <td className="px-6 py-4 text-sm">৳{Number(customer.lifetime_value || customer.tierData?.totalSpent || 0).toLocaleString()}</td>
                       <td className="px-6 py-4">
                         {customer.tierData ? (
                           <div className="flex items-center">
@@ -349,6 +389,17 @@ export default function CustomerTierManagementPage() {
                   ))}
                 </tbody>
               </table>
+            </div>
+          )}
+          
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="px-6 py-4 border-t">
+              <Pagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                onPageChange={setCurrentPage}
+              />
             </div>
           )}
         </div>

@@ -64,12 +64,25 @@ interface AgentDetail {
   dailyBreakdown: any[];
 }
 
+interface Team {
+  id: number;
+  name: string;
+  code: string;
+  memberCount: number;
+}
+
 export default function TeamAgentsReportPage() {
   const [report, setReport] = useState<TeamReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedAgent, setSelectedAgent] = useState<number | null>(null);
   const [agentDetail, setAgentDetail] = useState<AgentDetail | null>(null);
   const [agentDetailLoading, setAgentDetailLoading] = useState(false);
+  
+  // Teams and filter states
+  const [teams, setTeams] = useState<Team[]>([]);
+  const [selectedTeamId, setSelectedTeamId] = useState<number | 'all'>('all');
+  const [selectedAgentFilter, setSelectedAgentFilter] = useState<number | 'all'>('all');
+  
   const [dateFrom, setDateFrom] = useState(() => {
     const d = new Date();
     d.setDate(d.getDate() - 30);
@@ -78,8 +91,44 @@ export default function TeamAgentsReportPage() {
   const [dateTo, setDateTo] = useState(() => new Date().toISOString().split('T')[0]);
 
   useEffect(() => {
+    loadTeams();
     loadReport();
   }, []);
+
+  const loadTeams = async () => {
+    try {
+      const res = await apiClient.get('/crm/team/teams');
+      setTeams(Array.isArray(res.data) ? res.data : []);
+    } catch (error) {
+      console.error('Failed to load teams:', error);
+      setTeams([]);
+    }
+  };
+
+  // Get filtered agents based on team and agent selection
+  const getFilteredAgents = (): Agent[] => {
+    if (!report) return [];
+    let agents = report.agents;
+    
+    // Filter by team
+    if (selectedTeamId !== 'all') {
+      agents = agents.filter(a => a.teamId === selectedTeamId);
+    }
+    
+    // Filter by specific agent
+    if (selectedAgentFilter !== 'all') {
+      agents = agents.filter(a => a.id === selectedAgentFilter);
+    }
+    
+    return agents;
+  };
+
+  // Get agents available in selected team (for agent dropdown)
+  const getAgentsForTeam = (): Agent[] => {
+    if (!report) return [];
+    if (selectedTeamId === 'all') return report.agents;
+    return report.agents.filter(a => a.teamId === selectedTeamId);
+  };
 
   const loadReport = async () => {
     try {
@@ -398,10 +447,56 @@ export default function TeamAgentsReportPage() {
             {!selectedAgent && (
               <div className="bg-white rounded-lg shadow overflow-hidden">
                 <div className="p-4 border-b">
-                  <h2 className="text-lg font-semibold text-gray-800">Team Agents ({report.agents.length})</h2>
+                  <div className="flex flex-wrap items-center justify-between gap-4">
+                    <h2 className="text-lg font-semibold text-gray-800">Team Agents ({getFilteredAgents().length})</h2>
+                    
+                    {/* Team and Agent Filters */}
+                    <div className="flex items-center gap-4">
+                      {/* Team Dropdown */}
+                      <div className="flex items-center gap-2">
+                        <label className="text-sm text-gray-600 font-medium">Team:</label>
+                        <select
+                          value={selectedTeamId}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setSelectedTeamId(val === 'all' ? 'all' : Number(val));
+                            setSelectedAgentFilter('all'); // Reset agent filter when team changes
+                          }}
+                          className="border rounded-lg px-3 py-1.5 text-sm min-w-[150px]"
+                        >
+                          <option value="all">All Teams</option>
+                          {teams.map((team) => (
+                            <option key={team.id} value={team.id}>
+                              {team.name} ({team.code})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Agent Dropdown */}
+                      <div className="flex items-center gap-2">
+                        <label className="text-sm text-gray-600 font-medium">Agent:</label>
+                        <select
+                          value={selectedAgentFilter}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setSelectedAgentFilter(val === 'all' ? 'all' : Number(val));
+                          }}
+                          className="border rounded-lg px-3 py-1.5 text-sm min-w-[180px]"
+                        >
+                          <option value="all">All Agents</option>
+                          {getAgentsForTeam().map((agent) => (
+                            <option key={agent.id} value={agent.id}>
+                              {agent.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                {report.agents.length === 0 ? (
-                  <div className="p-8 text-center text-gray-500">No agents found in your team</div>
+                {getFilteredAgents().length === 0 ? (
+                  <div className="p-8 text-center text-gray-500">No agents found with current filters</div>
                 ) : (
                   <div className="overflow-x-auto">
                     <table className="min-w-full divide-y divide-gray-200">
@@ -418,7 +513,7 @@ export default function TeamAgentsReportPage() {
                         </tr>
                       </thead>
                       <tbody className="bg-white divide-y divide-gray-200">
-                        {report.agents.map((agent) => (
+                        {getFilteredAgents().map((agent) => (
                           <tr key={agent.id} className="hover:bg-gray-50">
                             <td className="px-4 py-3">
                               <div className="flex items-center gap-3">

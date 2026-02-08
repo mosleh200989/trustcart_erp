@@ -319,6 +319,134 @@ export class LeadManagementService {
     });
   }
 
+  async getAllCustomersWithTiers(filters: { tier?: string; status?: string; assignedTo?: number; page?: number; limit?: number } = {}) {
+    const { page = 1, limit = 10 } = filters;
+    const offset = (page - 1) * limit;
+
+    // First, get total count for stats (before pagination)
+    const statsQuery = `
+      SELECT 
+        COUNT(CASE WHEN ct.is_active = true THEN 1 END)::int as total_active,
+        COUNT(CASE WHEN ct.is_active = false THEN 1 END)::int as total_inactive,
+        COUNT(CASE WHEN ct.tier = 'silver' THEN 1 END)::int as silver,
+        COUNT(CASE WHEN ct.tier = 'gold' THEN 1 END)::int as gold,
+        COUNT(CASE WHEN ct.tier = 'platinum' THEN 1 END)::int as platinum,
+        COUNT(CASE WHEN ct.tier = 'vip' THEN 1 END)::int as vip,
+        COUNT(CASE WHEN ct.tier IS NULL THEN 1 END)::int as no_tier
+      FROM customers c
+      LEFT JOIN customer_tiers ct ON ct.customer_id = c.id
+      WHERE c.is_deleted = false
+      ${filters.tier && filters.tier !== 'all' ? `AND ct.tier = '${filters.tier}'` : ''}
+      ${filters.status === 'active' ? 'AND ct.is_active = true' : ''}
+      ${filters.status === 'inactive' ? 'AND ct.is_active = false' : ''}
+      ${filters.assignedTo ? `AND c.assigned_to = ${filters.assignedTo}` : ''}
+    `;
+
+    const statsResults = await this.sessionRepo.query(statsQuery);
+    const statsRow = statsResults[0] || {};
+
+    // Get total count for pagination
+    const countQuery = `
+      SELECT COUNT(*)::int as total
+      FROM customers c
+      LEFT JOIN customer_tiers ct ON ct.customer_id = c.id
+      WHERE c.is_deleted = false
+      ${filters.tier && filters.tier !== 'all' ? `AND ct.tier = '${filters.tier}'` : ''}
+      ${filters.status === 'active' ? 'AND ct.is_active = true' : ''}
+      ${filters.status === 'inactive' ? 'AND ct.is_active = false' : ''}
+      ${filters.assignedTo ? `AND c.assigned_to = ${filters.assignedTo}` : ''}
+    `;
+
+    const countResults = await this.sessionRepo.query(countQuery);
+    const total = countResults[0]?.total || 0;
+
+    // Get all customers with their tier data in a single query
+    const query = `
+      SELECT 
+        c.id,
+        c.name as first_name,
+        c.last_name,
+        c.email,
+        c.phone,
+        c.customer_type,
+        c.assigned_to,
+        c.created_at,
+        ct.id as tier_id,
+        ct.tier,
+        ct.is_active as tier_is_active,
+        ct.tier_assigned_at,
+        ct.total_purchases,
+        ct.total_spent,
+        ct.engagement_score,
+        ct.days_inactive,
+        ct.notes as tier_notes,
+        COALESCE(
+          (SELECT COUNT(*)::int FROM sales_orders so WHERE so.customer_id = c.id),
+          0
+        ) as order_count,
+        COALESCE(
+          (SELECT SUM(so.total_amount) FROM sales_orders so WHERE so.customer_id = c.id),
+          0
+        ) as lifetime_value,
+        u.name as agent_name,
+        u.last_name as agent_last_name
+      FROM customers c
+      LEFT JOIN customer_tiers ct ON ct.customer_id = c.id
+      LEFT JOIN users u ON u.id = c.assigned_to
+      WHERE c.is_deleted = false
+      ${filters.tier && filters.tier !== 'all' ? `AND ct.tier = '${filters.tier}'` : ''}
+      ${filters.status === 'active' ? 'AND ct.is_active = true' : ''}
+      ${filters.status === 'inactive' ? 'AND ct.is_active = false' : ''}
+      ${filters.assignedTo ? `AND c.assigned_to = ${filters.assignedTo}` : ''}
+      ORDER BY c.created_at DESC
+      LIMIT ${limit} OFFSET ${offset}
+    `;
+    
+    const results = await this.sessionRepo.query(query);
+    
+    return {
+      customers: results.map((r: any) => ({
+        id: r.id,
+        first_name: r.first_name,
+        last_name: r.last_name,
+        email: r.email,
+        phone: r.phone,
+        customer_type: r.customer_type,
+        assigned_to: r.assigned_to,
+        agent_name: r.agent_name ? `${r.agent_name} ${r.agent_last_name || ''}`.trim() : null,
+        created_at: r.created_at,
+        order_count: r.order_count,
+        lifetime_value: r.lifetime_value,
+        tierData: r.tier_id ? {
+          id: r.tier_id,
+          tier: r.tier,
+          isActive: r.tier_is_active,
+          tierAssignedAt: r.tier_assigned_at,
+          totalPurchases: r.total_purchases,
+          totalSpent: r.total_spent,
+          engagementScore: r.engagement_score,
+          daysInactive: r.days_inactive,
+          notes: r.tier_notes,
+        } : null,
+      })),
+      stats: {
+        totalActive: statsRow.total_active || 0,
+        totalInactive: statsRow.total_inactive || 0,
+        silver: statsRow.silver || 0,
+        gold: statsRow.gold || 0,
+        platinum: statsRow.platinum || 0,
+        vip: statsRow.vip || 0,
+        noTier: statsRow.no_tier || 0,
+      },
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  }
+
   // ============================================
   // TEAM MEMBER MANAGEMENT
   // ============================================

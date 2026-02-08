@@ -1,10 +1,13 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import AdminLayout from '@/layouts/AdminLayout';
 import PageSizeSelector from '@/components/admin/PageSizeSelector';
+import Pagination from '@/components/admin/Pagination';
 import apiClient from '@/services/api';
 import Link from 'next/link';
-import { FaFileExport, FaTags, FaTrash, FaChevronLeft, FaChevronRight, FaSms, FaEnvelope } from 'react-icons/fa';
+import { useRouter } from 'next/router';
+import { FaFileExport, FaTags, FaTrash, FaSms, FaEnvelope, FaPlus, FaEye } from 'react-icons/fa';
 import { useToast } from '@/contexts/ToastContext';
+import AdminOrderDetailsModal from '@/components/AdminOrderDetailsModal';
 
 interface Customer {
   id: number;
@@ -22,9 +25,11 @@ interface Customer {
 
 export default function CustomersPage() {
   const toast = useToast();
+  const router = useRouter();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [searchDebounced, setSearchDebounced] = useState('');
   const [tierFilter, setTierFilter] = useState('');
   const [selectedCustomers, setSelectedCustomers] = useState<number[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
@@ -35,12 +40,24 @@ export default function CustomersPage() {
   const [smsMessage, setSmsMessage] = useState('');
   const [smsSending, setSmsSending] = useState(false);
   const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [showOrderModal, setShowOrderModal] = useState(false);
+  const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
+  const [loadingOrder, setLoadingOrder] = useState(false);
+
+  // Debounce search input
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setSearchDebounced(searchTerm);
+      setCurrentPage(1); // Reset to first page on search
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
 
   useEffect(() => {
     loadCustomers();
-  }, [tierFilter, currentPage]);
+  }, [tierFilter, currentPage, itemsPerPage, searchDebounced]);
 
-  const loadCustomers = async () => {
+  const loadCustomers = useCallback(async () => {
     try {
       setLoading(true);
       const params: any = {
@@ -48,34 +65,34 @@ export default function CustomersPage() {
         limit: itemsPerPage,
       };
       if (tierFilter) params.tier = tierFilter;
+      if (searchDebounced) params.search = searchDebounced;
       
       const res = await apiClient.get('/customers', { params });
-      const data = Array.isArray(res.data) ? res.data : [];
-      setCustomers(data);
       
-      // If backend provides pagination metadata
+      // Handle paginated response from backend
       if (res.data && typeof res.data === 'object' && 'items' in res.data) {
         setCustomers(res.data.items || []);
         setTotalCount(res.data.total || 0);
-        setTotalPages(Math.ceil((res.data.total || 0) / itemsPerPage));
+        setTotalPages(res.data.totalPages || Math.ceil((res.data.total || 0) / itemsPerPage));
       } else {
+        // Fallback for non-paginated response
+        const data = Array.isArray(res.data) ? res.data : [];
+        setCustomers(data);
+        setTotalCount(data.length);
         setTotalPages(Math.ceil(data.length / itemsPerPage));
       }
     } catch (error) {
       console.error('Failed to load customers', error);
       setCustomers([]);
+      setTotalCount(0);
+      setTotalPages(1);
     } finally {
       setLoading(false);
     }
-  };
+  }, [tierFilter, currentPage, itemsPerPage, searchDebounced]);
 
-  const filteredCustomers = customers.filter(customer => {
-    const fullName = `${customer.name} ${customer.lastName}`.toLowerCase();
-    const search = searchTerm.toLowerCase();
-    return fullName.includes(search) || 
-           customer.email?.toLowerCase().includes(search) ||
-           customer.company?.toLowerCase().includes(search);
-  });
+  // Since we're using server-side pagination/filtering, display customers directly
+  const displayedCustomers = customers;
 
   const toggleSelectCustomer = (id: number) => {
     setSelectedCustomers(prev =>
@@ -84,17 +101,17 @@ export default function CustomersPage() {
   };
 
   const toggleSelectAll = () => {
-    if (selectedCustomers.length === filteredCustomers.length) {
+    if (selectedCustomers.length === displayedCustomers.length) {
       setSelectedCustomers([]);
     } else {
-      setSelectedCustomers(filteredCustomers.map(c => c.id));
+      setSelectedCustomers(displayedCustomers.map(c => c.id));
     }
   };
 
   const handleExport = () => {
     const dataToExport = selectedCustomers.length > 0
       ? customers.filter(c => selectedCustomers.includes(c.id))
-      : filteredCustomers;
+      : displayedCustomers;
 
     const csv = [
       ['ID', 'Name', 'Email', 'Phone', 'Company', 'Tier', 'Total Orders', 'Total Spent'].join(','),
@@ -175,6 +192,31 @@ export default function CustomersPage() {
     setSmsMessage('');
   };
 
+  const openOrderModal = async (customerId: number) => {
+    try {
+      setLoadingOrder(true);
+      // Fetch customer's orders and get the most recent one
+      const res = await apiClient.get(`/sales/orders?customerId=${customerId}&limit=1`);
+      const orders = res.data?.items || res.data || [];
+      if (orders.length > 0) {
+        setSelectedOrderId(orders[0].id);
+        setShowOrderModal(true);
+      } else {
+        toast.info('No orders found for this customer');
+      }
+    } catch (error) {
+      console.error('Failed to fetch orders', error);
+      toast.error('Failed to load orders');
+    } finally {
+      setLoadingOrder(false);
+    }
+  };
+
+  const closeOrderModal = () => {
+    setShowOrderModal(false);
+    setSelectedOrderId(null);
+  };
+
   const sendSms = async () => {
     if (!smsCustomer) return;
     if (!smsMessage.trim()) return;
@@ -229,12 +271,12 @@ export default function CustomersPage() {
             >
               <FaFileExport /> Export All
             </button>
-            <Link 
-              href="/admin/customers/new"
-              className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+            <button
+              onClick={() => router.push('/admin/customers/new')}
+              className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2"
             >
-              Add Customer
-            </Link>
+              <FaPlus /> Add Customer
+            </button>
           </div>
         </div>
 
@@ -270,14 +312,21 @@ export default function CustomersPage() {
 
         {/* Customers Table */}
         <div className="bg-white rounded-lg shadow">
-          <div className="p-4 border-b flex justify-end">
-            <PageSizeSelector
-              value={itemsPerPage}
-              onChange={(size) => {
-                setItemsPerPage(size);
-                setCurrentPage(1);
-              }}
-            />
+          <div className="p-4 border-b flex justify-between items-center">
+            {selectedCustomers.length > 0 && (
+              <span className="text-sm font-medium text-blue-600">
+                {selectedCustomers.length} customer{selectedCustomers.length !== 1 ? 's' : ''} selected
+              </span>
+            )}
+            <div className={selectedCustomers.length === 0 ? 'ml-auto' : ''}>
+              <PageSizeSelector
+                value={itemsPerPage}
+                onChange={(size) => {
+                  setItemsPerPage(size);
+                  setCurrentPage(1);
+                }}
+              />
+            </div>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full">
@@ -286,13 +335,12 @@ export default function CustomersPage() {
                   <th className="px-6 py-3 text-left">
                     <input
                       type="checkbox"
-                      checked={selectedCustomers.length === filteredCustomers.length && filteredCustomers.length > 0}
+                      checked={selectedCustomers.length === displayedCustomers.length && displayedCustomers.length > 0}
                       onChange={toggleSelectAll}
                       className="rounded"
                     />
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Customer</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Company</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Contact</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tier</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Orders</th>
@@ -303,18 +351,18 @@ export default function CustomersPage() {
               <tbody className="divide-y divide-gray-200">
                 {loading ? (
                   <tr>
-                    <td colSpan={8} className="px-6 py-4 text-center text-gray-500">
+                    <td colSpan={7} className="px-6 py-4 text-center text-gray-500">
                       Loading customers...
                     </td>
                   </tr>
-                ) : filteredCustomers.length === 0 ? (
+                ) : displayedCustomers.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="px-6 py-4 text-center text-gray-500">
+                    <td colSpan={7} className="px-6 py-4 text-center text-gray-500">
                       No customers found
                     </td>
                   </tr>
                 ) : (
-                  filteredCustomers.map((customer) => (
+                  displayedCustomers.map((customer) => (
                     <tr key={customer.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4">
                         <input
@@ -331,9 +379,6 @@ export default function CustomersPage() {
                           </div>
                           <div className="text-sm text-gray-500">ID: {customer.id}</div>
                         </div>
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-700">
-                        {customer.company || '-'}
                       </td>
                       <td className="px-6 py-4">
                         <div className="text-sm">
@@ -369,12 +414,14 @@ export default function CustomersPage() {
                           >
                             <FaEnvelope /> Email
                           </Link>
-                          <Link
-                            href={`/admin/crm/customer/${customer.id}`}
-                            className="text-blue-600 hover:text-blue-800"
+                          <button
+                            type="button"
+                            onClick={() => openOrderModal(customer.id)}
+                            disabled={loadingOrder}
+                            className="text-blue-600 hover:text-blue-800 flex items-center gap-1 disabled:opacity-50"
                           >
-                            View Details
-                          </Link>
+                            <FaEye /> {loadingOrder ? 'Loading...' : 'View'}
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -385,30 +432,15 @@ export default function CustomersPage() {
           </div>
 
           {/* Pagination */}
-          <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-between">
-            <div className="text-sm text-gray-700">
-              Showing page {currentPage} of {totalPages} 
-              {totalCount > 0 && ` (${totalCount} total customers)`}
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                disabled={currentPage === 1}
-                className="px-3 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
-              >
-                <FaChevronLeft /> Previous
-              </button>
-              <span className="px-4 py-1 bg-blue-100 text-blue-700 rounded">
-                {currentPage}
-              </span>
-              <button
-                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                disabled={currentPage === totalPages}
-                className="px-3 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
-              >
-                Next <FaChevronRight />
-              </button>
-            </div>
+          <div className="px-6 py-4 border-t border-gray-200">
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalItems={totalCount}
+              itemsPerPage={itemsPerPage}
+              onPageChange={setCurrentPage}
+              showInfo={true}
+            />
           </div>
         </div>
 
@@ -452,6 +484,14 @@ export default function CustomersPage() {
               </div>
             </div>
           </div>
+        )}
+
+        {showOrderModal && selectedOrderId && (
+          <AdminOrderDetailsModal
+            orderId={selectedOrderId}
+            onClose={closeOrderModal}
+            onUpdate={loadCustomers}
+          />
         )}
       </div>
     </AdminLayout>

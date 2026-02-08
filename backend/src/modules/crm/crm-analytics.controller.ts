@@ -13,4 +13,9 @@ export class CrmAnalyticsController {
     const days = rangeDays != null ? Number(rangeDays) : 30;
     return this.crmAnalyticsService.getSummary(days);
   }
+
+  @Get('dashboard')
+  async getDashboard() {
+    return this.crmAnalyticsService.getDashboardStats();
+  }
 }

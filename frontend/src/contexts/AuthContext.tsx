@@ -13,6 +13,8 @@ export type AuthUser = {
   roleId?: number | null;
   roleSlug?: string | null;
   primary_role_id?: number | null;
+  teamId?: number | null;
+  teamLeaderId?: number | null;
 };
 
 type AuthContextValue = {

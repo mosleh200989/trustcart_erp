@@ -46,8 +46,18 @@ export class CustomersController {
 
   @Get()
   @RequirePermissions('view-customers')
-  async findAll() {
-    return this.customersService.findAll();
+  async findAll(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('search') search?: string,
+  ) {
+    const pageNum = page ? parseInt(page, 10) : 1;
+    const limitNum = limit ? parseInt(limit, 10) : 10;
+    return this.customersService.findAllPaginated({
+      page: pageNum,
+      limit: limitNum,
+      search,
+    });
   }
 
   @Get(':id')

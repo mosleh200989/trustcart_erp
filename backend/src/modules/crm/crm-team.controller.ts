@@ -41,8 +41,14 @@ export class CrmTeamController {
 
   @Post('leads/:customerId/convert')
   @RequirePermissions('edit-leads')
-  async convertLead(@Param('customerId') customerId: string, @Request() req: any) {
-    return await this.crmTeamService.convertLeadToCustomer(customerId, req.user.id);
+  async convertLead(
+    @Param('customerId') customerId: string, 
+    @Body() body: any,
+    @Request() req: any
+  ) {
+    return await this.crmTeamService.convertLeadToCustomer(customerId, req.user.id, {
+      customerType: body?.customerType,
+    });
   }
 
   @Get('leads')
@@ -205,5 +211,41 @@ export class CrmTeamController {
       from: query.from,
       to: query.to,
     });
+  }
+
+  // ==================== DASHBOARD CONFIG ENDPOINTS ====================
+
+  @Get('dashboard/config')
+  @RequirePermissions('view-team-leader-dashboard')
+  async getAllDashboardConfigs(@Request() req: any) {
+    return await this.crmTeamService.getAllDashboardConfigs(req.user.id);
+  }
+
+  @Get('dashboard/config/:configKey')
+  @RequirePermissions('view-team-leader-dashboard')
+  async getDashboardConfig(
+    @Param('configKey') configKey: string,
+    @Request() req: any,
+  ) {
+    return await this.crmTeamService.getDashboardConfig(req.user.id, configKey);
+  }
+
+  @Put('dashboard/config/:configKey')
+  @RequirePermissions('manage-team-members') // Only team leaders can edit
+  async saveDashboardConfig(
+    @Param('configKey') configKey: string,
+    @Body() body: any,
+    @Request() req: any,
+  ) {
+    return await this.crmTeamService.saveDashboardConfig(req.user.id, configKey, body.value);
+  }
+
+  @Delete('dashboard/config/:configKey')
+  @RequirePermissions('manage-team-members') // Only team leaders can delete
+  async deleteDashboardConfig(
+    @Param('configKey') configKey: string,
+    @Request() req: any,
+  ) {
+    return await this.crmTeamService.deleteDashboardConfig(req.user.id, configKey);
   }
 }
