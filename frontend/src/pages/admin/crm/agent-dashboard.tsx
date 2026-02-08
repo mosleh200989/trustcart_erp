@@ -920,6 +920,11 @@ export default function AgentDashboard() {
     return <FaClock className="text-blue-500" />;
   };
 
+  const getPriorityLabel = (priority: string) => {
+    if (priority === 'cold') return 'SLEEP/DEAD';
+    return priority.toUpperCase();
+  };
+
   if (loading) {
     return (
       <AdminLayout>
@@ -1058,7 +1063,7 @@ export default function AgentDashboard() {
                   <option value="">All Priorities</option>
                   <option value="hot">Hot</option>
                   <option value="warm">Warm</option>
-                  <option value="cold">Cold</option>
+                  <option value="cold">Sleep/Dead</option>
                   <option value="new">New</option>
                 </select>
               </div>
@@ -1410,7 +1415,7 @@ export default function AgentDashboard() {
                       <td className="px-6 py-4">
                         <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold border ${getPriorityBadge(task.priority)}`}>
                           {getPriorityIcon(task.priority)}
-                          {task.priority.toUpperCase()}
+                          {getPriorityLabel(task.priority)}
                         </span>
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-700">{task.customer_id}</td>

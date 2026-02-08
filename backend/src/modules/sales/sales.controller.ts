@@ -51,6 +51,21 @@ export class SalesController {
     return this.salesService.findForCustomerPortal({ id: customerId, email, phone });
   }
 
+  @Get('orders')
+  @RequirePermissions('view-sales-orders')
+  async findOrders(@Query('customerId') customerId?: string, @Query('limit') limit?: string) {
+    if (customerId) {
+      const custId = parseInt(customerId, 10);
+      if (!Number.isFinite(custId)) {
+        return { items: [], total: 0 };
+      }
+      const orders = await this.salesService.findForCustomer(custId);
+      return { items: orders, total: orders.length };
+    }
+    const orders = await this.salesService.findAll();
+    return { items: orders, total: orders.length };
+  }
+
   @Get()
   @RequirePermissions('view-sales-orders')
   async findAll() {

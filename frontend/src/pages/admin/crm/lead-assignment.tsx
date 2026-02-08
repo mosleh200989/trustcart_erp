@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import AdminLayout from '@/layouts/AdminLayout';
 import PageSizeSelector from '@/components/admin/PageSizeSelector';
+import Pagination from '@/components/admin/Pagination';
 import AdminOrderDetailsModal from '@/components/AdminOrderDetailsModal';
 import apiClient from '@/services/api';
 import { useToast } from '@/contexts/ToastContext';
@@ -17,6 +18,7 @@ interface LeadCustomer {
   assigned_to?: number | null;
   created_at?: string;
   first_order_date?: string;
+  order_count?: number;
 }
 
 interface PaginatedResponse {
@@ -52,6 +54,8 @@ export default function LeadAssignmentPage() {
   const [assignmentStatus, setAssignmentStatus] = useState<'all' | 'assigned' | 'unassigned'>('unassigned');
   const [searchTerm, setSearchTerm] = useState('');
   const [priorityFilter, setPriorityFilter] = useState('');
+  const [customerTypeFilter, setCustomerTypeFilter] = useState('');
+  const [purchaseStageFilter, setPurchaseStageFilter] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [page, setPage] = useState(1);
@@ -88,7 +92,7 @@ export default function LeadAssignmentPage() {
   useEffect(() => {
     loadLeads();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [assignmentStatus, searchTerm, priorityFilter, dateFrom, dateTo, page]);
+  }, [assignmentStatus, searchTerm, priorityFilter, customerTypeFilter, purchaseStageFilter, dateFrom, dateTo, page]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -137,6 +141,8 @@ export default function LeadAssignmentPage() {
       };
       if (searchTerm.trim()) params.search = searchTerm.trim();
       if (priorityFilter) params.priority = priorityFilter;
+      if (customerTypeFilter) params.customerType = customerTypeFilter;
+      if (purchaseStageFilter) params.purchaseStage = purchaseStageFilter;
       if (dateFrom) params.dateFrom = dateFrom;
       if (dateTo) params.dateTo = dateTo;
 
@@ -289,6 +295,8 @@ export default function LeadAssignmentPage() {
   const clearFilters = () => {
     setSearchTerm('');
     setPriorityFilter('');
+    setCustomerTypeFilter('');
+    setPurchaseStageFilter('');
     setDateFrom('');
     setDateTo('');
     setAssignmentStatus('unassigned');
@@ -440,8 +448,48 @@ export default function LeadAssignmentPage() {
                 <option value="">All Priorities</option>
                 <option value="hot">Hot</option>
                 <option value="warm">Warm</option>
-                <option value="cold">Cold</option>
+                <option value="cold">Sleep/Dead</option>
                 <option value="new">New</option>
+              </select>
+            </div>
+
+            {/* Customer Type (VIP/Platinum) */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Customer Type</label>
+              <select
+                value={customerTypeFilter}
+                onChange={(e) => {
+                  setCustomerTypeFilter(e.target.value);
+                  setPage(1);
+                }}
+                className="w-full border rounded-lg px-3 py-2"
+              >
+                <option value="">All Types</option>
+                <option value="vip">VIP</option>
+                <option value="platinum">Platinum</option>
+                <option value="gold">Gold</option>
+                <option value="silver">Silver</option>
+                <option value="normal">Normal</option>
+              </select>
+            </div>
+
+            {/* Purchase Stage (Repeat) */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Purchase Stage</label>
+              <select
+                value={purchaseStageFilter}
+                onChange={(e) => {
+                  setPurchaseStageFilter(e.target.value);
+                  setPage(1);
+                }}
+                className="w-full border rounded-lg px-3 py-2"
+              >
+                <option value="">All Stages</option>
+                <option value="new">New (1st order)</option>
+                <option value="repeat_2">Repeat-2</option>
+                <option value="repeat_3">Repeat-3</option>
+                <option value="regular">Regular (4-7)</option>
+                <option value="permanent">Permanent (8+)</option>
               </select>
             </div>
 
@@ -556,6 +604,7 @@ export default function LeadAssignmentPage() {
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Contact</th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Priority</th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Orders</th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Order Date</th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Action</th>
                     </tr>
@@ -586,7 +635,7 @@ export default function LeadAssignmentPage() {
                             lead.priority === 'cold' ? 'bg-blue-100 text-blue-700' :
                             'bg-gray-100 text-gray-700'
                           }`}>
-                            {lead.priority || 'new'}
+                            {lead.priority === 'cold' ? 'Sleep/Dead' : (lead.priority || 'new')}
                           </span>
                         </td>
                         <td className="px-4 py-4">
@@ -599,6 +648,9 @@ export default function LeadAssignmentPage() {
                               Unassigned
                             </span>
                           )}
+                        </td>
+                        <td className="px-4 py-4 text-sm text-gray-600 font-medium">
+                          {lead.order_count || 0}
                         </td>
                         <td className="px-4 py-4 text-sm text-gray-600">
                           {lead.first_order_date ? formatDate(lead.first_order_date) : 'No orders'}
@@ -627,26 +679,15 @@ export default function LeadAssignmentPage() {
 
               {/* Pagination */}
               {totalPages > 1 && (
-                <div className="px-6 py-4 border-t flex items-center justify-between">
-                  <div className="text-sm text-gray-600">
-                    Page {page} of {totalPages}
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => setPage(p => Math.max(1, p - 1))}
-                      disabled={page === 1}
-                      className="px-3 py-1 border rounded hover:bg-gray-50 disabled:opacity-50"
-                    >
-                      Previous
-                    </button>
-                    <button
-                      onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                      disabled={page === totalPages}
-                      className="px-3 py-1 border rounded hover:bg-gray-50 disabled:opacity-50"
-                    >
-                      Next
-                    </button>
-                  </div>
+                <div className="px-6 py-4 border-t">
+                  <Pagination
+                    currentPage={page}
+                    totalPages={totalPages}
+                    totalItems={totalLeads}
+                    itemsPerPage={limit}
+                    onPageChange={setPage}
+                    showInfo={true}
+                  />
                 </div>
               )}
             </>

@@ -193,6 +193,23 @@ export class LeadManagementController {
   // CUSTOMER TIER MANAGEMENT
   // ============================================
 
+  @Get('tiers/all')
+  async getAllCustomersWithTiers(
+    @Query('tier') tier?: string,
+    @Query('status') status?: string,
+    @Query('assignedTo') assignedTo?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.leadService.getAllCustomersWithTiers({
+      tier,
+      status,
+      assignedTo: assignedTo ? parseInt(assignedTo, 10) : undefined,
+      page: page ? parseInt(page, 10) : 1,
+      limit: limit ? parseInt(limit, 10) : 10,
+    });
+  }
+
   @Post('tier')
   async updateCustomerTier(@Body() data: any, @Request() req: any) {
     data.tierAssignedById = this.getAuthUserId(req);

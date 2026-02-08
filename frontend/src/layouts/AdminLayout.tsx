@@ -282,6 +282,7 @@ const menuItems: MenuItem[] = [
       { title: 'Quotes', icon: FaBook, path: '/admin/crm/quotes' },
       { title: 'Meetings', icon: FaUsers, path: '/admin/crm/meetings' },
       { title: 'Emails', icon: FaBell, path: '/admin/crm/emails' },
+      /* PHASE 1 FEATURES - COMMENTED OUT
       { 
         title: 'Phase 1 Features', 
         icon: FaCog, 
@@ -296,6 +297,7 @@ const menuItems: MenuItem[] = [
           { title: 'Sales Forecasts', icon: FaTachometerAlt, path: '/admin/crm/forecasts' },
         ]
       },
+      END PHASE 1 FEATURES */
     ],
   },
   {

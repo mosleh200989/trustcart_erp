@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useToast } from '@/contexts/ToastContext';
 import AdminLayout from '@/layouts/AdminLayout';
+import Pagination from '@/components/admin/Pagination';
 import apiClient, { auth } from '@/services/api';
 import { 
   FaPlus, FaSearch, FaFilter, FaTimes, FaPhone, FaCalendarAlt, 
@@ -882,25 +883,14 @@ export default function MyFollowupsPage() {
                   </select>
                   <span className="text-sm text-gray-700">per page</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-gray-700">
-                    Page {currentPage} of {totalPages} ({filteredFollowUps.length} total)
-                  </span>
-                  <button
-                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                    disabled={currentPage === 1}
-                    className="px-3 py-1 border rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100 flex items-center gap-1"
-                  >
-                    <FaChevronLeft size={10} /> Previous
-                  </button>
-                  <button
-                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                    disabled={currentPage === totalPages}
-                    className="px-3 py-1 border rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100 flex items-center gap-1"
-                  >
-                    Next <FaChevronRight size={10} />
-                  </button>
-                </div>
+                <Pagination
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  totalItems={filteredFollowUps.length}
+                  itemsPerPage={itemsPerPage}
+                  onPageChange={setCurrentPage}
+                  showInfo={false}
+                />
               </div>
             )}
             </>

@@ -67,6 +67,73 @@ export class CustomersService {
     return this.customersRepository.find({ where: { is_deleted: false } as any });
   }
 
+  async findAllPaginated(options: {
+    page: number;
+    limit: number;
+    search?: string;
+  }) {
+    const { page = 1, limit = 10, search } = options;
+    const skip = (page - 1) * limit;
+
+    const qb = this.customersRepository.createQueryBuilder('c')
+      .leftJoin('sales_orders', 'so', 'so.customer_id = c.id')
+      .select([
+        'c.id as id',
+        'c.uuid as uuid',
+        'c.name as name',
+        'c.email as email',
+        'c.phone as phone',
+        'c.company_name as company',
+        'c.lifecycle_stage as "lifecycleStage"',
+        'c.created_at as "createdAt"',
+        'COUNT(so.id) as "totalOrders"',
+        'COALESCE(SUM(so.total_amount), 0) as "totalSpent"',
+      ])
+      .where('c.is_deleted = :deleted', { deleted: false })
+      .groupBy('c.id');
+
+    if (search) {
+      qb.andWhere(
+        '(c.name ILIKE :search OR c.email ILIKE :search OR c.phone ILIKE :search OR c.company_name ILIKE :search)',
+        { search: `%${search}%` }
+      );
+    }
+
+    qb.orderBy('c.created_at', 'DESC');
+
+    // Get total count for pagination
+    const countQb = this.customersRepository.createQueryBuilder('c')
+      .where('c.is_deleted = :deleted', { deleted: false });
+    
+    if (search) {
+      countQb.andWhere(
+        '(c.name ILIKE :search OR c.email ILIKE :search OR c.phone ILIKE :search OR c.company_name ILIKE :search)',
+        { search: `%${search}%` }
+      );
+    }
+    const total = await countQb.getCount();
+
+    const items = await qb
+      .offset(skip)
+      .limit(limit)
+      .getRawMany();
+
+    // Convert string numbers to actual numbers
+    const formattedItems = items.map(item => ({
+      ...item,
+      totalOrders: parseInt(item.totalOrders, 10) || 0,
+      totalSpent: parseFloat(item.totalSpent) || 0,
+    }));
+
+    return {
+      items: formattedItems,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    };
+  }
+
   async findOne(id: string) {
     const numericId = Number(id);
     if (!Number.isFinite(numericId)) return null;

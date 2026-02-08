@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, ChangeEvent, FormEvent } from 'react';
 import { useRouter } from 'next/router';
 import AdminLayout from '@/layouts/AdminLayout';
 import PageSizeSelector from '@/components/admin/PageSizeSelector';
+import Pagination from '@/components/admin/Pagination';
 import { useToast } from '@/contexts/ToastContext';
 import Modal from '@/components/admin/Modal';
 import FormInput from '@/components/admin/FormInput';
@@ -513,39 +514,15 @@ export default function AdminUsers() {
 
         {/* Pagination */}
         {!loading && filteredUsers.length > 0 && (
-          <div className="mt-4 flex items-center justify-between">
-            <p className="text-sm text-gray-600">
-              Showing {(currentPage - 1) * itemsPerPage + 1} -
-              {' '}
-              {Math.min(currentPage * itemsPerPage, filteredUsers.length)} of {filteredUsers.length} users
-            </p>
-            <div className="flex gap-2">
-              <button
-                disabled={currentPage === 1}
-                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                className={`px-3 py-1 rounded border text-sm ${
-                  currentPage === 1
-                    ? 'text-gray-400 border-gray-200 cursor-not-allowed'
-                    : 'text-gray-700 border-gray-300 hover:bg-gray-100'
-                }`}
-              >
-                Previous
-              </button>
-              <span className="text-sm text-gray-600 px-2 py-1">
-                Page {currentPage} of {totalPages}
-              </span>
-              <button
-                disabled={currentPage === totalPages}
-                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                className={`px-3 py-1 rounded border text-sm ${
-                  currentPage === totalPages
-                    ? 'text-gray-400 border-gray-200 cursor-not-allowed'
-                    : 'text-gray-700 border-gray-300 hover:bg-gray-100'
-                }`}
-              >
-                Next
-              </button>
-            </div>
+          <div className="mt-4">
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalItems={filteredUsers.length}
+              itemsPerPage={itemsPerPage}
+              onPageChange={setCurrentPage}
+              showInfo={true}
+            />
           </div>
         )}
 

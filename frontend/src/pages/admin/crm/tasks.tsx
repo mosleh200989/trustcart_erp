@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Filter, Search, Calendar, User, CheckCircle, Circle, Clock, AlertCircle, X, ChevronDown, Edit2, Trash2, Users } from 'lucide-react';
+import { Plus, Filter, Search, Calendar, User, CheckCircle, Circle, Clock, AlertCircle, X, ChevronDown, Edit2, Trash2, Users, MessageSquare } from 'lucide-react';
 import AdminLayout from '@/layouts/AdminLayout';
 import { format } from 'date-fns';
 import { apiUrl } from '@/config/backend';
@@ -23,6 +23,7 @@ interface Task {
   id: number;
   title: string;
   description?: string;
+  notes?: string;
   customer?: { id: number; name: string };
   deal?: { id: number; name: string };
   assignee?: { id: number; name: string };
@@ -53,6 +54,12 @@ const TaskManagement = () => {
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [stats, setStats] = useState({ pending: 0, inProgress: 0, completed: 0, overdue: 0 });
+  
+  // Notes modal state (for agents)
+  const [showNotesModal, setShowNotesModal] = useState(false);
+  const [notesTask, setNotesTask] = useState<Task | null>(null);
+  const [notesText, setNotesText] = useState('');
+  const [savingNotes, setSavingNotes] = useState(false);
 
   // Get current user's role slug from auth context
   const currentUserRoleSlug = roles?.[0]?.slug || authUser?.roleSlug || '';
@@ -85,40 +92,107 @@ const TaskManagement = () => {
     
     try {
       const token = localStorage.getItem('authToken');
-      // Fetch team members under this team leader
-      const response = await fetch(apiUrl(`/lead-management/team-member/list/${authUser.id}`), {
-        headers: { Authorization: `Bearer ${token}` },
-      });
       
-      if (!response.ok) {
-        console.error('Failed to fetch team members:', response.statusText);
-        setTeamMembers([]);
-        return;
+      // Try multiple endpoints to get team members
+      // 1. First try CRM available-agents (returns Sales Executives)
+      let agents: any[] = [];
+      
+      try {
+        const agentsResponse = await fetch(apiUrl('/crm/team/available-agents'), {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        
+        if (agentsResponse.ok) {
+          const agentsData = await agentsResponse.json();
+          if (Array.isArray(agentsData) && agentsData.length > 0) {
+            agents = agentsData.map((agent: any) => ({
+              id: agent.id,
+              userId: agent.id,
+              teamLeaderId: agent.teamLeaderId || authUser.id,
+              teamType: 'Sales',
+              isActive: agent.status === 'active',
+              user: {
+                id: agent.id,
+                name: `${agent.name || ''} ${agent.lastName || ''}`.trim() || `User #${agent.id}`,
+                email: agent.email,
+              },
+            }));
+          }
+        }
+      } catch (e) {
+        console.log('CRM agents endpoint not available, trying fallback');
       }
       
-      const data = await response.json();
-      if (Array.isArray(data)) {
-        // Also fetch user details for each team member
-        const membersWithUsers = await Promise.all(
-          data.map(async (member: TeamMember) => {
-            try {
-              const userResponse = await fetch(apiUrl(`/users/${member.userId}`), {
-                headers: { Authorization: `Bearer ${token}` },
-              });
-              if (userResponse.ok) {
-                const userData = await userResponse.json();
-                return { ...member, user: userData };
-              }
-              return member;
-            } catch {
-              return member;
+      // 2. Fallback to lead-management team-members
+      if (agents.length === 0) {
+        try {
+          const response = await fetch(apiUrl(`/lead-management/team-member/list/${authUser.id}`), {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          
+          if (response.ok) {
+            const data = await response.json();
+            if (Array.isArray(data) && data.length > 0) {
+              // Also fetch user details for each team member
+              const membersWithUsers = await Promise.all(
+                data.map(async (member: TeamMember) => {
+                  try {
+                    const userResponse = await fetch(apiUrl(`/users/${member.userId}`), {
+                      headers: { Authorization: `Bearer ${token}` },
+                    });
+                    if (userResponse.ok) {
+                      const userData = await userResponse.json();
+                      return { ...member, user: userData };
+                    }
+                    return member;
+                  } catch {
+                    return member;
+                  }
+                })
+              );
+              agents = membersWithUsers;
             }
-          })
-        );
-        setTeamMembers(membersWithUsers);
-      } else {
-        setTeamMembers([]);
+          }
+        } catch (e) {
+          console.log('Lead management team members endpoint not available');
+        }
       }
+      
+      // 3. Final fallback - get users who have this user as team leader
+      if (agents.length === 0) {
+        try {
+          const usersResponse = await fetch(apiUrl('/users'), {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          
+          if (usersResponse.ok) {
+            const allUsers = await usersResponse.json();
+            if (Array.isArray(allUsers)) {
+              const teamUsers = allUsers.filter((u: any) => 
+                u.teamLeaderId === authUser.id || 
+                (u.teamId && u.teamId === authUser.teamId)
+              );
+              agents = teamUsers.map((user: any) => ({
+                id: user.id,
+                userId: user.id,
+                teamLeaderId: authUser.id,
+                teamType: 'Team',
+                isActive: user.status === 'active',
+                user: {
+                  id: user.id,
+                  name: `${user.name || ''} ${user.lastName || ''}`.trim() || `User #${user.id}`,
+                  email: user.email,
+                },
+              }));
+            }
+          }
+        } catch (e) {
+          console.log('Users endpoint fallback failed');
+        }
+      }
+      
+      console.log('Team members loaded:', agents.length);
+      setTeamMembers(agents);
     } catch (error) {
       console.error('Error fetching team members:', error);
       setTeamMembers([]);
@@ -252,6 +326,46 @@ const TaskManagement = () => {
     setShowTaskModal(true);
   };
 
+  // Open notes modal for agents
+  const openNotesModal = (task: Task) => {
+    setNotesTask(task);
+    setNotesText(task.notes || '');
+    setShowNotesModal(true);
+  };
+
+  // Save notes for a task
+  const saveTaskNotes = async () => {
+    if (!notesTask) return;
+    
+    setSavingNotes(true);
+    try {
+      const token = localStorage.getItem('authToken');
+      await fetch(apiUrl(`/crm/tasks/${notesTask.id}`), {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ notes: notesText }),
+      });
+      toast.success('Notes saved successfully');
+      setShowNotesModal(false);
+      setNotesTask(null);
+      fetchTasks();
+    } catch (error) {
+      console.error('Error saving notes:', error);
+      toast.error('Failed to save notes');
+    } finally {
+      setSavingNotes(false);
+    }
+  };
+
+  // Check if this task is assigned to current user
+  const isTaskAssignedToMe = (task: Task) => {
+    const myId = Number(authUser?.id);
+    return task.assignedTo === myId || task.assignee?.id === myId;
+  };
+
   const filteredTasks = tasks.filter(task =>
     task.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
     task.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -296,20 +410,22 @@ const TaskManagement = () => {
               <p className="text-sm text-gray-600 mt-1">
                 {isTeamLeaderOrAdmin() 
                   ? 'Assign and manage tasks for your team members'
-                  : 'Organize and track your tasks'
+                  : 'View and update tasks assigned to you'
                 }
               </p>
             </div>
-            <button
-              onClick={() => {
-                setEditingTask(null);
-                setShowTaskModal(true);
-              }}
-              className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2"
-            >
-              <Plus className="w-4 h-4" />
-              New Task
-            </button>
+            {isTeamLeaderOrAdmin() && (
+              <button
+                onClick={() => {
+                  setEditingTask(null);
+                  setShowTaskModal(true);
+                }}
+                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2"
+              >
+                <Plus className="w-4 h-4" />
+                New Task
+              </button>
+            )}
           </div>
 
           {/* Stats */}
@@ -333,6 +449,7 @@ const TaskManagement = () => {
           </div>
 
           {/* Team Members Info (for Team Leaders) */}
+          {/*
           {isTeamLeaderOrAdmin() && teamMembers.length > 0 && (
             <div className="mb-4 p-4 bg-purple-50 rounded-lg border border-purple-200">
               <p className="text-sm text-purple-700 font-medium mb-2 flex items-center gap-2">
@@ -348,6 +465,7 @@ const TaskManagement = () => {
               </div>
             </div>
           )}
+          */}
 
           {/* Controls */}
           <div className="flex items-center gap-3 mb-3">
@@ -528,20 +646,35 @@ const TaskManagement = () => {
                               <option value="in_progress">In Progress</option>
                               <option value="completed">Completed</option>
                             </select>
-                            <button
-                              onClick={() => handleEditTask(task)}
-                              className="p-1 text-gray-500 hover:text-blue-600"
-                              title="Edit"
-                            >
-                              <Edit2 className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => deleteTask(task.id)}
-                              className="p-1 text-gray-500 hover:text-red-600"
-                              title="Delete"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
+                            {/* Add Notes button - always visible for tasks assigned to current user */}
+                            {isTaskAssignedToMe(task) && (
+                              <button
+                                onClick={() => openNotesModal(task)}
+                                className="p-1 text-gray-500 hover:text-green-600"
+                                title="Add Notes"
+                              >
+                                <MessageSquare className="w-4 h-4" />
+                              </button>
+                            )}
+                            {/* Edit and Delete - only for team leaders/admins */}
+                            {isTeamLeaderOrAdmin() && (
+                              <>
+                                <button
+                                  onClick={() => handleEditTask(task)}
+                                  className="p-1 text-gray-500 hover:text-blue-600"
+                                  title="Edit"
+                                >
+                                  <Edit2 className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={() => deleteTask(task.id)}
+                                  className="p-1 text-gray-500 hover:text-red-600"
+                                  title="Delete"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -582,18 +715,31 @@ const TaskManagement = () => {
                         <div className="flex items-start justify-between mb-2">
                           <h4 className="font-medium text-gray-900">{task.title}</h4>
                           <div className="flex gap-1">
-                            <button
-                              onClick={() => handleEditTask(task)}
-                              className="p-1 text-gray-400 hover:text-blue-600"
-                            >
-                              <Edit2 className="w-3 h-3" />
-                            </button>
-                            <button
-                              onClick={() => deleteTask(task.id)}
-                              className="p-1 text-gray-400 hover:text-red-600"
-                            >
-                              <Trash2 className="w-3 h-3" />
-                            </button>
+                            {isTaskAssignedToMe(task) && (
+                              <button
+                                onClick={() => openNotesModal(task)}
+                                className="p-1 text-gray-400 hover:text-green-600"
+                                title="Add Notes"
+                              >
+                                <MessageSquare className="w-3 h-3" />
+                              </button>
+                            )}
+                            {isTeamLeaderOrAdmin() && (
+                              <>
+                                <button
+                                  onClick={() => handleEditTask(task)}
+                                  className="p-1 text-gray-400 hover:text-blue-600"
+                                >
+                                  <Edit2 className="w-3 h-3" />
+                                </button>
+                                <button
+                                  onClick={() => deleteTask(task.id)}
+                                  className="p-1 text-gray-400 hover:text-red-600"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </button>
+                              </>
+                            )}
                           </div>
                         </div>
                         {task.description && (
@@ -647,6 +793,56 @@ const TaskManagement = () => {
               fetchStats();
             }}
           />
+        )}
+
+        {/* Notes Modal for Agents */}
+        {showNotesModal && notesTask && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg max-w-lg w-full">
+              <div className="p-4 border-b border-gray-200 flex items-center justify-between">
+                <h2 className="text-lg font-bold text-gray-900">Add Notes</h2>
+                <button onClick={() => setShowNotesModal(false)} className="text-gray-400 hover:text-gray-600">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              
+              <div className="p-4 space-y-4">
+                <div className="bg-gray-50 p-3 rounded-lg">
+                  <p className="text-sm font-medium text-gray-700">{notesTask.title}</p>
+                  {notesTask.description && (
+                    <p className="text-xs text-gray-500 mt-1">{notesTask.description}</p>
+                  )}
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Notes</label>
+                  <textarea
+                    value={notesText}
+                    onChange={(e) => setNotesText(e.target.value)}
+                    rows={5}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    placeholder="Add your notes here..."
+                  />
+                </div>
+                
+                <div className="flex gap-3">
+                  <button
+                    onClick={saveTaskNotes}
+                    disabled={savingNotes}
+                    className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                  >
+                    {savingNotes ? 'Saving...' : 'Save Notes'}
+                  </button>
+                  <button
+                    onClick={() => setShowNotesModal(false)}
+                    className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </AdminLayout>

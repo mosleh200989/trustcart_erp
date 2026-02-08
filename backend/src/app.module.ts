@@ -90,6 +90,10 @@ import { SalesForecast } from './modules/crm/entities/sales-forecast.entity';
 import { SalesQuota } from './modules/crm/entities/sales-quota.entity';
 import { AgentCommission } from './modules/crm/entities/agent-commission.entity';
 import { CommissionSettings } from './modules/crm/entities/commission-settings.entity';
+import { DashboardConfig } from './modules/crm/entities/dashboard-config.entity';
+
+// Lead Management Entities
+import { CustomerTier } from './modules/lead-management/entities/customer-tier.entity';
 
 // Modules
 import { AuthModule } from './modules/auth/auth.module';
@@ -192,7 +196,9 @@ import { LegacyMigrationModule } from './modules/legacy-migration/legacy-migrati
             Deal, DealStage, Activity, Task, Quote, Meeting, EmailTracking,
             CustomDealStage, SalesPipeline, ActivityTemplate, CustomerSegment, SegmentMember,
             EmailTemplate, AutomationWorkflow, WorkflowExecution, QuoteTemplate, SalesForecast, SalesQuota,
-            AgentCommission, CommissionSettings,
+            AgentCommission, CommissionSettings, DashboardConfig,
+            // Lead Management entities
+            CustomerTier,
             // Telephony entities
             TelephonyCall,
 

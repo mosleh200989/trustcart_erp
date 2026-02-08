@@ -75,6 +75,7 @@ import { CommissionController } from './commission.controller';
 import { CommissionService } from './commission.service';
 import { AgentCommission } from './entities/agent-commission.entity';
 import { CommissionSettings } from './entities/commission-settings.entity';
+import { DashboardConfig } from './entities/dashboard-config.entity';
 
 @Module({
   imports: [
@@ -108,7 +109,9 @@ import { CommissionSettings } from './entities/commission-settings.entity';
       SalesQuota,
       // Commission entities
       AgentCommission,
-      CommissionSettings
+      CommissionSettings,
+      // Dashboard config entity
+      DashboardConfig
     ]),
     RbacModule,
     LoyaltyModule,

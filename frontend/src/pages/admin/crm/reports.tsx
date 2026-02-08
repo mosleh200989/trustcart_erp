@@ -79,7 +79,7 @@ export default function CrmReportsPage() {
                     <span className="font-semibold">{performance.unassignedLeads}</span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span>Hot / Warm / Cold</span>
+                    <span>Hot / Warm / Sleep/Dead</span>
                     <span className="font-semibold">
                       {performance.hotLeads} / {performance.warmLeads} / {performance.coldLeads}
                     </span>
