@@ -153,6 +153,9 @@ import { TelephonyModule } from './modules/telephony/telephony.module';
 import { SettingsModule } from './modules/settings/settings.module';
 import { TaggingModule } from './modules/tagging/tagging.module';
 import { LegacyMigrationModule } from './modules/legacy-migration/legacy-migration.module';
+import { LandingPagesModule } from './modules/landing-pages/landing-pages.module';
+import { LandingPage } from './modules/landing-pages/landing-page.entity';
+import { LandingPageOrder } from './modules/landing-pages/landing-page-order.entity';
 
 @Module({
   imports: [
@@ -205,6 +208,9 @@ import { LegacyMigrationModule } from './modules/legacy-migration/legacy-migrati
             // Tagging entities
             CustomerTag,
             CustomerTagAssignment,
+            // Landing Page Entities
+            LandingPage,
+            LandingPageOrder,
             // HRM Entities
             HrmBranches, HrmDepartments, HrmDesignations, HrmEmployees, HrmAwardTypes, HrmAwards, HrmPromotions, HrmResignations, HrmTerminations, HrmWarnings, HrmTrips, HrmComplaints, HrmTransfers, HrmHolidays, HrmAnnouncements, HrmTrainingTypes, HrmTrainingPrograms, HrmTrainingSessions, HrmEmployeeTrainings, HrmPerformanceIndicatorCategories, HrmPerformanceIndicators, HrmEmployeePerformance, HrmDocumentTypes, HrmEmployeeDocuments
           ],
@@ -256,6 +262,7 @@ import { LegacyMigrationModule } from './modules/legacy-migration/legacy-migrati
     SettingsModule,
     TaggingModule,
     LegacyMigrationModule,
+    LandingPagesModule,
   ],
   controllers: [],
   providers: [],

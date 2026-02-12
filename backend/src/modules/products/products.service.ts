@@ -257,6 +257,7 @@ export class ProductsService {
         brand: createProductDto.brand || null,
         unit_of_measure: createProductDto.unit_of_measure || null,
         wholesale_price: createProductDto.wholesale_price || null,
+        sale_price: createProductDto.sale_price || null,
         image_url: createProductDto.image_url || null,
         stock_quantity: createProductDto.stock_quantity || null,
         display_position: createProductDto.display_position || null,
