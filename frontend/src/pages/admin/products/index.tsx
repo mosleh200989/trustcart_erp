@@ -68,6 +68,7 @@ export default function AdminProducts() {
     slug: '',
     sku: '',
     base_price: '',
+    sale_price: '',
     category_id: '',
     stock_quantity: '',
     description_en: '',
@@ -129,6 +130,7 @@ export default function AdminProducts() {
       slug: '',
       sku: '',
       base_price: '',
+      sale_price: '',
       category_id: '',
       stock_quantity: '',
       description_en: '',
@@ -160,6 +162,7 @@ export default function AdminProducts() {
         slug: fullProduct.slug || '',
         sku: fullProduct.sku || '',
         base_price: fullProduct.base_price?.toString() || '',
+        sale_price: fullProduct.sale_price?.toString() || '',
         category_id: fullProduct.category_id ? fullProduct.category_id.toString() : '',
         stock_quantity: fullProduct.stock_quantity ? fullProduct.stock_quantity.toString() : '',
         description_en: fullProduct.description_en || '',
@@ -184,6 +187,7 @@ export default function AdminProducts() {
         slug: product.slug,
         sku: product.sku || '',
         base_price: product.base_price.toString(),
+        sale_price: '',
         category_id: '',
         stock_quantity: product.stock_quantity?.toString() || '',
         description_en: '',
@@ -340,6 +344,13 @@ export default function AdminProducts() {
       description_en: formData.description_en?.trim() || null,
       status: formData.status || 'active'
     };
+
+    // Include optional price fields
+    if (formData.sale_price && formData.sale_price.trim()) {
+      payload.sale_price = parseFloat(formData.sale_price);
+    } else {
+      payload.sale_price = null;
+    }
 
     // Only include optional fields if they have values
     if (formData.image_url && formData.image_url.trim()) {
@@ -753,9 +764,15 @@ export default function AdminProducts() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Price</label>
+                  <label className="block text-sm font-medium text-gray-700">Regular Price</label>
                   <p className="mt-1 text-gray-900">৳{Number(selectedProduct?.base_price || 0).toFixed(2)}</p>
                 </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Offer / Sale Price</label>
+                  <p className="mt-1 font-semibold text-green-700">{viewProductDetails?.sale_price ? `৳${Number(viewProductDetails.sale_price).toFixed(2)}` : 'N/A'}</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700">Category</label>
                   <p className="mt-1 text-gray-900">{selectedProduct?.category_name || 'N/A'}</p>
@@ -876,13 +893,24 @@ export default function AdminProducts() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <FormInput
-                  label="Price"
+                  label="Regular Price"
                   name="base_price"
                   type="number"
                   value={formData.base_price}
                   onChange={handleInputChange}
                   required
+                  placeholder="Required"
                 />
+                <FormInput
+                  label="Offer / Sale Price"
+                  name="sale_price"
+                  type="number"
+                  value={formData.sale_price}
+                  onChange={handleInputChange}
+                  placeholder="Optional"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
                 <FormInput
                   label="Stock Quantity"
                   name="stock_quantity"
@@ -890,8 +918,6 @@ export default function AdminProducts() {
                   value={formData.stock_quantity}
                   onChange={handleInputChange}
                 />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
                 <FormInput
                   label="Display Position"
                   name="display_position"

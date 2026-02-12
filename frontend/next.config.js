@@ -23,6 +23,19 @@ const nextConfig = {
     ],
     domains: ['images.unsplash.com', 'res.cloudinary.com'],
   },
+  // Rewrite: /?cartflows_step=seed-mix  →  /lp/seed-mix (internal)
+  // This makes query-param URLs like shop.trustcart.com.bd/?cartflows_step=seed-mix work
+  async rewrites() {
+    return {
+      beforeFiles: [
+        {
+          source: '/',
+          has: [{ type: 'query', key: 'cartflows_step', value: '(?<slug>.+)' }],
+          destination: '/lp/:slug',
+        },
+      ],
+    };
+  },
   headers: async () => {
     return [
       {

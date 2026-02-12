@@ -7,7 +7,7 @@ import apiClient from '@/services/api';
 import { 
   FaTachometerAlt, FaBoxes, FaShoppingCart, FaUsers, FaWarehouse, 
   FaShoppingBag, FaUserTie, FaBook, FaBullseye, FaHandshake, 
-  FaHeadset, FaUser, FaCog, FaBars, FaTimes, FaBell, FaChevronDown, FaChartBar, FaTags, FaGift, FaPhone, FaMoneyBillWave, FaImage, FaList
+  FaHeadset, FaUser, FaCog, FaBars, FaTimes, FaBell, FaChevronDown, FaChartBar, FaTags, FaGift, FaPhone, FaMoneyBillWave, FaImage, FaList, FaRocket
 } from 'react-icons/fa';
 
 interface MenuItem {
@@ -38,6 +38,15 @@ const menuItems: MenuItem[] = [
     icon: FaImage,
     path: '/admin/banners',
     requiredPermissions: ['manage-system-settings']
+  },
+  {
+    title: 'Landing Pages',
+    icon: FaRocket,
+    requiredPermissions: ['manage-system-settings'],
+    children: [
+      { title: 'All Pages', icon: FaRocket, path: '/admin/landing-pages' },
+      { title: 'Orders', icon: FaShoppingCart, path: '/admin/landing-pages/orders' },
+    ],
   },
   {
     title: 'Sales',
