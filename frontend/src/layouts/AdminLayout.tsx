@@ -42,11 +42,9 @@ const menuItems: MenuItem[] = [
   {
     title: 'Landing Pages',
     icon: FaRocket,
+    path: '/admin/landing-pages',
     requiredPermissions: ['manage-system-settings'],
-    children: [
-      { title: 'All Pages', icon: FaRocket, path: '/admin/landing-pages' },
-      { title: 'Orders', icon: FaShoppingCart, path: '/admin/landing-pages/orders' },
-    ],
+    // Orders now go to Sales -> Orders module
   },
   {
     title: 'Sales',
