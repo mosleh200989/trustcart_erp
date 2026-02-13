@@ -171,7 +171,7 @@ export default function LandingPagesIndex() {
                     <td className="px-4 py-3">
                       <div className="space-y-1">
                         <code className="text-xs bg-gray-100 px-2 py-1 rounded text-blue-600 block">
-                          /?cartflows_step={page.slug}
+                          /products/{page.slug}/?landing_page={page.slug}
                         </code>
                         <code className="text-xs bg-gray-50 px-2 py-1 rounded text-gray-500 block">
                           /lp/{page.slug}
@@ -207,7 +207,7 @@ export default function LandingPagesIndex() {
                           <FaEdit />
                         </Link>
                         <a
-                          href={`/?cartflows_step=${page.slug}`}
+                          href={`/products/${page.slug}/?landing_page=${page.slug}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-green-600 hover:text-green-800 p-1"
@@ -257,15 +257,18 @@ export default function LandingPagesIndex() {
 
         {/* URL Pattern Guide */}
         <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <h3 className="font-semibold text-blue-800 mb-2">📌 URL Pattern</h3>
+          <h3 className="font-semibold text-blue-800 mb-2">📌 URL Patterns</h3>
           <p className="text-sm text-blue-700">
-            Primary URL: <code className="bg-blue-100 px-1 rounded">shop.trustcart.com.bd/?cartflows_step=&#123;slug&#125;</code>
+            Primary URL: <code className="bg-blue-100 px-1 rounded">trustcart.com.bd/products/&#123;slug&#125;/?landing_page=&#123;slug&#125;</code>
           </p>
           <p className="text-sm text-blue-600 mt-1">
-            Also works: <code className="bg-blue-100 px-1 rounded">shop.trustcart.com.bd/lp/&#123;slug&#125;</code>
+            Short URL: <code className="bg-blue-100 px-1 rounded">trustcart.com.bd/?landing_page=&#123;slug&#125;</code>
+          </p>
+          <p className="text-sm text-blue-600 mt-1">
+            Direct: <code className="bg-blue-100 px-1 rounded">trustcart.com.bd/lp/&#123;slug&#125;</code>
           </p>
           <p className="text-sm text-blue-500 mt-1">
-            Example: <code className="bg-blue-100 px-1 rounded">shop.trustcart.com.bd/?cartflows_step=seed-mix</code>
+            Example: <code className="bg-blue-100 px-1 rounded">trustcart.com.bd/products/seed-mix/?landing_page=seed-mix</code>
           </p>
         </div>
       </div>

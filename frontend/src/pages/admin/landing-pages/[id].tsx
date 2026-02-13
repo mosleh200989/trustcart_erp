@@ -300,7 +300,7 @@ export default function LandingPageEditor() {
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">URL Slug *</label>
           <div className="flex items-center">
-            <span className="bg-gray-100 border border-r-0 rounded-l-lg px-3 py-2 text-sm text-gray-500">/lp/</span>
+            <span className="bg-gray-100 border border-r-0 rounded-l-lg px-3 py-2 text-sm text-gray-500">/products/</span>
             <input
               type="text"
               value={form.slug}
@@ -875,7 +875,7 @@ export default function LandingPageEditor() {
           <div className="flex items-center gap-3">
             {isEditing && form.slug && (
               <a
-                href={`/?cartflows_step=${form.slug}`}
+                href={`/products/${form.slug}/?landing_page=${form.slug}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="border border-gray-300 text-gray-700 px-3 py-2 rounded-lg text-sm flex items-center gap-1 hover:bg-gray-50"
