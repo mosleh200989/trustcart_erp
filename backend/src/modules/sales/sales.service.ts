@@ -410,7 +410,8 @@ export class SalesService {
       const orderItems = mergedItems.map((item: any) => {
         const orderItem = new SalesOrderItem();
         orderItem.salesOrderId = savedOrder.id;
-        orderItem.productId = Number(item.product_id || item.productId);
+        const rawProductId = Number(item.product_id || item.productId);
+        orderItem.productId = Number.isFinite(rawProductId) && rawProductId > 0 ? rawProductId : null;
         orderItem.quantity = Number(item.quantity || 1);
         orderItem.unitPrice = Number(item.unit_price || item.unitPrice || item.price || 0);
         orderItem.lineTotal = orderItem.quantity * orderItem.unitPrice;

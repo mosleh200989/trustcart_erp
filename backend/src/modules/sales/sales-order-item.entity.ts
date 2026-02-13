@@ -9,8 +9,8 @@ export class SalesOrderItem {
   @Column({ name: 'sales_order_id', type: 'int' })
   salesOrderId!: number;
 
-  @Column({ name: 'product_id', type: 'int' })
-  productId!: number;
+  @Column({ name: 'product_id', type: 'int', nullable: true })
+  productId!: number | null;
 
   @Column({ type: 'decimal', precision: 12, scale: 2 })
   quantity!: number;
