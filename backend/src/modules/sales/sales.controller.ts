@@ -68,7 +68,30 @@ export class SalesController {
 
   @Get()
   @RequirePermissions('view-sales-orders')
-  async findAll() {
+  async findAll(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('q') q?: string,
+    @Query('status') status?: string,
+    @Query('courierStatus') courierStatus?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('todayOnly') todayOnly?: string,
+  ) {
+    // If pagination params are provided, use the paginated method
+    if (page || limit || q || status || courierStatus || startDate || endDate || todayOnly) {
+      return this.salesService.findAllPaginated({
+        page: page ? parseInt(page, 10) : 1,
+        limit: limit ? parseInt(limit, 10) : 10,
+        q: q || '',
+        status: status || '',
+        courierStatus: courierStatus || '',
+        startDate: startDate || '',
+        endDate: endDate || '',
+        todayOnly: todayOnly === 'true',
+      });
+    }
+    // Fallback for backwards compatibility (no params = return all)
     return this.salesService.findAll();
   }
 

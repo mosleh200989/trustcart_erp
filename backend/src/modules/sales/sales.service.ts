@@ -90,6 +90,89 @@ export class SalesService {
     return orders.map((order) => this.toAdminListDto(order));
   }
 
+  async findAllPaginated(params: {
+    page?: number;
+    limit?: number;
+    q?: string;
+    status?: string;
+    courierStatus?: string;
+    startDate?: string;
+    endDate?: string;
+    todayOnly?: boolean;
+  }) {
+    const page = Math.max(1, params.page || 1);
+    const limit = Math.min(100, Math.max(1, params.limit || 10));
+    const skip = (page - 1) * limit;
+
+    const qb = this.salesRepository.createQueryBuilder('o');
+
+    // Global text search
+    if (params.q && params.q.trim()) {
+      const q = `%${params.q.trim().toLowerCase()}%`;
+      qb.andWhere(
+        '(CAST(o.id AS TEXT) ILIKE :q ' +
+        'OR o.sales_order_number ILIKE :q ' +
+        'OR o.customer_name ILIKE :q ' +
+        'OR o.customer_phone ILIKE :q ' +
+        'OR o.courier_company ILIKE :q ' +
+        'OR CAST(o.courier_order_id AS TEXT) ILIKE :q ' +
+        'OR o.shipping_address ILIKE :q)',
+        { q },
+      );
+    }
+
+    // Status filter
+    if (params.status && params.status.trim()) {
+      qb.andWhere('LOWER(o.status) = LOWER(:status)', { status: params.status.trim() });
+    }
+
+    // Courier status filter
+    if (params.courierStatus && params.courierStatus.trim()) {
+      qb.andWhere('LOWER(o.courier_status) = LOWER(:courierStatus)', {
+        courierStatus: params.courierStatus.trim(),
+      });
+    }
+
+    // Today only
+    if (params.todayOnly) {
+      qb.andWhere('DATE(o.order_date) = CURRENT_DATE');
+    } else {
+      // Date range filters
+      if (params.startDate) {
+        qb.andWhere('DATE(o.order_date) >= :startDate', { startDate: params.startDate });
+      }
+      if (params.endDate) {
+        qb.andWhere('DATE(o.order_date) <= :endDate', { endDate: params.endDate });
+      }
+    }
+
+    qb.orderBy('o.created_at', 'DESC');
+    qb.skip(skip).take(limit);
+
+    const [orders, total] = await qb.getManyAndCount();
+
+    // Also fetch distinct courier statuses for the filter dropdown
+    const courierStatusesRaw = await this.salesRepository
+      .createQueryBuilder('o')
+      .select('DISTINCT o.courier_status', 'cs')
+      .where('o.courier_status IS NOT NULL')
+      .andWhere("o.courier_status != ''")
+      .getRawMany();
+    const courierStatuses = courierStatusesRaw
+      .map((r: any) => (r.cs ?? '').toString().trim())
+      .filter(Boolean)
+      .sort();
+
+    return {
+      data: orders.map((order) => this.toAdminListDto(order)),
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+      courierStatuses,
+    };
+  }
+
   async findLateDeliveries(params?: { thresholdDays?: number }) {
     const thresholdDays =
       params?.thresholdDays != null && Number.isFinite(params.thresholdDays)
