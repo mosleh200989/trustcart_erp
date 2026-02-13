@@ -23,11 +23,27 @@ const nextConfig = {
     ],
     domains: ['images.unsplash.com', 'res.cloudinary.com'],
   },
-  // Rewrite: /?cartflows_step=seed-mix  →  /lp/seed-mix (internal)
-  // This makes query-param URLs like shop.trustcart.com.bd/?cartflows_step=seed-mix work
+  // Rewrites for landing pages:
+  // 1. trustcart.com.bd/products/seed-mix/?landing_page=seed-mix  →  /lp/seed-mix
+  // 2. trustcart.com.bd/products/?landing_page=seed-mix            →  /lp/seed-mix
+  // 3. trustcart.com.bd/?landing_page=seed-mix                     →  /lp/seed-mix
+  // 4. (legacy) trustcart.com.bd/?cartflows_step=seed-mix          →  /lp/seed-mix
   async rewrites() {
     return {
       beforeFiles: [
+        // /products/anything/?landing_page=slug  → /lp/slug
+        {
+          source: '/products/:path*',
+          has: [{ type: 'query', key: 'landing_page', value: '(?<slug>.+)' }],
+          destination: '/lp/:slug',
+        },
+        // /?landing_page=slug  → /lp/slug
+        {
+          source: '/',
+          has: [{ type: 'query', key: 'landing_page', value: '(?<slug>.+)' }],
+          destination: '/lp/:slug',
+        },
+        // Legacy: /?cartflows_step=slug  → /lp/slug
         {
           source: '/',
           has: [{ type: 'query', key: 'cartflows_step', value: '(?<slug>.+)' }],

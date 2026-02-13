@@ -61,8 +61,8 @@ interface OrderItem {
 
 export default function LandingPagePublic() {
   const router = useRouter();
-  // Support both /lp/[slug] path param AND /?cartflows_step=slug query param (via Next.js rewrite)
-  const slug = router.query.slug || router.query.cartflows_step;
+  // Support /lp/[slug], /?landing_page=slug, /?cartflows_step=slug, /products/x/?landing_page=slug
+  const slug = router.query.slug || router.query.landing_page || router.query.cartflows_step;
   const orderFormRef = useRef<HTMLDivElement>(null);
 
   const [page, setPage] = useState<LandingPageData | null>(null);
@@ -242,10 +242,10 @@ export default function LandingPagePublic() {
 
                 {page.free_delivery && (
                   <div className="flex justify-center md:justify-start mb-6">
-                    <div className="inline-flex items-center gap-2 bg-white/20 backdrop-blur px-4 py-2 rounded-full">
-                      <FaTruck style={{ color: page.secondary_color }} />
-                      <span className="font-semibold" style={{ color: page.secondary_color }}>
-                        হোম ডেলিভেরি চার্জ সম্পূর্ণ ফ্রি
+                    <div className="inline-flex items-center gap-3 bg-yellow-400 text-gray-900 px-6 py-3 rounded-full shadow-lg animate-pulse">
+                      <FaTruck className="text-2xl" />
+                      <span className="font-extrabold text-lg tracking-wide">
+                        🚚 হোম ডেলিভেরি চার্জ সম্পূর্ণ ফ্রি!
                       </span>
                     </div>
                   </div>
@@ -255,14 +255,14 @@ export default function LandingPagePublic() {
                   <div className="flex justify-center md:justify-start">
                     <button
                       onClick={scrollToOrderForm}
-                      className="px-8 py-4 rounded-full text-lg font-bold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all"
+                      className="px-10 py-3.5 rounded-full text-2xl md:text-3xl font-extrabold shadow-2xl hover:shadow-xl transform hover:scale-105 transition-all ring-4 ring-white/30"
                       style={{
-                        backgroundColor: page.secondary_color,
-                        color: page.primary_color,
+                        backgroundColor: '#FFD700',
+                        color: '#1a1a2e',
                       }}
-                  >
-                    {page.hero_button_text}
-                  </button>
+                    >
+                      🛒 {page.hero_button_text}
+                    </button>
                   </div>
                 )}
               </div>
@@ -490,12 +490,17 @@ export default function LandingPagePublic() {
                                   <div className="text-sm text-gray-500">{product.description}</div>
                                 )}
                                 <div className="flex items-center gap-2 mt-1">
-                                  <span className="text-lg font-bold" style={{ color: page.primary_color }}>
+                                  {product.compare_price && product.compare_price > product.price && (
+                                    <span className="text-sm line-through font-medium" style={{ color: '#ef4444' }}>
+                                      {product.compare_price.toLocaleString()} ৳
+                                    </span>
+                                  )}
+                                  <span className="text-xl font-extrabold px-2 py-0.5 rounded" style={{ color: '#FFFFFF', backgroundColor: page.primary_color }}>
                                     {product.price.toLocaleString()} ৳
                                   </span>
                                   {product.compare_price && product.compare_price > product.price && (
-                                    <span className="text-sm text-gray-400 line-through">
-                                      {product.compare_price.toLocaleString()} ৳
+                                    <span className="text-xs font-bold text-green-600 bg-green-100 px-2 py-0.5 rounded-full">
+                                      {Math.round(((product.compare_price - product.price) / product.compare_price) * 100)}% OFF
                                     </span>
                                   )}
                                 </div>
@@ -618,11 +623,11 @@ export default function LandingPagePublic() {
                     <button
                       onClick={handleSubmitOrder}
                       disabled={submitting || orderItems.length === 0}
-                      className="w-full py-4 rounded-xl text-lg font-bold text-white shadow-lg hover:shadow-xl transition-all disabled:opacity-50"
+                      className="w-full py-5 rounded-xl text-xl font-extrabold text-white shadow-2xl hover:shadow-xl transition-all disabled:opacity-50 transform hover:scale-[1.02]"
                       style={{ backgroundColor: page.primary_color }}
                     >
-                      <FaShoppingCart className="inline mr-2" />
-                      {submitting ? 'Processing...' : `Place Order  ${getTotal().toLocaleString()} ৳`}
+                      <FaShoppingCart className="inline mr-2 text-xl" />
+                      {submitting ? 'Processing...' : `অর্ডার কনফার্ম করুন — ${getTotal().toLocaleString()} ৳`}
                     </button>
                   </div>
                 </>
