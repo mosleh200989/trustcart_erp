@@ -123,13 +123,7 @@ export default function LandingPagePublic() {
   };
 
   const toggleProduct = (product: LandingPageProduct) => {
-    setOrderItems((prev) => {
-      const exists = prev.find((i) => i.product.id === product.id);
-      if (exists) {
-        return prev.filter((i) => i.product.id !== product.id);
-      }
-      return [...prev, { product, quantity: 1 }];
-    });
+    setOrderItems([{ product, quantity: 1 }]);
   };
 
   const getSubtotal = () => {
