@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
 import apiClient from '@/services/api';
+import PhoneInput from '@/components/PhoneInput';
 import { FaPhone, FaWhatsapp, FaShoppingCart, FaMinus, FaPlus, FaCheckCircle, FaTruck } from 'react-icons/fa';
 
 interface LandingPageSection {
@@ -75,7 +76,6 @@ export default function LandingPagePublic() {
     name: '',
     phone: '',
     address: '',
-    district: 'Dhaka',
     note: '',
   });
   const [submitting, setSubmitting] = useState(false);
@@ -144,26 +144,38 @@ export default function LandingPagePublic() {
     try {
       setSubmitting(true);
       if (page) {
+        const subtotal = getTotal();
+        const deliveryCharge = page.free_delivery ? 0 : (subtotal >= 500 ? 0 : 60);
+        const total = subtotal + deliveryCharge;
+
+        // Submit to the main Sales module — same as checkout
         const orderPayload = {
-          landing_page_id: page.id,
-          landing_page_title: page.title,
-          landing_page_slug: page.slug,
           customer_name: orderForm.name,
           customer_phone: orderForm.phone,
-          customer_address: orderForm.address,
-          district: orderForm.district || '',
-          note: orderForm.note || '',
+          shipping_address: orderForm.address,
+          notes: `[Landing Page: ${page.title}] ${orderForm.note || ''}`.trim(),
+          payment_method: 'cash',
           items: orderItems.map((item) => ({
-            product_id: item.product.id,
-            name: item.product.name,
-            price: item.product.price,
+            product_id: null,
+            product_name: item.product.name,
             quantity: item.quantity,
-            subtotal: item.product.price * item.quantity,
+            unit_price: item.product.price,
+            total_price: item.product.price * item.quantity,
           })),
-          total_amount: getTotal(),
-          payment_method: 'cod',
+          subtotal,
+          delivery_charge: deliveryCharge,
+          total_amount: total,
+          status: 'pending',
+          traffic_source: 'landing_page',
+          referrer_url: window.location.href,
+          utm_source: page.slug,
+          utm_medium: 'landing_page',
+          utm_campaign: page.title,
         };
-        await apiClient.post('/landing-pages/orders/submit', orderPayload);
+        await apiClient.post('/sales', orderPayload);
+
+        // Also increment the landing page order counter
+        apiClient.post(`/landing-pages/${page.id}/increment-order`).catch(() => {});
       }
       setSubmitted(true);
     } catch (err) {
@@ -471,57 +483,57 @@ export default function LandingPagePublic() {
                         return (
                           <div
                             key={product.id}
-                            className={`border-2 rounded-xl p-4 cursor-pointer transition-all ${
+                            className={`border-2 rounded-xl p-3 sm:p-4 cursor-pointer transition-all ${
                               isSelected ? 'border-green-500 bg-green-50' : 'border-gray-200 hover:border-gray-300'
                             }`}
                             onClick={() => toggleProduct(product)}
                           >
-                            <div className="flex items-center gap-4">
+                            <div className="flex items-start gap-3 sm:gap-4">
                               {product.image_url && (
                                 <img
                                   src={product.image_url}
                                   alt={product.name}
-                                  className="w-16 h-16 object-cover rounded-lg"
+                                  className="w-14 h-14 sm:w-16 sm:h-16 object-cover rounded-lg flex-shrink-0"
                                 />
                               )}
-                              <div className="flex-1">
-                                <div className="font-semibold text-gray-800">{product.name}</div>
+                              <div className="flex-1 min-w-0">
+                                <div className="font-semibold text-gray-800 text-sm sm:text-base leading-tight">{product.name}</div>
                                 {product.description && (
-                                  <div className="text-sm text-gray-500">{product.description}</div>
+                                  <div className="text-xs sm:text-sm text-gray-500 mt-0.5 leading-tight">{product.description}</div>
                                 )}
-                                <div className="flex items-center gap-2 mt-1">
+                                <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mt-1">
                                   {product.compare_price && product.compare_price > product.price && (
-                                    <span className="text-sm line-through font-medium" style={{ color: '#ef4444' }}>
+                                    <span className="text-xs sm:text-sm line-through font-medium" style={{ color: '#ef4444' }}>
                                       {product.compare_price.toLocaleString()} ৳
                                     </span>
                                   )}
-                                  <span className="text-xl font-extrabold px-2 py-0.5 rounded" style={{ color: '#FFFFFF', backgroundColor: page.primary_color }}>
+                                  <span className="text-base sm:text-xl font-extrabold px-2 py-0.5 rounded" style={{ color: '#FFFFFF', backgroundColor: page.primary_color }}>
                                     {product.price.toLocaleString()} ৳
                                   </span>
                                   {product.compare_price && product.compare_price > product.price && (
-                                    <span className="text-xs font-bold text-green-600 bg-green-100 px-2 py-0.5 rounded-full">
+                                    <span className="text-[10px] sm:text-xs font-bold text-green-600 bg-green-100 px-1.5 sm:px-2 py-0.5 rounded-full">
                                       {Math.round(((product.compare_price - product.price) / product.compare_price) * 100)}% OFF
                                     </span>
                                   )}
                                 </div>
+                                {isSelected && (
+                                  <div className="flex items-center gap-3 mt-2" onClick={(e) => e.stopPropagation()}>
+                                    <button
+                                      onClick={() => updateQuantity(product.id, -1)}
+                                      className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center hover:bg-gray-300"
+                                    >
+                                      <FaMinus className="text-xs" />
+                                    </button>
+                                    <span className="w-8 text-center font-semibold">{orderItem!.quantity}</span>
+                                    <button
+                                      onClick={() => updateQuantity(product.id, 1)}
+                                      className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center hover:bg-gray-300"
+                                    >
+                                      <FaPlus className="text-xs" />
+                                    </button>
+                                  </div>
+                                )}
                               </div>
-                              {isSelected && (
-                                <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                                  <button
-                                    onClick={() => updateQuantity(product.id, -1)}
-                                    className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center hover:bg-gray-300"
-                                  >
-                                    <FaMinus className="text-xs" />
-                                  </button>
-                                  <span className="w-8 text-center font-semibold">{orderItem!.quantity}</span>
-                                  <button
-                                    onClick={() => updateQuantity(product.id, 1)}
-                                    className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center hover:bg-gray-300"
-                                  >
-                                    <FaPlus className="text-xs" />
-                                  </button>
-                                </div>
-                              )}
                             </div>
                           </div>
                         );
@@ -553,29 +565,11 @@ export default function LandingPagePublic() {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-600 mb-1">District</label>
-                      <select
-                        value={orderForm.district}
-                        onChange={(e) => setOrderForm((prev) => ({ ...prev, district: e.target.value }))}
-                        className="w-full border rounded-lg px-4 py-3"
-                      >
-                        <option>Dhaka</option>
-                        <option>Chattogram</option>
-                        <option>Rajshahi</option>
-                        <option>Khulna</option>
-                        <option>Barishal</option>
-                        <option>Sylhet</option>
-                        <option>Rangpur</option>
-                        <option>Mymensingh</option>
-                      </select>
-                    </div>
-                    <div>
                       <label className="block text-sm font-medium text-gray-600 mb-1">মোবাইল *</label>
-                      <input
-                        type="tel"
+                      <PhoneInput
                         value={orderForm.phone}
-                        onChange={(e) => setOrderForm((prev) => ({ ...prev, phone: e.target.value }))}
-                        className="w-full border rounded-lg px-4 py-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                        onChange={(val) => setOrderForm((prev) => ({ ...prev, phone: val }))}
+                        required
                         placeholder="01XXXXXXXXX"
                       />
                     </div>

@@ -94,15 +94,16 @@ export class LandingPagesController {
     return this.landingPagesService.duplicate(id);
   }
 
-  // ─── Order endpoints (Public) ───
+  // ─── Order endpoints — COMMENTED OUT ───
+  // Landing page orders now go through Sales module (POST /sales)
+  // Keeping these commented for reference.
 
+  /*
   @Post('orders/submit')
   @Public()
   async submitOrder(@Body() data: Partial<LandingPageOrder>): Promise<LandingPageOrder> {
     return this.landingPagesService.createOrder(data);
   }
-
-  // ─── Order endpoints (Admin) ───
 
   @Get('orders/all')
   @RequirePermissions('manage-system-settings')
@@ -144,6 +145,7 @@ export class LandingPagesController {
   async deleteOrder(@Param('orderId') orderId: number): Promise<void> {
     return this.landingPagesService.deleteOrder(orderId);
   }
+  */
 
   @Post(':id/increment-order')
   @Public()
