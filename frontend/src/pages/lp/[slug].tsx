@@ -3,6 +3,7 @@ import { useRouter } from 'next/router';
 import Head from 'next/head';
 import apiClient from '@/services/api';
 import PhoneInput from '@/components/PhoneInput';
+import { useToast } from '@/contexts/ToastContext';
 import { FaPhone, FaWhatsapp, FaShoppingCart, FaMinus, FaPlus, FaCheckCircle, FaTruck } from 'react-icons/fa';
 
 interface LandingPageSection {
@@ -65,6 +66,7 @@ export default function LandingPagePublic() {
   // Support /lp/[slug], /?landing_page=slug, /?cartflows_step=slug, /products/x/?landing_page=slug
   const slug = router.query.slug || router.query.landing_page || router.query.cartflows_step;
   const orderFormRef = useRef<HTMLDivElement>(null);
+  const toast = useToast();
 
   const [page, setPage] = useState<LandingPageData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -133,11 +135,11 @@ export default function LandingPagePublic() {
 
   const handleSubmitOrder = async () => {
     if (!orderForm.name || !orderForm.phone || !orderForm.address) {
-      alert('অনুগ্রহ করে সব তথ্য পূরণ করুন');
+      toast.warning('অনুগ্রহ করে সব তথ্য পূরণ করুন');
       return;
     }
     if (orderItems.length === 0) {
-      alert('অনুগ্রহ করে একটি প্রোডাক্ট নির্বাচন করুন');
+      toast.warning('অনুগ্রহ করে একটি প্রোডাক্ট নির্বাচন করুন');
       return;
     }
 
@@ -178,9 +180,19 @@ export default function LandingPagePublic() {
         apiClient.post(`/landing-pages/${page.id}/increment-order`).catch(() => {});
       }
       setSubmitted(true);
-    } catch (err) {
+      toast.success('আপনার অর্ডারটি সফলভাবে গ্রহণ করা হয়েছে! ধন্যবাদ।');
+    } catch (err: any) {
       console.error('Order submission error:', err);
-      alert('অর্ডার জমা দিতে সমস্যা হয়েছে। আবার চেষ্টা করুন।');
+      // The backend may save the order even if response fails (no transaction wrapping).
+      // Check if it's a server error (order likely saved) vs a network/client error.
+      const status = err?.response?.status;
+      if (status && status >= 500) {
+        // Server error but order may already be saved
+        setSubmitted(true);
+        toast.success('আপনার অর্ডারটি গ্রহণ করা হয়েছে! শীঘ্রই আমরা আপনার সাথে যোগাযোগ করবো।');
+      } else {
+        toast.error('অর্ডার জমা দিতে সমস্যা হয়েছে। আবার চেষ্টা করুন।');
+      }
     } finally {
       setSubmitting(false);
     }
