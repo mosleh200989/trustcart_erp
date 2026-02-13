@@ -53,6 +53,8 @@ interface LandingPageData {
   show_order_form: boolean;
   cash_on_delivery: boolean;
   free_delivery: boolean;
+  delivery_charge: number;
+  delivery_charge_outside: number;
   delivery_note: string;
 }
 
@@ -80,6 +82,7 @@ export default function LandingPagePublic() {
     address: '',
     note: '',
   });
+  const [deliveryZone, setDeliveryZone] = useState<'inside' | 'outside'>('outside');
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
@@ -129,8 +132,20 @@ export default function LandingPagePublic() {
     });
   };
 
-  const getTotal = () => {
+  const getSubtotal = () => {
     return orderItems.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
+  };
+
+  const getDeliveryCharge = () => {
+    if (!page) return 0;
+    if (page.free_delivery) return 0;
+    return deliveryZone === 'inside'
+      ? Number(page.delivery_charge || 0)
+      : Number(page.delivery_charge_outside || 0);
+  };
+
+  const getTotal = () => {
+    return getSubtotal() + getDeliveryCharge();
   };
 
   const handleSubmitOrder = async () => {
@@ -146,8 +161,8 @@ export default function LandingPagePublic() {
     try {
       setSubmitting(true);
       if (page) {
-        const subtotal = getTotal();
-        const deliveryCharge = page.free_delivery ? 0 : (subtotal >= 500 ? 0 : 60);
+        const subtotal = getSubtotal();
+        const deliveryCharge = getDeliveryCharge();
         const total = subtotal + deliveryCharge;
 
         // Submit to the main Sales module — same as checkout
@@ -611,12 +626,80 @@ export default function LandingPagePublic() {
                         </div>
                       ))}
                     </div>
-                    {page.free_delivery && (
-                      <div className="flex justify-between text-sm text-green-600 mb-2">
-                        <span>Delivery</span>
-                        <span className="font-medium">Free</span>
+
+                    {/* Delivery Zone Selector */}
+                    {!page.free_delivery && (Number(page.delivery_charge) > 0 || Number(page.delivery_charge_outside) > 0) && (
+                      <div className="mb-3">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">ডেলিভারি এলাকা নির্বাচন করুন</label>
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setDeliveryZone('inside')}
+                            className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium border-2 transition-all ${
+                              deliveryZone === 'inside'
+                                ? 'border-green-500 bg-green-50 text-green-700'
+                                : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
+                            }`}
+                          >
+                            ঢাকার ভিতরে
+                            <div className="text-xs mt-0.5">
+                              {Number(page.delivery_charge) === 0 ? (
+                                <span className="text-green-600 font-semibold">ফ্রি</span>
+                              ) : (
+                                <span>{Number(page.delivery_charge).toLocaleString()} ৳</span>
+                              )}
+                            </div>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setDeliveryZone('outside')}
+                            className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium border-2 transition-all ${
+                              deliveryZone === 'outside'
+                                ? 'border-green-500 bg-green-50 text-green-700'
+                                : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
+                            }`}
+                          >
+                            ঢাকার বাইরে
+                            <div className="text-xs mt-0.5">
+                              {Number(page.delivery_charge_outside) === 0 ? (
+                                <span className="text-green-600 font-semibold">ফ্রি</span>
+                              ) : (
+                                <span>{Number(page.delivery_charge_outside).toLocaleString()} ৳</span>
+                              )}
+                            </div>
+                          </button>
+                        </div>
                       </div>
                     )}
+
+                    {/* Delivery Charge Line */}
+                    <div className="flex justify-between text-sm mb-2">
+                      <span className="text-gray-600">ডেলিভারি চার্জ</span>
+                      {page.free_delivery || getDeliveryCharge() === 0 ? (
+                        <span className="font-semibold text-green-600">ফ্রি</span>
+                      ) : (
+                        <span className="font-medium">{getDeliveryCharge().toLocaleString()} ৳</span>
+                      )}
+                    </div>
+
+                    {/* Subtotal */}
+                    <div className="flex justify-between text-sm border-t pt-2 mb-2">
+                      <span className="text-gray-600">সাবটোটাল</span>
+                      <span className="font-medium">{getSubtotal().toLocaleString()} ৳</span>
+                    </div>
+
+                    {/* Total */}
+                    <div className="flex justify-between text-base font-bold border-t pt-2 mb-3">
+                      <span>সর্বমোট</span>
+                      <span style={{ color: page.primary_color }}>{getTotal().toLocaleString()} ৳</span>
+                    </div>
+
+                    {page.delivery_note && (
+                      <div className="text-xs text-green-600 bg-green-50 rounded-lg px-3 py-2 mb-3 flex items-center gap-1">
+                        <FaTruck className="flex-shrink-0" /> {page.delivery_note}
+                      </div>
+                    )}
+
                     {page.cash_on_delivery && (
                       <div className="flex items-center gap-2 text-sm text-gray-600 mb-3">
                         <input type="radio" checked readOnly />

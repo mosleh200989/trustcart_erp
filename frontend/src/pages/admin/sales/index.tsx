@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import AdminLayout from '@/layouts/AdminLayout';
 import DataTable from '@/components/admin/DataTable';
 import PageSizeSelector from '@/components/admin/PageSizeSelector';
@@ -111,6 +111,9 @@ export default function AdminSales() {
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState(INITIAL_FILTERS);
   const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const [courierStatusOptions, setCourierStatusOptions] = useState<string[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<'add' | 'edit' | 'view'>('add');
   const [selectedOrder, setSelectedOrder] = useState<SalesOrder | null>(null);
@@ -149,21 +152,59 @@ export default function AdminSales() {
     utm_campaign: ''
   });
 
-  useEffect(() => {
-    loadOrders();
-  }, []);
-
-  const loadOrders = async () => {
+  const loadOrders = async (page?: number, pageSize?: number, filterOverrides?: typeof filters) => {
+    setLoading(true);
     try {
-      const response = await apiClient.get('/sales');
-      setOrders(Array.isArray(response.data) ? response.data : []);
+      const p = page ?? currentPage;
+      const ps = pageSize ?? itemsPerPage;
+      const f = filterOverrides ?? filters;
+      const params: Record<string, string> = {
+        page: String(p),
+        limit: String(ps),
+      };
+      if (f.q.trim()) params.q = f.q.trim();
+      if (f.status) params.status = f.status;
+      if (f.courierStatus) params.courierStatus = f.courierStatus;
+      if (f.startDate) params.startDate = f.startDate;
+      if (f.endDate) params.endDate = f.endDate;
+      if (f.todayOnly) params.todayOnly = 'true';
+
+      const response = await apiClient.get('/sales', { params });
+      const body = response.data;
+      if (body && Array.isArray(body.data)) {
+        setOrders(body.data);
+        setTotalPages(body.totalPages ?? 1);
+        setTotalCount(body.total ?? 0);
+        if (Array.isArray(body.courierStatuses)) {
+          setCourierStatusOptions(body.courierStatuses);
+        }
+      } else if (Array.isArray(body)) {
+        // Fallback for non-paginated response
+        setOrders(body);
+        setTotalPages(Math.ceil(body.length / ps));
+        setTotalCount(body.length);
+      } else {
+        setOrders([]);
+        setTotalPages(1);
+        setTotalCount(0);
+      }
     } catch (error) {
       console.error('Failed to load orders:', error);
       setOrders([]);
+      setTotalPages(1);
+      setTotalCount(0);
     } finally {
       setLoading(false);
     }
   };
+
+  // Load orders whenever page, pageSize, or filters change (debounced for text search)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      loadOrders(currentPage, itemsPerPage, filters);
+    }, filters.q.trim() ? 400 : 0);
+    return () => clearTimeout(timer);
+  }, [currentPage, itemsPerPage, filters]);
 
   const handleAdd = () => {
     setModalMode('add');
@@ -254,8 +295,8 @@ export default function AdminSales() {
 
     try {
       await apiClient.delete(`/sales/${order.id}`);
-      setOrders(orders.filter(o => o.id !== order.id));
       toast.success('Order deleted successfully');
+      loadOrders();
     } catch (error) {
       toast.error('Failed to delete order');
     }
@@ -428,10 +469,12 @@ export default function AdminSales() {
     const name = target.name;
     const value = target.type === 'checkbox' ? target.checked : target.value;
     setFilters((prev) => ({ ...prev, [name]: value }));
+    setCurrentPage(1);
   };
 
   const resetFilters = () => {
     setFilters(INITIAL_FILTERS);
+    setCurrentPage(1);
   };
 
   const activeFilterCount = Object.values(filters).filter((v) => {
@@ -439,109 +482,7 @@ export default function AdminSales() {
     return String(v).trim() !== '';
   }).length;
 
-  const filteredOrders = useMemo(() => {
-    const normalize = (v: any) => (v ?? '').toString().toLowerCase().trim();
-    const dateKey = (v: any): string => {
-      if (!v) return '';
-      if (v instanceof Date && !Number.isNaN(v.getTime())) return v.toISOString().slice(0, 10);
-      const s = String(v);
-      // Most API timestamps will be ISO strings; date input is YYYY-MM-DD
-      if (s.length >= 10) return s.slice(0, 10);
-      const d = new Date(v);
-      if (Number.isNaN(d.getTime())) return '';
-      return d.toISOString().slice(0, 10);
-    };
-    const inDateRange = (field: any, from: string, to: string) => {
-      const fromKey = dateKey(from);
-      const toKey = dateKey(to);
-      if (!fromKey && !toKey) return true;
-
-      const valueKey = dateKey(field);
-      if (!valueKey) return false;
-
-      const fromOk = fromKey ? valueKey >= fromKey : true;
-      const toOk = toKey ? valueKey <= toKey : true;
-      return fromOk && toOk;
-    };
-
-    return orders.filter((o) => {
-      const orderNumber = o.salesOrderNumber ?? o.sales_order_number ?? o.order_number ?? '';
-      const customerName = o.customerName ?? o.customer_name ?? '';
-      const customerPhone = o.customerPhone ?? o.customer_phone ?? '';
-      const orderDate = o.orderDate ?? o.order_date ?? null;
-
-      const courierCompany = o.courierCompany ?? o.courier_company ?? '';
-      const courierOrderId = o.courierOrderId ?? o.courier_order_id ?? '';
-      const courierStatus = o.courierStatus ?? o.courier_status ?? '';
-
-      const district =
-        (o as any).district ??
-        (o as any).shippingDistrict ??
-        (o as any).shipping_district ??
-        '';
-      const thana =
-        (o as any).thana ??
-        (o as any).shippingThana ??
-        (o as any).shipping_thana ??
-        '';
-
-      const shippingAddress =
-        (o as any).shippingAddress ??
-        (o as any).shipping_address ??
-        '';
-
-      // Global search
-      const q = normalize(filters.q);
-      if (q) {
-        const haystack = [
-          o.id,
-          orderNumber,
-          customerName,
-          customerPhone,
-          courierCompany,
-          courierOrderId,
-          district,
-          thana,
-          shippingAddress,
-        ]
-          .map((v) => normalize(v))
-          .join(' ');
-        if (!haystack.includes(q)) return false;
-      }
-
-      if ((filters as any).todayOnly) {
-        const todayKey = new Date().toISOString().slice(0, 10);
-        if (dateKey(orderDate) !== todayKey) return false;
-      }
-
-      if (filters.status && normalize(o.status) !== normalize(filters.status)) return false;
-      if (filters.courierStatus && normalize(courierStatus) !== normalize(filters.courierStatus)) return false;
-
-      if (!inDateRange(orderDate, filters.startDate, filters.endDate)) return false;
-
-      return true;
-    });
-  }, [orders, filters]);
-
-  const courierStatusOptions = useMemo(() => {
-    const set = new Set(
-      orders
-        .map((o) => (o.courierStatus ?? o.courier_status ?? '').toString().trim())
-        .filter(Boolean),
-    );
-    return Array.from(set.values()).sort((a, b) => a.localeCompare(b));
-  }, [orders]);
-
-  useEffect(() => {
-    setCurrentPage(1);
-    setSelectedRowIds([]);
-  }, [filters]);
-
-  const totalPages = Math.ceil(filteredOrders.length / itemsPerPage);
-  const paginatedOrders = filteredOrders.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
+  // Server-side pagination: orders already contains only the current page's data
 
   const columns = [
     { key: 'id', label: 'ID' },
@@ -769,7 +710,7 @@ export default function AdminSales() {
 
         <DataTable
           columns={columns}
-          data={paginatedOrders}
+          data={orders}
           loading={loading}
           selection={{
             selectedRowIds,

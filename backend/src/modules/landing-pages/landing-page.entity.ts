@@ -101,6 +101,12 @@ export class LandingPage {
   @Column({ type: 'boolean', default: false })
   free_delivery!: boolean;
 
+  @Column({ type: 'decimal', precision: 10, scale: 2, default: 0 })
+  delivery_charge!: number;
+
+  @Column({ type: 'decimal', precision: 10, scale: 2, default: 0, nullable: true })
+  delivery_charge_outside!: number;
+
   @Column({ type: 'text', nullable: true })
   delivery_note!: string;
 

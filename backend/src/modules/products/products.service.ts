@@ -285,7 +285,23 @@ export class ProductsService {
   async update(id: string, updateProductDto: any) {
     try {
       console.log('Updating product:', id, updateProductDto);
-      const result = await this.productsRepository.update(parseInt(id), updateProductDto);
+
+      // Map snake_case keys from frontend to camelCase entity property names
+      const snakeToCamelMap: Record<string, string> = {
+        sale_price: 'salePrice',
+        discount_type: 'discountType',
+        discount_value: 'discountValue',
+        discount_start_date: 'discountStartDate',
+        discount_end_date: 'discountEndDate',
+      };
+
+      const mapped: any = {};
+      for (const [key, value] of Object.entries(updateProductDto)) {
+        const entityKey = snakeToCamelMap[key] ?? key;
+        mapped[entityKey] = value;
+      }
+
+      const result = await this.productsRepository.update(parseInt(id), mapped);
       console.log('Update result:', result);
       return this.findOne(id);
     } catch (error) {

@@ -55,6 +55,8 @@ interface FormData {
   show_order_form: boolean;
   cash_on_delivery: boolean;
   free_delivery: boolean;
+  delivery_charge: number;
+  delivery_charge_outside: number;
   delivery_note: string;
   is_active: boolean;
   start_date: string;
@@ -112,6 +114,8 @@ export default function LandingPageEditor() {
     show_order_form: true,
     cash_on_delivery: true,
     free_delivery: false,
+    delivery_charge: 80,
+    delivery_charge_outside: 130,
     delivery_note: '',
     is_active: true,
     start_date: '',
@@ -764,6 +768,41 @@ export default function LandingPageEditor() {
             <span className="text-sm text-gray-700">Free Delivery</span>
           </label>
         </div>
+
+        {/* Delivery Charge Settings */}
+        {!form.free_delivery && (
+          <div className="mt-4 p-4 bg-orange-50 border border-orange-200 rounded-lg">
+            <h4 className="text-sm font-semibold text-orange-800 mb-3">Delivery Charge Settings</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Inside Dhaka (৳)</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={form.delivery_charge}
+                  onChange={(e) => setForm((prev) => ({ ...prev, delivery_charge: Number(e.target.value) || 0 }))}
+                  className="w-full border rounded-lg px-3 py-2"
+                  placeholder="e.g. 80"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Outside Dhaka (৳)</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={form.delivery_charge_outside}
+                  onChange={(e) => setForm((prev) => ({ ...prev, delivery_charge_outside: Number(e.target.value) || 0 }))}
+                  className="w-full border rounded-lg px-3 py-2"
+                  placeholder="e.g. 130"
+                />
+              </div>
+            </div>
+            <p className="text-xs text-gray-500 mt-2">Set to 0 for free delivery in that zone. These charges will be shown to the customer on the landing page.</p>
+          </div>
+        )}
+
         <div className="mt-4">
           <label className="block text-sm font-medium text-gray-700 mb-1">Delivery Note</label>
           <input
