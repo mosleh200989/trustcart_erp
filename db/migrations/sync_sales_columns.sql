@@ -47,6 +47,7 @@ ALTER TABLE sales_orders ADD COLUMN IF NOT EXISTS delivered_at TIMESTAMP;
 
 -- ========== sales_order_items table ==========
 ALTER TABLE sales_order_items ADD COLUMN IF NOT EXISTS product_name VARCHAR(500);
+ALTER TABLE sales_order_items ADD COLUMN IF NOT EXISTS product_image VARCHAR(1000);
 ALTER TABLE sales_order_items ALTER COLUMN product_id DROP NOT NULL;
 
 -- ========== landing_pages table ==========

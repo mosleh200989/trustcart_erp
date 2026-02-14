@@ -389,6 +389,7 @@ export class OrderManagementService {
         orderId,
         productId: si.productId ? Number(si.productId) : null,
         productName: product?.name_en || (si as any).productName || (si as any).product_name || 'Landing Page Product',
+        productImage: product?.image_url || (si as any).productImage || (si as any).product_image || null,
         quantity: qty,
         unitPrice: unit,
         subtotal,

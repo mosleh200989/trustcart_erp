@@ -696,6 +696,17 @@ export default function LandingPageEditor() {
                   placeholder="/seed-mix.jpg"
                 />
               </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Linked Product ID</label>
+                <input
+                  type="number"
+                  value={product.product_id || ''}
+                  onChange={(e) => updateProduct(product.id, { product_id: parseInt(e.target.value) || undefined })}
+                  className="w-full border rounded px-3 py-2 text-sm"
+                  placeholder="e.g. 396 (from All Products)"
+                />
+                <p className="text-xs text-gray-400 mt-0.5">Link to a real product for order tracking &amp; images</p>
+              </div>
               <div className="md:col-span-2">
                 <label className="block text-xs text-gray-500 mb-1">Description</label>
                 <input
