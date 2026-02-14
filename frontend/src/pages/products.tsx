@@ -17,12 +17,21 @@ interface Product {
   id: number;
   name_en: string;
   name_bn: string;
+  slug?: string;
   base_price: number;
+  sale_price?: number;
   mrp?: number;
+  discount_value?: number;
+  discount_type?: string;
   stock_quantity?: number;
   category_name?: string;
+  category?: { name_en?: string; name?: string };
   image?: string;
   image_url?: string;
+  // calculated fields
+  salePrice?: number;
+  discountPercent?: number;
+  hasDiscount?: boolean;
 }
 
 export default function Products() {
@@ -53,15 +62,26 @@ export default function Products() {
 
   // Handle URL query parameters
   useEffect(() => {
-    if (router.isReady && router.query.category) {
-      const categorySlug = router.query.category as string;
-      // Find category by slug and set filter
-      const category = categories.find((cat) => cat.slug === categorySlug);
-      if (category) {
-        setFilters((prev) => ({ ...prev, category: category.name_en }));
+    if (router.isReady) {
+      const updates: Partial<typeof filters> = {};
+
+      if (router.query.category) {
+        const categorySlug = router.query.category as string;
+        const category = categories.find((cat) => cat.slug === categorySlug);
+        if (category) {
+          updates.category = category.name_en;
+        }
+      }
+
+      if (router.query.sort === "discount") {
+        updates.sortBy = "discount";
+      }
+
+      if (Object.keys(updates).length > 0) {
+        setFilters((prev) => ({ ...prev, ...updates }));
       }
     }
-  }, [router.isReady, router.query.category, categories]);
+  }, [router.isReady, router.query.category, router.query.sort, categories]);
 
   useEffect(() => {
     applyFilters();
@@ -72,8 +92,40 @@ export default function Products() {
       const response = await apiClient.get("/products");
       const allProducts = Array.isArray(response.data) ? response.data : [];
       console.log("Products page loaded:", allProducts.length);
-      // Show all products (stock filter removed)
-      setProducts(allProducts);
+
+      // Calculate sale price and discount percentage for products (same as homepage)
+      const productsWithSalePrice = allProducts.map((p: any) => {
+        let salePrice = p.sale_price;
+        let discountPercent = 0;
+
+        // If sale_price exists, calculate discount percentage
+        if (salePrice && salePrice < p.base_price) {
+          discountPercent = Math.round(
+            ((p.base_price - salePrice) / p.base_price) * 100
+          );
+        }
+        // Otherwise calculate from discount fields
+        else if (p.discount_value && p.discount_type) {
+          if (p.discount_type === "percentage") {
+            salePrice = p.base_price - (p.base_price * p.discount_value) / 100;
+            discountPercent = Math.round(p.discount_value);
+          } else if (p.discount_type === "flat") {
+            salePrice = p.base_price - p.discount_value;
+            discountPercent = Math.round(
+              ((p.base_price - salePrice) / p.base_price) * 100
+            );
+          }
+        }
+
+        return {
+          ...p,
+          salePrice,
+          discountPercent,
+          hasDiscount: !!salePrice && salePrice < p.base_price,
+        };
+      });
+
+      setProducts(productsWithSalePrice);
     } catch (error) {
       console.error("Failed to load products:", error);
       setProducts([]);
@@ -105,19 +157,26 @@ export default function Products() {
     }
 
     if (filters.category) {
-      filtered = filtered.filter((p) => p.category_name === filters.category);
+      filtered = filtered.filter((p) => {
+        const productCat = p.category_name || p.category?.name_en || p.category?.name;
+        return productCat === filters.category;
+      });
     }
 
     if (filters.minPrice) {
-      filtered = filtered.filter(
-        (p) => p.base_price >= parseFloat(filters.minPrice)
-      );
+      const min = parseFloat(filters.minPrice);
+      filtered = filtered.filter((p) => {
+        const effectivePrice = p.hasDiscount ? p.salePrice! : p.base_price;
+        return effectivePrice >= min;
+      });
     }
 
     if (filters.maxPrice) {
-      filtered = filtered.filter(
-        (p) => p.base_price <= parseFloat(filters.maxPrice)
-      );
+      const max = parseFloat(filters.maxPrice);
+      filtered = filtered.filter((p) => {
+        const effectivePrice = p.hasDiscount ? p.salePrice! : p.base_price;
+        return effectivePrice <= max;
+      });
     }
 
     if (filters.inStock) {
@@ -125,12 +184,20 @@ export default function Products() {
     }
 
     // Sorting
+    const getEffectivePrice = (p: Product) =>
+      p.hasDiscount ? p.salePrice! : p.base_price;
+
     switch (filters.sortBy) {
       case "price-low":
-        filtered.sort((a, b) => a.base_price - b.base_price);
+        filtered.sort((a, b) => getEffectivePrice(a) - getEffectivePrice(b));
         break;
       case "price-high":
-        filtered.sort((a, b) => b.base_price - a.base_price);
+        filtered.sort((a, b) => getEffectivePrice(b) - getEffectivePrice(a));
+        break;
+      case "discount":
+        filtered.sort(
+          (a, b) => (b.discountPercent || 0) - (a.discountPercent || 0)
+        );
         break;
       case "name":
         filtered.sort((a, b) => a.name_en.localeCompare(b.name_en));
@@ -339,6 +406,7 @@ export default function Products() {
                     <option value="featured">Featured</option>
                     <option value="price-low">Price: Low to High</option>
                     <option value="price-high">Price: High to Low</option>
+                    <option value="discount">Biggest Discount</option>
                     <option value="name">Name: A to Z</option>
                   </select>
 
@@ -395,15 +463,32 @@ export default function Products() {
                       <ElectroProductCard
                         key={product.id}
                         id={product.id}
+                        slug={product.slug}
+                        name={product.name_en}
                         nameEn={product.name_en}
                         nameBn={product.name_bn}
-                        categoryName={product.category_name}
-                        price={product.base_price}
-                        originalPrice={product.mrp}
+                        categoryName={
+                          product.category_name ||
+                          product.category?.name_en ||
+                          product.category?.name
+                        }
+                        price={
+                          product.hasDiscount
+                            ? product.salePrice!
+                            : product.base_price
+                        }
+                        originalPrice={
+                          product.hasDiscount
+                            ? product.base_price
+                            : undefined
+                        }
                         stock={product.stock_quantity}
-                        image={product.image || product.image_url}
+                        image={product.image_url || product.image}
                         rating={5}
                         reviews={Math.floor(Math.random() * 200)}
+                        discount={
+                          product.hasDiscount ? product.discountPercent : undefined
+                        }
                       />
                     ))}
                   </div>
