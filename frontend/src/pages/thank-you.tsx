@@ -305,7 +305,9 @@ export default function ThankYouPage() {
   }, [order]);
 
   const customerNote = useMemo(() => {
-    return order?.note ?? order?.notes ?? order?.customer_note ?? "";
+    const raw = order?.note ?? order?.notes ?? order?.customer_note ?? "";
+    // Strip any "[Landing Page: ...]" prefix from notes
+    return String(raw).replace(/^\[Landing Page:[^\]]*\]\s*/i, '').trim();
   }, [order]);
 
   const paymentMethod = useMemo(() => {

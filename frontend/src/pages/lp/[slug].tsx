@@ -165,7 +165,7 @@ export default function LandingPagePublic() {
           customer_name: orderForm.name,
           customer_phone: orderForm.phone,
           shipping_address: orderForm.address,
-          notes: `[Landing Page: ${page.title}] ${orderForm.note || ''}`.trim(),
+          notes: orderForm.note || '',
           payment_method: 'cash',
           items: orderItems.map((item) => ({
             product_id: item.product.product_id || null,
