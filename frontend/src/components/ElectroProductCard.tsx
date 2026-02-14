@@ -140,7 +140,7 @@ export default function ElectroProductCard({
     <div className="bg-white border border-gray-200 rounded-lg overflow-hidden hover:shadow-xl transition-all duration-300 group relative">
       {/* Discount Badge */}
       {discountPercent && discountPercent > 0 && (
-        <div className="absolute top-2 left-2 z-10">
+        <div className="absolute top-2 right-2 z-10">
           <div
             className="inline-flex items-center gap-1.5 bg-gradient-to-r from-green-500 via-green-400 to-green-600 text-white px-3 py-3 text-xs font-extrabold shadow-xl border border-white/60"
             style={{
@@ -154,7 +154,7 @@ export default function ElectroProductCard({
       )}
 
       {/* Quick Actions */}
-      <div className="absolute top-3 right-3 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+      <div className="absolute top-3 left-3 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
         <button
           onClick={handleAddToWishlist}
           className="bg-white hover:bg-orange-500 hover:text-white p-2.5 rounded-full shadow-lg transition-all hover:scale-110"

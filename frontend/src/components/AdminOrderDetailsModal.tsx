@@ -320,6 +320,7 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
       toast.success('Customer updated successfully');
       setIsEditingCustomer(false);
       loadOrderDetails();
+      onUpdate();
     } catch (e: any) {
       toast.error(e.response?.data?.message || 'Failed to update customer');
     }
@@ -1436,7 +1437,7 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
           {activeTab === 'delivery' && (
             <div className="space-y-6">
               <div>
-                <label className="block font-bold mb-2 flex items-center gap-2">
+                <label className="font-bold mb-2 flex items-center gap-2">
                   <FaMapMarkerAlt className="text-blue-600" /> Shipping Address
                 </label>
                 <textarea
@@ -1449,7 +1450,7 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
               </div>
 
               <div>
-                <label className="block font-bold mb-2 flex items-center gap-2">
+                <label className="font-bold mb-2 flex items-center gap-2">
                   <FaStickyNote className="text-blue-600" /> Courier Notes
                 </label>
                 <textarea
@@ -1462,7 +1463,7 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
               </div>
 
               <div>
-                <label className="block font-bold mb-2 flex items-center gap-2">
+                <label className="font-bold mb-2 flex items-center gap-2">
                   <FaShippingFast className="text-blue-600" /> Rider Instructions
                 </label>
                 <textarea
@@ -1518,7 +1519,7 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
           {activeTab === 'notes' && (
             <div className="space-y-6">
               <div>
-                <label className="block font-bold mb-2 flex items-center gap-2">
+                <label className="font-bold mb-2 flex items-center gap-2">
                   <FaStickyNote className="text-red-600" /> Internal Notes (Team Only)
                 </label>
                 <div className="bg-red-50 border-2 border-red-200 p-3 rounded-lg mb-2">
