@@ -6,6 +6,8 @@ export default function Document() {
       <Head>
         <meta charSet="utf-8" />
         <meta name="description" content="TrustCart ERP - Complete Business Management System" />
+        {/* Facebook Domain Verification */}
+        <meta name="facebook-domain-verification" content="k9s0mrkab3u3ir6tgt7i2o97es1pa2" />
         {/* Favicon */}
         <link rel="icon" type="image/jpeg" href="/trustcart-logo-tab.jpg" />
         <link rel="shortcut icon" type="image/jpeg" href="/trustcart-logo-tab.jpg" />
