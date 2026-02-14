@@ -217,7 +217,17 @@ export default function MultipleImageUpload({ productId, onImagesChange, folder 
                 </div>
               )}
 
-              {/* Actions Overlay */}
+              {/* Always-visible Delete Button */}
+              <button
+                type="button"
+                onClick={() => handleRemoveImage(index)}
+                className="absolute top-1 right-1 z-10 bg-red-500 text-white p-1.5 rounded-full hover:bg-red-600 transition shadow-md"
+                title="Remove image"
+              >
+                <FaTimes size={12} />
+              </button>
+
+              {/* Actions Overlay (hover) */}
               <div className="absolute inset-0 bg-black bg-opacity-50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
                 {!image.is_primary && (
                   <button
@@ -251,15 +261,6 @@ export default function MultipleImageUpload({ productId, onImagesChange, folder 
                     <FaArrowDown size={14} />
                   </button>
                 )}
-                
-                <button
-                  type="button"
-                  onClick={() => handleRemoveImage(index)}
-                  className="bg-red-500 text-white p-2 rounded-full hover:bg-red-600 transition"
-                  title="Remove"
-                >
-                  <FaTimes size={14} />
-                </button>
               </div>
 
               {/* Image Order */}

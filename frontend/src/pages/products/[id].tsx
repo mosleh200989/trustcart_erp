@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/router";
 import { useToast } from '@/contexts/ToastContext';
 import { motion } from "framer-motion";
@@ -48,6 +48,7 @@ export default function ProductDetailsPage() {
   const [showZoom, setShowZoom] = useState(false);
   const [zoomPosition, setZoomPosition] = useState({ x: 0, y: 0 });
   const [selectedVariant, setSelectedVariant] = useState<SizeVariant | null>(null);
+  const isHoveringGallery = useRef(false);
 
   const getSlidesPerView = () => {
     if (typeof window === "undefined") return 4;
@@ -77,7 +78,9 @@ export default function ProductDetailsPage() {
   useEffect(() => {
     if (!productImages || productImages.length <= 1) return;
     const interval = setInterval(() => {
-      setImageSlideIndex((prev) => (prev + 1) % productImages.length);
+      if (!isHoveringGallery.current) {
+        setImageSlideIndex((prev) => (prev + 1) % productImages.length);
+      }
     }, 5000);
     return () => clearInterval(interval);
   }, [productImages]);
@@ -439,6 +442,10 @@ export default function ProductDetailsPage() {
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ duration: 0.5, delay: 0.2 }}
+                onMouseEnter={() => { isHoveringGallery.current = true; }}
+                onMouseLeave={() => { isHoveringGallery.current = false; }}
+                onTouchStart={() => { isHoveringGallery.current = true; }}
+                onTouchEnd={() => { isHoveringGallery.current = false; }}
               >
                 {/* Desktop: Thumbnails on Left + Main Image */}
                 <div className="hidden md:flex gap-4">
