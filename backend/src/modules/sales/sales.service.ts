@@ -635,7 +635,7 @@ export class SalesService {
         'item.id as id',
         'item.sales_order_id as "salesOrderId"',
         'item.product_id as "productId"',
-        'product.name_en as "productName"',
+        'COALESCE(product.name_en, item.product_name) as "productName"',
         'product.image_url as "productImage"',
         'product.sku as "productSku"',
         'item.quantity as quantity',
