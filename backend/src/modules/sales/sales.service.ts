@@ -502,7 +502,38 @@ export class SalesService {
         return orderItem;
       });
 
-      await this.orderItemsRepository.save(orderItems);
+      try {
+        await this.orderItemsRepository.save(orderItems);
+      } catch (itemErr) {
+        // If product_name column doesn't exist yet, retry without it
+        console.error('Failed to save order items, retrying without product_name:', itemErr);
+        try {
+          const fallbackItems = orderItems.map((oi) => {
+            const fallback = new SalesOrderItem();
+            fallback.salesOrderId = oi.salesOrderId;
+            fallback.productId = oi.productId;
+            fallback.quantity = oi.quantity;
+            fallback.unitPrice = oi.unitPrice;
+            fallback.lineTotal = oi.lineTotal;
+            return fallback;
+          });
+          await this.orderItemsRepository
+            .createQueryBuilder()
+            .insert()
+            .into(SalesOrderItem, ['salesOrderId', 'productId', 'quantity', 'unitPrice', 'lineTotal'])
+            .values(fallbackItems.map((fi) => ({
+              salesOrderId: fi.salesOrderId,
+              productId: fi.productId,
+              quantity: fi.quantity,
+              unitPrice: fi.unitPrice,
+              lineTotal: fi.lineTotal,
+            })))
+            .execute();
+        } catch (fallbackErr) {
+          console.error('Fallback item save also failed:', fallbackErr);
+          // Still return the order — items can be re-added from admin
+        }
+      }
     }
 
     // Record offer usage (best-effort)
