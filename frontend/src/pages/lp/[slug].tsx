@@ -183,17 +183,22 @@ export default function LandingPagePublic() {
           utm_medium: 'landing_page',
           utm_campaign: page.title,
         };
-        await apiClient.post('/sales', orderPayload);
+        const res = await apiClient.post('/sales', orderPayload);
+        const savedOrderId = res.data?.id;
 
         // Also increment the landing page order counter
         apiClient.post(`/landing-pages/${page.id}/increment-order`).catch(() => {});
+
+        // Redirect to the main thank-you page
+        if (savedOrderId) {
+          router.push(`/thank-you?orderId=${savedOrderId}`);
+        } else {
+          setSubmitted(true);
+          toast.success('আপনার অর্ডারটি সফলভাবে গ্রহণ করা হয়েছে! ধন্যবাদ।');
+        }
       }
-      setSubmitted(true);
-      toast.success('আপনার অর্ডারটি সফলভাবে গ্রহণ করা হয়েছে! ধন্যবাদ।');
     } catch (err: any) {
       console.error('Order submission error:', err);
-      // The backend may save the order even if response fails (no transaction wrapping).
-      // Check if it's a server error (order likely saved) vs a network/client error.
       const status = err?.response?.status;
       if (status && status >= 500) {
         // Server error but order may already be saved

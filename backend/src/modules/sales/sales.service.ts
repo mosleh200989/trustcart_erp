@@ -495,6 +495,7 @@ export class SalesService {
         orderItem.salesOrderId = savedOrder.id;
         const rawProductId = Number(item.product_id || item.productId);
         orderItem.productId = Number.isFinite(rawProductId) && rawProductId > 0 ? rawProductId : null;
+        orderItem.productName = item.product_name || item.productName || null;
         orderItem.quantity = Number(item.quantity || 1);
         orderItem.unitPrice = Number(item.unit_price || item.unitPrice || item.price || 0);
         orderItem.lineTotal = orderItem.quantity * orderItem.unitPrice;

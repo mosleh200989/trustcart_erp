@@ -12,6 +12,9 @@ export class SalesOrderItem {
   @Column({ name: 'product_id', type: 'int', nullable: true })
   productId!: number | null;
 
+  @Column({ name: 'product_name', type: 'varchar', length: 500, nullable: true })
+  productName!: string | null;
+
   @Column({ type: 'decimal', precision: 12, scale: 2 })
   quantity!: number;
 

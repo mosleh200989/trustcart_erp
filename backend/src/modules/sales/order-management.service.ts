@@ -377,13 +377,13 @@ export class OrderManagementService {
       const qty = Number(si.quantity || 0);
       const unit = Number(si.unitPrice || 0);
       const subtotal = si.lineTotal != null ? Number(si.lineTotal) : qty * unit;
-      const product = productById.get(Number(si.productId));
+      const product = si.productId ? productById.get(Number(si.productId)) : null;
 
       return {
         id: si.id,
         orderId,
-        productId: Number(si.productId),
-        productName: product?.name_en || `Product #${si.productId}`,
+        productId: si.productId ? Number(si.productId) : null,
+        productName: product?.name_en || (si as any).productName || (si as any).product_name || 'Landing Page Product',
         quantity: qty,
         unitPrice: unit,
         subtotal,
