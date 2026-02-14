@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException, HttpException, HttpStatus } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { SalesOrder } from './sales-order.entity';
@@ -99,7 +99,7 @@ export class OrderManagementService {
     const apiKey = process.env.STEADFAST_API_KEY || '';
     const secretKey = process.env.STEADFAST_SECRET_KEY || '';
     if (!apiKey || !secretKey) {
-      throw new Error('Steadfast API credentials are not configured (STEADFAST_API_KEY/STEADFAST_SECRET_KEY)');
+      throw new BadRequestException('Steadfast API credentials are not configured. Please set STEADFAST_API_KEY and STEADFAST_SECRET_KEY in backend/.env');
     }
     return {
       'Api-Key': apiKey,
@@ -249,15 +249,15 @@ export class OrderManagementService {
     const recipientAddress = (order.shippingAddress ? String(order.shippingAddress).trim() : '') || (order.notes ? String(order.notes).trim() : '');
 
     if (!recipientPhone || recipientPhone.length !== 11) {
-      throw new Error('Customer phone must be a valid 11 digit number to send to Steadfast');
+      throw new BadRequestException('Customer phone must be a valid 11 digit number to send to Steadfast');
     }
     if (!recipientAddress) {
-      throw new Error('Shipping address is required to send to Steadfast');
+      throw new BadRequestException('Shipping address is required to send to Steadfast');
     }
 
-    const codAmount = Number(order.totalAmount || 0);
-    if (!Number.isFinite(codAmount) || codAmount < 0) {
-      throw new Error('Invalid COD amount');
+    const codAmount = Math.max(0, Number(order.totalAmount || 0) - Number(order.discountAmount || 0));
+    if (!Number.isFinite(codAmount)) {
+      throw new BadRequestException('Invalid COD amount');
     }
 
     const itemDescription = items
@@ -291,9 +291,14 @@ export class OrderManagementService {
       });
       resData = res.data;
     } catch (e: any) {
-      const status = e?.response?.status;
-      const msg = e?.response?.data?.message || e?.message || 'Failed to connect to Steadfast';
-      throw new Error(status ? `Steadfast error (${status}): ${msg}` : msg);
+      const status = e?.response?.status || HttpStatus.BAD_GATEWAY;
+      const errData = e?.response?.data;
+      const msg = errData?.message || e?.message || 'Failed to connect to Steadfast';
+      const errors = errData?.errors || undefined;
+      throw new HttpException(
+        { statusCode: status, message: msg, errors },
+        status >= 400 && status < 600 ? status : HttpStatus.BAD_GATEWAY,
+      );
     }
 
     const consignment = resData?.consignment;
@@ -302,7 +307,7 @@ export class OrderManagementService {
     const courierStatus = consignment?.status ?? resData?.delivery_status ?? null;
 
     if (!consignmentId || !trackingCode) {
-      throw new Error(resData?.message || 'Steadfast did not return consignment_id/tracking_code');
+      throw new BadRequestException(resData?.message || 'Steadfast did not return consignment_id/tracking_code');
     }
 
     order.status = 'shipped';
