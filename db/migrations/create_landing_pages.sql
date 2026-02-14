@@ -155,6 +155,7 @@ INSERT INTO landing_pages (
             "image_url": "/seed-mix.jpg",
             "price": 1390,
             "compare_price": 1590,
+            "product_id": 396,
             "is_default": true
         },
         {
@@ -164,6 +165,7 @@ INSERT INTO landing_pages (
             "image_url": "/seed-mix.jpg",
             "price": 2700,
             "compare_price": 3180,
+            "product_id": 396,
             "is_default": false
         }
     ]'::jsonb,

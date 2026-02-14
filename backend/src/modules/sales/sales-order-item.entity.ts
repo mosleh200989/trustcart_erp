@@ -15,6 +15,9 @@ export class SalesOrderItem {
   @Column({ name: 'product_name', type: 'varchar', length: 500, nullable: true })
   productName!: string | null;
 
+  @Column({ name: 'product_image', type: 'varchar', length: 1000, nullable: true })
+  productImage!: string | null;
+
   @Column({ type: 'decimal', precision: 12, scale: 2 })
   quantity!: number;
 

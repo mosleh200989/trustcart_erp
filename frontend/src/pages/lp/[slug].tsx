@@ -28,6 +28,7 @@ interface LandingPageProduct {
   image_url?: string;
   price: number;
   compare_price?: number;
+  product_id?: number;
   is_default: boolean;
 }
 
@@ -167,8 +168,9 @@ export default function LandingPagePublic() {
           notes: `[Landing Page: ${page.title}] ${orderForm.note || ''}`.trim(),
           payment_method: 'cash',
           items: orderItems.map((item) => ({
-            product_id: null,
+            product_id: item.product.product_id || null,
             product_name: item.product.name,
+            product_image: item.product.image_url || null,
             quantity: item.quantity,
             unit_price: item.product.price,
             total_price: item.product.price * item.quantity,

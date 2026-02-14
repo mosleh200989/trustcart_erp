@@ -496,6 +496,7 @@ export class SalesService {
         const rawProductId = Number(item.product_id || item.productId);
         orderItem.productId = Number.isFinite(rawProductId) && rawProductId > 0 ? rawProductId : null;
         orderItem.productName = item.product_name || item.productName || null;
+        orderItem.productImage = item.product_image || item.productImage || null;
         orderItem.quantity = Number(item.quantity || 1);
         orderItem.unitPrice = Number(item.unit_price || item.unitPrice || item.price || 0);
         orderItem.lineTotal = orderItem.quantity * orderItem.unitPrice;
@@ -667,7 +668,7 @@ export class SalesService {
         'item.sales_order_id as "salesOrderId"',
         'item.product_id as "productId"',
         'COALESCE(product.name_en, item.product_name) as "productName"',
-        'product.image_url as "productImage"',
+        'COALESCE(product.image_url, item.product_image) as "productImage"',
         'product.sku as "productSku"',
         'item.quantity as quantity',
         'item.unit_price as "unitPrice"',
