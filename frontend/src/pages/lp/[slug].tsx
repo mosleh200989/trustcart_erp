@@ -184,14 +184,15 @@ export default function LandingPagePublic() {
           utm_campaign: page.title,
         };
         const res = await apiClient.post('/sales', orderPayload);
-        const savedOrderId = res.data?.id;
+        const savedOrderId = res.data?.id || res.data?.data?.id;
 
         // Also increment the landing page order counter
         apiClient.post(`/landing-pages/${page.id}/increment-order`).catch(() => {});
 
         // Redirect to the main thank-you page
         if (savedOrderId) {
-          router.push(`/thank-you?orderId=${savedOrderId}`);
+          window.location.href = `/thank-you?orderId=${savedOrderId}`;
+          return;
         } else {
           setSubmitted(true);
           toast.success('আপনার অর্ডারটি সফলভাবে গ্রহণ করা হয়েছে! ধন্যবাদ।');
@@ -200,8 +201,14 @@ export default function LandingPagePublic() {
     } catch (err: any) {
       console.error('Order submission error:', err);
       const status = err?.response?.status;
+      const savedId = err?.response?.data?.id || err?.response?.data?.data?.id;
+      if (savedId) {
+        // Order was saved but something errored after — still redirect
+        apiClient.post(`/landing-pages/${page?.id}/increment-order`).catch(() => {});
+        window.location.href = `/thank-you?orderId=${savedId}`;
+        return;
+      }
       if (status && status >= 500) {
-        // Server error but order may already be saved
         setSubmitted(true);
         toast.success('আপনার অর্ডারটি গ্রহণ করা হয়েছে! শীঘ্রই আমরা আপনার সাথে যোগাযোগ করবো।');
       } else {
