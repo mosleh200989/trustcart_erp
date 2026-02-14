@@ -44,6 +44,19 @@ interface ProductImage {
 export default function AdminProducts() {
   const router = useRouter();
   const toast = useToast();
+
+  // Suppress Quill splitText crashes that bubble to window.onerror
+  useEffect(() => {
+    const handler = (event: ErrorEvent) => {
+      if (event.message?.includes('splitText') || event.message?.includes('IndexSizeError')) {
+        event.preventDefault();
+        console.warn('Suppressed Quill splitText error');
+      }
+    };
+    window.addEventListener('error', handler);
+    return () => window.removeEventListener('error', handler);
+  }, []);
+
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
