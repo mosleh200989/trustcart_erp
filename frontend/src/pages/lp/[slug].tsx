@@ -718,10 +718,10 @@ export default function LandingPagePublic() {
                     <button
                       onClick={handleSubmitOrder}
                       disabled={submitting || orderItems.length === 0}
-                      className="w-full py-5 rounded-xl text-xl font-extrabold text-white shadow-2xl hover:shadow-xl transition-all disabled:opacity-50 transform hover:scale-[1.02]"
+                      className="w-full py-3.5 rounded-lg text-base font-bold text-white shadow-md hover:shadow-lg transition-all duration-200 disabled:opacity-50 hover:brightness-110"
                       style={{ backgroundColor: page.primary_color }}
                     >
-                      <FaShoppingCart className="inline mr-2 text-xl" />
+                      <FaShoppingCart className="inline mr-2 text-lg align-middle" />
                       {submitting ? 'Processing...' : `অর্ডার কনফার্ম করুন — ${getTotal().toLocaleString()} ৳`}
                     </button>
                   </div>
