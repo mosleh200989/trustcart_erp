@@ -1,5 +1,5 @@
 import { useRouter } from 'next/router';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import Head from 'next/head';
 import { motion } from 'framer-motion';
 import { combos } from '@/services/api';
@@ -83,6 +83,7 @@ export default function ComboDetailPage() {
   const [imageSlideIndex, setImageSlideIndex] = useState(0);
   const [showZoom, setShowZoom] = useState(false);
   const [zoomPosition, setZoomPosition] = useState({ x: 0, y: 0 });
+  const isHoveringGallery = useRef(false);
 
   // Recommended products
   const [recommendedProducts, setRecommendedProducts] = useState<any[]>([]);
@@ -315,15 +316,17 @@ export default function ComboDetailPage() {
     window.open(supportMessenger, '_blank', 'noopener,noreferrer');
   };
 
-  // Auto-slide images
+  // Auto-slide images (pauses when user hovers over gallery)
   useEffect(() => {
     if (galleryImages.length <= 1) return;
     const interval = setInterval(() => {
-      setImageSlideIndex((prev) => {
-        const next = (prev + 1) % galleryImages.length;
-        setSelectedImage(galleryImages[next].image_url);
-        return next;
-      });
+      if (!isHoveringGallery.current) {
+        setImageSlideIndex((prev) => {
+          const next = (prev + 1) % galleryImages.length;
+          setSelectedImage(galleryImages[next].image_url);
+          return next;
+        });
+      }
     }, 5000);
     return () => clearInterval(interval);
   }, [galleryImages.length]);
@@ -404,6 +407,10 @@ export default function ComboDetailPage() {
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ duration: 0.5, delay: 0.2 }}
+                onMouseEnter={() => { isHoveringGallery.current = true; }}
+                onMouseLeave={() => { isHoveringGallery.current = false; }}
+                onTouchStart={() => { isHoveringGallery.current = true; }}
+                onTouchEnd={() => { isHoveringGallery.current = false; }}
               >
                 {/* Desktop: Thumbnails on Left + Main Image */}
                 <div className="hidden md:flex gap-4">
