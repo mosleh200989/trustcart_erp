@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import apiClient from '@/services/api';
 import { useToast } from '@/contexts/ToastContext';
 import { 
@@ -35,6 +35,11 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
   const [editItemData, setEditItemData] = useState<any>({});
   const [showAddProduct, setShowAddProduct] = useState(false);
   const [newProduct, setNewProduct] = useState({ productId: '', productName: '', quantity: 1, unitPrice: 0 });
+  const [addProductSearchResults, setAddProductSearchResults] = useState<any[]>([]);
+  const [addProductSearchLoading, setAddProductSearchLoading] = useState(false);
+  const [showAddProductDropdown, setShowAddProductDropdown] = useState(false);
+  const addProductSearchRef = useRef<HTMLDivElement>(null);
+  const addProductSearchTimerRef = useRef<NodeJS.Timeout | null>(null);
   
   // Notes
   const [shippingAddress, setShippingAddress] = useState('');
@@ -263,7 +268,17 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
   const startEditCustomer = () => {
     setIsEditingCustomer(true);
     setCustomerActiveTab('basic');
-    setCustomerForm({ ...(customerRecord || {}) });
+    if (customerRecord) {
+      setCustomerForm({ ...customerRecord });
+    } else {
+      // No customer record matched — pre-fill from order data
+      setCustomerForm({
+        name: customer?.customerName || order?.customerName || '',
+        email: customer?.customerEmail || order?.customerEmail || '',
+        phone: customer?.customerPhone || order?.customerPhone || '',
+        address: order?.shippingAddress || '',
+      });
+    }
   };
 
   const cancelEditCustomer = () => {
@@ -284,9 +299,38 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
   };
 
   const saveCustomer = async () => {
-    if (!customerRecord?.id) return;
     try {
-      await apiClient.put(`/customers/${customerRecord.id}`, {
+      let custId = customerRecord?.id;
+
+      // If no existing customer record, create one first
+      if (!custId) {
+        try {
+          const createRes = await apiClient.post('/customers', {
+            name: customerForm.name || null,
+            lastName: customerForm.lastName || null,
+            email: customerForm.email || null,
+            phone: customerForm.phone || null,
+            mobile: customerForm.mobile || null,
+            address: customerForm.address || null,
+            district: customerForm.district || null,
+            city: customerForm.city || null,
+          });
+          custId = createRes.data?.id;
+          if (!custId) {
+            toast.error('Failed to create customer record');
+            return;
+          }
+          // Link customer to the current order
+          try {
+            await apiClient.put(`/sales/${currentOrderId}`, { customerId: custId });
+          } catch { /* best effort */ }
+        } catch (createErr: any) {
+          toast.error(createErr.response?.data?.message || 'Failed to create customer');
+          return;
+        }
+      }
+
+      await apiClient.put(`/customers/${custId}`, {
         title: customerForm.title || null,
         name: customerForm.name || null,
         lastName: customerForm.lastName || null,
@@ -317,6 +361,19 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
         status: customerForm.status || null,
         priority: customerForm.priority || null,
       });
+
+      // Sync updated customer info to all related orders so tables reflect changes instantly
+      try {
+        const fullName = [customerForm.name, customerForm.lastName].filter(Boolean).join(' ').trim() || null;
+        await apiClient.put(`/sales/sync-customer/${custId}`, {
+          customerName: fullName,
+          customerEmail: customerForm.email || null,
+          customerPhone: customerForm.phone || customerForm.mobile || null,
+        });
+      } catch (syncErr) {
+        console.error('Failed to sync customer info to orders:', syncErr);
+      }
+
       toast.success('Customer updated successfully');
       setIsEditingCustomer(false);
       loadOrderDetails();
@@ -394,6 +451,60 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
       toast.error('Failed to delete item');
     }
   };
+
+  // Product search autocomplete for Add Product form
+  const searchProductsForAdd = useCallback(async (query: string) => {
+    if (query.length < 2) {
+      setAddProductSearchResults([]);
+      setShowAddProductDropdown(false);
+      return;
+    }
+    setAddProductSearchLoading(true);
+    try {
+      const response = await apiClient.get('/products', { params: { search: query } });
+      const products = Array.isArray(response.data) ? response.data : (response.data?.data || []);
+      const filtered = products.filter((p: any) =>
+        (p.name_en || p.name || '').toLowerCase().includes(query.toLowerCase()) ||
+        (p.name_bn || '').includes(query)
+      ).slice(0, 10);
+      setAddProductSearchResults(filtered);
+      setShowAddProductDropdown(filtered.length > 0);
+    } catch (error) {
+      console.error('Product search failed:', error);
+      setAddProductSearchResults([]);
+    } finally {
+      setAddProductSearchLoading(false);
+    }
+  }, []);
+
+  const handleAddProductNameChange = (value: string) => {
+    setNewProduct({ ...newProduct, productName: value, productId: '' });
+    if (addProductSearchTimerRef.current) clearTimeout(addProductSearchTimerRef.current);
+    addProductSearchTimerRef.current = setTimeout(() => searchProductsForAdd(value), 300);
+  };
+
+  const selectAddProduct = (product: any) => {
+    const price = Number(product.sale_price || product.base_price || product.price || 0);
+    setNewProduct({
+      ...newProduct,
+      productId: product.id?.toString() || '',
+      productName: product.name_en || product.name || '',
+      unitPrice: price,
+    });
+    setShowAddProductDropdown(false);
+    setAddProductSearchResults([]);
+  };
+
+  // Close add-product dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (addProductSearchRef.current && !addProductSearchRef.current.contains(e.target as Node)) {
+        setShowAddProductDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const addNewProduct = async () => {
     if (!newProduct.productName || newProduct.quantity < 1 || newProduct.unitPrice <= 0) {
@@ -829,13 +940,59 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                 <div className="bg-blue-50 p-4 rounded-lg mb-4 border-2 border-blue-200">
                   <h4 className="font-bold mb-3">Add New Product</h4>
                   <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                    <input
-                      type="text"
-                      placeholder="Product Name *"
-                      value={newProduct.productName}
-                      onChange={(e) => setNewProduct({ ...newProduct, productName: e.target.value })}
-                      className="border px-3 py-2 rounded"
-                    />
+                    <div className="relative" ref={addProductSearchRef}>
+                      <input
+                        type="text"
+                        placeholder="Type to search products... *"
+                        value={newProduct.productName}
+                        onChange={(e) => handleAddProductNameChange(e.target.value)}
+                        onFocus={() => { if (addProductSearchResults.length > 0) setShowAddProductDropdown(true); }}
+                        className="border px-3 py-2 rounded w-full"
+                        autoComplete="off"
+                      />
+                      {addProductSearchLoading && (
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                          <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                        </div>
+                      )}
+                      {showAddProductDropdown && addProductSearchResults.length > 0 && (
+                        <div className="absolute z-50 left-0 right-0 mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                          {addProductSearchResults.map((p: any) => {
+                            const salePrice = Number(p.sale_price || p.base_price || p.price || 0);
+                            const basePrice = Number(p.base_price || p.price || 0);
+                            const hasDiscount = p.sale_price && salePrice < basePrice;
+                            return (
+                              <button
+                                key={p.id}
+                                type="button"
+                                onClick={() => selectAddProduct(p)}
+                                className="w-full text-left px-3 py-2 hover:bg-blue-50 flex items-center gap-3 border-b last:border-b-0 transition-colors"
+                              >
+                                {(p.image_url || p.image) && (
+                                  <img
+                                    src={p.image_url || p.image}
+                                    alt=""
+                                    className="w-10 h-10 object-contain rounded border flex-shrink-0"
+                                    crossOrigin="anonymous"
+                                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                                  />
+                                )}
+                                <div className="flex-1 min-w-0">
+                                  <div className="font-medium text-sm text-gray-900 truncate">{p.name_en || p.name}</div>
+                                  {p.name_bn && <div className="text-xs text-gray-500 truncate">{p.name_bn}</div>}
+                                </div>
+                                <div className="text-right flex-shrink-0">
+                                  <div className="text-sm font-semibold text-blue-600">৳{salePrice.toFixed(2)}</div>
+                                  {hasDiscount && (
+                                    <div className="text-xs text-gray-400 line-through">৳{basePrice.toFixed(2)}</div>
+                                  )}
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
                     <input
                       type="number"
                       placeholder="Quantity *"
@@ -966,10 +1123,9 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                   <button
                     onClick={startEditCustomer}
                     className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
-                    disabled={!customerRecord?.id}
-                    title={!customerRecord?.id ? 'No customer record matched for this order' : 'Edit customer'}
+                    title={customerRecord?.id ? 'Edit customer' : 'Create & edit customer for this order'}
                   >
-                    Edit
+                    {customerRecord?.id ? 'Edit' : 'Create Customer'}
                   </button>
                 ) : (
                   <div className="flex gap-2">

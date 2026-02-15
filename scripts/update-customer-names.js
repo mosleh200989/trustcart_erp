@@ -176,10 +176,13 @@ async function main() {
     let updated = 0;
     let skipped = 0;
     let apiErrors = 0;
-    let offset = 0;
+    let chunkNumber = 0;
+    let lastId = 0; // cursor-based pagination
 
-    while (offset < totalNoName) {
-      // Fetch a chunk of customers needing name update
+    while (true) {
+      chunkNumber++;
+      // Fetch a chunk using cursor-based pagination (id > lastId)
+      // This avoids the OFFSET bug where updated rows shift the result set
       const chunkResult = await client.query(`
         SELECT id, phone, name 
         FROM customers 
@@ -189,15 +192,19 @@ async function main() {
           OR name ~ '^Customer \\d{11}$'
         )
           AND phone IS NOT NULL AND TRIM(phone) != ''
+          AND id > $1
         ORDER BY id ASC
-        LIMIT $1 OFFSET $2
-      `, [config.chunkSize, offset]);
+        LIMIT $2
+      `, [lastId, config.chunkSize]);
 
       const customers = chunkResult.rows;
       if (customers.length === 0) break;
 
-      console.log(`── Chunk ${Math.floor(offset / config.chunkSize) + 1} ` +
-                  `(${offset + 1} - ${offset + customers.length} of ${totalNoName}) ──`);
+      // Track the last ID for cursor pagination
+      lastId = customers[customers.length - 1].id;
+
+      console.log(`── Chunk ${chunkNumber} ` +
+                  `(${processed + 1} - ${processed + customers.length} of ${totalNoName}) ──`);
 
       for (const customer of customers) {
         processed++;
@@ -235,7 +242,6 @@ async function main() {
         await sleep(DEFAULTS.API_DELAY_MS);
       }
 
-      offset += config.chunkSize;
       console.log(`  Chunk done. Updated so far: ${updated}\n`);
     }
 

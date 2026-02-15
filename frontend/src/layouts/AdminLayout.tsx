@@ -7,7 +7,7 @@ import apiClient from '@/services/api';
 import { 
   FaTachometerAlt, FaBoxes, FaShoppingCart, FaUsers, FaWarehouse, 
   FaShoppingBag, FaUserTie, FaBook, FaBullseye, FaHandshake, 
-  FaHeadset, FaUser, FaCog, FaBars, FaTimes, FaBell, FaChevronDown, FaChartBar, FaTags, FaGift, FaPhone, FaMoneyBillWave, FaImage, FaList, FaRocket
+  FaHeadset, FaUser, FaCog, FaBars, FaTimes, FaBell, FaChevronDown, FaChartBar, FaTags, FaGift, FaPhone, FaMoneyBillWave, FaImage, FaList, FaRocket, FaPrint
 } from 'react-icons/fa';
 
 interface MenuItem {
@@ -347,6 +347,7 @@ const menuItems: MenuItem[] = [
     requiredPermissions: ['manage-system-settings', 'view-system-settings'],
     children: [
       { title: 'Courier Configuration', icon: FaCog, path: '/admin/settings/courier-configuration' },
+      { title: 'Printer Settings', icon: FaPrint, path: '/admin/settings/printer', requiredPermissions: ['manage-system-settings'] },
       { title: 'Manage Modules', icon: FaCog, path: '/admin/settings/manage-modules', requiredPermissions: ['manage-system-settings'] },
     ],
   },
@@ -372,6 +373,7 @@ const iconMap: Record<string, any> = {
   FaGift,
   FaPhone,
   FaImage,
+  FaPrint,
 };
 
 function iconFromKey(key?: string | null) {

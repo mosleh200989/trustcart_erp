@@ -167,6 +167,15 @@ export class SalesController {
     return this.salesService.create(createSalesDto);
   }
 
+  @Put('sync-customer/:customerId')
+  @RequirePermissions('edit-sales-orders')
+  async syncCustomerInfo(
+    @Param('customerId') customerId: string,
+    @Body() body: { customerName?: string; customerEmail?: string; customerPhone?: string },
+  ) {
+    return this.salesService.syncCustomerInfo(Number(customerId), body);
+  }
+
   @Put(':id')
   @RequirePermissions('edit-sales-orders')
   async update(@Param('id') id: string, @Body() updateSalesDto: any) {

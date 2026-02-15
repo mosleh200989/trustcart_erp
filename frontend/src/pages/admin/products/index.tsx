@@ -376,6 +376,8 @@ export default function AdminProducts() {
 
     if (formData.display_position && formData.display_position.trim()) {
       payload.display_position = parseInt(formData.display_position);
+    } else {
+      payload.display_position = null;
     }
 
     // Build and include additional_info from key/value rows

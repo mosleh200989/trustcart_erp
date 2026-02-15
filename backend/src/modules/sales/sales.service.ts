@@ -713,4 +713,25 @@ export class SalesService {
 
     return order;
   }
+
+  /**
+   * Sync customer info (name, email, phone) across all orders belonging to a customer.
+   */
+  async syncCustomerInfo(
+    customerId: number,
+    data: { customerName?: string; customerEmail?: string; customerPhone?: string },
+  ) {
+    const updateFields: Partial<SalesOrder> = {};
+    if (data.customerName !== undefined) updateFields.customerName = data.customerName;
+    if (data.customerEmail !== undefined) updateFields.customerEmail = data.customerEmail;
+    if (data.customerPhone !== undefined) updateFields.customerPhone = data.customerPhone;
+
+    if (Object.keys(updateFields).length === 0) return { affected: 0 };
+
+    const result = await this.salesRepository.update(
+      { customerId },
+      updateFields,
+    );
+    return { affected: result.affected ?? 0 };
+  }
 }

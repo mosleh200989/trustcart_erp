@@ -2068,7 +2068,7 @@ export default function AgentDashboard() {
               setSelectedOrderId(null);
             }}
             onUpdate={() => {
-              // Refresh data if needed
+              loadDashboard();
             }}
           />
         )}

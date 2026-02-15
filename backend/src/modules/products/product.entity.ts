@@ -70,19 +70,19 @@ export class Product {
   status!: string;
 
   @Column({ nullable: true, length: 20, name: 'discount_type' })
-  discountType!: string; // 'percentage' or 'flat'
+  discount_type!: string; // 'percentage' or 'flat'
 
   @Column('decimal', { precision: 10, scale: 2, nullable: true, name: 'discount_value' })
-  discountValue!: number;
+  discount_value!: number;
 
   @Column('decimal', { precision: 10, scale: 2, nullable: true, name: 'sale_price' })
-  salePrice!: number;
+  sale_price!: number;
 
   @Column({ type: 'timestamp', nullable: true, name: 'discount_start_date' })
-  discountStartDate!: Date;
+  discount_start_date!: Date;
 
   @Column({ type: 'timestamp', nullable: true, name: 'discount_end_date' })
-  discountEndDate!: Date;
+  discount_end_date!: Date;
 
   @CreateDateColumn({ name: 'created_at' })
   created_at!: Date;
