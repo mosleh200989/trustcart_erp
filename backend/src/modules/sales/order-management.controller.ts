@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Req, UseGuards, UnauthorizedException, Headers, Res } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, Req, UseGuards, UnauthorizedException, Headers, Res, Query } from '@nestjs/common';
 import { OrderManagementService } from './order-management.service';
 import { Request, Response } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -22,6 +22,50 @@ export class OrderManagementController {
       userName: user.name || user.username || 'Admin',
       ipAddress: req.ip || req.headers['x-forwarded-for'] as string || 'unknown',
     };
+  }
+
+  // ==================== PRINTING PAGE ====================
+
+  @Get('printing')
+  @RequirePermissions('view-sales-orders')
+  async getPrintingOrders(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('q') q?: string,
+    @Query('todayOnly') todayOnly?: string,
+    @Query('isPacked') isPacked?: string,
+    @Query('invoicePrinted') invoicePrinted?: string,
+    @Query('stickerPrinted') stickerPrinted?: string,
+    @Query('courierId') courierId?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('productName') productName?: string,
+  ) {
+    return await this.orderManagementService.findForPrinting({
+      page: page ? parseInt(page, 10) : undefined,
+      limit: limit ? parseInt(limit, 10) : undefined,
+      q,
+      todayOnly: todayOnly === 'true',
+      isPacked,
+      invoicePrinted,
+      stickerPrinted,
+      courierId,
+      startDate,
+      endDate,
+      productName,
+    });
+  }
+
+  @Post('bulk-mark-invoice-printed')
+  @RequirePermissions('edit-sales-orders')
+  async bulkMarkInvoicePrinted(@Body() body: { orderIds: number[] }) {
+    return await this.orderManagementService.bulkMarkInvoicePrinted(body.orderIds);
+  }
+
+  @Post('bulk-mark-sticker-printed')
+  @RequirePermissions('edit-sales-orders')
+  async bulkMarkStickerPrinted(@Body() body: { orderIds: number[] }) {
+    return await this.orderManagementService.bulkMarkStickerPrinted(body.orderIds);
   }
 
   // ==================== ORDER ITEMS ====================
@@ -299,6 +343,18 @@ export class OrderManagementController {
   }
 
   // ==================== PRINT ====================
+
+  @Post(':orderId/mark-invoice-printed')
+  @RequirePermissions('edit-sales-orders')
+  async markInvoicePrinted(@Param('orderId') orderId: number) {
+    return await this.orderManagementService.markInvoicePrinted(orderId);
+  }
+
+  @Post(':orderId/mark-sticker-printed')
+  @RequirePermissions('edit-sales-orders')
+  async markStickerPrinted(@Param('orderId') orderId: number) {
+    return await this.orderManagementService.markStickerPrinted(orderId);
+  }
 
   @Post(':orderId/print/invoice')
   @RequirePermissions('view-sales-orders')

@@ -78,6 +78,10 @@ export class SalesService {
       delivered_at: order.deliveredAt,
       thank_you_offer_accepted: (order as any).thankYouOfferAccepted ?? null,
 
+      is_packed: order.isPacked ?? false,
+      invoice_printed: (order as any).invoicePrinted ?? false,
+      sticker_printed: (order as any).stickerPrinted ?? false,
+
       notes: order.notes,
     };
   }

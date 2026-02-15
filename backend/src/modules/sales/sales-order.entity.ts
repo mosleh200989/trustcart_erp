@@ -129,6 +129,18 @@ export class SalesOrder {
   @Column({ name: 'is_packed', type: 'boolean', default: false })
   isPacked: boolean;
 
+  @Column({ name: 'invoice_printed', type: 'boolean', default: false })
+  invoicePrinted: boolean;
+
+  @Column({ name: 'invoice_printed_at', type: 'timestamp', nullable: true })
+  invoicePrintedAt: Date;
+
+  @Column({ name: 'sticker_printed', type: 'boolean', default: false })
+  stickerPrinted: boolean;
+
+  @Column({ name: 'sticker_printed_at', type: 'timestamp', nullable: true })
+  stickerPrintedAt: Date;
+
   @Column({ name: 'packed_at', type: 'timestamp', nullable: true })
   packedAt: Date;
 
