@@ -1419,4 +1419,205 @@ export class OrderManagementService {
     }
     return results;
   }
+
+  // ==================== PRINTING MODULE ====================
+
+  async findForPrinting(params: {
+    page?: number;
+    limit?: number;
+    q?: string;
+    todayOnly?: boolean;
+    isPacked?: string;
+    invoicePrinted?: string;
+    stickerPrinted?: string;
+    courierId?: string;
+    startDate?: string;
+    endDate?: string;
+    productName?: string;
+  }) {
+    const page = Math.max(1, params.page || 1);
+    const limit = Math.min(100, Math.max(1, params.limit || 20));
+    const skip = (page - 1) * limit;
+
+    const qb = this.salesOrderRepository.createQueryBuilder('o');
+
+    // Text search (customer name, phone)
+    if (params.q && params.q.trim()) {
+      const q = `%${params.q.trim().toLowerCase()}%`;
+      qb.andWhere(
+        '(o.customer_name ILIKE :q OR o.customer_phone ILIKE :q)',
+        { q },
+      );
+    }
+
+    // Today only
+    if (params.todayOnly) {
+      qb.andWhere('DATE(o.order_date) = CURRENT_DATE');
+    } else {
+      if (params.startDate) {
+        qb.andWhere('DATE(o.order_date) >= :startDate', { startDate: params.startDate });
+      }
+      if (params.endDate) {
+        qb.andWhere('DATE(o.order_date) <= :endDate', { endDate: params.endDate });
+      }
+    }
+
+    // Packed filter
+    if (params.isPacked === 'true') {
+      qb.andWhere('o.is_packed = true');
+    } else if (params.isPacked === 'false') {
+      qb.andWhere('(o.is_packed = false OR o.is_packed IS NULL)');
+    }
+
+    // Invoice printed filter
+    if (params.invoicePrinted === 'true') {
+      qb.andWhere('o.invoice_printed = true');
+    } else if (params.invoicePrinted === 'false') {
+      qb.andWhere('(o.invoice_printed = false OR o.invoice_printed IS NULL)');
+    }
+
+    // Sticker printed filter
+    if (params.stickerPrinted === 'true') {
+      qb.andWhere('o.sticker_printed = true');
+    } else if (params.stickerPrinted === 'false') {
+      qb.andWhere('(o.sticker_printed = false OR o.sticker_printed IS NULL)');
+    }
+
+    // Courier ID filter
+    if (params.courierId && params.courierId.trim()) {
+      qb.andWhere('CAST(o.courier_order_id AS TEXT) ILIKE :courierId', {
+        courierId: `%${params.courierId.trim()}%`,
+      });
+    }
+
+    // Product name filter — subquery in order_items / sales_order_items
+    if (params.productName && params.productName.trim()) {
+      const pName = `%${params.productName.trim().toLowerCase()}%`;
+      qb.andWhere(
+        `(o.id IN (
+          SELECT oi.order_id FROM order_items oi WHERE oi.product_name ILIKE :pName
+          UNION
+          SELECT soi.sales_order_id FROM sales_order_items soi WHERE soi.product_name ILIKE :pName
+        ))`,
+        { pName },
+      );
+    }
+
+    qb.orderBy('o.created_at', 'DESC');
+    qb.skip(skip).take(limit);
+
+    const [orders, total] = await qb.getManyAndCount();
+
+    // Now fetch items for all these orders
+    const orderIds = orders.map((o) => o.id);
+    let itemsMap: Record<number, any[]> = {};
+    if (orderIds.length > 0) {
+      // First try order_items
+      const adminItems = await this.orderItemRepository
+        .createQueryBuilder('oi')
+        .where('oi.order_id IN (:...ids)', { ids: orderIds })
+        .getMany();
+
+      // Then try sales_order_items for any orders not in adminItems
+      const orderIdsWithAdminItems = new Set(adminItems.map((i) => i.orderId));
+      const missingIds = orderIds.filter((id) => !orderIdsWithAdminItems.has(id));
+
+      let checkoutItems: any[] = [];
+      if (missingIds.length > 0) {
+        checkoutItems = await this.salesOrderItemRepository
+          .createQueryBuilder('soi')
+          .where('soi.sales_order_id IN (:...ids)', { ids: missingIds })
+          .getMany();
+      }
+
+      // Build the map
+      for (const item of adminItems) {
+        if (!itemsMap[item.orderId]) itemsMap[item.orderId] = [];
+        itemsMap[item.orderId].push({
+          productName: item.productName,
+          quantity: Number(item.quantity || 0),
+        });
+      }
+      for (const item of checkoutItems) {
+        const orderId = (item as any).salesOrderId;
+        if (!itemsMap[orderId]) itemsMap[orderId] = [];
+        itemsMap[orderId].push({
+          productName: item.productName,
+          quantity: Number(item.quantity || 0),
+        });
+      }
+    }
+
+    const data = orders.map((order) => ({
+      id: order.id,
+      salesOrderNumber: order.salesOrderNumber,
+      customerName: order.customerName,
+      customerPhone: order.customerPhone,
+      totalAmount: parseFloat(order.totalAmount?.toString() || '0'),
+      courierOrderId: order.courierOrderId,
+      courierCompany: order.courierCompany,
+      trackingId: order.trackingId,
+      courierStatus: order.courierStatus,
+      orderDate: order.orderDate || order.createdAt,
+      isPacked: order.isPacked ?? false,
+      invoicePrinted: (order as any).invoicePrinted ?? false,
+      stickerPrinted: (order as any).stickerPrinted ?? false,
+      status: order.status,
+      items: itemsMap[order.id] || [],
+    }));
+
+    return {
+      data,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    };
+  }
+
+  async markInvoicePrinted(orderId: number) {
+    const order = await this.salesOrderRepository.findOne({ where: { id: orderId } });
+    if (!order) throw new NotFoundException(`Order #${orderId} not found`);
+    (order as any).invoicePrinted = true;
+    (order as any).invoicePrintedAt = new Date();
+    await this.salesOrderRepository.save(order);
+    return { success: true, message: 'Invoice marked as printed' };
+  }
+
+  async markStickerPrinted(orderId: number) {
+    const order = await this.salesOrderRepository.findOne({ where: { id: orderId } });
+    if (!order) throw new NotFoundException(`Order #${orderId} not found`);
+    (order as any).stickerPrinted = true;
+    (order as any).stickerPrintedAt = new Date();
+    await this.salesOrderRepository.save(order);
+    return { success: true, message: 'Sticker marked as printed' };
+  }
+
+  async bulkMarkInvoicePrinted(orderIds: number[]) {
+    let success = 0;
+    let failed = 0;
+    for (const id of orderIds) {
+      try {
+        await this.markInvoicePrinted(id);
+        success++;
+      } catch {
+        failed++;
+      }
+    }
+    return { total: orderIds.length, success, failed };
+  }
+
+  async bulkMarkStickerPrinted(orderIds: number[]) {
+    let success = 0;
+    let failed = 0;
+    for (const id of orderIds) {
+      try {
+        await this.markStickerPrinted(id);
+        success++;
+      } catch {
+        failed++;
+      }
+    }
+    return { total: orderIds.length, success, failed };
+  }
 }

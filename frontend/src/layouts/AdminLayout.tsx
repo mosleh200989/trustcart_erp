@@ -51,6 +51,7 @@ const menuItems: MenuItem[] = [
     icon: FaShoppingCart,
     children: [
       { title: 'Orders', icon: FaShoppingCart, path: '/admin/sales', requiredPermissions: ['view-sales-orders'] },
+      { title: 'Printing', icon: FaPrint, path: '/admin/sales/printing', requiredPermissions: ['view-sales-orders'] },
       { title: 'Incomplete Order', icon: FaShoppingCart, path: '/admin/sales/incomplete-orders', requiredPermissions: ['view-sales-orders'] },
       { title: 'Late Delivery', icon: FaShoppingCart, path: '/admin/sales/late-delivery', requiredPermissions: ['view-sales-orders'] },
     ],
