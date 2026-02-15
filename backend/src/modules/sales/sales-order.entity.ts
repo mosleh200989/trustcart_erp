@@ -126,6 +126,15 @@ export class SalesOrder {
   @Column({ name: 'thank_you_offer_accepted', type: 'boolean', default: false })
   thankYouOfferAccepted: boolean;
 
+  @Column({ name: 'is_packed', type: 'boolean', default: false })
+  isPacked: boolean;
+
+  @Column({ name: 'packed_at', type: 'timestamp', nullable: true })
+  packedAt: Date;
+
+  @Column({ name: 'packed_by', nullable: true })
+  packedBy: number;
+
   @Column({ name: 'shipped_at', type: 'timestamp', nullable: true })
   shippedAt: Date;
 

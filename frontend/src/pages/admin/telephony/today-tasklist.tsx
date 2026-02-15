@@ -1057,7 +1057,7 @@ export default function TodayTasklistPage() {
             setShowOrderModal(false);
             setSelectedOrderId(null);
           }}
-          onUpdate={() => {}}
+          onUpdate={loadTodayData}
         />
       )}
 

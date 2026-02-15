@@ -1,6 +1,6 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Req, UseGuards, UnauthorizedException, Headers } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, Req, UseGuards, UnauthorizedException, Headers, Res } from '@nestjs/common';
 import { OrderManagementService } from './order-management.service';
-import { Request } from 'express';
+import { Request, Response } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
@@ -258,6 +258,70 @@ export class OrderManagementController {
       userIp: body.userIp ?? ipAddress,
       browserInfo: body.browserInfo ?? ua,
     });
+  }
+
+  // ==================== MARK AS PACKED ====================
+
+  @Post(':orderId/mark-packed')
+  @RequirePermissions('edit-sales-orders')
+  async markAsPacked(@Param('orderId') orderId: number, @Req() req: Request) {
+    const userInfo = this.getUserInfo(req);
+    return await this.orderManagementService.markAsPacked(
+      orderId,
+      userInfo.userId,
+      userInfo.userName,
+      userInfo.ipAddress,
+    );
+  }
+
+  @Post(':orderId/unmark-packed')
+  @RequirePermissions('edit-sales-orders')
+  async unmarkPacked(@Param('orderId') orderId: number, @Req() req: Request) {
+    const userInfo = this.getUserInfo(req);
+    return await this.orderManagementService.unmarkPacked(
+      orderId,
+      userInfo.userId,
+      userInfo.userName,
+      userInfo.ipAddress,
+    );
+  }
+
+  @Post('bulk-mark-packed')
+  @RequirePermissions('edit-sales-orders')
+  async bulkMarkAsPacked(@Body() body: { orderIds: number[] }, @Req() req: Request) {
+    const userInfo = this.getUserInfo(req);
+    return await this.orderManagementService.bulkMarkAsPacked(
+      body.orderIds,
+      userInfo.userId,
+      userInfo.userName,
+      userInfo.ipAddress,
+    );
+  }
+
+  // ==================== PRINT ====================
+
+  @Post(':orderId/print/invoice')
+  @RequirePermissions('view-sales-orders')
+  async printInvoice(@Param('orderId') orderId: number) {
+    return await this.orderManagementService.generateInvoiceData(orderId);
+  }
+
+  @Post(':orderId/print/sticker')
+  @RequirePermissions('view-sales-orders')
+  async printSticker(@Param('orderId') orderId: number) {
+    return await this.orderManagementService.generateStickerData(orderId);
+  }
+
+  @Post('bulk-print/invoice')
+  @RequirePermissions('view-sales-orders')
+  async bulkPrintInvoice(@Body() body: { orderIds: number[] }) {
+    return await this.orderManagementService.bulkGenerateInvoiceData(body.orderIds);
+  }
+
+  @Post('bulk-print/sticker')
+  @RequirePermissions('view-sales-orders')
+  async bulkPrintSticker(@Body() body: { orderIds: number[] }) {
+    return await this.orderManagementService.bulkGenerateStickerData(body.orderIds);
   }
 
   // ==================== STEADFAST WEBHOOK ====================

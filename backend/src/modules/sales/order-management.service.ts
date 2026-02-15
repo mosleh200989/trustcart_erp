@@ -291,13 +291,27 @@ export class OrderManagementService {
       });
       resData = res.data;
     } catch (e: any) {
-      const status = e?.response?.status || HttpStatus.BAD_GATEWAY;
+      const extStatus = e?.response?.status;
       const errData = e?.response?.data;
-      const msg = errData?.message || e?.message || 'Failed to connect to Steadfast';
       const errors = errData?.errors || undefined;
+
+      // If Steadfast returns 401/403, the API credentials are invalid — never forward
+      // these auth codes to the frontend (the frontend would treat them as JWT failures).
+      if (extStatus === 401 || extStatus === 403) {
+        throw new HttpException(
+          {
+            statusCode: HttpStatus.BAD_GATEWAY,
+            message: 'Steadfast API authentication failed. Please verify STEADFAST_API_KEY and STEADFAST_SECRET_KEY in backend/.env are correct and not expired.',
+            errors,
+          },
+          HttpStatus.BAD_GATEWAY,
+        );
+      }
+
+      const msg = errData?.message || e?.message || 'Failed to connect to Steadfast';
       throw new HttpException(
-        { statusCode: status, message: msg, errors },
-        status >= 400 && status < 600 ? status : HttpStatus.BAD_GATEWAY,
+        { statusCode: HttpStatus.BAD_GATEWAY, message: `Steadfast error: ${msg}`, errors },
+        HttpStatus.BAD_GATEWAY,
       );
     }
 
@@ -861,7 +875,12 @@ export class OrderManagementService {
     const customerPhone = orderWithCourierSync.customerPhone ? String(orderWithCourierSync.customerPhone).trim() : '';
 
     let matchedCustomer: any | null = null;
-    if (customerEmail) matchedCustomer = await this.customersService.findByEmail(customerEmail);
+    if (customerId) {
+      try {
+        matchedCustomer = await this.customersService.findOne(String(customerId));
+      } catch { /* not found */ }
+    }
+    if (!matchedCustomer && customerEmail) matchedCustomer = await this.customersService.findByEmail(customerEmail);
     if (!matchedCustomer && customerPhone) {
       matchedCustomer = await this.customersService.findByPhone(customerPhone);
     }
@@ -1231,6 +1250,173 @@ export class OrderManagementService {
       }
     }
 
+    return results;
+  }
+
+  // ==================== MARK AS PACKED ====================
+
+  async markAsPacked(orderId: number, userId: number, userName: string, ipAddress: string) {
+    const order = await this.salesOrderRepository.findOne({ where: { id: orderId } });
+    if (!order) throw new NotFoundException(`Order #${orderId} not found`);
+
+    order.isPacked = true;
+    order.packedAt = new Date();
+    order.packedBy = userId;
+    await this.salesOrderRepository.save(order);
+
+    await this.activityLogRepository.save(
+      this.activityLogRepository.create({
+        orderId,
+        actionType: 'packed',
+        actionDescription: `Order marked as packed by ${userName}`,
+        oldValue: { isPacked: false },
+        newValue: { isPacked: true },
+        performedBy: userId,
+        performedByName: userName,
+        ipAddress,
+      }),
+    );
+
+    return { success: true, message: 'Order marked as packed', order };
+  }
+
+  async unmarkPacked(orderId: number, userId: number, userName: string, ipAddress: string) {
+    const order = await this.salesOrderRepository.findOne({ where: { id: orderId } });
+    if (!order) throw new NotFoundException(`Order #${orderId} not found`);
+
+    order.isPacked = false;
+    order.packedAt = null as any;
+    order.packedBy = null as any;
+    await this.salesOrderRepository.save(order);
+
+    await this.activityLogRepository.save(
+      this.activityLogRepository.create({
+        orderId,
+        actionType: 'unpacked',
+        actionDescription: `Order unmarked as packed by ${userName}`,
+        oldValue: { isPacked: true },
+        newValue: { isPacked: false },
+        performedBy: userId,
+        performedByName: userName,
+        ipAddress,
+      }),
+    );
+
+    return { success: true, message: 'Order unmarked as packed', order };
+  }
+
+  async bulkMarkAsPacked(orderIds: number[], userId: number, userName: string, ipAddress: string) {
+    const results = { total: orderIds.length, success: 0, failed: 0, errors: [] as string[] };
+
+    for (const orderId of orderIds) {
+      try {
+        await this.markAsPacked(orderId, userId, userName, ipAddress);
+        results.success++;
+      } catch (e: any) {
+        results.failed++;
+        results.errors.push(`Order #${orderId}: ${e.message || 'Unknown error'}`);
+      }
+    }
+
+    return results;
+  }
+
+  // ==================== PRINT DATA GENERATION ====================
+
+  private async getOrderForPrint(orderId: number) {
+    const order = await this.salesOrderRepository.findOne({ where: { id: orderId } });
+    if (!order) throw new NotFoundException(`Order #${orderId} not found`);
+
+    // Use getOrderItems which checks BOTH order_items (admin) and sales_order_items (checkout) tables
+    const items = await this.getOrderItems(orderId);
+
+    return { order, items };
+  }
+
+  async generateInvoiceData(orderId: number) {
+    const { order, items } = await this.getOrderForPrint(orderId);
+
+    return {
+      type: 'invoice',
+      order: {
+        id: order.id,
+        salesOrderNumber: order.salesOrderNumber,
+        customerName: order.customerName,
+        customerEmail: order.customerEmail,
+        customerPhone: order.customerPhone,
+        shippingAddress: order.shippingAddress,
+        orderDate: order.orderDate,
+        status: order.status,
+        isPacked: order.isPacked,
+        totalAmount: order.totalAmount,
+        discountAmount: order.discountAmount,
+        courierNotes: order.courierNotes,
+        riderInstructions: order.riderInstructions,
+        notes: order.notes,
+        courierCompany: order.courierCompany,
+        courierOrderId: order.courierOrderId,
+        trackingId: order.trackingId,
+      },
+      items: items.map((item: any) => ({
+        id: item.id,
+        productName: item.productName || item.product_name || 'Product',
+        productImage: item.productImage || item.product_image || null,
+        quantity: Number(item.quantity || 0),
+        unitPrice: Number(item.unitPrice || item.unit_price || 0),
+        lineTotal: Number(item.subtotal || item.lineTotal || item.line_total) || (Number(item.quantity || 0) * Number(item.unitPrice || item.unit_price || 0)),
+      })),
+    };
+  }
+
+  async generateStickerData(orderId: number) {
+    const { order, items } = await this.getOrderForPrint(orderId);
+
+    return {
+      type: 'sticker',
+      order: {
+        id: order.id,
+        salesOrderNumber: order.salesOrderNumber,
+        customerName: order.customerName,
+        customerPhone: order.customerPhone,
+        shippingAddress: order.shippingAddress,
+        isPacked: order.isPacked,
+        totalAmount: order.totalAmount,
+        courierCompany: order.courierCompany,
+        courierOrderId: order.courierOrderId,
+        trackingId: order.trackingId,
+      },
+      items: items.map((item: any) => ({
+        productName: item.productName || item.product_name || 'Product',
+        quantity: Number(item.quantity || 0),
+      })),
+      itemCount: items.length,
+      totalQuantity: items.reduce((sum, item) => sum + Number(item.quantity), 0),
+    };
+  }
+
+  async bulkGenerateInvoiceData(orderIds: number[]) {
+    const results = [];
+    for (const orderId of orderIds) {
+      try {
+        const data = await this.generateInvoiceData(orderId);
+        results.push(data);
+      } catch (e: any) {
+        results.push({ type: 'invoice', error: true, orderId, message: e.message });
+      }
+    }
+    return results;
+  }
+
+  async bulkGenerateStickerData(orderIds: number[]) {
+    const results = [];
+    for (const orderId of orderIds) {
+      try {
+        const data = await this.generateStickerData(orderId);
+        results.push(data);
+      } catch (e: any) {
+        results.push({ type: 'sticker', error: true, orderId, message: e.message });
+      }
+    }
     return results;
   }
 }

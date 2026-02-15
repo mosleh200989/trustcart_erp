@@ -5,8 +5,10 @@ import PageSizeSelector from '@/components/admin/PageSizeSelector';
 import Modal from '@/components/admin/Modal';
 import FormInput from '@/components/admin/FormInput';
 import AdminOrderDetailsModal from '@/components/AdminOrderDetailsModal';
+import InvoicePrintModal from '@/components/admin/InvoicePrintModal';
+import StickerPrintModal from '@/components/admin/StickerPrintModal';
 import { useToast } from '@/contexts/ToastContext';
-import { FaPlus } from 'react-icons/fa';
+import { FaPlus, FaPrint, FaBoxOpen, FaFileInvoice, FaTag } from 'react-icons/fa';
 import apiClient from '@/services/api';
 
 const INITIAL_FILTERS = {
@@ -102,6 +104,11 @@ interface SalesOrder {
   thankYouOfferAccepted?: boolean;
   thank_you_offer_accepted?: boolean;
 
+  isPacked?: boolean;
+  is_packed?: boolean;
+  packedAt?: string | null;
+  packed_at?: string | null;
+
   notes?: string | null;
 }
 
@@ -122,6 +129,11 @@ export default function AdminSales() {
   const [selectedRowIds, setSelectedRowIds] = useState<Array<number | string>>([]);
   const [bulkAction, setBulkAction] = useState<'delete' | 'pending' | 'completed' | 'cancelled' | ''>('');
   const [itemsPerPage, setItemsPerPage] = useState(10);
+
+  // Print & Pack state
+  const [showInvoicePrint, setShowInvoicePrint] = useState(false);
+  const [showStickerPrint, setShowStickerPrint] = useState(false);
+  const [printOrderIds, setPrintOrderIds] = useState<number[]>([]);
 
   const [formData, setFormData] = useState({
     order_number: '',
@@ -406,6 +418,72 @@ export default function AdminSales() {
     await loadOrders();
   };
 
+  // ==================== PRINT HANDLERS ====================
+
+  const handlePrintInvoice = (orderId?: number) => {
+    if (orderId) {
+      setPrintOrderIds([orderId]);
+    } else {
+      const ids = selectedRowIds.map((id) => Number(id)).filter((id) => Number.isFinite(id));
+      if (ids.length === 0) { toast.warning('Select at least one order'); return; }
+      setPrintOrderIds(ids);
+    }
+    setShowInvoicePrint(true);
+  };
+
+  const handlePrintSticker = (orderId?: number) => {
+    if (orderId) {
+      setPrintOrderIds([orderId]);
+    } else {
+      const ids = selectedRowIds.map((id) => Number(id)).filter((id) => Number.isFinite(id));
+      if (ids.length === 0) { toast.warning('Select at least one order'); return; }
+      setPrintOrderIds(ids);
+    }
+    setShowStickerPrint(true);
+  };
+
+  // ==================== MARK AS PACKED HANDLERS ====================
+
+  const handleMarkPacked = async (orderId: number) => {
+    try {
+      await apiClient.post(`/order-management/${orderId}/mark-packed`);
+      toast.success('Order marked as packed');
+      loadOrders();
+    } catch {
+      toast.error('Failed to mark as packed');
+    }
+  };
+
+  const handleUnmarkPacked = async (orderId: number) => {
+    try {
+      await apiClient.post(`/order-management/${orderId}/unmark-packed`);
+      toast.success('Order unmarked as packed');
+      loadOrders();
+    } catch {
+      toast.error('Failed to unmark packed');
+    }
+  };
+
+  const handleBulkMarkPacked = async () => {
+    const ids = selectedRowIds.map((id) => Number(id)).filter((id) => Number.isFinite(id));
+    if (ids.length === 0) { toast.warning('Select at least one order'); return; }
+    if (!confirm(`Mark ${ids.length} order(s) as packed?`)) return;
+
+    try {
+      const res = await apiClient.post('/order-management/bulk-mark-packed', { orderIds: ids });
+      const data = res.data;
+      if (data.failed === 0) {
+        toast.success(`${data.success} order(s) marked as packed`);
+      } else {
+        toast.warning(`Packed: ${data.success}, Failed: ${data.failed}`);
+      }
+      setSelectedRowIds([]);
+      loadOrders();
+    } catch {
+      toast.error('Failed to bulk mark as packed');
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -541,6 +619,60 @@ export default function AdminSales() {
           </span>
         );
       }
+    },
+    {
+      key: 'isPacked',
+      label: 'Packed',
+      render: (_: any, row: SalesOrder) => {
+        const packed = row.isPacked ?? row.is_packed ?? false;
+        return packed ? (
+          <span className="px-2 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800">Packed</span>
+        ) : (
+          <span className="px-2 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-500">-</span>
+        );
+      }
+    },
+    {
+      key: 'actions',
+      label: 'Quick Actions',
+      render: (_: any, row: SalesOrder) => {
+        const packed = row.isPacked ?? row.is_packed ?? false;
+        return (
+          <div className="flex items-center gap-1">
+            <button
+              onClick={(e) => { e.stopPropagation(); handlePrintInvoice(row.id); }}
+              className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors"
+              title="Print Invoice"
+            >
+              <FaFileInvoice className="text-sm" />
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); handlePrintSticker(row.id); }}
+              className="p-1.5 text-green-600 hover:bg-green-50 rounded transition-colors"
+              title="Print Sticker"
+            >
+              <FaTag className="text-sm" />
+            </button>
+            {packed ? (
+              <button
+                onClick={(e) => { e.stopPropagation(); handleUnmarkPacked(row.id); }}
+                className="p-1.5 text-orange-600 hover:bg-orange-50 rounded transition-colors"
+                title="Unmark Packed"
+              >
+                <FaBoxOpen className="text-sm" />
+              </button>
+            ) : (
+              <button
+                onClick={(e) => { e.stopPropagation(); handleMarkPacked(row.id); }}
+                className="p-1.5 text-purple-600 hover:bg-purple-50 rounded transition-colors"
+                title="Mark as Packed"
+              >
+                <FaBoxOpen className="text-sm" />
+              </button>
+            )}
+          </div>
+        );
+      }
     }
   ];
 
@@ -566,7 +698,39 @@ export default function AdminSales() {
             Selected: <span className="font-semibold">{selectedRowIds.length}</span>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              type="button"
+              onClick={() => handlePrintInvoice()}
+              disabled={selectedRowIds.length === 0}
+              className="px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-indigo-500 to-indigo-600 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:from-indigo-600 hover:to-indigo-700 transition-all flex items-center gap-1.5"
+              title="Print Invoice for selected orders"
+            >
+              <FaFileInvoice /> Print Invoice
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handlePrintSticker()}
+              disabled={selectedRowIds.length === 0}
+              className="px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-green-500 to-green-600 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:from-green-600 hover:to-green-700 transition-all flex items-center gap-1.5"
+              title="Print Sticker for selected orders"
+            >
+              <FaTag /> Print Sticker
+            </button>
+
+            <button
+              type="button"
+              onClick={handleBulkMarkPacked}
+              disabled={selectedRowIds.length === 0}
+              className="px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-purple-500 to-purple-600 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:from-purple-600 hover:to-purple-700 transition-all flex items-center gap-1.5"
+              title="Mark selected orders as packed"
+            >
+              <FaBoxOpen /> Mark Packed
+            </button>
+
+            <div className="border-l border-gray-300 h-8 mx-1" />
+
             <button
               type="button"
               onClick={bulkSendToSteadfast}
@@ -926,6 +1090,28 @@ export default function AdminSales() {
               setSelectedOrderId(null);
             }}
             onUpdate={() => loadOrders()}
+          />
+        )}
+
+        {/* Invoice Print Modal */}
+        {showInvoicePrint && printOrderIds.length > 0 && (
+          <InvoicePrintModal
+            orderIds={printOrderIds}
+            onClose={() => {
+              setShowInvoicePrint(false);
+              setPrintOrderIds([]);
+            }}
+          />
+        )}
+
+        {/* Sticker Print Modal */}
+        {showStickerPrint && printOrderIds.length > 0 && (
+          <StickerPrintModal
+            orderIds={printOrderIds}
+            onClose={() => {
+              setShowStickerPrint(false);
+              setPrintOrderIds([]);
+            }}
           />
         )}
       </div>

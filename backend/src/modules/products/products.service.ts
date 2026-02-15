@@ -53,7 +53,10 @@ export class ProductsService {
         ) pi ON TRUE
         LEFT JOIN categories c ON p.category_id = c.id
         WHERE p.status = 'active'
-        ORDER BY p.created_at DESC
+        ORDER BY 
+          CASE WHEN p.display_position IS NOT NULL THEN 0 ELSE 1 END,
+          p.display_position ASC,
+          p.created_at DESC
         LIMIT 100
       `);
       console.log(`Raw query found ${rawResults.length} products`);
@@ -245,6 +248,11 @@ export class ProductsService {
   async create(createProductDto: any) {
     try {
       console.log('Creating product with data:', createProductDto);
+
+      // If display_position is provided, shift existing products to make room
+      if (createProductDto.display_position != null) {
+        await this.shiftDisplayPositions(createProductDto.display_position);
+      }
       
       // Generate UUID if not provided
       const productData = {
@@ -256,11 +264,11 @@ export class ProductsService {
         product_code: createProductDto.product_code || null,
         brand: createProductDto.brand || null,
         unit_of_measure: createProductDto.unit_of_measure || null,
-        wholesale_price: createProductDto.wholesale_price || null,
-        sale_price: createProductDto.sale_price || null,
+        wholesale_price: createProductDto.wholesale_price ?? null,
+        sale_price: createProductDto.sale_price ?? null,
         image_url: createProductDto.image_url || null,
-        stock_quantity: createProductDto.stock_quantity || null,
-        display_position: createProductDto.display_position || null,
+        stock_quantity: createProductDto.stock_quantity ?? null,
+        display_position: createProductDto.display_position ?? null,
         status: createProductDto.status || 'active'
       };
       
@@ -286,28 +294,43 @@ export class ProductsService {
     try {
       console.log('Updating product:', id, updateProductDto);
 
-      // Map snake_case keys from frontend to camelCase entity property names
-      const snakeToCamelMap: Record<string, string> = {
-        sale_price: 'salePrice',
-        discount_type: 'discountType',
-        discount_value: 'discountValue',
-        discount_start_date: 'discountStartDate',
-        discount_end_date: 'discountEndDate',
-      };
-
-      const mapped: any = {};
-      for (const [key, value] of Object.entries(updateProductDto)) {
-        const entityKey = snakeToCamelMap[key] ?? key;
-        mapped[entityKey] = value;
+      // If display_position is being changed, shift other products
+      if (updateProductDto.display_position !== undefined) {
+        const numericId = parseInt(id, 10);
+        const existingProduct = await this.productsRepository.findOne({ where: { id: numericId } });
+        if (existingProduct && existingProduct.display_position !== updateProductDto.display_position) {
+          if (updateProductDto.display_position != null) {
+            await this.shiftDisplayPositions(updateProductDto.display_position, numericId);
+          }
+        }
       }
 
-      const result = await this.productsRepository.update(parseInt(id), mapped);
+      const result = await this.productsRepository.update(parseInt(id), updateProductDto);
       console.log('Update result:', result);
       return this.findOne(id);
     } catch (error) {
       console.error('Error updating product:', error);
       throw error;
     }
+  }
+
+  /**
+   * Shift display_position of products >= the given position by +1
+   * Optionally exclude a specific product ID (useful for updates)
+   */
+  private async shiftDisplayPositions(fromPosition: number, excludeId?: number): Promise<void> {
+    let query = this.productsRepository
+      .createQueryBuilder()
+      .update(Product)
+      .set({ display_position: () => 'display_position + 1' })
+      .where('display_position >= :fromPosition', { fromPosition })
+      .andWhere('display_position IS NOT NULL');
+    
+    if (excludeId) {
+      query = query.andWhere('id != :excludeId', { excludeId });
+    }
+    
+    await query.execute();
   }
 
   async remove(id: string) {

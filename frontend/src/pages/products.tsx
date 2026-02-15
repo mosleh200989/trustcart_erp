@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useRouter } from "next/router";
 import ElectroNavbar from "@/components/ElectroNavbar";
 import ElectroFooter from "@/components/ElectroFooter";
@@ -54,34 +54,87 @@ export default function Products() {
 
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 12;
+  const isUpdatingFromUrl = useRef(false);
+  const prevFiltersRef = useRef(filters);
 
   useEffect(() => {
     loadProducts();
     loadCategories();
   }, []);
 
-  // Handle URL query parameters
+  // Sync URL query params → component state
   useEffect(() => {
-    if (router.isReady) {
-      const updates: Partial<typeof filters> = {};
+    if (!router.isReady) return;
 
-      if (router.query.category) {
-        const categorySlug = router.query.category as string;
-        const category = categories.find((cat) => cat.slug === categorySlug);
-        if (category) {
-          updates.category = category.name_en;
-        }
-      }
+    isUpdatingFromUrl.current = true;
 
-      if (router.query.sort === "discount") {
-        updates.sortBy = "discount";
-      }
+    const updates: Partial<typeof filters> = {};
 
-      if (Object.keys(updates).length > 0) {
-        setFilters((prev) => ({ ...prev, ...updates }));
+    if (router.query.category) {
+      const categorySlug = router.query.category as string;
+      const category = categories.find((cat) => cat.slug === categorySlug);
+      if (category) {
+        updates.category = category.name_en;
       }
+    } else {
+      updates.category = "";
     }
-  }, [router.isReady, router.query.category, router.query.sort, categories]);
+
+    if (router.query.sort) {
+      updates.sortBy = router.query.sort as string;
+    }
+
+    const page = parseInt(router.query.page as string, 10);
+    if (page && page >= 1) {
+      setCurrentPage(page);
+    } else {
+      setCurrentPage(1);
+    }
+
+    if (Object.keys(updates).length > 0) {
+      setFilters((prev) => ({ ...prev, ...updates }));
+    }
+
+    // Allow URL → state sync to settle before enabling state → URL sync
+    setTimeout(() => {
+      isUpdatingFromUrl.current = false;
+    }, 0);
+  }, [router.isReady, router.query.category, router.query.sort, router.query.page, categories]);
+
+  // Sync component state → URL query params (shallow, creates history entry)
+  const updateUrl = useCallback(
+    (page: number, filtersOverride?: typeof filters) => {
+      if (isUpdatingFromUrl.current || !router.isReady) return;
+
+      const f = filtersOverride ?? filters;
+      const query: Record<string, string> = {};
+
+      if (f.category) {
+        const cat = categories.find((c) => c.name_en === f.category);
+        if (cat) query.category = cat.slug;
+      }
+      if (f.sortBy && f.sortBy !== "featured") {
+        query.sort = f.sortBy;
+      }
+      if (page > 1) {
+        query.page = page.toString();
+      }
+
+      // Only push if query actually changed
+      const currentQuery = { ...router.query };
+      delete currentQuery.category;
+      delete currentQuery.sort;
+      delete currentQuery.page;
+      const isSame =
+        JSON.stringify(query) === JSON.stringify({ ...currentQuery, ...query }) &&
+        Object.keys(currentQuery).length === 0;
+
+      if (!isSame) {
+        router.push({ pathname: router.pathname, query }, undefined, { shallow: true });
+      }
+    },
+    [router, filters, categories]
+  );
 
   useEffect(() => {
     applyFilters();
@@ -205,7 +258,21 @@ export default function Products() {
     }
 
     setFilteredProducts(filtered);
-    setCurrentPage(1);
+
+    // Reset to page 1 only when filters actually changed (not on initial load)
+    const filtersChanged =
+      prevFiltersRef.current.search !== filters.search ||
+      prevFiltersRef.current.category !== filters.category ||
+      prevFiltersRef.current.minPrice !== filters.minPrice ||
+      prevFiltersRef.current.maxPrice !== filters.maxPrice ||
+      prevFiltersRef.current.sortBy !== filters.sortBy ||
+      prevFiltersRef.current.inStock !== filters.inStock;
+
+    if (filtersChanged && !isUpdatingFromUrl.current) {
+      setCurrentPage(1);
+      updateUrl(1, filters);
+    }
+    prevFiltersRef.current = filters;
   };
 
   const totalPages = Math.ceil(filteredProducts.length / itemsPerPage);
@@ -497,9 +564,11 @@ export default function Products() {
                   {totalPages > 1 && (
                     <div className="mt-8 flex flex-wrap justify-center items-center gap-2">
                       <button
-                        onClick={() =>
-                          setCurrentPage(Math.max(1, currentPage - 1))
-                        }
+                        onClick={() => {
+                          const p = Math.max(1, currentPage - 1);
+                          setCurrentPage(p);
+                          updateUrl(p);
+                        }}
                         disabled={currentPage === 1}
                         className="px-3 sm:px-4 py-2 text-sm bg-white border border-gray-300 rounded-lg hover:bg-orange-500 hover:text-white hover:border-orange-500 transition disabled:opacity-50 disabled:cursor-not-allowed"
                       >
@@ -509,7 +578,10 @@ export default function Products() {
                       {[...Array(totalPages)].map((_, idx) => (
                         <button
                           key={idx}
-                          onClick={() => setCurrentPage(idx + 1)}
+                          onClick={() => {
+                            setCurrentPage(idx + 1);
+                            updateUrl(idx + 1);
+                          }}
                           className={`px-3 sm:px-4 py-2 text-sm rounded-lg transition ${
                             currentPage === idx + 1
                               ? "bg-orange-500 text-white"
@@ -521,9 +593,11 @@ export default function Products() {
                       ))}
 
                       <button
-                        onClick={() =>
-                          setCurrentPage(Math.min(totalPages, currentPage + 1))
-                        }
+                        onClick={() => {
+                          const p = Math.min(totalPages, currentPage + 1);
+                          setCurrentPage(p);
+                          updateUrl(p);
+                        }}
                         disabled={currentPage === totalPages}
                         className="px-3 sm:px-4 py-2 text-sm bg-white border border-gray-300 rounded-lg hover:bg-orange-500 hover:text-white hover:border-orange-500 transition disabled:opacity-50 disabled:cursor-not-allowed"
                       >
