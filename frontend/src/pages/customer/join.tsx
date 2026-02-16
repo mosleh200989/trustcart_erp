@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import Head from 'next/head';
+import Link from 'next/link';
 import PhoneInput from '@/components/PhoneInput';
 import apiClient from '@/services/api';
-import { FaLeaf, FaTruck, FaHeart, FaShieldAlt, FaCheckCircle } from 'react-icons/fa';
+import { FaLeaf, FaTruck, FaHeart, FaShieldAlt, FaCheckCircle, FaShoppingCart } from 'react-icons/fa';
 
 export default function CustomerJoin() {
   const [formData, setFormData] = useState({
@@ -84,13 +85,21 @@ export default function CustomerJoin() {
               Thank you for registering! You're now part of our organic family. 
               We'll keep you updated with the freshest deals and offers.
             </p>
-            <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 text-sm text-orange-800">
+            <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 text-sm text-orange-800 mb-6">
               <p className="font-semibold mb-1">Want full access?</p>
               <p>
                 Visit <span className="font-bold">trustcart.com.bd</span> and register with the same phone
                 number to enjoy online ordering, loyalty rewards, and more!
               </p>
             </div>
+
+            <Link
+              href="/products"
+              className="inline-flex items-center justify-center gap-2 w-full bg-gradient-to-r from-green-600 to-green-500 hover:from-green-700 hover:to-green-600 text-white py-3 rounded-xl font-bold text-lg shadow-lg shadow-green-500/25 transition-all active:scale-[0.98]"
+            >
+              <FaShoppingCart />
+              Continue Shopping
+            </Link>
           </div>
         </div>
       </>
