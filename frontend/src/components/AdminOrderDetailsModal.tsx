@@ -1139,6 +1139,22 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                 )}
               </div>
 
+              {/* Quick Reference: Name, Address, Phone */}
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex flex-col gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold text-blue-700 min-w-[70px]">Name:</span>
+                  <span className="text-gray-900">{viewCustomer.name ? `${viewCustomer.title ? viewCustomer.title + ' ' : ''}${viewCustomer.name}${viewCustomer.lastName ? ' ' + viewCustomer.lastName : ''}` : 'N/A'}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold text-blue-700 min-w-[70px]">Address:</span>
+                  <span className="text-gray-900">{[viewCustomer.address, viewCustomer.district, viewCustomer.city].filter(Boolean).join(', ') || 'N/A'}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold text-blue-700 min-w-[70px]">Phone:</span>
+                  <span className="text-gray-900">{viewCustomer.phone || viewCustomer.mobile || 'N/A'}</span>
+                </div>
+              </div>
+
               <div className="bg-gray-50 border rounded-lg p-3 flex gap-2 flex-wrap">
                 {([
                   { key: 'basic', label: 'Basic' },
