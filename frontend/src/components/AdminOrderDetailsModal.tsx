@@ -55,6 +55,14 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
 
+  // Delivery charge edit
+  const [editingDeliveryCharge, setEditingDeliveryCharge] = useState(false);
+  const [editDeliveryChargeValue, setEditDeliveryChargeValue] = useState('');
+
+  // Discount edit
+  const [editingDiscount, setEditingDiscount] = useState(false);
+  const [editDiscountValue, setEditDiscountValue] = useState('');
+
   // Customer edit
   const [isEditingCustomer, setIsEditingCustomer] = useState(false);
   const [customerActiveTab, setCustomerActiveTab] = useState<'basic' | 'contact' | 'address' | 'crm'>('basic');
@@ -436,6 +444,50 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
       onUpdate();
     } catch (error) {
       toast.error('Failed to update item');
+    }
+  };
+
+  const startEditDeliveryCharge = () => {
+    setEditDeliveryChargeValue(String(deliveryCharge));
+    setEditingDeliveryCharge(true);
+  };
+
+  const saveDeliveryCharge = async () => {
+    try {
+      const val = Number.parseFloat(editDeliveryChargeValue);
+      if (!Number.isFinite(val) || val < 0) {
+        toast.warning('Delivery charge must be a valid non-negative number');
+        return;
+      }
+      await apiClient.put(`/order-management/${currentOrderId}/delivery-charge`, { deliveryCharge: val });
+      toast.success('Delivery charge updated');
+      loadOrderDetails();
+      setEditingDeliveryCharge(false);
+      onUpdate();
+    } catch (error) {
+      toast.error('Failed to update delivery charge');
+    }
+  };
+
+  const startEditDiscount = () => {
+    setEditDiscountValue(String(discountAmount));
+    setEditingDiscount(true);
+  };
+
+  const saveDiscount = async () => {
+    try {
+      const val = Number.parseFloat(editDiscountValue);
+      if (!Number.isFinite(val) || val < 0) {
+        toast.warning('Discount must be a valid non-negative number');
+        return;
+      }
+      await apiClient.put(`/order-management/${currentOrderId}/discount`, { discountAmount: val });
+      toast.success('Discount updated');
+      loadOrderDetails();
+      setEditingDiscount(false);
+      onUpdate();
+    } catch (error) {
+      toast.error('Failed to update discount');
     }
   };
 
@@ -945,7 +997,27 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                   </div>
                   <div>
                     <div className="text-gray-600">Delivery Charge</div>
-                    <div className="font-bold">৳{deliveryCharge.toFixed(2)}</div>
+                    <div className="font-bold flex items-center gap-2">
+                      {editingDeliveryCharge ? (
+                        <>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={editDeliveryChargeValue}
+                            onChange={(e) => setEditDeliveryChargeValue(e.target.value)}
+                            className="w-24 border rounded px-2 py-1 text-sm"
+                          />
+                          <button onClick={saveDeliveryCharge} className="text-green-600 hover:text-green-800"><FaSave size={14} /></button>
+                          <button onClick={() => setEditingDeliveryCharge(false)} className="text-gray-500 hover:text-gray-700"><FaTimes size={14} /></button>
+                        </>
+                      ) : (
+                        <>
+                          ৳{deliveryCharge.toFixed(2)}
+                          <button onClick={startEditDeliveryCharge} className="text-blue-600 hover:text-blue-800"><FaEdit size={14} /></button>
+                        </>
+                      )}
+                    </div>
                   </div>
                   <div>
                     <div className="text-gray-600">Total</div>
@@ -1114,12 +1186,52 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                   <tfoot>
                     <tr className="bg-gray-50 font-semibold">
                       <td colSpan={3} className="border p-3 text-right">Delivery Charge:</td>
-                      <td className="border p-3 text-right">৳{Number(deliveryCharge || 0).toFixed(2)}</td>
+                      <td className="border p-3 text-right">
+                        {editingDeliveryCharge ? (
+                          <span className="flex items-center justify-end gap-2">
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={editDeliveryChargeValue}
+                              onChange={(e) => setEditDeliveryChargeValue(e.target.value)}
+                              className="w-24 border rounded px-2 py-1 text-sm"
+                            />
+                            <button onClick={saveDeliveryCharge} className="text-green-600 hover:text-green-800"><FaSave size={14} /></button>
+                            <button onClick={() => setEditingDeliveryCharge(false)} className="text-gray-500 hover:text-gray-700"><FaTimes size={14} /></button>
+                          </span>
+                        ) : (
+                          <span className="flex items-center justify-end gap-2">
+                            ৳{Number(deliveryCharge || 0).toFixed(2)}
+                            <button onClick={startEditDeliveryCharge} className="text-blue-600 hover:text-blue-800"><FaEdit size={14} /></button>
+                          </span>
+                        )}
+                      </td>
                       <td className="border p-3"></td>
                     </tr>
                     <tr className="bg-gray-50 font-semibold">
                       <td colSpan={3} className="border p-3 text-right">Discount:</td>
-                      <td className="border p-3 text-right">৳{Number(discountAmount || 0).toFixed(2)}</td>
+                      <td className="border p-3 text-right">
+                        {editingDiscount ? (
+                          <span className="flex items-center justify-end gap-2">
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={editDiscountValue}
+                              onChange={(e) => setEditDiscountValue(e.target.value)}
+                              className="w-24 border rounded px-2 py-1 text-sm"
+                            />
+                            <button onClick={saveDiscount} className="text-green-600 hover:text-green-800"><FaSave size={14} /></button>
+                            <button onClick={() => setEditingDiscount(false)} className="text-gray-500 hover:text-gray-700"><FaTimes size={14} /></button>
+                          </span>
+                        ) : (
+                          <span className="flex items-center justify-end gap-2">
+                            ৳{Number(discountAmount || 0).toFixed(2)}
+                            <button onClick={startEditDiscount} className="text-blue-600 hover:text-blue-800"><FaEdit size={14} /></button>
+                          </span>
+                        )}
+                      </td>
                       <td className="border p-3"></td>
                     </tr>
                     <tr className="bg-gray-100 font-bold">
@@ -1567,7 +1679,7 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                     {orderHistory.map((h) => (
                       <tr key={h.id} className={`hover:bg-gray-50 ${Number(h.id) === Number(currentOrderId) ? 'bg-blue-50' : ''}`}>
                         <td className="border p-3 font-semibold">{h.salesOrderNumber ? `#${h.salesOrderNumber}` : `#${h.id}`}</td>
-                        <td className="border p-3">{h.orderDate ? new Date(h.orderDate).toLocaleString() : (h.createdAt ? new Date(h.createdAt).toLocaleString() : 'N/A')}</td>
+                        <td className="border p-3">{h.createdAt ? new Date(h.createdAt).toLocaleString() : (h.orderDate ? new Date(h.orderDate).toLocaleString() : 'N/A')}</td>
                         <td className="border p-3">
                           <span className="uppercase font-semibold">{h.status || 'N/A'}</span>
                         </td>

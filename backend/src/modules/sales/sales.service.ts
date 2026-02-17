@@ -1,8 +1,9 @@
 import { Injectable, Inject, forwardRef } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { SalesOrder } from './sales-order.entity';
 import { SalesOrderItem } from './sales-order-item.entity';
+import { User } from '../users/user.entity';
 import { LoyaltyService } from '../loyalty/loyalty.service';
 import { OffersService } from '../offers/offers.service';
 import { WhatsAppService } from '../messaging/whatsapp.service';
@@ -25,6 +26,20 @@ export class SalesService {
   private normalizeOfferCode(value: any): string {
     const code = value != null ? String(value).trim() : '';
     return code ? code.toUpperCase() : '';
+  }
+
+  private async getUserNameMap(userIds: number[]): Promise<Map<number, string>> {
+    const map = new Map<number, string>();
+    if (userIds.length === 0) return map;
+    const userRepo = this.salesRepository.manager.getRepository(User);
+    const users = await userRepo.find({
+      where: { id: In(userIds) },
+      select: ['id', 'name'],
+    });
+    for (const u of users) {
+      map.set(Number(u.id), u.name || '');
+    }
+    return map;
   }
 
   private toAdminListDto(order: SalesOrder) {
@@ -83,6 +98,8 @@ export class SalesService {
       sticker_printed: (order as any).stickerPrinted ?? false,
 
       notes: order.notes,
+      created_by: order.createdBy ?? null,
+      created_by_name: order.createdBy ? ((order as any).createdByName || null) : 'Website',
     };
   }
 
@@ -91,7 +108,14 @@ export class SalesService {
       order: { createdAt: 'DESC' }
     });
 
-    return orders.map((order) => this.toAdminListDto(order));
+    // Batch-fetch creator names
+    const creatorIds = [...new Set(orders.map(o => o.createdBy).filter((id): id is number => id != null))];
+    const creatorMap = await this.getUserNameMap(creatorIds);
+
+    return orders.map((order) => {
+      (order as any).createdByName = order.createdBy ? (creatorMap.get(order.createdBy) ?? null) : null;
+      return this.toAdminListDto(order);
+    });
   }
 
   async findAllPaginated(params: {
@@ -151,9 +175,21 @@ export class SalesService {
     }
 
     qb.orderBy('o.created_at', 'DESC');
+
+    // Get total count before applying pagination
+    const total = await qb.getCount();
+
     qb.skip(skip).take(limit);
 
-    const [orders, total] = await qb.getManyAndCount();
+    const orders = await qb.getMany();
+
+    // Batch-fetch creator names
+    const creatorIds = [...new Set(orders.map(o => o.createdBy).filter((id): id is number => id != null))];
+    const creatorMap = await this.getUserNameMap(creatorIds);
+
+    orders.forEach((order) => {
+      (order as any).createdByName = order.createdBy ? (creatorMap.get(order.createdBy) ?? null) : null;
+    });
 
     // Also fetch distinct courier statuses for the filter dropdown
     const courierStatusesRaw = await this.salesRepository

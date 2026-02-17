@@ -240,10 +240,10 @@ export default function Home() {
                 </div>
                 <div>
                   <h4 className="font-bold text-gray-800 text-sm sm:text-base leading-tight">
-                    Free Shipping
+                    Fast Delivery
                   </h4>
                   <p className="hidden sm:block text-sm text-gray-600 leading-tight">
-                    On orders over ৳500
+                    Dhaka ৳60 | Outside ৳110
                   </p>
                 </div>
               </motion.div>

@@ -516,6 +516,97 @@ export class OrderManagementService {
     });
   }
 
+  // ==================== DELIVERY CHARGE ====================
+
+  async updateDeliveryCharge(data: {
+    orderId: number;
+    deliveryCharge: number;
+    userId: number;
+    userName: string;
+    ipAddress?: string;
+  }): Promise<SalesOrder> {
+    const order = await this.salesOrderRepository.findOne({ where: { id: data.orderId } });
+    if (!order) throw new NotFoundException('Order not found');
+
+    // Calculate current subtotal from items
+    const items = await this.orderItemRepository.find({ where: { orderId: data.orderId } });
+    let subtotal = 0;
+    if (items.length > 0) {
+      subtotal = items.reduce((sum, item) => sum + Number(item.subtotal || 0), 0);
+    } else {
+      const salesItems = await this.salesOrderItemRepository.find({ where: { salesOrderId: data.orderId } });
+      subtotal = salesItems.reduce((sum, item) => sum + Number(item.lineTotal || 0), 0);
+    }
+
+    const discountAmount = Number(order.discountAmount || 0);
+    const newDeliveryCharge = Number(data.deliveryCharge || 0);
+    const oldDeliveryCharge = Math.max(0, Number(order.totalAmount || 0) - subtotal + discountAmount);
+
+    // Recalculate total: subtotal + deliveryCharge - discount
+    order.totalAmount = subtotal + newDeliveryCharge - discountAmount;
+
+    const updatedOrder = await this.salesOrderRepository.save(order);
+
+    await this.logActivity({
+      orderId: data.orderId,
+      actionType: 'delivery_charge_updated',
+      actionDescription: `Delivery charge updated from ৳${oldDeliveryCharge.toFixed(2)} to ৳${newDeliveryCharge.toFixed(2)}`,
+      oldValue: { deliveryCharge: oldDeliveryCharge, totalAmount: Number(order.totalAmount) },
+      newValue: { deliveryCharge: newDeliveryCharge, totalAmount: updatedOrder.totalAmount },
+      performedBy: data.userId,
+      performedByName: data.userName,
+      ipAddress: data.ipAddress,
+    });
+
+    return updatedOrder;
+  }
+
+  // ==================== DISCOUNT ====================
+
+  async updateDiscount(data: {
+    orderId: number;
+    discountAmount: number;
+    userId: number;
+    userName: string;
+    ipAddress?: string;
+  }): Promise<SalesOrder> {
+    const order = await this.salesOrderRepository.findOne({ where: { id: data.orderId } });
+    if (!order) throw new NotFoundException('Order not found');
+
+    // Calculate current subtotal from items
+    const items = await this.orderItemRepository.find({ where: { orderId: data.orderId } });
+    let subtotal = 0;
+    if (items.length > 0) {
+      subtotal = items.reduce((sum, item) => sum + Number(item.subtotal || 0), 0);
+    } else {
+      const salesItems = await this.salesOrderItemRepository.find({ where: { salesOrderId: data.orderId } });
+      subtotal = salesItems.reduce((sum, item) => sum + Number(item.lineTotal || 0), 0);
+    }
+
+    const oldDiscount = Number(order.discountAmount || 0);
+    const newDiscount = Number(data.discountAmount || 0);
+    const currentDeliveryCharge = Math.max(0, Number(order.totalAmount || 0) - subtotal + oldDiscount);
+
+    // Update discount and recalculate total
+    order.discountAmount = newDiscount as any;
+    order.totalAmount = subtotal + currentDeliveryCharge - newDiscount;
+
+    const updatedOrder = await this.salesOrderRepository.save(order);
+
+    await this.logActivity({
+      orderId: data.orderId,
+      actionType: 'discount_updated',
+      actionDescription: `Discount updated from ৳${oldDiscount.toFixed(2)} to ৳${newDiscount.toFixed(2)}`,
+      oldValue: { discountAmount: oldDiscount, totalAmount: Number(order.totalAmount) },
+      newValue: { discountAmount: newDiscount, totalAmount: updatedOrder.totalAmount },
+      performedBy: data.userId,
+      performedByName: data.userName,
+      ipAddress: data.ipAddress,
+    });
+
+    return updatedOrder;
+  }
+
   // ==================== ORDER STATUS MANAGEMENT ====================
 
   async approveOrder(

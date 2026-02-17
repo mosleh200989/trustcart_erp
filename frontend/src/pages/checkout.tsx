@@ -30,6 +30,7 @@ export default function Checkout() {
   const [currentUser, setCurrentUser] = useState<any | null>(null);
   const [customerProfile, setCustomerProfile] = useState<any | null>(null);
   const [defaultAddress, setDefaultAddress] = useState<any | null>(null);
+  const [deliveryZone, setDeliveryZone] = useState<'inside_dhaka' | 'outside_dhaka'>('inside_dhaka');
   const [formData, setFormData] = useState({
     fullName: "",
     email: "",
@@ -365,7 +366,7 @@ export default function Checkout() {
         }
       }
 
-      const deliveryCharge = subtotal >= 500 ? 0 : 60;
+      const deliveryCharge = deliveryZone === 'inside_dhaka' ? 60 : 110;
       const total = subtotal + deliveryCharge;
 
       const orderData = {
@@ -463,7 +464,7 @@ export default function Checkout() {
     }
   };
 
-  const deliveryCharge = subtotal >= 500 ? 0 : 60;
+  const deliveryCharge = deliveryZone === 'inside_dhaka' ? 60 : 110;
   const total = subtotal + deliveryCharge;
 
   return (
@@ -688,6 +689,54 @@ export default function Checkout() {
 
                     <div className="md:col-span-2">
                       <label className="block text-sm font-semibold mb-2">
+                        Delivery Zone *
+                      </label>
+                      <div className="grid grid-cols-2 gap-3">
+                        <label
+                          className={`flex items-center gap-3 p-3 border-2 rounded-lg cursor-pointer transition-all ${
+                            deliveryZone === 'inside_dhaka'
+                              ? 'border-orange-500 bg-orange-50'
+                              : 'border-gray-300 hover:border-orange-300'
+                          }`}
+                        >
+                          <input
+                            type="radio"
+                            name="deliveryZone"
+                            value="inside_dhaka"
+                            checked={deliveryZone === 'inside_dhaka'}
+                            onChange={() => setDeliveryZone('inside_dhaka')}
+                            className="text-orange-500"
+                          />
+                          <div>
+                            <span className="font-semibold">Inside Dhaka</span>
+                            <span className="block text-sm text-gray-500">৳60</span>
+                          </div>
+                        </label>
+                        <label
+                          className={`flex items-center gap-3 p-3 border-2 rounded-lg cursor-pointer transition-all ${
+                            deliveryZone === 'outside_dhaka'
+                              ? 'border-orange-500 bg-orange-50'
+                              : 'border-gray-300 hover:border-orange-300'
+                          }`}
+                        >
+                          <input
+                            type="radio"
+                            name="deliveryZone"
+                            value="outside_dhaka"
+                            checked={deliveryZone === 'outside_dhaka'}
+                            onChange={() => setDeliveryZone('outside_dhaka')}
+                            className="text-orange-500"
+                          />
+                          <div>
+                            <span className="font-semibold">Outside Dhaka</span>
+                            <span className="block text-sm text-gray-500">৳110</span>
+                          </div>
+                        </label>
+                      </div>
+                    </div>
+
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-semibold mb-2">
                         Order Notes (Optional)
                       </label>
                       <textarea
@@ -778,13 +827,9 @@ export default function Checkout() {
                     </div>
 
                     <div className="flex justify-between text-gray-600">
-                      <span>Delivery</span>
-                      <span
-                        className={`font-semibold ${
-                          deliveryCharge === 0 ? "text-green-500" : ""
-                        }`}
-                      >
-                        {deliveryCharge === 0 ? "FREE" : `৳${deliveryCharge}`}
+                      <span>Delivery ({deliveryZone === 'inside_dhaka' ? 'Inside Dhaka' : 'Outside Dhaka'})</span>
+                      <span className="font-semibold">
+                        ৳{deliveryCharge}
                       </span>
                     </div>
                   </div>

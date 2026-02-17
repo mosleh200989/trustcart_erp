@@ -431,8 +431,8 @@ export default function Home() {
             <div className="col-md-3 text-center">
               <div className="p-4">
                 <i className="bi bi-truck" style={{ fontSize: '3rem', color: '#28a745' }}></i>
-                <h5 className="mt-3">ফ্রি ডেলিভারি</h5>
-                <p className="text-muted small">৳৫০০+ অর্ডারে</p>
+                <h5 className="mt-3">দ্রুত ডেলিভারি</h5>
+                <p className="text-muted small">ঢাকায় ৳৬০ | ঢাকার বাইরে ৳১১০</p>
               </div>
             </div>
             <div className="col-md-3 text-center">
