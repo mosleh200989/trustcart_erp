@@ -149,6 +149,18 @@ export class OrderManagementController {
     );
   }
 
+  @Post(':orderId/unhold')
+  @RequirePermissions('edit-sales-orders')
+  async unholdOrder(@Param('orderId') orderId: number, @Req() req: Request) {
+    const userInfo = this.getUserInfo(req);
+    return await this.orderManagementService.unholdOrder(
+      orderId,
+      userInfo.userId,
+      userInfo.userName,
+      userInfo.ipAddress
+    );
+  }
+
   @Post(':orderId/cancel')
   @RequirePermissions('edit-sales-orders')
   async cancelOrder(

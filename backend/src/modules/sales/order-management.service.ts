@@ -579,6 +579,37 @@ export class OrderManagementService {
     return updatedOrder;
   }
 
+  async unholdOrder(
+    orderId: number,
+    userId: number,
+    userName: string,
+    ipAddress?: string
+  ): Promise<SalesOrder> {
+    const order = await this.salesOrderRepository.findOne({ where: { id: orderId } });
+    if (!order) throw new Error('Order not found');
+
+    if (order.status !== 'hold') {
+      throw new Error('Order is not on hold');
+    }
+
+    order.status = 'pending';
+
+    const updatedOrder = await this.salesOrderRepository.save(order);
+
+    await this.logActivity({
+      orderId,
+      actionType: 'unhold',
+      actionDescription: `Order resumed from hold by ${userName}`,
+      oldValue: { status: 'hold' },
+      newValue: { status: 'pending' },
+      performedBy: userId,
+      performedByName: userName,
+      ipAddress,
+    });
+
+    return updatedOrder;
+  }
+
   async cancelOrder(
     orderId: number,
     cancelReason: string,

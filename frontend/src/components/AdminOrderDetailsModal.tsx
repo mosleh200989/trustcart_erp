@@ -658,6 +658,19 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
     }
   };
 
+  const unholdOrder = async () => {
+    if (!confirm('Resume this order from hold?')) return;
+    
+    try {
+      await apiClient.post(`/order-management/${currentOrderId}/unhold`);
+      toast.success('Order resumed from hold');
+      loadOrderDetails();
+      onUpdate();
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || 'Failed to resume order');
+    }
+  };
+
   const cancelOrder = async () => {
     if (!cancelReason.trim()) {
       toast.warning('Please select a cancel reason');
@@ -837,15 +850,21 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
             <FaPlus /> Create New Order
           </button>
 
-          {order.status !== 'approved' && order.status !== 'shipped' && order.status !== 'delivered' && (
+          {order.status !== 'approved' && order.status !== 'shipped' && order.status !== 'delivered' && order.status !== 'cancelled' && (
             <button onClick={approveOrder} className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2">
               <FaCheck /> Approve
             </button>
           )}
           
-          {canHoldOrCancel && order.status !== 'hold' && (
+          {canHoldOrCancel && order.status !== 'hold' && order.status !== 'cancelled' && (
             <button onClick={holdOrder} className="bg-yellow-600 text-white px-4 py-2 rounded-lg hover:bg-yellow-700 flex items-center gap-2">
               <FaPause /> Hold
+            </button>
+          )}
+
+          {order.status === 'hold' && (
+            <button onClick={unholdOrder} className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2">
+              <FaCheck /> Resume
             </button>
           )}
           
