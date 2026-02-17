@@ -43,6 +43,17 @@ export default function Document() {
           }}
         />
         {/* End Microsoft Clarity */}
+        {/* Google Analytics (gtag.js) */}
+        <script async src="https://www.googletagmanager.com/gtag/js?id=G-XNK0GEB5NX" />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `window.dataLayer = window.dataLayer || [];
+              function gtag(){dataLayer.push(arguments);}
+              gtag('js', new Date());
+              gtag('config', 'G-XNK0GEB5NX');`,
+          }}
+        />
+        {/* End Google Analytics */}
       </Head>
       <body>
         {/* Google Tag Manager (noscript) */}
