@@ -53,7 +53,7 @@ export default function Contact() {
             <div className="bg-white rounded-lg shadow-md p-6 text-center">
               <div className="text-5xl mb-4">📞</div>
               <h5 className="font-bold text-gray-800 mb-2">Phone</h5>
-              <p className="text-gray-600">01707653536</p>
+              <p className="text-gray-600">01805486094</p>
             </div>
             
             <div className="bg-white rounded-lg shadow-md p-6 text-center">

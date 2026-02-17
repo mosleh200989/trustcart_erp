@@ -53,7 +53,7 @@ export default function Navbar() {
             <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
               <span>⏰ Office time: 8:00 AM to 12:00 AM</span>
               <span style={{ opacity: 0.5 }}>|</span>
-              <span>📞 Hotline: 01707653536</span>
+              <span>📞 Hotline: 01805486094</span>
             </div>
             
             {/* Right side - Social icons */}

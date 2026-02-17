@@ -62,8 +62,8 @@ export default function Layout({ children }: { children: ReactNode }) {
                 </a>
               </p>
               <p style={{ fontSize: '0.9rem' }}>
-                📞 <a href="tel:01707653536" style={{ display: 'inline' }}>
-                  01707653536
+                📞 <a href="tel:01805486094" style={{ display: 'inline' }}>
+                  01805486094
                 </a>
               </p>
             </div>

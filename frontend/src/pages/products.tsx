@@ -148,33 +148,36 @@ export default function Products() {
 
       // Calculate sale price and discount percentage for products (same as homepage)
       const productsWithSalePrice = allProducts.map((p: any) => {
-        let salePrice = p.sale_price;
+        const basePrice = parseFloat(p.base_price) || 0;
+        let salePrice = p.sale_price ? parseFloat(p.sale_price) : null;
         let discountPercent = 0;
 
         // If sale_price exists, calculate discount percentage
-        if (salePrice && salePrice < p.base_price) {
+        if (salePrice && salePrice < basePrice) {
           discountPercent = Math.round(
-            ((p.base_price - salePrice) / p.base_price) * 100
+            ((basePrice - salePrice) / basePrice) * 100
           );
         }
         // Otherwise calculate from discount fields
         else if (p.discount_value && p.discount_type) {
+          const discountValue = parseFloat(p.discount_value) || 0;
           if (p.discount_type === "percentage") {
-            salePrice = p.base_price - (p.base_price * p.discount_value) / 100;
-            discountPercent = Math.round(p.discount_value);
+            salePrice = basePrice - (basePrice * discountValue) / 100;
+            discountPercent = Math.round(discountValue);
           } else if (p.discount_type === "flat") {
-            salePrice = p.base_price - p.discount_value;
+            salePrice = basePrice - discountValue;
             discountPercent = Math.round(
-              ((p.base_price - salePrice) / p.base_price) * 100
+              ((basePrice - salePrice) / basePrice) * 100
             );
           }
         }
 
         return {
           ...p,
+          base_price: basePrice,
           salePrice,
           discountPercent,
-          hasDiscount: !!salePrice && salePrice < p.base_price,
+          hasDiscount: !!salePrice && salePrice < basePrice,
         };
       });
 
