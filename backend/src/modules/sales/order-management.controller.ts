@@ -123,6 +123,40 @@ export class OrderManagementController {
     return { success: true, message: 'Item deleted successfully' };
   }
 
+  // ==================== DELIVERY CHARGE ====================
+
+  @Put(':orderId/delivery-charge')
+  @RequirePermissions('edit-sales-orders')
+  async updateDeliveryCharge(
+    @Param('orderId') orderId: number,
+    @Body() body: { deliveryCharge: number },
+    @Req() req: Request
+  ) {
+    const userInfo = this.getUserInfo(req);
+    return await this.orderManagementService.updateDeliveryCharge({
+      orderId,
+      deliveryCharge: body.deliveryCharge,
+      ...userInfo,
+    });
+  }
+
+  // ==================== DISCOUNT ====================
+
+  @Put(':orderId/discount')
+  @RequirePermissions('edit-sales-orders')
+  async updateDiscount(
+    @Param('orderId') orderId: number,
+    @Body() body: { discountAmount: number },
+    @Req() req: Request
+  ) {
+    const userInfo = this.getUserInfo(req);
+    return await this.orderManagementService.updateDiscount({
+      orderId,
+      discountAmount: body.discountAmount,
+      ...userInfo,
+    });
+  }
+
   // ==================== ORDER STATUS ====================
 
   @Post(':orderId/approve')

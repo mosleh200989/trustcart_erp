@@ -818,6 +818,25 @@ export default function ProductDetailsPage() {
                   </button>
                 </div>
 
+                {/* Delivery Charges */}
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-6">
+                  <div className="flex items-center gap-2 mb-3">
+                    <FaShoppingCart className="text-orange-500" />
+                    <span className="font-semibold text-gray-800">Delivery Information</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="flex items-center gap-2 bg-white rounded-md px-3 py-2 border">
+                      <span className="text-sm text-gray-600">Inside Dhaka</span>
+                      <span className="ml-auto font-bold text-orange-500">৳60</span>
+                    </div>
+                    <div className="flex items-center gap-2 bg-white rounded-md px-3 py-2 border">
+                      <span className="text-sm text-gray-600">Outside Dhaka</span>
+                      <span className="ml-auto font-bold text-orange-500">৳110</span>
+                    </div>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-2">Cash on Delivery available all over Bangladesh</p>
+                </div>
+
                 {/* Contact / Social Buttons */}
                 {canShowContacts && (
                   <div className="flex flex-col sm:flex-row gap-2 mb-6">

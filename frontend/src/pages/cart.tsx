@@ -100,8 +100,9 @@ export default function CartPage() {
     setSubtotal(total);
   }
 
-  const deliveryCharge = subtotal >= 500 ? 0 : 60;
-  const total = subtotal + deliveryCharge;
+  const deliveryChargeMin = 60;
+  const deliveryChargeMax = 110;
+  const total = subtotal + deliveryChargeMin;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -230,21 +231,14 @@ export default function CartPage() {
 
                     <div className="flex justify-between">
                       <span className="text-gray-600">Delivery Charge</span>
-                      <span
-                        className={`font-semibold ${
-                          deliveryCharge === 0 ? "text-green-500" : ""
-                        }`}
-                      >
-                        {deliveryCharge === 0 ? "FREE" : `৳${deliveryCharge}`}
+                      <span className="font-semibold text-gray-800">
+                        ৳60 – ৳110
                       </span>
                     </div>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Inside Dhaka ৳60 | Outside Dhaka ৳110
+                    </p>
                   </div>
-
-                  {subtotal < 500 && (
-                    <div className="bg-blue-50 border border-blue-200 text-blue-800 text-sm p-3 rounded mb-4">
-                      Add ৳{(500 - subtotal).toFixed(2)} more for free delivery!
-                    </div>
-                  )}
 
                   <div className="border-t pt-4 mb-6">
                     <div className="flex justify-between text-lg">

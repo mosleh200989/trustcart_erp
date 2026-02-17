@@ -54,8 +54,9 @@ export default function CartPage() {
     setSubtotal(total);
   }
 
-  const deliveryCharge = subtotal >= 500 ? 0 : 60;
-  const total = subtotal + deliveryCharge;
+  const deliveryChargeMin = 60;
+  const deliveryChargeMax = 110;
+  const total = subtotal + deliveryChargeMin;
 
   return (
     <div className="container my-5">
@@ -154,17 +155,9 @@ export default function CartPage() {
                 
                 <div className="d-flex justify-content-between mb-2">
                   <span>ডেলিভারি চার্জ</span>
-                  <span className={deliveryCharge === 0 ? 'text-success' : ''}>
-                    {deliveryCharge === 0 ? 'ফ্রি' : `৳${deliveryCharge}`}
-                  </span>
+                  <span>৳৬০ – ৳১১০</span>
                 </div>
-                
-                {subtotal < 500 && (
-                  <div className="alert alert-info small py-2 mt-2">
-                    <i className="bi bi-info-circle me-1"></i>
-                    আরও ৳{(500 - subtotal).toFixed(2)} কিনলে ফ্রি ডেলিভারি!
-                  </div>
-                )}
+                <p className="text-muted small mb-2">ঢাকায় ৳৬০ | ঢাকার বাইরে ৳১১০</p>
                 
                 <hr />
                 

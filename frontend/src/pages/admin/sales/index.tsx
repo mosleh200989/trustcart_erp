@@ -565,9 +565,9 @@ export default function AdminSales() {
   const columns = [
     { key: 'id', label: 'ID' },
     {
-      key: 'salesOrderNumber',
-      label: 'Order Number',
-      render: (_: any, row: SalesOrder) => row.salesOrderNumber ?? row.sales_order_number ?? row.order_number ?? '-'
+      key: 'orderDate',
+      label: 'Date',
+      render: (_: any, row: SalesOrder) => (row.orderDate ?? row.order_date ?? '-').toString().slice(0, 10)
     },
     {
       key: 'customerName',
@@ -593,11 +593,6 @@ export default function AdminSales() {
       label: 'Courier ID',
       render: (_: any, row: SalesOrder) => row.courierOrderId ?? row.courier_order_id ?? '-'
     },
-    {
-      key: 'orderDate',
-      label: 'Date',
-      render: (_: any, row: SalesOrder) => (row.orderDate ?? row.order_date ?? '-').toString().slice(0, 10)
-    },
     { 
       key: 'status', 
       label: 'Status',
@@ -621,59 +616,17 @@ export default function AdminSales() {
       }
     },
     {
-      key: 'isPacked',
-      label: 'Packed',
+      key: 'shippingAddress',
+      label: 'Address',
       render: (_: any, row: SalesOrder) => {
-        const packed = row.isPacked ?? row.is_packed ?? false;
-        return packed ? (
-          <span className="px-2 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800">Packed</span>
-        ) : (
-          <span className="px-2 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-500">-</span>
+        const addr = row.shippingAddress ?? row.shipping_address ?? '-';
+        return (
+          <span className="text-xs leading-snug block max-w-[220px] whitespace-normal break-words">
+            {addr}
+          </span>
         );
       }
     },
-    {
-      key: 'actions',
-      label: 'Quick Actions',
-      render: (_: any, row: SalesOrder) => {
-        const packed = row.isPacked ?? row.is_packed ?? false;
-        return (
-          <div className="flex items-center gap-1">
-            <button
-              onClick={(e) => { e.stopPropagation(); handlePrintInvoice(row.id); }}
-              className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors"
-              title="Print Invoice"
-            >
-              <FaFileInvoice className="text-sm" />
-            </button>
-            <button
-              onClick={(e) => { e.stopPropagation(); handlePrintSticker(row.id); }}
-              className="p-1.5 text-green-600 hover:bg-green-50 rounded transition-colors"
-              title="Print Sticker"
-            >
-              <FaTag className="text-sm" />
-            </button>
-            {packed ? (
-              <button
-                onClick={(e) => { e.stopPropagation(); handleUnmarkPacked(row.id); }}
-                className="p-1.5 text-orange-600 hover:bg-orange-50 rounded transition-colors"
-                title="Unmark Packed"
-              >
-                <FaBoxOpen className="text-sm" />
-              </button>
-            ) : (
-              <button
-                onClick={(e) => { e.stopPropagation(); handleMarkPacked(row.id); }}
-                className="p-1.5 text-purple-600 hover:bg-purple-50 rounded transition-colors"
-                title="Mark as Packed"
-              >
-                <FaBoxOpen className="text-sm" />
-              </button>
-            )}
-          </div>
-        );
-      }
-    }
   ];
 
   return (

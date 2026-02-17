@@ -67,8 +67,8 @@ export default function ElectroHome() {
                 <FaTruck size={32} className="text-orange-500" />
               </div>
               <div>
-                <h4 className="font-bold text-gray-800">Free Shipping</h4>
-                <p className="text-sm text-gray-600">On orders over ৳500</p>
+                <h4 className="font-bold text-gray-800">Fast Delivery</h4>
+                <p className="text-sm text-gray-600">Dhaka ৳60 | Outside ৳110</p>
               </div>
             </div>
             <div className="flex items-center gap-4">
