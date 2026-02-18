@@ -382,11 +382,11 @@ export default function CustomerProfile() {
                     <div className="space-y-2 text-sm">
                       <div className="flex justify-between">
                         <span className="text-gray-700">First Order:</span>
-                        <span className="font-semibold">{customer.first_order_date ? new Date(customer.first_order_date).toLocaleDateString() : 'N/A'}</span>
+                        <span className="font-semibold">{customer.first_order_date ? new Date(customer.first_order_date).toLocaleDateString('en-GB', { timeZone: 'Asia/Dhaka' }) : 'N/A'}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-700">Last Order:</span>
-                        <span className="font-semibold">{customer.last_order_date ? new Date(customer.last_order_date).toLocaleDateString() : 'N/A'}</span>
+                        <span className="font-semibold">{customer.last_order_date ? new Date(customer.last_order_date).toLocaleDateString('en-GB', { timeZone: 'Asia/Dhaka' }) : 'N/A'}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-700">Total Spent:</span>
@@ -502,7 +502,7 @@ export default function CustomerProfile() {
                     </div>
                     <div>
                       <dt className="text-sm text-gray-600">Date of Birth</dt>
-                      <dd className="font-semibold">{customer.date_of_birth ? new Date(customer.date_of_birth).toLocaleDateString() : 'Not provided'}</dd>
+                      <dd className="font-semibold">{customer.date_of_birth ? new Date(customer.date_of_birth).toLocaleDateString('en-GB', { timeZone: 'Asia/Dhaka' }) : 'Not provided'}</dd>
                     </div>
                     <div>
                       <dt className="text-sm text-gray-600">Marital Status</dt>
@@ -510,7 +510,7 @@ export default function CustomerProfile() {
                     </div>
                     <div>
                       <dt className="text-sm text-gray-600">Anniversary Date</dt>
-                      <dd className="font-semibold">{customer.anniversary_date ? new Date(customer.anniversary_date).toLocaleDateString() : 'Not provided'}</dd>
+                      <dd className="font-semibold">{customer.anniversary_date ? new Date(customer.anniversary_date).toLocaleDateString('en-GB', { timeZone: 'Asia/Dhaka' }) : 'Not provided'}</dd>
                     </div>
                     <div>
                       <dt className="text-sm text-gray-600">Profession</dt>
@@ -601,13 +601,13 @@ export default function CustomerProfile() {
                           {member.date_of_birth && (
                             <div className="flex justify-between">
                               <dt className="text-gray-600">Birthday:</dt>
-                              <dd className="font-semibold">{new Date(member.date_of_birth).toLocaleDateString()}</dd>
+                              <dd className="font-semibold">{new Date(member.date_of_birth).toLocaleDateString('en-GB', { timeZone: 'Asia/Dhaka' })}</dd>
                             </div>
                           )}
                           {member.anniversary_date && (
                             <div className="flex justify-between">
                               <dt className="text-gray-600">Anniversary:</dt>
-                              <dd className="font-semibold">{new Date(member.anniversary_date).toLocaleDateString()}</dd>
+                              <dd className="font-semibold">{new Date(member.anniversary_date).toLocaleDateString('en-GB', { timeZone: 'Asia/Dhaka' })}</dd>
                             </div>
                           )}
                           {member.profession && (
@@ -676,7 +676,7 @@ export default function CustomerProfile() {
                           </div>
                         </div>
                         <div className="text-right text-sm text-gray-500">
-                          {new Date(interaction.created_at).toLocaleString()}
+                          {new Date(interaction.created_at).toLocaleString('en-GB', { timeZone: 'Asia/Dhaka' })}
                         </div>
                       </div>
                     </div>

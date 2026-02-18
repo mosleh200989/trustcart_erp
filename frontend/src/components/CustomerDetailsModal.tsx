@@ -164,11 +164,11 @@ export default function CustomerDetailsModal({ customerId, onClose }: CustomerDe
                     <div className="bg-gray-50 rounded-lg p-4 text-sm space-y-3">
                       <div className="flex justify-between">
                         <span className="text-gray-500">Member Since</span>
-                        <span>{customer.createdAt ? new Date(customer.createdAt).toLocaleDateString() : 'N/A'}</span>
+                        <span>{customer.createdAt ? new Date(customer.createdAt).toLocaleDateString('en-GB', { timeZone: 'Asia/Dhaka' }) : 'N/A'}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-500">Last Order</span>
-                        <span>{customer.lastOrderDate ? new Date(customer.lastOrderDate).toLocaleDateString() : 'N/A'}</span>
+                        <span>{customer.lastOrderDate ? new Date(customer.lastOrderDate).toLocaleDateString('en-GB', { timeZone: 'Asia/Dhaka' }) : 'N/A'}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-500">Loyalty Points</span>
@@ -218,7 +218,7 @@ export default function CustomerDetailsModal({ customerId, onClose }: CustomerDe
                             <tr key={order.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => { setSelectedOrderId(order.id); setShowOrderModal(true); }}>
                               <td className="px-4 py-2 font-medium">#{order.id}</td>
                               <td className="px-4 py-2">
-                                {order.createdAt ? new Date(order.createdAt).toLocaleDateString() : 'N/A'}
+                                {order.createdAt ? new Date(order.createdAt).toLocaleDateString('en-GB', { timeZone: 'Asia/Dhaka' }) : 'N/A'}
                               </td>
                               <td className="px-4 py-2">
                                 <span className={`px-2 py-0.5 rounded text-xs ${getStatusBadgeColor(order.status)}`}>

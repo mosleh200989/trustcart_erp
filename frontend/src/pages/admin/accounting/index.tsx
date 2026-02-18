@@ -66,7 +66,7 @@ export default function AdminAccounting() {
                       </td>
                       <td className="px-6 py-4 font-semibold">৳{Number(transaction.amount || 0).toFixed(2)}</td>
                       <td className="px-6 py-4">{transaction.category || 'N/A'}</td>
-                      <td className="px-6 py-4">{transaction.date ? new Date(transaction.date).toLocaleDateString() : 'N/A'}</td>
+                      <td className="px-6 py-4">{transaction.date ? new Date(transaction.date).toLocaleDateString('en-GB', { timeZone: 'Asia/Dhaka' }) : 'N/A'}</td>
                     </tr>
                   ))}
                 </tbody>

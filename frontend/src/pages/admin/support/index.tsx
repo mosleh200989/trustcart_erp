@@ -134,7 +134,7 @@ export default function AdminSupport() {
     if (!value) return '—';
     const d = new Date(value);
     if (Number.isNaN(d.getTime())) return '—';
-    return d.toLocaleString();
+    return d.toLocaleString('en-GB', { timeZone: 'Asia/Dhaka' });
   };
 
   const slaBadge = (ticket: SupportTicket) => {
@@ -290,7 +290,7 @@ export default function AdminSupport() {
                       </select>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {new Date(ticket.createdAt).toLocaleDateString()}
+                      {new Date(ticket.createdAt).toLocaleDateString('en-GB', { timeZone: 'Asia/Dhaka' })}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
                       <button
@@ -388,13 +388,13 @@ export default function AdminSupport() {
                     <div>
                       <span className="text-gray-600">Created:</span>
                       <span className="ml-2 font-medium">
-                        {new Date(selectedTicket.createdAt).toLocaleString()}
+                        {new Date(selectedTicket.createdAt).toLocaleString('en-GB', { timeZone: 'Asia/Dhaka' })}
                       </span>
                     </div>
                     <div>
                       <span className="text-gray-600">Updated:</span>
                       <span className="ml-2 font-medium">
-                        {new Date(selectedTicket.updatedAt).toLocaleString()}
+                        {new Date(selectedTicket.updatedAt).toLocaleString('en-GB', { timeZone: 'Asia/Dhaka' })}
                       </span>
                     </div>
                   </div>
@@ -421,7 +421,7 @@ export default function AdminSupport() {
                       <p className="text-gray-800 whitespace-pre-wrap">{selectedTicket.response}</p>
                       {selectedTicket.respondedAt && (
                         <p className="text-xs text-gray-500 mt-2">
-                          Responded at: {new Date(selectedTicket.respondedAt).toLocaleString()}
+                          Responded at: {new Date(selectedTicket.respondedAt).toLocaleString('en-GB', { timeZone: 'Asia/Dhaka' })}
                         </p>
                       )}
                     </div>

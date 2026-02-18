@@ -196,10 +196,10 @@ export default function OffersManagement() {
                       </td>
                       <td className="px-6 py-4 text-sm">
                         <div className="text-gray-700">
-                          {new Date(offer.startTime).toLocaleDateString()}
+                          {new Date(offer.startTime).toLocaleDateString('en-GB', { timeZone: 'Asia/Dhaka' })}
                         </div>
                         <div className="text-gray-500 text-xs">
-                          to {new Date(offer.endTime).toLocaleDateString()}
+                          to {new Date(offer.endTime).toLocaleDateString('en-GB', { timeZone: 'Asia/Dhaka' })}
                         </div>
                       </td>
                       <td className="px-6 py-4 text-sm">

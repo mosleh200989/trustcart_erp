@@ -86,7 +86,7 @@ export default function AdminCourierConfigurationPage() {
         render: (value: any) => {
           if (!value) return '-';
           const d = new Date(value);
-          return Number.isNaN(d.getTime()) ? String(value) : d.toLocaleString();
+          return Number.isNaN(d.getTime()) ? String(value) : d.toLocaleString('en-GB', { timeZone: 'Asia/Dhaka' });
         },
       },
     ],

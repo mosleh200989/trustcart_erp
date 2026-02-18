@@ -416,7 +416,7 @@ export default function MembershipDashboard() {
                         <div className="text-right ml-4">
                           <div className="font-bold text-green-600">৳{ref.rewardAmount}</div>
                           <div className="text-xs text-gray-500">
-                            {new Date(ref.createdAt).toLocaleDateString()}
+                            {new Date(ref.createdAt).toLocaleDateString('en-GB', { timeZone: 'Asia/Dhaka' })}
                           </div>
                         </div>
                       </div>
@@ -460,7 +460,7 @@ export default function MembershipDashboard() {
                             <div className="flex justify-between">
                               <dt className="text-gray-600">Next Order:</dt>
                               <dd className="font-semibold">
-                                {list.nextOrderDate ? new Date(list.nextOrderDate).toLocaleDateString() : 'Not set'}
+                                {list.nextOrderDate ? new Date(list.nextOrderDate).toLocaleDateString('en-GB', { timeZone: 'Asia/Dhaka' }) : 'Not set'}
                               </dd>
                             </div>
                           </>

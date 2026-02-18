@@ -115,6 +115,7 @@ export default function LandingPageOrders() {
   const formatDate = (dateStr: string) => {
     const d = new Date(dateStr);
     return d.toLocaleDateString('en-GB', {
+      timeZone: 'Asia/Dhaka',
       day: '2-digit', month: 'short', year: 'numeric',
       hour: '2-digit', minute: '2-digit',
     });

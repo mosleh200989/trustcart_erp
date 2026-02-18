@@ -567,7 +567,13 @@ export default function AdminSales() {
     {
       key: 'orderDate',
       label: 'Date',
-      render: (_: any, row: SalesOrder) => (row.orderDate ?? row.order_date ?? '-').toString().slice(0, 10)
+      render: (_: any, row: SalesOrder) => {
+        const raw = row.orderDate ?? row.order_date;
+        if (!raw) return '-';
+        const d = new Date(raw);
+        if (isNaN(d.getTime())) return '-';
+        return d.toLocaleDateString('en-GB', { timeZone: 'Asia/Dhaka', day: '2-digit', month: '2-digit', year: 'numeric' });
+      }
     },
     {
       key: 'customerName',
