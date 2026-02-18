@@ -202,7 +202,8 @@ export class CrmTeamService {
       customerType,     // 'vip' | 'platinum' | 'gold' | 'silver' | 'new' | 'repeat'
       purchaseStage,    // 'new' | 'repeat_2' | 'repeat_3' | 'regular' | 'permanent'
       sortBy = 'created_at',
-      sortOrder = 'DESC'
+      sortOrder = 'DESC',
+      productName,
     } = query;
     
     const pageNum = Number(page) || 1;
@@ -277,6 +278,22 @@ export class CrmTeamService {
           `(SELECT COUNT(*)::int FROM sales_orders so WHERE so.customer_id = c.id) >= 8`
         );
       }
+    }
+
+    // Product name filter — customers who ordered a specific product
+    if (productName && productName.trim()) {
+      const pName = `%${productName.trim().toLowerCase()}%`;
+      qb.andWhere(
+        `c.id IN (
+          SELECT so.customer_id FROM sales_orders so
+          WHERE so.id IN (
+            SELECT oi.order_id FROM order_items oi WHERE oi.product_name ILIKE :pName
+            UNION
+            SELECT soi.sales_order_id FROM sales_order_items soi WHERE soi.product_name ILIKE :pName
+          )
+        )`,
+        { pName },
+      );
     }
 
     // Search filter
@@ -367,6 +384,21 @@ export class CrmTeamService {
       countQb.andWhere(
         '(LOWER(c.name) LIKE :search OR LOWER(c.last_name) LIKE :search OR LOWER(c.email) LIKE :search OR c.phone LIKE :search)',
         { search: searchTerm }
+      );
+    }
+    // Product name filter for count
+    if (productName && productName.trim()) {
+      const pName = `%${productName.trim().toLowerCase()}%`;
+      countQb.andWhere(
+        `c.id IN (
+          SELECT so.customer_id FROM sales_orders so
+          WHERE so.id IN (
+            SELECT oi.order_id FROM order_items oi WHERE oi.product_name ILIKE :pName
+            UNION
+            SELECT soi.sales_order_id FROM sales_order_items soi WHERE soi.product_name ILIKE :pName
+          )
+        )`,
+        { pName },
       );
     }
     if (dateFrom) {

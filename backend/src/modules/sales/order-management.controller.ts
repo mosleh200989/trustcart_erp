@@ -24,6 +24,14 @@ export class OrderManagementController {
     };
   }
 
+  // ==================== PRODUCT NAMES (for filter dropdowns) ====================
+
+  @Get('product-names')
+  @RequirePermissions('view-sales-orders')
+  async getDistinctProductNames() {
+    return await this.orderManagementService.getDistinctProductNames();
+  }
+
   // ==================== PRINTING PAGE ====================
 
   @Get('printing')

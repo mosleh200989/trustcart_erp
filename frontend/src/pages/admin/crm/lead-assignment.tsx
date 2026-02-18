@@ -4,6 +4,7 @@ import AdminLayout from '@/layouts/AdminLayout';
 import PageSizeSelector from '@/components/admin/PageSizeSelector';
 import Pagination from '@/components/admin/Pagination';
 import AdminOrderDetailsModal from '@/components/AdminOrderDetailsModal';
+import ProductAutocomplete from '@/components/admin/ProductAutocomplete';
 import apiClient from '@/services/api';
 import { useToast } from '@/contexts/ToastContext';
 import { FaEye } from 'react-icons/fa';
@@ -56,10 +57,13 @@ export default function LeadAssignmentPage() {
   const [priorityFilter, setPriorityFilter] = useState('');
   const [customerTypeFilter, setCustomerTypeFilter] = useState('');
   const [purchaseStageFilter, setPurchaseStageFilter] = useState('');
+  const [productNameFilter, setProductNameFilter] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(20);
+
+
 
   // Team selection
   const [selectedTeamId, setSelectedTeamId] = useState<number | null>(null);
@@ -92,7 +96,7 @@ export default function LeadAssignmentPage() {
   useEffect(() => {
     loadLeads();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [assignmentStatus, searchTerm, priorityFilter, customerTypeFilter, purchaseStageFilter, dateFrom, dateTo, page]);
+  }, [assignmentStatus, searchTerm, priorityFilter, customerTypeFilter, purchaseStageFilter, productNameFilter, dateFrom, dateTo, page]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -143,6 +147,7 @@ export default function LeadAssignmentPage() {
       if (priorityFilter) params.priority = priorityFilter;
       if (customerTypeFilter) params.customerType = customerTypeFilter;
       if (purchaseStageFilter) params.purchaseStage = purchaseStageFilter;
+      if (productNameFilter) params.productName = productNameFilter;
       if (dateFrom) params.dateFrom = dateFrom;
       if (dateTo) params.dateTo = dateTo;
 
@@ -297,6 +302,7 @@ export default function LeadAssignmentPage() {
     setPriorityFilter('');
     setCustomerTypeFilter('');
     setPurchaseStageFilter('');
+    setProductNameFilter('');
     setDateFrom('');
     setDateTo('');
     setAssignmentStatus('unassigned');
@@ -532,6 +538,19 @@ export default function LeadAssignmentPage() {
                 value={dateTo}
                 onChange={(e) => {
                   setDateTo(e.target.value);
+                  setPage(1);
+                }}
+                className="w-full border rounded-lg px-3 py-2"
+              />
+            </div>
+
+            {/* Product Filter */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Product</label>
+              <ProductAutocomplete
+                value={productNameFilter}
+                onChange={(val) => {
+                  setProductNameFilter(val);
                   setPage(1);
                 }}
                 className="w-full border rounded-lg px-3 py-2"
