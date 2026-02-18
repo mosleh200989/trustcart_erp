@@ -167,7 +167,7 @@ export default function InvoicePrintModal({ orderIds, onClose }: InvoicePrintMod
   const formatDate = (dateStr: string) => {
     if (!dateStr) return '-';
     const d = new Date(dateStr);
-    return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    return d.toLocaleDateString('en-GB', { timeZone: 'Asia/Dhaka', day: '2-digit', month: 'short', year: 'numeric' });
   };
 
   const formatCurrency = (amount: number) => {
@@ -371,7 +371,7 @@ export default function InvoicePrintModal({ orderIds, onClose }: InvoicePrintMod
                     )}
 
                     <div className="text-center text-xs mt-2" style={{ color: '#999' }}>
-                      Printed: {new Date().toLocaleString()}
+                      Printed: {new Date().toLocaleString('en-GB', { timeZone: 'Asia/Dhaka' })}
                     </div>
                   </div>
                 );

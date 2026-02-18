@@ -278,7 +278,7 @@ const Analytics = () => {
                         {(a.type || 'activity').toString().toUpperCase()}: {a.subject || a.description || '—'}
                       </p>
                       <p className="text-xs text-gray-500">
-                        {a.createdAt ? new Date(a.createdAt).toLocaleString() : ''}
+                        {a.createdAt ? new Date(a.createdAt).toLocaleString('en-GB', { timeZone: 'Asia/Dhaka' }) : ''}
                       </p>
                     </div>
                   ))

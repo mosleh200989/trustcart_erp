@@ -1333,7 +1333,7 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                       </div>
                       <div>
                         <div className="text-sm text-gray-600">Date of Birth</div>
-                        <div className="font-semibold">{viewCustomer.dateOfBirth ? new Date(viewCustomer.dateOfBirth).toLocaleDateString() : 'N/A'}</div>
+                        <div className="font-semibold">{viewCustomer.dateOfBirth ? new Date(viewCustomer.dateOfBirth).toLocaleDateString('en-GB', { timeZone: 'Asia/Dhaka' }) : 'N/A'}</div>
                       </div>
                       <div>
                         <div className="text-sm text-gray-600">Marital Status</div>
@@ -1341,7 +1341,7 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                       </div>
                       <div>
                         <div className="text-sm text-gray-600">Anniversary Date</div>
-                        <div className="font-semibold">{viewCustomer.anniversaryDate ? new Date(viewCustomer.anniversaryDate).toLocaleDateString() : 'N/A'}</div>
+                        <div className="font-semibold">{viewCustomer.anniversaryDate ? new Date(viewCustomer.anniversaryDate).toLocaleDateString('en-GB', { timeZone: 'Asia/Dhaka' }) : 'N/A'}</div>
                       </div>
                       <div>
                         <div className="text-sm text-gray-600">Profession</div>
@@ -1420,11 +1420,11 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                       </div>
                       <div>
                         <div className="text-sm text-gray-600">Last Contact Date</div>
-                        <div className="font-semibold">{viewCustomer.lastContactDate ? new Date(viewCustomer.lastContactDate).toLocaleDateString() : 'N/A'}</div>
+                        <div className="font-semibold">{viewCustomer.lastContactDate ? new Date(viewCustomer.lastContactDate).toLocaleDateString('en-GB', { timeZone: 'Asia/Dhaka' }) : 'N/A'}</div>
                       </div>
                       <div>
                         <div className="text-sm text-gray-600">Next Follow Up</div>
-                        <div className="font-semibold">{viewCustomer.nextFollowUp ? new Date(viewCustomer.nextFollowUp).toLocaleDateString() : 'N/A'}</div>
+                        <div className="font-semibold">{viewCustomer.nextFollowUp ? new Date(viewCustomer.nextFollowUp).toLocaleDateString('en-GB', { timeZone: 'Asia/Dhaka' }) : 'N/A'}</div>
                       </div>
                       <div>
                         <div className="text-sm text-gray-600">Total Spent</div>
@@ -1621,7 +1621,7 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                       </div>
                       <div>
                         <div className="text-gray-600">Next Follow Up</div>
-                        <div className="font-bold">{viewCustomer?.nextFollowUp ? new Date(viewCustomer.nextFollowUp).toLocaleDateString() : 'N/A'}</div>
+                        <div className="font-bold">{viewCustomer?.nextFollowUp ? new Date(viewCustomer.nextFollowUp).toLocaleDateString('en-GB', { timeZone: 'Asia/Dhaka' }) : 'N/A'}</div>
                       </div>
                     </div>
                   </div>
@@ -1644,7 +1644,7 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                             <td className="border p-3">{displayOrNA(p.sku)}</td>
                             <td className="border p-3 text-center font-semibold">{Number(p.totalQuantity || 0)}</td>
                             <td className="border p-3 text-center">{Number(p.ordersCount || 0)}</td>
-                            <td className="border p-3">{p.lastPurchasedAt ? new Date(p.lastPurchasedAt).toLocaleString() : 'N/A'}</td>
+                            <td className="border p-3">{p.lastPurchasedAt ? new Date(p.lastPurchasedAt).toLocaleString('en-GB', { timeZone: 'Asia/Dhaka' }) : 'N/A'}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -1679,7 +1679,7 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                     {orderHistory.map((h) => (
                       <tr key={h.id} className={`hover:bg-gray-50 ${Number(h.id) === Number(currentOrderId) ? 'bg-blue-50' : ''}`}>
                         <td className="border p-3 font-semibold">{h.salesOrderNumber ? `#${h.salesOrderNumber}` : `#${h.id}`}</td>
-                        <td className="border p-3">{h.createdAt ? new Date(h.createdAt).toLocaleString() : (h.orderDate ? new Date(h.orderDate).toLocaleString() : 'N/A')}</td>
+                        <td className="border p-3">{h.createdAt ? new Date(h.createdAt).toLocaleString('en-GB', { timeZone: 'Asia/Dhaka' }) : (h.orderDate ? new Date(h.orderDate).toLocaleString('en-GB', { timeZone: 'Asia/Dhaka' }) : 'N/A')}</td>
                         <td className="border p-3">
                           <span className="uppercase font-semibold">{h.status || 'N/A'}</span>
                         </td>
@@ -1790,7 +1790,7 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                     <div><strong>Company:</strong> {order.courierCompany}</div>
                     <div><strong>Tracking ID:</strong> {order.trackingId}</div>
                     <div><strong>Status:</strong> <span className="uppercase font-semibold">{order.courierStatus}</span></div>
-                    <div><strong>Shipped At:</strong> {order.shippedAt ? new Date(order.shippedAt).toLocaleString() : 'N/A'}</div>
+                    <div><strong>Shipped At:</strong> {order.shippedAt ? new Date(order.shippedAt).toLocaleString('en-GB', { timeZone: 'Asia/Dhaka' }) : 'N/A'}</div>
                   </div>
                 </div>
               )}
@@ -1808,7 +1808,7 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                             {track.location && <span className="text-gray-600 ml-2">- {track.location}</span>}
                             {track.remarks && <p className="text-sm text-gray-600 mt-1">{track.remarks}</p>}
                           </div>
-                          <span className="text-xs text-gray-500">{new Date(track.updatedAt).toLocaleString()}</span>
+                          <span className="text-xs text-gray-500">{new Date(track.updatedAt).toLocaleString('en-GB', { timeZone: 'Asia/Dhaka' })}</span>
                         </div>
                       </div>
                     ))}
@@ -2077,7 +2077,7 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                             )}
                           </div>
                           <span className="text-xs text-gray-500">
-                            {new Date(check.createdAt).toLocaleString()}
+                            {new Date(check.createdAt).toLocaleString('en-GB', { timeZone: 'Asia/Dhaka' })}
                           </span>
                         </div>
                         
@@ -2133,7 +2133,7 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                         <span className="font-semibold text-blue-800 uppercase">{log.actionType.replace(/_/g, ' ')}</span>
                         <p className="text-gray-700 mt-1">{log.actionDescription}</p>
                       </div>
-                      <span className="text-xs text-gray-500">{new Date(log.createdAt).toLocaleString()}</span>
+                      <span className="text-xs text-gray-500">{new Date(log.createdAt).toLocaleString('en-GB', { timeZone: 'Asia/Dhaka' })}</span>
                     </div>
                     
                     <div className="flex items-center gap-4 text-sm text-gray-600 mt-2">
@@ -2215,7 +2215,7 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                             )}
                           </div>
                           <span className="text-xs text-gray-500">
-                            {new Date(call.engagementDate || call.createdAt).toLocaleString()}
+                            {new Date(call.engagementDate || call.createdAt).toLocaleString('en-GB', { timeZone: 'Asia/Dhaka' })}
                           </span>
                         </div>
                         

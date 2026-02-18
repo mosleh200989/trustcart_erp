@@ -236,8 +236,8 @@ export default function HotDealsManager() {
         <div className="text-xs">
           {row.start_date || row.end_date ? (
             <>
-              {row.start_date && <div>From: {new Date(row.start_date).toLocaleDateString()}</div>}
-              {row.end_date && <div>To: {new Date(row.end_date).toLocaleDateString()}</div>}
+              {row.start_date && <div>From: {new Date(row.start_date).toLocaleDateString('en-GB', { timeZone: 'Asia/Dhaka' })}</div>}
+              {row.end_date && <div>To: {new Date(row.end_date).toLocaleDateString('en-GB', { timeZone: 'Asia/Dhaka' })}</div>}
             </>
           ) : (
             <span className="text-gray-400">Always active</span>

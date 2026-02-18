@@ -620,7 +620,7 @@ export default function AgentDashboard() {
           customer_id: String(selectedLeadForAction.id),
           priority: selectedLeadForAction.priority || 'warm',
           call_reason: 'Follow-up Call',
-          notes: `Follow-up from call on ${new Date().toLocaleDateString()}. Previous outcome: ${callActionOutcome}`,
+          notes: `Follow-up from call on ${new Date().toLocaleDateString('en-GB', { timeZone: 'Asia/Dhaka' })}. Previous outcome: ${callActionOutcome}`,
           scheduled_time: callActionFollowUpTime || '09:00',
           task_date: callActionFollowUpDate
         });

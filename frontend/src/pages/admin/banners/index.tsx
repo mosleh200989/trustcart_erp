@@ -268,10 +268,10 @@ export default function BannersManagement() {
                         {(banner.start_date || banner.end_date) && (
                           <div className="flex gap-4 mt-2 text-sm text-gray-600">
                             {banner.start_date && (
-                              <span>Start: {new Date(banner.start_date).toLocaleDateString()}</span>
+                              <span>Start: {new Date(banner.start_date).toLocaleDateString('en-GB', { timeZone: 'Asia/Dhaka' })}</span>
                             )}
                             {banner.end_date && (
-                              <span>End: {new Date(banner.end_date).toLocaleDateString()}</span>
+                              <span>End: {new Date(banner.end_date).toLocaleDateString('en-GB', { timeZone: 'Asia/Dhaka' })}</span>
                             )}
                           </div>
                         )}

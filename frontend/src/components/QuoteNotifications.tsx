@@ -223,7 +223,7 @@ export default function QuoteNotifications() {
                           Quote #{notification.quoteNumber}
                         </span>
                         <span className="text-xs text-gray-400">
-                          {new Date(notification.timestamp).toLocaleString()}
+                          {new Date(notification.timestamp).toLocaleString('en-GB', { timeZone: 'Asia/Dhaka' })}
                         </span>
                       </div>
                     </div>
