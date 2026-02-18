@@ -498,6 +498,7 @@ export default function LandingPagePublic() {
                   <FaCheckCircle className="text-green-500 text-6xl mx-auto mb-4" />
                   <h2 className="text-2xl font-bold text-gray-800 mb-2">আপনার অর্ডার সফলভাবে গ্রহণ করা হয়েছে!</h2>
                   <p className="text-gray-600">আমরা শীঘ্রই আপনার সাথে যোগাযোগ করব।</p>
+                  <p className="text-gray-600 mt-2">আমাদের একজন কাস্টমার প্রতিনিধি আপনাকে কল করে আবার কনফার্ম করবে</p>
                 </div>
               ) : (
                 <>
