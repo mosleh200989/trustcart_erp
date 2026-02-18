@@ -127,6 +127,7 @@ export class SalesService {
     startDate?: string;
     endDate?: string;
     todayOnly?: boolean;
+    productName?: string;
   }) {
     const page = Math.max(1, params.page || 1);
     const limit = Math.min(100, Math.max(1, params.limit || 10));
@@ -172,6 +173,19 @@ export class SalesService {
       if (params.endDate) {
         qb.andWhere('DATE(o.order_date) <= :endDate', { endDate: params.endDate });
       }
+    }
+
+    // Product name filter — subquery in order_items / sales_order_items
+    if (params.productName && params.productName.trim()) {
+      const pName = `%${params.productName.trim().toLowerCase()}%`;
+      qb.andWhere(
+        `(o.id IN (
+          SELECT oi.order_id FROM order_items oi WHERE oi.product_name ILIKE :pName
+          UNION
+          SELECT soi.sales_order_id FROM sales_order_items soi WHERE soi.product_name ILIKE :pName
+        ))`,
+        { pName },
+      );
     }
 
     qb.orderBy('o.created_at', 'DESC');

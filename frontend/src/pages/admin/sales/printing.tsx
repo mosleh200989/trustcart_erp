@@ -6,6 +6,7 @@ import FormInput from '@/components/admin/FormInput';
 import AdminOrderDetailsModal from '@/components/AdminOrderDetailsModal';
 import InvoicePrintModal from '@/components/admin/InvoicePrintModal';
 import StickerPrintModal from '@/components/admin/StickerPrintModal';
+import ProductAutocomplete from '@/components/admin/ProductAutocomplete';
 import { useToast } from '@/contexts/ToastContext';
 import { FaPrint, FaBoxOpen, FaFileInvoice, FaTag, FaExternalLinkAlt } from 'react-icons/fa';
 import apiClient from '@/services/api';
@@ -71,6 +72,8 @@ export default function PrintingPage() {
   const [totalCount, setTotalCount] = useState(0);
   const [itemsPerPage, setItemsPerPage] = useState(20);
 
+
+
   // Selection
   const [selectedRowIds, setSelectedRowIds] = useState<Array<number | string>>([]);
 
@@ -123,7 +126,7 @@ export default function PrintingPage() {
   useEffect(() => {
     const timer = setTimeout(() => {
       loadOrders(currentPage, itemsPerPage, filters);
-    }, (filters.q.trim() || filters.courierId.trim() || filters.productName.trim()) ? 400 : 0);
+    }, (filters.q.trim() || filters.courierId.trim()) ? 400 : 0);
     return () => clearTimeout(timer);
   }, [currentPage, itemsPerPage, filters]);
 
@@ -682,13 +685,14 @@ export default function PrintingPage() {
                 onChange={handleFilterChange}
               />
 
-              <FormInput
-                label="Product"
-                name="productName"
-                value={filters.productName}
-                onChange={handleFilterChange}
-                placeholder="Filter by product name"
-              />
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Product</label>
+                <ProductAutocomplete
+                  value={filters.productName}
+                  onChange={(val) => setFilters((prev) => ({ ...prev, productName: val }))}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
             </div>
           </div>
         </div>

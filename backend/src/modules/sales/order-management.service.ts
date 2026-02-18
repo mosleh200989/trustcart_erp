@@ -1542,6 +1542,34 @@ export class OrderManagementService {
     return results;
   }
 
+  // ==================== PRODUCT NAMES (for filter dropdowns) ====================
+
+  async getDistinctProductNames(): Promise<string[]> {
+    // Fetch distinct product names from both item tables
+    const [oiRows, soiRows] = await Promise.all([
+      this.orderItemRepository
+        .createQueryBuilder('oi')
+        .select('DISTINCT oi.product_name', 'name')
+        .where('oi.product_name IS NOT NULL')
+        .andWhere("oi.product_name != ''")
+        .getRawMany(),
+      this.salesOrderItemRepository
+        .createQueryBuilder('soi')
+        .select('DISTINCT soi.product_name', 'name')
+        .where('soi.product_name IS NOT NULL')
+        .andWhere("soi.product_name != ''")
+        .getRawMany(),
+    ]);
+
+    const nameSet = new Set<string>();
+    for (const row of [...oiRows, ...soiRows]) {
+      const n = (row.name || '').trim();
+      if (n) nameSet.add(n);
+    }
+
+    return Array.from(nameSet).sort((a, b) => a.localeCompare(b));
+  }
+
   // ==================== PRINTING MODULE ====================
 
   async findForPrinting(params: {

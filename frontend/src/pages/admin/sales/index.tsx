@@ -7,6 +7,7 @@ import FormInput from '@/components/admin/FormInput';
 import AdminOrderDetailsModal from '@/components/AdminOrderDetailsModal';
 import InvoicePrintModal from '@/components/admin/InvoicePrintModal';
 import StickerPrintModal from '@/components/admin/StickerPrintModal';
+import ProductAutocomplete from '@/components/admin/ProductAutocomplete';
 import { useToast } from '@/contexts/ToastContext';
 import { FaPlus, FaPrint, FaBoxOpen, FaFileInvoice, FaTag } from 'react-icons/fa';
 import apiClient from '@/services/api';
@@ -18,6 +19,7 @@ const INITIAL_FILTERS = {
   courierStatus: '',
   startDate: '',
   endDate: '',
+  productName: '',
 };
 
 interface SalesOrder {
@@ -180,6 +182,7 @@ export default function AdminSales() {
       if (f.startDate) params.startDate = f.startDate;
       if (f.endDate) params.endDate = f.endDate;
       if (f.todayOnly) params.todayOnly = 'true';
+      if (f.productName.trim()) params.productName = f.productName.trim();
 
       const response = await apiClient.get('/sales', { params });
       const body = response.data;
@@ -825,6 +828,18 @@ export default function AdminSales() {
                   value={filters.endDate}
                   onChange={handleFilterChange}
                 />
+              </div>
+
+              {/* 3rd line: Product filter */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Product</label>
+                  <ProductAutocomplete
+                    value={filters.productName}
+                    onChange={(val) => setFilters((prev) => ({ ...prev, productName: val }))}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
               </div>
             </div>
           </div>
