@@ -1,6 +1,7 @@
 import { Controller, Get, Post, Put, Body, Param, Query, UseGuards, Request } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { LeadManagementService } from './lead-management.service';
+import { Public } from '../../common/decorators/public.decorator';
 
 @Controller('lead-management')
 @UseGuards(JwtAuthGuard)
@@ -45,8 +46,24 @@ export class LeadManagementController {
   }
 
   @Get('incomplete-order')
-  async getIncompleteOrders(@Query('customerId') customerId?: number) {
-    return this.leadService.getIncompleteOrders(customerId);
+  async getIncompleteOrdersFiltered(
+    @Query('q') q?: string,
+    @Query('source') source?: string,
+    @Query('landingPageSlug') landingPageSlug?: string,
+    @Query('abandonedStage') abandonedStage?: string,
+    @Query('recovered') recovered?: string,
+    @Query('convertedToOrder') convertedToOrder?: string,
+    @Query('createdFrom') createdFrom?: string,
+    @Query('createdTo') createdTo?: string,
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+  ) {
+    return this.leadService.getIncompleteOrdersFiltered({
+      q, source, landingPageSlug, abandonedStage,
+      recovered, convertedToOrder, createdFrom, createdTo,
+      page: page ? Number(page) : undefined,
+      limit: limit ? Number(limit) : undefined,
+    });
   }
 
   @Put('incomplete-order/:id/recover')
@@ -60,6 +77,23 @@ export class LeadManagementController {
   @Put('incomplete-order/:id/send-recovery-email')
   async sendRecoveryEmail(@Param('id') id: number) {
     await this.leadService.sendRecoveryEmail(id);
+    return { success: true };
+  }
+
+  // ============================================
+  // PUBLIC: LANDING PAGE INCOMPLETE ORDER TRACKING
+  // ============================================
+
+  @Post('incomplete-order/track')
+  @Public()
+  async trackLandingPageIncompleteOrder(@Body() data: any) {
+    return this.leadService.trackLandingPageIncompleteOrder(data);
+  }
+
+  @Post('incomplete-order/converted')
+  @Public()
+  async markIncompleteOrderConverted(@Body() data: { sessionId: string; landingPageId: number; orderId: number }) {
+    await this.leadService.markAsConverted(data.sessionId, data.landingPageId, data.orderId);
     return { success: true };
   }
 

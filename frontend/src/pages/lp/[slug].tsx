@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
 import apiClient from '@/services/api';
@@ -86,6 +86,79 @@ export default function LandingPagePublic() {
   const [deliveryZone, setDeliveryZone] = useState<'inside' | 'outside'>('outside');
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+
+  // Incomplete order tracking
+  const sessionIdRef = useRef<string>('');
+  const trackingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hasTrackedRef = useRef(false);
+
+  // Generate a unique session ID for this visit
+  useEffect(() => {
+    sessionIdRef.current = `lp_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+  }, []);
+
+  // Debounced tracker: fires 2s after the user stops typing / changing form fields
+  const trackIncompleteOrder = useCallback(
+    (stage: string) => {
+      if (!page || submitted) return;
+      // Only track once the user has provided at least one piece of info
+      const hasAnyData = orderForm.name || orderForm.phone || orderForm.address;
+      if (!hasAnyData) return;
+
+      if (trackingTimerRef.current) clearTimeout(trackingTimerRef.current);
+
+      trackingTimerRef.current = setTimeout(() => {
+        const subtotal = orderItems.reduce((s, i) => s + i.product.price * i.quantity, 0);
+        apiClient
+          .post('/lead-management/incomplete-order/track', {
+            sessionId: sessionIdRef.current,
+            name: orderForm.name || null,
+            phone: orderForm.phone || null,
+            address: orderForm.address || null,
+            note: orderForm.note || null,
+            email: null,
+            source: 'landing_page',
+            landingPageId: page.id,
+            landingPageSlug: page.slug,
+            landingPageTitle: page.title,
+            abandonedStage: stage,
+            deliveryZone,
+            totalAmount: subtotal,
+            cartData: orderItems.map((i) => ({
+              product_id: i.product.product_id || null,
+              name: i.product.name,
+              price: i.product.price,
+              quantity: i.quantity,
+              image_url: i.product.image_url || null,
+            })),
+            referrerUrl: window.location.href,
+            userAgent: navigator.userAgent,
+          })
+          .catch(() => {}); // silent tracking — never block the user
+        hasTrackedRef.current = true;
+      }, 2000);
+    },
+    [page, orderForm, orderItems, deliveryZone, submitted],
+  );
+
+  // Trigger tracking whenever form fields change
+  useEffect(() => {
+    if (!page || submitted) return;
+    const stage = orderForm.name && orderForm.phone && orderForm.address
+      ? 'form_filled'
+      : orderForm.phone
+        ? 'phone_entered'
+        : orderForm.name
+          ? 'name_entered'
+          : 'form_started';
+    trackIncompleteOrder(stage);
+  }, [orderForm.name, orderForm.phone, orderForm.address, orderForm.note, deliveryZone, trackIncompleteOrder]);
+
+  // Track when products change
+  useEffect(() => {
+    if (!page || submitted || !hasTrackedRef.current) return;
+    trackIncompleteOrder('product_changed');
+  }, [orderItems]);
 
   useEffect(() => {
     if (!slug) return;
@@ -191,6 +264,15 @@ export default function LandingPagePublic() {
         // Also increment the landing page order counter
         apiClient.post(`/landing-pages/${page.id}/increment-order`).catch(() => {});
 
+        // Mark the incomplete order as converted
+        if (savedOrderId && sessionIdRef.current && page.id) {
+          apiClient.post('/lead-management/incomplete-order/converted', {
+            sessionId: sessionIdRef.current,
+            landingPageId: page.id,
+            orderId: savedOrderId,
+          }).catch(() => {});
+        }
+
         // Redirect to the main thank-you page
         if (savedOrderId) {
           window.location.href = `/thank-you?orderId=${savedOrderId}`;
@@ -207,6 +289,14 @@ export default function LandingPagePublic() {
       if (savedId) {
         // Order was saved but something errored after — still redirect
         apiClient.post(`/landing-pages/${page?.id}/increment-order`).catch(() => {});
+        // Mark as converted
+        if (sessionIdRef.current && page?.id) {
+          apiClient.post('/lead-management/incomplete-order/converted', {
+            sessionId: sessionIdRef.current,
+            landingPageId: page.id,
+            orderId: savedId,
+          }).catch(() => {});
+        }
         window.location.href = `/thank-you?orderId=${savedId}`;
         return;
       }
