@@ -71,6 +71,56 @@ export class LeadManagementService {
     return this.incompleteOrderRepo.save(order);
   }
 
+  /**
+   * Track or update an incomplete order from a landing page.
+   * Uses sessionId to upsert — if the same session already has an incomplete order
+   * for the same landing page, update it instead of creating a new row.
+   */
+  async trackLandingPageIncompleteOrder(data: Partial<IncompleteOrder>) {
+    // Try to find existing record for this session + landing page
+    if (data.sessionId && data.landingPageId) {
+      const existing = await this.incompleteOrderRepo.findOne({
+        where: {
+          sessionId: data.sessionId,
+          landingPageId: data.landingPageId,
+          convertedToOrder: false,
+        },
+      });
+      if (existing) {
+        // Update existing record with latest form data
+        Object.assign(existing, data);
+        return this.incompleteOrderRepo.save(existing);
+      }
+    }
+    // Create new record
+    const order = this.incompleteOrderRepo.create({
+      ...data,
+      source: data.source || 'landing_page',
+      abandonedStage: data.abandonedStage || 'form_started',
+    });
+    return this.incompleteOrderRepo.save(order);
+  }
+
+  /**
+   * Mark an incomplete order as converted when the user submits the actual order.
+   */
+  async markAsConverted(sessionId: string, landingPageId: number, recoveredOrderId: number) {
+    const existing = await this.incompleteOrderRepo.findOne({
+      where: {
+        sessionId,
+        landingPageId,
+        convertedToOrder: false,
+      },
+    });
+    if (existing) {
+      existing.convertedToOrder = true;
+      existing.recovered = true;
+      existing.recoveredOrderId = recoveredOrderId;
+      existing.abandonedStage = 'completed';
+      await this.incompleteOrderRepo.save(existing);
+    }
+  }
+
   async getIncompleteOrders(customerId?: number) {
     const where: any = { recovered: false };
     if (customerId) where.customerId = customerId;
@@ -79,6 +129,101 @@ export class LeadManagementService {
       where,
       order: { createdAt: 'DESC' },
     });
+  }
+
+  async getIncompleteOrdersFiltered(filters: {
+    q?: string;
+    source?: string;
+    landingPageSlug?: string;
+    abandonedStage?: string;
+    recovered?: string;
+    convertedToOrder?: string;
+    createdFrom?: string;
+    createdTo?: string;
+    page?: number;
+    limit?: number;
+  }) {
+    const qb = this.incompleteOrderRepo.createQueryBuilder('io');
+
+    // Text search across name, phone, email, landing page title
+    if (filters.q) {
+      const q = `%${filters.q}%`;
+      qb.andWhere(
+        '(io.name ILIKE :q OR io.phone ILIKE :q OR io.email ILIKE :q OR io.landing_page_title ILIKE :q OR io.landing_page_slug ILIKE :q OR io.address ILIKE :q)',
+        { q },
+      );
+    }
+
+    if (filters.source) {
+      qb.andWhere('io.source = :source', { source: filters.source });
+    }
+
+    if (filters.landingPageSlug) {
+      qb.andWhere('io.landing_page_slug = :slug', { slug: filters.landingPageSlug });
+    }
+
+    if (filters.abandonedStage) {
+      qb.andWhere('io.abandoned_stage = :stage', { stage: filters.abandonedStage });
+    }
+
+    if (filters.recovered === 'true') {
+      qb.andWhere('io.recovered = true');
+    } else if (filters.recovered === 'false') {
+      qb.andWhere('io.recovered = false');
+    }
+
+    if (filters.convertedToOrder === 'true') {
+      qb.andWhere('io.converted_to_order = true');
+    } else if (filters.convertedToOrder === 'false') {
+      qb.andWhere('io.converted_to_order = false');
+    }
+
+    if (filters.createdFrom) {
+      qb.andWhere('io.created_at >= :from', { from: filters.createdFrom });
+    }
+    if (filters.createdTo) {
+      qb.andWhere('io.created_at <= :to', { to: filters.createdTo + ' 23:59:59' });
+    }
+
+    qb.orderBy('io.created_at', 'DESC');
+
+    const page = filters.page && filters.page > 0 ? filters.page : 1;
+    const limit = filters.limit && filters.limit > 0 ? Math.min(filters.limit, 200) : 20;
+    const [data, total] = await qb.skip((page - 1) * limit).take(limit).getManyAndCount();
+
+    // Get summary stats
+    const statsQb = this.incompleteOrderRepo.createQueryBuilder('io');
+    const totalAll = await statsQb.getCount();
+
+    const landingPageCount = await this.incompleteOrderRepo.createQueryBuilder('io')
+      .where("io.source = 'landing_page'")
+      .getCount();
+
+    const notConvertedCount = await this.incompleteOrderRepo.createQueryBuilder('io')
+      .where('io.converted_to_order = false')
+      .andWhere('io.recovered = false')
+      .getCount();
+
+    // Get distinct landing page slugs for filter dropdown
+    const landingPages = await this.incompleteOrderRepo.createQueryBuilder('io')
+      .select('DISTINCT io.landing_page_slug', 'slug')
+      .addSelect('io.landing_page_title', 'title')
+      .where('io.landing_page_slug IS NOT NULL')
+      .getRawMany();
+
+    return {
+      data,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+      stats: {
+        totalAll,
+        landingPageCount,
+        notConvertedCount,
+      },
+      landingPages: landingPages.filter((lp: any) => lp.slug),
+    };
   }
 
   async markOrderRecovered(id: number, recoveredOrderId: number) {

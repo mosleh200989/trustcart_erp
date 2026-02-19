@@ -44,6 +44,40 @@ export class IncompleteOrder {
   @Column({ name: 'recovery_discount_code', nullable: true })
   recoveryDiscountCode: string;
 
+  // Landing page tracking fields
+  @Column({ nullable: true })
+  source: string; // 'landing_page', 'website', 'checkout', etc.
+
+  @Column({ name: 'landing_page_id', nullable: true })
+  landingPageId: number;
+
+  @Column({ name: 'landing_page_slug', nullable: true })
+  landingPageSlug: string;
+
+  @Column({ name: 'landing_page_title', nullable: true })
+  landingPageTitle: string;
+
+  @Column({ nullable: true })
+  address: string;
+
+  @Column({ type: 'text', nullable: true })
+  note: string;
+
+  @Column({ name: 'delivery_zone', nullable: true })
+  deliveryZone: string; // 'inside' | 'outside'
+
+  @Column({ name: 'delivery_charge', type: 'decimal', precision: 10, scale: 2, nullable: true })
+  deliveryCharge: number;
+
+  @Column({ name: 'referrer_url', type: 'text', nullable: true })
+  referrerUrl: string;
+
+  @Column({ name: 'user_agent', type: 'text', nullable: true })
+  userAgent: string;
+
+  @Column({ name: 'converted_to_order', default: false })
+  convertedToOrder: boolean;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 
