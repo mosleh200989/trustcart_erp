@@ -576,11 +576,16 @@ export default function AdminSales() {
         const d = new Date(raw);
         if (isNaN(d.getTime())) return '-';
         const date = d.toLocaleDateString('en-GB', { timeZone: 'Asia/Dhaka', day: '2-digit', month: '2-digit', year: 'numeric' });
-        const time = d.toLocaleTimeString('en-US', { timeZone: 'Asia/Dhaka', hour: '2-digit', minute: '2-digit', hour12: true });
+        // Use createdAt for accurate time (orderDate may only store the date portion)
+        const timeRaw = row.createdAt ?? row.created_at ?? raw;
+        const tDate = new Date(timeRaw);
+        const time = !isNaN(tDate.getTime())
+          ? tDate.toLocaleTimeString('en-US', { timeZone: 'Asia/Dhaka', hour: '2-digit', minute: '2-digit', hour12: true })
+          : '';
         return (
           <div>
             <div>{date}</div>
-            <div className="text-xs text-gray-500">{time}</div>
+            {time && <div className="text-xs text-gray-500">{time}</div>}
           </div>
         );
       }
