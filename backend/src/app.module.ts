@@ -94,6 +94,7 @@ import { DashboardConfig } from './modules/crm/entities/dashboard-config.entity'
 
 // Lead Management Entities
 import { CustomerTier } from './modules/lead-management/entities/customer-tier.entity';
+import { IncompleteOrder } from './modules/lead-management/entities/incomplete-order.entity';
 
 // Modules
 import { AuthModule } from './modules/auth/auth.module';
@@ -202,6 +203,7 @@ import { LandingPageOrder } from './modules/landing-pages/landing-page-order.ent
             AgentCommission, CommissionSettings, DashboardConfig,
             // Lead Management entities
             CustomerTier,
+            IncompleteOrder,
             // Telephony entities
             TelephonyCall,
 
