@@ -571,21 +571,17 @@ export default function AdminSales() {
       key: 'orderDate',
       label: 'Date',
       render: (_: any, row: SalesOrder) => {
-        const raw = row.orderDate ?? row.order_date;
+        // Use createdAt as the single source of truth (orderDate may only store the date portion without time)
+        const raw = row.createdAt ?? row.created_at ?? row.orderDate ?? row.order_date;
         if (!raw) return '-';
         const d = new Date(raw);
         if (isNaN(d.getTime())) return '-';
         const date = d.toLocaleDateString('en-GB', { timeZone: 'Asia/Dhaka', day: '2-digit', month: '2-digit', year: 'numeric' });
-        // Use createdAt for accurate time (orderDate may only store the date portion)
-        const timeRaw = row.createdAt ?? row.created_at ?? raw;
-        const tDate = new Date(timeRaw);
-        const time = !isNaN(tDate.getTime())
-          ? tDate.toLocaleTimeString('en-US', { timeZone: 'Asia/Dhaka', hour: '2-digit', minute: '2-digit', hour12: true })
-          : '';
+        const time = d.toLocaleTimeString('en-US', { timeZone: 'Asia/Dhaka', hour: '2-digit', minute: '2-digit', hour12: true });
         return (
           <div>
             <div>{date}</div>
-            {time && <div className="text-xs text-gray-500">{time}</div>}
+            <div className="text-xs text-gray-500">{time}</div>
           </div>
         );
       }
@@ -808,10 +804,14 @@ export default function AdminSales() {
                   selectPlaceholder="All"
                   options={[
                     { value: 'pending', label: 'Pending' },
+                    { value: 'confirmed', label: 'Confirmed' },
                     { value: 'approved', label: 'Approved' },
+                    { value: 'processing', label: 'Processing' },
                     { value: 'hold', label: 'Hold' },
-                    { value: 'completed', label: 'Completed' },
+                    { value: 'shipped', label: 'Shipped' },
+                    { value: 'delivered', label: 'Delivered' },
                     { value: 'cancelled', label: 'Cancelled' },
+                    { value: 'returned', label: 'Returned' },
                   ]}
                 />
 
