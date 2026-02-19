@@ -575,7 +575,14 @@ export default function AdminSales() {
         if (!raw) return '-';
         const d = new Date(raw);
         if (isNaN(d.getTime())) return '-';
-        return d.toLocaleDateString('en-GB', { timeZone: 'Asia/Dhaka', day: '2-digit', month: '2-digit', year: 'numeric' });
+        const date = d.toLocaleDateString('en-GB', { timeZone: 'Asia/Dhaka', day: '2-digit', month: '2-digit', year: 'numeric' });
+        const time = d.toLocaleTimeString('en-US', { timeZone: 'Asia/Dhaka', hour: '2-digit', minute: '2-digit', hour12: true });
+        return (
+          <div>
+            <div>{date}</div>
+            <div className="text-xs text-gray-500">{time}</div>
+          </div>
+        );
       }
     },
     {
