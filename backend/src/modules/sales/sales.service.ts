@@ -150,9 +150,9 @@ export class SalesService {
       );
     }
 
-    // Status filter
+    // Status filter (cast to text because status is a PostgreSQL enum)
     if (params.status && params.status.trim()) {
-      qb.andWhere('LOWER(o.status) = LOWER(:status)', { status: params.status.trim() });
+      qb.andWhere('LOWER(o.status::text) = LOWER(:status)', { status: params.status.trim() });
     }
 
     // Courier status filter

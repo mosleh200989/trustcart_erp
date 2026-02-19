@@ -239,22 +239,18 @@ export default function LandingPageInternational() {
         const deliveryCharge = getDeliveryCharge();
         const total = subtotal + deliveryCharge;
 
-        // Build notes with BD phone info
+        // Build notes — foreign phone goes to internal_notes only
         const noteParts: string[] = [];
-        if (orderForm.bdPhone) {
-          noteParts.push(`বাংলাদেশী ফোন নাম্বার: ${orderForm.bdPhone}`);
-        }
-        noteParts.push(`প্রবাসী ফোন নাম্বার: ${orderForm.phone}`);
         if (orderForm.note) {
           noteParts.push(orderForm.note);
         }
 
         const orderPayload = {
           customer_name: orderForm.name,
-          customer_phone: orderForm.phone,
+          customer_phone: orderForm.bdPhone,
           shipping_address: orderForm.address,
           notes: noteParts.join('\n'),
-          courier_notes: orderForm.bdPhone ? `বাংলাদেশী ফোন: ${orderForm.bdPhone} | প্রবাসী ফোন: ${orderForm.phone}` : `প্রবাসী ফোন: ${orderForm.phone}`,
+          internal_notes: `প্রবাসী ফোন নাম্বার: ${orderForm.phone}`,
           payment_method: 'cash',
           items: orderItems.map((item) => ({
             product_id: item.product.product_id || null,
