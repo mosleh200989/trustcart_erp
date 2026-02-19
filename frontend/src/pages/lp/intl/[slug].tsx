@@ -3,6 +3,7 @@ import { useRouter } from 'next/router';
 import Head from 'next/head';
 import apiClient from '@/services/api';
 import InternationalPhoneInput from '@/components/InternationalPhoneInput';
+import PhoneInput from '@/components/PhoneInput';
 import { useToast } from '@/contexts/ToastContext';
 import { FaPhone, FaWhatsapp, FaShoppingCart, FaMinus, FaPlus, FaCheckCircle, FaTruck } from 'react-icons/fa';
 
@@ -85,6 +86,7 @@ export default function LandingPageInternational() {
   const [orderForm, setOrderForm] = useState({
     name: '',
     phone: '',
+    bdPhone: '',
     address: '',
     note: '',
   });
@@ -106,18 +108,19 @@ export default function LandingPageInternational() {
   const trackIncompleteOrder = useCallback(
     (stage: string) => {
       if (!page || submitted) return;
-      const hasAnyData = orderForm.name || orderForm.phone || orderForm.address;
+      const hasAnyData = orderForm.name || orderForm.phone || orderForm.bdPhone || orderForm.address;
       if (!hasAnyData) return;
 
       if (trackingTimerRef.current) clearTimeout(trackingTimerRef.current);
 
       trackingTimerRef.current = setTimeout(() => {
         const subtotal = orderItems.reduce((s, i) => s + i.product.price * i.quantity, 0);
+        const phoneInfo = [orderForm.phone, orderForm.bdPhone].filter(Boolean).join(' | ');
         apiClient
           .post('/lead-management/incomplete-order/track', {
             sessionId: sessionIdRef.current,
             name: orderForm.name || null,
-            phone: orderForm.phone || null,
+            phone: phoneInfo || null,
             address: orderForm.address || null,
             note: orderForm.note || null,
             email: null,
@@ -220,7 +223,7 @@ export default function LandingPageInternational() {
   };
 
   const handleSubmitOrder = async () => {
-    if (!orderForm.name || !orderForm.phone || !orderForm.address) {
+    if (!orderForm.name || !orderForm.phone || !orderForm.bdPhone || !orderForm.address) {
       toast.warning('Please fill in all required fields');
       return;
     }
@@ -236,11 +239,22 @@ export default function LandingPageInternational() {
         const deliveryCharge = getDeliveryCharge();
         const total = subtotal + deliveryCharge;
 
+        // Build notes with BD phone info
+        const noteParts: string[] = [];
+        if (orderForm.bdPhone) {
+          noteParts.push(`বাংলাদেশী ফোন নাম্বার: ${orderForm.bdPhone}`);
+        }
+        noteParts.push(`প্রবাসী ফোন নাম্বার: ${orderForm.phone}`);
+        if (orderForm.note) {
+          noteParts.push(orderForm.note);
+        }
+
         const orderPayload = {
           customer_name: orderForm.name,
           customer_phone: orderForm.phone,
           shipping_address: orderForm.address,
-          notes: orderForm.note || '',
+          notes: noteParts.join('\n'),
+          courier_notes: orderForm.bdPhone ? `বাংলাদেশী ফোন: ${orderForm.bdPhone} | প্রবাসী ফোন: ${orderForm.phone}` : `প্রবাসী ফোন: ${orderForm.phone}`,
           payment_method: 'cash',
           items: orderItems.map((item) => ({
             product_id: item.product.product_id || null,
@@ -688,13 +702,24 @@ export default function LandingPageInternational() {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-600 mb-1">Phone *</label>
+                      <label className="block text-sm font-medium text-gray-600 mb-1">প্রবাসী ফোন নাম্বার * (Your foreign phone number)</label>
                       <InternationalPhoneInput
                         value={orderForm.phone}
                         onChange={(val) => setOrderForm((prev) => ({ ...prev, phone: val }))}
                         required
                         placeholder="+1 234 567 8900"
                       />
+                      <p className="text-xs text-gray-400 mt-1">আপনার বিদেশের ফোন নাম্বার দিন (Enter your foreign phone number)</p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-600 mb-1">বাংলাদেশী ফোন নাম্বার * (Bangladesh contact number)</label>
+                      <PhoneInput
+                        value={orderForm.bdPhone}
+                        onChange={(val) => setOrderForm((prev) => ({ ...prev, bdPhone: val }))}
+                        required
+                        placeholder="01XXXXXXXXX"
+                      />
+                      <p className="text-xs text-gray-400 mt-1">বাংলাদেশে যিনি পণ্য গ্রহণ করবেন তার নাম্বার দিন (Number of the person receiving the product in Bangladesh)</p>
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-600 mb-1">Additional notes (optional)</label>
