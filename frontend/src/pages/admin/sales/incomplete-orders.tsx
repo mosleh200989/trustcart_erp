@@ -171,8 +171,8 @@ export default function AdminSalesIncompleteOrders() {
         const phone = row.phone || '';
         const address = row.address || '';
         return (
-          <div className="min-w-[180px]">
-            <div className="font-semibold text-gray-900">{name}</div>
+          <div className="max-w-[180px]">
+            <div className="font-semibold text-gray-900 truncate" title={name}>{name}</div>
             {phone && (
               <div className="flex items-center gap-1 text-xs text-gray-600 mt-0.5">
                 <FaPhone className="text-[10px]" /> {phone}
@@ -197,7 +197,7 @@ export default function AdminSalesIncompleteOrders() {
         const lpSlug = getVal<string>(row, 'landingPageSlug', 'landing_page_slug' as any, '');
         if (source === 'landing_page') {
           return (
-            <div className="min-w-[120px]">
+            <div className="max-w-[140px]">
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-purple-100 text-purple-800">
                 <FaGlobe className="text-[10px]" /> Landing Page
               </span>
@@ -236,14 +236,14 @@ export default function AdminSalesIncompleteOrders() {
         const cart = getVal<any>(row, 'cartData', 'cart_data' as any, null);
         if (!cart || !Array.isArray(cart) || cart.length === 0) return <span className="text-gray-400 text-sm">-</span>;
         return (
-          <div className="min-w-[140px]">
-            {cart.slice(0, 2).map((item: any, idx: number) => (
-              <div key={idx} className="text-xs text-gray-700">
+          <div className="max-w-[200px]">
+            {cart.slice(0, 3).map((item: any, idx: number) => (
+              <div key={idx} className="text-xs text-gray-700 break-words leading-tight mb-0.5">
                 {item.name || item.product_name || 'Product'} &times; {item.quantity || 1}
               </div>
             ))}
-            {cart.length > 2 && (
-              <div className="text-xs text-gray-400">+{cart.length - 2} more</div>
+            {cart.length > 3 && (
+              <div className="text-xs text-gray-400">+{cart.length - 3} more</div>
             )}
           </div>
         );
