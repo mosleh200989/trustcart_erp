@@ -641,7 +641,7 @@ export default function ThankYouPage() {
                       price={product.base_price}
                       originalPrice={product.mrp}
                       stock={product.stock_quantity}
-                      image={product.image}
+                      image_url={product.image_url}
                       rating={5}
                       reviews={Math.floor(Math.random() * 200)}
                     />
