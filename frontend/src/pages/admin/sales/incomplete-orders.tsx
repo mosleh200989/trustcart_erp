@@ -36,6 +36,8 @@ interface IncompleteOrder {
   delivery_charge?: number | null;
   convertedToOrder?: boolean;
   converted_to_order?: boolean;
+  contactedDone?: boolean;
+  contacted_done?: boolean;
   recoveryEmailSent?: boolean;
   recovery_email_sent?: boolean;
   recoverySmsSent?: boolean;
@@ -298,15 +300,36 @@ export default function AdminSalesIncompleteOrders() {
     {
       key: 'actions',
       label: '',
-      render: (_: any, row: IncompleteOrder) => (
-        <button
-          onClick={() => setExpandedRow(expandedRow === row.id ? null : row.id)}
-          className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-          title="View Details"
-        >
-          <FaEye />
-        </button>
-      ),
+      render: (_: any, row: IncompleteOrder) => {
+        const isDone = row.contactedDone ?? row.contacted_done ?? false;
+        return (
+          <div className="flex items-center gap-1">
+            <button
+              onClick={async () => {
+                try {
+                  await apiClient.put(`/lead-management/incomplete-order/${row.id}/toggle-done`);
+                  loadData();
+                } catch (e) { console.error(e); }
+              }}
+              className={`p-2 rounded-lg transition-colors ${
+                isDone
+                  ? 'text-green-600 bg-green-50 hover:bg-green-100'
+                  : 'text-gray-400 hover:text-green-600 hover:bg-green-50'
+              }`}
+              title={isDone ? 'Contacted / Done' : 'Mark as Done'}
+            >
+              <FaCheckCircle />
+            </button>
+            <button
+              onClick={() => setExpandedRow(expandedRow === row.id ? null : row.id)}
+              className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+              title="View Details"
+            >
+              <FaEye />
+            </button>
+          </div>
+        );
+      },
     },
   ];
 
