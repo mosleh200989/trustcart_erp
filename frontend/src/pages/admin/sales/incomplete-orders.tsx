@@ -308,7 +308,7 @@ export default function AdminSalesIncompleteOrders() {
               onClick={async () => {
                 try {
                   await apiClient.put(`/lead-management/incomplete-order/${row.id}/toggle-done`);
-                  loadData();
+                  load();
                 } catch (e) { console.error(e); }
               }}
               className={`p-2 rounded-lg transition-colors ${
