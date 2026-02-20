@@ -236,7 +236,7 @@ export default function AdminSalesIncompleteOrders() {
         const cart = getVal<any>(row, 'cartData', 'cart_data' as any, null);
         if (!cart || !Array.isArray(cart) || cart.length === 0) return <span className="text-gray-400 text-sm">-</span>;
         return (
-          <div className="max-w-[200px]">
+          <div className="max-w-[200px] whitespace-normal">
             {cart.slice(0, 3).map((item: any, idx: number) => (
               <div key={idx} className="text-xs text-gray-700 break-words leading-tight mb-0.5">
                 {item.name || item.product_name || 'Product'} &times; {item.quantity || 1}
