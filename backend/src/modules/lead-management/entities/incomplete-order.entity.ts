@@ -78,6 +78,9 @@ export class IncompleteOrder {
   @Column({ name: 'converted_to_order', default: false })
   convertedToOrder: boolean;
 
+  @Column({ name: 'contacted_done', default: false })
+  contactedDone: boolean;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 

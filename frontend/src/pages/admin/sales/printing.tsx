@@ -15,7 +15,7 @@ const INITIAL_FILTERS = {
   q: '',
   todayOnly: false,
   isPacked: '',
-  invoicePrinted: '',
+  invoicePrinted: 'false',
   stickerPrinted: '',
   courierId: '',
   startDate: '',

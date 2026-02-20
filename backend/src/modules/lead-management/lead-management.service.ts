@@ -238,6 +238,13 @@ export class LeadManagementService {
     await this.incompleteOrderRepo.update(id, { recoveryEmailSent: true });
   }
 
+  async toggleContactedDone(id: number) {
+    const order = await this.incompleteOrderRepo.findOne({ where: { id } });
+    if (!order) throw new Error('Incomplete order not found');
+    order.contactedDone = !order.contactedDone;
+    return this.incompleteOrderRepo.save(order);
+  }
+
   // ============================================
   // UNASSIGNED LEADS
   // ============================================

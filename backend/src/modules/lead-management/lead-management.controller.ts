@@ -80,6 +80,11 @@ export class LeadManagementController {
     return { success: true };
   }
 
+  @Put('incomplete-order/:id/toggle-done')
+  async toggleContactedDone(@Param('id') id: number) {
+    return this.leadService.toggleContactedDone(id);
+  }
+
   // ============================================
   // PUBLIC: LANDING PAGE INCOMPLETE ORDER TRACKING
   // ============================================
