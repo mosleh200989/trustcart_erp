@@ -60,7 +60,7 @@ export default function PhoneInput({
     setTouched(true);
   };
 
-  const isValid = localValue.length === 11;
+  const isValid = localValue.length === 11 && localValue.startsWith('0');
   const hasError = touched && showError && localValue.length > 0 && !isValid;
 
   return (
@@ -89,12 +89,17 @@ export default function PhoneInput({
         />
       </div>
       {/* Validation message */}
-      {hasError && (
+      {hasError && localValue.length > 0 && !localValue.startsWith('0') && (
         <p className="text-red-500 text-xs mt-1">
-          Please enter exactly 11 digits (e.g., 01712345678)
+          নাম্বার অবশ্যই 0 দিয়ে শুরু হতে হবে (e.g., 01712345678)
         </p>
       )}
-      {touched && localValue.length === 11 && (
+      {hasError && localValue.startsWith('0') && localValue.length !== 11 && (
+        <p className="text-red-500 text-xs mt-1">
+          নাম্বার অবশ্যই ১১ ডিজিট হতে হবে (e.g., 01712345678)
+        </p>
+      )}
+      {touched && isValid && (
         <p className="text-green-600 text-xs mt-1">
           ✓ Valid phone number
         </p>
@@ -112,7 +117,7 @@ export function validateBDPhone(phone: string): boolean {
   if (!phone) return false;
   // Remove +88 or 88 prefix
   const digits = phone.replace(/^\+?88/, '').replace(/\D/g, '');
-  return digits.length === 11;
+  return digits.length === 11 && digits.startsWith('0');
 }
 
 /**
