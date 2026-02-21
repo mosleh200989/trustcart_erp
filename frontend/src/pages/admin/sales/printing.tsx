@@ -47,19 +47,18 @@ interface PrintingOrder {
   items?: PrintingOrderItem[];
 }
 
-function getCourierTrackingUrl(courierCompany: string | null | undefined, consignmentId: string | null | undefined): string | null {
-  if (!consignmentId) return null;
+function getCourierTrackingUrl(courierCompany: string | null | undefined, trackingId: string | null | undefined): string | null {
+  if (!trackingId) return null;
   const company = (courierCompany || '').toLowerCase().trim();
   if (company.includes('steadfast')) {
-    return `https://steadfast.com.bd/t/${consignmentId}`;
+    return `https://steadfast.com.bd/t/${trackingId}`;
   }
   if (company.includes('pathao')) {
-    return `https://merchant.pathao.com/tracking?consignment_id=${consignmentId}`;
+    return `https://merchant.pathao.com/tracking?consignment_id=${trackingId}`;
   }
   if (company.includes('redx')) {
-    return `https://redx.com.bd/track-parcel/?trackingId=${consignmentId}`;
+    return `https://redx.com.bd/track-parcel/?trackingId=${trackingId}`;
   }
-  // Generic fallback — just return null so it doesn't open a bad URL
   return null;
 }
 
@@ -309,11 +308,12 @@ export default function PrintingPage() {
         const items = row.items || [];
         if (items.length === 0) return <span className="text-gray-400 text-xs">No items</span>;
         return (
-          <div className="text-xs leading-relaxed max-h-28 overflow-y-auto">
+          <div className="text-xs max-h-28 overflow-y-auto" style={{ whiteSpace: 'pre-line' }}>
             {items.map((item, idx) => (
-              <div key={idx} className="whitespace-nowrap">
+              <span key={idx}>
                 {item.productName} <span className="text-gray-500">({item.quantity})</span>
-              </div>
+                {idx < items.length - 1 && <br />}
+              </span>
             ))}
           </div>
         );
@@ -334,7 +334,7 @@ export default function PrintingPage() {
       render: (_: any, row: PrintingOrder) => {
         const cid = row.courierOrderId;
         if (!cid) return <span className="text-gray-400">-</span>;
-        const trackingUrl = getCourierTrackingUrl(row.courierCompany, cid);
+        const trackingUrl = getCourierTrackingUrl(row.courierCompany, row.trackingId);
         if (trackingUrl) {
           return (
             <a
@@ -368,6 +368,29 @@ export default function PrintingPage() {
         return (
           <span className={`px-2 py-1 rounded-full text-xs font-semibold ${cls}`}>
             {company}
+          </span>
+        );
+      },
+    },
+    {
+      key: 'status',
+      label: 'Status',
+      render: (_: any, row: PrintingOrder) => {
+        const statusColors: Record<string, string> = {
+          pending: 'bg-yellow-100 text-yellow-800',
+          approved: 'bg-blue-100 text-blue-800',
+          processing: 'bg-indigo-100 text-indigo-800',
+          shipped: 'bg-purple-100 text-purple-800',
+          delivered: 'bg-green-100 text-green-800',
+          completed: 'bg-green-100 text-green-800',
+          hold: 'bg-orange-100 text-orange-800',
+          cancelled: 'bg-red-100 text-red-800',
+          returned: 'bg-gray-100 text-gray-800',
+        };
+        const status = row.status || '-';
+        return (
+          <span className={`px-2 py-1 rounded-full text-xs font-semibold ${statusColors[status] || 'bg-gray-100 text-gray-800'}`}>
+            {status}
           </span>
         );
       },
