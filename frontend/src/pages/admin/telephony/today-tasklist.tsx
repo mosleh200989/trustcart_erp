@@ -94,7 +94,7 @@ export default function TodayTasklistPage() {
   // Pagination for sections
   const [tasksPage, setTasksPage] = useState(1);
   const [leadsPage, setLeadsPage] = useState(1);
-  const itemsPerPage = 10;
+  const itemsPerPage = 25;
 
   // Action Modals
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);

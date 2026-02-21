@@ -1,4 +1,4 @@
-import { BadRequestException, Controller, ForbiddenException, Get, NotFoundException, Post, Body, Param, Put, Delete, Request, UseGuards, Query } from '@nestjs/common';
+import { BadRequestException, Controller, ForbiddenException, Get, NotFoundException, Post, Body, Param, Put, Delete, Request, Req, UseGuards, Query } from '@nestjs/common';
 import { SalesService } from './sales.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CustomersService } from '../customers/customers.service';
@@ -7,6 +7,7 @@ import { SpecialOffersService } from '../special-offers/special-offers.service';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { Public } from '../../common/decorators/public.decorator';
+import * as jwt from 'jsonwebtoken';
 
 @Controller('sales')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -104,6 +105,13 @@ export class SalesController {
     return this.salesService.findLateDeliveries({ thresholdDays: days });
   }
 
+  @Get('my-order-stats')
+  async getMyOrderStats(@Req() req: any) {
+    const userId = req?.user?.id;
+    if (!userId) return { totalOrders: 0, todayOrders: 0 };
+    return this.salesService.getAgentOrderStats(Number(userId));
+  }
+
   @Get(':id')
   @RequirePermissions('view-sales-orders')
   async findOne(@Param('id') id: string) {
@@ -165,7 +173,30 @@ export class SalesController {
 
   @Post()
   @Public()
-  async create(@Body() createSalesDto: any) {
+  async create(@Body() createSalesDto: any, @Req() req: any) {
+    // Optionally extract logged-in user from JWT for @Public route
+    let authUser: any = null;
+    try {
+      const authHeader = req?.headers?.authorization;
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        const token = authHeader.slice(7);
+        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'trustcart-erp-secret-key-2024') as any;
+        if (decoded && decoded.id && decoded.type === 'user') {
+          authUser = decoded;
+        }
+      }
+    } catch { /* ignore invalid tokens */ }
+
+    // If an admin/agent user is authenticated, pass their info for source tracking
+    if (authUser) {
+      if (!createSalesDto.created_by && !createSalesDto.createdBy) {
+        createSalesDto.created_by = authUser.id;
+      }
+      if (!createSalesDto.order_source && !createSalesDto.orderSource) {
+        createSalesDto.order_source = 'admin_panel';
+      }
+    }
+
     return this.salesService.create(createSalesDto);
   }
 

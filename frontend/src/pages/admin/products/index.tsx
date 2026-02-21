@@ -67,7 +67,7 @@ export default function AdminProducts() {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [selectedProductIds, setSelectedProductIds] = useState<Array<number | string>>([]);
   const [bulkWorking, setBulkWorking] = useState(false);
-  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [itemsPerPage, setItemsPerPage] = useState(25);
 
   const [additionalInfoRows, setAdditionalInfoRows] = useState<Array<{ key: string; value: string }>>([]);
   const [sizeVariants, setSizeVariants] = useState<SizeVariant[]>([]);

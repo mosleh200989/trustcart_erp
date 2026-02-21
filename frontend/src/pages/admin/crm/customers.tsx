@@ -39,7 +39,7 @@ export default function CustomersPage() {
   const [smsCustomer, setSmsCustomer] = useState<Customer | null>(null);
   const [smsMessage, setSmsMessage] = useState('');
   const [smsSending, setSmsSending] = useState(false);
-  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [itemsPerPage, setItemsPerPage] = useState(25);
   const [showOrderModal, setShowOrderModal] = useState(false);
   const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
   const [loadingOrder, setLoadingOrder] = useState(false);

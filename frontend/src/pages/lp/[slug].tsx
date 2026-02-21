@@ -86,6 +86,7 @@ export default function LandingPagePublic() {
   const [deliveryZone, setDeliveryZone] = useState<'inside' | 'outside'>('outside');
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [formTouched, setFormTouched] = useState(false);
 
   // Incomplete order tracking
   const sessionIdRef = useRef<string>('');
@@ -216,9 +217,19 @@ export default function LandingPagePublic() {
     return getSubtotal() + getDeliveryCharge();
   };
 
+  const isBdPhoneValid = () => {
+    const digits = orderForm.phone.replace(/\D/g, '');
+    return digits.length === 11 && digits.startsWith('0');
+  };
+
   const handleSubmitOrder = async () => {
+    setFormTouched(true);
     if (!orderForm.name || !orderForm.phone || !orderForm.address) {
       toast.warning('অনুগ্রহ করে সব তথ্য পূরণ করুন');
+      return;
+    }
+    if (!isBdPhoneValid()) {
+      toast.warning('ফোন নম্বর অবশ্যই 0 দিয়ে শুরু হতে হবে এবং ১১ ডিজিট হতে হবে');
       return;
     }
     if (orderItems.length === 0) {
@@ -252,6 +263,7 @@ export default function LandingPagePublic() {
           delivery_charge: deliveryCharge,
           total_amount: total,
           status: 'pending',
+          order_source: 'landing_page',
           traffic_source: 'landing_page',
           referrer_url: window.location.href,
           utm_source: page.slug,
@@ -671,27 +683,27 @@ export default function LandingPagePublic() {
                   <div className="space-y-4 mb-6">
                     <h3 className="font-semibold text-gray-700">Billing & Shipping</h3>
                     <div>
-                      <label className="block text-sm font-medium text-gray-600 mb-1">নাম *</label>
+                      <label className={`block text-sm font-medium mb-1 ${formTouched && !orderForm.name ? 'text-red-600' : 'text-gray-600'}`}>নাম *</label>
                       <input
                         type="text"
                         value={orderForm.name}
                         onChange={(e) => setOrderForm((prev) => ({ ...prev, name: e.target.value }))}
-                        className="w-full border rounded-lg px-4 py-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                        className={`w-full border rounded-lg px-4 py-3 focus:ring-2 focus:ring-green-500 focus:border-green-500 ${formTouched && !orderForm.name ? 'border-red-500 bg-red-50' : ''}`}
                         placeholder="আপনার নাম"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-600 mb-1">আপনার ঠিকানা লিখুন *</label>
+                      <label className={`block text-sm font-medium mb-1 ${formTouched && !orderForm.address ? 'text-red-600' : 'text-gray-600'}`}>আপনার ঠিকানা লিখুন *</label>
                       <textarea
                         value={orderForm.address}
                         onChange={(e) => setOrderForm((prev) => ({ ...prev, address: e.target.value }))}
-                        className="w-full border rounded-lg px-4 py-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                        className={`w-full border rounded-lg px-4 py-3 focus:ring-2 focus:ring-green-500 focus:border-green-500 ${formTouched && !orderForm.address ? 'border-red-500 bg-red-50' : ''}`}
                         rows={2}
                         placeholder="সম্পূর্ণ ঠিকানা"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-600 mb-1">মোবাইল *</label>
+                      <label className={`block text-sm font-medium mb-1 ${formTouched && (!orderForm.phone || !isBdPhoneValid()) ? 'text-red-600' : 'text-gray-600'}`}>মোবাইল *</label>
                       <PhoneInput
                         value={orderForm.phone}
                         onChange={(val) => setOrderForm((prev) => ({ ...prev, phone: val }))}

@@ -192,7 +192,6 @@ export default function TelephonyReportsPage() {
                   onChange={(e) => { setCdrLimit(Number(e.target.value)); setCdrPage(1); }}
                   className="border rounded px-2 py-1 text-sm"
                 >
-                  <option value={10}>10</option>
                   <option value={25}>25</option>
                   <option value={50}>50</option>
                   <option value={100}>100</option>

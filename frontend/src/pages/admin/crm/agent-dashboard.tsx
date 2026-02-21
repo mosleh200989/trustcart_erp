@@ -3,7 +3,7 @@ import AdminLayout from '@/layouts/AdminLayout';
 import { 
   FaPhone, FaWhatsapp, FaSms, FaEnvelope, FaFire, FaChartLine, FaCheckCircle, FaClock, 
   FaMoneyBillWave, FaDollarSign, FaStickyNote, FaCalendarAlt, FaCheckDouble, FaThumbsUp, FaThumbsDown,
-  FaChevronLeft, FaChevronRight
+  FaChevronLeft, FaChevronRight, FaShoppingCart
 } from 'react-icons/fa';
 import apiClient, { auth, users as usersApi } from '@/services/api';
 import AdminOrderDetailsModal from '@/components/AdminOrderDetailsModal';
@@ -166,6 +166,9 @@ export default function AgentDashboard() {
 
   const [agentUsers, setAgentUsers] = useState<any[]>([]);
   const [selectedViewAgentId, setSelectedViewAgentId] = useState<number | null>(null);
+
+  // Order stats state
+  const [orderStats, setOrderStats] = useState<{ totalOrders: number; todayOrders: number; thisMonthOrders: number } | null>(null);
 
   // Commission state
   const [commissionSummary, setCommissionSummary] = useState<CommissionSummary | null>(null);
@@ -360,13 +363,15 @@ export default function AgentDashboard() {
   const loadDashboard = async () => {
     try {
       setLoading(true);
-      const [dashboardRes, actionRes] = await Promise.all([
+      const [dashboardRes, actionRes, orderStatsRes] = await Promise.all([
         apiClient.get('/crm/automation/agent/me/dashboard'),
-        apiClient.get('/crm/automation/agent/me/next-action')
+        apiClient.get('/crm/automation/agent/me/next-action'),
+        apiClient.get('/sales/my-order-stats').catch(() => ({ data: null }))
       ]);
       
       setStats(dashboardRes.data);
       setNextAction(actionRes.data);
+      if (orderStatsRes.data) setOrderStats(orderStatsRes.data);
     } catch (error) {
       console.error('Failed to load dashboard:', error);
     } finally {
@@ -1007,6 +1012,39 @@ export default function AgentDashboard() {
             </div>
           </div>
         </div>
+
+        {/* My Orders Stats */}
+        {orderStats && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="bg-white p-6 rounded-lg shadow border-l-4 border-purple-500">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600">Today's Orders</p>
+                  <p className="text-3xl font-bold text-gray-800">{orderStats.todayOrders}</p>
+                </div>
+                <FaShoppingCart className="text-4xl text-purple-500" />
+              </div>
+            </div>
+            <div className="bg-white p-6 rounded-lg shadow border-l-4 border-indigo-500">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600">This Month's Orders</p>
+                  <p className="text-3xl font-bold text-gray-800">{orderStats.thisMonthOrders}</p>
+                </div>
+                <FaCalendarAlt className="text-4xl text-indigo-500" />
+              </div>
+            </div>
+            <div className="bg-white p-6 rounded-lg shadow border-l-4 border-teal-500">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600">Total Orders</p>
+                  <p className="text-3xl font-bold text-gray-800">{orderStats.totalOrders}</p>
+                </div>
+                <FaChartLine className="text-4xl text-teal-500" />
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Assigned Leads / Customers */}
         <div className="bg-white rounded-lg shadow">

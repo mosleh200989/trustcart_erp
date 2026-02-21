@@ -9,7 +9,7 @@ interface PageSizeSelectorProps {
 }
 
 // Default page size options with max of 300
-const DEFAULT_OPTIONS = [10, 25, 50, 100, 150, 200, 300];
+const DEFAULT_OPTIONS = [25, 50, 100, 150, 200, 300];
 
 export default function PageSizeSelector({
   value,

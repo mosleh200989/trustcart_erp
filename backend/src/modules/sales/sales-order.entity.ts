@@ -80,6 +80,9 @@ export class SalesOrder {
   cancelledAt: Date;
 
   // Order Source Tracking
+  @Column({ name: 'order_source', type: 'varchar', length: 50, nullable: true })
+  orderSource: string;
+
   @Column({ name: 'user_ip', type: 'varchar', length: 50, nullable: true })
   userIp: string;
 

@@ -99,8 +99,23 @@ export class SalesService {
 
       notes: order.notes,
       created_by: order.createdBy ?? null,
-      created_by_name: order.createdBy ? ((order as any).createdByName || null) : 'Website',
+      created_by_name: order.createdBy ? ((order as any).createdByName || null) : null,
+      order_source: order.orderSource || null,
+      order_source_display: this.computeOrderSourceDisplay(order),
     };
+  }
+
+  private computeOrderSourceDisplay(order: SalesOrder): string {
+    const source = order.orderSource || '';
+    if (source === 'admin_panel' || source === 'agent_dashboard') {
+      return (order as any).createdByName || 'Admin';
+    }
+    if (source === 'landing_page') return 'Landing Page';
+    if (source === 'website') return 'Website';
+    // Fallback: infer from legacy data
+    if (order.trafficSource === 'landing_page' || order.trafficSource === 'landing_page_intl') return 'Landing Page';
+    if (order.createdBy && order.createdBy > 1) return (order as any).createdByName || 'Admin';
+    return 'Website';
   }
 
   async findAll() {
@@ -225,6 +240,35 @@ export class SalesService {
       totalPages: Math.ceil(total / limit),
       courierStatuses,
     };
+  }
+
+  async getAgentOrderStats(userId: number): Promise<{ totalOrders: number; todayOrders: number; thisMonthOrders: number }> {
+    const totalOrders = await this.salesRepository.count({
+      where: { createdBy: userId, orderSource: In(['admin_panel', 'agent_dashboard']) },
+    });
+
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+
+    const todayOrders = await this.salesRepository
+      .createQueryBuilder('o')
+      .where('o.created_by = :userId', { userId })
+      .andWhere('o.order_source IN (:...sources)', { sources: ['admin_panel', 'agent_dashboard'] })
+      .andWhere('o.created_at >= :todayStart', { todayStart })
+      .getCount();
+
+    const monthStart = new Date();
+    monthStart.setDate(1);
+    monthStart.setHours(0, 0, 0, 0);
+
+    const thisMonthOrders = await this.salesRepository
+      .createQueryBuilder('o')
+      .where('o.created_by = :userId', { userId })
+      .andWhere('o.order_source IN (:...sources)', { sources: ['admin_panel', 'agent_dashboard'] })
+      .andWhere('o.created_at >= :monthStart', { monthStart })
+      .getCount();
+
+    return { totalOrders, todayOrders, thisMonthOrders };
   }
 
   async findLateDeliveries(params?: { thresholdDays?: number }) {
@@ -514,6 +558,22 @@ export class SalesService {
 
     if (createSalesDto.traffic_source != null) sales.trafficSource = String(createSalesDto.traffic_source);
     if (createSalesDto.trafficSource != null) sales.trafficSource = String(createSalesDto.trafficSource);
+
+    // Order Source: determine where the order originated
+    const explicitSource = createSalesDto.order_source ?? createSalesDto.orderSource ?? null;
+    if (explicitSource) {
+      sales.orderSource = String(explicitSource);
+    } else {
+      // Derive from traffic_source or created_by
+      const ts = sales.trafficSource || '';
+      if (ts === 'landing_page' || ts === 'landing_page_intl') {
+        sales.orderSource = 'landing_page';
+      } else if (sales.createdBy && sales.createdBy !== systemUserId) {
+        sales.orderSource = 'admin_panel';
+      } else {
+        sales.orderSource = 'website';
+      }
+    }
 
     if (createSalesDto.referrer_url != null) sales.referrerUrl = String(createSalesDto.referrer_url);
     if (createSalesDto.referrerUrl != null) sales.referrerUrl = String(createSalesDto.referrerUrl);

@@ -19,7 +19,7 @@ export default function Pagination({
   totalPages,
   onPageChange,
   totalItems,
-  itemsPerPage = 10,
+  itemsPerPage = 25,
   showInfo = true,
   className = '',
 }: PaginationProps) {
