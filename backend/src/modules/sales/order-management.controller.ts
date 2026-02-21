@@ -1,10 +1,12 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Req, UseGuards, UnauthorizedException, Headers, Res, Query } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, Req, UseGuards, UnauthorizedException, Headers, Res, Query, UsePipes, ValidationPipe, HttpCode } from '@nestjs/common';
 import { OrderManagementService } from './order-management.service';
 import { Request, Response } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
+import { SteadfastWebhookGuard } from '../../common/guards/steadfast-webhook.guard';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { Public } from '../../common/decorators/public.decorator';
+import { SteadfastWebhookDto } from './dto/steadfast-webhook.dto';
 
 @Controller('order-management')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -438,16 +440,24 @@ export class OrderManagementController {
   // ==================== STEADFAST WEBHOOK ====================
 
   /**
-   * Webhook endpoint for Steadfast to push delivery status updates.
-   * This endpoint does NOT require JWT authentication since it's called by Steadfast servers.
+   * Webhook endpoint for Steadfast to push delivery status and tracking updates.
+   *
+   * - Bypasses JWT authentication (@Public) since it's called by Steadfast servers.
+   * - Uses SteadfastWebhookGuard to validate the Bearer token from Steadfast.
+   * - Uses a lenient ValidationPipe (forbidNonWhitelisted: false) so that
+   *   unexpected fields from Steadfast don't cause 400 errors.
+   * - Returns HTTP 200 on success as required by Steadfast's webhook contract.
    */
   @Public()
   @Post('webhook/steadfast')
+  @HttpCode(200)
+  @UseGuards(SteadfastWebhookGuard)
+  @UsePipes(new ValidationPipe({ transform: true, whitelist: true, forbidNonWhitelisted: false }))
   async steadfastWebhook(
-    @Body() body: any,
-    @Headers() headers: Record<string, string>
+    @Body() dto: SteadfastWebhookDto,
+    @Headers() headers: Record<string, string>,
   ) {
-    return await this.orderManagementService.handleSteadfastWebhook(body, headers);
+    return await this.orderManagementService.handleSteadfastWebhook(dto, headers);
   }
 
   /**

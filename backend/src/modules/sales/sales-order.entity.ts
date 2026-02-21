@@ -126,6 +126,14 @@ export class SalesOrder {
   @Column({ name: 'courier_status', type: 'varchar', length: 50, nullable: true })
   courierStatus: string;
 
+  /** COD amount confirmed by courier webhook (e.g. Steadfast) */
+  @Column({ name: 'cod_amount', type: 'decimal', precision: 12, scale: 2, nullable: true })
+  codAmount: number | null;
+
+  /** Delivery charge confirmed by courier webhook (e.g. Steadfast) */
+  @Column({ name: 'delivery_charge', type: 'decimal', precision: 12, scale: 2, nullable: true })
+  deliveryCharge: number | null;
+
   @Column({ name: 'thank_you_offer_accepted', type: 'boolean', default: false })
   thankYouOfferAccepted: boolean;
 
