@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, NotFoundException, HttpException, HttpStatus } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException, HttpException, HttpStatus, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { SalesOrder } from './sales-order.entity';
@@ -15,6 +15,8 @@ import { WhatsAppService } from '../messaging/whatsapp.service';
 
 @Injectable()
 export class OrderManagementService {
+  private readonly logger = new Logger(OrderManagementService.name);
+
   constructor(
     @InjectRepository(SalesOrder)
     private salesOrderRepository: Repository<SalesOrder>,
@@ -1224,126 +1226,219 @@ export class OrderManagementService {
   // ==================== STEADFAST WEBHOOK HANDLER ====================
 
   /**
-   * Handle webhook callbacks from Steadfast for delivery status updates.
-   * Steadfast sends status updates when delivery status changes.
-   * 
-   * Expected payload structure from Steadfast webhook:
-   * {
-   *   "consignment_id": 1424107,
-   *   "invoice": "SO-12345",
-   *   "tracking_code": "15BAEB8A",
-   *   "status": "delivered",
-   *   "delivery_status": "delivered",
-   *   ...
-   * }
+   * Handle webhook callbacks from Steadfast courier.
+   *
+   * Steadfast sends two notification types:
+   *   1. `delivery_status` — status changed (pending → delivered / cancelled etc.)
+   *   2. `tracking_update`  — intermediate tracking event (arrived at hub, out for delivery, …)
+   *
+   * The Bearer-token authentication is handled by SteadfastWebhookGuard
+   * before this method is called.
    */
   async handleSteadfastWebhook(
-    body: any,
+    dto: import('./dto/steadfast-webhook.dto').SteadfastWebhookDto,
     headers: Record<string, any>,
-  ): Promise<{ success: boolean; message: string }> {
-    // Optional: Verify webhook signature if Steadfast provides one
-    // const signature = headers['x-steadfast-signature'];
-    // if (process.env.STEADFAST_WEBHOOK_SECRET && !this.verifySteadfastSignature(body, signature)) {
-    //   return { success: false, message: 'Invalid signature' };
-    // }
+  ): Promise<{ status: string; message: string }> {
+    const notificationType = dto.notification_type || 'delivery_status';
+    const consignmentId = dto.consignment_id;
+    const invoice = dto.invoice;
+    const trackingCode = dto.tracking_code;
 
-    const consignmentId = body?.consignment_id ?? body?.consignment?.consignment_id;
-    const trackingCode = body?.tracking_code ?? body?.consignment?.tracking_code;
-    const invoice = body?.invoice ?? body?.consignment?.invoice;
-    const newStatus = this.extractSteadfastStatus(body);
+    this.logger.log(
+      `[Steadfast Webhook] type=${notificationType} CID=${consignmentId ?? '—'} INV=${invoice ?? '—'}`,
+    );
 
-    if (!newStatus) {
-      return { success: false, message: 'No status in webhook payload' };
-    }
-
-    // Find the order by consignment_id (courierOrderId) or tracking_code (trackingId)
-    let order: SalesOrder | null = null;
-
-    if (consignmentId) {
-      order = await this.salesOrderRepository.findOne({
-        where: { courierOrderId: String(consignmentId), courierCompany: 'Steadfast' },
-      });
-    }
-
-    if (!order && trackingCode) {
-      order = await this.salesOrderRepository.findOne({
-        where: { trackingId: String(trackingCode), courierCompany: 'Steadfast' },
-      });
-    }
-
-    if (!order && invoice) {
-      // Try to match by sales order number
-      order = await this.salesOrderRepository.findOne({
-        where: { salesOrderNumber: invoice, courierCompany: 'Steadfast' },
-      });
-    }
+    // ── Resolve the matching order ──
+    const order = await this.resolveSteadfastOrder(consignmentId, trackingCode, invoice);
 
     if (!order) {
-      return { success: false, message: `Order not found for webhook: CID=${consignmentId}, TC=${trackingCode}, INV=${invoice}` };
+      const msg = `Order not found: CID=${consignmentId ?? '—'}, TC=${trackingCode ?? '—'}, INV=${invoice ?? '—'}`;
+      this.logger.warn(`[Steadfast Webhook] ${msg}`);
+      return { status: 'error', message: msg };
     }
 
-    // Check if status actually changed
-    if (String(order.courierStatus || '').trim() === newStatus.trim()) {
-      return { success: true, message: 'Status unchanged' };
+    // ── Route by notification type ──
+    if (notificationType === 'tracking_update') {
+      return this.handleSteadfastTrackingUpdate(order, dto);
+    }
+
+    // Default: delivery_status
+    return this.handleSteadfastDeliveryStatus(order, dto);
+  }
+
+  /**
+   * Handle `delivery_status` webhook — updates order status, COD, delivery charge.
+   */
+  private async handleSteadfastDeliveryStatus(
+    order: SalesOrder,
+    dto: import('./dto/steadfast-webhook.dto').SteadfastWebhookDto,
+  ): Promise<{ status: string; message: string }> {
+    const newStatus = this.extractSteadfastStatus(dto);
+
+    if (!newStatus) {
+      this.logger.warn(`[Steadfast Webhook] delivery_status payload has no status field — order #${order.id}`);
+      return { status: 'error', message: 'No status in webhook payload' };
     }
 
     const prevStatus = order.courierStatus;
-    order.courierStatus = newStatus;
+    const statusChanged = String(prevStatus || '').trim() !== newStatus.trim();
 
+    // Always update COD & delivery charge if provided (even when status hasn't changed)
+    if (dto.cod_amount != null) order.codAmount = dto.cod_amount;
+    if (dto.delivery_charge != null) order.deliveryCharge = dto.delivery_charge;
+
+    if (!statusChanged) {
+      // Save COD/charge updates even if status is the same
+      await this.salesOrderRepository.save(order);
+      this.logger.log(`[Steadfast Webhook] Status unchanged for order #${order.id} (${newStatus}), COD/charge updated`);
+      return { status: 'success', message: 'Status unchanged, financial fields updated' };
+    }
+
+    order.courierStatus = newStatus;
     const becameDelivered = this.isDeliveredStatus(newStatus) && order.status !== 'delivered';
+    const becameCancelled = newStatus === 'cancelled' && order.status !== 'cancelled';
 
     if (becameDelivered) {
       order.status = 'delivered';
       order.deliveredAt = new Date();
     }
 
-    const saved = await this.salesOrderRepository.save(order);
-
-    // Post-delivery actions
-    if (becameDelivered) {
-      try {
-        await this.loyaltyService.autoCompleteReferralForDeliveredOrder({
-          orderId: saved.id,
-          customerId: saved.customerId,
-        });
-      } catch {
-        // never block webhook processing
-      }
-
-      try {
-        await this.whatsAppService.sendReferralNudgeOnDeliveredOrder({
-          orderId: saved.id,
-          customerId: saved.customerId,
-        });
-      } catch {
-        // never block webhook processing
-      }
+    if (becameCancelled) {
+      order.status = 'cancelled';
+      order.cancelReason = order.cancelReason || 'Cancelled by courier (Steadfast)';
+      order.cancelledAt = new Date();
     }
 
-    // Log tracking history
+    const saved = await this.salesOrderRepository.save(order);
+
+    // ── Post-delivery async side-effects ──
+    if (becameDelivered) {
+      this.executeSteadfastPostDeliveryActions(saved);
+    }
+
+    // ── Tracking history record ──
     await this.courierTrackingRepository.save({
       orderId: saved.id,
       courierCompany: 'Steadfast',
       trackingId: saved.trackingId,
-      status: saved.courierStatus,
+      status: newStatus,
+      notificationType: 'delivery_status',
+      trackingMessage: dto.tracking_message || null,
+      codAmount: dto.cod_amount ?? null,
+      deliveryCharge: dto.delivery_charge ?? null,
+      consignmentId: dto.consignment_id != null ? String(dto.consignment_id) : null,
+      rawPayload: dto,
       remarks: `Steadfast webhook: ${prevStatus || 'null'} → ${newStatus}`,
     });
 
-    // Activity log
+    // ── Activity log ──
     await this.logActivity({
       orderId: saved.id,
       actionType: 'courier_status_webhook',
-      actionDescription: `Steadfast webhook: status updated to ${newStatus}`,
+      actionDescription: `Steadfast delivery_status webhook: ${prevStatus || 'null'} → ${newStatus}${dto.tracking_message ? ` — "${dto.tracking_message}"` : ''}`,
       oldValue: { courierStatus: prevStatus },
-      newValue: { courierStatus: newStatus },
+      newValue: { courierStatus: newStatus, codAmount: dto.cod_amount, deliveryCharge: dto.delivery_charge },
       performedBy: undefined,
       performedByName: 'Steadfast Webhook',
     });
 
+    this.logger.log(
+      `[Steadfast Webhook] Order #${saved.id} delivery_status: ${prevStatus || 'null'} → ${newStatus}`,
+    );
+
     return {
-      success: true,
+      status: 'success',
       message: `Order #${saved.id} status updated: ${prevStatus || 'null'} → ${newStatus}`,
     };
+  }
+
+  /**
+   * Handle `tracking_update` webhook — logs the tracking event without changing order status.
+   */
+  private async handleSteadfastTrackingUpdate(
+    order: SalesOrder,
+    dto: import('./dto/steadfast-webhook.dto').SteadfastWebhookDto,
+  ): Promise<{ status: string; message: string }> {
+    const trackingMessage = dto.tracking_message || 'Tracking update received';
+
+    // ── Tracking history record ──
+    await this.courierTrackingRepository.save({
+      orderId: order.id,
+      courierCompany: 'Steadfast',
+      trackingId: order.trackingId,
+      status: order.courierStatus || 'in_transit',
+      notificationType: 'tracking_update',
+      trackingMessage,
+      consignmentId: dto.consignment_id != null ? String(dto.consignment_id) : null,
+      rawPayload: dto,
+      remarks: `Tracking update: ${trackingMessage}`,
+    });
+
+    // ── Activity log ──
+    await this.logActivity({
+      orderId: order.id,
+      actionType: 'courier_tracking_webhook',
+      actionDescription: `Steadfast tracking_update: ${trackingMessage}`,
+      oldValue: null,
+      newValue: { trackingMessage, updatedAt: dto.updated_at },
+      performedBy: undefined,
+      performedByName: 'Steadfast Webhook',
+    });
+
+    this.logger.log(`[Steadfast Webhook] Order #${order.id} tracking_update: ${trackingMessage}`);
+
+    return {
+      status: 'success',
+      message: `Tracking update logged for order #${order.id}`,
+    };
+  }
+
+  /**
+   * Resolve SalesOrder from Steadfast identifiers. Tries consignment_id, tracking_code, invoice in order.
+   */
+  private async resolveSteadfastOrder(
+    consignmentId?: number,
+    trackingCode?: string,
+    invoice?: string,
+  ): Promise<SalesOrder | null> {
+    if (consignmentId) {
+      const order = await this.salesOrderRepository.findOne({
+        where: { courierOrderId: String(consignmentId), courierCompany: 'Steadfast' },
+      });
+      if (order) return order;
+    }
+
+    if (trackingCode) {
+      const order = await this.salesOrderRepository.findOne({
+        where: { trackingId: String(trackingCode), courierCompany: 'Steadfast' },
+      });
+      if (order) return order;
+    }
+
+    if (invoice) {
+      const order = await this.salesOrderRepository.findOne({
+        where: { salesOrderNumber: invoice, courierCompany: 'Steadfast' },
+      });
+      if (order) return order;
+    }
+
+    return null;
+  }
+
+  /**
+   * Fire-and-forget post-delivery side-effects.
+   * Errors are caught and logged — they must never block the webhook response.
+   */
+  private executeSteadfastPostDeliveryActions(order: SalesOrder): void {
+    // Referral completion
+    this.loyaltyService
+      .autoCompleteReferralForDeliveredOrder({ orderId: order.id, customerId: order.customerId })
+      .catch((err) => this.logger.error(`[Steadfast Webhook] Referral completion failed for order #${order.id}: ${err.message}`));
+
+    // WhatsApp nudge
+    this.whatsAppService
+      .sendReferralNudgeOnDeliveredOrder({ orderId: order.id, customerId: order.customerId })
+      .catch((err) => this.logger.error(`[Steadfast Webhook] WhatsApp nudge failed for order #${order.id}: ${err.message}`));
   }
 
   /**

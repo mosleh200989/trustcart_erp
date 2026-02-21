@@ -21,6 +21,7 @@ import { LoyaltyModule } from '../loyalty/loyalty.module';
 import { OffersModule } from '../offers/offers.module';
 import { MessagingModule } from '../messaging/messaging.module';
 import { CrmModule } from '../crm/crm.module';
+import { SteadfastWebhookGuard } from '../../common/guards/steadfast-webhook.guard';
 
 @Module({
   imports: [
@@ -43,7 +44,7 @@ import { CrmModule } from '../crm/crm.module';
     forwardRef(() => CrmModule),
   ],
   controllers: [SalesController, OrderManagementController, FraudCheckController],
-  providers: [SalesService, OrderManagementService, FraudCheckService],
+  providers: [SalesService, OrderManagementService, FraudCheckService, SteadfastWebhookGuard],
   exports: [SalesService, OrderManagementService, FraudCheckService],
 })
 export class SalesModule {}
