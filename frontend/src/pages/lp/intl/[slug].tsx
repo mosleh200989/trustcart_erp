@@ -93,6 +93,7 @@ export default function LandingPageInternational() {
   const [deliveryZone, setDeliveryZone] = useState<'inside' | 'outside'>('outside');
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [formTouched, setFormTouched] = useState(false);
 
   // Incomplete order tracking
   const sessionIdRef = useRef<string>('');
@@ -222,9 +223,33 @@ export default function LandingPageInternational() {
     return getSubtotal() + getDeliveryCharge();
   };
 
+  // Validation helpers
+  const isBdPhoneValid = () => {
+    if (!orderForm.bdPhone) return false;
+    // Remove +88 prefix to get raw digits
+    const raw = orderForm.bdPhone.replace(/^\+?88/, '');
+    return raw.length === 11 && raw.startsWith('0');
+  };
+
+  const isForeignPhoneValid = () => {
+    if (!orderForm.phone) return false;
+    const digits = orderForm.phone.replace(/\D/g, '');
+    return digits.length >= 7 && digits.length <= 15;
+  };
+
   const handleSubmitOrder = async () => {
-    if (!orderForm.name || !orderForm.phone || !orderForm.bdPhone || !orderForm.address) {
+    setFormTouched(true);
+
+    if (!orderForm.name || !orderForm.address) {
       toast.warning('Please fill in all required fields');
+      return;
+    }
+    if (!isForeignPhoneValid()) {
+      toast.warning('Please enter a valid foreign phone number');
+      return;
+    }
+    if (!isBdPhoneValid()) {
+      toast.warning('বাংলাদেশী নাম্বার অবশ্যই 0 দিয়ে শুরু হতে হবে এবং ১১ ডিজিট হতে হবে');
       return;
     }
     if (orderItems.length === 0) {
@@ -678,43 +703,49 @@ export default function LandingPageInternational() {
                   <div className="space-y-4 mb-6">
                     <h3 className="font-semibold text-gray-700">Billing & Shipping</h3>
                     <div>
-                      <label className="block text-sm font-medium text-gray-600 mb-1">Name *</label>
+                      <label className={`block text-sm font-medium mb-1 ${formTouched && !orderForm.name ? 'text-red-600' : 'text-gray-600'}`}>Name * {formTouched && !orderForm.name && <span className="text-red-500 text-xs">(required)</span>}</label>
                       <input
                         type="text"
                         value={orderForm.name}
                         onChange={(e) => setOrderForm((prev) => ({ ...prev, name: e.target.value }))}
-                        className="w-full border rounded-lg px-4 py-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                        className={`w-full border rounded-lg px-4 py-3 focus:ring-2 focus:ring-green-500 focus:border-green-500 ${formTouched && !orderForm.name ? 'border-red-500 bg-red-50' : ''}`}
                         placeholder="Your name"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-600 mb-1">Your address *</label>
+                      <label className={`block text-sm font-medium mb-1 ${formTouched && !orderForm.address ? 'text-red-600' : 'text-gray-600'}`}>Your address * {formTouched && !orderForm.address && <span className="text-red-500 text-xs">(required)</span>}</label>
                       <textarea
                         value={orderForm.address}
                         onChange={(e) => setOrderForm((prev) => ({ ...prev, address: e.target.value }))}
-                        className="w-full border rounded-lg px-4 py-3 focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                        className={`w-full border rounded-lg px-4 py-3 focus:ring-2 focus:ring-green-500 focus:border-green-500 ${formTouched && !orderForm.address ? 'border-red-500 bg-red-50' : ''}`}
                         rows={2}
                         placeholder="Full address"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-600 mb-1">প্রবাসী ফোন নাম্বার * (Your foreign phone number)</label>
+                      <label className={`block text-sm font-medium mb-1 ${formTouched && !isForeignPhoneValid() ? 'text-red-600' : 'text-gray-600'}`}>প্রবাসী ফোন নাম্বার * (Your foreign phone number) {formTouched && !orderForm.phone && <span className="text-red-500 text-xs">(required)</span>}</label>
                       <InternationalPhoneInput
                         value={orderForm.phone}
                         onChange={(val) => setOrderForm((prev) => ({ ...prev, phone: val }))}
                         required
                         placeholder="+1 234 567 8900"
                       />
+                      {formTouched && orderForm.phone && !isForeignPhoneValid() && (
+                        <p className="text-red-500 text-xs mt-1">Please enter a valid phone number (7-15 digits)</p>
+                      )}
                       <p className="text-xs text-gray-400 mt-1">আপনার বিদেশের ফোন নাম্বার দিন (Enter your foreign phone number)</p>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-600 mb-1">বাংলাদেশী ফোন নাম্বার * (Bangladesh contact number)</label>
+                      <label className={`block text-sm font-medium mb-1 ${formTouched && !isBdPhoneValid() ? 'text-red-600' : 'text-gray-600'}`}>বাংলাদেশী ফোন নাম্বার * (Bangladesh contact number) {formTouched && !orderForm.bdPhone && <span className="text-red-500 text-xs">(required)</span>}</label>
                       <PhoneInput
                         value={orderForm.bdPhone}
                         onChange={(val) => setOrderForm((prev) => ({ ...prev, bdPhone: val }))}
                         required
                         placeholder="01XXXXXXXXX"
                       />
+                      {formTouched && orderForm.bdPhone && !isBdPhoneValid() && (
+                        <p className="text-red-500 text-xs mt-1">নাম্বার অবশ্যই 0 দিয়ে শুরু হতে হবে এবং ১১ ডিজিট হতে হবে (Must start with 0 and be 11 digits)</p>
+                      )}
                       <p className="text-xs text-gray-400 mt-1">বাংলাদেশে যিনি পণ্য গ্রহণ করবেন তার নাম্বার দিন (Number of the person receiving the product in Bangladesh)</p>
                     </div>
                     <div>
