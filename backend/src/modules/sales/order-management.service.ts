@@ -1716,6 +1716,7 @@ export class OrderManagementService {
       trackingId: order.trackingId,
       courierStatus: order.courierStatus,
       orderDate: order.orderDate || order.createdAt,
+      createdAt: order.createdAt,
       isPacked: order.isPacked ?? false,
       invoicePrinted: (order as any).invoicePrinted ?? false,
       stickerPrinted: (order as any).stickerPrinted ?? false,
