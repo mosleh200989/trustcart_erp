@@ -694,38 +694,6 @@ export default function AdminSales() {
           <div className="flex items-center gap-2 flex-wrap">
             <button
               type="button"
-              onClick={() => handlePrintInvoice()}
-              disabled={selectedRowIds.length === 0}
-              className="px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-indigo-500 to-indigo-600 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:from-indigo-600 hover:to-indigo-700 transition-all flex items-center gap-1.5"
-              title="Print Invoice for selected orders"
-            >
-              <FaFileInvoice /> Print Invoice
-            </button>
-
-            <button
-              type="button"
-              onClick={() => handlePrintSticker()}
-              disabled={selectedRowIds.length === 0}
-              className="px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-green-500 to-green-600 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:from-green-600 hover:to-green-700 transition-all flex items-center gap-1.5"
-              title="Print Sticker for selected orders"
-            >
-              <FaTag /> Print Sticker
-            </button>
-
-            <button
-              type="button"
-              onClick={handleBulkMarkPacked}
-              disabled={selectedRowIds.length === 0}
-              className="px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-purple-500 to-purple-600 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:from-purple-600 hover:to-purple-700 transition-all flex items-center gap-1.5"
-              title="Mark selected orders as packed"
-            >
-              <FaBoxOpen /> Mark Packed
-            </button>
-
-            <div className="border-l border-gray-300 h-8 mx-1" />
-
-            <button
-              type="button"
               onClick={bulkSendToSteadfast}
               disabled={selectedRowIds.length === 0}
               className="px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-blue-500 to-blue-600 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:from-blue-600 hover:to-blue-700 transition-all"
