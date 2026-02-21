@@ -56,7 +56,7 @@ export default function MyFollowupsPage() {
   
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [itemsPerPage, setItemsPerPage] = useState(25);
   
   // Modal states
   const [showAddModal, setShowAddModal] = useState(false);
@@ -876,7 +876,6 @@ export default function MyFollowupsPage() {
                     onChange={(e) => { setItemsPerPage(Number(e.target.value)); setCurrentPage(1); }}
                     className="border rounded px-2 py-1 text-sm"
                   >
-                    <option value={10}>10</option>
                     <option value={25}>25</option>
                     <option value={50}>50</option>
                     <option value={100}>100</option>

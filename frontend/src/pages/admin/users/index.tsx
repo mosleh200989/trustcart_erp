@@ -27,7 +27,7 @@ export default function AdminUsers() {
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [teamLeaderFilter, setTeamLeaderFilter] = useState<string>('');
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [itemsPerPage, setItemsPerPage] = useState(25);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<'add' | 'edit'>('add');

@@ -34,10 +34,11 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
   const [editingItem, setEditingItem] = useState<number | null>(null);
   const [editItemData, setEditItemData] = useState<any>({});
   const [showAddProduct, setShowAddProduct] = useState(false);
-  const [newProduct, setNewProduct] = useState({ productId: '', productName: '', quantity: 1, unitPrice: 0 });
+  const [newProduct, setNewProduct] = useState({ productId: '', productName: '', variantName: '', quantity: 1, unitPrice: 0 });
   const [addProductSearchResults, setAddProductSearchResults] = useState<any[]>([]);
   const [addProductSearchLoading, setAddProductSearchLoading] = useState(false);
   const [showAddProductDropdown, setShowAddProductDropdown] = useState(false);
+  const [expandedProductId, setExpandedProductId] = useState<number | null>(null);
   const addProductSearchRef = useRef<HTMLDivElement>(null);
   const addProductSearchTimerRef = useRef<NodeJS.Timeout | null>(null);
   
@@ -530,21 +531,25 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
   }, []);
 
   const handleAddProductNameChange = (value: string) => {
-    setNewProduct({ ...newProduct, productName: value, productId: '' });
+    setNewProduct({ ...newProduct, productName: value, productId: '', variantName: '' });
     if (addProductSearchTimerRef.current) clearTimeout(addProductSearchTimerRef.current);
     addProductSearchTimerRef.current = setTimeout(() => searchProductsForAdd(value), 300);
   };
 
-  const selectAddProduct = (product: any) => {
-    const price = Number(product.sale_price || product.base_price || product.price || 0);
+  const selectAddProduct = (product: any, variant?: { name: string; price: number }) => {
+    const variantName = variant?.name || '';
+    const price = variant ? Number(variant.price) : Number(product.sale_price || product.base_price || product.price || 0);
+    const displayName = variantName ? `${product.name_en || product.name} - ${variantName}` : (product.name_en || product.name || '');
     setNewProduct({
       ...newProduct,
       productId: product.id?.toString() || '',
-      productName: product.name_en || product.name || '',
+      productName: displayName,
+      variantName: variantName,
       unitPrice: price,
     });
     setShowAddProductDropdown(false);
     setAddProductSearchResults([]);
+    setExpandedProductId(null);
   };
 
   // Close add-product dropdown on outside click
@@ -568,13 +573,14 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
       await apiClient.post(`/order-management/${currentOrderId}/items`, {
         productId: newProduct.productId || null,
         productName: newProduct.productName,
+        variantName: newProduct.variantName || null,
         quantity: newProduct.quantity,
         unitPrice: newProduct.unitPrice,
       });
       toast.success('Product added successfully');
       loadOrderDetails();
       setShowAddProduct(false);
-      setNewProduct({ productId: '', productName: '', quantity: 1, unitPrice: 0 });
+      setNewProduct({ productId: '', productName: '', variantName: '', quantity: 1, unitPrice: 0 });
       onUpdate();
     } catch (error) {
       toast.error('Failed to add product');
@@ -645,6 +651,7 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
         status: newOrderForm.status,
         orderDate: new Date().toISOString(),
         totalAmount: totalAmount,
+        order_source: 'agent_dashboard',
       };
 
       const response = await apiClient.post('/sales', payload);
@@ -1047,38 +1054,94 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                         </div>
                       )}
                       {showAddProductDropdown && addProductSearchResults.length > 0 && (
-                        <div className="absolute z-50 left-0 right-0 mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                        <div className="absolute z-50 left-0 right-0 mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-72 overflow-y-auto">
                           {addProductSearchResults.map((p: any) => {
                             const salePrice = Number(p.sale_price || p.base_price || p.price || 0);
                             const basePrice = Number(p.base_price || p.price || 0);
                             const hasDiscount = p.sale_price && salePrice < basePrice;
+                            const variants: Array<{ name: string; price: number; stock?: number; sku_suffix?: string }> = Array.isArray(p.size_variants) && p.size_variants.length > 0 ? p.size_variants : [];
+                            const isExpanded = expandedProductId === p.id;
                             return (
-                              <button
-                                key={p.id}
-                                type="button"
-                                onClick={() => selectAddProduct(p)}
-                                className="w-full text-left px-3 py-2 hover:bg-blue-50 flex items-center gap-3 border-b last:border-b-0 transition-colors"
-                              >
-                                {(p.image_url || p.image) && (
-                                  <img
-                                    src={p.image_url || p.image}
-                                    alt=""
-                                    className="w-10 h-10 object-contain rounded border flex-shrink-0"
-                                    crossOrigin="anonymous"
-                                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                                  />
-                                )}
-                                <div className="flex-1 min-w-0">
-                                  <div className="font-medium text-sm text-gray-900 truncate">{p.name_en || p.name}</div>
-                                  {p.name_bn && <div className="text-xs text-gray-500 truncate">{p.name_bn}</div>}
-                                </div>
-                                <div className="text-right flex-shrink-0">
-                                  <div className="text-sm font-semibold text-blue-600">৳{salePrice.toFixed(2)}</div>
-                                  {hasDiscount && (
-                                    <div className="text-xs text-gray-400 line-through">৳{basePrice.toFixed(2)}</div>
+                              <div key={p.id} className="border-b last:border-b-0">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (variants.length > 0) {
+                                      setExpandedProductId(isExpanded ? null : p.id);
+                                    } else {
+                                      selectAddProduct(p);
+                                    }
+                                  }}
+                                  className="w-full text-left px-3 py-2 hover:bg-blue-50 flex items-center gap-3 transition-colors"
+                                >
+                                  {(p.image_url || p.image) && (
+                                    <img
+                                      src={p.image_url || p.image}
+                                      alt=""
+                                      className="w-10 h-10 object-contain rounded border flex-shrink-0"
+                                      crossOrigin="anonymous"
+                                      onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                                    />
                                   )}
-                                </div>
-                              </button>
+                                  <div className="flex-1 min-w-0">
+                                    <div className="font-medium text-sm text-gray-900 truncate flex items-center gap-1">
+                                      {variants.length > 0 && (
+                                        <span className={`text-xs transition-transform inline-block ${isExpanded ? 'rotate-90' : ''}`}>▶</span>
+                                      )}
+                                      {p.name_en || p.name}
+                                    </div>
+                                    {p.name_bn && <div className="text-xs text-gray-500 truncate">{p.name_bn}</div>}
+                                    {variants.length > 0 && (
+                                      <div className="text-xs text-blue-500 mt-0.5">{variants.length} variant{variants.length > 1 ? 's' : ''} available</div>
+                                    )}
+                                  </div>
+                                  <div className="text-right flex-shrink-0">
+                                    {variants.length === 0 && (
+                                      <>
+                                        <div className="text-sm font-semibold text-blue-600">৳{salePrice.toFixed(2)}</div>
+                                        {hasDiscount && (
+                                          <div className="text-xs text-gray-400 line-through">৳{basePrice.toFixed(2)}</div>
+                                        )}
+                                      </>
+                                    )}
+                                  </div>
+                                </button>
+                                {/* Variant sub-items (tree branches) */}
+                                {variants.length > 0 && isExpanded && (
+                                  <div className="bg-gray-50 border-t">
+                                    {variants.map((v, vi) => (
+                                      <button
+                                        key={vi}
+                                        type="button"
+                                        onClick={() => selectAddProduct(p, v)}
+                                        className="w-full text-left pl-10 pr-3 py-2 hover:bg-blue-100 flex items-center gap-3 transition-colors border-b last:border-b-0 border-gray-100"
+                                      >
+                                        <span className="text-gray-400 text-xs">├─</span>
+                                        <div className="flex-1 min-w-0">
+                                          <div className="text-sm text-gray-800">{v.name}</div>
+                                          {v.sku_suffix && <div className="text-xs text-gray-400">SKU: {v.sku_suffix}</div>}
+                                        </div>
+                                        <div className="text-right flex-shrink-0">
+                                          <div className="text-sm font-semibold text-green-600">৳{Number(v.price).toFixed(2)}</div>
+                                          {v.stock !== undefined && v.stock !== null && (
+                                            <div className="text-xs text-gray-400">Stock: {v.stock}</div>
+                                          )}
+                                        </div>
+                                      </button>
+                                    ))}
+                                    {/* Option to select base product without variant */}
+                                    <button
+                                      type="button"
+                                      onClick={() => selectAddProduct(p)}
+                                      className="w-full text-left pl-10 pr-3 py-2 hover:bg-yellow-50 flex items-center gap-3 transition-colors border-t border-gray-200"
+                                    >
+                                      <span className="text-gray-400 text-xs">└─</span>
+                                      <div className="flex-1 text-sm text-gray-500 italic">Base product (no variant)</div>
+                                      <div className="text-sm font-semibold text-blue-600">৳{salePrice.toFixed(2)}</div>
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
                             );
                           })}
                         </div>
@@ -1128,7 +1191,12 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                   <tbody>
                     {items.map((item) => (
                       <tr key={item.id} className="hover:bg-gray-50">
-                        <td className="border p-3">{item.productName}</td>
+                        <td className="border p-3">
+                          {item.productName}
+                          {item.variantName && (
+                            <span className="ml-1 text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">{item.variantName}</span>
+                          )}
+                        </td>
                         <td className="border p-3 text-center">
                           {editingItem === item.id ? (
                             <input

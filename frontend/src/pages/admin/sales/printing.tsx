@@ -373,11 +373,24 @@ export default function PrintingPage() {
     },
     {
       key: 'orderDate',
-      label: 'Date',
+      label: 'Date & Time',
       render: (_: any, row: PrintingOrder) => {
         const d = row.orderDate;
         if (!d) return '-';
-        return String(d).slice(0, 10);
+        try {
+          const date = new Date(d);
+          return date.toLocaleString('en-BD', {
+            timeZone: 'Asia/Dhaka',
+            year: 'numeric',
+            month: 'short',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true,
+          });
+        } catch {
+          return String(d).slice(0, 10);
+        }
       },
     },
     {
@@ -421,8 +434,6 @@ export default function PrintingPage() {
       label: 'Actions',
       render: (_: any, row: PrintingOrder) => {
         const packed = row.isPacked ?? false;
-        const invPrinted = row.invoicePrinted ?? false;
-        const stkPrinted = row.stickerPrinted ?? false;
         return (
           <div className="flex items-center gap-1 flex-wrap">
             <button
@@ -432,15 +443,6 @@ export default function PrintingPage() {
             >
               <FaFileInvoice className="text-sm" />
             </button>
-            {!invPrinted && (
-              <button
-                onClick={(e) => { e.stopPropagation(); handleMarkInvoicePrinted(row.id); }}
-                className="p-1 text-[10px] text-indigo-600 hover:bg-indigo-50 rounded transition-colors border border-indigo-200"
-                title="Mark Invoice Printed"
-              >
-                ✓ Inv
-              </button>
-            )}
             <button
               onClick={(e) => { e.stopPropagation(); handlePrintSticker(row.id); }}
               className="p-1.5 text-green-600 hover:bg-green-50 rounded transition-colors"
@@ -448,15 +450,6 @@ export default function PrintingPage() {
             >
               <FaTag className="text-sm" />
             </button>
-            {!stkPrinted && (
-              <button
-                onClick={(e) => { e.stopPropagation(); handleMarkStickerPrinted(row.id); }}
-                className="p-1 text-[10px] text-teal-600 hover:bg-teal-50 rounded transition-colors border border-teal-200"
-                title="Mark Sticker Printed"
-              >
-                ✓ Stk
-              </button>
-            )}
             {packed ? (
               <button
                 onClick={(e) => { e.stopPropagation(); handleUnmarkPacked(row.id); }}
@@ -474,13 +467,6 @@ export default function PrintingPage() {
                 <FaBoxOpen className="text-sm" />
               </button>
             )}
-            <button
-              onClick={(e) => { e.stopPropagation(); handleViewDetails(row); }}
-              className="px-2 py-1 text-xs font-medium text-white bg-gradient-to-r from-blue-500 to-blue-600 rounded hover:from-blue-600 hover:to-blue-700 transition-all"
-              title="View Details"
-            >
-              Details
-            </button>
           </div>
         );
       },

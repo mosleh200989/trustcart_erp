@@ -91,6 +91,7 @@ export class OrderManagementController {
     @Body() body: {
       productId: number;
       productName: string;
+      variantName?: string;
       quantity: number;
       unitPrice: number;
     },

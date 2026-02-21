@@ -403,6 +403,7 @@ export class OrderManagementService {
         orderId,
         productId: si.productId ? Number(si.productId) : null,
         productName: product?.name_en || (si as any).productName || (si as any).product_name || 'Landing Page Product',
+        variantName: (si as any).variantName || (si as any).variant_name || null,
         productImage: product?.image_url || (si as any).productImage || (si as any).product_image || null,
         quantity: qty,
         unitPrice: unit,
@@ -418,6 +419,7 @@ export class OrderManagementService {
     orderId: number;
     productId: number;
     productName: string;
+    variantName?: string;
     quantity: number;
     unitPrice: number;
     userId: number;
@@ -430,6 +432,7 @@ export class OrderManagementService {
       orderId: data.orderId,
       productId: data.productId,
       productName: data.productName,
+      variantName: data.variantName || undefined,
       quantity: data.quantity,
       unitPrice: data.unitPrice,
       subtotal: subtotal,
@@ -439,11 +442,12 @@ export class OrderManagementService {
     const savedItem = await this.orderItemRepository.save(orderItem);
 
     // Log activity
+    const variantInfo = data.variantName ? ` [${data.variantName}]` : '';
     await this.logActivity({
       orderId: data.orderId,
       actionType: 'product_added',
-      actionDescription: `Added product: ${data.productName} (Qty: ${data.quantity})`,
-      newValue: { productId: data.productId, quantity: data.quantity, unitPrice: data.unitPrice },
+      actionDescription: `Added product: ${data.productName}${variantInfo} (Qty: ${data.quantity})`,
+      newValue: { productId: data.productId, variantName: data.variantName, quantity: data.quantity, unitPrice: data.unitPrice },
       performedBy: data.userId,
       performedByName: data.userName,
       ipAddress: data.ipAddress,
@@ -1590,6 +1594,9 @@ export class OrderManagementService {
     const skip = (page - 1) * limit;
 
     const qb = this.salesOrderRepository.createQueryBuilder('o');
+
+    // Only show orders that have been sent to courier (status = shipped)
+    qb.andWhere("LOWER(o.status) = 'shipped'");
 
     // Text search (customer name, phone)
     if (params.q && params.q.trim()) {

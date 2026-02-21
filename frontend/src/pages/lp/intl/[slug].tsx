@@ -289,6 +289,7 @@ export default function LandingPageInternational() {
           delivery_charge: deliveryCharge,
           total_amount: total,
           status: 'pending',
+          order_source: 'landing_page',
           traffic_source: 'landing_page_intl',
           referrer_url: window.location.href,
           utm_source: page.slug,

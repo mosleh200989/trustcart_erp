@@ -111,6 +111,9 @@ interface SalesOrder {
   packedAt?: string | null;
   packed_at?: string | null;
 
+  order_source?: string | null;
+  order_source_display?: string | null;
+
   notes?: string | null;
 }
 
@@ -130,7 +133,7 @@ export default function AdminSales() {
   const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
   const [selectedRowIds, setSelectedRowIds] = useState<Array<number | string>>([]);
   const [bulkAction, setBulkAction] = useState<'delete' | 'pending' | 'completed' | 'cancelled' | ''>('');
-  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [itemsPerPage, setItemsPerPage] = useState(25);
 
   // Print & Pack state
   const [showInvoicePrint, setShowInvoicePrint] = useState(false);
@@ -526,6 +529,7 @@ export default function AdminSales() {
       };
 
       if (modalMode === 'add') {
+        payload.order_source = 'admin_panel';
         const response = await apiClient.post('/sales', payload);
         setOrders([...orders, response.data]);
         toast.success('Order added successfully');
@@ -640,6 +644,25 @@ export default function AdminSales() {
         return (
           <span className="text-xs leading-snug block max-w-[220px] whitespace-normal break-words">
             {addr}
+          </span>
+        );
+      }
+    },
+    {
+      key: 'order_source_display',
+      label: 'Source',
+      render: (_: any, row: SalesOrder) => {
+        const display = row.order_source_display || '-';
+        const source = row.order_source || '';
+        const isAdmin = source === 'admin_panel' || source === 'agent_dashboard';
+        const colorClass = isAdmin
+          ? 'bg-purple-100 text-purple-800'
+          : source === 'landing_page'
+            ? 'bg-orange-100 text-orange-800'
+            : 'bg-green-100 text-green-800';
+        return (
+          <span className={`px-2 py-1 rounded-full text-xs font-semibold ${colorClass}`}>
+            {display}
           </span>
         );
       }

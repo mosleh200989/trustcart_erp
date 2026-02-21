@@ -102,7 +102,6 @@ export default function TelephonyCallsPage() {
             <div>
               <label className="block text-xs text-gray-600 mb-1">Page Size</label>
               <select className="w-full border rounded px-3 py-2 text-sm" value={String(limit)} onChange={(e) => { setPage(1); setLimit(Number(e.target.value)); }}>
-                <option value="10">10</option>
                 <option value="25">25</option>
                 <option value="50">50</option>
                 <option value="100">100</option>
