@@ -1595,8 +1595,8 @@ export class OrderManagementService {
 
     const qb = this.salesOrderRepository.createQueryBuilder('o');
 
-    // Only show orders that have been sent to courier (shipped or delivered)
-    qb.andWhere("o.status::text IN ('shipped', 'delivered')");
+    // Only show orders that have been sent to courier but not yet delivered
+    qb.andWhere("o.status::text = 'shipped'");
 
     // Text search (customer name, phone)
     if (params.q && params.q.trim()) {
