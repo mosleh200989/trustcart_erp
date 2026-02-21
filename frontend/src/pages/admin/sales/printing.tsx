@@ -39,6 +39,7 @@ interface PrintingOrder {
   trackingId?: string;
   courierStatus?: string;
   orderDate?: string;
+  createdAt?: string;
   isPacked?: boolean;
   invoicePrinted?: boolean;
   stickerPrinted?: boolean;
@@ -373,24 +374,20 @@ export default function PrintingPage() {
     },
     {
       key: 'orderDate',
-      label: 'Date & Time',
+      label: 'Date',
       render: (_: any, row: PrintingOrder) => {
-        const d = row.orderDate;
-        if (!d) return '-';
-        try {
-          const date = new Date(d);
-          return date.toLocaleString('en-BD', {
-            timeZone: 'Asia/Dhaka',
-            year: 'numeric',
-            month: 'short',
-            day: '2-digit',
-            hour: '2-digit',
-            minute: '2-digit',
-            hour12: true,
-          });
-        } catch {
-          return String(d).slice(0, 10);
-        }
+        const raw = row.createdAt ?? row.orderDate;
+        if (!raw) return '-';
+        const d = new Date(raw);
+        if (isNaN(d.getTime())) return '-';
+        const date = d.toLocaleDateString('en-GB', { timeZone: 'Asia/Dhaka', day: '2-digit', month: '2-digit', year: 'numeric' });
+        const time = d.toLocaleTimeString('en-US', { timeZone: 'Asia/Dhaka', hour: '2-digit', minute: '2-digit', hour12: true });
+        return (
+          <div>
+            <div>{date}</div>
+            <div className="text-xs text-gray-500">{time}</div>
+          </div>
+        );
       },
     },
     {
