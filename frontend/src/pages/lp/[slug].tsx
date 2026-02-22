@@ -30,6 +30,8 @@ interface LandingPageProduct {
   compare_price?: number;
   product_id?: number;
   is_default: boolean;
+  is_featured?: boolean;
+  featured_label?: string;
 }
 
 interface LandingPageData {
@@ -618,24 +620,40 @@ export default function LandingPagePublic() {
                       {(page.products || []).map((product) => {
                         const orderItem = orderItems.find((i) => i.product.id === product.id);
                         const isSelected = !!orderItem;
+                        const isFeatured = !!product.is_featured;
+                        const featuredLabel = product.featured_label || '🔥 বিশেষ অফার';
                         return (
                           <div
                             key={product.id}
-                            className={`border-2 rounded-xl p-3 sm:p-4 cursor-pointer transition-all ${
-                              isSelected ? 'border-green-500 bg-green-50' : 'border-gray-200 hover:border-gray-300'
+                            className={`relative border-2 rounded-xl p-3 sm:p-4 cursor-pointer transition-all ${
+                              isFeatured && !isSelected
+                                ? 'border-orange-400 bg-orange-50 shadow-lg ring-2 ring-orange-200'
+                                : isSelected
+                                  ? 'border-green-500 bg-green-50'
+                                  : 'border-gray-200 hover:border-gray-300'
                             }`}
                             onClick={() => toggleProduct(product)}
                           >
-                            <div className="flex items-start gap-3 sm:gap-4">
+                            {/* Featured badge */}
+                            {isFeatured && (
+                              <div className="absolute -top-3 left-4 bg-gradient-to-r from-orange-500 to-red-500 text-white text-xs font-bold px-3 py-1 rounded-full shadow-md">
+                                {featuredLabel}
+                              </div>
+                            )}
+                            <div className={`flex items-start gap-3 sm:gap-4 ${isFeatured ? 'mt-1' : ''}`}>
                               {product.image_url && (
                                 <img
                                   src={product.image_url}
                                   alt={product.name}
-                                  className="w-14 h-14 sm:w-16 sm:h-16 object-cover rounded-lg flex-shrink-0"
+                                  className={`object-cover rounded-lg flex-shrink-0 ${
+                                    isFeatured ? 'w-16 h-16 sm:w-20 sm:h-20 ring-2 ring-orange-300' : 'w-14 h-14 sm:w-16 sm:h-16'
+                                  }`}
                                 />
                               )}
                               <div className="flex-1 min-w-0">
-                                <div className="font-semibold text-gray-800 text-sm sm:text-base leading-tight">{product.name}</div>
+                                <div className={`font-semibold text-sm sm:text-base leading-tight ${
+                                  isFeatured ? 'text-orange-900' : 'text-gray-800'
+                                }`}>{product.name}</div>
                                 {product.description && (
                                   <div className="text-xs sm:text-sm text-gray-500 mt-0.5 leading-tight">{product.description}</div>
                                 )}

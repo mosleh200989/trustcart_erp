@@ -32,6 +32,8 @@ interface LandingPageProduct {
   sku?: string;
   product_id?: number;
   is_default: boolean;
+  is_featured?: boolean;
+  featured_label?: string;
 }
 
 interface FormData {
@@ -649,6 +651,15 @@ export default function LandingPageEditor() {
                   />
                   Default
                 </label>
+                <label className="flex items-center gap-1 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={!!product.is_featured}
+                    onChange={(e) => updateProduct(product.id, { is_featured: e.target.checked })}
+                    className="accent-orange-500"
+                  />
+                  <span className="text-orange-600">⭐ Featured</span>
+                </label>
                 <button
                   onClick={() => removeProduct(product.id)}
                   className="text-red-400 hover:text-red-600"
@@ -707,7 +718,7 @@ export default function LandingPageEditor() {
                 />
                 <p className="text-xs text-gray-400 mt-0.5">Link to a real product for order tracking &amp; images</p>
               </div>
-              <div className="md:col-span-2">
+              <div>
                 <label className="block text-xs text-gray-500 mb-1">Description</label>
                 <input
                   type="text"
@@ -716,6 +727,19 @@ export default function LandingPageEditor() {
                   className="w-full border rounded px-3 py-2 text-sm"
                 />
               </div>
+              {product.is_featured && (
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Featured Badge Label</label>
+                  <input
+                    type="text"
+                    value={product.featured_label || ''}
+                    onChange={(e) => updateProduct(product.id, { featured_label: e.target.value })}
+                    className="w-full border border-orange-300 rounded px-3 py-2 text-sm bg-orange-50"
+                    placeholder="e.g. 🔥 বিশেষ অফার"
+                  />
+                  <p className="text-xs text-gray-400 mt-0.5">Leave empty for default: "🔥 বিশেষ অফার"</p>
+                </div>
+              )}
             </div>
           </div>
         ))
