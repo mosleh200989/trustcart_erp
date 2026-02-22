@@ -326,7 +326,7 @@ export class OrderManagementService {
       throw new BadRequestException(resData?.message || 'Steadfast did not return consignment_id/tracking_code');
     }
 
-    order.status = 'shipped';
+    order.status = 'printing';
     order.shippedAt = new Date();
     order.courierCompany = 'Steadfast';
     order.courierOrderId = String(consignmentId);
@@ -762,7 +762,7 @@ export class OrderManagementService {
     const order = await this.salesOrderRepository.findOne({ where: { id: data.orderId } });
     if (!order) throw new Error('Order not found');
 
-    order.status = 'shipped';
+    order.status = 'printing';
     order.courierCompany = data.courierCompany;
     order.courierOrderId = data.courierOrderId || '';
     order.trackingId = data.trackingId;
@@ -1454,7 +1454,7 @@ export class OrderManagementService {
     const orders = await this.salesOrderRepository.find({
       where: {
         courierCompany: 'Steadfast',
-        status: In(['shipped', 'processing', 'approved']),
+        status: In(['shipped', 'printing', 'processing', 'approved']),
       },
     });
 
@@ -1484,6 +1484,9 @@ export class OrderManagementService {
     order.packedAt = new Date();
     order.packedBy = userId;
     await this.salesOrderRepository.save(order);
+
+    // Auto-ship: if all 3 printing actions are done, move to shipped
+    await this.autoShipIfReady(order);
 
     await this.activityLogRepository.save(
       this.activityLogRepository.create({
@@ -1690,8 +1693,8 @@ export class OrderManagementService {
 
     const qb = this.salesOrderRepository.createQueryBuilder('o');
 
-    // Only show orders that have been sent to courier but not yet delivered
-    qb.andWhere("o.status::text = 'shipped'");
+    // Only show orders in 'printing' status (sent to courier, pending print/pack actions)
+    qb.andWhere("o.status::text = 'printing'");
 
     // Text search (customer name, phone)
     if (params.q && params.q.trim()) {
@@ -1834,6 +1837,10 @@ export class OrderManagementService {
     (order as any).invoicePrinted = true;
     (order as any).invoicePrintedAt = new Date();
     await this.salesOrderRepository.save(order);
+
+    // Auto-ship: if all 3 printing actions are done, move to shipped
+    await this.autoShipIfReady(order);
+
     return { success: true, message: 'Invoice marked as printed' };
   }
 
@@ -1843,6 +1850,10 @@ export class OrderManagementService {
     (order as any).stickerPrinted = true;
     (order as any).stickerPrintedAt = new Date();
     await this.salesOrderRepository.save(order);
+
+    // Auto-ship: if all 3 printing actions are done, move to shipped
+    await this.autoShipIfReady(order);
+
     return { success: true, message: 'Sticker marked as printed' };
   }
 
@@ -1872,5 +1883,20 @@ export class OrderManagementService {
       }
     }
     return { total: orderIds.length, success, failed };
+  }
+
+  /**
+   * Auto-ship: After any printing action (pack, invoice print, sticker print),
+   * check if all 3 are complete. If so, move order from 'printing' to 'shipped'.
+   */
+  private async autoShipIfReady(order: SalesOrder) {
+    const isPacked = order.isPacked === true;
+    const invoicePrinted = (order as any).invoicePrinted === true;
+    const stickerPrinted = (order as any).stickerPrinted === true;
+
+    if (isPacked && invoicePrinted && stickerPrinted && order.status === 'printing') {
+      order.status = 'shipped';
+      await this.salesOrderRepository.save(order);
+    }
   }
 }
