@@ -220,7 +220,9 @@ export default function LandingPagePublic() {
   };
 
   const isBdPhoneValid = () => {
-    const digits = orderForm.phone.replace(/\D/g, '');
+    if (!orderForm.phone) return false;
+    // Remove +88 or 88 prefix first, then strip non-digits
+    const digits = orderForm.phone.replace(/^\+?88/, '').replace(/\D/g, '');
     return digits.length === 11 && digits.startsWith('0');
   };
 

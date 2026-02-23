@@ -226,8 +226,8 @@ export default function LandingPageInternational() {
   // Validation helpers
   const isBdPhoneValid = () => {
     if (!orderForm.bdPhone) return false;
-    // Remove +88 prefix to get raw digits
-    const raw = orderForm.bdPhone.replace(/^\+?88/, '');
+    // Remove +88 prefix then strip non-digits to get raw number
+    const raw = orderForm.bdPhone.replace(/^\+?88/, '').replace(/\D/g, '');
     return raw.length === 11 && raw.startsWith('0');
   };
 
