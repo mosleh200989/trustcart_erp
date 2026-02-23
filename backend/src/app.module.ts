@@ -158,6 +158,9 @@ import { LandingPagesModule } from './modules/landing-pages/landing-pages.module
 import { LandingPage } from './modules/landing-pages/landing-page.entity';
 import { LandingPageOrder } from './modules/landing-pages/landing-page-order.entity';
 
+// Sitemap & Feed Module
+import { SitemapFeedModule } from './modules/sitemap-feed/sitemap-feed.module';
+
 @Module({
   imports: [
     // Config Module - must be first
@@ -265,6 +268,7 @@ import { LandingPageOrder } from './modules/landing-pages/landing-page-order.ent
     TaggingModule,
     LegacyMigrationModule,
     LandingPagesModule,
+    SitemapFeedModule,
   ],
   controllers: [],
   providers: [],
