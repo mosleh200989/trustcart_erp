@@ -618,7 +618,7 @@ export default function AdminSales() {
         const items = row.items || [];
         if (items.length === 0) return <span className="text-gray-400 text-xs">No items</span>;
         return (
-          <div className="text-xs max-h-28 overflow-y-auto" style={{ whiteSpace: 'pre-line' }}>
+          <div className="text-xs max-h-36 overflow-y-auto min-w-[200px]" style={{ whiteSpace: 'pre-line' }}>
             {items.map((item, idx) => (
               <span key={idx}>
                 {item.productName} <span className="text-gray-500">(x{item.quantity})</span>
