@@ -38,7 +38,7 @@ export default function CrmLeadsPage() {
   const [convertingId, setConvertingId] = useState<number | string | null>(null);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
-  const [pageSize, setPageSize] = useState(25);
+  const [pageSize, setPageSize] = useState(50);
   
   // Filters
   const [priority, setPriority] = useState<string>('');

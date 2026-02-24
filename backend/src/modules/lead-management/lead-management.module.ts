@@ -1,7 +1,8 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { LeadManagementService } from './lead-management.service';
 import { LeadManagementController } from './lead-management.controller';
+import { SalesModule } from '../sales/sales.module';
 import { CustomerSession } from './entities/customer-session.entity';
 import { IncompleteOrder } from './entities/incomplete-order.entity';
 import { TeamAssignment } from './entities/team-assignment.entity';
@@ -25,6 +26,7 @@ import { CustomerTier } from './entities/customer-tier.entity';
       TeamEData,
       CustomerTier,
     ]),
+    forwardRef(() => SalesModule),
   ],
   controllers: [LeadManagementController],
   providers: [LeadManagementService],

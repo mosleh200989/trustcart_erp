@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { SalesService } from '../sales/sales.service';
 import { CustomerSession } from './entities/customer-session.entity';
 import { IncompleteOrder } from './entities/incomplete-order.entity';
 import { TeamAssignment } from './entities/team-assignment.entity';
@@ -32,6 +33,7 @@ export class LeadManagementService {
     private readonly teamEDataRepo: Repository<TeamEData>,
     @InjectRepository(CustomerTier)
     private readonly customerTierRepo: Repository<CustomerTier>,
+    private readonly salesService: SalesService,
   ) {}
 
   // ============================================
@@ -224,6 +226,67 @@ export class LeadManagementService {
       },
       landingPages: landingPages.filter((lp: any) => lp.slug),
     };
+  }
+
+  async updateIncompleteOrder(id: number, data: Partial<IncompleteOrder>) {
+    const order = await this.incompleteOrderRepo.findOne({ where: { id } });
+    if (!order) throw new Error('Incomplete order not found');
+    // Only allow updating safe fields
+    const allowedFields = [
+      'name', 'phone', 'email', 'address', 'note',
+      'deliveryZone', 'deliveryCharge', 'totalAmount',
+      'cartData', 'abandonedStage', 'source',
+    ];
+    for (const key of allowedFields) {
+      if ((data as any)[key] !== undefined) {
+        (order as any)[key] = (data as any)[key];
+      }
+    }
+    return this.incompleteOrderRepo.save(order);
+  }
+
+  async convertToOrder(id: number, userId: number) {
+    const order = await this.incompleteOrderRepo.findOne({ where: { id } });
+    if (!order) throw new Error('Incomplete order not found');
+    if (order.convertedToOrder || order.recovered) {
+      throw new Error('This incomplete order has already been converted');
+    }
+
+    // Build items from cartData
+    const cartItems = Array.isArray(order.cartData) ? order.cartData : [];
+    const items = cartItems.map((item: any) => ({
+      product_id: item.product_id || item.id || 0,
+      quantity: item.quantity || 1,
+      unit_price: item.price || item.unit_price || 0,
+    }));
+
+    const createDto: any = {
+      customer_name: order.name || '',
+      customer_phone: order.phone || '',
+      customer_email: order.email || '',
+      shipping_address: order.address || '',
+      notes: order.note || '',
+      items,
+      total_amount: order.totalAmount || 0,
+      delivery_charge: order.deliveryCharge || 0,
+      order_source: 'incomplete_order_conversion',
+      created_by: userId,
+      status: 'pending',
+    };
+
+    if (order.customerId) {
+      createDto.customer_id = order.customerId;
+    }
+
+    const savedOrder = await this.salesService.create(createDto);
+
+    // Mark incomplete order as converted
+    order.convertedToOrder = true;
+    order.recovered = true;
+    order.recoveredOrderId = savedOrder.id;
+    await this.incompleteOrderRepo.save(order);
+
+    return { success: true, orderId: savedOrder.id, order: savedOrder };
   }
 
   async markOrderRecovered(id: number, recoveredOrderId: number) {

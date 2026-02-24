@@ -42,26 +42,22 @@ export class OrderManagementController {
     @Query('page') page?: string,
     @Query('limit') limit?: string,
     @Query('q') q?: string,
-    @Query('todayOnly') todayOnly?: string,
     @Query('isPacked') isPacked?: string,
     @Query('invoicePrinted') invoicePrinted?: string,
     @Query('stickerPrinted') stickerPrinted?: string,
     @Query('courierId') courierId?: string,
-    @Query('startDate') startDate?: string,
-    @Query('endDate') endDate?: string,
+    @Query('date') date?: string,
     @Query('productName') productName?: string,
   ) {
     return await this.orderManagementService.findForPrinting({
       page: page ? parseInt(page, 10) : undefined,
       limit: limit ? parseInt(limit, 10) : undefined,
       q,
-      todayOnly: todayOnly === 'true',
       isPacked,
       invoicePrinted,
       stickerPrinted,
       courierId,
-      startDate,
-      endDate,
+      date,
       productName,
     });
   }

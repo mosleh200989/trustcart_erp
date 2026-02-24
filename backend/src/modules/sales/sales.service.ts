@@ -286,25 +286,7 @@ export class SalesService {
       .orderBy('o.shipped_at', 'ASC');
 
     const orders = await qb.getMany();
-    const orderIds = orders.map((o) => o.id);
-    let itemsByOrderId: Record<number, { productName: string | null; quantity: number }[]> = {};
-    if (orderIds.length > 0) {
-      const allItems = await this.orderItemsRepository.find({
-        where: { salesOrderId: In(orderIds) },
-        select: ['salesOrderId', 'productName', 'quantity'],
-      });
-      for (const item of allItems) {
-        if (!itemsByOrderId[item.salesOrderId]) itemsByOrderId[item.salesOrderId] = [];
-        itemsByOrderId[item.salesOrderId].push({
-          productName: item.productName,
-          quantity: Number(item.quantity),
-        });
-      }
-    }
-    return orders.map((order) => ({
-      ...this.toAdminListDto(order),
-      items: itemsByOrderId[order.id] || [],
-    }));
+    return orders.map((order) => this.toAdminListDto(order));
   }
 
   async findForCustomer(customerId: number) {

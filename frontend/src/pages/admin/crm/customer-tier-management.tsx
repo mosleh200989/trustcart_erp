@@ -304,7 +304,7 @@ export default function CustomerTierManagementPage() {
             <PageSizeSelector
               value={itemsPerPage}
               onChange={(val) => { setItemsPerPage(val); setCurrentPage(1); }}
-              options={[25, 50, 100, 200]}
+              options={[50, 100, 200]}
             />
           </div>
 
