@@ -11,6 +11,7 @@ import ProductAutocomplete from '@/components/admin/ProductAutocomplete';
 import { useToast } from '@/contexts/ToastContext';
 import { FaPlus, FaPrint, FaBoxOpen, FaFileInvoice, FaTag } from 'react-icons/fa';
 import apiClient from '@/services/api';
+import { getOrderStatusLabel, getOrderStatusColor } from '@/utils/orderStatus';
 
 const INITIAL_FILTERS = {
   q: '',
@@ -638,21 +639,9 @@ export default function AdminSales() {
       key: 'status', 
       label: 'Status',
       render: (value: string) => {
-        const statusColors: Record<string, string> = {
-          pending: 'bg-yellow-100 text-yellow-800',
-          approved: 'bg-blue-100 text-blue-800',
-          processing: 'bg-indigo-100 text-indigo-800',
-          printing: 'bg-cyan-100 text-cyan-800',
-          shipped: 'bg-purple-100 text-purple-800',
-          delivered: 'bg-green-100 text-green-800',
-          completed: 'bg-green-100 text-green-800',
-          hold: 'bg-orange-100 text-orange-800',
-          cancelled: 'bg-red-100 text-red-800',
-          returned: 'bg-gray-100 text-gray-800',
-        };
         return (
-          <span className={`px-2 py-1 rounded-full text-xs font-semibold ${statusColors[value] || 'bg-gray-100 text-gray-800'}`}>
-            {value}
+          <span className={`px-2 py-1 rounded-full text-xs font-semibold ${getOrderStatusColor(value)}`}>
+            {getOrderStatusLabel(value)}
           </span>
         );
       }

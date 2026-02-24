@@ -176,9 +176,10 @@ export class LandingPagesService {
       qb.andWhere('o.status = :status', { status: filters.status });
     }
     if (filters?.search) {
+      const normalizedPhone = `%${filters.search.replace(/^\+88/, '')}%`;
       qb.andWhere(
-        '(o.customer_name ILIKE :search OR o.customer_phone ILIKE :search)',
-        { search: `%${filters.search}%` },
+        "(o.customer_name ILIKE :search OR o.customer_phone ILIKE :search OR REPLACE(o.customer_phone, '+88', '') ILIKE :normalizedPhone)",
+        { search: `%${filters.search}%`, normalizedPhone },
       );
     }
 

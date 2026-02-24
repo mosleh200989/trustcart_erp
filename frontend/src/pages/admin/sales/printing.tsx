@@ -10,6 +10,7 @@ import ProductAutocomplete from '@/components/admin/ProductAutocomplete';
 import { useToast } from '@/contexts/ToastContext';
 import { FaPrint, FaBoxOpen, FaFileInvoice, FaTag, FaExternalLinkAlt } from 'react-icons/fa';
 import apiClient from '@/services/api';
+import { getOrderStatusLabel, getOrderStatusColor } from '@/utils/orderStatus';
 
 function getTodayDateString() {
   const now = new Date();
@@ -382,22 +383,10 @@ export default function PrintingPage() {
       key: 'status',
       label: 'Status',
       render: (_: any, row: PrintingOrder) => {
-        const statusColors: Record<string, string> = {
-          pending: 'bg-yellow-100 text-yellow-800',
-          approved: 'bg-blue-100 text-blue-800',
-          processing: 'bg-indigo-100 text-indigo-800',
-          printing: 'bg-cyan-100 text-cyan-800',
-          shipped: 'bg-purple-100 text-purple-800',
-          delivered: 'bg-green-100 text-green-800',
-          completed: 'bg-green-100 text-green-800',
-          hold: 'bg-orange-100 text-orange-800',
-          cancelled: 'bg-red-100 text-red-800',
-          returned: 'bg-gray-100 text-gray-800',
-        };
         const status = row.status || '-';
         return (
-          <span className={`px-2 py-1 rounded-full text-xs font-semibold ${statusColors[status] || 'bg-gray-100 text-gray-800'}`}>
-            {status}
+          <span className={`px-2 py-1 rounded-full text-xs font-semibold ${getOrderStatusColor(status)}`}>
+            {getOrderStatusLabel(status)}
           </span>
         );
       },

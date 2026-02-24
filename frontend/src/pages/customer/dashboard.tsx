@@ -3,6 +3,7 @@ import { useRouter } from 'next/router';
 import CustomerLayout from '@/layouts/CustomerLayout';
 import apiClient, { auth, sales, customers } from '@/services/api';
 import { FaShoppingCart, FaBox, FaClock, FaCheckCircle, FaTimesCircle, FaArrowRight, FaStore } from 'react-icons/fa';
+import { getOrderStatusColor, getOrderStatusLabel } from '@/utils/orderStatus';
 
 interface DashboardStats {
   totalOrders: number;
@@ -117,17 +118,7 @@ export default function CustomerAccountDashboard() {
     }
   };
 
-  const getStatusBadgeClass = (status: string) => {
-    const classes: { [key: string]: string } = {
-      pending: 'bg-yellow-100 text-yellow-800',
-      processing: 'bg-blue-100 text-blue-800',
-      shipped: 'bg-purple-100 text-purple-800',
-      delivered: 'bg-green-100 text-green-800',
-      cancelled: 'bg-red-100 text-red-800',
-      completed: 'bg-green-100 text-green-800',
-    };
-    return classes[status] || 'bg-gray-100 text-gray-800';
-  };
+  const getStatusBadgeClass = (status: string) => getOrderStatusColor(status);
 
   return (
     <CustomerLayout>
@@ -251,7 +242,7 @@ export default function CustomerAccountDashboard() {
                           </td>
                           <td className="px-4 py-3">
                             <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${getStatusBadgeClass(order.status)}`}>
-                              {order.status}
+                              {getOrderStatusLabel(order.status)}
                             </span>
                           </td>
                           <td className="px-4 py-3">

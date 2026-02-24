@@ -214,15 +214,17 @@ export class SalesService {
     // Global text search
     if (params.q && params.q.trim()) {
       const q = `%${params.q.trim().toLowerCase()}%`;
+      const normalizedPhone = `%${params.q.trim().replace(/^\+88/, '').toLowerCase()}%`;
       qb.andWhere(
         '(CAST(o.id AS TEXT) ILIKE :q ' +
         'OR o.sales_order_number ILIKE :q ' +
         'OR o.customer_name ILIKE :q ' +
         'OR o.customer_phone ILIKE :q ' +
+        "OR REPLACE(o.customer_phone, '+88', '') ILIKE :normalizedPhone " +
         'OR o.courier_company ILIKE :q ' +
         'OR CAST(o.courier_order_id AS TEXT) ILIKE :q ' +
         'OR o.shipping_address ILIKE :q)',
-        { q },
+        { q, normalizedPhone },
       );
     }
 

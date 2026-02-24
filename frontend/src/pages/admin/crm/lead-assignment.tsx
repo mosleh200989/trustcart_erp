@@ -5,9 +5,10 @@ import PageSizeSelector from '@/components/admin/PageSizeSelector';
 import Pagination from '@/components/admin/Pagination';
 import AdminOrderDetailsModal from '@/components/AdminOrderDetailsModal';
 import ProductAutocomplete from '@/components/admin/ProductAutocomplete';
+import CustomerReportModal from '@/components/admin/crm/CustomerReportModal';
 import apiClient from '@/services/api';
 import { useToast } from '@/contexts/ToastContext';
-import { FaEye } from 'react-icons/fa';
+import { FaEye, FaChartBar } from 'react-icons/fa';
 
 interface LeadCustomer {
   id: number | string;
@@ -79,6 +80,9 @@ export default function LeadAssignmentPage() {
   // Order Details Modal
   const [showOrderModal, setShowOrderModal] = useState(false);
   const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
+
+  // Customer Report Modal
+  const [showCustomerReport, setShowCustomerReport] = useState(false);
 
   // Agent autocomplete
   const [agentSearchTerm, setAgentSearchTerm] = useState('');
@@ -386,13 +390,22 @@ export default function LeadAssignmentPage() {
             <h1 className="text-3xl font-bold text-gray-800">Lead Assignment</h1>
             <p className="text-gray-600">Assign leads to agents in your CRM teams</p>
           </div>
-          <button
-            onClick={loadLeads}
-            disabled={loading}
-            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50"
-          >
-            Refresh
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setShowCustomerReport(true)}
+              className="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700 flex items-center gap-2"
+            >
+              <FaChartBar size={14} />
+              Customer Report
+            </button>
+            <button
+              onClick={loadLeads}
+              disabled={loading}
+              className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50"
+            >
+              Refresh
+            </button>
+          </div>
         </div>
 
         {/* Filters Section */}
@@ -815,6 +828,12 @@ export default function LeadAssignmentPage() {
             onUpdate={loadLeads}
           />
         )}
+
+        {/* Customer Report Modal */}
+        <CustomerReportModal
+          isOpen={showCustomerReport}
+          onClose={() => setShowCustomerReport(false)}
+        />
       </div>
     </AdminLayout>
   );
