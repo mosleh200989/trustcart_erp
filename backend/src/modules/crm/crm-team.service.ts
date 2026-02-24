@@ -299,9 +299,10 @@ export class CrmTeamService {
     // Search filter
     if (search && search.trim()) {
       const searchTerm = `%${search.trim().toLowerCase()}%`;
+      const normalizedPhone = `%${search.trim().replace(/^\+88/, '').toLowerCase()}%`;
       qb.andWhere(
-        '(LOWER(c.name) LIKE :search OR LOWER(c.last_name) LIKE :search OR LOWER(c.email) LIKE :search OR c.phone LIKE :search)',
-        { search: searchTerm }
+        '(LOWER(c.name) LIKE :search OR LOWER(c.last_name) LIKE :search OR LOWER(c.email) LIKE :search OR c.phone LIKE :search OR REPLACE(c.phone, \'+88\', \'\') LIKE :normalizedPhone)',
+        { search: searchTerm, normalizedPhone }
       );
     }
 
@@ -381,9 +382,10 @@ export class CrmTeamService {
     }
     if (search && search.trim()) {
       const searchTerm = `%${search.trim().toLowerCase()}%`;
+      const normalizedPhone = `%${search.trim().replace(/^\+88/, '').toLowerCase()}%`;
       countQb.andWhere(
-        '(LOWER(c.name) LIKE :search OR LOWER(c.last_name) LIKE :search OR LOWER(c.email) LIKE :search OR c.phone LIKE :search)',
-        { search: searchTerm }
+        '(LOWER(c.name) LIKE :search OR LOWER(c.last_name) LIKE :search OR LOWER(c.email) LIKE :search OR c.phone LIKE :search OR REPLACE(c.phone, \'+88\', \'\') LIKE :normalizedPhone)',
+        { search: searchTerm, normalizedPhone }
       );
     }
     // Product name filter for count
@@ -437,6 +439,151 @@ export class CrmTeamService {
     }));
 
     return { data: enrichedData, total };
+  }
+
+  // ==================== DATE-WISE CUSTOMER REPORT ====================
+  async getDateWiseCustomerReport(
+    teamLeaderId: number,
+    query: { from?: string; to?: string },
+  ): Promise<{
+    summary: { totalCustomers: number; totalOrders: number; totalRevenue: number };
+    dateWise: Array<{
+      date: string;
+      newCustomers: number;
+      totalOrders: number;
+      revenue: number;
+      customers: Array<{
+        id: number;
+        name: string;
+        phone: string;
+        email: string;
+        orderCount: number;
+        totalSpent: number;
+        assignedTo: string | null;
+        priority: string | null;
+      }>;
+    }>;
+  }> {
+    // Default to last 7 days if no range specified
+    const toDate = query.to ? new Date(query.to) : new Date();
+    toDate.setHours(23, 59, 59, 999);
+    const fromDate = query.from
+      ? new Date(query.from)
+      : new Date(toDate.getTime() - 7 * 24 * 60 * 60 * 1000);
+    fromDate.setHours(0, 0, 0, 0);
+
+    // Get customers created within the date range that this TL can see
+    const customersQb = this.customerRepository.createQueryBuilder('c');
+    customersQb.where('c.is_deleted = false');
+    customersQb.andWhere('c.is_active = true');
+    customersQb.andWhere(
+      '(c.assigned_supervisor_id IS NULL OR c.assigned_supervisor_id = :tl)',
+      { tl: teamLeaderId },
+    );
+    customersQb.andWhere('c.created_at >= :fromDate', { fromDate });
+    customersQb.andWhere('c.created_at <= :toDate', { toDate });
+    customersQb.orderBy('c.created_at', 'DESC');
+
+    const customers = await customersQb.getMany();
+
+    // Get order stats for all these customers in a single query
+    const customerIds = customers.map((c) => c.id);
+    let orderStatsMap = new Map<number, { orderCount: number; totalSpent: number }>();
+
+    if (customerIds.length > 0) {
+      const orderStats = await this.customerRepository.query(
+        `
+        SELECT
+          so.customer_id,
+          COUNT(DISTINCT so.id)::int AS order_count,
+          COALESCE(SUM(so.total_amount), 0)::numeric AS total_spent
+        FROM sales_orders so
+        WHERE so.customer_id = ANY($1)
+        GROUP BY so.customer_id
+        `,
+        [customerIds],
+      );
+      for (const row of orderStats) {
+        orderStatsMap.set(Number(row.customer_id), {
+          orderCount: Number(row.order_count || 0),
+          totalSpent: Number(row.total_spent || 0),
+        });
+      }
+    }
+
+    // Get agent names for enrichment
+    const agentIds = Array.from(
+      new Set(customers.map((c) => c.assigned_to).filter((id) => id != null)),
+    );
+    const agentMap = new Map<number, string>();
+    if (agentIds.length > 0) {
+      const agents = await this.usersRepository.findByIds(agentIds);
+      agents.forEach((agent) => {
+        const fullName =
+          [agent.name, agent.lastName].filter(Boolean).join(' ').trim() ||
+          `Agent #${agent.id}`;
+        agentMap.set(agent.id, fullName);
+      });
+    }
+
+    // Group customers by date (created_at date)
+    const dateMap = new Map<
+      string,
+      {
+        newCustomers: number;
+        totalOrders: number;
+        revenue: number;
+        customers: any[];
+      }
+    >();
+
+    let summaryTotalCustomers = 0;
+    let summaryTotalOrders = 0;
+    let summaryTotalRevenue = 0;
+
+    for (const customer of customers) {
+      const dateKey = new Date(customer.createdAt).toISOString().split('T')[0];
+      const stats = orderStatsMap.get(customer.id) || { orderCount: 0, totalSpent: 0 };
+
+      if (!dateMap.has(dateKey)) {
+        dateMap.set(dateKey, { newCustomers: 0, totalOrders: 0, revenue: 0, customers: [] });
+      }
+
+      const entry = dateMap.get(dateKey)!;
+      entry.newCustomers++;
+      entry.totalOrders += stats.orderCount;
+      entry.revenue += stats.totalSpent;
+      entry.customers.push({
+        id: customer.id,
+        name: [customer.name, customer.last_name].filter(Boolean).join(' ').trim() || 'N/A',
+        phone: customer.phone || '',
+        email: customer.email || '',
+        orderCount: stats.orderCount,
+        totalSpent: stats.totalSpent,
+        assignedTo: customer.assigned_to
+          ? agentMap.get(customer.assigned_to) || `Agent #${customer.assigned_to}`
+          : null,
+        priority: customer.priority || null,
+      });
+
+      summaryTotalCustomers++;
+      summaryTotalOrders += stats.orderCount;
+      summaryTotalRevenue += stats.totalSpent;
+    }
+
+    // Sort dates descending
+    const dateWise = Array.from(dateMap.entries())
+      .sort((a, b) => b[0].localeCompare(a[0]))
+      .map(([date, data]) => ({ date, ...data }));
+
+    return {
+      summary: {
+        totalCustomers: summaryTotalCustomers,
+        totalOrders: summaryTotalOrders,
+        totalRevenue: summaryTotalRevenue,
+      },
+      dateWise,
+    };
   }
 
   // Bulk assign leads to an agent
@@ -569,9 +716,10 @@ export class CrmTeamService {
 
     // Search filter (name, email, phone)
     if (search && search.trim()) {
+      const normalizedPhone = `%${search.trim().replace(/^\+88/, '')}%`;
       qb.andWhere(
-        `(LOWER(c.name) LIKE LOWER(:search) OR LOWER(c.last_name) LIKE LOWER(:search) OR LOWER(c.email) LIKE LOWER(:search) OR c.phone LIKE :search)`,
-        { search: `%${search.trim()}%` }
+        `(LOWER(c.name) LIKE LOWER(:search) OR LOWER(c.last_name) LIKE LOWER(:search) OR LOWER(c.email) LIKE LOWER(:search) OR c.phone LIKE :search OR REPLACE(c.phone, '+88', '') LIKE :normalizedPhone)`,
+        { search: `%${search.trim()}%`, normalizedPhone }
       );
     }
 

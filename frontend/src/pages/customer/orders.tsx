@@ -3,6 +3,7 @@ import CustomerLayout from '@/layouts/CustomerLayout';
 import apiClient, { auth, sales } from '@/services/api';
 import { FaEye, FaTimes, FaTruck } from 'react-icons/fa';
 import { useToast } from '@/contexts/ToastContext';
+import { getOrderStatusLabel, getOrderStatusColor } from '@/utils/orderStatus';
 
 interface OrderItem {
   id: number;
@@ -108,17 +109,7 @@ export default function CustomerOrdersPage() {
     toast.info(`Tracking order ${order.salesOrderNumber} - Status: ${order.status}. This feature will be enhanced with real-time tracking.`);
   };
 
-  const getStatusBadgeClass = (status: string) => {
-    const classes: { [key: string]: string } = {
-      pending: 'bg-yellow-100 text-yellow-800',
-      processing: 'bg-blue-100 text-blue-800',
-      shipped: 'bg-purple-100 text-purple-800',
-      delivered: 'bg-green-100 text-green-800',
-      cancelled: 'bg-red-100 text-red-800',
-      completed: 'bg-green-100 text-green-800',
-    };
-    return classes[status] || 'bg-gray-100 text-gray-800';
-  };
+  const getStatusBadgeClass = (status: string) => getOrderStatusColor(status);
 
   return (
     <CustomerLayout>
@@ -171,7 +162,7 @@ export default function CustomerOrdersPage() {
                       </td>
                       <td className="px-4 py-3">
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${getStatusBadgeClass(o.status)}`}>
-                          {o.status}
+                          {getOrderStatusLabel(o.status)}
                         </span>
                       </td>
                       <td className="px-4 py-3">
@@ -242,7 +233,7 @@ export default function CustomerOrdersPage() {
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-1">Status</label>
                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${getStatusBadgeClass(selectedOrder.status)}`}>
-                      {selectedOrder.status}
+                      {getOrderStatusLabel(selectedOrder.status)}
                     </span>
                   </div>
                   <div className="sm:col-span-2">

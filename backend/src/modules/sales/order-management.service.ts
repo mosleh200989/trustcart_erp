@@ -1697,9 +1697,10 @@ export class OrderManagementService {
     // Text search (customer name, phone)
     if (params.q && params.q.trim()) {
       const q = `%${params.q.trim().toLowerCase()}%`;
+      const normalizedPhone = `%${params.q.trim().replace(/^\+88/, '').toLowerCase()}%`;
       qb.andWhere(
-        '(o.customer_name ILIKE :q OR o.customer_phone ILIKE :q)',
-        { q },
+        "(o.customer_name ILIKE :q OR o.customer_phone ILIKE :q OR REPLACE(o.customer_phone, '+88', '') ILIKE :normalizedPhone)",
+        { q, normalizedPhone },
       );
     }
 

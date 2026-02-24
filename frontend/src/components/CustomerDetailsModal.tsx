@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import apiClient from '@/services/api';
 import { FaTimes, FaEnvelope, FaPhone, FaMapMarkerAlt, FaTags, FaHistory, FaEye } from 'react-icons/fa';
 import AdminOrderDetailsModal from './AdminOrderDetailsModal';
+import { getOrderStatusColor } from '@/utils/orderStatus';
 
 interface CustomerDetailsModalProps {
   customerId: number;
@@ -46,16 +47,7 @@ export default function CustomerDetailsModal({ customerId, onClose }: CustomerDe
     }
   };
 
-  const getStatusBadgeColor = (status?: string) => {
-    switch (status?.toLowerCase()) {
-      case 'completed':
-      case 'delivered': return 'bg-green-100 text-green-800';
-      case 'pending': return 'bg-yellow-100 text-yellow-800';
-      case 'processing': return 'bg-blue-100 text-blue-800';
-      case 'cancelled': return 'bg-red-100 text-red-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  };
+  const getStatusBadgeColor = (status?: string) => getOrderStatusColor(status);
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">

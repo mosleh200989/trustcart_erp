@@ -5,6 +5,7 @@ import {
   FaSearch, FaEye, FaTrash, FaCheck, FaTruck, FaTimes, FaUndo,
   FaPhone, FaMapMarkerAlt, FaBox, FaChevronDown,
 } from 'react-icons/fa';
+import { getOrderStatusLabel, getOrderStatusColor } from '@/utils/orderStatus';
 
 interface OrderItem {
   product_id: string;
@@ -44,13 +45,13 @@ interface OrderStats {
 }
 
 const STATUS_OPTIONS = [
-  { value: 'pending', label: 'Pending', color: 'bg-yellow-100 text-yellow-800', icon: FaBox },
-  { value: 'confirmed', label: 'Confirmed', color: 'bg-blue-100 text-blue-800', icon: FaCheck },
-  { value: 'processing', label: 'Processing', color: 'bg-indigo-100 text-indigo-800', icon: FaBox },
-  { value: 'shipped', label: 'Shipped', color: 'bg-purple-100 text-purple-800', icon: FaTruck },
-  { value: 'delivered', label: 'Delivered', color: 'bg-green-100 text-green-800', icon: FaCheck },
-  { value: 'cancelled', label: 'Cancelled', color: 'bg-red-100 text-red-800', icon: FaTimes },
-  { value: 'returned', label: 'Returned', color: 'bg-gray-100 text-gray-800', icon: FaUndo },
+  { value: 'pending', label: getOrderStatusLabel('pending'), color: getOrderStatusColor('pending'), icon: FaBox },
+  { value: 'confirmed', label: getOrderStatusLabel('confirmed'), color: getOrderStatusColor('confirmed'), icon: FaCheck },
+  { value: 'processing', label: getOrderStatusLabel('processing'), color: getOrderStatusColor('processing'), icon: FaBox },
+  { value: 'shipped', label: getOrderStatusLabel('shipped'), color: getOrderStatusColor('shipped'), icon: FaTruck },
+  { value: 'delivered', label: getOrderStatusLabel('delivered'), color: getOrderStatusColor('delivered'), icon: FaCheck },
+  { value: 'cancelled', label: getOrderStatusLabel('cancelled'), color: getOrderStatusColor('cancelled'), icon: FaTimes },
+  { value: 'returned', label: getOrderStatusLabel('returned'), color: getOrderStatusColor('returned'), icon: FaUndo },
 ];
 
 const getStatusStyle = (status: string) =>

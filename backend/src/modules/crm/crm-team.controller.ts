@@ -57,6 +57,15 @@ export class CrmTeamController {
     return await this.crmTeamService.getTeamLeads(req.user.id, query);
   }
 
+  @Get('customer-report')
+  @RequirePermissions('receive-new-leads')
+  async getDateWiseCustomerReport(@Query() query: any, @Request() req: any) {
+    return await this.crmTeamService.getDateWiseCustomerReport(req.user.id, {
+      from: query.from,
+      to: query.to,
+    });
+  }
+
   // Agent self view (no RBAC permission required; returns only own customers)
   // NOTE: Must be declared before the dynamic `agent/:agentId/...` route.
   @Get('agent/me/customers')

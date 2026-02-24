@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import apiClient from '@/services/api';
 import { FaPrint, FaTimes, FaSpinner } from 'react-icons/fa';
+import { getOrderStatusLabel } from '@/utils/orderStatus';
 
 interface PrinterSetting {
   companyName?: string | null;
@@ -257,7 +258,7 @@ export default function InvoicePrintModal({ orderIds, onClose }: InvoicePrintMod
                       </div>
                       <div className="flex justify-between">
                         <span>Status:</span>
-                        <span className="font-bold uppercase">{order.status}</span>
+                        <span className="font-bold uppercase">{getOrderStatusLabel(order.status)}</span>
                       </div>
                       {order.isPacked && (
                         <div className="flex justify-between">

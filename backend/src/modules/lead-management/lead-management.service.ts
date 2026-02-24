@@ -150,9 +150,10 @@ export class LeadManagementService {
     // Text search across name, phone, email, landing page title
     if (filters.q) {
       const q = `%${filters.q}%`;
+      const normalizedPhone = `%${filters.q.replace(/^\+88/, '')}%`;
       qb.andWhere(
-        '(io.name ILIKE :q OR io.phone ILIKE :q OR io.email ILIKE :q OR io.landing_page_title ILIKE :q OR io.landing_page_slug ILIKE :q OR io.address ILIKE :q)',
-        { q },
+        "(io.name ILIKE :q OR io.phone ILIKE :q OR REPLACE(io.phone, '+88', '') ILIKE :normalizedPhone OR io.email ILIKE :q OR io.landing_page_title ILIKE :q OR io.landing_page_slug ILIKE :q OR io.address ILIKE :q)",
+        { q, normalizedPhone },
       );
     }
 

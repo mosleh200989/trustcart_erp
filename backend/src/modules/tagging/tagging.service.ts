@@ -197,9 +197,10 @@ export class TaggingService {
     qb.where('c.is_deleted = false');
 
     if (search) {
+      const normalizedPhone = `%${search.replace(/^\+88/, '').toLowerCase()}%`;
       qb.andWhere(
-        '(LOWER(COALESCE(c.name, \'\')) LIKE :q OR LOWER(COALESCE(c.email, \'\')) LIKE :q OR COALESCE(c.phone, \'\') LIKE :q)',
-        { q: `%${search.toLowerCase()}%` },
+        "(LOWER(COALESCE(c.name, '')) LIKE :q OR LOWER(COALESCE(c.email, '')) LIKE :q OR COALESCE(c.phone, '') LIKE :q OR REPLACE(COALESCE(c.phone, ''), '+88', '') LIKE :normalizedPhone)",
+        { q: `%${search.toLowerCase()}%`, normalizedPhone },
       );
     }
 

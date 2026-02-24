@@ -93,9 +93,10 @@ export class CustomersService {
       .groupBy('c.id');
 
     if (search) {
+      const normalizedPhone = `%${search.replace(/^\+88/, '')}%`;
       qb.andWhere(
-        '(c.name ILIKE :search OR c.email ILIKE :search OR c.phone ILIKE :search OR c.company_name ILIKE :search)',
-        { search: `%${search}%` }
+        "(c.name ILIKE :search OR c.email ILIKE :search OR c.phone ILIKE :search OR REPLACE(c.phone, '+88', '') ILIKE :normalizedPhone OR c.company_name ILIKE :search)",
+        { search: `%${search}%`, normalizedPhone }
       );
     }
 
@@ -106,9 +107,10 @@ export class CustomersService {
       .where('c.is_deleted = :deleted', { deleted: false });
     
     if (search) {
+      const normalizedPhone = `%${search.replace(/^\+88/, '')}%`;
       countQb.andWhere(
-        '(c.name ILIKE :search OR c.email ILIKE :search OR c.phone ILIKE :search OR c.company_name ILIKE :search)',
-        { search: `%${search}%` }
+        "(c.name ILIKE :search OR c.email ILIKE :search OR c.phone ILIKE :search OR REPLACE(c.phone, '+88', '') ILIKE :normalizedPhone OR c.company_name ILIKE :search)",
+        { search: `%${search}%`, normalizedPhone }
       );
     }
     const total = await countQb.getCount();

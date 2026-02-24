@@ -7,6 +7,7 @@ import {
   FaMobile, FaDesktop, FaChrome, FaExclamationTriangle, FaPhone, FaPhoneSlash 
 } from 'react-icons/fa';
 import PhoneInput, { validateBDPhone } from '@/components/PhoneInput';
+import { getOrderStatusLabel } from '@/utils/orderStatus';
 
 interface OrderDetailsModalProps {
   orderId: number;
@@ -879,7 +880,7 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
         <div className="sticky top-0 bg-gradient-to-r from-blue-600 to-blue-800 text-white p-6 flex justify-between items-center rounded-t-lg">
           <div>
             <h2 className="text-2xl font-bold">Order #{order.salesOrderNumber}</h2>
-            <p className="text-blue-100 text-sm">Status: <span className="font-semibold uppercase">{order.status}</span></p>
+            <p className="text-blue-100 text-sm">Status: <span className="font-semibold uppercase">{getOrderStatusLabel(order.status)}</span></p>
           </div>
           <button onClick={onClose} className="text-white hover:bg-blue-700 p-2 rounded-full transition">
             <FaTimes size={24} />
