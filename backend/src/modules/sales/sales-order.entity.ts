@@ -1,4 +1,5 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, BeforeInsert } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, BeforeInsert, OneToMany } from 'typeorm';
+import { SalesOrderItem } from './sales-order-item.entity';
 
 @Entity('sales_orders')
 export class SalesOrder {
@@ -163,6 +164,9 @@ export class SalesOrder {
 
   @Column({ name: 'delivered_at', type: 'timestamp', nullable: true })
   deliveredAt: Date;
+
+  @OneToMany(() => SalesOrderItem, item => item.salesOrder, { eager: false })
+  salesOrderItems: SalesOrderItem[];
 
   // created_at in DB
   @CreateDateColumn({ name: 'created_at' })

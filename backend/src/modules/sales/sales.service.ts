@@ -102,7 +102,63 @@ export class SalesService {
       created_by_name: order.createdBy ? ((order as any).createdByName || null) : null,
       order_source: order.orderSource || null,
       order_source_display: this.computeOrderSourceDisplay(order),
+      items: ((order as any)._items || []).map((i: any) => ({
+        productName: i.productName || i.product_name || 'Unknown',
+        quantity: Number(i.quantity) || 0,
+      })),
     };
+  }
+
+  /**
+   * Fetch items for a batch of order IDs from BOTH tables (sales_order_items + order_items),
+   * with a fallback to the products table for missing product names.
+   */
+  private async batchFetchOrderItems(orderIds: number[]): Promise<Map<number, { productName: string; quantity: number }[]>> {
+    const map = new Map<number, { productName: string; quantity: number }[]>();
+    if (orderIds.length === 0) return map;
+
+    // Query both item tables in one go, coalesce product_name from products table if missing
+    const rows: { order_id: number; product_name: string | null; product_id: number | null; quantity: number }[] =
+      await this.salesRepository.manager.query(
+        `SELECT sales_order_id AS order_id, soi.product_name, soi.product_id, soi.quantity
+         FROM sales_order_items soi
+         WHERE soi.sales_order_id = ANY($1)
+         UNION ALL
+         SELECT oi.order_id, oi.product_name, oi.product_id, oi.quantity
+         FROM order_items oi
+         WHERE oi.order_id = ANY($1)
+           AND oi.order_id NOT IN (SELECT DISTINCT s2.sales_order_id FROM sales_order_items s2 WHERE s2.sales_order_id = ANY($1))`,
+        [orderIds],
+      );
+
+    // Collect product IDs that have no name so we can look them up
+    const missingNameProductIds = new Set<number>();
+    for (const r of rows) {
+      if (!r.product_name && r.product_id) {
+        missingNameProductIds.add(r.product_id);
+      }
+    }
+
+    // Lookup product names from products table
+    let productNameMap = new Map<number, string>();
+    if (missingNameProductIds.size > 0) {
+      const productRows: { id: number; name_en: string }[] = await this.salesRepository.manager.query(
+        `SELECT id, name_en FROM products WHERE id = ANY($1)`,
+        [[...missingNameProductIds]],
+      );
+      for (const p of productRows) {
+        productNameMap.set(p.id, p.name_en);
+      }
+    }
+
+    for (const r of rows) {
+      const name = r.product_name || (r.product_id ? productNameMap.get(r.product_id) : null) || 'Unknown Product';
+      const arr = map.get(r.order_id) || [];
+      arr.push({ productName: name, quantity: Number(r.quantity) || 0 });
+      map.set(r.order_id, arr);
+    }
+
+    return map;
   }
 
   private computeOrderSourceDisplay(order: SalesOrder): string {
@@ -127,8 +183,13 @@ export class SalesService {
     const creatorIds = [...new Set(orders.map(o => o.createdBy).filter((id): id is number => id != null))];
     const creatorMap = await this.getUserNameMap(creatorIds);
 
+    // Batch-fetch order items from both tables
+    const orderIds = orders.map(o => o.id);
+    const itemsByOrderId = await this.batchFetchOrderItems(orderIds);
+
     return orders.map((order) => {
       (order as any).createdByName = order.createdBy ? (creatorMap.get(order.createdBy) ?? null) : null;
+      (order as any)._items = itemsByOrderId.get(order.id) || [];
       return this.toAdminListDto(order);
     });
   }
@@ -232,8 +293,15 @@ export class SalesService {
       .filter(Boolean)
       .sort();
 
+    // Batch-fetch order items from both tables for current page
+    const orderIds = orders.map(o => o.id);
+    const itemsByOrderId = await this.batchFetchOrderItems(orderIds);
+
     return {
-      data: orders.map((order) => this.toAdminListDto(order)),
+      data: orders.map((order) => {
+        (order as any)._items = itemsByOrderId.get(order.id) || [];
+        return this.toAdminListDto(order);
+      }),
       total,
       page,
       limit,
