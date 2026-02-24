@@ -848,4 +848,152 @@ export class SalesService {
     );
     return { affected: result.affected ?? 0 };
   }
+
+  /**
+   * Daily report: product-wise sales breakdown for a given date.
+   */
+  async getDailyReport(date: string) {
+    // date is YYYY-MM-DD
+    const reportDate = date || new Date().toISOString().slice(0, 10);
+
+    // 1) Product-wise breakdown via sales_order_items JOIN sales_orders
+    const productRows = await this.orderItemsRepository
+      .createQueryBuilder('soi')
+      .innerJoin('soi.salesOrder', 'o')
+      .select([
+        'soi.product_id AS product_id',
+        'soi.product_name AS product_name',
+        'COUNT(DISTINCT o.id) AS total_orders',
+        'SUM(soi.quantity) AS total_qty',
+        'SUM(soi.line_total) AS total_revenue',
+        'SUM(soi.unit_price * soi.quantity) AS gross_amount',
+        `COUNT(DISTINCT CASE WHEN LOWER(o.courier_company) = 'steadfast' THEN o.id END) AS steadfast_orders`,
+        `COUNT(DISTINCT CASE WHEN LOWER(o.courier_company) = 'pathao' THEN o.id END) AS pathao_orders`,
+        `COUNT(DISTINCT CASE WHEN LOWER(o.courier_company) = 'redx' THEN o.id END) AS redx_orders`,
+        `COUNT(DISTINCT CASE WHEN o.courier_company IS NULL OR o.courier_company = '' THEN o.id END) AS no_courier_orders`,
+        `COUNT(DISTINCT CASE WHEN LOWER(o.status::text) = 'delivered' THEN o.id END) AS delivered_orders`,
+        `COUNT(DISTINCT CASE WHEN LOWER(o.status::text) = 'cancelled' THEN o.id END) AS cancelled_orders`,
+        `COUNT(DISTINCT CASE WHEN LOWER(o.status::text) = 'pending' THEN o.id END) AS pending_orders`,
+        `COUNT(DISTINCT CASE WHEN LOWER(o.status::text) = 'approved' THEN o.id END) AS approved_orders`,
+        `COUNT(DISTINCT CASE WHEN LOWER(o.status::text) = 'shipped' THEN o.id END) AS shipped_orders`,
+      ])
+      .where('DATE(o.order_date) = :reportDate', { reportDate })
+      .groupBy('soi.product_id')
+      .addGroupBy('soi.product_name')
+      .orderBy('total_orders', 'DESC')
+      .getRawMany();
+
+    // 2) Overall summary for the date
+    const summaryRaw = await this.salesRepository
+      .createQueryBuilder('o')
+      .select([
+        'COUNT(o.id) AS total_orders',
+        'COALESCE(SUM(o.total_amount), 0) AS total_revenue',
+        'COALESCE(SUM(o.discount_amount), 0) AS total_discount',
+        'COALESCE(AVG(o.total_amount), 0) AS avg_order_value',
+        `COUNT(CASE WHEN LOWER(o.status::text) = 'pending' THEN 1 END) AS pending_orders`,
+        `COUNT(CASE WHEN LOWER(o.status::text) = 'approved' THEN 1 END) AS approved_orders`,
+        `COUNT(CASE WHEN LOWER(o.status::text) = 'shipped' THEN 1 END) AS shipped_orders`,
+        `COUNT(CASE WHEN LOWER(o.status::text) = 'delivered' THEN 1 END) AS delivered_orders`,
+        `COUNT(CASE WHEN LOWER(o.status::text) = 'cancelled' THEN 1 END) AS cancelled_orders`,
+        `COUNT(CASE WHEN LOWER(o.courier_company) = 'steadfast' THEN 1 END) AS steadfast_orders`,
+        `COUNT(CASE WHEN LOWER(o.courier_company) = 'pathao' THEN 1 END) AS pathao_orders`,
+        `COUNT(CASE WHEN LOWER(o.courier_company) = 'redx' THEN 1 END) AS redx_orders`,
+        `COUNT(CASE WHEN o.courier_company IS NULL OR o.courier_company = '' THEN 1 END) AS no_courier_orders`,
+        'COUNT(DISTINCT o.customer_id) AS unique_customers',
+      ])
+      .where('DATE(o.order_date) = :reportDate', { reportDate })
+      .getRawOne();
+
+    // 3) Hourly distribution for the chart
+    const hourlyRaw = await this.salesRepository
+      .createQueryBuilder('o')
+      .select([
+        'EXTRACT(HOUR FROM o.order_date) AS hour',
+        'COUNT(o.id) AS orders',
+        'COALESCE(SUM(o.total_amount), 0) AS revenue',
+      ])
+      .where('DATE(o.order_date) = :reportDate', { reportDate })
+      .groupBy('hour')
+      .orderBy('hour', 'ASC')
+      .getRawMany();
+
+    // 4) Order source breakdown
+    const sourceRaw = await this.salesRepository
+      .createQueryBuilder('o')
+      .select([
+        `COALESCE(o.order_source, 'unknown') AS source`,
+        'COUNT(o.id) AS orders',
+        'COALESCE(SUM(o.total_amount), 0) AS revenue',
+      ])
+      .where('DATE(o.order_date) = :reportDate', { reportDate })
+      .groupBy('source')
+      .orderBy('orders', 'DESC')
+      .getRawMany();
+
+    // 5) Courier status distribution
+    const courierStatusRaw = await this.salesRepository
+      .createQueryBuilder('o')
+      .select([
+        `COALESCE(o.courier_status, 'not_sent') AS courier_status`,
+        'COUNT(o.id) AS orders',
+      ])
+      .where('DATE(o.order_date) = :reportDate', { reportDate })
+      .andWhere("o.courier_company IS NOT NULL AND o.courier_company != ''")
+      .groupBy('courier_status')
+      .orderBy('orders', 'DESC')
+      .getRawMany();
+
+    const toNum = (v: any) => parseFloat(v) || 0;
+
+    return {
+      date: reportDate,
+      summary: {
+        totalOrders: toNum(summaryRaw?.total_orders),
+        totalRevenue: toNum(summaryRaw?.total_revenue),
+        totalDiscount: toNum(summaryRaw?.total_discount),
+        avgOrderValue: toNum(summaryRaw?.avg_order_value),
+        pendingOrders: toNum(summaryRaw?.pending_orders),
+        approvedOrders: toNum(summaryRaw?.approved_orders),
+        shippedOrders: toNum(summaryRaw?.shipped_orders),
+        deliveredOrders: toNum(summaryRaw?.delivered_orders),
+        cancelledOrders: toNum(summaryRaw?.cancelled_orders),
+        steadfastOrders: toNum(summaryRaw?.steadfast_orders),
+        pathaoOrders: toNum(summaryRaw?.pathao_orders),
+        redxOrders: toNum(summaryRaw?.redx_orders),
+        noCourierOrders: toNum(summaryRaw?.no_courier_orders),
+        uniqueCustomers: toNum(summaryRaw?.unique_customers),
+      },
+      products: productRows.map((r: any) => ({
+        productId: toNum(r.product_id),
+        productName: r.product_name || 'Unknown Product',
+        totalOrders: toNum(r.total_orders),
+        totalQty: toNum(r.total_qty),
+        totalRevenue: toNum(r.total_revenue),
+        grossAmount: toNum(r.gross_amount),
+        steadfastOrders: toNum(r.steadfast_orders),
+        pathaoOrders: toNum(r.pathao_orders),
+        redxOrders: toNum(r.redx_orders),
+        noCourierOrders: toNum(r.no_courier_orders),
+        deliveredOrders: toNum(r.delivered_orders),
+        cancelledOrders: toNum(r.cancelled_orders),
+        pendingOrders: toNum(r.pending_orders),
+        approvedOrders: toNum(r.approved_orders),
+        shippedOrders: toNum(r.shipped_orders),
+      })),
+      hourly: Array.from({ length: 24 }, (_, i) => {
+        const found = hourlyRaw.find((r: any) => toNum(r.hour) === i);
+        return { hour: i, label: `${i.toString().padStart(2, '0')}:00`, orders: toNum(found?.orders), revenue: toNum(found?.revenue) };
+      }),
+      orderSources: sourceRaw.map((r: any) => ({
+        source: r.source || 'unknown',
+        orders: toNum(r.orders),
+        revenue: toNum(r.revenue),
+      })),
+      courierStatuses: courierStatusRaw.map((r: any) => ({
+        status: r.courier_status || 'not_sent',
+        orders: toNum(r.orders),
+      })),
+    };
+  }
 }

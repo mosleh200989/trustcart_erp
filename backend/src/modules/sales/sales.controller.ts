@@ -112,6 +112,13 @@ export class SalesController {
     return this.salesService.getAgentOrderStats(Number(userId));
   }
 
+  @Get('daily-report')
+  @RequirePermissions('view-sales-reports')
+  async getDailyReport(@Query('date') date?: string) {
+    const reportDate = date || new Date().toISOString().slice(0, 10);
+    return this.salesService.getDailyReport(reportDate);
+  }
+
   @Get(':id')
   @RequirePermissions('view-sales-orders')
   async findOne(@Param('id') id: string) {
