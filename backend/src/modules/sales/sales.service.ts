@@ -973,11 +973,11 @@ export class SalesService {
       .where('DATE(o.order_date) = :reportDate', { reportDate })
       .getRawOne();
 
-    // 3) Hourly distribution for the chart
+    // 3) Hourly distribution for the chart (use created_at which is timestamp; order_date is date-only)
     const hourlyRaw = await this.salesRepository
       .createQueryBuilder('o')
       .select([
-        'EXTRACT(HOUR FROM o.order_date) AS hour',
+        'EXTRACT(HOUR FROM o.created_at) AS hour',
         'COUNT(o.id) AS orders',
         'COALESCE(SUM(o.total_amount), 0) AS revenue',
       ])
@@ -986,11 +986,11 @@ export class SalesService {
       .orderBy('hour', 'ASC')
       .getRawMany();
 
-    // 4) Order source breakdown
+    // 4) Order source breakdown (use traffic_source which exists in DB)
     const sourceRaw = await this.salesRepository
       .createQueryBuilder('o')
       .select([
-        `COALESCE(o.order_source, 'unknown') AS source`,
+        `COALESCE(o.traffic_source, 'unknown') AS source`,
         'COUNT(o.id) AS orders',
         'COALESCE(SUM(o.total_amount), 0) AS revenue',
       ])
@@ -1092,7 +1092,7 @@ export class SalesService {
         'COALESCE(AVG(o.total_amount), 0) AS avg_order_value',
         'COALESCE(SUM(o.discount_amount), 0) AS total_discount',
         'COUNT(DISTINCT o.customer_id) AS unique_customers',
-        `COUNT(CASE WHEN o.thank_you_offer_accepted = true THEN 1 END) AS upsell_orders`,
+        `0 AS upsell_orders`,
         `COUNT(CASE WHEN LOWER(o.status::text) = 'pending' THEN 1 END) AS pending_orders`,
         `COUNT(CASE WHEN LOWER(o.status::text) = 'approved' THEN 1 END) AS approved_orders`,
         `COUNT(CASE WHEN LOWER(o.status::text) = 'shipped' THEN 1 END) AS shipped_orders`,
@@ -1103,7 +1103,6 @@ export class SalesService {
         `COUNT(CASE WHEN LOWER(o.courier_company) = 'redx' THEN 1 END) AS redx_orders`,
       ])
       .where('o.created_by IS NOT NULL')
-      .andWhere("o.order_source IN ('admin_panel', 'agent_dashboard')")
       .andWhere('DATE(o.order_date) >= :startDate', { startDate })
       .andWhere('DATE(o.order_date) <= :endDate', { endDate });
 
@@ -1119,27 +1118,8 @@ export class SalesService {
 
     const agentRows = await agentQb.getRawMany();
 
-    // ──── 2) Upsell revenue per agent (items added via thank-you offer) ────
-    const upsellQb = this.orderItemsRepository
-      .createQueryBuilder('soi')
-      .innerJoin('soi.salesOrder', 'o')
-      .select([
-        'o.created_by AS agent_id',
-        'COALESCE(SUM(soi.line_total), 0) AS upsell_revenue',
-      ])
-      .where('o.thank_you_offer_accepted = true')
-      .andWhere('o.created_by IS NOT NULL')
-      .andWhere("o.order_source IN ('admin_panel', 'agent_dashboard')")
-      .andWhere('DATE(o.order_date) >= :startDate', { startDate })
-      .andWhere('DATE(o.order_date) <= :endDate', { endDate });
-
-    if (params.agentId) {
-      upsellQb.andWhere('o.created_by = :agentId', { agentId: params.agentId });
-    }
-
-    upsellQb.groupBy('o.created_by');
-
-    const upsellRows = await upsellQb.getRawMany();
+    // ──── 2) Upsell revenue per agent (skipped: thank_you_offer_accepted column not yet migrated) ────
+    const upsellRows: any[] = [];
     const upsellMap = new Map<number, number>();
     for (const r of upsellRows) {
       upsellMap.set(toNum(r.agent_id), toNum(r.upsell_revenue));
@@ -1153,10 +1133,9 @@ export class SalesService {
         'o.created_by AS agent_id',
         'COUNT(o.id) AS orders',
         'COALESCE(SUM(o.total_amount), 0) AS revenue',
-        `COUNT(CASE WHEN o.thank_you_offer_accepted = true THEN 1 END) AS upsells`,
+        '0 AS upsells',
       ])
       .where('o.created_by IS NOT NULL')
-      .andWhere("o.order_source IN ('admin_panel', 'agent_dashboard')")
       .andWhere('DATE(o.order_date) >= :startDate', { startDate })
       .andWhere('DATE(o.order_date) <= :endDate', { endDate });
 
@@ -1171,16 +1150,15 @@ export class SalesService {
 
     const dailyRows = await dailyQb.getRawMany();
 
-    // ──── 4) Hourly distribution for selected agent(s) ────
+    // ──── 4) Hourly distribution for selected agent(s) (use created_at which is timestamp) ────
     const hourlyQb = this.salesRepository
       .createQueryBuilder('o')
       .select([
-        'EXTRACT(HOUR FROM o.order_date) AS hour',
+        'EXTRACT(HOUR FROM o.created_at) AS hour',
         'COUNT(o.id) AS orders',
         'COALESCE(SUM(o.total_amount), 0) AS revenue',
       ])
       .where('o.created_by IS NOT NULL')
-      .andWhere("o.order_source IN ('admin_panel', 'agent_dashboard')")
       .andWhere('DATE(o.order_date) >= :startDate', { startDate })
       .andWhere('DATE(o.order_date) <= :endDate', { endDate });
 
@@ -1203,7 +1181,6 @@ export class SalesService {
         'SUM(soi.line_total) AS total_revenue',
       ])
       .where('o.created_by IS NOT NULL')
-      .andWhere("o.order_source IN ('admin_panel', 'agent_dashboard')")
       .andWhere('DATE(o.order_date) >= :startDate', { startDate })
       .andWhere('DATE(o.order_date) <= :endDate', { endDate });
 

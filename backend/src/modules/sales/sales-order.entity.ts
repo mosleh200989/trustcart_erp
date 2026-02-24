@@ -24,8 +24,8 @@ export class SalesOrder {
   @Column({ name: 'customer_phone', type: 'varchar', length: 30, nullable: true })
   customerPhone!: string | null;
 
-  // order_date in DB (defaults to NOW() in schema)
-  @Column({ name: 'order_date', type: 'timestamp', nullable: true })
+  // order_date in DB (date type, no time component)
+  @Column({ name: 'order_date', type: 'date', nullable: true })
   orderDate!: Date;
 
   @Column({ type: 'varchar' })

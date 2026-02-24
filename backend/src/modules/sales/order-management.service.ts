@@ -1703,9 +1703,9 @@ export class OrderManagementService {
       );
     }
 
-    // Single date filter (defaults to today on frontend)
+    // Single date filter — use shipped_at (date order was sent to courier)
     if (params.date) {
-      qb.andWhere('DATE(o.created_at) = :filterDate', { filterDate: params.date });
+      qb.andWhere('DATE(o.shipped_at) = :filterDate', { filterDate: params.date });
     }
 
     // Packed filter
