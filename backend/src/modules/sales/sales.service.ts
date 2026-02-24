@@ -996,4 +996,231 @@ export class SalesService {
       })),
     };
   }
+
+  /**
+   * Agent-wise sales report with date range filters and per-agent breakdowns.
+   */
+  async getAgentWiseReport(params: {
+    startDate?: string;
+    endDate?: string;
+    agentId?: number;
+  }) {
+    const today = new Date().toISOString().slice(0, 10);
+    const startDate = params.startDate || today;
+    const endDate = params.endDate || today;
+
+    const toNum = (v: any) => parseFloat(v) || 0;
+
+    // ──── 1) Per-agent summary ────
+    const agentQb = this.salesRepository
+      .createQueryBuilder('o')
+      .innerJoin('users', 'u', 'u.id = o.created_by')
+      .select([
+        'o.created_by AS agent_id',
+        `u.name AS agent_name`,
+        `u.last_name AS agent_last_name`,
+        'COUNT(o.id) AS total_orders',
+        'COALESCE(SUM(o.total_amount), 0) AS total_revenue',
+        'COALESCE(AVG(o.total_amount), 0) AS avg_order_value',
+        'COALESCE(SUM(o.discount_amount), 0) AS total_discount',
+        'COUNT(DISTINCT o.customer_id) AS unique_customers',
+        `COUNT(CASE WHEN o.thank_you_offer_accepted = true THEN 1 END) AS upsell_orders`,
+        `COUNT(CASE WHEN LOWER(o.status::text) = 'pending' THEN 1 END) AS pending_orders`,
+        `COUNT(CASE WHEN LOWER(o.status::text) = 'approved' THEN 1 END) AS approved_orders`,
+        `COUNT(CASE WHEN LOWER(o.status::text) = 'shipped' THEN 1 END) AS shipped_orders`,
+        `COUNT(CASE WHEN LOWER(o.status::text) = 'delivered' THEN 1 END) AS delivered_orders`,
+        `COUNT(CASE WHEN LOWER(o.status::text) = 'cancelled' THEN 1 END) AS cancelled_orders`,
+        `COUNT(CASE WHEN LOWER(o.courier_company) = 'steadfast' THEN 1 END) AS steadfast_orders`,
+        `COUNT(CASE WHEN LOWER(o.courier_company) = 'pathao' THEN 1 END) AS pathao_orders`,
+        `COUNT(CASE WHEN LOWER(o.courier_company) = 'redx' THEN 1 END) AS redx_orders`,
+      ])
+      .where('o.created_by IS NOT NULL')
+      .andWhere("o.order_source IN ('admin_panel', 'agent_dashboard')")
+      .andWhere('DATE(o.order_date) >= :startDate', { startDate })
+      .andWhere('DATE(o.order_date) <= :endDate', { endDate });
+
+    if (params.agentId) {
+      agentQb.andWhere('o.created_by = :agentId', { agentId: params.agentId });
+    }
+
+    agentQb
+      .groupBy('o.created_by')
+      .addGroupBy('u.name')
+      .addGroupBy('u.last_name')
+      .orderBy('total_orders', 'DESC');
+
+    const agentRows = await agentQb.getRawMany();
+
+    // ──── 2) Upsell revenue per agent (items added via thank-you offer) ────
+    const upsellQb = this.orderItemsRepository
+      .createQueryBuilder('soi')
+      .innerJoin('soi.salesOrder', 'o')
+      .select([
+        'o.created_by AS agent_id',
+        'COALESCE(SUM(soi.line_total), 0) AS upsell_revenue',
+      ])
+      .where('o.thank_you_offer_accepted = true')
+      .andWhere('o.created_by IS NOT NULL')
+      .andWhere("o.order_source IN ('admin_panel', 'agent_dashboard')")
+      .andWhere('DATE(o.order_date) >= :startDate', { startDate })
+      .andWhere('DATE(o.order_date) <= :endDate', { endDate });
+
+    if (params.agentId) {
+      upsellQb.andWhere('o.created_by = :agentId', { agentId: params.agentId });
+    }
+
+    upsellQb.groupBy('o.created_by');
+
+    const upsellRows = await upsellQb.getRawMany();
+    const upsellMap = new Map<number, number>();
+    for (const r of upsellRows) {
+      upsellMap.set(toNum(r.agent_id), toNum(r.upsell_revenue));
+    }
+
+    // ──── 3) Daily trend (for chart) ────
+    const dailyQb = this.salesRepository
+      .createQueryBuilder('o')
+      .select([
+        'DATE(o.order_date) AS date',
+        'o.created_by AS agent_id',
+        'COUNT(o.id) AS orders',
+        'COALESCE(SUM(o.total_amount), 0) AS revenue',
+        `COUNT(CASE WHEN o.thank_you_offer_accepted = true THEN 1 END) AS upsells`,
+      ])
+      .where('o.created_by IS NOT NULL')
+      .andWhere("o.order_source IN ('admin_panel', 'agent_dashboard')")
+      .andWhere('DATE(o.order_date) >= :startDate', { startDate })
+      .andWhere('DATE(o.order_date) <= :endDate', { endDate });
+
+    if (params.agentId) {
+      dailyQb.andWhere('o.created_by = :agentId', { agentId: params.agentId });
+    }
+
+    dailyQb
+      .groupBy('date')
+      .addGroupBy('o.created_by')
+      .orderBy('date', 'ASC');
+
+    const dailyRows = await dailyQb.getRawMany();
+
+    // ──── 4) Hourly distribution for selected agent(s) ────
+    const hourlyQb = this.salesRepository
+      .createQueryBuilder('o')
+      .select([
+        'EXTRACT(HOUR FROM o.order_date) AS hour',
+        'COUNT(o.id) AS orders',
+        'COALESCE(SUM(o.total_amount), 0) AS revenue',
+      ])
+      .where('o.created_by IS NOT NULL')
+      .andWhere("o.order_source IN ('admin_panel', 'agent_dashboard')")
+      .andWhere('DATE(o.order_date) >= :startDate', { startDate })
+      .andWhere('DATE(o.order_date) <= :endDate', { endDate });
+
+    if (params.agentId) {
+      hourlyQb.andWhere('o.created_by = :agentId', { agentId: params.agentId });
+    }
+
+    hourlyQb.groupBy('hour').orderBy('hour', 'ASC');
+    const hourlyRows = await hourlyQb.getRawMany();
+
+    // ──── 5) Product breakdown for agent(s) ────
+    const productQb = this.orderItemsRepository
+      .createQueryBuilder('soi')
+      .innerJoin('soi.salesOrder', 'o')
+      .select([
+        'soi.product_id AS product_id',
+        'soi.product_name AS product_name',
+        'COUNT(DISTINCT o.id) AS total_orders',
+        'SUM(soi.quantity) AS total_qty',
+        'SUM(soi.line_total) AS total_revenue',
+      ])
+      .where('o.created_by IS NOT NULL')
+      .andWhere("o.order_source IN ('admin_panel', 'agent_dashboard')")
+      .andWhere('DATE(o.order_date) >= :startDate', { startDate })
+      .andWhere('DATE(o.order_date) <= :endDate', { endDate });
+
+    if (params.agentId) {
+      productQb.andWhere('o.created_by = :agentId', { agentId: params.agentId });
+    }
+
+    productQb
+      .groupBy('soi.product_id')
+      .addGroupBy('soi.product_name')
+      .orderBy('total_orders', 'DESC');
+
+    const productRows = await productQb.getRawMany();
+
+    // ──── 6) Overall totals ────
+    const agents = agentRows.map((r: any) => ({
+      agentId: toNum(r.agent_id),
+      agentName: [r.agent_name, r.agent_last_name].filter(Boolean).join(' ') || `Agent #${r.agent_id}`,
+      totalOrders: toNum(r.total_orders),
+      totalRevenue: toNum(r.total_revenue),
+      avgOrderValue: toNum(r.avg_order_value),
+      totalDiscount: toNum(r.total_discount),
+      uniqueCustomers: toNum(r.unique_customers),
+      upsellOrders: toNum(r.upsell_orders),
+      upsellRevenue: upsellMap.get(toNum(r.agent_id)) || 0,
+      upsellRate: toNum(r.total_orders) > 0
+        ? Math.round((toNum(r.upsell_orders) / toNum(r.total_orders)) * 100)
+        : 0,
+      pendingOrders: toNum(r.pending_orders),
+      approvedOrders: toNum(r.approved_orders),
+      shippedOrders: toNum(r.shipped_orders),
+      deliveredOrders: toNum(r.delivered_orders),
+      cancelledOrders: toNum(r.cancelled_orders),
+      steadfastOrders: toNum(r.steadfast_orders),
+      pathaoOrders: toNum(r.pathao_orders),
+      redxOrders: toNum(r.redx_orders),
+      conversionRate: toNum(r.total_orders) > 0
+        ? Math.round((toNum(r.delivered_orders) / toNum(r.total_orders)) * 100)
+        : 0,
+      cancelRate: toNum(r.total_orders) > 0
+        ? Math.round((toNum(r.cancelled_orders) / toNum(r.total_orders)) * 100)
+        : 0,
+    }));
+
+    const totalSummary = {
+      totalOrders: agents.reduce((s, a) => s + a.totalOrders, 0),
+      totalRevenue: agents.reduce((s, a) => s + a.totalRevenue, 0),
+      totalDiscount: agents.reduce((s, a) => s + a.totalDiscount, 0),
+      totalUpsellOrders: agents.reduce((s, a) => s + a.upsellOrders, 0),
+      totalUpsellRevenue: agents.reduce((s, a) => s + a.upsellRevenue, 0),
+      totalUniqueCustomers: agents.reduce((s, a) => s + a.uniqueCustomers, 0),
+      activeAgents: agents.length,
+    };
+
+    // Build daily trend keyed by date for chart
+    const dateMap = new Map<string, any>();
+    for (const r of dailyRows) {
+      const d = String(r.date).slice(0, 10);
+      if (!dateMap.has(d)) {
+        dateMap.set(d, { date: d, orders: 0, revenue: 0, upsells: 0 });
+      }
+      const entry = dateMap.get(d)!;
+      entry.orders += toNum(r.orders);
+      entry.revenue += toNum(r.revenue);
+      entry.upsells += toNum(r.upsells);
+    }
+    const dailyTrend = [...dateMap.values()].sort((a, b) => a.date.localeCompare(b.date));
+
+    return {
+      startDate,
+      endDate,
+      summary: totalSummary,
+      agents,
+      dailyTrend,
+      hourly: Array.from({ length: 24 }, (_, i) => {
+        const found = hourlyRows.find((r: any) => toNum(r.hour) === i);
+        return { hour: i, label: `${i.toString().padStart(2, '0')}:00`, orders: toNum(found?.orders), revenue: toNum(found?.revenue) };
+      }),
+      products: productRows.map((r: any) => ({
+        productId: toNum(r.product_id),
+        productName: r.product_name || 'Unknown Product',
+        totalOrders: toNum(r.total_orders),
+        totalQty: toNum(r.total_qty),
+        totalRevenue: toNum(r.total_revenue),
+      })),
+    };
+  }
 }

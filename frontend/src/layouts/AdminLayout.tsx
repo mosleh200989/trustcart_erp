@@ -61,6 +61,7 @@ const menuItems: MenuItem[] = [
     icon: FaChartBar,
     children: [
       { title: "Today's Report", icon: FaChartBar, path: '/admin/reports/today', requiredPermissions: ['view-sales-reports'] },
+      { title: 'Agent-wise Report', icon: FaChartBar, path: '/admin/reports/agent-wise', requiredPermissions: ['view-sales-reports'] },
       { title: 'Overview', icon: FaChartBar, path: '/admin/reports?tab=overview', requiredPermissions: ['view-sales-reports','view-product-reports','view-stock-reports','view-crm-reports','view-financial-reports','view-marketing-reports','view-mlm-reports','view-hr-reports','view-recruitment-reports'] },
       { title: 'Sales Reports', icon: FaChartBar, path: '/admin/reports?tab=sales', requiredPermissions: ['view-sales-reports'] },
       { title: 'Customer Reports', icon: FaChartBar, path: '/admin/reports?tab=customers', requiredPermissions: ['view-crm-reports','view-customers'] },
