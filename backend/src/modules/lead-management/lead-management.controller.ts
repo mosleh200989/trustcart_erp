@@ -66,6 +66,23 @@ export class LeadManagementController {
     });
   }
 
+  @Put('incomplete-order/:id')
+  async updateIncompleteOrder(
+    @Param('id') id: number,
+    @Body() data: any,
+  ) {
+    return this.leadService.updateIncompleteOrder(id, data);
+  }
+
+  @Post('incomplete-order/:id/convert-to-order')
+  async convertToOrder(
+    @Param('id') id: number,
+    @Request() req: any,
+  ) {
+    const userId = this.getAuthUserId(req);
+    return this.leadService.convertToOrder(id, userId);
+  }
+
   @Put('incomplete-order/:id/recover')
   async markOrderRecovered(
     @Param('id') id: number,

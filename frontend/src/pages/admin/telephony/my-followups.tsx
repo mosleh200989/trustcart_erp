@@ -56,7 +56,7 @@ export default function MyFollowupsPage() {
   
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(25);
+  const [itemsPerPage, setItemsPerPage] = useState(50);
   
   // Modal states
   const [showAddModal, setShowAddModal] = useState(false);

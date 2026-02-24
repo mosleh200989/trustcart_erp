@@ -114,6 +114,8 @@ interface SalesOrder {
   order_source?: string | null;
   order_source_display?: string | null;
 
+  items?: { productName: string; quantity: number }[];
+
   notes?: string | null;
 }
 
@@ -133,7 +135,7 @@ export default function AdminSales() {
   const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
   const [selectedRowIds, setSelectedRowIds] = useState<Array<number | string>>([]);
   const [bulkAction, setBulkAction] = useState<'delete' | 'pending' | 'completed' | 'cancelled' | ''>('');
-  const [itemsPerPage, setItemsPerPage] = useState(25);
+  const [itemsPerPage, setItemsPerPage] = useState(50);
 
   // Print & Pack state
   const [showInvoicePrint, setShowInvoicePrint] = useState(false);
@@ -608,6 +610,24 @@ export default function AdminSales() {
         const n = Number(amt);
         return `৳${Number.isFinite(n) ? n.toFixed(2) : '0.00'}`;
       }
+    },
+    {
+      key: 'items',
+      label: 'Products',
+      render: (_: any, row: SalesOrder) => {
+        const items = row.items || [];
+        if (items.length === 0) return <span className="text-gray-400 text-xs">No items</span>;
+        return (
+          <div className="text-xs max-h-28 overflow-y-auto" style={{ whiteSpace: 'pre-line' }}>
+            {items.map((item, idx) => (
+              <span key={idx}>
+                {item.productName} <span className="text-gray-500">(x{item.quantity})</span>
+                {idx < items.length - 1 && <br />}
+              </span>
+            ))}
+          </div>
+        );
+      },
     },
     {
       key: 'courierOrderId',

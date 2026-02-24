@@ -109,7 +109,7 @@ export default function AdminSalesLateDelivery() {
   const [filters, setFilters] = useState(INITIAL_FILTERS);
   const [showFilters, setShowFilters] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(25);
+  const [itemsPerPage, setItemsPerPage] = useState(50);
   const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
   const [showOrderDetails, setShowOrderDetails] = useState(false);
 

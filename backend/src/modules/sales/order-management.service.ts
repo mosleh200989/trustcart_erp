@@ -1678,13 +1678,11 @@ export class OrderManagementService {
     page?: number;
     limit?: number;
     q?: string;
-    todayOnly?: boolean;
     isPacked?: string;
     invoicePrinted?: string;
     stickerPrinted?: string;
     courierId?: string;
-    startDate?: string;
-    endDate?: string;
+    date?: string;
     productName?: string;
   }) {
     const page = Math.max(1, params.page || 1);
@@ -1693,8 +1691,8 @@ export class OrderManagementService {
 
     const qb = this.salesOrderRepository.createQueryBuilder('o');
 
-    // Only show orders in 'printing' status (sent to courier, pending print/pack actions)
-    qb.andWhere("o.status::text = 'printing'");
+    // Show orders in 'printing' or 'shipped' status (orders remain after all actions completed)
+    qb.andWhere("o.status::text IN ('printing', 'shipped')");
 
     // Text search (customer name, phone)
     if (params.q && params.q.trim()) {
@@ -1705,16 +1703,9 @@ export class OrderManagementService {
       );
     }
 
-    // Today only
-    if (params.todayOnly) {
-      qb.andWhere('DATE(o.order_date) = CURRENT_DATE');
-    } else {
-      if (params.startDate) {
-        qb.andWhere('DATE(o.order_date) >= :startDate', { startDate: params.startDate });
-      }
-      if (params.endDate) {
-        qb.andWhere('DATE(o.order_date) <= :endDate', { endDate: params.endDate });
-      }
+    // Single date filter (defaults to today on frontend)
+    if (params.date) {
+      qb.andWhere('DATE(o.created_at) = :filterDate', { filterDate: params.date });
     }
 
     // Packed filter

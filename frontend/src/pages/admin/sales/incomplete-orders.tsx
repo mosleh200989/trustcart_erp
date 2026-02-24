@@ -3,7 +3,7 @@ import AdminLayout from '@/layouts/AdminLayout';
 import DataTable from '@/components/admin/DataTable';
 import PageSizeSelector from '@/components/admin/PageSizeSelector';
 import FormInput from '@/components/admin/FormInput';
-import { FaSearch, FaFilter, FaExclamationTriangle, FaShoppingCart, FaGlobe, FaCheckCircle, FaTimesCircle, FaRedo, FaEye, FaPhone, FaMapMarkerAlt } from 'react-icons/fa';
+import { FaSearch, FaFilter, FaExclamationTriangle, FaShoppingCart, FaGlobe, FaCheckCircle, FaTimesCircle, FaRedo, FaEye, FaPhone, FaMapMarkerAlt, FaEdit, FaPaperPlane } from 'react-icons/fa';
 import apiClient from '@/services/api';
 
 interface IncompleteOrder {
@@ -103,6 +103,10 @@ export default function AdminSalesIncompleteOrders() {
   const [itemsPerPage, setItemsPerPage] = useState(20);
   const [showFilters, setShowFilters] = useState(true);
   const [expandedRow, setExpandedRow] = useState<number | null>(null);
+  const [editingOrder, setEditingOrder] = useState<IncompleteOrder | null>(null);
+  const [editForm, setEditForm] = useState({ name: '', phone: '', email: '', address: '', note: '', deliveryZone: '', totalAmount: '' });
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [convertingId, setConvertingId] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -153,6 +157,87 @@ export default function AdminSalesIncompleteOrders() {
 
   const getVal = <T,>(row: IncompleteOrder, camel: keyof IncompleteOrder, snake: keyof IncompleteOrder, fallback?: T): T => {
     return (row[camel] ?? row[snake] ?? fallback) as T;
+  };
+
+  const openEditModal = (row: IncompleteOrder) => {
+    setEditingOrder(row);
+    setEditForm({
+      name: row.name || '',
+      phone: row.phone || '',
+      email: row.email || '',
+      address: row.address || '',
+      note: row.note || '',
+      deliveryZone: getVal<string>(row, 'deliveryZone', 'delivery_zone' as any, ''),
+      totalAmount: String(getVal<any>(row, 'totalAmount', 'total_amount' as any, '') ?? ''),
+    });
+  };
+
+  const handleEditSave = async () => {
+    if (!editingOrder) return;
+    try {
+      setSavingEdit(true);
+      await apiClient.put(`/lead-management/incomplete-order/${editingOrder.id}`, editForm);
+      // Update local state
+      setResponse(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          data: prev.data.map(item =>
+            item.id === editingOrder.id
+              ? {
+                  ...item,
+                  name: editForm.name,
+                  phone: editForm.phone,
+                  email: editForm.email,
+                  address: editForm.address,
+                  note: editForm.note,
+                  deliveryZone: editForm.deliveryZone,
+                  delivery_zone: editForm.deliveryZone,
+                  totalAmount: editForm.totalAmount,
+                  total_amount: editForm.totalAmount,
+                }
+              : item
+          ),
+        };
+      });
+      setEditingOrder(null);
+    } catch (e) {
+      console.error('Failed to update incomplete order:', e);
+      alert('Failed to save changes.');
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  const handleConvertToOrder = async (row: IncompleteOrder) => {
+    const converted = getVal<boolean>(row, 'convertedToOrder', 'converted_to_order' as any, false);
+    if (converted || row.recovered) {
+      alert('This order has already been converted.');
+      return;
+    }
+    if (!confirm(`Convert incomplete order #${row.id} (${row.name || 'Unknown'}) to a real order?`)) return;
+    try {
+      setConvertingId(row.id);
+      await apiClient.post(`/lead-management/incomplete-order/${row.id}/convert-to-order`);
+      // Update local state
+      setResponse(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          data: prev.data.map(item =>
+            item.id === row.id
+              ? { ...item, convertedToOrder: true, converted_to_order: true, recovered: true }
+              : item
+          ),
+        };
+      });
+      alert(`Order #${row.id} successfully converted!`);
+    } catch (e: any) {
+      console.error('Failed to convert order:', e);
+      alert(e?.response?.data?.message || 'Failed to convert to order.');
+    } finally {
+      setConvertingId(null);
+    }
   };
 
   const columns = [
@@ -302,6 +387,8 @@ export default function AdminSalesIncompleteOrders() {
       label: '',
       render: (_: any, row: IncompleteOrder) => {
         const isDone = row.contactedDone ?? row.contacted_done ?? false;
+        const isConverted = getVal<boolean>(row, 'convertedToOrder', 'converted_to_order' as any, false) || row.recovered;
+        const isConverting = convertingId === row.id;
         return (
           <div className="flex items-center gap-1">
             <button
@@ -309,7 +396,6 @@ export default function AdminSalesIncompleteOrders() {
                 e.preventDefault();
                 try {
                   await apiClient.put(`/lead-management/incomplete-order/${row.id}/toggle-done`);
-                  // Update local state without full reload to preserve scroll position
                   setResponse(prev => {
                     if (!prev) return prev;
                     return {
@@ -339,6 +425,27 @@ export default function AdminSalesIncompleteOrders() {
             >
               <FaEye />
             </button>
+            <button
+              onClick={() => openEditModal(row)}
+              className="p-2 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+              title="Edit Order"
+            >
+              <FaEdit />
+            </button>
+            {!isConverted && (
+              <button
+                onClick={() => handleConvertToOrder(row)}
+                disabled={isConverting}
+                className={`p-2 rounded-lg transition-colors ${
+                  isConverting
+                    ? 'text-gray-300 cursor-not-allowed'
+                    : 'text-gray-500 hover:text-orange-600 hover:bg-orange-50'
+                }`}
+                title="Convert to Order"
+              >
+                <FaPaperPlane className={isConverting ? 'animate-pulse' : ''} />
+              </button>
+            )}
           </div>
         );
       },
@@ -652,6 +759,93 @@ export default function AdminSalesIncompleteOrders() {
             </div>
           );
         })()}
+
+        {/* Edit Modal */}
+        {editingOrder && (
+          <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => !savingEdit && setEditingOrder(null)}>
+            <div
+              className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[80vh] overflow-y-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="sticky top-0 bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between rounded-t-2xl">
+                <h3 className="text-lg font-bold text-gray-800">Edit Incomplete Order #{editingOrder.id}</h3>
+                <button
+                  onClick={() => !savingEdit && setEditingOrder(null)}
+                  className="p-1 rounded-lg hover:bg-gray-100 text-gray-500 transition-colors"
+                >
+                  &#10005;
+                </button>
+              </div>
+              <div className="px-6 py-4 space-y-4">
+                <FormInput
+                  label="Name"
+                  name="name"
+                  value={editForm.name}
+                  onChange={(e: any) => setEditForm(prev => ({ ...prev, name: e.target.value }))}
+                />
+                <FormInput
+                  label="Phone"
+                  name="phone"
+                  value={editForm.phone}
+                  onChange={(e: any) => setEditForm(prev => ({ ...prev, phone: e.target.value }))}
+                />
+                <FormInput
+                  label="Email"
+                  name="email"
+                  type="email"
+                  value={editForm.email}
+                  onChange={(e: any) => setEditForm(prev => ({ ...prev, email: e.target.value }))}
+                />
+                <FormInput
+                  label="Address"
+                  name="address"
+                  value={editForm.address}
+                  onChange={(e: any) => setEditForm(prev => ({ ...prev, address: e.target.value }))}
+                />
+                <FormInput
+                  label="Note"
+                  name="note"
+                  value={editForm.note}
+                  onChange={(e: any) => setEditForm(prev => ({ ...prev, note: e.target.value }))}
+                />
+                <FormInput
+                  label="Delivery Zone"
+                  name="deliveryZone"
+                  value={editForm.deliveryZone}
+                  onChange={(e: any) => setEditForm(prev => ({ ...prev, deliveryZone: e.target.value }))}
+                />
+                <FormInput
+                  label="Total Amount"
+                  name="totalAmount"
+                  type="number"
+                  value={editForm.totalAmount}
+                  onChange={(e: any) => setEditForm(prev => ({ ...prev, totalAmount: e.target.value }))}
+                />
+              </div>
+              <div className="sticky bottom-0 bg-white border-t border-gray-100 px-6 py-4 flex justify-end gap-3 rounded-b-2xl">
+                <button
+                  onClick={() => setEditingOrder(null)}
+                  disabled={savingEdit}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleEditSave}
+                  disabled={savingEdit}
+                  className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center gap-2"
+                >
+                  {savingEdit ? (
+                    <>
+                      <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+                      Saving...
+                    </>
+                  ) : 'Save Changes'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </AdminLayout>
   );

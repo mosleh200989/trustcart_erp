@@ -11,15 +11,23 @@ import { useToast } from '@/contexts/ToastContext';
 import { FaPrint, FaBoxOpen, FaFileInvoice, FaTag, FaExternalLinkAlt } from 'react-icons/fa';
 import apiClient from '@/services/api';
 
+function getTodayDateString() {
+  const now = new Date();
+  // Use Asia/Dhaka timezone
+  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Dhaka', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(now);
+  const y = parts.find(p => p.type === 'year')?.value;
+  const m = parts.find(p => p.type === 'month')?.value;
+  const d = parts.find(p => p.type === 'day')?.value;
+  return `${y}-${m}-${d}`;
+}
+
 const INITIAL_FILTERS = {
   q: '',
-  todayOnly: false,
   isPacked: '',
   invoicePrinted: 'false',
   stickerPrinted: '',
   courierId: '',
-  startDate: '',
-  endDate: '',
+  date: getTodayDateString(),
   productName: '',
 };
 
@@ -95,13 +103,11 @@ export default function PrintingPage() {
         limit: String(ps),
       };
       if (f.q.trim()) params.q = f.q.trim();
-      if (f.todayOnly) params.todayOnly = 'true';
       if (f.isPacked) params.isPacked = f.isPacked;
       if (f.invoicePrinted) params.invoicePrinted = f.invoicePrinted;
       if (f.stickerPrinted) params.stickerPrinted = f.stickerPrinted;
       if (f.courierId.trim()) params.courierId = f.courierId.trim();
-      if (f.startDate) params.startDate = f.startDate;
-      if (f.endDate) params.endDate = f.endDate;
+      if (f.date) params.date = f.date;
       if (f.productName.trim()) params.productName = f.productName.trim();
 
       const response = await apiClient.get('/order-management/printing', { params });
@@ -505,8 +511,13 @@ export default function PrintingPage() {
             </h1>
             <p className="text-gray-600 mt-1">Manage invoice printing, sticker printing &amp; packing for orders</p>
           </div>
-          <div className="text-sm text-gray-500">
-            Total: <span className="font-semibold text-gray-800">{totalCount}</span> orders
+          <div className="text-right">
+            <div className="text-sm text-gray-500">
+              Total: <span className="font-semibold text-gray-800">{totalCount}</span> orders
+            </div>
+            <div className="text-sm text-gray-500 mt-1">
+              Printing Count ({filters.date || 'All'}): <span className="font-bold text-indigo-700 text-base">{totalCount}</span>
+            </div>
           </div>
         </div>
 
@@ -593,9 +604,9 @@ export default function PrintingPage() {
           </div>
 
           <div className="mt-4 space-y-4">
-            {/* Row 1: Search + Today */}
+            {/* Row 1: Search + Date + Courier ID */}
             <div className="grid grid-cols-1 md:grid-cols-6 gap-4 items-end">
-              <div className="md:col-span-4">
+              <div className="md:col-span-3">
                 <FormInput
                   label="Customer Name / Phone"
                   name="q"
@@ -606,22 +617,13 @@ export default function PrintingPage() {
               </div>
 
               <div className="md:col-span-1">
-                <label htmlFor="todayOnly" className="block text-sm font-medium text-gray-700">
-                  Today&apos;s Orders
-                </label>
-                <div className="mt-1 flex h-10 w-full items-center rounded-md border border-gray-300 bg-white px-3 shadow-sm">
-                  <label className="flex items-center gap-2 text-sm text-gray-700 select-none" htmlFor="todayOnly">
-                    <input
-                      id="todayOnly"
-                      type="checkbox"
-                      name="todayOnly"
-                      checked={(filters as any).todayOnly}
-                      onChange={handleFilterChange}
-                      className="h-4 w-4 rounded border-gray-300 focus:ring-blue-500"
-                    />
-                    Today
-                  </label>
-                </div>
+                <FormInput
+                  label="Date"
+                  name="date"
+                  type="date"
+                  value={filters.date}
+                  onChange={handleFilterChange}
+                />
               </div>
 
               <div className="md:col-span-1">
@@ -633,9 +635,18 @@ export default function PrintingPage() {
                   placeholder="Courier ID"
                 />
               </div>
+
+              <div className="md:col-span-1">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Product</label>
+                <ProductAutocomplete
+                  value={filters.productName}
+                  onChange={(val) => setFilters((prev) => ({ ...prev, productName: val }))}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
             </div>
 
-            {/* Row 2: Packed, Invoice Printed, Sticker Printed, Date Range */}
+            {/* Row 2: Packed, Invoice Printed, Sticker Printed */}
             <div className="grid grid-cols-1 md:grid-cols-6 gap-4 items-end">
               <FormInput
                 label="Packed"
@@ -675,31 +686,6 @@ export default function PrintingPage() {
                   { value: 'false', label: 'Not Printed' },
                 ]}
               />
-
-              <FormInput
-                label="Start Date"
-                name="startDate"
-                type="date"
-                value={filters.startDate}
-                onChange={handleFilterChange}
-              />
-
-              <FormInput
-                label="End Date"
-                name="endDate"
-                type="date"
-                value={filters.endDate}
-                onChange={handleFilterChange}
-              />
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Product</label>
-                <ProductAutocomplete
-                  value={filters.productName}
-                  onChange={(val) => setFilters((prev) => ({ ...prev, productName: val }))}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
             </div>
           </div>
         </div>
