@@ -37,6 +37,8 @@ interface SalesOrder {
   internal_notes?: string | null;
   rider_instructions?: string | null;
 
+  items?: { productName: string | null; quantity: number }[];
+
   createdAt?: string;
   created_at?: string;
   order_date?: string;
@@ -249,14 +251,23 @@ export default function AdminSalesLateDelivery() {
       },
     },
     {
-      key: 'status',
-      label: 'Status',
-      render: (value: string) => {
-        const v = value ?? '-';
+      key: 'items',
+      label: 'Products',
+      render: (_: any, row: SalesOrder) => {
+        const items = row.items ?? [];
+        if (items.length === 0) return <span className="text-gray-400 text-xs">-</span>;
         return (
-          <span className={`px-2 py-1 rounded-full text-xs font-semibold ${STATUS_COLORS[v] || 'bg-gray-100 text-gray-800'}`}>
-            {v}
-          </span>
+          <div className="max-w-[220px]">
+            {items.slice(0, 3).map((item, i) => (
+              <div key={i} className="text-xs text-gray-700 truncate" title={`${item.productName ?? 'Unknown'} x${item.quantity}`}>
+                <span className="font-medium">{item.quantity}x</span>{' '}
+                {item.productName ?? 'Unknown'}
+              </div>
+            ))}
+            {items.length > 3 && (
+              <div className="text-xs text-blue-600 font-medium">+{items.length - 3} more</div>
+            )}
+          </div>
         );
       },
     },

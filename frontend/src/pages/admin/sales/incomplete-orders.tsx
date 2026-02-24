@@ -305,10 +305,22 @@ export default function AdminSalesIncompleteOrders() {
         return (
           <div className="flex items-center gap-1">
             <button
-              onClick={async () => {
+              onClick={async (e) => {
+                e.preventDefault();
                 try {
                   await apiClient.put(`/lead-management/incomplete-order/${row.id}/toggle-done`);
-                  load();
+                  // Update local state without full reload to preserve scroll position
+                  setResponse(prev => {
+                    if (!prev) return prev;
+                    return {
+                      ...prev,
+                      data: prev.data.map(item => 
+                        item.id === row.id 
+                          ? { ...item, contactedDone: !isDone, contacted_done: !isDone }
+                          : item
+                      )
+                    };
+                  });
                 } catch (e) { console.error(e); }
               }}
               className={`p-2 rounded-lg transition-colors ${
