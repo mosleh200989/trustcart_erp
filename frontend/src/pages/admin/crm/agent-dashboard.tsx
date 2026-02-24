@@ -1348,8 +1348,43 @@ export default function AgentDashboard() {
                     disabled={leadsPage === 1}
                     className="px-3 py-1 border rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100 flex items-center gap-1"
                   >
-                    <FaChevronLeft size={10} /> Previous
+                    <FaChevronLeft size={10} /> Prev
                   </button>
+                  {(() => {
+                    const totalPagesCount = Math.ceil(assignedTotal / leadsLimit);
+                    const pages: (number | string)[] = [];
+                    if (totalPagesCount <= 7) {
+                      for (let i = 1; i <= totalPagesCount; i++) pages.push(i);
+                    } else {
+                      pages.push(1);
+                      if (leadsPage > 3) pages.push('...');
+                      const start = Math.max(2, leadsPage - 1);
+                      const end = Math.min(totalPagesCount - 1, leadsPage + 1);
+                      for (let i = start; i <= end; i++) pages.push(i);
+                      if (leadsPage < totalPagesCount - 2) pages.push('...');
+                      pages.push(totalPagesCount);
+                    }
+                    return pages.map((p, idx) => (
+                      typeof p === 'string' ? (
+                        <span key={`ellipsis-${idx}`} className="px-1 text-gray-400 text-sm">...</span>
+                      ) : (
+                        <button
+                          key={p}
+                          onClick={() => {
+                            setLeadsPage(p as number);
+                            if (selectedViewAgentId) loadAssignedCustomers(selectedViewAgentId, { page: p as number });
+                          }}
+                          className={`px-3 py-1 border rounded text-sm ${
+                            leadsPage === p
+                              ? 'bg-blue-600 text-white border-blue-600'
+                              : 'hover:bg-gray-100'
+                          }`}
+                        >
+                          {p}
+                        </button>
+                      )
+                    ));
+                  })()}
                   <button
                     onClick={() => {
                       const totalPages = Math.ceil(assignedTotal / leadsLimit);

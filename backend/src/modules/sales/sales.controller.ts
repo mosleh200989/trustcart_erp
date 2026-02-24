@@ -112,6 +112,27 @@ export class SalesController {
     return this.salesService.getAgentOrderStats(Number(userId));
   }
 
+  @Get('daily-report')
+  @RequirePermissions('view-sales-reports')
+  async getDailyReport(@Query('date') date?: string) {
+    const reportDate = date || new Date().toISOString().slice(0, 10);
+    return this.salesService.getDailyReport(reportDate);
+  }
+
+  @Get('agent-wise-report')
+  @RequirePermissions('view-sales-reports')
+  async getAgentWiseReport(
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('agentId') agentId?: string,
+  ) {
+    return this.salesService.getAgentWiseReport({
+      startDate: startDate || undefined,
+      endDate: endDate || undefined,
+      agentId: agentId ? parseInt(agentId, 10) : undefined,
+    });
+  }
+
   @Get(':id')
   @RequirePermissions('view-sales-orders')
   async findOne(@Param('id') id: string) {
