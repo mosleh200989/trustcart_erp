@@ -11,6 +11,7 @@ interface LandingPage {
   slug: string;
   description: string;
   hero_image_url: string;
+  template?: string;
   is_active: boolean;
   view_count: number;
   order_count: number;
@@ -140,6 +141,7 @@ export default function LandingPagesIndex() {
               <thead className="bg-gray-50 border-b">
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Page</th>
+                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Template</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Slug / URL</th>
                   <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Status</th>
                   <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Views</th>
@@ -167,6 +169,15 @@ export default function LandingPagesIndex() {
                           </div>
                         </div>
                       </div>
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold ${
+                        page.template === 'elegant'
+                          ? 'bg-gradient-to-r from-purple-100 to-pink-100 text-purple-700'
+                          : 'bg-blue-50 text-blue-600'
+                      }`}>
+                        {page.template === 'elegant' ? '✨ Elegant' : '📄 Classic'}
+                      </span>
                     </td>
                     <td className="px-4 py-3">
                       <div className="space-y-1">

@@ -40,6 +40,7 @@ interface FormData {
   title: string;
   slug: string;
   description: string;
+  template: string;
   hero_image_url: string;
   hero_title: string;
   hero_subtitle: string;
@@ -99,6 +100,7 @@ export default function LandingPageEditor() {
     title: '',
     slug: '',
     description: '',
+    template: 'classic',
     hero_image_url: '',
     hero_title: '',
     hero_subtitle: '',
@@ -292,6 +294,55 @@ export default function LandingPageEditor() {
   // ─── Tab: General ───
   const renderGeneralTab = () => (
     <div className="space-y-6">
+      {/* Template Selector */}
+      <div className="bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-xl p-4">
+        <label className="block text-sm font-semibold text-gray-800 mb-2">Page Template</label>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div
+            onClick={() => setForm((prev) => ({ ...prev, template: 'classic' }))}
+            className={`cursor-pointer border-2 rounded-xl p-4 transition-all ${
+              form.template === 'classic'
+                ? 'border-blue-500 bg-white shadow-md ring-2 ring-blue-200'
+                : 'border-gray-200 bg-white hover:border-gray-300'
+            }`}
+          >
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center text-blue-600 font-bold text-lg">C</div>
+              <div>
+                <div className="font-semibold text-gray-800">Classic</div>
+                <div className="text-xs text-gray-500">Original layout — hero + sections</div>
+              </div>
+            </div>
+            <div className="flex gap-1">
+              <div className="h-1 flex-1 rounded bg-blue-300"></div>
+              <div className="h-1 flex-1 rounded bg-blue-200"></div>
+              <div className="h-1 flex-1 rounded bg-blue-100"></div>
+            </div>
+          </div>
+          <div
+            onClick={() => setForm((prev) => ({ ...prev, template: 'elegant' }))}
+            className={`cursor-pointer border-2 rounded-xl p-4 transition-all ${
+              form.template === 'elegant'
+                ? 'border-purple-500 bg-white shadow-md ring-2 ring-purple-200'
+                : 'border-gray-200 bg-white hover:border-gray-300'
+            }`}
+          >
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg flex items-center justify-center text-white font-bold text-lg">E</div>
+              <div>
+                <div className="font-semibold text-gray-800">Elegant</div>
+                <div className="text-xs text-gray-500">Premium design — glassmorphism & animations</div>
+              </div>
+            </div>
+            <div className="flex gap-1">
+              <div className="h-1 flex-1 rounded bg-gradient-to-r from-purple-400 to-pink-400"></div>
+              <div className="h-1 flex-1 rounded bg-gradient-to-r from-purple-300 to-pink-300"></div>
+              <div className="h-1 flex-1 rounded bg-gradient-to-r from-purple-200 to-pink-200"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Page Title *</label>
