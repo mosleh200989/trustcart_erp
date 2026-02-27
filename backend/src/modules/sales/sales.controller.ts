@@ -133,6 +133,18 @@ export class SalesController {
     });
   }
 
+  @Get('agent-monthly-report')
+  @RequirePermissions('view-sales-reports')
+  async getAgentMonthlyReport(
+    @Query('month') month?: string,
+    @Query('year') year?: string,
+  ) {
+    const now = new Date();
+    const m = month ? parseInt(month, 10) : now.getMonth() + 1;
+    const y = year ? parseInt(year, 10) : now.getFullYear();
+    return this.salesService.getAgentMonthlyReport({ month: m, year: y });
+  }
+
   @Get(':id')
   @RequirePermissions('view-sales-orders')
   async findOne(@Param('id') id: string) {

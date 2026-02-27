@@ -1270,4 +1270,118 @@ export class SalesService {
       })),
     };
   }
+
+  /**
+   * Individual Monthly Order Report
+   * Returns per-agent, per-day order counts for a given month/year,
+   * along with total, delivered, cancelled, and cancelled ratio.
+   */
+  async getAgentMonthlyReport(params: { month: number; year: number }) {
+    const { month, year } = params;
+    const toNum = (v: any) => parseFloat(v) || 0;
+
+    // Calculate date range for the given month
+    const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
+    const lastDay = new Date(year, month, 0).getDate();
+    const endDate = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+
+    // 1) Per-agent, per-day order counts
+    const dailyQb = this.salesRepository
+      .createQueryBuilder('o')
+      .innerJoin('users', 'u', 'u.id = o.created_by')
+      .select([
+        'o.created_by AS agent_id',
+        'u.name AS agent_name',
+        'u.last_name AS agent_last_name',
+        'EXTRACT(DAY FROM o.order_date) AS day',
+        'COUNT(o.id) AS order_count',
+      ])
+      .where('o.created_by IS NOT NULL')
+      .andWhere('DATE(o.order_date) >= :startDate', { startDate })
+      .andWhere('DATE(o.order_date) <= :endDate', { endDate })
+      .groupBy('o.created_by')
+      .addGroupBy('u.name')
+      .addGroupBy('u.last_name')
+      .addGroupBy('EXTRACT(DAY FROM o.order_date)')
+      .orderBy('u.name', 'ASC');
+
+    const dailyRows = await dailyQb.getRawMany();
+
+    // 2) Per-agent summary (total, delivered, cancelled)
+    const summaryQb = this.salesRepository
+      .createQueryBuilder('o')
+      .innerJoin('users', 'u', 'u.id = o.created_by')
+      .select([
+        'o.created_by AS agent_id',
+        'u.name AS agent_name',
+        'u.last_name AS agent_last_name',
+        'COUNT(o.id) AS total_orders',
+        `COUNT(CASE WHEN LOWER(o.status::text) = 'delivered' THEN 1 END) AS delivered_orders`,
+        `COUNT(CASE WHEN LOWER(o.status::text) = 'cancelled' THEN 1 END) AS cancelled_orders`,
+      ])
+      .where('o.created_by IS NOT NULL')
+      .andWhere('DATE(o.order_date) >= :startDate', { startDate })
+      .andWhere('DATE(o.order_date) <= :endDate', { endDate })
+      .groupBy('o.created_by')
+      .addGroupBy('u.name')
+      .addGroupBy('u.last_name')
+      .orderBy('u.name', 'ASC');
+
+    const summaryRows = await summaryQb.getRawMany();
+
+    // Build agent map
+    const agentMap = new Map<number, {
+      agentId: number;
+      agentName: string;
+      dailyOrders: Record<number, number>; // day -> count
+      total: number;
+      delivered: number;
+      cancelled: number;
+    }>();
+
+    // Populate from summary
+    for (const r of summaryRows) {
+      const id = toNum(r.agent_id);
+      agentMap.set(id, {
+        agentId: id,
+        agentName: [r.agent_name, r.agent_last_name].filter(Boolean).join(' ') || `Agent #${id}`,
+        dailyOrders: {},
+        total: toNum(r.total_orders),
+        delivered: toNum(r.delivered_orders),
+        cancelled: toNum(r.cancelled_orders),
+      });
+    }
+
+    // Populate daily orders
+    for (const r of dailyRows) {
+      const id = toNum(r.agent_id);
+      const day = toNum(r.day);
+      const agent = agentMap.get(id);
+      if (agent) {
+        agent.dailyOrders[day] = toNum(r.order_count);
+      }
+    }
+
+    // Convert map to sorted array
+    const agents = Array.from(agentMap.values())
+      .sort((a, b) => b.total - a.total); // sort by total orders desc
+
+    // Grand totals
+    const grandTotal = agents.reduce((s, a) => s + a.total, 0);
+    const grandDelivered = agents.reduce((s, a) => s + a.delivered, 0);
+    const grandCancelled = agents.reduce((s, a) => s + a.cancelled, 0);
+
+    return {
+      month,
+      year,
+      daysInMonth: lastDay,
+      agents,
+      grandTotal,
+      grandDelivered,
+      grandCancelled,
+      grandCancelledRatio: grandTotal > 0
+        ? parseFloat(((grandCancelled / grandTotal) * 100).toFixed(2))
+        : 0,
+    };
+  }
 }
