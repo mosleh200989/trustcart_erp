@@ -555,7 +555,7 @@ export class CrmTeamService {
       entry.revenue += stats.totalSpent;
       entry.customers.push({
         id: customer.id,
-        name: [customer.name, customer.last_name].filter(Boolean).join(' ').trim() || 'N/A',
+        name: [customer.name, customer.lastName].filter(Boolean).join(' ').trim() || 'N/A',
         phone: customer.phone || '',
         email: customer.email || '',
         orderCount: stats.orderCount,
