@@ -71,6 +71,9 @@ export class LandingPage {
   @Column({ length: 50, default: '#1a1a2e' })
   background_color!: string;
 
+  @Column({ length: 50, default: 'classic' })
+  template!: string;
+
   @Column({ length: 500, nullable: true })
   meta_title!: string;
 
