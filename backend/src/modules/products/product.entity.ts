@@ -36,6 +36,9 @@ export class Product {
   @Column({ nullable: true })
   description_bn!: string;
 
+  @Column({ nullable: true, type: 'text' })
+  short_description!: string;
+
   @Column({ nullable: false })
   category_id!: number;
 

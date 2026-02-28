@@ -353,8 +353,10 @@ export default function ProductDetailsPage() {
 
   const displayName = product.name_en || product.name_bn || "Product";
   const basePrice = Number(product.base_price || product.price || 0);
-  // Use selected variant price if a variant is selected, otherwise use base price
-  const price = selectedVariant ? selectedVariant.price : basePrice;
+  const salePrice = product.sale_price ? Number(product.sale_price) : null;
+  // Use selected variant price if a variant is selected; otherwise use sale_price (offer price) if available, then base price
+  const price = selectedVariant ? selectedVariant.price : (salePrice != null && salePrice > 0 && salePrice < basePrice ? salePrice : basePrice);
+  const hasDiscount = !selectedVariant && salePrice != null && salePrice > 0 && salePrice < basePrice;
   const additionalInfo = product.additional_info || {};
   const sizeVariants: SizeVariant[] = Array.isArray(product.size_variants) ? product.size_variants : [];
 
@@ -707,6 +709,16 @@ export default function ProductDetailsPage() {
                   <div className="text-3xl lg:text-4xl font-bold text-orange-500 mb-2">
                     ৳{price.toFixed(2)}
                   </div>
+                  {hasDiscount && (
+                    <p className="text-gray-500 text-lg line-through">
+                      ৳{basePrice.toFixed(2)}
+                    </p>
+                  )}
+                  {hasDiscount && (
+                    <span className="inline-block mt-1 bg-red-100 text-red-600 text-sm font-semibold px-2 py-0.5 rounded">
+                      {Math.round(((basePrice - price) / basePrice) * 100)}% OFF
+                    </span>
+                  )}
                   {selectedVariant && basePrice !== selectedVariant.price && (
                     <p className="text-gray-500 text-sm line-through">
                       Base price: ৳{basePrice.toFixed(2)}
@@ -718,6 +730,11 @@ export default function ProductDetailsPage() {
                     </p>
                   )}
                 </div>
+
+                {/* Short Description */}
+                {product.short_description && (
+                  <div className="mb-6 prose prose-sm max-w-none text-gray-700" dangerouslySetInnerHTML={{ __html: product.short_description }} />
+                )}
 
                 {/* Size Variants */}
                 {sizeVariants.length > 0 && (
@@ -816,25 +833,6 @@ export default function ProductDetailsPage() {
                     <FaShareAlt />
                     <span className="sm:hidden">Share Product</span>
                   </button>
-                </div>
-
-                {/* Delivery Charges */}
-                <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-6">
-                  <div className="flex items-center gap-2 mb-3">
-                    <FaShoppingCart className="text-orange-500" />
-                    <span className="font-semibold text-gray-800">Delivery Information</span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="flex items-center gap-2 bg-white rounded-md px-3 py-2 border">
-                      <span className="text-sm text-gray-600">Inside Dhaka</span>
-                      <span className="ml-auto font-bold text-orange-500">৳60</span>
-                    </div>
-                    <div className="flex items-center gap-2 bg-white rounded-md px-3 py-2 border">
-                      <span className="text-sm text-gray-600">Outside Dhaka</span>
-                      <span className="ml-auto font-bold text-orange-500">৳110</span>
-                    </div>
-                  </div>
-                  <p className="text-xs text-gray-500 mt-2">Cash on Delivery available all over Bangladesh</p>
                 </div>
 
                 {/* Contact / Social Buttons */}

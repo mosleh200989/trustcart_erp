@@ -866,9 +866,8 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
   const itemsSubtotal = items.reduce((sum, item) => sum + Number(item.subtotal || 0), 0);
   const totalAmount = Number(order.totalAmount || 0);
   const discountAmount = Number(order.discountAmount || order.discount_amount || 0);
-  const deliveryCharge = Number.isFinite(Number(order.deliveryCharge || order.delivery_charge))
-    ? Number(order.deliveryCharge || order.delivery_charge)
-    : Math.max(0, totalAmount - itemsSubtotal + discountAmount);
+  // Use the deliveryCharge computed by the backend (getOrderDetails always returns it)
+  const deliveryCharge = Number(order.deliveryCharge ?? order.delivery_charge ?? 0);
   const totalQuantity = items.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
 
   const canHoldOrCancel = !order.courierStatus || !['picked', 'in_transit', 'delivered'].includes(order.courierStatus);

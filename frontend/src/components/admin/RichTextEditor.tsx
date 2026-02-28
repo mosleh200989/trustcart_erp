@@ -1,5 +1,5 @@
 import dynamic from 'next/dynamic';
-import React, { useMemo, useState, useCallback, Component } from 'react';
+import React, { useMemo, useState, useCallback, useEffect, Component } from 'react';
 import 'react-quill/dist/quill.snow.css';
 
 // Dynamically import ReactQuill with SSR disabled
@@ -7,6 +7,23 @@ const ReactQuill = dynamic(() => import('react-quill'), {
   ssr: false,
   loading: () => <div className="h-40 bg-gray-100 animate-pulse rounded-lg" />,
 });
+
+// Suppress known react-quill IndexSizeError (setStart/setEnd offset bug)
+if (typeof window !== 'undefined') {
+  const origAddEventListener = EventTarget.prototype.addEventListener;
+  // Patch window.addEventListener for 'error' won't help; instead we use a global handler
+  window.addEventListener('error', (e: ErrorEvent) => {
+    if (
+      e.error instanceof DOMException &&
+      e.error.name === 'IndexSizeError' &&
+      e.message?.includes('setStart')
+    ) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      console.warn('Suppressed react-quill IndexSizeError');
+    }
+  });
+}
 
 /**
  * Sanitize HTML before passing to Quill to avoid splitText offset crashes.
@@ -107,6 +124,22 @@ export default function RichTextEditor({
     setFallbackMode(true);
   }, []);
 
+  // Wrap onChange to catch IndexSizeError during editing
+  const safeOnChange = useCallback(
+    (val: string) => {
+      try {
+        onChange(val);
+      } catch (err: any) {
+        if (err?.name === 'IndexSizeError') {
+          console.warn('Suppressed react-quill IndexSizeError in onChange');
+        } else {
+          throw err;
+        }
+      }
+    },
+    [onChange]
+  );
+
   return (
     <div className={className}>
       {label && (
@@ -141,7 +174,7 @@ export default function RichTextEditor({
             <ReactQuill
               theme="snow"
               value={safeValue}
-              onChange={onChange}
+              onChange={safeOnChange}
               modules={modules}
               formats={formats}
               placeholder={placeholder}

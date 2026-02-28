@@ -24,7 +24,7 @@ export class ProductsService {
       const rawResults = await this.productsRepository.query(`
         SELECT 
           p.id, p.slug, p.sku, p.product_code, 
-          p.name_en, p.name_bn, p.description_en, 
+          p.name_en, p.name_bn, p.description_en, p.short_description,
           p.category_id, 
           c.name_en as category_name,
           p.base_price, 
@@ -84,7 +84,7 @@ export class ProductsService {
       const rawResults = await this.productsRepository.query(`
         SELECT 
           p.id, p.slug, p.sku, p.product_code, 
-          p.name_en, p.name_bn, p.description_en, 
+          p.name_en, p.name_bn, p.description_en, p.short_description,
           p.category_id, 
           c.name_en as category_name,
           p.base_price, 
@@ -155,7 +155,7 @@ export class ProductsService {
       const results = await this.productsRepository.query(`
         SELECT 
           p.id, p.slug, p.sku, p.product_code, 
-          p.name_en, p.name_bn, p.description_en, 
+          p.name_en, p.name_bn, p.description_en, p.short_description,
           p.category_id, 
           c.name_en as category_name,
           p.base_price, 
@@ -204,7 +204,7 @@ export class ProductsService {
         SELECT 
           p.id, p.slug, p.sku, p.product_code, 
           p.name_en, p.name_bn, 
-          p.description_en, p.description_bn, 
+          p.description_en, p.description_bn, p.short_description,
           p.category_id,
           c.name_en as category_name,
           p.base_price, 

@@ -85,6 +85,7 @@ export default function AdminProducts() {
     category_id: '',
     stock_quantity: '',
     description_en: '',
+    short_description: '',
     status: 'active',
     image_url: '',
     display_position: ''
@@ -147,6 +148,7 @@ export default function AdminProducts() {
       category_id: '',
       stock_quantity: '',
       description_en: '',
+      short_description: '',
       status: 'active',
       image_url: '',
       display_position: ''
@@ -179,6 +181,7 @@ export default function AdminProducts() {
         category_id: fullProduct.category_id ? fullProduct.category_id.toString() : '',
         stock_quantity: fullProduct.stock_quantity ? fullProduct.stock_quantity.toString() : '',
         description_en: fullProduct.description_en || '',
+        short_description: fullProduct.short_description || '',
         status: fullProduct.status || 'active',
         image_url: fullProduct.image_url || '',
         display_position: fullProduct.display_position ? fullProduct.display_position.toString() : ''
@@ -204,6 +207,7 @@ export default function AdminProducts() {
         category_id: '',
         stock_quantity: product.stock_quantity?.toString() || '',
         description_en: '',
+        short_description: '',
         status: product.status,
         image_url: '',
         display_position: ''
@@ -355,6 +359,7 @@ export default function AdminProducts() {
       base_price: parseFloat(formData.base_price),
       category_id: parseInt(formData.category_id),
       description_en: formData.description_en?.trim() || null,
+      short_description: formData.short_description?.trim() || null,
       status: formData.status || 'active'
     };
 
@@ -1022,6 +1027,13 @@ export default function AdminProducts() {
                 value={formData.description_en}
                 onChange={(value) => setFormData({ ...formData, description_en: value })}
                 placeholder="Enter product description..."
+              />
+
+              <RichTextEditor
+                label="Short Description"
+                value={formData.short_description}
+                onChange={(value) => setFormData({ ...formData, short_description: value })}
+                placeholder="Enter a short description (shown on product details page)..."
               />
 
               {/* Size Variants Section */}
