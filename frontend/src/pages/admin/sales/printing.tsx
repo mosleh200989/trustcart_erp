@@ -170,15 +170,26 @@ export default function PrintingPage() {
     setShowInvoicePrint(true);
   };
 
-  const handlePrintSticker = (orderId?: number) => {
+  const handlePrintSticker = async (orderId?: number) => {
+    let ids: number[];
     if (orderId) {
-      setPrintOrderIds([orderId]);
+      ids = [orderId];
     } else {
-      const ids = selectedRowIds.map((id) => Number(id)).filter((id) => Number.isFinite(id));
+      ids = selectedRowIds.map((id) => Number(id)).filter((id) => Number.isFinite(id));
       if (ids.length === 0) { toast.warning('Select at least one order'); return; }
-      setPrintOrderIds(ids);
     }
+    setPrintOrderIds(ids);
     setShowStickerPrint(true);
+    // Also mark as printed
+    try {
+      if (ids.length === 1) {
+        await apiClient.post(`/order-management/${ids[0]}/mark-sticker-printed`);
+      } else {
+        await apiClient.post('/order-management/bulk-mark-sticker-printed', { orderIds: ids });
+      }
+    } catch {
+      // silent — printing modal is already open
+    }
   };
 
   // ==================== MARK AS PRINTED HANDLERS ====================
@@ -438,14 +449,13 @@ export default function PrintingPage() {
         const printed = row.stickerPrinted ?? false;
         return (
           <div className="flex justify-center">
-            <input
-              type="checkbox"
-              checked={printed}
-              onChange={(e) => { e.stopPropagation(); handleStickerCheckbox(row.id); }}
-              onClick={(e) => e.stopPropagation()}
-              className="w-6 h-6 accent-green-600 cursor-pointer"
-              title={printed ? 'Sticker Printed' : 'Click to print sticker & mark as printed'}
-            />
+            <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+              printed
+                ? 'bg-green-100 text-green-800'
+                : 'bg-yellow-100 text-yellow-800'
+            }`}>
+              {printed ? 'Printed' : 'Not Printed'}
+            </span>
           </div>
         );
       },
@@ -526,19 +536,9 @@ export default function PrintingPage() {
               onClick={() => handlePrintSticker()}
               disabled={selectedRowIds.length === 0}
               className="px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-green-500 to-green-600 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:from-green-600 hover:to-green-700 transition-all flex items-center gap-1.5"
-              title="Print Sticker for selected orders"
+              title="Print Sticker & Mark as Printed for selected orders"
             >
               <FaTag /> Print Sticker
-            </button>
-
-            <button
-              type="button"
-              onClick={handleBulkMarkStickerPrinted}
-              disabled={selectedRowIds.length === 0}
-              className="px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-teal-500 to-teal-600 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:from-teal-600 hover:to-teal-700 transition-all flex items-center gap-1.5"
-              title="Mark Sticker Printed for selected orders"
-            >
-              <FaTag /> Mark Sticker Printed
             </button>
 
             <div className="border-l border-gray-300 h-8 mx-1" />
