@@ -287,6 +287,27 @@ export default function PrintingPage() {
     setShowOrderDetails(true);
   };
 
+  // ==================== CHECKBOX HANDLERS (print + mark) ====================
+
+  const handleStickerCheckbox = async (orderId: number) => {
+    // Open sticker print modal AND mark as printed
+    setPrintOrderIds([orderId]);
+    setShowStickerPrint(true);
+    try {
+      await apiClient.post(`/order-management/${orderId}/mark-sticker-printed`);
+    } catch {
+      // silent — modal already open
+    }
+  };
+
+  const handlePackedCheckbox = async (orderId: number, currentlyPacked: boolean) => {
+    if (currentlyPacked) {
+      await handleUnmarkPacked(orderId);
+    } else {
+      await handleMarkPacked(orderId);
+    }
+  };
+
   // ==================== COLUMNS ====================
 
   const columns = [
@@ -299,18 +320,37 @@ export default function PrintingPage() {
       },
     },
     {
-      key: 'customerName',
-      label: 'Customer Name',
-      render: (_: any, row: PrintingOrder) => row.customerName || '-',
+      key: 'orderDate',
+      label: 'Date',
+      render: (_: any, row: PrintingOrder) => {
+        const raw = row.createdAt ?? row.orderDate;
+        if (!raw) return '-';
+        const d = new Date(raw);
+        if (isNaN(d.getTime())) return '-';
+        const date = d.toLocaleDateString('en-GB', { timeZone: 'Asia/Dhaka', day: '2-digit', month: '2-digit', year: 'numeric' });
+        const time = d.toLocaleTimeString('en-US', { timeZone: 'Asia/Dhaka', hour: '2-digit', minute: '2-digit', hour12: true });
+        return (
+          <div>
+            <div>{date}</div>
+            <div className="text-xs text-gray-500">{time}</div>
+          </div>
+        );
+      },
     },
     {
-      key: 'customerPhone',
-      label: 'Phone',
-      render: (_: any, row: PrintingOrder) => row.customerPhone || '-',
+      key: 'customer',
+      label: 'Customer',
+      render: (_: any, row: PrintingOrder) => (
+        <div>
+          <div className="font-medium">{row.customerName || '-'}</div>
+          <div className="text-xs text-gray-500">{row.customerPhone || '-'}</div>
+        </div>
+      ),
     },
     {
       key: 'items',
       label: 'Products',
+      className: 'min-w-[280px]',
       render: (_: any, row: PrintingOrder) => {
         const items = row.items || [];
         if (items.length === 0) return <span className="text-gray-400 text-xs">No items</span>;
@@ -392,44 +432,21 @@ export default function PrintingPage() {
       },
     },
     {
-      key: 'orderDate',
-      label: 'Date',
-      render: (_: any, row: PrintingOrder) => {
-        const raw = row.createdAt ?? row.orderDate;
-        if (!raw) return '-';
-        const d = new Date(raw);
-        if (isNaN(d.getTime())) return '-';
-        const date = d.toLocaleDateString('en-GB', { timeZone: 'Asia/Dhaka', day: '2-digit', month: '2-digit', year: 'numeric' });
-        const time = d.toLocaleTimeString('en-US', { timeZone: 'Asia/Dhaka', hour: '2-digit', minute: '2-digit', hour12: true });
-        return (
-          <div>
-            <div>{date}</div>
-            <div className="text-xs text-gray-500">{time}</div>
-          </div>
-        );
-      },
-    },
-    {
-      key: 'invoicePrinted',
-      label: 'Invoice Print',
-      render: (_: any, row: PrintingOrder) => {
-        const printed = row.invoicePrinted ?? false;
-        return printed ? (
-          <span className="px-2 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800">Printed</span>
-        ) : (
-          <span className="px-2 py-1 rounded-full text-xs font-semibold bg-yellow-100 text-yellow-800">Not Printed</span>
-        );
-      },
-    },
-    {
       key: 'stickerPrinted',
       label: 'Sticker Print',
       render: (_: any, row: PrintingOrder) => {
         const printed = row.stickerPrinted ?? false;
-        return printed ? (
-          <span className="px-2 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800">Printed</span>
-        ) : (
-          <span className="px-2 py-1 rounded-full text-xs font-semibold bg-yellow-100 text-yellow-800">Not Printed</span>
+        return (
+          <div className="flex justify-center">
+            <input
+              type="checkbox"
+              checked={printed}
+              onChange={(e) => { e.stopPropagation(); handleStickerCheckbox(row.id); }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-6 h-6 accent-green-600 cursor-pointer"
+              title={printed ? 'Sticker Printed' : 'Click to print sticker & mark as printed'}
+            />
+          </div>
         );
       },
     },
@@ -438,51 +455,16 @@ export default function PrintingPage() {
       label: 'Packed',
       render: (_: any, row: PrintingOrder) => {
         const packed = row.isPacked ?? false;
-        return packed ? (
-          <span className="px-2 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800">Packed</span>
-        ) : (
-          <span className="px-2 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-700">Not Packed</span>
-        );
-      },
-    },
-    {
-      key: 'actions',
-      label: 'Actions',
-      render: (_: any, row: PrintingOrder) => {
-        const packed = row.isPacked ?? false;
         return (
-          <div className="flex items-center gap-1 flex-wrap">
-            <button
-              onClick={(e) => { e.stopPropagation(); handlePrintInvoice(row.id); }}
-              className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors"
-              title="Print Invoice"
-            >
-              <FaFileInvoice className="text-sm" />
-            </button>
-            <button
-              onClick={(e) => { e.stopPropagation(); handlePrintSticker(row.id); }}
-              className="p-1.5 text-green-600 hover:bg-green-50 rounded transition-colors"
-              title="Print Sticker"
-            >
-              <FaTag className="text-sm" />
-            </button>
-            {packed ? (
-              <button
-                onClick={(e) => { e.stopPropagation(); handleUnmarkPacked(row.id); }}
-                className="p-1.5 text-orange-600 hover:bg-orange-50 rounded transition-colors"
-                title="Unmark Packed"
-              >
-                <FaBoxOpen className="text-sm" />
-              </button>
-            ) : (
-              <button
-                onClick={(e) => { e.stopPropagation(); handleMarkPacked(row.id); }}
-                className="p-1.5 text-purple-600 hover:bg-purple-50 rounded transition-colors"
-                title="Mark as Packed"
-              >
-                <FaBoxOpen className="text-sm" />
-              </button>
-            )}
+          <div className="flex justify-center">
+            <input
+              type="checkbox"
+              checked={packed}
+              onChange={(e) => { e.stopPropagation(); handlePackedCheckbox(row.id, packed); }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-6 h-6 accent-purple-600 cursor-pointer"
+              title={packed ? 'Click to unmark packed' : 'Click to mark as packed'}
+            />
           </div>
         );
       },

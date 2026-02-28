@@ -4,6 +4,7 @@ import { FaEdit, FaEye, FaTrash, FaChevronLeft, FaChevronRight } from 'react-ico
 interface Column {
   key: string;
   label: string;
+  className?: string;
   render?: (value: any, row: any) => React.ReactNode;
 }
 
@@ -103,7 +104,7 @@ export default function DataTable({
               {columns.map((column) => (
                 <th
                   key={column.key}
-                  className="px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider"
+                  className={`px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider ${column.className || ''}`}
                 >
                   {column.label}
                 </th>
@@ -146,7 +147,7 @@ export default function DataTable({
                     </td>
                   )}
                   {columns.map((column) => (
-                    <td key={column.key} className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    <td key={column.key} className={`px-6 py-4 whitespace-nowrap text-sm text-gray-900 ${column.className || ''}`}>
                       {column.render ? column.render(row[column.key], row) : row[column.key] || '-'}
                     </td>
                   ))}
