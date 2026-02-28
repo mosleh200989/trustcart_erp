@@ -156,7 +156,7 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
         outcome: e.metadata?.outcome || e.call_outcome || e.outcome || '',
         agentName: e.agent_name || e.agentName || '',
         duration: e.metadata?.duration || e.duration || '',
-        callType: e.metadata?.type || e.callType || ''
+        callType: e.metadata?.type || e.callType || '',
       }));
       setCallLogs(calls);
     } catch (error) {
@@ -866,9 +866,8 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
   const itemsSubtotal = items.reduce((sum, item) => sum + Number(item.subtotal || 0), 0);
   const totalAmount = Number(order.totalAmount || 0);
   const discountAmount = Number(order.discountAmount || order.discount_amount || 0);
-  const deliveryCharge = Number.isFinite(Number(order.deliveryCharge || order.delivery_charge))
-    ? Number(order.deliveryCharge || order.delivery_charge)
-    : Math.max(0, totalAmount - itemsSubtotal + discountAmount);
+  // Use the deliveryCharge computed by the backend (getOrderDetails always returns it)
+  const deliveryCharge = Number(order.deliveryCharge ?? order.delivery_charge ?? 0);
   const totalQuantity = items.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
 
   const canHoldOrCancel = !order.courierStatus || !['picked', 'in_transit', 'delivered'].includes(order.courierStatus);
@@ -2294,7 +2293,9 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                         
                         <div className="flex items-center gap-4 text-sm text-gray-600 mt-2">
                           {call.agentName && (
-                            <span><strong>Agent:</strong> {call.agentName}</span>
+                            <span className="inline-flex items-center gap-1 bg-blue-50 text-blue-700 px-2 py-0.5 rounded font-medium">
+                              <strong>Sales Executive:</strong> {call.agentName}
+                            </span>
                           )}
                           {call.duration && (
                             <span><strong>Duration:</strong> {call.duration}s</span>

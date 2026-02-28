@@ -428,6 +428,52 @@ export class OrderManagementService {
     userName: string;
     ipAddress?: string;
   }): Promise<OrderItem> {
+    // ── Migrate sales_order_items → order_items (for website / landing-page orders) ──
+    // If the order_items table is still empty for this order but sales_order_items
+    // has rows, copy them over first so they are not lost when we insert the new item.
+    const existingAdminItems = await this.orderItemRepository.find({ where: { orderId: data.orderId } });
+    if (existingAdminItems.length === 0) {
+      const salesItems = await this.salesOrderItemRepository.find({ where: { salesOrderId: data.orderId } });
+      if (salesItems.length > 0) {
+        // Resolve product names for sales_order_items that only store productId
+        const productIds = Array.from(new Set(salesItems.map((i) => Number(i.productId)).filter(Boolean)));
+        const products = productIds.length
+          ? await this.productRepository.find({ where: { id: In(productIds) } })
+          : [];
+        const productById = new Map(products.map((p) => [Number(p.id), p]));
+
+        let migratedSubtotal = 0;
+        for (const si of salesItems) {
+          const qty = Number(si.quantity || 0);
+          const unit = Number(si.unitPrice || 0);
+          const sub = si.lineTotal != null ? Number(si.lineTotal) : qty * unit;
+          const product = si.productId ? productById.get(Number(si.productId)) : null;
+
+          const migratedItem = this.orderItemRepository.create({
+            orderId: data.orderId,
+            productId: si.productId ? Number(si.productId) : 0,
+            productName: product?.name_en || (si as any).productName || (si as any).product_name || 'Product',
+            variantName: (si as any).variantName || (si as any).variant_name || undefined,
+            quantity: qty,
+            unitPrice: unit,
+            subtotal: sub,
+            updatedBy: data.userId,
+          });
+          await this.orderItemRepository.save(migratedItem);
+          migratedSubtotal += sub;
+        }
+
+        // Persist deliveryCharge to DB if it was null or 0, so it's always explicit going forward
+        const order = await this.salesOrderRepository.findOne({ where: { id: data.orderId } });
+        if (order && (!order.deliveryCharge || Number(order.deliveryCharge) === 0)) {
+          const discountAmount = Number(order.discountAmount || 0);
+          const derivedDeliveryCharge = Math.max(0, Number(order.totalAmount || 0) - migratedSubtotal + discountAmount);
+          order.deliveryCharge = derivedDeliveryCharge as any;
+          await this.salesOrderRepository.save(order);
+        }
+      }
+    }
+
     const subtotal = data.quantity * data.unitPrice;
     
     const orderItem = this.orderItemRepository.create({
@@ -442,6 +488,23 @@ export class OrderManagementService {
     });
 
     const savedItem = await this.orderItemRepository.save(orderItem);
+
+    // ── Recalculate totalAmount = allItemsSubtotal + deliveryCharge - discount ──
+    // Read deliveryCharge from the DB (already persisted during migration or by updateDeliveryCharge).
+    // If it's still null/0, derive it from the pre-add state: oldTotal - oldItemsSubtotal + discount.
+    try {
+      const order = await this.salesOrderRepository.findOne({ where: { id: data.orderId } });
+      if (order) {
+        const allItems = await this.orderItemRepository.find({ where: { orderId: data.orderId } });
+        const newItemsSubtotal = allItems.reduce((sum, item) => sum + Number(item.subtotal || 0), 0);
+        const discountAmount = Number(order.discountAmount || 0);
+        const dc = Number(order.deliveryCharge || 0);
+        order.totalAmount = newItemsSubtotal + dc - discountAmount;
+        await this.salesOrderRepository.save(order);
+      }
+    } catch (e) {
+      this.logger.warn(`Failed to update order total after adding item: ${e}`);
+    }
 
     // Log activity
     const variantInfo = data.variantName ? ` [${data.variantName}]` : '';
@@ -550,6 +613,7 @@ export class OrderManagementService {
 
     // Recalculate total: subtotal + deliveryCharge - discount
     order.totalAmount = subtotal + newDeliveryCharge - discountAmount;
+    order.deliveryCharge = newDeliveryCharge as any;
 
     const updatedOrder = await this.salesOrderRepository.save(order);
 
@@ -1086,6 +1150,15 @@ export class OrderManagementService {
     const activityLogs = await this.enrichActivityLogs(await this.getActivityLogs(orderId));
     const courierTracking = await this.getCourierTrackingHistory(orderId);
 
+    // Always compute reliable deliveryCharge for the response.
+    // Use the DB column if it has a real value; otherwise derive from totalAmount.
+    const allItemsSubtotal = items.reduce((sum: number, i: any) => sum + Number(i.subtotal || 0), 0);
+    const oDiscount = Number(orderWithCourierSync.discountAmount || 0);
+    let resolvedDeliveryCharge = Number(orderWithCourierSync.deliveryCharge || 0);
+    if (resolvedDeliveryCharge === 0 && Number(orderWithCourierSync.totalAmount || 0) > allItemsSubtotal) {
+      resolvedDeliveryCharge = Math.max(0, Number(orderWithCourierSync.totalAmount || 0) - allItemsSubtotal + oDiscount);
+    }
+
     const orderHistory = orderHistoryRows.map((o) => ({
       id: o.id,
       salesOrderNumber: o.salesOrderNumber,
@@ -1097,6 +1170,7 @@ export class OrderManagementService {
 
     return {
       ...orderWithCourierSync,
+      deliveryCharge: resolvedDeliveryCharge,
       items,
       activityLogs,
       courierTracking,
