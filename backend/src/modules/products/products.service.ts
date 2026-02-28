@@ -168,7 +168,8 @@ export class ProductsService {
           p.discount_type,
           p.discount_value,
           p.sale_price,
-          p.brand
+          p.brand,
+          p.size_variants
         FROM products p
         LEFT JOIN LATERAL (
           SELECT image_url

@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
+import { FaTrash } from 'react-icons/fa';
 import AdminLayout from '@/layouts/AdminLayout';
 import DataTable from '@/components/admin/DataTable';
 import PageSizeSelector from '@/components/admin/PageSizeSelector';
@@ -143,6 +144,16 @@ export default function AdminSales() {
   const [showStickerPrint, setShowStickerPrint] = useState(false);
   const [printOrderIds, setPrintOrderIds] = useState<number[]>([]);
 
+  // Product search state for create order
+  const [orderItems, setOrderItems] = useState<Array<{ productId: number; productName: string; variantName: string; quantity: number; unitPrice: number }>>([]);
+  const [productSearchQuery, setProductSearchQuery] = useState('');
+  const [productSearchResults, setProductSearchResults] = useState<any[]>([]);
+  const [showProductDropdown, setShowProductDropdown] = useState(false);
+  const [searchingProducts, setSearchingProducts] = useState(false);
+  const [expandedProductId, setExpandedProductId] = useState<number | null>(null);
+  const [deliveryCharge, setDeliveryCharge] = useState<number>(0);
+  const productDropdownRef = useRef<HTMLDivElement>(null);
+
   const [formData, setFormData] = useState({
     order_number: '',
     order_date: new Date().toISOString().split('T')[0],
@@ -227,6 +238,64 @@ export default function AdminSales() {
     return () => clearTimeout(timer);
   }, [currentPage, itemsPerPage, filters]);
 
+  // Product search for create order
+  const searchProducts = async (query: string) => {
+    setProductSearchQuery(query);
+    if (!query.trim()) {
+      setProductSearchResults([]);
+      setShowProductDropdown(false);
+      return;
+    }
+    setSearchingProducts(true);
+    try {
+      const response = await apiClient.get(`/products/search?q=${encodeURIComponent(query)}`);
+      setProductSearchResults(response.data || []);
+      setShowProductDropdown(true);
+    } catch (error) {
+      console.error('Product search failed:', error);
+      setProductSearchResults([]);
+    } finally {
+      setSearchingProducts(false);
+    }
+  };
+
+  const addProductToOrder = (product: any, variant?: { name: string; price: number }) => {
+    const variantName = variant?.name || '';
+    const price = variant ? Number(variant.price) : Number(product.sale_price || product.base_price || product.price || 0);
+    const displayName = variantName ? `${product.name_en || product.name} - ${variantName}` : (product.name_en || product.name);
+    // Use a composite key: productId + variantName to allow same product with different variants
+    const itemKey = `${product.id}-${variantName}`;
+    const existing = orderItems.find(item => `${item.productId}-${item.variantName}` === itemKey);
+    if (existing) {
+      setOrderItems(orderItems.map(item =>
+        `${item.productId}-${item.variantName}` === itemKey ? { ...item, quantity: item.quantity + 1 } : item
+      ));
+    } else {
+      setOrderItems([...orderItems, {
+        productId: product.id,
+        productName: displayName,
+        variantName,
+        quantity: 1,
+        unitPrice: price,
+      }]);
+    }
+    setProductSearchQuery('');
+    setProductSearchResults([]);
+    setShowProductDropdown(false);
+    setExpandedProductId(null);
+  };
+
+  const removeProductFromOrder = (productId: number, variantName: string) => {
+    setOrderItems(orderItems.filter(item => !(item.productId === productId && item.variantName === variantName)));
+  };
+
+  const updateOrderItemQty = (productId: number, variantName: string, quantity: number) => {
+    if (quantity < 1) return;
+    setOrderItems(orderItems.map(item =>
+      (item.productId === productId && item.variantName === variantName) ? { ...item, quantity } : item
+    ));
+  };
+
   const handleAdd = () => {
     setModalMode('add');
     setFormData({
@@ -257,6 +326,11 @@ export default function AdminSales() {
       utm_medium: '',
       utm_campaign: ''
     });
+    setOrderItems([]);
+    setProductSearchQuery('');
+    setProductSearchResults([]);
+    setDeliveryCharge(0);
+    setExpandedProductId(null);
     setIsModalOpen(true);
   };
 
@@ -496,47 +570,70 @@ export default function AdminSales() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const payload: any = {
-        salesOrderNumber: formData.order_number ? String(formData.order_number).trim() : undefined,
-        orderDate: formData.order_date ? new Date(formData.order_date).toISOString() : undefined,
-
-        status: formData.status,
-
-        customerId:
-          formData.customer_id != null && String(formData.customer_id).trim() !== ''
-            ? Number(formData.customer_id)
-            : null,
-        customerName: formData.customer_name ? String(formData.customer_name).trim() : null,
-        customerEmail: formData.customer_email ? String(formData.customer_email).trim() : null,
-        customerPhone: formData.customer_phone ? String(formData.customer_phone).trim() : null,
-
-        shippingAddress: formData.shipping_address ? String(formData.shipping_address) : null,
-        courierNotes: formData.courier_notes ? String(formData.courier_notes) : null,
-        riderInstructions: formData.rider_instructions ? String(formData.rider_instructions) : null,
-        internalNotes: formData.internal_notes ? String(formData.internal_notes) : null,
-        notes: formData.notes ? String(formData.notes) : null,
-
-        totalAmount: formData.total_amount != null && String(formData.total_amount).trim() !== ''
-          ? Number(formData.total_amount)
-          : undefined,
-
-        userIp: formData.user_ip ? String(formData.user_ip) : null,
-        browserInfo: formData.browser_info ? String(formData.browser_info) : null,
-        deviceType: formData.device_type ? String(formData.device_type) : null,
-        operatingSystem: formData.operating_system ? String(formData.operating_system) : null,
-        trafficSource: formData.traffic_source ? String(formData.traffic_source) : null,
-        referrerUrl: formData.referrer_url ? String(formData.referrer_url) : null,
-        utmSource: formData.utm_source ? String(formData.utm_source) : null,
-        utmMedium: formData.utm_medium ? String(formData.utm_medium) : null,
-        utmCampaign: formData.utm_campaign ? String(formData.utm_campaign) : null,
-      };
-
       if (modalMode === 'add') {
-        payload.order_source = 'admin_panel';
+        // Simplified create: Name, Phone, Products, Shipping Address. Status = pending.
+        if (orderItems.length === 0) {
+          toast.error('Please add at least one product');
+          return;
+        }
+        const itemsTotal = orderItems.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
+        const totalAmount = itemsTotal + (deliveryCharge || 0);
+        const payload: any = {
+          customerName: formData.customer_name ? String(formData.customer_name).trim() : null,
+          customerPhone: formData.customer_phone ? String(formData.customer_phone).trim() : null,
+          shippingAddress: formData.shipping_address ? String(formData.shipping_address) : null,
+          courierNotes: formData.courier_notes ? String(formData.courier_notes) : null,
+          internalNotes: formData.internal_notes ? String(formData.internal_notes) : null,
+          deliveryCharge: deliveryCharge || 0,
+          status: 'pending',
+          orderDate: new Date().toISOString(),
+          totalAmount,
+          order_source: 'admin_panel',
+        };
         const response = await apiClient.post('/sales', payload);
-        setOrders([...orders, response.data]);
-        toast.success('Order added successfully');
+        const newOrderId = response.data?.id;
+
+        // Add each product as an order item
+        if (newOrderId && orderItems.length > 0) {
+          try {
+            await Promise.all(
+              orderItems.map(item =>
+                apiClient.post(`/order-management/${newOrderId}/items`, {
+                  productId: item.productId,
+                  productName: item.productName,
+                  variantName: item.variantName || null,
+                  quantity: item.quantity,
+                  unitPrice: item.unitPrice,
+                })
+              )
+            );
+          } catch (itemError) {
+            console.error('Failed to add products to order:', itemError);
+            toast.warning('Order created but some products failed to add');
+          }
+        }
+        toast.success('Order created successfully');
       } else if (modalMode === 'edit' && selectedOrder) {
+        const payload: any = {
+          salesOrderNumber: formData.order_number ? String(formData.order_number).trim() : undefined,
+          orderDate: formData.order_date ? new Date(formData.order_date).toISOString() : undefined,
+          status: formData.status,
+          customerId:
+            formData.customer_id != null && String(formData.customer_id).trim() !== ''
+              ? Number(formData.customer_id)
+              : null,
+          customerName: formData.customer_name ? String(formData.customer_name).trim() : null,
+          customerEmail: formData.customer_email ? String(formData.customer_email).trim() : null,
+          customerPhone: formData.customer_phone ? String(formData.customer_phone).trim() : null,
+          shippingAddress: formData.shipping_address ? String(formData.shipping_address) : null,
+          courierNotes: formData.courier_notes ? String(formData.courier_notes) : null,
+          riderInstructions: formData.rider_instructions ? String(formData.rider_instructions) : null,
+          internalNotes: formData.internal_notes ? String(formData.internal_notes) : null,
+          notes: formData.notes ? String(formData.notes) : null,
+          totalAmount: formData.total_amount != null && String(formData.total_amount).trim() !== ''
+            ? Number(formData.total_amount)
+            : undefined,
+        };
         const response = await apiClient.put(`/sales/${selectedOrder.id}`, payload);
         setOrders(orders.map(o => o.id === selectedOrder.id ? response.data : o));
         toast.success('Order updated successfully');
@@ -938,7 +1035,255 @@ export default function AdminSales() {
                 <p className="mt-1 text-gray-900">{selectedOrder?.order_date}</p>
               </div>
             </div>
+          ) : modalMode === 'add' ? (
+            /* ===== SIMPLIFIED CREATE ORDER FORM ===== */
+            <form id="order-form" onSubmit={handleSubmit} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <FormInput
+                  label="Customer Name"
+                  name="customer_name"
+                  value={formData.customer_name}
+                  onChange={handleInputChange}
+                  required
+                  placeholder="Customer name"
+                />
+                <FormInput
+                  label="Phone Number"
+                  name="customer_phone"
+                  value={formData.customer_phone}
+                  onChange={handleInputChange}
+                  required
+                  placeholder="e.g. 01XXXXXXXXX"
+                />
+              </div>
+
+              {/* Product Search & Selection */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Products <span className="text-red-500">*</span></label>
+                <div className="relative" ref={productDropdownRef}>
+                  <input
+                    type="text"
+                    value={productSearchQuery}
+                    onChange={(e) => searchProducts(e.target.value)}
+                    onFocus={() => productSearchResults.length > 0 && setShowProductDropdown(true)}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Search products to add..."
+                  />
+                  {searchingProducts && (
+                    <span className="absolute right-3 top-2.5 text-gray-400 text-sm">Searching...</span>
+                  )}
+                  {showProductDropdown && productSearchResults.length > 0 && (
+                    <div className="absolute z-10 w-full mt-1 bg-white border rounded-lg shadow-lg max-h-72 overflow-y-auto">
+                      {productSearchResults.map((product) => {
+                        const salePrice = Number(product.sale_price || product.base_price || product.price || 0);
+                        const basePrice = Number(product.base_price || product.price || 0);
+                        const hasDiscount = product.sale_price && salePrice < basePrice;
+                        const rawVariants = (() => {
+                          let sv = product.size_variants;
+                          if (!sv) return [];
+                          if (typeof sv === 'string') { try { sv = JSON.parse(sv); } catch { return []; } }
+                          if (!Array.isArray(sv)) return [];
+                          return sv;
+                        })();
+                        const variants: Array<{ name: string; price: number; stock?: number; sku_suffix?: string }> = rawVariants.filter((v: any) => v && typeof v.name === 'string' && v.name.trim().length > 0 && v.price != null && Number(v.price) > 0);
+                        const isExpanded = expandedProductId === product.id;
+                        return (
+                          <div key={product.id} className="border-b last:border-b-0">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (variants.length > 0) {
+                                  setExpandedProductId(isExpanded ? null : product.id);
+                                } else {
+                                  addProductToOrder(product);
+                                }
+                              }}
+                              className="w-full text-left px-3 py-2 hover:bg-blue-50 flex items-center gap-3 transition-colors"
+                            >
+                              {(product.image_url || product.image) && (
+                                <img
+                                  src={product.image_url || product.image}
+                                  alt=""
+                                  className="w-10 h-10 object-contain rounded border flex-shrink-0"
+                                  crossOrigin="anonymous"
+                                  onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                                />
+                              )}
+                              <div className="flex-1 min-w-0">
+                                <div className="font-medium text-sm text-gray-900 truncate flex items-center gap-1">
+                                  {variants.length > 0 && (
+                                    <span className={`text-xs transition-transform inline-block ${isExpanded ? 'rotate-90' : ''}`}>▶</span>
+                                  )}
+                                  {product.name_en || product.name}
+                                </div>
+                                {product.name_bn && <div className="text-xs text-gray-500 truncate">{product.name_bn}</div>}
+                                {variants.length > 0 && (
+                                  <div className="text-xs text-blue-500 mt-0.5">{variants.length} variant{variants.length > 1 ? 's' : ''} available</div>
+                                )}
+                              </div>
+                              <div className="text-right flex-shrink-0">
+                                {variants.length === 0 && (
+                                  <>
+                                    <div className="text-sm font-semibold text-blue-600">৳{salePrice.toFixed(2)}</div>
+                                    {hasDiscount && (
+                                      <div className="text-xs text-gray-400 line-through">৳{basePrice.toFixed(2)}</div>
+                                    )}
+                                  </>
+                                )}
+                              </div>
+                            </button>
+                            {/* Variant sub-items */}
+                            {variants.length > 0 && isExpanded && (
+                              <div className="bg-gray-50 border-t">
+                                {variants.map((v, vi) => (
+                                  <button
+                                    key={vi}
+                                    type="button"
+                                    onClick={() => addProductToOrder(product, v)}
+                                    className="w-full text-left pl-10 pr-3 py-2 hover:bg-blue-100 flex items-center gap-3 transition-colors border-b last:border-b-0 border-gray-100"
+                                  >
+                                    <span className="text-gray-400 text-xs">├─</span>
+                                    <div className="flex-1 min-w-0">
+                                      <div className="text-sm text-gray-800">{v.name}</div>
+                                      {v.sku_suffix && <div className="text-xs text-gray-400">SKU: {v.sku_suffix}</div>}
+                                    </div>
+                                    <div className="text-right flex-shrink-0">
+                                      <div className="text-sm font-semibold text-green-600">৳{Number(v.price).toFixed(2)}</div>
+                                      {v.stock !== undefined && v.stock !== null && (
+                                        <div className="text-xs text-gray-400">Stock: {v.stock}</div>
+                                      )}
+                                    </div>
+                                  </button>
+                                ))}
+                                {/* Option to select base product without variant */}
+                                <button
+                                  type="button"
+                                  onClick={() => addProductToOrder(product)}
+                                  className="w-full text-left pl-10 pr-3 py-2 hover:bg-yellow-50 flex items-center gap-3 transition-colors border-t border-gray-200"
+                                >
+                                  <span className="text-gray-400 text-xs">└─</span>
+                                  <div className="flex-1 text-sm text-gray-500 italic">Base product (no variant)</div>
+                                  <div className="text-sm font-semibold text-blue-600">৳{salePrice.toFixed(2)}</div>
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Selected Products List */}
+                {orderItems.length > 0 && (
+                  <div className="mt-3 border rounded-lg overflow-hidden">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="text-left px-3 py-2 font-medium text-gray-600">Product</th>
+                          <th className="text-center px-3 py-2 font-medium text-gray-600 w-24">Qty</th>
+                          <th className="text-right px-3 py-2 font-medium text-gray-600 w-28">Price</th>
+                          <th className="text-right px-3 py-2 font-medium text-gray-600 w-28">Subtotal</th>
+                          <th className="w-10"></th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y">
+                        {orderItems.map((item) => (
+                          <tr key={`${item.productId}-${item.variantName}`} className="hover:bg-gray-50">
+                            <td className="px-3 py-2">{item.productName}</td>
+                            <td className="px-3 py-2 text-center">
+                              <input
+                                type="number"
+                                min="1"
+                                value={item.quantity}
+                                onChange={(e) => updateOrderItemQty(item.productId, item.variantName, parseInt(e.target.value) || 1)}
+                                className="w-16 text-center border rounded px-1 py-0.5"
+                              />
+                            </td>
+                            <td className="px-3 py-2 text-right">৳{item.unitPrice.toFixed(2)}</td>
+                            <td className="px-3 py-2 text-right font-medium">৳{(item.quantity * item.unitPrice).toFixed(2)}</td>
+                            <td className="px-1 py-2 text-center">
+                              <button
+                                type="button"
+                                onClick={() => removeProductFromOrder(item.productId, item.variantName)}
+                                className="text-red-500 hover:text-red-700 p-1"
+                                title="Remove"
+                              >
+                                <FaTrash className="text-xs" />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    <div className="bg-gray-50 px-3 py-2 space-y-1 border-t">
+                      <div className="flex justify-between items-center text-sm text-gray-600">
+                        <span>Subtotal:</span>
+                        <span>৳{orderItems.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0).toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between items-center text-sm text-gray-600">
+                        <span>Delivery Charge:</span>
+                        <span>৳{(deliveryCharge || 0).toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between items-center border-t pt-1">
+                        <span className="font-semibold text-gray-700">Total:</span>
+                        <span className="font-bold text-lg text-blue-600">
+                          ৳{(orderItems.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0) + (deliveryCharge || 0)).toFixed(2)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Delivery Charge */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Delivery Charge (৳)</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={deliveryCharge}
+                  onChange={(e) => setDeliveryCharge(parseFloat(e.target.value) || 0)}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="0.00"
+                />
+              </div>
+
+              <FormInput
+                label="Shipping Address"
+                name="shipping_address"
+                type="textarea"
+                value={formData.shipping_address}
+                onChange={handleInputChange}
+                rows={3}
+                placeholder="Full delivery address"
+                required
+              />
+
+              <div className="grid grid-cols-2 gap-4">
+                <FormInput
+                  label="Courier Notes"
+                  name="courier_notes"
+                  type="textarea"
+                  value={formData.courier_notes}
+                  onChange={handleInputChange}
+                  rows={2}
+                  placeholder="Notes for courier"
+                />
+                <FormInput
+                  label="Internal Notes"
+                  name="internal_notes"
+                  type="textarea"
+                  value={formData.internal_notes}
+                  onChange={handleInputChange}
+                  rows={2}
+                  placeholder="Internal notes (not visible to customer)"
+                />
+              </div>
+            </form>
           ) : (
+            /* ===== EDIT ORDER FORM (full fields) ===== */
             <form id="order-form" onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <FormInput
@@ -1060,9 +1405,6 @@ export default function AdminSales() {
                     { value: 'cancelled', label: 'Cancelled' }
                   ]}
                 />
-              </div>
-
-              <div className="border-t pt-4">
               </div>
             </form>
           )}

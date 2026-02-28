@@ -468,11 +468,16 @@ export class CrmAutomationService {
   }
   
   async getCustomerEngagementHistory(customerId: string, limit: number = 50) {
-    return await this.engagementRepo.find({
-      where: { customer_id: customerId },
-      order: { created_at: 'DESC' },
-      take: limit
-    });
+    const rows = await this.engagementRepo.query(`
+      SELECT e.*,
+             COALESCE(NULLIF(TRIM(CONCAT(u.name, ' ', COALESCE(u.last_name, ''))), ''), 'Agent #' || e.agent_id::text) AS agent_name
+      FROM customer_engagement_history e
+      LEFT JOIN users u ON u.id = e.agent_id
+      WHERE e.customer_id = $1
+      ORDER BY e.created_at DESC
+      LIMIT $2
+    `, [customerId, limit]);
+    return rows;
   }
   
   async getEngagementStats(customerId: string) {
