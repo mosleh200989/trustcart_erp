@@ -165,6 +165,15 @@ export class OrderManagementService {
       const latestStatus = this.extractSteadfastStatus(res.data);
 
       if (!latestStatus) return order;
+
+      // Only update status if both packed and sticker printed
+      const isPacked = order.isPacked === true;
+      const stickerPrinted = (order as any).stickerPrinted === true;
+      if (!isPacked || !stickerPrinted) {
+        this.logger.log(`[Steadfast Refresh] Order #${order.id} not ready (packed=${isPacked}, stickerPrinted=${stickerPrinted}) — status stays '${order.status}'`);
+        return order;
+      }
+
       // Use the single status field — no separate courierStatus
       if (String(order.status || '').trim() === latestStatus.trim()) return order;
 
@@ -1351,12 +1360,39 @@ export class OrderManagementService {
       return { status: 'error', message: 'No status in webhook payload' };
     }
 
-    const prevStatus = order.status;
-    const statusChanged = String(prevStatus || '').trim() !== newStatus.trim();
+    // Only update status if both packed and sticker printed
+    const isPacked = order.isPacked === true;
+    const stickerPrinted = (order as any).stickerPrinted === true;
 
     // Always update COD & delivery charge if provided (even when status hasn't changed)
     if (dto.cod_amount != null) order.codAmount = dto.cod_amount;
     if (dto.delivery_charge != null) order.deliveryCharge = dto.delivery_charge;
+
+    if (!isPacked || !stickerPrinted) {
+      // Save COD/charge updates but keep status as 'sent'
+      await this.salesOrderRepository.save(order);
+      this.logger.log(`[Steadfast Webhook] Order #${order.id} not ready (packed=${isPacked}, stickerPrinted=${stickerPrinted}) — status stays '${order.status}', COD/charge updated`);
+
+      // Still record the tracking history for audit
+      await this.courierTrackingRepository.save({
+        orderId: order.id,
+        courierCompany: 'Steadfast',
+        trackingId: order.trackingId,
+        status: newStatus,
+        notificationType: 'delivery_status',
+        trackingMessage: dto.tracking_message || null,
+        codAmount: dto.cod_amount ?? null,
+        deliveryCharge: dto.delivery_charge ?? null,
+        consignmentId: dto.consignment_id != null ? String(dto.consignment_id) : null,
+        rawPayload: dto,
+        remarks: `Steadfast webhook: status=${newStatus} (NOT applied — packed=${isPacked}, stickerPrinted=${stickerPrinted})`,
+      });
+
+      return { status: 'success', message: 'Order not ready for status update (packed/sticker not done), financial fields updated' };
+    }
+
+    const prevStatus = order.status;
+    const statusChanged = String(prevStatus || '').trim() !== newStatus.trim();
 
     if (!statusChanged) {
       // Save COD/charge updates even if status is the same
@@ -1877,6 +1913,7 @@ export class OrderManagementService {
       trackingId: order.trackingId,
       orderDate: order.orderDate || order.createdAt,
       createdAt: order.createdAt,
+      shippedAt: order.shippedAt,
       isPacked: order.isPacked ?? false,
       invoicePrinted: (order as any).invoicePrinted ?? false,
       stickerPrinted: (order as any).stickerPrinted ?? false,
