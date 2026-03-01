@@ -36,9 +36,6 @@ export class SteadfastWebhookDto {
 
   @IsOptional()
   @IsString()
-  @IsIn(['pending', 'delivered', 'partial_delivered', 'cancelled', 'unknown'], {
-    message: 'status must be one of: pending, delivered, partial_delivered, cancelled, unknown',
-  })
   status?: string;
 
   @IsOptional()

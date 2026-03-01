@@ -268,7 +268,7 @@ export default function LandingPagePublic() {
           subtotal,
           delivery_charge: deliveryCharge,
           total_amount: total,
-          status: 'pending',
+          status: 'processing',
           order_source: 'landing_page',
           traffic_source: 'landing_page',
           referrer_url: window.location.href,

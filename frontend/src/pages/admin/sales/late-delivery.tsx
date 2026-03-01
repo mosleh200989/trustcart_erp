@@ -30,8 +30,6 @@ interface SalesOrder {
   courier_company?: string | null;
   courierOrderId?: string | null;
   courier_order_id?: string | null;
-  courierStatus?: string | null;
-  courier_status?: string | null;
 
   notes?: string | null;
   courier_notes?: string | null;
@@ -60,14 +58,18 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 const STATUS_OPTIONS = [
-  { value: 'pending', label: 'Pending' },
-  { value: 'approved', label: 'Approved' },
   { value: 'processing', label: 'Processing' },
-  { value: 'printing', label: 'Printing' },
+  { value: 'approved', label: 'Approved' },
+  { value: 'sent', label: 'Sent' },
+  { value: 'pending', label: 'Pending' },
+  { value: 'in_review', label: 'In Review' },
+  { value: 'in_transit', label: 'In Transit' },
+  { value: 'picked', label: 'Picked' },
+  { value: 'hold', label: 'Hold' },
   { value: 'shipped', label: 'Shipped' },
   { value: 'delivered', label: 'Delivered' },
+  { value: 'partial_delivered', label: 'Partial Delivered' },
   { value: 'completed', label: 'Completed' },
-  { value: 'hold', label: 'Hold' },
   { value: 'cancelled', label: 'Cancelled' },
   { value: 'returned', label: 'Returned' },
 ];
@@ -82,7 +84,6 @@ const COURIER_COMPANY_OPTIONS = [
 const INITIAL_FILTERS = {
   q: '',
   courierCompany: '',
-  courierStatus: '',
   shippedFrom: '',
   shippedTo: '',
   status: '',
@@ -172,12 +173,11 @@ export default function AdminSalesLateDelivery() {
       const customerName = o.customerName ?? o.customer_name ?? '';
       const customerPhone = o.customerPhone ?? o.customer_phone ?? '';
       const courierCompany = o.courierCompany ?? o.courier_company ?? '';
-      const courierStatus = o.courierStatus ?? o.courier_status ?? '';
       const shippedAt = o.shippedAt ?? o.shipped_at ?? null;
 
       const q = normalize(filters.q);
       if (q) {
-        const haystack = [o.id, customerName, customerPhone, courierCompany, courierStatus, o.notes, o.internal_notes]
+        const haystack = [o.id, customerName, customerPhone, courierCompany, o.status, o.notes, o.internal_notes]
           .map((v) => normalize(v))
           .join(' ');
         if (!haystack.includes(q)) return false;
@@ -185,7 +185,6 @@ export default function AdminSalesLateDelivery() {
 
       if (filters.status && normalize(o.status) !== normalize(filters.status)) return false;
       if (!includes(courierCompany, filters.courierCompany)) return false;
-      if (!includes(courierStatus, filters.courierStatus)) return false;
       if (!inDateRange(shippedAt, filters.shippedFrom, filters.shippedTo)) return false;
 
       return true;
@@ -221,11 +220,9 @@ export default function AdminSalesLateDelivery() {
       label: 'Courier',
       render: (_: any, row: SalesOrder) => {
         const company = row.courierCompany ?? row.courier_company ?? '-';
-        const status = row.courierStatus ?? row.courier_status ?? '-';
         return (
           <div>
             <div className="font-medium text-gray-900">{company}</div>
-            <div className="text-xs text-gray-500">{status}</div>
           </div>
         );
       },
@@ -407,11 +404,6 @@ export default function AdminSalesLateDelivery() {
                 />
                 <FormInput label="Shipped From" name="shippedFrom" type="date" value={filters.shippedFrom} onChange={handleFilterChange} />
                 <FormInput label="Shipped To" name="shippedTo" type="date" value={filters.shippedTo} onChange={handleFilterChange} />
-              </div>
-
-              {/* Courier status text filter */}
-              <div className="mt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <FormInput label="Courier Status" name="courierStatus" value={filters.courierStatus} onChange={handleFilterChange} />
               </div>
             </div>
           </div>

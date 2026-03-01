@@ -88,7 +88,6 @@ export class SalesService {
       courier_company: order.courierCompany,
       courier_order_id: (order as any).courierOrderId ?? null,
       tracking_id: order.trackingId,
-      courier_status: order.courierStatus,
       shipped_at: order.shippedAt,
       delivered_at: order.deliveredAt,
       thank_you_offer_accepted: (order as any).thankYouOfferAccepted ?? null,
@@ -199,7 +198,6 @@ export class SalesService {
     limit?: number;
     q?: string;
     status?: string;
-    courierStatus?: string;
     startDate?: string;
     endDate?: string;
     todayOnly?: boolean;
@@ -231,13 +229,6 @@ export class SalesService {
     // Status filter (cast to text because status is a PostgreSQL enum)
     if (params.status && params.status.trim()) {
       qb.andWhere('LOWER(o.status::text) = LOWER(:status)', { status: params.status.trim() });
-    }
-
-    // Courier status filter
-    if (params.courierStatus && params.courierStatus.trim()) {
-      qb.andWhere('LOWER(o.courier_status) = LOWER(:courierStatus)', {
-        courierStatus: params.courierStatus.trim(),
-      });
     }
 
     // Today only
@@ -283,18 +274,6 @@ export class SalesService {
       (order as any).createdByName = order.createdBy ? (creatorMap.get(order.createdBy) ?? null) : null;
     });
 
-    // Also fetch distinct courier statuses for the filter dropdown
-    const courierStatusesRaw = await this.salesRepository
-      .createQueryBuilder('o')
-      .select('DISTINCT o.courier_status', 'cs')
-      .where('o.courier_status IS NOT NULL')
-      .andWhere("o.courier_status != ''")
-      .getRawMany();
-    const courierStatuses = courierStatusesRaw
-      .map((r: any) => (r.cs ?? '').toString().trim())
-      .filter(Boolean)
-      .sort();
-
     // Batch-fetch order items from both tables for current page
     const orderIds = orders.map(o => o.id);
     const itemsByOrderId = await this.batchFetchOrderItems(orderIds);
@@ -308,7 +287,6 @@ export class SalesService {
       page,
       limit,
       totalPages: Math.ceil(total / limit),
-      courierStatuses,
     };
   }
 
@@ -562,8 +540,8 @@ export class SalesService {
     sales.offerId = appliedOfferId;
     sales.offerCode = appliedOfferCode;
 
-    // Status: use provided or default to 'pending'
-    sales.status = createSalesDto.status || 'pending';
+    // Status: use provided or default to 'processing'
+    sales.status = createSalesDto.status || 'processing';
 
     // Store shipping address and notes
     const shippingAddress =
@@ -799,7 +777,8 @@ export class SalesService {
     if (['cancelled', 'delivered', 'completed'].includes(status)) {
       throw new Error(`Cannot cancel order in status: ${status}`);
     }
-    if (order.courierStatus && ['picked', 'in_transit', 'delivered'].includes(order.courierStatus)) {
+    // Cannot cancel if already picked/in_transit/delivered
+    if (['picked', 'in_transit'].includes(status)) {
       throw new Error('Cannot cancel order - already shipped');
     }
 
@@ -819,24 +798,8 @@ export class SalesService {
   }
 
   private isStatusTransitionAllowed(from: string, to: string): boolean {
-    if (!from || !to) return true;
-    if (from === to) return true;
-
-    const allowed: Record<string, string[]> = {
-      pending: ['approved', 'hold', 'processing', 'shipped', 'cancelled'],
-      approved: ['processing', 'shipped', 'cancelled'],
-      processing: ['shipped', 'cancelled'],
-      hold: ['approved', 'processing', 'cancelled'],
-      shipped: ['delivered', 'completed'],
-      delivered: ['completed'],
-      completed: [],
-      cancelled: [],
-    };
-
-    // If we don't recognize the status, don't block updates.
-    if (!Object.prototype.hasOwnProperty.call(allowed, from)) return true;
-
-    return allowed[from].includes(to);
+    // Allow all transitions for admin manual updates
+    return true;
   }
 
   async remove(id: string) {
@@ -1001,16 +964,16 @@ export class SalesService {
       .orderBy('orders', 'DESC')
       .getRawMany();
 
-    // 5) Courier status distribution
+    // 5) Status distribution for orders with courier
     const courierStatusRaw = await this.salesRepository
       .createQueryBuilder('o')
       .select([
-        `COALESCE(o.courier_status, 'not_sent') AS courier_status`,
+        `COALESCE(o.status, 'unknown') AS status`,
         'COUNT(o.id) AS orders',
       ])
       .where('DATE(o.order_date) = :reportDate', { reportDate })
       .andWhere("o.courier_company IS NOT NULL AND o.courier_company != ''")
-      .groupBy('courier_status')
+      .groupBy('status')
       .orderBy('orders', 'DESC')
       .getRawMany();
 
@@ -1061,7 +1024,7 @@ export class SalesService {
         revenue: toNum(r.revenue),
       })),
       courierStatuses: courierStatusRaw.map((r: any) => ({
-        status: r.courier_status || 'not_sent',
+        status: r.status || 'unknown',
         orders: toNum(r.orders),
       })),
     };

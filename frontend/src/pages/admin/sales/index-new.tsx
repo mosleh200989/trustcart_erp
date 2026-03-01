@@ -36,7 +36,7 @@ export default function AdminSales() {
     customer_id: '',
     customer_name: '',
     total_amount: '',
-    status: 'pending',
+    status: 'processing',
     order_date: new Date().toISOString().split('T')[0]
   });
 
@@ -64,7 +64,7 @@ export default function AdminSales() {
       customer_id: '',
       customer_name: '',
       total_amount: '',
-      status: 'pending',
+      status: 'processing',
       order_date: new Date().toISOString().split('T')[0]
     });
     setIsModalOpen(true);

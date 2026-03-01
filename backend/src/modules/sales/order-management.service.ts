@@ -165,15 +165,15 @@ export class OrderManagementService {
       const latestStatus = this.extractSteadfastStatus(res.data);
 
       if (!latestStatus) return order;
-      if (String(order.courierStatus || '').trim() === latestStatus.trim()) return order;
+      // Use the single status field — no separate courierStatus
+      if (String(order.status || '').trim() === latestStatus.trim()) return order;
 
-      const prevStatus = order.courierStatus;
-      order.courierStatus = latestStatus;
+      const prevStatus = order.status;
+      order.status = latestStatus;
 
-      const becameDelivered = this.isDeliveredStatus(latestStatus) && order.status !== 'delivered';
+      const becameDelivered = this.isDeliveredStatus(latestStatus) && prevStatus !== 'delivered';
 
       if (becameDelivered) {
-        order.status = 'delivered';
         order.deliveredAt = new Date();
       }
 
@@ -203,16 +203,16 @@ export class OrderManagementService {
         orderId: saved.id,
         courierCompany: 'Steadfast',
         trackingId: saved.trackingId,
-        status: saved.courierStatus,
+        status: latestStatus,
         remarks: `Steadfast status refreshed${prevStatus ? ` (was: ${prevStatus})` : ''}`,
       });
 
       await this.logActivity({
         orderId: saved.id,
         actionType: 'courier_status_synced',
-        actionDescription: `Steadfast courier status refreshed to: ${saved.courierStatus}`,
-        oldValue: { courierStatus: prevStatus },
-        newValue: { courierStatus: saved.courierStatus },
+        actionDescription: `Steadfast status refreshed to: ${latestStatus}`,
+        oldValue: { status: prevStatus },
+        newValue: { status: latestStatus },
         performedBy: undefined,
         performedByName: 'System',
       });
@@ -240,7 +240,7 @@ export class OrderManagementService {
         courierCompany: order.courierCompany,
         courierOrderId: order.courierOrderId,
         trackingId: order.trackingId,
-        courierStatus: order.courierStatus,
+        status: order.status,
       };
     }
 
@@ -326,12 +326,11 @@ export class OrderManagementService {
       throw new BadRequestException(resData?.message || 'Steadfast did not return consignment_id/tracking_code');
     }
 
-    order.status = 'printing';
+    order.status = 'sent';
     order.shippedAt = new Date();
     order.courierCompany = 'Steadfast';
     order.courierOrderId = String(consignmentId);
     order.trackingId = String(trackingCode);
-    order.courierStatus = courierStatus ? String(courierStatus) : 'in_review';
 
     await this.salesOrderRepository.save(order);
 
@@ -339,7 +338,7 @@ export class OrderManagementService {
       orderId: order.id,
       courierCompany: 'Steadfast',
       trackingId: String(trackingCode),
-      status: order.courierStatus,
+      status: 'sent',
       remarks: 'Consignment created in Steadfast',
     });
 
@@ -351,7 +350,7 @@ export class OrderManagementService {
         courierCompany: 'Steadfast',
         courierOrderId: String(consignmentId),
         trackingId: String(trackingCode),
-        courierStatus: order.courierStatus,
+        status: 'sent',
       },
       performedBy: data.userId,
       performedByName: data.userName,
@@ -364,7 +363,7 @@ export class OrderManagementService {
       courierCompany: 'Steadfast',
       courierOrderId: String(consignmentId),
       trackingId: String(trackingCode),
-      courierStatus: order.courierStatus,
+      status: 'sent',
       raw: resData,
     };
   }
@@ -716,8 +715,8 @@ export class OrderManagementService {
     const order = await this.salesOrderRepository.findOne({ where: { id: orderId } });
     if (!order) throw new Error('Order not found');
 
-    // Cannot hold if already shipped
-    if (order.courierStatus && ['picked', 'in_transit', 'delivered'].includes(order.courierStatus)) {
+    // Cannot hold if already picked/in_transit/delivered
+    if (['picked', 'in_transit', 'delivered'].includes(order.status)) {
       throw new Error('Cannot hold order - already shipped');
     }
 
@@ -753,7 +752,7 @@ export class OrderManagementService {
       throw new Error('Order is not on hold');
     }
 
-    order.status = 'pending';
+    order.status = 'processing';
 
     const updatedOrder = await this.salesOrderRepository.save(order);
 
@@ -762,7 +761,7 @@ export class OrderManagementService {
       actionType: 'unhold',
       actionDescription: `Order resumed from hold by ${userName}`,
       oldValue: { status: 'hold' },
-      newValue: { status: 'pending' },
+      newValue: { status: 'processing' },
       performedBy: userId,
       performedByName: userName,
       ipAddress,
@@ -781,8 +780,8 @@ export class OrderManagementService {
     const order = await this.salesOrderRepository.findOne({ where: { id: orderId } });
     if (!order) throw new Error('Order not found');
 
-    // Cannot cancel if already shipped
-    if (order.courierStatus && ['picked', 'in_transit', 'delivered'].includes(order.courierStatus)) {
+    // Cannot cancel if already picked/in_transit/delivered
+    if (['picked', 'in_transit', 'delivered'].includes(order.status)) {
       throw new Error('Cannot cancel order - already shipped');
     }
 
@@ -826,11 +825,10 @@ export class OrderManagementService {
     const order = await this.salesOrderRepository.findOne({ where: { id: data.orderId } });
     if (!order) throw new Error('Order not found');
 
-    order.status = 'printing';
+    order.status = 'sent';
     order.courierCompany = data.courierCompany;
     order.courierOrderId = data.courierOrderId || '';
     order.trackingId = data.trackingId;
-    order.courierStatus = 'picked';
     order.shippedAt = new Date();
 
     const updatedOrder = await this.salesOrderRepository.save(order);
@@ -866,12 +864,12 @@ export class OrderManagementService {
     const order = await this.salesOrderRepository.findOne({ where: { id: data.orderId } });
     if (!order) throw new Error('Order not found');
 
-    order.courierStatus = data.status;
+    const prevStatus = order.status;
+    order.status = data.status;
 
-    const becameDelivered = data.status === 'delivered' && order.status !== 'delivered';
+    const becameDelivered = data.status === 'delivered' && prevStatus !== 'delivered';
 
     if (becameDelivered) {
-      order.status = 'delivered';
       order.deliveredAt = new Date();
     }
 
@@ -910,8 +908,8 @@ export class OrderManagementService {
     await this.logActivity({
       orderId: data.orderId,
       actionType: 'courier_status_updated',
-      actionDescription: `Courier status updated to: ${data.status}`,
-      newValue: { courierStatus: data.status, location: data.location },
+      actionDescription: `Status updated to: ${data.status}`,
+      newValue: { status: data.status, location: data.location },
       performedBy: undefined,
       performedByName: 'System',
     });
@@ -1050,7 +1048,6 @@ export class OrderManagementService {
       orderDate: order.orderDate || order.createdAt,
       createdAt: order.createdAt,
       shippingAddress: order.shippingAddress,
-      courierStatus: order.courierStatus,
     }));
   }
 
@@ -1354,7 +1351,7 @@ export class OrderManagementService {
       return { status: 'error', message: 'No status in webhook payload' };
     }
 
-    const prevStatus = order.courierStatus;
+    const prevStatus = order.status;
     const statusChanged = String(prevStatus || '').trim() !== newStatus.trim();
 
     // Always update COD & delivery charge if provided (even when status hasn't changed)
@@ -1368,17 +1365,17 @@ export class OrderManagementService {
       return { status: 'success', message: 'Status unchanged, financial fields updated' };
     }
 
-    order.courierStatus = newStatus;
-    const becameDelivered = this.isDeliveredStatus(newStatus) && order.status !== 'delivered';
-    const becameCancelled = newStatus === 'cancelled' && order.status !== 'cancelled';
+    // Set the single unified status directly from Steadfast
+    order.status = newStatus;
+
+    const becameDelivered = this.isDeliveredStatus(newStatus) && prevStatus !== 'delivered';
+    const becameCancelled = newStatus === 'cancelled' && prevStatus !== 'cancelled';
 
     if (becameDelivered) {
-      order.status = 'delivered';
       order.deliveredAt = new Date();
     }
 
     if (becameCancelled) {
-      order.status = 'cancelled';
       order.cancelReason = order.cancelReason || 'Cancelled by courier (Steadfast)';
       order.cancelledAt = new Date();
     }
@@ -1410,8 +1407,8 @@ export class OrderManagementService {
       orderId: saved.id,
       actionType: 'courier_status_webhook',
       actionDescription: `Steadfast delivery_status webhook: ${prevStatus || 'null'} → ${newStatus}${dto.tracking_message ? ` — "${dto.tracking_message}"` : ''}`,
-      oldValue: { courierStatus: prevStatus },
-      newValue: { courierStatus: newStatus, codAmount: dto.cod_amount, deliveryCharge: dto.delivery_charge },
+      oldValue: { status: prevStatus },
+      newValue: { status: newStatus, codAmount: dto.cod_amount, deliveryCharge: dto.delivery_charge },
       performedBy: undefined,
       performedByName: 'Steadfast Webhook',
     });
@@ -1440,7 +1437,7 @@ export class OrderManagementService {
       orderId: order.id,
       courierCompany: 'Steadfast',
       trackingId: order.trackingId,
-      status: order.courierStatus || 'in_transit',
+      status: order.status || 'in_transit',
       notificationType: 'tracking_update',
       trackingMessage,
       consignmentId: dto.consignment_id != null ? String(dto.consignment_id) : null,
@@ -1878,7 +1875,6 @@ export class OrderManagementService {
       courierOrderId: order.courierOrderId,
       courierCompany: order.courierCompany,
       trackingId: order.trackingId,
-      courierStatus: order.courierStatus,
       orderDate: order.orderDate || order.createdAt,
       createdAt: order.createdAt,
       isPacked: order.isPacked ?? false,
@@ -1952,17 +1948,16 @@ export class OrderManagementService {
   }
 
   /**
-   * Auto-ship: After any printing action (pack, invoice print, sticker print),
-   * check if all 3 are complete. If so, move order from 'printing' to 'shipped'.
+   * Auto-transition: After sticker print + packed are both done,
+   * sync order status with the latest courier status from Steadfast.
    */
   private async autoShipIfReady(order: SalesOrder) {
     const isPacked = order.isPacked === true;
-    const invoicePrinted = (order as any).invoicePrinted === true;
     const stickerPrinted = (order as any).stickerPrinted === true;
 
-    if (isPacked && invoicePrinted && stickerPrinted && order.status === 'printing') {
-      order.status = 'shipped';
-      await this.salesOrderRepository.save(order);
+    if (isPacked && stickerPrinted && order.status === 'sent') {
+      // Fetch the latest status from Steadfast and apply it
+      await this.tryRefreshSteadfastCourierStatus(order);
     }
   }
 }

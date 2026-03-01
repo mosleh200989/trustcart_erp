@@ -290,7 +290,7 @@ export default function LandingPageInternational() {
           subtotal,
           delivery_charge: deliveryCharge,
           total_amount: total,
-          status: 'pending',
+          status: 'processing',
           order_source: 'landing_page',
           traffic_source: 'landing_page_intl',
           referrer_url: window.location.href,

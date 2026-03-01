@@ -391,7 +391,7 @@ export default function Checkout() {
         subtotal: subtotal,
         delivery_charge: deliveryCharge,
         total_amount: total,
-        status: "pending",
+        status: "processing",
         payment_status:
           formData.paymentMethod === "cash" ? "pending" : "pending",
         // User tracking info
