@@ -1525,7 +1525,7 @@ export class OrderManagementService {
     const orders = await this.salesOrderRepository.find({
       where: {
         courierCompany: 'Steadfast',
-        status: In(['shipped', 'printing', 'processing', 'approved']),
+        status: In(['sent', 'shipped']),
       },
     });
 
