@@ -40,8 +40,6 @@ type SalesOrder = {
   courier_company?: string | null;
   courierOrderId?: string | null;
   courier_order_id?: string | null;
-  courierStatus?: string | null;
-  courier_status?: string | null;
   thankYouOfferAccepted?: boolean;
   thank_you_offer_accepted?: boolean;
 };

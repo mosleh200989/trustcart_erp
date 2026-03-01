@@ -28,7 +28,7 @@ export class SalesOrder {
   @Column({ name: 'order_date', type: 'date', nullable: true })
   orderDate!: Date;
 
-  @Column({ type: 'varchar' })
+  @Column({ type: 'varchar', default: 'processing' })
   status!: string;
 
   // total_amount in DB

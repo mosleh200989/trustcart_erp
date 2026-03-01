@@ -47,7 +47,6 @@ interface PrintingOrder {
   courierOrderId?: string;
   courierCompany?: string;
   trackingId?: string;
-  courierStatus?: string;
   orderDate?: string;
   createdAt?: string;
   isPacked?: boolean;

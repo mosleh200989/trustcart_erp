@@ -19,7 +19,6 @@ const INITIAL_FILTERS = {
   q: '',
   todayOnly: false,
   status: '',
-  courierStatus: '',
   startDate: '',
   endDate: '',
   productName: '',
@@ -104,8 +103,6 @@ interface SalesOrder {
   courier_order_id?: string | null;
   trackingId?: string | null;
   tracking_id?: string | null;
-  courierStatus?: string | null;
-  courier_status?: string | null;
   thankYouOfferAccepted?: boolean;
   thank_you_offer_accepted?: boolean;
 
@@ -130,14 +127,13 @@ export default function AdminSales() {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
-  const [courierStatusOptions, setCourierStatusOptions] = useState<string[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<'add' | 'edit' | 'view'>('add');
   const [selectedOrder, setSelectedOrder] = useState<SalesOrder | null>(null);
   const [showOrderDetails, setShowOrderDetails] = useState(false);
   const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
   const [selectedRowIds, setSelectedRowIds] = useState<Array<number | string>>([]);
-  const [bulkAction, setBulkAction] = useState<'delete' | 'pending' | 'completed' | 'cancelled' | ''>('');
+  const [bulkAction, setBulkAction] = useState<'delete' | 'processing' | 'completed' | 'cancelled' | ''>('');
   const [itemsPerPage, setItemsPerPage] = useState(50);
 
   // Print & Pack state
@@ -158,7 +154,7 @@ export default function AdminSales() {
   const [formData, setFormData] = useState({
     order_number: '',
     order_date: new Date().toISOString().split('T')[0],
-    status: 'pending',
+    status: 'processing',
 
     customer_id: '',
     customer_name: '',
@@ -196,7 +192,6 @@ export default function AdminSales() {
       };
       if (f.q.trim()) params.q = f.q.trim();
       if (f.status) params.status = f.status;
-      if (f.courierStatus) params.courierStatus = f.courierStatus;
       if (f.startDate) params.startDate = f.startDate;
       if (f.endDate) params.endDate = f.endDate;
       if (f.todayOnly) params.todayOnly = 'true';
@@ -208,9 +203,6 @@ export default function AdminSales() {
         setOrders(body.data);
         setTotalPages(body.totalPages ?? 1);
         setTotalCount(body.total ?? 0);
-        if (Array.isArray(body.courierStatuses)) {
-          setCourierStatusOptions(body.courierStatuses);
-        }
       } else if (Array.isArray(body)) {
         // Fallback for non-paginated response
         setOrders(body);
@@ -302,7 +294,7 @@ export default function AdminSales() {
     setFormData({
       order_number: '',
       order_date: new Date().toISOString().split('T')[0],
-      status: 'pending',
+      status: 'processing',
 
       customer_id: '',
       customer_name: '',
@@ -572,7 +564,7 @@ export default function AdminSales() {
     e.preventDefault();
     try {
       if (modalMode === 'add') {
-        // Simplified create: Name, Phone, Products, Shipping Address. Status = pending.
+        // Simplified create: Name, Phone, Products, Shipping Address. Status = processing.
         if (orderItems.length === 0) {
           toast.error('Please add at least one product');
           return;
@@ -586,7 +578,7 @@ export default function AdminSales() {
           courierNotes: formData.courier_notes ? String(formData.courier_notes) : null,
           internalNotes: formData.internal_notes ? String(formData.internal_notes) : null,
           deliveryCharge: deliveryCharge || 0,
-          status: 'pending',
+          status: 'processing',
           orderDate: new Date().toISOString(),
           totalAmount,
           order_source: 'admin_panel',
@@ -825,7 +817,7 @@ export default function AdminSales() {
             >
               <option value="">Bulk Actions</option>
               <option value="delete">Delete Selected</option>
-              <option value="pending">Mark as Pending</option>
+              <option value="processing">Mark as Processing</option>
               <option value="completed">Mark as Completed</option>
               <option value="cancelled">Mark as Cancelled</option>
             </select>
@@ -902,26 +894,21 @@ export default function AdminSales() {
                   onChange={handleFilterChange}
                   selectPlaceholder="All"
                   options={[
-                    { value: 'pending', label: 'Pending' },
-                    { value: 'confirmed', label: 'Confirmed' },
-                    { value: 'approved', label: 'Approved' },
                     { value: 'processing', label: 'Processing' },
+                    { value: 'approved', label: 'Approved' },
+                    { value: 'sent', label: 'Sent' },
+                    { value: 'pending', label: 'Pending' },
+                    { value: 'in_review', label: 'In Review' },
+                    { value: 'in_transit', label: 'In Transit' },
+                    { value: 'picked', label: 'Picked' },
                     { value: 'hold', label: 'Hold' },
                     { value: 'shipped', label: 'Shipped' },
                     { value: 'delivered', label: 'Delivered' },
+                    { value: 'partial_delivered', label: 'Partial Delivered' },
                     { value: 'cancelled', label: 'Cancelled' },
+                    { value: 'completed', label: 'Completed' },
                     { value: 'returned', label: 'Returned' },
                   ]}
-                />
-
-                <FormInput
-                  label="Courier Status"
-                  name="courierStatus"
-                  type="select"
-                  value={filters.courierStatus}
-                  onChange={handleFilterChange}
-                  selectPlaceholder="All"
-                  options={courierStatusOptions.map((s) => ({ value: s, label: s }))}
                 />
 
                 <FormInput
@@ -1400,7 +1387,7 @@ export default function AdminSales() {
                   value={formData.status}
                   onChange={handleInputChange}
                   options={[
-                    { value: 'pending', label: 'Pending' },
+                    { value: 'processing', label: 'Processing' },
                     { value: 'completed', label: 'Completed' },
                     { value: 'cancelled', label: 'Cancelled' }
                   ]}

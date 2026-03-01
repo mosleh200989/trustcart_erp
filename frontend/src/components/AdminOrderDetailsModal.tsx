@@ -7,7 +7,7 @@ import {
   FaMobile, FaDesktop, FaChrome, FaExclamationTriangle, FaPhone, FaPhoneSlash 
 } from 'react-icons/fa';
 import PhoneInput, { validateBDPhone } from '@/components/PhoneInput';
-import { getOrderStatusLabel } from '@/utils/orderStatus';
+import { getOrderStatusLabel, getOrderStatusColor } from '@/utils/orderStatus';
 
 interface OrderDetailsModalProps {
   orderId: number;
@@ -57,6 +57,9 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
 
+  // Manual status update
+  const [manualStatus, setManualStatus] = useState('');
+
   // Delivery charge edit
   const [editingDeliveryCharge, setEditingDeliveryCharge] = useState(false);
   const [editDeliveryChargeValue, setEditDeliveryChargeValue] = useState('');
@@ -79,7 +82,7 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
   const [newOrderForm, setNewOrderForm] = useState({
     notes: '',
     shippingAddress: '',
-    status: 'pending',
+    status: 'processing',
     productId: null as number | null,
     productName: '',
     quantity: 1,
@@ -692,6 +695,20 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
 
   // ==================== STATUS MANAGEMENT ====================
 
+  const handleManualStatusUpdate = async () => {
+    if (!manualStatus) return;
+    if (!confirm(`Change order status to "${manualStatus}"?`)) return;
+    try {
+      await apiClient.put(`/sales/${currentOrderId}`, { status: manualStatus });
+      toast.success(`Order status updated to "${manualStatus}"`);
+      setManualStatus('');
+      loadOrderDetails();
+      onUpdate();
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || 'Failed to update status');
+    }
+  };
+
   const approveOrder = async () => {
     if (!confirm('Approve this order?')) return;
     
@@ -870,7 +887,7 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
   const deliveryCharge = Number(order.deliveryCharge ?? order.delivery_charge ?? 0);
   const totalQuantity = items.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
 
-  const canHoldOrCancel = !order.courierStatus || !['picked', 'in_transit', 'delivered'].includes(order.courierStatus);
+  const canHoldOrCancel = !['picked', 'in_transit', 'delivered'].includes(order.status);
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
@@ -879,7 +896,7 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
         <div className="sticky top-0 bg-gradient-to-r from-blue-600 to-blue-800 text-white p-6 flex justify-between items-center rounded-t-lg">
           <div>
             <h2 className="text-2xl font-bold">Order #{order.salesOrderNumber}</h2>
-            <p className="text-blue-100 text-sm">Status: <span className="font-semibold uppercase">{getOrderStatusLabel(order.status)}</span></p>
+            <p className="text-blue-100 text-sm">Status: <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold ${getOrderStatusColor(order.status)}`}>{getOrderStatusLabel(order.status)}</span></p>
           </div>
           <button onClick={onClose} className="text-white hover:bg-blue-700 p-2 rounded-full transition">
             <FaTimes size={24} />
@@ -893,7 +910,7 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
               setNewOrderForm({
                 notes: '',
                 shippingAddress: order?.shippingAddress || customerRecord?.address || '',
-                status: 'pending',
+                status: 'processing',
                 productId: null,
                 productName: '',
                 quantity: 1,
@@ -952,6 +969,33 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
               </button>
             </>
           )}
+        </div>
+
+        {/* Manual Status Update */}
+        <div className="px-6 py-3 border-b bg-white flex items-center gap-3 flex-wrap">
+          <span className="text-sm font-medium text-gray-700">Update Status:</span>
+          <select
+            value={manualStatus}
+            onChange={(e) => setManualStatus(e.target.value)}
+            className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">Select status...</option>
+            <option value="processing">Processing</option>
+            <option value="approved">Approved</option>
+            <option value="sent">Sent</option>
+            <option value="hold">On Hold</option>
+            <option value="completed">Completed</option>
+            <option value="cancelled">Cancelled</option>
+          </select>
+          <button
+            type="button"
+            onClick={handleManualStatusUpdate}
+            disabled={!manualStatus}
+            className="px-4 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            Update
+          </button>
+          <span className="text-xs text-gray-400">Current: {getOrderStatusLabel(order.status)}</span>
         </div>
 
         {/* Tabs */}
@@ -1787,7 +1831,11 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                       </tr>
                       <tr>
                         <td className="border p-3 font-semibold">Courier Status</td>
-                        <td className="border p-3">{displayOrNA(order?.courierStatus)}</td>
+                        <td className="border p-3">
+                          <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold ${getOrderStatusColor(order?.status)}`}>
+                            {getOrderStatusLabel(order?.status)}
+                          </span>
+                        </td>
                       </tr>
                       <tr className="bg-gray-50">
                         <td className="border p-3 font-semibold">Courier ID</td>
@@ -1857,7 +1905,7 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                   <div className="grid grid-cols-2 gap-3 text-sm">
                     <div><strong>Company:</strong> {order.courierCompany}</div>
                     <div><strong>Tracking ID:</strong> {order.trackingId}</div>
-                    <div><strong>Status:</strong> <span className="uppercase font-semibold">{order.courierStatus}</span></div>
+                    <div><strong>Status:</strong> <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold ${getOrderStatusColor(order.status)}`}>{getOrderStatusLabel(order.status)}</span></div>
                     <div><strong>Shipped At:</strong> {order.shippedAt ? new Date(order.shippedAt).toLocaleString('en-GB', { timeZone: 'Asia/Dhaka' }) : 'N/A'}</div>
                   </div>
                 </div>
@@ -2506,7 +2554,7 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                     onChange={(e) => setNewOrderForm({ ...newOrderForm, status: e.target.value })}
                     className="w-full border p-2 rounded"
                   >
-                    <option value="pending">Pending</option>
+                    <option value="processing">Processing</option>
                     <option value="approved">Approved</option>
                   </select>
                 </div>
