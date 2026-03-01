@@ -26,8 +26,8 @@ function getTodayDateString() {
 const INITIAL_FILTERS = {
   q: '',
   isPacked: '',
-  invoicePrinted: 'false',
-  stickerPrinted: '',
+  invoicePrinted: '',
+  stickerPrinted: 'false',
   courierId: '',
   date: getTodayDateString(),
   productName: '',

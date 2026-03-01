@@ -334,6 +334,14 @@ export class SalesService {
       .orderBy('o.shipped_at', 'ASC');
 
     const orders = await qb.getMany();
+
+    // Batch-fetch items for all orders
+    const orderIds = orders.map((o) => o.id);
+    const itemsByOrderId = await this.batchFetchOrderItems(orderIds);
+    for (const order of orders) {
+      (order as any)._items = itemsByOrderId.get(order.id) || [];
+    }
+
     return orders.map((order) => this.toAdminListDto(order));
   }
 
