@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, NotFoundException, HttpException, HttpStatus, Logger } from '@nestjs/common';
+import { Injectable, BadRequestException, ConflictException, NotFoundException, HttpException, HttpStatus, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { SalesOrder } from './sales-order.entity';
@@ -695,6 +695,12 @@ export class OrderManagementService {
   ): Promise<SalesOrder> {
     const order = await this.salesOrderRepository.findOne({ where: { id: orderId } });
     if (!order) throw new Error('Order not found');
+
+    // Prevent double-approval or approving an order that has already progressed
+    const nonApprovableStatuses = ['approved', 'sent', 'shipped', 'in_transit', 'picked', 'delivered', 'partial_delivered', 'completed'];
+    if (nonApprovableStatuses.includes(order.status)) {
+      throw new ConflictException(`Order cannot be approved — it is already "${order.status}"`);
+    }
 
     order.status = 'approved';
     order.approvedBy = userId;
