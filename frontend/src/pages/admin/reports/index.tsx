@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
 import AdminLayout from '@/layouts/AdminLayout';
+import { wrapCustomerName } from '@/utils/wrapCustomerName';
 import apiClient from '@/services/api';
 import {
   ResponsiveContainer,
@@ -763,7 +764,7 @@ export default function AdminReports() {
                           return (
                             <tr key={o.id} className="border-t">
                               <td className="py-2 pr-4">{o.id}</td>
-                              <td className="py-2 pr-4">{customer}</td>
+                              <td className="py-2 pr-4">{wrapCustomerName(customer)}</td>
                               <td className="py-2 pr-4">{phone}</td>
                               <td className="py-2 pr-4">{o.status || '-'}</td>
                               <td className="py-2 pr-4">{courierId}</td>

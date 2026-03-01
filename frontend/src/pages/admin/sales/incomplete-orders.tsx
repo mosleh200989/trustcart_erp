@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import AdminLayout from '@/layouts/AdminLayout';
 import DataTable from '@/components/admin/DataTable';
+import { wrapCustomerName } from '@/utils/wrapCustomerName';
 import PageSizeSelector from '@/components/admin/PageSizeSelector';
 import FormInput from '@/components/admin/FormInput';
 import { FaSearch, FaFilter, FaExclamationTriangle, FaShoppingCart, FaGlobe, FaCheckCircle, FaTimesCircle, FaRedo, FaEye, FaPhone, FaMapMarkerAlt, FaEdit, FaPaperPlane } from 'react-icons/fa';
@@ -257,7 +258,7 @@ export default function AdminSalesIncompleteOrders() {
         const address = row.address || '';
         return (
           <div className="max-w-[180px]">
-            <div className="font-semibold text-gray-900 truncate" title={name}>{name}</div>
+            <div className="font-semibold text-gray-900" title={name}>{wrapCustomerName(name)}</div>
             {phone && (
               <div className="flex items-center gap-1 text-xs text-gray-600 mt-0.5">
                 <FaPhone className="text-[10px]" /> {phone}

@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { FaTrash } from 'react-icons/fa';
 import AdminLayout from '@/layouts/AdminLayout';
+import { wrapCustomerName } from '@/utils/wrapCustomerName';
 import DataTable from '@/components/admin/DataTable';
 import PageSizeSelector from '@/components/admin/PageSizeSelector';
 import Modal from '@/components/admin/Modal';
@@ -693,7 +694,7 @@ export default function AdminSales() {
     {
       key: 'customerName',
       label: 'Customer',
-      render: (_: any, row: SalesOrder) => row.customerName ?? row.customer_name ?? '-'
+      render: (_: any, row: SalesOrder) => wrapCustomerName(row.customerName ?? row.customer_name)
     },
     {
       key: 'customerPhone',
@@ -716,7 +717,7 @@ export default function AdminSales() {
         const items = row.items || [];
         if (items.length === 0) return <span className="text-gray-400 text-xs">No items</span>;
         return (
-          <div className="text-xs max-h-36 overflow-y-auto min-w-[200px]" style={{ whiteSpace: 'pre-line' }}>
+          <div className="text-xs max-h-24 overflow-y-auto" style={{ whiteSpace: 'pre-line' }}>
             {items.map((item, idx) => (
               <span key={idx}>
                 {item.productName} <span className="text-gray-500">(x{item.quantity})</span>
@@ -975,7 +976,6 @@ export default function AdminSales() {
             getRowId: (row: SalesOrder) => row.id
           }}
           onView={handleView}
-          onEdit={handleEdit}
           onDelete={handleDelete}
           currentPage={currentPage}
           totalPages={totalPages}
