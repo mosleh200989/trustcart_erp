@@ -49,6 +49,7 @@ interface PrintingOrder {
   trackingId?: string;
   orderDate?: string;
   createdAt?: string;
+  shippedAt?: string;
   isPacked?: boolean;
   invoicePrinted?: boolean;
   stickerPrinted?: boolean;
@@ -56,12 +57,13 @@ interface PrintingOrder {
   items?: PrintingOrderItem[];
 }
 
-function getCourierTrackingUrl(courierCompany: string | null | undefined, trackingId: string | null | undefined): string | null {
-  if (!trackingId) return null;
+function getCourierTrackingUrl(courierCompany: string | null | undefined, trackingId: string | null | undefined, courierOrderId?: string | null): string | null {
   const company = (courierCompany || '').toLowerCase().trim();
   if (company.includes('steadfast')) {
-    return `https://steadfast.com.bd/t/${trackingId}`;
+    if (!courierOrderId) return null;
+    return `https://steadfast.com.bd/user/consignment/${courierOrderId}`;
   }
+  if (!trackingId) return null;
   if (company.includes('pathao')) {
     return `https://merchant.pathao.com/tracking?consignment_id=${trackingId}`;
   }
@@ -331,10 +333,10 @@ export default function PrintingPage() {
       },
     },
     {
-      key: 'orderDate',
-      label: 'Date',
+      key: 'shippedAt',
+      label: 'Sent At',
       render: (_: any, row: PrintingOrder) => {
-        const raw = row.createdAt ?? row.orderDate;
+        const raw = row.shippedAt ?? row.createdAt ?? row.orderDate;
         if (!raw) return '-';
         const d = new Date(raw);
         if (isNaN(d.getTime())) return '-';
@@ -392,7 +394,7 @@ export default function PrintingPage() {
       render: (_: any, row: PrintingOrder) => {
         const cid = row.courierOrderId;
         if (!cid) return <span className="text-gray-400">-</span>;
-        const trackingUrl = getCourierTrackingUrl(row.courierCompany, row.trackingId);
+        const trackingUrl = getCourierTrackingUrl(row.courierCompany, row.trackingId, row.courierOrderId);
         if (trackingUrl) {
           return (
             <a
