@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useToast } from '@/contexts/ToastContext';
 import AdminLayout from '@/layouts/AdminLayout';
+import { wrapCustomerName } from '@/utils/wrapCustomerName';
 import Pagination from '@/components/admin/Pagination';
 import apiClient, { auth } from '@/services/api';
 import { 
@@ -760,7 +761,7 @@ export default function MyFollowupsPage() {
                     return (
                       <tr key={followUp.id} className="hover:bg-gray-50">
                         <td className="px-4 py-3">
-                          <div className="font-medium text-gray-900">{followUp.customer_name || 'Unknown'}</div>
+                          <div className="font-medium text-gray-900">{wrapCustomerName(followUp.customer_name || 'Unknown')}</div>
                           <div className="text-xs text-gray-500">ID: {followUp.customer_id}</div>
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-700">{rawPhone || '—'}</td>

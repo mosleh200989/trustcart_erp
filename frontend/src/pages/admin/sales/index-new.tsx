@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useToast } from '@/contexts/ToastContext';
 import AdminLayout from '@/layouts/AdminLayout';
+import { wrapCustomerName } from '@/utils/wrapCustomerName';
 import DataTable from '@/components/admin/DataTable';
 import PageSizeSelector from '@/components/admin/PageSizeSelector';
 import Modal from '@/components/admin/Modal';
@@ -142,7 +143,7 @@ export default function AdminSales() {
       label: 'Order Number',
       render: (_: any, row: SalesOrder) => row.order_number ?? row.sales_order_number ?? '-'
     },
-    { key: 'customer_name', label: 'Customer' },
+    { key: 'customer_name', label: 'Customer', render: (_: any, row: SalesOrder) => wrapCustomerName(row.customer_name) },
     { 
       key: 'total_amount', 
       label: 'Amount',

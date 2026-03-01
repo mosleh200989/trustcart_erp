@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import AdminLayout from '@/layouts/AdminLayout';
 import apiClient from '@/services/api';
+import { wrapCustomerName } from '@/utils/wrapCustomerName';
 import {
   FaSearch, FaEye, FaTrash, FaCheck, FaTruck, FaTimes, FaUndo,
   FaPhone, FaMapMarkerAlt, FaBox, FaChevronDown,
@@ -219,7 +220,7 @@ export default function LandingPageOrders() {
                       >
                         <td className="px-3 py-3 text-sm font-medium text-gray-700">#{order.id}</td>
                         <td className="px-3 py-3">
-                          <div className="text-sm font-medium text-gray-900">{order.customer_name}</div>
+                          <div className="text-sm font-medium text-gray-900">{wrapCustomerName(order.customer_name)}</div>
                           <div className="text-xs text-gray-500">{order.customer_phone}</div>
                         </td>
                         <td className="px-3 py-3">

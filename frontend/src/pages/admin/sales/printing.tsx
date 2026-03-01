@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import AdminLayout from '@/layouts/AdminLayout';
 import DataTable from '@/components/admin/DataTable';
+import { wrapCustomerName } from '@/utils/wrapCustomerName';
 import PageSizeSelector from '@/components/admin/PageSizeSelector';
 import FormInput from '@/components/admin/FormInput';
 import AdminOrderDetailsModal from '@/components/AdminOrderDetailsModal';
@@ -353,7 +354,7 @@ export default function PrintingPage() {
       label: 'Customer',
       render: (_: any, row: PrintingOrder) => (
         <div>
-          <div className="font-medium">{row.customerName || '-'}</div>
+          <div className="font-medium">{wrapCustomerName(row.customerName)}</div>
           <div className="text-xs text-gray-500">{row.customerPhone || '-'}</div>
         </div>
       ),

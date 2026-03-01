@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import AdminLayout from '@/layouts/AdminLayout';
 import apiClient from '@/services/api';
+import { wrapCustomerName } from '@/utils/wrapCustomerName';
 
 interface TeamPerformance {
   totalLeads: number;
@@ -124,7 +125,7 @@ export default function CrmReportsPage() {
                 <ul className="space-y-2 text-sm max-h-64 overflow-y-auto">
                   {missedFollowups.map((item, idx) => (
                     <li key={idx} className="border-b last:border-b-0 pb-2">
-                      <div className="font-semibold">{item.customer_name || item.customer_id}</div>
+                      <div className="font-semibold">{wrapCustomerName(item.customer_name || String(item.customer_id))}</div>
                       <div className="text-xs text-gray-500">Last contact: {item.last_contact_date}</div>
                       <div className="text-xs text-red-600">Missed by: {item.days_overdue} days</div>
                     </li>

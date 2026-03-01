@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import AdminLayout from '@/layouts/AdminLayout';
 import DataTable from '@/components/admin/DataTable';
+import { wrapCustomerName } from '@/utils/wrapCustomerName';
 import PageSizeSelector from '@/components/admin/PageSizeSelector';
 import FormInput from '@/components/admin/FormInput';
 import AdminOrderDetailsModal from '@/components/AdminOrderDetailsModal';
@@ -204,8 +205,7 @@ export default function AdminSalesLateDelivery() {
       key: 'customer_name',
       label: 'Customer',
       render: (_: any, row: SalesOrder) => {
-        const name = row.customerName ?? row.customer_name ?? '-';
-        return <span className="font-medium text-gray-900">{name}</span>;
+        return <span className="font-medium text-gray-900">{wrapCustomerName(row.customerName ?? row.customer_name)}</span>;
       },
     },
     {

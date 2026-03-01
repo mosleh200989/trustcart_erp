@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
 import AdminLayout from '@/layouts/AdminLayout';
+import { wrapCustomerName } from '@/utils/wrapCustomerName';
 import { useToast } from '@/contexts/ToastContext';
 import DataTable from '@/components/admin/DataTable';
 import Modal from '@/components/admin/Modal';
@@ -449,7 +450,7 @@ export default function AdminTaggingPage() {
                   render: (_: any, row: CustomerRow) => (
                     <div>
                       <div className="font-semibold text-gray-900">
-                        {row.name || '-'} {row.lastName || ''}
+                        {wrapCustomerName(((row.name || '-') + ' ' + (row.lastName || '')).trim())}
                       </div>
                       {row.isGuest ? (
                         <div className="text-xs text-orange-600">Guest</div>
