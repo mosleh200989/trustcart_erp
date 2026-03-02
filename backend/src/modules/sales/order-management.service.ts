@@ -696,10 +696,9 @@ export class OrderManagementService {
     const order = await this.salesOrderRepository.findOne({ where: { id: orderId } });
     if (!order) throw new Error('Order not found');
 
-    // Prevent double-approval or approving an order that has already progressed
-    const nonApprovableStatuses = ['approved', 'sent', 'shipped', 'in_transit', 'picked', 'delivered', 'partial_delivered', 'completed'];
-    if (nonApprovableStatuses.includes(order.status)) {
-      throw new ConflictException(`Order cannot be approved — it is already "${order.status}"`);
+    // Only orders in "processing" status can be approved
+    if (order.status !== 'processing') {
+      throw new ConflictException(`Order cannot be approved — only orders with "processing" status can be approved (current status: "${order.status}")`);
     }
 
     order.status = 'approved';
