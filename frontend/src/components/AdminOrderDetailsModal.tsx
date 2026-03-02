@@ -518,12 +518,9 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
     }
     setAddProductSearchLoading(true);
     try {
-      const response = await apiClient.get('/products', { params: { search: query } });
+      const response = await apiClient.get(`/products/search?q=${encodeURIComponent(query)}`);
       const products = Array.isArray(response.data) ? response.data : (response.data?.data || []);
-      const filtered = products.filter((p: any) =>
-        (p.name_en || p.name || '').toLowerCase().includes(query.toLowerCase()) ||
-        (p.name_bn || '').includes(query)
-      ).slice(0, 10);
+      const filtered = products.slice(0, 10);
       setAddProductSearchResults(filtered);
       setShowAddProductDropdown(filtered.length > 0);
     } catch (error) {
