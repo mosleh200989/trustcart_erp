@@ -11,7 +11,7 @@ export interface StatusConfig {
 }
 
 export const ORDER_STATUS_MAP: Record<string, StatusConfig> = {
-  processing:        { label: 'Processing',        color: 'bg-indigo-100 text-indigo-800' },
+  processing:        { label: 'Processing',        color: 'bg-pink-200 text-pink-900' },
   approved:          { label: 'Approved',           color: 'bg-blue-100 text-blue-800' },
   sent:              { label: 'Sent',               color: 'bg-cyan-100 text-cyan-800' },
   pending:           { label: 'Pending',            color: 'bg-yellow-100 text-yellow-800' },
