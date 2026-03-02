@@ -111,6 +111,40 @@ export class SalesController {
     return this.salesService.findLateDeliveries({ thresholdDays: days });
   }
 
+  @Get('sent-courier-orders')
+  @RequirePermissions('view-sales-orders')
+  async findSentCourierOrders(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('q') q?: string,
+    @Query('status') status?: string,
+    @Query('courierCompany') courierCompany?: string,
+    @Query('shippedFrom') shippedFrom?: string,
+    @Query('shippedTo') shippedTo?: string,
+  ) {
+    return this.salesService.findSentCourierOrders({
+      page: page ? parseInt(page, 10) : 1,
+      limit: limit ? parseInt(limit, 10) : 50,
+      q: q || '',
+      status: status || '',
+      courierCompany: courierCompany || '',
+      shippedFrom: shippedFrom || '',
+      shippedTo: shippedTo || '',
+    });
+  }
+
+  @Post('courier-returns')
+  @RequirePermissions('view-sales-orders')
+  async markCourierReturns(@Body() body: { courierOrderIds: string[]; returnDate: string }) {
+    if (!body.courierOrderIds?.length) {
+      throw new BadRequestException('At least one courier ID is required');
+    }
+    if (!body.returnDate) {
+      throw new BadRequestException('Return date is required');
+    }
+    return this.salesService.markCourierReturns(body.courierOrderIds, body.returnDate);
+  }
+
   @Get('my-order-stats')
   async getMyOrderStats(@Req() req: any) {
     const userId = req?.user?.id;

@@ -57,7 +57,9 @@ interface Summary {
   totalDiscount: number;
   avgOrderValue: number;
   pendingOrders: number;
+  processingOrders: number;
   approvedOrders: number;
+  holdOrders: number;
   shippedOrders: number;
   deliveredOrders: number;
   cancelledOrders: number;
@@ -86,6 +88,14 @@ interface CourierStatusItem {
   orders: number;
 }
 
+interface SourceProductRow {
+  productId: number;
+  productName: string;
+  totalOrders: number;
+  totalQty: number;
+  totalRevenue: number;
+}
+
 interface DailyReport {
   date: string;
   summary: Summary;
@@ -93,6 +103,8 @@ interface DailyReport {
   hourly: HourlyItem[];
   orderSources: SourceItem[];
   courierStatuses: CourierStatusItem[];
+  landingPageProducts: SourceProductRow[];
+  websiteProducts: SourceProductRow[];
 }
 
 /* ========== COLORS ========== */
@@ -118,8 +130,10 @@ const PALETTE = {
 const PIE_COLORS = [PALETTE.primary, PALETTE.success, PALETTE.warning, PALETTE.danger, PALETTE.info, PALETTE.purple, PALETTE.pink, PALETTE.orange, PALETTE.teal];
 
 const STATUS_COLORS: Record<string, string> = {
+  processing: PALETTE.pink,
   pending: PALETTE.warning,
   approved: PALETTE.info,
+  hold: PALETTE.orange,
   shipped: PALETTE.purple,
   delivered: PALETTE.success,
   cancelled: PALETTE.danger,
@@ -204,8 +218,10 @@ export default function TodaysReportPage() {
     if (!data) return [];
     const s = data.summary;
     return [
+      { name: 'Processing', value: s.processingOrders, color: STATUS_COLORS.processing },
       { name: 'Pending', value: s.pendingOrders, color: STATUS_COLORS.pending },
       { name: 'Approved', value: s.approvedOrders, color: STATUS_COLORS.approved },
+      { name: 'On Hold', value: s.holdOrders, color: STATUS_COLORS.hold },
       { name: 'Shipped', value: s.shippedOrders, color: STATUS_COLORS.shipped },
       { name: 'Delivered', value: s.deliveredOrders, color: STATUS_COLORS.delivered },
       { name: 'Cancelled', value: s.cancelledOrders, color: STATUS_COLORS.cancelled },
@@ -341,11 +357,10 @@ export default function TodaysReportPage() {
                 <h3 className="text-gray-800 font-semibold mb-3 flex items-center gap-2">
                   <FaBoxOpen className="text-indigo-500" /> Order Status Breakdown
                 </h3>
-                <div className="grid grid-cols-5 gap-2">
-                  <MiniStatusCard label="Pending" count={data.summary.pendingOrders} total={data.summary.totalOrders} color="amber" />
+                <div className="grid grid-cols-4 gap-2">
+                  <MiniStatusCard label="Processing" count={data.summary.processingOrders} total={data.summary.totalOrders} color="pink" />
+                  <MiniStatusCard label="On Hold" count={data.summary.holdOrders} total={data.summary.totalOrders} color="orange" />
                   <MiniStatusCard label="Approved" count={data.summary.approvedOrders} total={data.summary.totalOrders} color="cyan" />
-                  <MiniStatusCard label="Shipped" count={data.summary.shippedOrders} total={data.summary.totalOrders} color="purple" />
-                  <MiniStatusCard label="Delivered" count={data.summary.deliveredOrders} total={data.summary.totalOrders} color="emerald" />
                   <MiniStatusCard label="Cancelled" count={data.summary.cancelledOrders} total={data.summary.totalOrders} color="red" />
                 </div>
               </div>
@@ -495,6 +510,22 @@ export default function TodaysReportPage() {
                 </table>
               </div>
             </div>
+
+            {/* ===== LANDING PAGE SALES BREAKDOWN ===== */}
+            <SourceProductTable
+              title="Landing Page wise Sales Breakdown"
+              icon={<FaChartLine className="text-purple-500" />}
+              products={data.landingPageProducts}
+              emptyMessage="No landing page orders for this date"
+            />
+
+            {/* ===== WEBSITE SALES BREAKDOWN ===== */}
+            <SourceProductTable
+              title="Website wise Sales Breakdown"
+              icon={<FaChartLine className="text-teal-500" />}
+              products={data.websiteProducts}
+              emptyMessage="No website orders for this date"
+            />
 
             {/* ===== CHARTS SECTION ===== */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -687,6 +718,7 @@ function MiniStatusCard({ label, count, total, color }: { label: string; count: 
     blue: 'bg-blue-50 text-blue-700 border-blue-200',
     orange: 'bg-orange-50 text-orange-700 border-orange-200',
     slate: 'bg-slate-50 text-slate-700 border-slate-200',
+    pink: 'bg-pink-50 text-pink-700 border-pink-200',
   };
   return (
     <div className={`${colorClasses[color] || colorClasses.amber} border rounded-lg p-2 text-center`}>
@@ -737,5 +769,73 @@ function StatusBadge({ value, color }: { value: number; color: string }) {
     <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${colorClasses[color] || ''}`}>
       {value}
     </span>
+  );
+}
+
+function SourceProductTable({
+  title,
+  icon,
+  products,
+  emptyMessage,
+}: {
+  title: string;
+  icon: React.ReactNode;
+  products: { productId: number; productName: string; totalOrders: number; totalQty: number; totalRevenue: number }[];
+  emptyMessage: string;
+}) {
+  return (
+    <div className="bg-white shadow-sm border border-gray-200 rounded-xl overflow-hidden">
+      <div className="p-5 border-b border-gray-200">
+        <h3 className="text-gray-800 font-semibold text-lg flex items-center gap-2">
+          {icon} {title}
+          <span className="text-sm text-gray-500 font-normal ml-2">({products.length} products)</span>
+        </h3>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="bg-gray-50 text-gray-500 text-xs uppercase tracking-wider">
+              <th className="text-left px-4 py-3 w-10">#</th>
+              <th className="text-left px-4 py-3 min-w-[200px]">Product Name</th>
+              <th className="px-4 py-3 text-center">Orders</th>
+              <th className="px-4 py-3 text-center">Qty</th>
+              <th className="px-4 py-3 text-right">Revenue (৳)</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-200">
+            {products.length === 0 ? (
+              <tr>
+                <td colSpan={5} className="px-4 py-12 text-center text-gray-500">
+                  {emptyMessage}
+                </td>
+              </tr>
+            ) : (
+              products.map((p, idx) => (
+                <tr key={p.productId || idx} className="hover:bg-gray-50 transition-colors">
+                  <td className="px-4 py-3 text-gray-500 text-xs">{idx + 1}</td>
+                  <td className="px-4 py-3 text-gray-900 font-medium max-w-[300px] truncate" title={p.productName}>
+                    {p.productName}
+                  </td>
+                  <td className="px-4 py-3 text-center font-semibold text-gray-900">{p.totalOrders}</td>
+                  <td className="px-4 py-3 text-center text-gray-600">{p.totalQty}</td>
+                  <td className="px-4 py-3 text-right text-gray-900">{fmt(p.totalRevenue)}</td>
+                </tr>
+              ))
+            )}
+          </tbody>
+          {products.length > 0 && (
+            <tfoot>
+              <tr className="bg-gray-50 font-semibold text-gray-900 border-t-2 border-indigo-200">
+                <td className="px-4 py-3" />
+                <td className="px-4 py-3 text-indigo-600">TOTAL</td>
+                <td className="px-4 py-3 text-center">{products.reduce((s, p) => s + p.totalOrders, 0)}</td>
+                <td className="px-4 py-3 text-center">{products.reduce((s, p) => s + p.totalQty, 0)}</td>
+                <td className="px-4 py-3 text-right">{fmt(products.reduce((s, p) => s + p.totalRevenue, 0))}</td>
+              </tr>
+            </tfoot>
+          )}
+        </table>
+      </div>
+    </div>
   );
 }
