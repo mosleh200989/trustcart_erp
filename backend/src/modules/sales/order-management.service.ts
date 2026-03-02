@@ -1907,24 +1907,97 @@ export class OrderManagementService {
       }
     }
 
-    const data = orders.map((order) => ({
-      id: order.id,
-      salesOrderNumber: order.salesOrderNumber,
-      customerName: order.customerName,
-      customerPhone: order.customerPhone,
-      totalAmount: parseFloat(order.totalAmount?.toString() || '0'),
-      courierOrderId: order.courierOrderId,
-      courierCompany: order.courierCompany,
-      trackingId: order.trackingId,
-      orderDate: order.orderDate || order.createdAt,
-      createdAt: order.createdAt,
-      shippedAt: order.shippedAt,
-      isPacked: order.isPacked ?? false,
-      invoicePrinted: (order as any).invoicePrinted ?? false,
-      stickerPrinted: (order as any).stickerPrinted ?? false,
-      status: order.status,
-      items: itemsMap[order.id] || [],
-    }));
+    // ---------- Detect repeat-phone active orders ----------
+    // Collect unique phone numbers (normalized without +88)
+    const phoneSet = new Set<string>();
+    const orderPhoneMap: Record<number, string> = {};
+    for (const order of orders) {
+      if (order.customerPhone) {
+        const norm = order.customerPhone.replace(/^\+88/, '').trim();
+        if (norm) {
+          phoneSet.add(norm);
+          orderPhoneMap[order.id] = norm;
+        }
+      }
+    }
+
+    // Find all active orders for these phones (excluding the current batch's own orders)
+    // Active = NOT delivered, cancelled, partial_delivered
+    const activeOrdersByPhone: Record<string, { id: number; status: string; courierOrderId: string | null; courierCompany: string | null; totalAmount: number; createdAt: Date; shippedAt: Date | null; items: { productName: string; quantity: number }[] }[]> = {};
+    if (phoneSet.size > 0) {
+      const phoneArr = Array.from(phoneSet);
+      const activeQb = this.salesOrderRepository.createQueryBuilder('ao');
+      const phoneLikeConditions = phoneArr.map((_, i) => `REPLACE(ao.customer_phone, '+88', '') = :ph${i}`).join(' OR ');
+      activeQb.where(`(${phoneLikeConditions})`, phoneArr.reduce((acc, ph, i) => ({ ...acc, [`ph${i}`]: ph }), {} as Record<string, string>));
+      activeQb.andWhere("ao.status NOT IN ('delivered', 'cancelled', 'partial_delivered', 'completed', 'returned')");
+      activeQb.orderBy('ao.created_at', 'ASC');
+      const activeOrders = await activeQb.getMany();
+
+      // Fetch items for active orders
+      const activeIds = activeOrders.map(o => o.id);
+      let activeItemsMap: Record<number, { productName: string; quantity: number }[]> = {};
+      if (activeIds.length > 0) {
+        const aItems = await this.orderItemRepository.createQueryBuilder('oi')
+          .where('oi.order_id IN (:...ids)', { ids: activeIds }).getMany();
+        const coveredIds = new Set(aItems.map(i => i.orderId));
+        const missingAIds = activeIds.filter(id => !coveredIds.has(id));
+        let aCheckoutItems: any[] = [];
+        if (missingAIds.length > 0) {
+          aCheckoutItems = await this.salesOrderItemRepository.createQueryBuilder('soi')
+            .where('soi.sales_order_id IN (:...ids)', { ids: missingAIds }).getMany();
+        }
+        for (const item of aItems) {
+          if (!activeItemsMap[item.orderId]) activeItemsMap[item.orderId] = [];
+          activeItemsMap[item.orderId].push({ productName: item.productName, quantity: Number(item.quantity || 0) });
+        }
+        for (const item of aCheckoutItems) {
+          const oid = (item as any).salesOrderId;
+          if (!activeItemsMap[oid]) activeItemsMap[oid] = [];
+          activeItemsMap[oid].push({ productName: item.productName, quantity: Number(item.quantity || 0) });
+        }
+      }
+
+      for (const ao of activeOrders) {
+        const norm = (ao.customerPhone || '').replace(/^\+88/, '').trim();
+        if (!activeOrdersByPhone[norm]) activeOrdersByPhone[norm] = [];
+        activeOrdersByPhone[norm].push({
+          id: ao.id,
+          status: ao.status,
+          courierOrderId: ao.courierOrderId,
+          courierCompany: ao.courierCompany,
+          totalAmount: parseFloat(ao.totalAmount?.toString() || '0'),
+          createdAt: ao.createdAt,
+          shippedAt: ao.shippedAt,
+          items: activeItemsMap[ao.id] || [],
+        });
+      }
+    }
+
+    const data = orders.map((order) => {
+      const norm = orderPhoneMap[order.id] || '';
+      // Active orders for same phone, excluding THIS order
+      const phoneActiveOrders = (activeOrdersByPhone[norm] || []).filter(ao => ao.id !== order.id);
+      return {
+        id: order.id,
+        salesOrderNumber: order.salesOrderNumber,
+        customerName: order.customerName,
+        customerPhone: order.customerPhone,
+        totalAmount: parseFloat(order.totalAmount?.toString() || '0'),
+        courierOrderId: order.courierOrderId,
+        courierCompany: order.courierCompany,
+        trackingId: order.trackingId,
+        orderDate: order.orderDate || order.createdAt,
+        createdAt: order.createdAt,
+        shippedAt: order.shippedAt,
+        isPacked: order.isPacked ?? false,
+        invoicePrinted: (order as any).invoicePrinted ?? false,
+        stickerPrinted: (order as any).stickerPrinted ?? false,
+        status: order.status,
+        items: itemsMap[order.id] || [],
+        hasActiveOrders: phoneActiveOrders.length > 0,
+        activeOrders: phoneActiveOrders.length > 0 ? phoneActiveOrders : undefined,
+      };
+    });
 
     return {
       data,
