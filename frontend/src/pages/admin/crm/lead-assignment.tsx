@@ -673,7 +673,7 @@ export default function LeadAssignmentPage() {
                         <td className="px-4 py-4">
                           {lead.assigned_to ? (
                             <span className="text-xs px-2 py-1 rounded-full bg-green-100 text-green-700">
-                              Assigned (#{lead.assigned_to})
+                              Assigned ({users.find(u => u.id === lead.assigned_to)?.name || `#${lead.assigned_to}`})
                             </span>
                           ) : (
                             <span className="text-xs px-2 py-1 rounded-full bg-yellow-100 text-yellow-700">
