@@ -23,6 +23,7 @@ interface DataTableProps {
   totalPages?: number;
   onPageChange?: (page: number) => void;
   loading?: boolean;
+  rowClassName?: (row: any, index: number) => string;
 }
 
 export default function DataTable({
@@ -35,7 +36,8 @@ export default function DataTable({
   currentPage = 1,
   totalPages = 1,
   onPageChange,
-  loading = false
+  loading = false,
+  rowClassName,
 }: DataTableProps) {
   const hasActions = !!(onView || onEdit || onDelete);
   const getRowId = selection?.getRowId ?? ((row: any) => row?.id);
@@ -134,7 +136,7 @@ export default function DataTable({
               </tr>
             ) : (
               data.map((row, index) => (
-                <tr key={index} className="hover:bg-gray-50 transition-colors">
+                <tr key={index} className={`hover:bg-gray-50 transition-colors ${rowClassName ? rowClassName(row, index) : ''}`}>
                   {selection && (
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       <input

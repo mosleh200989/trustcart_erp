@@ -9,7 +9,7 @@ import InvoicePrintModal from '@/components/admin/InvoicePrintModal';
 import StickerPrintModal from '@/components/admin/StickerPrintModal';
 import ProductAutocomplete from '@/components/admin/ProductAutocomplete';
 import { useToast } from '@/contexts/ToastContext';
-import { FaPrint, FaBoxOpen, FaFileInvoice, FaTag, FaExternalLinkAlt } from 'react-icons/fa';
+import { FaPrint, FaBoxOpen, FaFileInvoice, FaTag, FaExternalLinkAlt, FaExclamationTriangle, FaTimes } from 'react-icons/fa';
 import apiClient from '@/services/api';
 import { getOrderStatusLabel, getOrderStatusColor } from '@/utils/orderStatus';
 
@@ -38,6 +38,17 @@ interface PrintingOrderItem {
   quantity: number;
 }
 
+interface ActiveOrder {
+  id: number;
+  status: string;
+  courierOrderId?: string | null;
+  courierCompany?: string | null;
+  totalAmount: number;
+  createdAt: string;
+  shippedAt?: string | null;
+  items: PrintingOrderItem[];
+}
+
 interface PrintingOrder {
   id: number;
   salesOrderNumber?: string;
@@ -55,6 +66,8 @@ interface PrintingOrder {
   stickerPrinted?: boolean;
   status?: string;
   items?: PrintingOrderItem[];
+  hasActiveOrders?: boolean;
+  activeOrders?: ActiveOrder[];
 }
 
 function getCourierTrackingUrl(courierCompany: string | null | undefined, trackingId: string | null | undefined, courierOrderId?: string | null): string | null {
@@ -94,6 +107,12 @@ export default function PrintingPage() {
   const [showInvoicePrint, setShowInvoicePrint] = useState(false);
   const [showStickerPrint, setShowStickerPrint] = useState(false);
   const [printOrderIds, setPrintOrderIds] = useState<number[]>([]);
+
+  // Active-order gate modal (for repeat-phone sticker printing)
+  const [showActiveOrderGate, setShowActiveOrderGate] = useState(false);
+  const [gateOrder, setGateOrder] = useState<PrintingOrder | null>(null);
+  const [gateNote, setGateNote] = useState('');
+  const [gateSaving, setGateSaving] = useState(false);
 
   const loadOrders = useCallback(async (page?: number, pageSize?: number, filterOverrides?: typeof filters) => {
     setLoading(true);
@@ -172,17 +191,9 @@ export default function PrintingPage() {
     setShowInvoicePrint(true);
   };
 
-  const handlePrintSticker = async (orderId?: number) => {
-    let ids: number[];
-    if (orderId) {
-      ids = [orderId];
-    } else {
-      ids = selectedRowIds.map((id) => Number(id)).filter((id) => Number.isFinite(id));
-      if (ids.length === 0) { toast.warning('Select at least one order'); return; }
-    }
+  const proceedWithStickerPrint = async (ids: number[]) => {
     setPrintOrderIds(ids);
     setShowStickerPrint(true);
-    // Also mark as printed
     try {
       if (ids.length === 1) {
         await apiClient.post(`/order-management/${ids[0]}/mark-sticker-printed`);
@@ -192,6 +203,56 @@ export default function PrintingPage() {
     } catch {
       // silent — printing modal is already open
     }
+  };
+
+  const handlePrintSticker = async (orderId?: number) => {
+    let ids: number[];
+    if (orderId) {
+      ids = [orderId];
+    } else {
+      ids = selectedRowIds.map((id) => Number(id)).filter((id) => Number.isFinite(id));
+      if (ids.length === 0) { toast.warning('Select at least one order'); return; }
+    }
+
+    // Check for orders with active repeat-phone orders
+    const flaggedOrders = orders.filter(o => ids.includes(o.id) && o.hasActiveOrders);
+
+    if (flaggedOrders.length > 0) {
+      if (ids.length === 1) {
+        // Single order — show gate modal
+        setGateOrder(flaggedOrders[0]);
+        setGateNote('');
+        setShowActiveOrderGate(true);
+        return;
+      }
+      // Multiple selected — block and warn
+      const flaggedIds = flaggedOrders.map(o => `#${o.id}`).join(', ');
+      toast.error(`Order(s) ${flaggedIds} have repeat customers with active orders. Please print their stickers individually to add required notes.`);
+      return;
+    }
+
+    await proceedWithStickerPrint(ids);
+  };
+
+  const handleGateProceed = async () => {
+    if (!gateOrder) return;
+    if (!gateNote.trim()) {
+      toast.warning('Please add a note/reason before proceeding');
+      return;
+    }
+    setGateSaving(true);
+    try {
+      await apiClient.put(`/order-management/${gateOrder.id}/notes`, {
+        internalNotes: gateNote.trim(),
+      });
+    } catch {
+      // non-blocking
+    }
+    setShowActiveOrderGate(false);
+    setGateSaving(false);
+    await proceedWithStickerPrint([gateOrder.id]);
+    setGateOrder(null);
+    setGateNote('');
   };
 
   // ==================== MARK AS PRINTED HANDLERS ====================
@@ -303,14 +364,16 @@ export default function PrintingPage() {
   // ==================== CHECKBOX HANDLERS (print + mark) ====================
 
   const handleStickerCheckbox = async (orderId: number) => {
-    // Open sticker print modal AND mark as printed
-    setPrintOrderIds([orderId]);
-    setShowStickerPrint(true);
-    try {
-      await apiClient.post(`/order-management/${orderId}/mark-sticker-printed`);
-    } catch {
-      // silent — modal already open
+    // Check if order has active orders — show gate modal
+    const order = orders.find(o => o.id === orderId);
+    if (order?.hasActiveOrders) {
+      setGateOrder(order);
+      setGateNote('');
+      setShowActiveOrderGate(true);
+      return;
     }
+    // Open sticker print modal AND mark as printed
+    await proceedWithStickerPrint([orderId]);
   };
 
   const handlePackedCheckbox = async (orderId: number, currentlyPacked: boolean) => {
@@ -688,6 +751,7 @@ export default function PrintingPage() {
           currentPage={currentPage}
           totalPages={totalPages}
           onPageChange={setCurrentPage}
+          rowClassName={(row: PrintingOrder) => row.hasActiveOrders ? 'bg-red-50 border-l-4 border-l-red-400' : ''}
         />
 
         {/* Order Details Modal */}
@@ -724,6 +788,131 @@ export default function PrintingPage() {
               loadOrders(); // Refresh to reflect any print status changes
             }}
           />
+        )}
+
+        {/* Active Order Gate Modal */}
+        {showActiveOrderGate && gateOrder && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
+              {/* Header */}
+              <div className="flex items-center justify-between px-6 py-4 border-b border-red-200 bg-red-50 rounded-t-xl">
+                <div className="flex items-center gap-3">
+                  <FaExclamationTriangle className="text-red-500" size={22} />
+                  <div>
+                    <h2 className="text-lg font-bold text-red-800">Repeat Order Detected</h2>
+                    <p className="text-sm text-red-600">This customer has other active order(s) in progress</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => { setShowActiveOrderGate(false); setGateOrder(null); setGateNote(''); }}
+                  className="p-2 hover:bg-red-100 rounded-lg transition-colors"
+                >
+                  <FaTimes className="text-gray-500" />
+                </button>
+              </div>
+
+              {/* Current Order Info */}
+              <div className="px-6 py-4 border-b border-gray-200">
+                <h3 className="text-sm font-semibold text-gray-700 mb-2">Current Order</h3>
+                <div className="bg-blue-50 rounded-lg p-3 text-sm">
+                  <div className="flex items-center gap-4 flex-wrap">
+                    <span className="font-medium">Order #{gateOrder.id}</span>
+                    <span>{gateOrder.customerName || '-'}</span>
+                    <span>{gateOrder.customerPhone || '-'}</span>
+                    <span className="font-semibold">৳{Number(gateOrder.totalAmount || 0).toFixed(2)}</span>
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${getOrderStatusColor(gateOrder.status)}`}>
+                      {getOrderStatusLabel(gateOrder.status)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Previous Active Orders Table */}
+              <div className="px-6 py-4 border-b border-gray-200">
+                <h3 className="text-sm font-semibold text-gray-700 mb-2">
+                  Previous Active Order(s) <span className="text-xs text-gray-500 font-normal">({gateOrder.activeOrders?.length || 0})</span>
+                </h3>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm border border-gray-200 rounded-lg">
+                    <thead className="bg-gray-100">
+                      <tr>
+                        <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">Order ID</th>
+                        <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">Status</th>
+                        <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">Courier</th>
+                        <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">Amount</th>
+                        <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">Products</th>
+                        <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">Date</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {(gateOrder.activeOrders || []).map((ao) => (
+                        <tr key={ao.id} className="hover:bg-gray-50">
+                          <td className="px-3 py-2 font-medium">#{ao.id}</td>
+                          <td className="px-3 py-2">
+                            <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${getOrderStatusColor(ao.status)}`}>
+                              {getOrderStatusLabel(ao.status)}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2 text-xs">
+                            {ao.courierCompany || '-'}
+                            {ao.courierOrderId && <div className="text-gray-500">{ao.courierOrderId}</div>}
+                          </td>
+                          <td className="px-3 py-2 font-medium">৳{Number(ao.totalAmount || 0).toFixed(2)}</td>
+                          <td className="px-3 py-2">
+                            <div className="max-w-[200px]">
+                              {ao.items.slice(0, 3).map((item, i) => (
+                                <div key={i} className="text-xs text-gray-700 truncate">
+                                  {item.quantity}x {item.productName}
+                                </div>
+                              ))}
+                              {ao.items.length > 3 && <div className="text-xs text-blue-600">+{ao.items.length - 3} more</div>}
+                            </div>
+                          </td>
+                          <td className="px-3 py-2 text-xs text-gray-500">
+                            {ao.createdAt ? new Date(ao.createdAt).toLocaleDateString('en-GB', { timeZone: 'Asia/Dhaka' }) : '-'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Notes Input */}
+              <div className="px-6 py-4 border-b border-gray-200">
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                  Reason / Notes <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  value={gateNote}
+                  onChange={(e) => setGateNote(e.target.value)}
+                  placeholder="Enter the reason for this repeat order or any other notes..."
+                  className="w-full px-3 py-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-400 focus:border-red-400 resize-y"
+                  rows={3}
+                  disabled={gateSaving}
+                />
+              </div>
+
+              {/* Actions */}
+              <div className="flex items-center justify-end gap-3 px-6 py-4">
+                <button
+                  onClick={() => { setShowActiveOrderGate(false); setGateOrder(null); setGateNote(''); }}
+                  disabled={gateSaving}
+                  className="px-4 py-2 text-sm font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleGateProceed}
+                  disabled={gateSaving || !gateNote.trim()}
+                  className="px-5 py-2 text-sm font-semibold text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  <FaTag size={12} />
+                  {gateSaving ? 'Saving...' : 'Proceed to Print Sticker'}
+                </button>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </AdminLayout>

@@ -694,10 +694,11 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
 
   const handleManualStatusUpdate = async () => {
     if (!manualStatus) return;
-    if (!confirm(`Change order status to "${manualStatus}"?`)) return;
+    const statusLabel = getOrderStatusLabel(manualStatus);
+    if (!confirm(`Change order status to "${statusLabel}"?`)) return;
     try {
       await apiClient.put(`/sales/${currentOrderId}`, { status: manualStatus });
-      toast.success(`Order status updated to "${manualStatus}"`);
+      toast.success(`Order status updated to "${statusLabel}"`);
       setManualStatus('');
       loadOrderDetails();
       onUpdate();
@@ -980,9 +981,17 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
             <option value="processing">Processing</option>
             <option value="approved">Approved</option>
             <option value="sent">Sent</option>
+            <option value="pending">Pending</option>
+            <option value="in_review">In Review</option>
+            <option value="in_transit">In Transit</option>
+            <option value="picked">Picked</option>
             <option value="hold">On Hold</option>
+            <option value="shipped">Shipped</option>
+            <option value="delivered">Delivered</option>
+            <option value="partial_delivered">Partial Delivered</option>
             <option value="completed">Completed</option>
             <option value="cancelled">Cancelled</option>
+            <option value="returned">Returned</option>
           </select>
           <button
             type="button"
