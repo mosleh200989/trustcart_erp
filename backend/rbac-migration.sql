@@ -186,7 +186,16 @@ INSERT INTO permissions (name, slug, module, action, description) VALUES
 ('Approve Sales Orders', 'approve-sales-orders', 'sales', 'approve', 'Approve and finalize sales orders'),
 ('View Sales Reports', 'view-sales-reports', 'sales', 'read', 'View sales analytics and reports'),
 ('Manage Discounts', 'manage-discounts', 'sales', 'update', 'Apply discounts and offers'),
-('Process Returns', 'process-returns', 'sales', 'update', 'Process sales returns and refunds')
+('Process Returns', 'process-returns', 'sales', 'update', 'Process sales returns and refunds'),
+('View Printing', 'view-printing', 'sales', 'read', 'View printing page and print invoices/stickers'),
+('Manage Printing', 'manage-printing', 'sales', 'update', 'Mark invoices/stickers as printed, pack orders'),
+('View Late Delivery', 'view-late-delivery', 'sales', 'read', 'View late delivery orders list'),
+('Manage Late Delivery', 'manage-late-delivery', 'sales', 'update', 'Update status of late delivery orders'),
+('View Sent Courier Orders', 'view-sent-courier-orders', 'sales', 'read', 'View sent courier orders list'),
+('Manage Sent Courier Orders', 'manage-sent-courier-orders', 'sales', 'update', 'Update status of sent courier orders'),
+('View Courier Returns', 'view-courier-returns', 'sales', 'read', 'View courier return orders'),
+('Manage Courier Returns', 'manage-courier-returns', 'sales', 'update', 'Mark orders as courier returned'),
+('View Incomplete Orders', 'view-incomplete-orders', 'sales', 'read', 'View incomplete/abandoned orders')
 ON CONFLICT (slug) DO NOTHING;
 -- PURCHASE PERMISSIONS
 INSERT INTO permissions (name, slug, module, action, description) VALUES
@@ -334,6 +343,24 @@ INSERT INTO permissions (name, slug, module, action, description) VALUES
 ('Chat with Purchase Manager', 'chat-with-purchase-manager', 'supplier', 'create', 'Send messages to purchase team')
 ON CONFLICT (slug) DO NOTHING;
 
+-- COMMISSION PERMISSIONS
+INSERT INTO permissions (name, slug, module, action, description) VALUES
+('Manage Commission Settings', 'manage-commission-settings', 'crm', 'update', 'Create, update, delete commission settings'),
+('View Commission Reports', 'view-commission-reports', 'crm', 'read', 'View commission reports and agent earnings'),
+('Approve Commissions', 'approve-commissions', 'crm', 'update', 'Approve or reject pending commissions')
+ON CONFLICT (slug) DO NOTHING;
+
+-- TEAM MANAGEMENT PERMISSIONS
+INSERT INTO permissions (name, slug, module, action, description) VALUES
+('Manage Team Members', 'manage-team-members', 'crm', 'update', 'Manage team member configurations and dashboard settings')
+ON CONFLICT (slug) DO NOTHING;
+
+-- TELEPHONY PERMISSIONS
+INSERT INTO permissions (name, slug, module, action, description) VALUES
+('View Telephony', 'view-telephony', 'telephony', 'read', 'View telephony tasks, call logs, and follow-ups'),
+('Manage Telephony', 'manage-telephony', 'telephony', 'update', 'Manage telephony tasks and PBX configuration')
+ON CONFLICT (slug) DO NOTHING;
+
 -- DASHBOARD PERMISSIONS
 INSERT INTO permissions (name, slug, module, action, description) VALUES
 ('View Dashboard', 'view-dashboard', 'dashboard', 'read', 'Access main dashboard'),
@@ -391,7 +418,12 @@ WHERE slug IN (
   'view-sales-orders',
   'view-sales-reports',
   'view-mlm-reports',
-  'view-dashboard'
+  'view-dashboard',
+  'view-printing',
+  'view-late-delivery',
+  'view-sent-courier-orders',
+  'view-courier-returns',
+  'view-incomplete-orders'
 )
 ON CONFLICT DO NOTHING;
 
@@ -663,7 +695,16 @@ WHERE slug IN (
   'view-sales-reports',
   'view-mlm-reports',
   'view-dashboard',
-  'view-all-reports'
+  'view-all-reports',
+  'view-printing',
+  'manage-printing',
+  'view-late-delivery',
+  'manage-late-delivery',
+  'view-sent-courier-orders',
+  'manage-sent-courier-orders',
+  'view-courier-returns',
+  'manage-courier-returns',
+  'view-incomplete-orders'
 )
 ON CONFLICT DO NOTHING;
 
