@@ -60,6 +60,7 @@ const STATUS_OPTIONS = [
   { value: 'in_transit', label: 'In Transit' },
   { value: 'picked', label: 'Picked' },
   { value: 'hold', label: 'Hold' },
+  { value: 'shipped', label: 'Shipped' },
   { value: 'delivered', label: 'Delivered' },
   { value: 'partial_delivered', label: 'Partial Delivered' },
   { value: 'completed', label: 'Completed' },
@@ -75,9 +76,11 @@ const COURIER_COMPANY_OPTIONS = [
 ];
 
 const MANUAL_STATUS_OPTIONS = [
+  { value: 'sent', label: 'Sent' },
   { value: 'pending', label: 'Pending' },
   { value: 'delivered', label: 'Delivered' },
   { value: 'cancelled', label: 'Cancelled' },
+  { value: 'deleted', label: 'Deleted' },
 ];
 
 const INITIAL_FILTERS = {
@@ -120,7 +123,6 @@ function getCourierTrackingUrl(courierCompany: string | null | undefined, tracki
   return null;
 }
 
-// Format note with timestamp and agent name
 function formatNoteWithMeta(noteText: string, agentName: string): string {
   const now = new Date();
   const dateStr = now.toLocaleDateString('en-GB', { timeZone: 'Asia/Dhaka', day: '2-digit', month: '2-digit', year: 'numeric' });
@@ -128,14 +130,12 @@ function formatNoteWithMeta(noteText: string, agentName: string): string {
   return `[${dateStr} ${timeStr} - ${agentName}]\n${noteText.trim()}`;
 }
 
-// Parse note to extract just the text content (without meta header)
 function parseNoteContent(fullNote: string | null | undefined): string {
   if (!fullNote) return '';
   const match = fullNote.match(/^\[.*?\]\n([\s\S]*)$/);
   return match ? match[1].trim() : fullNote.trim();
 }
 
-// Parse note meta (date/agent) from the header
 function parseNoteMeta(fullNote: string | null | undefined): { date: string; agent: string } | null {
   if (!fullNote) return null;
   const match = fullNote.match(/^\[(.*?)\s*-\s*(.*?)\]\n/);
@@ -143,7 +143,7 @@ function parseNoteMeta(fullNote: string | null | undefined): { date: string; age
   return { date: match[1].trim(), agent: match[2].trim() };
 }
 
-export default function AdminSalesLateDelivery() {
+export default function SentCourierOrdersPage() {
   const toast = useToast();
   const { user: authUser } = useAuth();
   const [orders, setOrders] = useState<SalesOrder[]>([]);
@@ -151,6 +151,8 @@ export default function AdminSalesLateDelivery() {
   const [filters, setFilters] = useState(INITIAL_FILTERS);
   const [showFilters, setShowFilters] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
   const [itemsPerPage, setItemsPerPage] = useState(50);
   const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
   const [showOrderDetails, setShowOrderDetails] = useState(false);
@@ -161,33 +163,61 @@ export default function AdminSalesLateDelivery() {
   // Status editing
   const [savingStatus, setSavingStatus] = useState<Record<number, boolean>>({});
 
-  useEffect(() => {
-    load();
-  }, []);
-
-  const load = async () => {
+  const load = useCallback(async (page?: number, pageSize?: number, filterOverrides?: typeof filters) => {
     setLoading(true);
     try {
-      const res = await apiClient.get('/sales/late-deliveries');
-      setOrders(Array.isArray(res.data) ? res.data : []);
+      const p = page ?? currentPage;
+      const ps = pageSize ?? itemsPerPage;
+      const f = filterOverrides ?? filters;
+      const params: Record<string, string> = {
+        page: String(p),
+        limit: String(ps),
+      };
+      if (f.q.trim()) params.q = f.q.trim();
+      if (f.status) params.status = f.status;
+      if (f.courierCompany) params.courierCompany = f.courierCompany;
+      if (f.shippedFrom) params.shippedFrom = f.shippedFrom;
+      if (f.shippedTo) params.shippedTo = f.shippedTo;
+
+      const res = await apiClient.get('/sales/sent-courier-orders', { params });
+      const body = res.data;
+      if (body && Array.isArray(body.data)) {
+        setOrders(body.data);
+        setTotalPages(body.totalPages ?? 1);
+        setTotalCount(body.total ?? 0);
+      } else {
+        setOrders([]);
+        setTotalPages(1);
+        setTotalCount(0);
+      }
     } catch (e) {
-      console.error('Failed to load late deliveries:', e);
+      console.error('Failed to load sent courier orders:', e);
       setOrders([]);
+      setTotalPages(1);
+      setTotalCount(0);
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentPage, itemsPerPage, filters]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      load(currentPage, itemsPerPage, filters);
+    }, filters.q.trim() ? 400 : 0);
+    return () => clearTimeout(timer);
+  }, [currentPage, itemsPerPage, filters]);
 
   const handleFilterChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFilters((prev) => ({ ...prev, [name]: value }));
+    setCurrentPage(1);
   };
 
   const resetFilters = () => {
     setFilters(INITIAL_FILTERS);
+    setCurrentPage(1);
   };
 
-  // Save internal note for an order
   const handleSaveNote = useCallback(async (orderId: number) => {
     const noteText = editingNotes[orderId];
     if (noteText === undefined) return;
@@ -219,7 +249,6 @@ export default function AdminSalesLateDelivery() {
     }
   }, [editingNotes, toast, authUser]);
 
-  // Handle status change
   const handleStatusChange = useCallback(async (orderId: number, newStatus: string) => {
     setSavingStatus((prev) => ({ ...prev, [orderId]: true }));
     try {
@@ -235,63 +264,6 @@ export default function AdminSalesLateDelivery() {
       setSavingStatus((prev) => ({ ...prev, [orderId]: false }));
     }
   }, [toast]);
-
-  const filtered = useMemo(() => {
-    const normalize = (v: any) => (v ?? '').toString().toLowerCase().trim();
-    const includes = (field: any, needle: string) => {
-      const n = normalize(needle);
-      if (!n) return true;
-      return normalize(field).includes(n);
-    };
-
-    const dateKey = (v: any): string => {
-      if (!v) return '';
-      if (v instanceof Date && !Number.isNaN(v.getTime())) return v.toISOString().slice(0, 10);
-      const s = String(v);
-      if (s.length >= 10) return s.slice(0, 10);
-      const d = new Date(v);
-      if (Number.isNaN(d.getTime())) return '';
-      return d.toISOString().slice(0, 10);
-    };
-    const inDateRange = (field: any, from: string, to: string) => {
-      const fromKey = dateKey(from);
-      const toKey = dateKey(to);
-      if (!fromKey && !toKey) return true;
-      const valueKey = dateKey(field);
-      if (!valueKey) return false;
-      const fromOk = fromKey ? valueKey >= fromKey : true;
-      const toOk = toKey ? valueKey <= toKey : true;
-      return fromOk && toOk;
-    };
-
-    return orders.filter((o) => {
-      const customerName = o.customerName ?? o.customer_name ?? '';
-      const customerPhone = o.customerPhone ?? o.customer_phone ?? '';
-      const courierCompany = o.courierCompany ?? o.courier_company ?? '';
-      const shippedAt = o.shippedAt ?? o.shipped_at ?? null;
-
-      const q = normalize(filters.q);
-      if (q) {
-        const haystack = [o.id, customerName, customerPhone, courierCompany, o.status, o.notes, o.internal_notes]
-          .map((v) => normalize(v))
-          .join(' ');
-        if (!haystack.includes(q)) return false;
-      }
-
-      if (filters.status && normalize(o.status) !== normalize(filters.status)) return false;
-      if (!includes(courierCompany, filters.courierCompany)) return false;
-      if (!inDateRange(shippedAt, filters.shippedFrom, filters.shippedTo)) return false;
-
-      return true;
-    });
-  }, [orders, filters]);
-
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [filters]);
-
-  const totalPages = Math.ceil(filtered.length / itemsPerPage);
-  const paginated = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   const columns = [
     { key: 'id', label: 'ID' },
@@ -534,10 +506,10 @@ export default function AdminSalesLateDelivery() {
         {/* Header */}
         <div className="flex justify-between items-center mb-6">
           <div>
-            <h1 className="text-3xl font-bold text-gray-800">Late Delivery</h1>
+            <h1 className="text-3xl font-bold text-gray-800">Sent Courier Orders</h1>
             <p className="text-gray-600 mt-1">
-              Orders shipped but not delivered within the SLA
-              {!loading && <span className="ml-2 text-sm font-medium text-gray-500">({filtered.length} order{filtered.length !== 1 ? 's' : ''})</span>}
+              All orders that have been shipped via courier
+              {!loading && <span className="ml-2 text-sm font-medium text-gray-500">({totalCount} order{totalCount !== 1 ? 's' : ''})</span>}
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -601,7 +573,7 @@ export default function AdminSalesLateDelivery() {
                     name="q"
                     value={filters.q}
                     onChange={handleFilterChange}
-                    placeholder="Search by customer name, phone, courier, status..."
+                    placeholder="Search by customer name, phone, courier ID, order ID..."
                     className="w-full pl-10 pr-4 py-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
                 </div>
@@ -646,7 +618,7 @@ export default function AdminSalesLateDelivery() {
         {/* Table */}
         <DataTable
           columns={columns}
-          data={paginated}
+          data={orders}
           loading={loading}
           currentPage={currentPage}
           totalPages={totalPages}

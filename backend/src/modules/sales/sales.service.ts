@@ -361,6 +361,116 @@ export class SalesService {
     return { totalOrders, todayOrders, thisMonthOrders };
   }
 
+  async findSentCourierOrders(params?: {
+    page?: number;
+    limit?: number;
+    q?: string;
+    status?: string;
+    courierCompany?: string;
+    shippedFrom?: string;
+    shippedTo?: string;
+  }) {
+    const page = Math.max(1, params?.page || 1);
+    const limit = Math.min(200, Math.max(1, params?.limit || 50));
+    const skip = (page - 1) * limit;
+
+    const qb = this.salesRepository.createQueryBuilder('o');
+    qb.where('o.shipped_at IS NOT NULL');
+
+    if (params?.q?.trim()) {
+      const q = `%${params.q.trim().toLowerCase()}%`;
+      const normalizedPhone = `%${params.q.trim().replace(/^\+88/, '').toLowerCase()}%`;
+      qb.andWhere(
+        '(CAST(o.id AS TEXT) ILIKE :q ' +
+        'OR o.customer_name ILIKE :q ' +
+        'OR o.customer_phone ILIKE :q ' +
+        "OR REPLACE(o.customer_phone, '+88', '') ILIKE :normalizedPhone " +
+        'OR o.courier_company ILIKE :q ' +
+        'OR CAST(o.courier_order_id AS TEXT) ILIKE :q)',
+        { q, normalizedPhone },
+      );
+    }
+
+    if (params?.status?.trim()) {
+      qb.andWhere('LOWER(o.status::text) = LOWER(:status)', { status: params.status.trim() });
+    }
+
+    if (params?.courierCompany?.trim()) {
+      qb.andWhere('LOWER(o.courier_company) = LOWER(:courierCompany)', { courierCompany: params.courierCompany.trim() });
+    }
+
+    if (params?.shippedFrom) {
+      qb.andWhere('DATE(o.shipped_at) >= :shippedFrom', { shippedFrom: params.shippedFrom });
+    }
+    if (params?.shippedTo) {
+      qb.andWhere('DATE(o.shipped_at) <= :shippedTo', { shippedTo: params.shippedTo });
+    }
+
+    qb.orderBy('o.shipped_at', 'DESC');
+
+    const total = await qb.getCount();
+    qb.skip(skip).take(limit);
+
+    const orders = await qb.getMany();
+
+    // Batch-fetch creator names
+    const creatorIds = [...new Set(orders.map((o) => o.createdBy).filter((id): id is number => id != null))];
+    const creatorMap = await this.getUserNameMap(creatorIds);
+    orders.forEach((order) => {
+      (order as any).createdByName = order.createdBy ? (creatorMap.get(order.createdBy) ?? null) : null;
+    });
+
+    // Batch-fetch items
+    const orderIds = orders.map((o) => o.id);
+    const itemsByOrderId = await this.batchFetchOrderItems(orderIds);
+    for (const order of orders) {
+      (order as any)._items = itemsByOrderId.get(order.id) || [];
+    }
+
+    return {
+      data: orders.map((order) => this.toAdminListDto(order)),
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    };
+  }
+
+  async markCourierReturns(courierOrderIds: string[], returnDate: string) {
+    const results: { courierOrderId: string; orderId: number | null; success: boolean; message: string }[] = [];
+
+    for (const cid of courierOrderIds) {
+      const trimmed = cid.trim();
+      if (!trimmed) continue;
+
+      const order = await this.salesRepository.findOne({
+        where: { courierOrderId: trimmed },
+      });
+
+      if (!order) {
+        results.push({ courierOrderId: trimmed, orderId: null, success: false, message: 'Order not found' });
+        continue;
+      }
+
+      order.status = 'returned' as any;
+      (order as any).deliveredAt = new Date(returnDate);
+      await this.salesRepository.save(order);
+
+      // Log activity
+      try {
+        await this.salesRepository.query(
+          `INSERT INTO sales_order_activity_log (sales_order_id, action, details, created_at)
+           VALUES ($1, $2, $3, NOW())`,
+          [order.id, 'courier_return', JSON.stringify({ courierOrderId: trimmed, returnDate })],
+        );
+      } catch (_) { /* ignore if table doesn't exist */ }
+
+      results.push({ courierOrderId: trimmed, orderId: order.id, success: true, message: 'Marked as returned' });
+    }
+
+    return results;
+  }
+
   async findLateDeliveries(params?: { thresholdDays?: number }) {
     const thresholdDays =
       params?.thresholdDays != null && Number.isFinite(params.thresholdDays)
