@@ -1076,6 +1076,7 @@ export class SalesService {
         `COUNT(CASE WHEN LOWER(o.courier_company) = 'redx' THEN 1 END) AS redx_orders`,
       ])
       .where('o.created_by IS NOT NULL')
+      .andWhere('o.order_source IN (:...agentSources)', { agentSources: ['admin_panel', 'agent_dashboard'] })
       .andWhere('DATE(o.order_date) >= :startDate', { startDate })
       .andWhere('DATE(o.order_date) <= :endDate', { endDate });
 
@@ -1109,6 +1110,7 @@ export class SalesService {
         '0 AS upsells',
       ])
       .where('o.created_by IS NOT NULL')
+      .andWhere('o.order_source IN (:...agentSources2)', { agentSources2: ['admin_panel', 'agent_dashboard'] })
       .andWhere('DATE(o.order_date) >= :startDate', { startDate })
       .andWhere('DATE(o.order_date) <= :endDate', { endDate });
 
@@ -1132,6 +1134,7 @@ export class SalesService {
         'COALESCE(SUM(o.total_amount), 0) AS revenue',
       ])
       .where('o.created_by IS NOT NULL')
+      .andWhere('o.order_source IN (:...agentSources3)', { agentSources3: ['admin_panel', 'agent_dashboard'] })
       .andWhere('DATE(o.order_date) >= :startDate', { startDate })
       .andWhere('DATE(o.order_date) <= :endDate', { endDate });
 
@@ -1154,6 +1157,7 @@ export class SalesService {
         'SUM(soi.line_total) AS total_revenue',
       ])
       .where('o.created_by IS NOT NULL')
+      .andWhere('o.order_source IN (:...agentSources4)', { agentSources4: ['admin_panel', 'agent_dashboard'] })
       .andWhere('DATE(o.order_date) >= :startDate', { startDate })
       .andWhere('DATE(o.order_date) <= :endDate', { endDate });
 
@@ -1268,6 +1272,7 @@ export class SalesService {
         'COUNT(o.id) AS order_count',
       ])
       .where('o.created_by IS NOT NULL')
+      .andWhere('o.order_source IN (:...agentSources5)', { agentSources5: ['admin_panel', 'agent_dashboard'] })
       .andWhere('DATE(o.order_date) >= :startDate', { startDate })
       .andWhere('DATE(o.order_date) <= :endDate', { endDate })
       .groupBy('o.created_by')
@@ -1291,6 +1296,7 @@ export class SalesService {
         `COUNT(CASE WHEN LOWER(o.status::text) = 'cancelled' THEN 1 END) AS cancelled_orders`,
       ])
       .where('o.created_by IS NOT NULL')
+      .andWhere('o.order_source IN (:...agentSources6)', { agentSources6: ['admin_panel', 'agent_dashboard'] })
       .andWhere('DATE(o.order_date) >= :startDate', { startDate })
       .andWhere('DATE(o.order_date) <= :endDate', { endDate })
       .groupBy('o.created_by')

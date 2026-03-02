@@ -64,14 +64,16 @@ export class OrderManagementController {
 
   @Post('bulk-mark-invoice-printed')
   @RequirePermissions('edit-sales-orders')
-  async bulkMarkInvoicePrinted(@Body() body: { orderIds: number[] }) {
-    return await this.orderManagementService.bulkMarkInvoicePrinted(body.orderIds);
+  async bulkMarkInvoicePrinted(@Body() body: { orderIds: number[] }, @Req() req: Request) {
+    const userInfo = this.getUserInfo(req);
+    return await this.orderManagementService.bulkMarkInvoicePrinted(body.orderIds, userInfo.userId, userInfo.userName, userInfo.ipAddress);
   }
 
   @Post('bulk-mark-sticker-printed')
   @RequirePermissions('edit-sales-orders')
-  async bulkMarkStickerPrinted(@Body() body: { orderIds: number[] }) {
-    return await this.orderManagementService.bulkMarkStickerPrinted(body.orderIds);
+  async bulkMarkStickerPrinted(@Body() body: { orderIds: number[] }, @Req() req: Request) {
+    const userInfo = this.getUserInfo(req);
+    return await this.orderManagementService.bulkMarkStickerPrinted(body.orderIds, userInfo.userId, userInfo.userName, userInfo.ipAddress);
   }
 
   // ==================== ORDER ITEMS ====================
@@ -399,14 +401,16 @@ export class OrderManagementController {
 
   @Post(':orderId/mark-invoice-printed')
   @RequirePermissions('edit-sales-orders')
-  async markInvoicePrinted(@Param('orderId') orderId: number) {
-    return await this.orderManagementService.markInvoicePrinted(orderId);
+  async markInvoicePrinted(@Param('orderId') orderId: number, @Req() req: Request) {
+    const userInfo = this.getUserInfo(req);
+    return await this.orderManagementService.markInvoicePrinted(orderId, userInfo.userId, userInfo.userName, userInfo.ipAddress);
   }
 
   @Post(':orderId/mark-sticker-printed')
   @RequirePermissions('edit-sales-orders')
-  async markStickerPrinted(@Param('orderId') orderId: number) {
-    return await this.orderManagementService.markStickerPrinted(orderId);
+  async markStickerPrinted(@Param('orderId') orderId: number, @Req() req: Request) {
+    const userInfo = this.getUserInfo(req);
+    return await this.orderManagementService.markStickerPrinted(orderId, userInfo.userId, userInfo.userName, userInfo.ipAddress);
   }
 
   @Post(':orderId/print/invoice')
