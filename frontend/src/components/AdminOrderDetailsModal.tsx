@@ -1808,6 +1808,25 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                             >
                               View
                             </button>
+                            {h.status && !['approved', 'sent', 'shipped', 'in_transit', 'picked', 'delivered', 'partial_delivered', 'completed', 'cancelled'].includes(h.status.toLowerCase()) && (
+                              <button
+                                onClick={async () => {
+                                  if (!confirm(`Approve order #${h.salesOrderNumber || h.id}?`)) return;
+                                  try {
+                                    await apiClient.post(`/order-management/${h.id}/approve`);
+                                    toast.success(`Order #${h.salesOrderNumber || h.id} approved`);
+                                    loadOrderDetails();
+                                    onUpdate();
+                                  } catch (error: any) {
+                                    toast.error(error.response?.data?.message || 'Failed to approve order');
+                                  }
+                                }}
+                                className="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700"
+                                title="Approve"
+                              >
+                                Approve
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>
