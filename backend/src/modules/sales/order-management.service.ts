@@ -1936,7 +1936,7 @@ export class OrderManagementService {
     };
   }
 
-  async markInvoicePrinted(orderId: number) {
+  async markInvoicePrinted(orderId: number, userId?: number, userName?: string, ipAddress?: string) {
     const order = await this.salesOrderRepository.findOne({ where: { id: orderId } });
     if (!order) throw new NotFoundException(`Order #${orderId} not found`);
     (order as any).invoicePrinted = true;
@@ -1946,10 +1946,25 @@ export class OrderManagementService {
     // Auto-ship: if all 3 printing actions are done, move to shipped
     await this.autoShipIfReady(order);
 
+    if (userId) {
+      await this.activityLogRepository.save(
+        this.activityLogRepository.create({
+          orderId,
+          actionType: 'invoice_printed',
+          actionDescription: `Invoice marked as printed by ${userName || 'Admin'}`,
+          oldValue: { invoicePrinted: false },
+          newValue: { invoicePrinted: true },
+          performedBy: userId,
+          performedByName: userName || 'Admin',
+          ipAddress: ipAddress || '',
+        }),
+      );
+    }
+
     return { success: true, message: 'Invoice marked as printed' };
   }
 
-  async markStickerPrinted(orderId: number) {
+  async markStickerPrinted(orderId: number, userId?: number, userName?: string, ipAddress?: string) {
     const order = await this.salesOrderRepository.findOne({ where: { id: orderId } });
     if (!order) throw new NotFoundException(`Order #${orderId} not found`);
     (order as any).stickerPrinted = true;
@@ -1959,15 +1974,30 @@ export class OrderManagementService {
     // Auto-ship: if all 3 printing actions are done, move to shipped
     await this.autoShipIfReady(order);
 
+    if (userId) {
+      await this.activityLogRepository.save(
+        this.activityLogRepository.create({
+          orderId,
+          actionType: 'sticker_printed',
+          actionDescription: `Sticker marked as printed by ${userName || 'Admin'}`,
+          oldValue: { stickerPrinted: false },
+          newValue: { stickerPrinted: true },
+          performedBy: userId,
+          performedByName: userName || 'Admin',
+          ipAddress: ipAddress || '',
+        }),
+      );
+    }
+
     return { success: true, message: 'Sticker marked as printed' };
   }
 
-  async bulkMarkInvoicePrinted(orderIds: number[]) {
+  async bulkMarkInvoicePrinted(orderIds: number[], userId?: number, userName?: string, ipAddress?: string) {
     let success = 0;
     let failed = 0;
     for (const id of orderIds) {
       try {
-        await this.markInvoicePrinted(id);
+        await this.markInvoicePrinted(id, userId, userName, ipAddress);
         success++;
       } catch {
         failed++;
@@ -1976,12 +2006,12 @@ export class OrderManagementService {
     return { total: orderIds.length, success, failed };
   }
 
-  async bulkMarkStickerPrinted(orderIds: number[]) {
+  async bulkMarkStickerPrinted(orderIds: number[], userId?: number, userName?: string, ipAddress?: string) {
     let success = 0;
     let failed = 0;
     for (const id of orderIds) {
       try {
-        await this.markStickerPrinted(id);
+        await this.markStickerPrinted(id, userId, userName, ipAddress);
         success++;
       } catch {
         failed++;

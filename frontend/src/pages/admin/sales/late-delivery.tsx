@@ -8,6 +8,7 @@ import { getOrderStatusLabel, getOrderStatusColor } from '@/utils/orderStatus';
 import { FaSearch, FaFilter, FaTimes, FaEye, FaStickyNote, FaExternalLinkAlt, FaCheck } from 'react-icons/fa';
 import apiClient from '@/services/api';
 import { useToast } from '@/contexts/ToastContext';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface SalesOrder {
   id: number;
@@ -148,6 +149,7 @@ function parseNoteMeta(fullNote: string | null | undefined): { date: string; age
 
 export default function AdminSalesLateDelivery() {
   const toast = useToast();
+  const { user: authUser } = useAuth();
   const [orders, setOrders] = useState<SalesOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState(INITIAL_FILTERS);
@@ -196,7 +198,8 @@ export default function AdminSalesLateDelivery() {
 
     setSavingNotes((prev) => ({ ...prev, [orderId]: true }));
     try {
-      const formattedNote = noteText.trim() ? formatNoteWithMeta(noteText, 'Agent') : '';
+      const agentName = authUser?.name || 'Agent';
+      const formattedNote = noteText.trim() ? formatNoteWithMeta(noteText, agentName) : '';
       await apiClient.put(`/order-management/${orderId}/notes`, {
         internalNotes: formattedNote || null,
       });
@@ -218,7 +221,7 @@ export default function AdminSalesLateDelivery() {
     } finally {
       setSavingNotes((prev) => ({ ...prev, [orderId]: false }));
     }
-  }, [editingNotes, toast]);
+  }, [editingNotes, toast, authUser]);
 
   // Handle status change
   const handleStatusChange = useCallback(async (orderId: number, newStatus: string) => {
@@ -440,7 +443,7 @@ export default function AdminSalesLateDelivery() {
       label: 'Notes',
       className: 'min-w-[220px]',
       render: (_: any, row: SalesOrder) => {
-        const fullNote = row.internal_notes || row.notes || '';
+        const fullNote = row.internal_notes || '';
         const meta = parseNoteMeta(fullNote);
         const isEditing = editingNotes[row.id] !== undefined;
         const isSaving = savingNotes[row.id] || false;
