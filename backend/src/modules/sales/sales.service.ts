@@ -173,6 +173,33 @@ export class SalesService {
     return 'Website';
   }
 
+  async getSourceFilterOptions(): Promise<{ value: string; label: string }[]> {
+    const options: { value: string; label: string }[] = [
+      { value: 'landing_page', label: 'Landing Page' },
+      { value: 'website', label: 'Website' },
+    ];
+
+    // Get distinct agents/admins who created orders
+    const agents: { id: number; name: string; last_name: string | null }[] =
+      await this.salesRepository.query(
+        `SELECT DISTINCT u.id, u.name, u.last_name
+         FROM sales_orders o
+         INNER JOIN users u ON u.id = o.created_by
+         WHERE o.order_source IN ('admin_panel', 'agent_dashboard')
+           AND o.created_by IS NOT NULL
+         ORDER BY u.name ASC`,
+      );
+
+    for (const agent of agents) {
+      const fullName = agent.last_name
+        ? `${agent.name} ${agent.last_name}`.trim()
+        : agent.name;
+      options.push({ value: `agent:${agent.id}`, label: fullName });
+    }
+
+    return options;
+  }
+
   async findAll() {
     const orders = await this.salesRepository.find({
       order: { createdAt: 'DESC' }
@@ -202,6 +229,7 @@ export class SalesService {
     endDate?: string;
     todayOnly?: boolean;
     productName?: string;
+    source?: string;
   }) {
     const page = Math.max(1, params.page || 1);
     const limit = Math.min(100, Math.max(1, params.limit || 10));
@@ -255,6 +283,20 @@ export class SalesService {
         ))`,
         { pName },
       );
+    }
+
+    // Source filter
+    if (params.source && params.source.trim()) {
+      const src = params.source.trim();
+      if (src.startsWith('agent:')) {
+        const agentId = parseInt(src.replace('agent:', ''), 10);
+        if (!isNaN(agentId)) {
+          qb.andWhere("o.order_source IN ('admin_panel', 'agent_dashboard')", {});
+          qb.andWhere('o.created_by = :agentId', { agentId });
+        }
+      } else if (src === 'landing_page' || src === 'website') {
+        qb.andWhere('o.order_source = :orderSource', { orderSource: src });
+      }
     }
 
     qb.orderBy('o.created_at', 'DESC');
