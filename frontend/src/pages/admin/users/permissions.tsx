@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import AdminLayout from '@/layouts/AdminLayout';
 import { rbac } from '@/services/api';
 import { useToast } from '@/contexts/ToastContext';
+import { FaChevronDown, FaChevronRight } from 'react-icons/fa';
 
 type Role = { id: number; name: string; slug: string };
 type Permission = { id: number; name: string; slug: string; module: string; action: string; description?: string };
@@ -25,6 +26,7 @@ export default function AdminRolePermissions() {
 
   const [query, setQuery] = useState('');
   const [saving, setSaving] = useState(false);
+  const [collapsedModules, setCollapsedModules] = useState<Set<string>>(new Set());
 
   const [showCreateRole, setShowCreateRole] = useState(false);
   const [creatingRole, setCreatingRole] = useState(false);
@@ -136,6 +138,24 @@ export default function AdminRolePermissions() {
       return next;
     });
   };
+
+  const toggleModuleCollapse = useCallback((module: string) => {
+    setCollapsedModules((prev) => {
+      const next = new Set(prev);
+      if (next.has(module)) next.delete(module);
+      else next.add(module);
+      return next;
+    });
+  }, []);
+
+  const expandAllModules = useCallback(() => {
+    setCollapsedModules(new Set());
+  }, []);
+
+  const collapseAllModules = useCallback(() => {
+    const allModules = permissionsByModule.map(([m]) => m);
+    setCollapsedModules(new Set(allModules));
+  }, [permissionsByModule]);
 
   const setModuleAll = (module: string, checked: boolean) => {
     const modulePermIds = allPermissions
@@ -318,51 +338,90 @@ export default function AdminRolePermissions() {
               </button>
             </div>
 
-            <div className="p-4 space-y-6">
+            <div className="p-4 space-y-4">
               {permissionsByModule.length === 0 ? (
                 <div className="text-center text-gray-600 py-8">No permissions found.</div>
               ) : (
-                permissionsByModule.map(([module, perms]) => {
-                  const modulePermIds = perms.map((p) => Number(p.id));
-                  const moduleSelectedCount = modulePermIds.filter((id) => selectedPermissionIds.has(id)).length;
-                  const moduleAllSelected = perms.length > 0 && moduleSelectedCount === perms.length;
+                <>
+                  <div className="flex items-center gap-2 mb-2">
+                    <button
+                      type="button"
+                      onClick={expandAllModules}
+                      className="px-3 py-1 text-xs rounded border border-gray-300 text-gray-600 hover:bg-gray-100"
+                    >
+                      Expand All
+                    </button>
+                    <button
+                      type="button"
+                      onClick={collapseAllModules}
+                      className="px-3 py-1 text-xs rounded border border-gray-300 text-gray-600 hover:bg-gray-100"
+                    >
+                      Collapse All
+                    </button>
+                  </div>
+                  {permissionsByModule.map(([module, perms]) => {
+                    const modulePermIds = perms.map((p) => Number(p.id));
+                    const moduleSelectedCount = modulePermIds.filter((id) => selectedPermissionIds.has(id)).length;
+                    const moduleAllSelected = perms.length > 0 && moduleSelectedCount === perms.length;
+                    const isCollapsed = collapsedModules.has(module);
 
-                  return (
-                    <div key={module} className="border rounded-lg">
-                      <div className="px-4 py-3 bg-gray-50 border-b flex items-center justify-between">
-                        <div className="font-semibold text-gray-800 capitalize">{module}</div>
-                        <label className="flex items-center gap-2 text-sm text-gray-700">
-                          <input
-                            type="checkbox"
-                            checked={moduleAllSelected}
-                            onChange={(e) => setModuleAll(module, e.target.checked)}
-                          />
-                          Select all ({moduleSelectedCount}/{perms.length})
-                        </label>
-                      </div>
-
-                      <div className="divide-y">
-                        {perms.map((p) => (
-                          <label key={p.id} className="flex items-start gap-3 px-4 py-3 hover:bg-gray-50">
+                    return (
+                      <div key={module} className="border rounded-lg">
+                        <div
+                          className="px-4 py-3 bg-gray-50 border-b flex items-center justify-between cursor-pointer select-none"
+                          onClick={() => toggleModuleCollapse(module)}
+                        >
+                          <div className="flex items-center gap-2">
+                            {isCollapsed ? (
+                              <FaChevronRight className="text-gray-400 text-xs" />
+                            ) : (
+                              <FaChevronDown className="text-gray-400 text-xs" />
+                            )}
+                            <div className="font-semibold text-gray-800 capitalize">{module}</div>
+                            {moduleSelectedCount > 0 && (
+                              <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
+                                {moduleSelectedCount}/{perms.length}
+                              </span>
+                            )}
+                          </div>
+                          <label
+                            className="flex items-center gap-2 text-sm text-gray-700"
+                            onClick={(e) => e.stopPropagation()}
+                          >
                             <input
                               type="checkbox"
-                              className="mt-1"
-                              checked={selectedPermissionIds.has(Number(p.id))}
-                              onChange={() => togglePermission(Number(p.id))}
+                              checked={moduleAllSelected}
+                              onChange={(e) => setModuleAll(module, e.target.checked)}
                             />
-                            <div className="flex-1">
-                              <div className="text-sm font-medium text-gray-900">{p.name}</div>
-                              <div className="text-xs text-gray-500">{p.slug} • {p.action}</div>
-                              {p.description ? (
-                                <div className="text-xs text-gray-500 mt-1">{p.description}</div>
-                              ) : null}
-                            </div>
+                            Select all ({moduleSelectedCount}/{perms.length})
                           </label>
-                        ))}
+                        </div>
+
+                        {!isCollapsed && (
+                          <div className="divide-y">
+                            {perms.map((p) => (
+                              <label key={p.id} className="flex items-start gap-3 px-4 py-3 hover:bg-gray-50">
+                                <input
+                                  type="checkbox"
+                                  className="mt-1"
+                                  checked={selectedPermissionIds.has(Number(p.id))}
+                                  onChange={() => togglePermission(Number(p.id))}
+                                />
+                                <div className="flex-1">
+                                  <div className="text-sm font-medium text-gray-900">{p.name}</div>
+                                  <div className="text-xs text-gray-500">{p.slug} • {p.action}</div>
+                                  {p.description ? (
+                                    <div className="text-xs text-gray-500 mt-1">{p.description}</div>
+                                  ) : null}
+                                </div>
+                              </label>
+                            ))}
+                          </div>
+                        )}
                       </div>
-                    </div>
-                  );
-                })
+                    );
+                  })}
+                </>
               )}
             </div>
           </div>

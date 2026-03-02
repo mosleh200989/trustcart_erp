@@ -105,14 +105,14 @@ export class SalesController {
   }
 
   @Get('late-deliveries')
-  @RequirePermissions('view-sales-orders')
+  @RequirePermissions('view-late-delivery')
   async findLateDeliveries(@Query('thresholdDays') thresholdDays?: string) {
     const days = thresholdDays != null ? Number(thresholdDays) : undefined;
     return this.salesService.findLateDeliveries({ thresholdDays: days });
   }
 
   @Get('sent-courier-orders')
-  @RequirePermissions('view-sales-orders')
+  @RequirePermissions('view-sent-courier-orders')
   async findSentCourierOrders(
     @Query('page') page?: string,
     @Query('limit') limit?: string,
@@ -134,7 +134,7 @@ export class SalesController {
   }
 
   @Post('courier-returns')
-  @RequirePermissions('view-sales-orders')
+  @RequirePermissions('manage-courier-returns')
   async markCourierReturns(@Body() body: { courierOrderIds: string[]; returnDate: string }) {
     if (!body.courierOrderIds?.length) {
       throw new BadRequestException('At least one courier ID is required');

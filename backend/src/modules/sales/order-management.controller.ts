@@ -37,7 +37,7 @@ export class OrderManagementController {
   // ==================== PRINTING PAGE ====================
 
   @Get('printing')
-  @RequirePermissions('view-sales-orders')
+  @RequirePermissions('view-printing')
   async getPrintingOrders(
     @Query('page') page?: string,
     @Query('limit') limit?: string,
@@ -63,14 +63,14 @@ export class OrderManagementController {
   }
 
   @Post('bulk-mark-invoice-printed')
-  @RequirePermissions('edit-sales-orders')
+  @RequirePermissions('manage-printing')
   async bulkMarkInvoicePrinted(@Body() body: { orderIds: number[] }, @Req() req: Request) {
     const userInfo = this.getUserInfo(req);
     return await this.orderManagementService.bulkMarkInvoicePrinted(body.orderIds, userInfo.userId, userInfo.userName, userInfo.ipAddress);
   }
 
   @Post('bulk-mark-sticker-printed')
-  @RequirePermissions('edit-sales-orders')
+  @RequirePermissions('manage-printing')
   async bulkMarkStickerPrinted(@Body() body: { orderIds: number[] }, @Req() req: Request) {
     const userInfo = this.getUserInfo(req);
     return await this.orderManagementService.bulkMarkStickerPrinted(body.orderIds, userInfo.userId, userInfo.userName, userInfo.ipAddress);
@@ -362,7 +362,7 @@ export class OrderManagementController {
   // ==================== MARK AS PACKED ====================
 
   @Post(':orderId/mark-packed')
-  @RequirePermissions('edit-sales-orders')
+  @RequirePermissions('manage-printing')
   async markAsPacked(@Param('orderId') orderId: number, @Req() req: Request) {
     const userInfo = this.getUserInfo(req);
     return await this.orderManagementService.markAsPacked(
@@ -374,7 +374,7 @@ export class OrderManagementController {
   }
 
   @Post(':orderId/unmark-packed')
-  @RequirePermissions('edit-sales-orders')
+  @RequirePermissions('manage-printing')
   async unmarkPacked(@Param('orderId') orderId: number, @Req() req: Request) {
     const userInfo = this.getUserInfo(req);
     return await this.orderManagementService.unmarkPacked(
@@ -386,7 +386,7 @@ export class OrderManagementController {
   }
 
   @Post('bulk-mark-packed')
-  @RequirePermissions('edit-sales-orders')
+  @RequirePermissions('manage-printing')
   async bulkMarkAsPacked(@Body() body: { orderIds: number[] }, @Req() req: Request) {
     const userInfo = this.getUserInfo(req);
     return await this.orderManagementService.bulkMarkAsPacked(
@@ -400,39 +400,39 @@ export class OrderManagementController {
   // ==================== PRINT ====================
 
   @Post(':orderId/mark-invoice-printed')
-  @RequirePermissions('edit-sales-orders')
+  @RequirePermissions('manage-printing')
   async markInvoicePrinted(@Param('orderId') orderId: number, @Req() req: Request) {
     const userInfo = this.getUserInfo(req);
     return await this.orderManagementService.markInvoicePrinted(orderId, userInfo.userId, userInfo.userName, userInfo.ipAddress);
   }
 
   @Post(':orderId/mark-sticker-printed')
-  @RequirePermissions('edit-sales-orders')
+  @RequirePermissions('manage-printing')
   async markStickerPrinted(@Param('orderId') orderId: number, @Req() req: Request) {
     const userInfo = this.getUserInfo(req);
     return await this.orderManagementService.markStickerPrinted(orderId, userInfo.userId, userInfo.userName, userInfo.ipAddress);
   }
 
   @Post(':orderId/print/invoice')
-  @RequirePermissions('view-sales-orders')
+  @RequirePermissions('view-printing')
   async printInvoice(@Param('orderId') orderId: number) {
     return await this.orderManagementService.generateInvoiceData(orderId);
   }
 
   @Post(':orderId/print/sticker')
-  @RequirePermissions('view-sales-orders')
+  @RequirePermissions('view-printing')
   async printSticker(@Param('orderId') orderId: number) {
     return await this.orderManagementService.generateStickerData(orderId);
   }
 
   @Post('bulk-print/invoice')
-  @RequirePermissions('view-sales-orders')
+  @RequirePermissions('view-printing')
   async bulkPrintInvoice(@Body() body: { orderIds: number[] }) {
     return await this.orderManagementService.bulkGenerateInvoiceData(body.orderIds);
   }
 
   @Post('bulk-print/sticker')
-  @RequirePermissions('view-sales-orders')
+  @RequirePermissions('view-printing')
   async bulkPrintSticker(@Body() body: { orderIds: number[] }) {
     return await this.orderManagementService.bulkGenerateStickerData(body.orderIds);
   }
