@@ -78,9 +78,10 @@ export class SalesController {
     @Query('endDate') endDate?: string,
     @Query('todayOnly') todayOnly?: string,
     @Query('productName') productName?: string,
+    @Query('source') source?: string,
   ) {
     // If pagination params are provided, use the paginated method
-    if (page || limit || q || status || startDate || endDate || todayOnly || productName) {
+    if (page || limit || q || status || startDate || endDate || todayOnly || productName || source) {
       return this.salesService.findAllPaginated({
         page: page ? parseInt(page, 10) : 1,
         limit: limit ? parseInt(limit, 10) : 10,
@@ -90,10 +91,17 @@ export class SalesController {
         endDate: endDate || '',
         todayOnly: todayOnly === 'true',
         productName: productName || '',
+        source: source || '',
       });
     }
     // Fallback for backwards compatibility (no params = return all)
     return this.salesService.findAll();
+  }
+
+  @Get('source-options')
+  @RequirePermissions('view-sales-orders')
+  async getSourceOptions() {
+    return this.salesService.getSourceFilterOptions();
   }
 
   @Get('late-deliveries')

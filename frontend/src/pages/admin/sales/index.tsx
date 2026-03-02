@@ -22,6 +22,7 @@ const INITIAL_FILTERS = {
   startDate: '',
   endDate: '',
   productName: '',
+  source: '',
 };
 
 interface SalesOrder {
@@ -151,6 +152,9 @@ export default function AdminSales() {
   const [deliveryCharge, setDeliveryCharge] = useState<number>(0);
   const productDropdownRef = useRef<HTMLDivElement>(null);
 
+  // Source filter options
+  const [sourceOptions, setSourceOptions] = useState<{ value: string; label: string }[]>([]);
+
   const [formData, setFormData] = useState({
     order_number: '',
     order_date: new Date().toISOString().split('T')[0],
@@ -196,6 +200,7 @@ export default function AdminSales() {
       if (f.endDate) params.endDate = f.endDate;
       if (f.todayOnly) params.todayOnly = 'true';
       if (f.productName.trim()) params.productName = f.productName.trim();
+      if (f.source) params.source = f.source;
 
       const response = await apiClient.get('/sales', { params });
       const body = response.data;
@@ -230,6 +235,13 @@ export default function AdminSales() {
     }, filters.q.trim() ? 400 : 0);
     return () => clearTimeout(timer);
   }, [currentPage, itemsPerPage, filters]);
+
+  // Load source filter options on mount
+  useEffect(() => {
+    apiClient.get('/sales/source-options')
+      .then((res) => setSourceOptions(res.data))
+      .catch(() => {});
+  }, []);
 
   // Product search for create order
   const searchProducts = async (query: string) => {
@@ -928,7 +940,7 @@ export default function AdminSales() {
                 />
               </div>
 
-              {/* 3rd line: Product filter */}
+              {/* 3rd line: Product filter + Source filter */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Product</label>
@@ -938,6 +950,15 @@ export default function AdminSales() {
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
                 </div>
+                <FormInput
+                  label="Source"
+                  name="source"
+                  type="select"
+                  value={filters.source}
+                  onChange={handleFilterChange}
+                  selectPlaceholder="All Sources"
+                  options={sourceOptions}
+                />
               </div>
             </div>
           </div>
