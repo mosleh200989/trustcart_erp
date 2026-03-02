@@ -1027,6 +1027,42 @@ export class SalesService {
       .orderBy('orders', 'DESC')
       .getRawMany();
 
+    // 6) Landing Page product-wise breakdown
+    const landingPageProducts = await this.orderItemsRepository
+      .createQueryBuilder('soi')
+      .innerJoin('soi.salesOrder', 'o')
+      .select([
+        'soi.product_id AS product_id',
+        'soi.product_name AS product_name',
+        'COUNT(DISTINCT o.id) AS total_orders',
+        'SUM(soi.quantity) AS total_qty',
+        'SUM(soi.line_total) AS total_revenue',
+      ])
+      .where('DATE(o.order_date) = :reportDate', { reportDate })
+      .andWhere("o.order_source = 'landing_page'")
+      .groupBy('soi.product_id')
+      .addGroupBy('soi.product_name')
+      .orderBy('total_orders', 'DESC')
+      .getRawMany();
+
+    // 7) Website product-wise breakdown
+    const websiteProducts = await this.orderItemsRepository
+      .createQueryBuilder('soi')
+      .innerJoin('soi.salesOrder', 'o')
+      .select([
+        'soi.product_id AS product_id',
+        'soi.product_name AS product_name',
+        'COUNT(DISTINCT o.id) AS total_orders',
+        'SUM(soi.quantity) AS total_qty',
+        'SUM(soi.line_total) AS total_revenue',
+      ])
+      .where('DATE(o.order_date) = :reportDate', { reportDate })
+      .andWhere("o.order_source = 'website'")
+      .groupBy('soi.product_id')
+      .addGroupBy('soi.product_name')
+      .orderBy('total_orders', 'DESC')
+      .getRawMany();
+
     const toNum = (v: any) => parseFloat(v) || 0;
 
     return {
@@ -1037,7 +1073,9 @@ export class SalesService {
         totalDiscount: toNum(summaryRaw?.total_discount),
         avgOrderValue: toNum(summaryRaw?.avg_order_value),
         pendingOrders: toNum(summaryRaw?.pending_orders),
+        processingOrders: toNum(summaryRaw?.processing_orders),
         approvedOrders: toNum(summaryRaw?.approved_orders),
+        holdOrders: toNum(summaryRaw?.hold_orders),
         shippedOrders: toNum(summaryRaw?.shipped_orders),
         deliveredOrders: toNum(summaryRaw?.delivered_orders),
         cancelledOrders: toNum(summaryRaw?.cancelled_orders),
@@ -1076,6 +1114,20 @@ export class SalesService {
       courierStatuses: courierStatusRaw.map((r: any) => ({
         status: r.status || 'unknown',
         orders: toNum(r.orders),
+      })),
+      landingPageProducts: landingPageProducts.map((r: any) => ({
+        productId: toNum(r.product_id),
+        productName: r.product_name || 'Unknown Product',
+        totalOrders: toNum(r.total_orders),
+        totalQty: toNum(r.total_qty),
+        totalRevenue: toNum(r.total_revenue),
+      })),
+      websiteProducts: websiteProducts.map((r: any) => ({
+        productId: toNum(r.product_id),
+        productName: r.product_name || 'Unknown Product',
+        totalOrders: toNum(r.total_orders),
+        totalQty: toNum(r.total_qty),
+        totalRevenue: toNum(r.total_revenue),
       })),
     };
   }
