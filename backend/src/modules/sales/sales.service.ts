@@ -483,6 +483,8 @@ export class SalesService {
     qb.where('o.shipped_at IS NOT NULL')
       .andWhere('o.delivered_at IS NULL')
       .andWhere('o.shipped_at <= :cutoff', { cutoff })
+      .andWhere('o.status != :cancelledStatus', { cancelledStatus: 'cancelled' })
+      .andWhere('o.status != :deliveredStatus', { deliveredStatus: 'delivered' })
       .orderBy('o.shipped_at', 'ASC');
 
     const orders = await qb.getMany();
