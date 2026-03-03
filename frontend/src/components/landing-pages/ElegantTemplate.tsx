@@ -1254,7 +1254,7 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
           <div className="relative py-10 text-center space-y-4">
             <div>
               <p className="text-base sm:text-lg font-semibold opacity-90 mb-2" style={{ color: page.secondary_color }}>
-                বিশ্বস্ত মানের আরো প্রোডাক্ট পেতে ভিজিট করুন
+                আমাদের আরো প্রোডাক্ট পেতে ভিজিট করুন
               </p>
               <a
                 href="https://trustcart.com.bd"
