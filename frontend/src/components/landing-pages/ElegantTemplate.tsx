@@ -15,7 +15,6 @@ import {
   FaTruck,
   FaStar,
   FaShieldAlt,
-  FaArrowDown,
 } from 'react-icons/fa';
 
 interface LandingPageSection {
@@ -341,9 +340,16 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
         {page.og_image_url && <meta property="og:image" content={page.og_image_url} />}
         <meta property="og:title" content={page.meta_title || page.title} />
         <meta property="og:description" content={page.meta_description || page.description} />
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
       </Head>
 
       <style jsx global>{`
+        /* Apply Hind Siliguri for Bengali text */
+        .elegant-landing * {
+          font-family: 'Hind Siliguri', sans-serif;
+        }
         @keyframes float {
           0%, 100% { transform: translateY(0px); }
           50% { transform: translateY(-12px); }
@@ -396,7 +402,7 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
         }
       `}</style>
 
-      <div className="min-h-screen" style={{ backgroundColor: page.background_color }}>
+      <div className="min-h-screen elegant-landing" style={{ backgroundColor: page.background_color }}>
 
         {/* ═══════════════ HERO SECTION ═══════════════ */}
         <div className="relative overflow-hidden" style={{ minHeight: '85vh' }}>
@@ -492,7 +498,7 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
                 {page.products?.[0] && (
                   <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 mb-8">
                     {page.products[0].compare_price && page.products[0].compare_price > page.products[0].price && (
-                      <span className="text-lg line-through opacity-60" style={{ color: page.secondary_color }}>
+                      <span className="text-lg sm:text-xl line-through font-bold px-3 py-1 rounded-lg bg-red-500/20 border border-red-400/40" style={{ color: '#ff6b6b' }}>
                         ৳{page.products[0].compare_price.toLocaleString()}
                       </span>
                     )}
@@ -503,7 +509,7 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
                       ৳{page.products[0].price.toLocaleString()}
                     </span>
                     {page.products[0].compare_price && page.products[0].compare_price > page.products[0].price && (
-                      <span className="bg-red-500 text-white text-xs font-bold px-3 py-1.5 rounded-full">
+                      <span className="bg-red-500 text-white text-xs font-bold px-3 py-1.5 rounded-full whitespace-nowrap">
                         {Math.round(((page.products[0].compare_price - page.products[0].price) / page.products[0].compare_price) * 100)}% ছাড়!
                       </span>
                     )}
@@ -511,7 +517,7 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
                 )}
 
                 {page.hero_button_text && (
-                  <div className="flex flex-col sm:flex-row items-center justify-center md:justify-start gap-4">
+                  <div className="flex items-center justify-center md:justify-start">
                     <button
                       onClick={scrollToOrderForm}
                       className="group relative px-10 py-4 rounded-2xl text-xl sm:text-2xl font-extrabold shadow-2xl hover:shadow-xl transform hover:scale-105 transition-all duration-300 elegant-glow overflow-hidden"
@@ -526,10 +532,6 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
                       </span>
                       <div className="absolute inset-0 bg-white opacity-0 group-hover:opacity-20 transition-opacity duration-300" />
                     </button>
-                    <div className="flex items-center gap-2 text-sm opacity-70" style={{ color: page.secondary_color }}>
-                      <FaArrowDown className="animate-bounce" />
-                      <span>নিচে স্ক্রল করুন</span>
-                    </div>
                   </div>
                 )}
               </div>
@@ -864,7 +866,7 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
                           return (
                             <div
                               key={product.id}
-                              className={`relative rounded-2xl p-4 cursor-pointer transition-all duration-300 ${
+                              className={`relative rounded-2xl p-3 sm:p-4 cursor-pointer transition-all duration-300 ${
                                 isFeatured && !isSelected
                                   ? 'bg-gradient-to-r from-amber-50 to-orange-50 shadow-lg ring-2 ring-amber-200 border-2 border-amber-300'
                                   : isSelected
@@ -887,7 +889,7 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
                                   {featuredLabel}
                                 </div>
                               )}
-                              <div className={`flex items-start gap-4 ${isFeatured ? 'mt-1' : ''}`}>
+                              <div className={`flex items-start gap-3 sm:gap-4 ${isFeatured ? 'mt-1' : ''}`}>
                                 {/* Selection indicator */}
                                 <div
                                   className={`flex-shrink-0 w-6 h-6 mt-1 rounded-full border-2 flex items-center justify-center transition-all ${
@@ -903,7 +905,7 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
                                     src={product.image_url}
                                     alt={product.name}
                                     className={`object-cover rounded-xl flex-shrink-0 ${
-                                      isFeatured ? 'w-20 h-20 ring-2 ring-amber-200' : 'w-16 h-16'
+                                      isFeatured ? 'w-16 h-16 sm:w-20 sm:h-20 ring-2 ring-amber-200' : 'w-14 h-14 sm:w-16 sm:h-16'
                                     }`}
                                   />
                                 )}
@@ -914,36 +916,36 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
                                   {product.description && (
                                     <div className="text-xs sm:text-sm text-gray-500 mt-0.5 leading-tight">{product.description}</div>
                                   )}
-                                  <div className="flex flex-wrap items-center gap-2 mt-2">
+                                  <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mt-1.5">
                                     {product.compare_price && product.compare_price > product.price && (
-                                      <span className="text-sm line-through text-red-400 font-medium">
+                                      <span className="text-xs sm:text-sm line-through font-bold text-red-500 bg-red-50 px-2 py-0.5 rounded border border-red-200">
                                         {product.compare_price.toLocaleString()} ৳
                                       </span>
                                     )}
                                     <span
-                                      className="text-lg sm:text-xl font-extrabold px-3 py-0.5 rounded-lg text-white"
+                                      className="text-base sm:text-xl font-extrabold px-2 sm:px-3 py-0.5 rounded-lg text-white"
                                       style={{ backgroundColor: page.primary_color }}
                                     >
                                       {product.price.toLocaleString()} ৳
                                     </span>
                                     {product.compare_price && product.compare_price > product.price && (
-                                      <span className="text-xs font-bold text-green-600 bg-green-100 px-2 py-0.5 rounded-full">
+                                      <span className="text-[10px] sm:text-xs font-bold text-green-600 bg-green-100 px-1.5 sm:px-2 py-0.5 rounded-full whitespace-nowrap">
                                         {Math.round(((product.compare_price - product.price) / product.compare_price) * 100)}% OFF
                                       </span>
                                     )}
                                   </div>
                                   {isSelected && (
-                                    <div className="flex items-center gap-3 mt-3" onClick={(e) => e.stopPropagation()}>
+                                    <div className="flex items-center gap-3 mt-2" onClick={(e) => e.stopPropagation()}>
                                       <button
                                         onClick={() => updateQuantity(product.id, -1)}
-                                        className="w-9 h-9 rounded-xl bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition-colors"
+                                        className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition-colors"
                                       >
                                         <FaMinus className="text-xs" />
                                       </button>
                                       <span className="w-8 text-center font-bold text-lg">{orderItem!.quantity}</span>
                                       <button
                                         onClick={() => updateQuantity(product.id, 1)}
-                                        className="w-9 h-9 rounded-xl flex items-center justify-center text-white hover:opacity-90 transition-opacity"
+                                        className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center text-white hover:opacity-90 transition-opacity"
                                         style={{ backgroundColor: page.primary_color }}
                                       >
                                         <FaPlus className="text-xs" />
@@ -1167,13 +1169,13 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
                         <button
                           onClick={handleSubmitOrder}
                           disabled={submitting || orderItems.length === 0}
-                          className="w-full mt-5 py-4 rounded-2xl text-base sm:text-lg font-extrabold text-white shadow-lg hover:shadow-xl transform hover:scale-[1.02] transition-all duration-300 disabled:opacity-50 disabled:transform-none flex items-center justify-center gap-2"
+                          className="w-full mt-5 py-4 rounded-2xl text-sm sm:text-lg font-extrabold text-white shadow-lg hover:shadow-xl transform hover:scale-[1.02] transition-all duration-300 disabled:opacity-50 disabled:transform-none flex items-center justify-center gap-2 whitespace-nowrap"
                           style={{
                             background: `linear-gradient(135deg, ${page.primary_color} 0%, ${primaryDark} 100%)`,
                           }}
                         >
-                          <FaShoppingCart className="text-lg" />
-                          {submitting ? 'প্রসেসিং...' : `অর্ডার কনফার্ম করুন — ${getTotal().toLocaleString()} ৳`}
+                          <FaShoppingCart className="text-base sm:text-lg flex-shrink-0" />
+                          <span>{submitting ? 'প্রসেসিং...' : `অর্ডার কনফার্ম করুন — ${getTotal().toLocaleString()} ৳`}</span>
                         </button>
                       </div>
                     </div>
