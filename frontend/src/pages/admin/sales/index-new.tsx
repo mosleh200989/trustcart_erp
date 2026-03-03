@@ -97,8 +97,13 @@ export default function AdminSales() {
       await apiClient.delete(`/sales/${order.id}`);
       setOrders(orders.filter(o => o.id !== order.id));
       toast.success('Order deleted successfully');
-    } catch (error) {
-      toast.error('Failed to delete order');
+    } catch (error: any) {
+      const msg = error.response?.data?.message;
+      if (error.response?.status === 403) {
+        toast.error(msg || 'You do not have permission to delete orders');
+      } else {
+        toast.error(msg || 'Failed to delete order');
+      }
     }
   };
 

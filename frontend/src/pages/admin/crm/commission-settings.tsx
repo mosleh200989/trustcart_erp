@@ -742,9 +742,9 @@ export default function CommissionSettingsPage() {
                         </td>
                         <td className="px-6 py-4 text-sm">{c.agentName}</td>
                         <td className="px-6 py-4 text-sm">#{c.salesOrderId}</td>
-                        <td className="px-6 py-4 text-sm">৳{c.orderAmount.toFixed(2)}</td>
+                        <td className="px-6 py-4 text-sm">৳{Number(c.orderAmount).toFixed(2)}</td>
                         <td className="px-6 py-4 text-sm font-medium text-green-600">
-                          ৳{c.commissionAmount.toFixed(2)}
+                          ৳{Number(c.commissionAmount).toFixed(2)}
                           <span className="text-xs text-gray-500 ml-1">
                             ({c.commissionType === 'percentage' ? `${c.commissionRate}%` : 'fixed'})
                           </span>

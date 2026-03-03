@@ -1600,7 +1600,7 @@ export default function AgentDashboard() {
               {/* Main Stats */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
                 <div className="bg-white/10 rounded-lg p-4">
-                  <div className="text-3xl font-bold">৳{commissionSummary.totalCommissionEarned.toFixed(0)}</div>
+                  <div className="text-3xl font-bold">৳{Number(commissionSummary.totalCommissionEarned).toFixed(0)}</div>
                   <div className="text-sm text-green-100">Total Earned</div>
                 </div>
                 <div className="bg-white/10 rounded-lg p-4">
@@ -1608,7 +1608,7 @@ export default function AgentDashboard() {
                   <div className="text-sm text-green-100">Sales Made</div>
                 </div>
                 <div className="bg-white/10 rounded-lg p-4">
-                  <div className="text-3xl font-bold">৳{commissionSummary.currentMonthCommission.toFixed(0)}</div>
+                  <div className="text-3xl font-bold">৳{Number(commissionSummary.currentMonthCommission).toFixed(0)}</div>
                   <div className="text-sm text-green-100">This Month</div>
                 </div>
                 <div className="bg-white/10 rounded-lg p-4">
@@ -1620,15 +1620,15 @@ export default function AgentDashboard() {
               {/* Status Breakdown */}
               <div className="grid grid-cols-3 gap-4 mb-4">
                 <div className="bg-yellow-400/20 rounded-lg p-3 text-center">
-                  <div className="text-2xl font-bold">৳{commissionSummary.pendingCommission.toFixed(0)}</div>
+                  <div className="text-2xl font-bold">৳{Number(commissionSummary.pendingCommission).toFixed(0)}</div>
                   <div className="text-xs text-yellow-100">Pending</div>
                 </div>
                 <div className="bg-blue-400/20 rounded-lg p-3 text-center">
-                  <div className="text-2xl font-bold">৳{commissionSummary.approvedCommission.toFixed(0)}</div>
+                  <div className="text-2xl font-bold">৳{Number(commissionSummary.approvedCommission).toFixed(0)}</div>
                   <div className="text-xs text-blue-100">Approved</div>
                 </div>
                 <div className="bg-green-300/20 rounded-lg p-3 text-center">
-                  <div className="text-2xl font-bold">৳{commissionSummary.paidCommission.toFixed(0)}</div>
+                  <div className="text-2xl font-bold">৳{Number(commissionSummary.paidCommission).toFixed(0)}</div>
                   <div className="text-xs text-green-100">Paid Out</div>
                 </div>
               </div>
@@ -1642,10 +1642,10 @@ export default function AgentDashboard() {
                       <div key={c.id} className="flex items-center justify-between text-sm bg-white/5 rounded p-2">
                         <div>
                           <span className="font-medium">Order #{c.salesOrderId}</span>
-                          <span className="text-green-200 ml-2">৳{c.orderAmount.toFixed(0)} sale</span>
+                          <span className="text-green-200 ml-2">৳{Number(c.orderAmount).toFixed(0)} sale</span>
                         </div>
                         <div className="flex items-center gap-2">
-                          <span className="font-bold">+৳{c.commissionAmount.toFixed(0)}</span>
+                          <span className="font-bold">+৳{Number(c.commissionAmount).toFixed(0)}</span>
                           <span className={`px-2 py-0.5 rounded text-xs ${
                             c.status === 'pending' ? 'bg-yellow-400/30' :
                             c.status === 'approved' ? 'bg-blue-400/30' :
