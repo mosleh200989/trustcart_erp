@@ -466,7 +466,7 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
               {/* Hero Text */}
               <div className="w-full md:w-1/2 text-center md:text-left elegant-slide-right">
                 {/* Trust badge */}
-                <div className="inline-flex items-center gap-2 mb-5 px-4 py-2 rounded-full glass-card text-sm"
+                {/* <div className="inline-flex items-center gap-2 mb-5 px-4 py-2 rounded-full glass-card text-sm"
                   style={{ color: page.secondary_color }}
                 >
                   <FaShieldAlt className="text-yellow-400" />
@@ -476,7 +476,7 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
                       <FaStar key={s} className="text-yellow-400 text-xs" />
                     ))}
                   </div>
-                </div>
+                </div> */}
 
                 <h1
                   className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold mb-5 leading-tight"
@@ -498,18 +498,18 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
                 {page.products?.[0] && (
                   <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 mb-8">
                     {page.products[0].compare_price && page.products[0].compare_price > page.products[0].price && (
-                      <span className="text-lg sm:text-xl line-through font-bold px-3 py-1 rounded-lg bg-red-500/20 border border-red-400/40" style={{ color: '#ff6b6b' }}>
+                      <span className="text-lg sm:text-xl line-through font-bold px-4 py-1.5 rounded-lg bg-white/20 backdrop-blur-sm border border-white/30 text-white/90">
                         ৳{page.products[0].compare_price.toLocaleString()}
                       </span>
                     )}
-                    <span className="text-3xl sm:text-4xl font-extrabold px-5 py-2 rounded-xl glass-card"
+                    <span className="text-3xl sm:text-4xl font-extrabold px-5 py-2 rounded-xl bg-white/15 backdrop-blur-sm border border-yellow-400/40"
                       style={{ color: '#FFD700' }}
                     >
                       <span className="text-lg font-normal opacity-80 mr-1">মাত্র</span>
                       ৳{page.products[0].price.toLocaleString()}
                     </span>
                     {page.products[0].compare_price && page.products[0].compare_price > page.products[0].price && (
-                      <span className="bg-red-500 text-white text-xs font-bold px-3 py-1.5 rounded-full whitespace-nowrap">
+                      <span className="bg-gradient-to-r from-yellow-400 to-amber-500 text-gray-900 text-xs sm:text-sm font-extrabold px-4 py-2 rounded-full whitespace-nowrap shadow-lg animate-pulse">
                         {Math.round(((page.products[0].compare_price - page.products[0].price) / page.products[0].compare_price) * 100)}% ছাড়!
                       </span>
                     )}
@@ -836,7 +836,7 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
                       className="text-xl sm:text-2xl font-extrabold"
                       style={{ color: page.secondary_color }}
                     >
-                      ✨ অর্ডার করতে ফর্মটি পূরণ করুন
+                      অর্ডার করতে ফর্মটি পূরণ করুন
                     </h2>
                     {page.delivery_note && (
                       <p className="mt-1.5 text-sm opacity-80" style={{ color: page.secondary_color }}>
@@ -866,7 +866,7 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
                           return (
                             <div
                               key={product.id}
-                              className={`relative rounded-2xl p-3 sm:p-4 cursor-pointer transition-all duration-300 ${
+                              className={`relative rounded-2xl p-3 sm:p-4 cursor-pointer transition-all duration-300 overflow-hidden ${
                                 isFeatured && !isSelected
                                   ? 'bg-gradient-to-r from-amber-50 to-orange-50 shadow-lg ring-2 ring-amber-200 border-2 border-amber-300'
                                   : isSelected
@@ -877,13 +877,17 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
                                 isSelected
                                   ? {
                                       borderColor: page.primary_color,
-                                      boxShadow: `0 4px 20px ${page.primary_color}20`,
-                                      backgroundColor: `${page.primary_color}05`,
+                                      boxShadow: `0 4px 20px ${page.primary_color}40`,
+                                      background: `linear-gradient(135deg, ${page.primary_color}18 0%, ${page.primary_color}08 100%)`,
                                     }
                                   : {}
                               }
                               onClick={() => toggleProduct(product)}
                             >
+                              {/* Selected accent bar */}
+                              {isSelected && (
+                                <div className="absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl" style={{ backgroundColor: page.primary_color }} />
+                              )}
                               {isFeatured && (
                                 <div className="absolute -top-3 left-4 bg-gradient-to-r from-orange-500 to-red-500 text-white text-xs font-bold px-4 py-1 rounded-full shadow-lg">
                                   {featuredLabel}
