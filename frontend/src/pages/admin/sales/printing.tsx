@@ -226,8 +226,8 @@ export default function PrintingPage() {
         return;
       }
       // Multiple selected — block and warn
-      const flaggedIds = flaggedOrders.map(o => `#${o.id}`).join(', ');
-      toast.error(`Order(s) ${flaggedIds} have repeat customers with active orders. Please print their stickers individually to add required notes.`);
+      const flaggedDetails = flaggedOrders.map(o => `#${o.id} (${o.customerName || 'Unknown'} - ${o.customerPhone || 'N/A'})`).join(', ');
+      toast.error(`Order(s) ${flaggedDetails} have repeat customers with active orders. Please print their stickers individually to add required notes.`);
       return;
     }
 
