@@ -53,7 +53,7 @@ export default function ProductDetailsPage() {
   const getSlidesPerView = () => {
     if (typeof window === "undefined") return 4;
     const width = window.innerWidth;
-    if (width < 640) return 1;
+    if (width < 640) return 2;
     if (width < 768) return 2;
     if (width < 1024) return 3;
     return 4;
@@ -93,8 +93,18 @@ export default function ProductDetailsPage() {
   }, []);
 
   useEffect(() => {
-    const maxSlide = Math.max(0, relatedProducts.length - slidesPerView);
-    setCurrentSlide((prev) => Math.min(prev, maxSlide));
+    if (relatedProducts.length > 0) {
+      setCurrentSlide((prev) => prev % relatedProducts.length);
+    }
+  }, [relatedProducts.length, slidesPerView]);
+
+  // Auto-scroll for recommended products (infinite)
+  useEffect(() => {
+    if (relatedProducts.length <= slidesPerView) return;
+    const interval = setInterval(() => {
+      setCurrentSlide((prev) => (prev + 1) % relatedProducts.length);
+    }, 4000);
+    return () => clearInterval(interval);
   }, [relatedProducts.length, slidesPerView]);
 
   const loadProduct = async () => {
@@ -360,7 +370,6 @@ export default function ProductDetailsPage() {
   const additionalInfo = product.additional_info || {};
   const sizeVariants: SizeVariant[] = Array.isArray(product.size_variants) ? product.size_variants : [];
 
-  const maxRelatedSlide = Math.max(0, relatedProducts.length - slidesPerView);
   const relatedSlideStepPercent = 100 / slidesPerView;
 
   const supportPhone = (process.env.NEXT_PUBLIC_SUPPORT_PHONE || "").trim();
@@ -415,7 +424,7 @@ export default function ProductDetailsPage() {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.5 }}
-          className="container mx-auto px-4 lg:px-64 py-8"
+          className="container mx-auto px-4 lg:px-8 xl:px-16 py-8"
         >
           {/* Breadcrumb */}
           <div className="text-sm text-gray-600 mb-6">
@@ -990,69 +999,79 @@ export default function ProductDetailsPage() {
           {/* Recommended Products Slider */}
           {relatedProducts.length > 0 && (
             <div className="mb-8">
-              <h2 className="text-2xl font-bold mb-6">Recommended Products</h2>
+              <h2 className="text-xl sm:text-2xl font-bold mb-6">Recommended Products</h2>
               <div className="relative">
                 {/* Navigation Arrows */}
                 {relatedProducts.length > slidesPerView && (
                   <>
                     <button
                       onClick={() =>
-                        setCurrentSlide(Math.max(0, currentSlide - 1))
+                        setCurrentSlide((prev) =>
+                          (prev - 1 + relatedProducts.length) % relatedProducts.length
+                        )
                       }
-                      disabled={currentSlide === 0}
-                      className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-4 z-10 bg-white hover:bg-orange-500 text-gray-700 hover:text-white p-3 rounded-full shadow-lg transition-all hover:scale-110 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-2 sm:-translate-x-4 z-10 bg-white hover:bg-orange-500 text-gray-700 hover:text-white p-2 sm:p-3 rounded-full shadow-lg transition-all hover:scale-110"
                       aria-label="Previous products"
                     >
-                      <FaChevronLeft size={20} />
+                      <FaChevronLeft size={16} />
                     </button>
                     <button
                       onClick={() =>
-                        setCurrentSlide(
-                          Math.min(maxRelatedSlide, currentSlide + 1)
+                        setCurrentSlide((prev) =>
+                          (prev + 1) % relatedProducts.length
                         )
                       }
-                      disabled={currentSlide >= maxRelatedSlide}
-                      className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-4 z-10 bg-white hover:bg-orange-500 text-gray-700 hover:text-white p-3 rounded-full shadow-lg transition-all hover:scale-110 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-2 sm:translate-x-4 z-10 bg-white hover:bg-orange-500 text-gray-700 hover:text-white p-2 sm:p-3 rounded-full shadow-lg transition-all hover:scale-110"
                       aria-label="Next products"
                     >
-                      <FaChevronRight size={20} />
+                      <FaChevronRight size={16} />
                     </button>
                   </>
                 )}
 
                 {/* Products Slider */}
-                <div className="overflow-hidden">
+                <div className="overflow-hidden mx-2 sm:mx-0">
                   <div
                     className="flex transition-transform duration-500 ease-in-out"
                     style={{
                       transform: `translateX(-${currentSlide * relatedSlideStepPercent}%)`,
                     }}
                   >
-                    {relatedProducts.map((relatedProduct) => (
-                      <div
-                        key={relatedProduct.id}
-                        className="w-full sm:w-1/2 md:w-1/3 lg:w-1/4 flex-shrink-0 px-3"
-                      >
-                        <ElectroProductCard
-                          id={relatedProduct.id}
-                          slug={relatedProduct.slug}
-                          name={relatedProduct.name_en || relatedProduct.name}
-                          nameEn={relatedProduct.name_en}
-                          nameBn={relatedProduct.name_bn}
-                          categoryName={
-                            relatedProduct.category_name ||
-                            relatedProduct.category?.name_en ||
-                            relatedProduct.category?.name
-                          }
-                          price={
-                            relatedProduct.base_price || relatedProduct.price
-                          }
-                          image={relatedProduct.image_url}
-                          rating={5}
-                          reviews={0}
-                        />
-                      </div>
-                    ))}
+                    {relatedProducts.map((relatedProduct) => {
+                      const basePrice = Number(relatedProduct.base_price || relatedProduct.mrp || relatedProduct.price || 0);
+                      const salePrice = relatedProduct.special_price
+                        ? Number(relatedProduct.special_price)
+                        : relatedProduct.sale_price
+                          ? Number(relatedProduct.sale_price)
+                          : relatedProduct.salePrice || basePrice;
+                      const discountPercent = relatedProduct.discount_percent
+                        || (basePrice > salePrice ? Math.round(((basePrice - salePrice) / basePrice) * 100) : 0);
+                      return (
+                        <div
+                          key={relatedProduct.id}
+                          className="w-1/2 sm:w-1/2 md:w-1/3 lg:w-1/4 flex-shrink-0 px-1.5 sm:px-3"
+                        >
+                          <ElectroProductCard
+                            id={relatedProduct.id}
+                            slug={relatedProduct.slug}
+                            name={relatedProduct.name_en || relatedProduct.name}
+                            nameEn={relatedProduct.name_en}
+                            nameBn={relatedProduct.name_bn}
+                            categoryName={
+                              relatedProduct.category_name ||
+                              relatedProduct.category?.name_en ||
+                              relatedProduct.category?.name
+                            }
+                            price={salePrice}
+                            originalPrice={basePrice}
+                            image={relatedProduct.image_url}
+                            rating={5}
+                            reviews={0}
+                            discount={discountPercent > 0 ? discountPercent : undefined}
+                          />
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               </div>

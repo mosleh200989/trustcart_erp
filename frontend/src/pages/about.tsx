@@ -8,13 +8,13 @@ export default function About() {
       <ElectroNavbar />
       
       {/* Hero Section */}
-      <div className="bg-gradient-to-r from-orange-500 to-orange-600 text-white py-16">
+      <div className="bg-gradient-to-r from-orange-500 to-orange-600 text-white py-10 sm:py-16">
         <div className="container mx-auto px-4 text-center">
           <div className="flex justify-center mb-4">
-            <FaShoppingCart className="text-6xl" />
+            <FaShoppingCart className="text-4xl sm:text-6xl" />
           </div>
-          <h1 className="text-4xl md:text-5xl font-bold mb-4">About TrustCart</h1>
-          <p className="text-xl opacity-90 max-w-2xl mx-auto">
+          <h1 className="text-2xl sm:text-4xl md:text-5xl font-bold mb-4">About TrustCart</h1>
+          <p className="text-lg sm:text-xl opacity-90 max-w-2xl mx-auto">
             Pure Food for a Healthier Life
           </p>
         </div>

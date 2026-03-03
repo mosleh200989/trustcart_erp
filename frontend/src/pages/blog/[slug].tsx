@@ -109,7 +109,7 @@ export default function BlogPostPage() {
 
             {/* Title */}
             <h1 style={{
-              fontSize: '2.5rem',
+              fontSize: 'clamp(1.5rem, 4vw, 2.5rem)',
               fontWeight: '700',
               color: '#323232',
               marginBottom: '15px',
@@ -121,10 +121,11 @@ export default function BlogPostPage() {
             {/* Meta */}
             <div style={{
               display: 'flex',
-              gap: '20px',
+              gap: '12px',
               alignItems: 'center',
+              flexWrap: 'wrap' as const,
               marginBottom: '20px',
-              fontSize: '0.95rem',
+              fontSize: '0.9rem',
               color: '#666'
             }}>
               <span>✍️ {post.author || 'TrustCart Team'}</span>
@@ -197,7 +198,7 @@ export default function BlogPostPage() {
             marginBottom: '40px'
           }}>
             <h5 style={{ marginBottom: '15px', color: '#323232' }}>Share this article:</h5>
-            <div style={{ display: 'flex', gap: '10px' }}>
+            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' as const }}>
               <a 
                 href={`https://facebook.com/sharer/sharer.php?u=${typeof window !== 'undefined' ? window.location.href : ''}`}
                 target="_blank"

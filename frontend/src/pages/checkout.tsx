@@ -5,6 +5,7 @@ import { useToast } from '@/contexts/ToastContext';
 import Link from "next/link";
 import ElectroNavbar from "@/components/ElectroNavbar";
 import ElectroFooter from "@/components/ElectroFooter";
+import ElectroProductCard from "@/components/ElectroProductCard";
 import {
   FaArrowLeft,
   FaCreditCard,
@@ -482,7 +483,7 @@ export default function Checkout() {
       </div>
       <div className="max-w-7xl mx-auto">
         <div className="container mx-auto px-4 py-12">
-          <h2 className="text-3xl font-bold text-gray-800 mb-8 flex items-center gap-3">
+          <h2 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-6 sm:mb-8 flex items-center gap-3">
             <FaShoppingCart className="text-orange-500" />
             Cart
           </h2>
@@ -515,59 +516,117 @@ export default function Checkout() {
                   {cart.map((item, index) => (
                     <div
                       key={index}
-                      className="flex items-center gap-4 p-4 border border-gray-200 rounded-lg"
+                      className="p-4 border border-gray-200 rounded-lg"
                     >
-                      <img
-                        src={item.image || "/default-product.png"}
-                        alt={item.name || item.nameEn || item.name_en}
-                        className="w-20 h-20 object-cover rounded"
-                      />
-                      <div className="flex-1">
-                        <h6 className="font-bold text-gray-800">
-                          {item.name || item.nameEn || item.name_en}
-                        </h6>
-                        {item.sku ? (
-                          <p className="text-sm text-gray-500">
-                            SKU: {item.sku}
-                          </p>
-                        ) : null}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          className="w-8 h-8 flex items-center justify-center bg-gray-200 hover:bg-gray-300 rounded"
-                          onClick={() =>
-                            updateQuantity(index, (item.quantity || 1) - 1)
-                          }
-                        >
-                          <FaMinus size={12} />
-                        </button>
-                        <span className="w-12 text-center font-bold">
-                          {item.quantity || 1}
-                        </span>
-                        <button
-                          type="button"
-                          className="w-8 h-8 flex items-center justify-center bg-gray-200 hover:bg-gray-300 rounded"
-                          onClick={() =>
-                            updateQuantity(index, (item.quantity || 1) + 1)
-                          }
-                        >
-                          <FaPlus size={12} />
-                        </button>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-sm text-gray-500">Price</div>
-                        <div className="font-bold text-orange-500">
-                          ৳{item.price}
+                      {/* Mobile layout: stacked */}
+                      <div className="flex items-start gap-3 sm:hidden">
+                        <img
+                          src={item.image || "/default-product.png"}
+                          alt={item.name || item.nameEn || item.name_en}
+                          className="w-16 h-16 object-cover rounded flex-shrink-0"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start justify-between gap-2">
+                            <h6 className="font-bold text-gray-800 text-sm line-clamp-2">
+                              {item.name || item.nameEn || item.name_en}
+                            </h6>
+                            <button
+                              type="button"
+                              className="text-red-500 hover:text-red-600 p-1 flex-shrink-0"
+                              onClick={() => removeItem(index)}
+                            >
+                              <FaTrash size={14} />
+                            </button>
+                          </div>
+                          {item.sku ? (
+                            <p className="text-xs text-gray-500 mt-0.5">
+                              SKU: {item.sku}
+                            </p>
+                          ) : null}
+                          <div className="flex items-center justify-between mt-2">
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                className="w-7 h-7 flex items-center justify-center bg-gray-200 hover:bg-gray-300 rounded"
+                                onClick={() =>
+                                  updateQuantity(index, (item.quantity || 1) - 1)
+                                }
+                              >
+                                <FaMinus size={10} />
+                              </button>
+                              <span className="w-8 text-center font-bold text-sm">
+                                {item.quantity || 1}
+                              </span>
+                              <button
+                                type="button"
+                                className="w-7 h-7 flex items-center justify-center bg-gray-200 hover:bg-gray-300 rounded"
+                                onClick={() =>
+                                  updateQuantity(index, (item.quantity || 1) + 1)
+                                }
+                              >
+                                <FaPlus size={10} />
+                              </button>
+                            </div>
+                            <div className="font-bold text-orange-500">
+                              ৳{item.price}
+                            </div>
+                          </div>
                         </div>
                       </div>
-                      <button
-                        type="button"
-                        className="text-red-500 hover:text-red-600 p-2"
-                        onClick={() => removeItem(index)}
-                      >
-                        <FaTrash />
-                      </button>
+                      {/* Desktop layout: single row */}
+                      <div className="hidden sm:flex items-center gap-4">
+                        <img
+                          src={item.image || "/default-product.png"}
+                          alt={item.name || item.nameEn || item.name_en}
+                          className="w-20 h-20 object-cover rounded"
+                        />
+                        <div className="flex-1">
+                          <h6 className="font-bold text-gray-800">
+                            {item.name || item.nameEn || item.name_en}
+                          </h6>
+                          {item.sku ? (
+                            <p className="text-sm text-gray-500">
+                              SKU: {item.sku}
+                            </p>
+                          ) : null}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            className="w-8 h-8 flex items-center justify-center bg-gray-200 hover:bg-gray-300 rounded"
+                            onClick={() =>
+                              updateQuantity(index, (item.quantity || 1) - 1)
+                            }
+                          >
+                            <FaMinus size={12} />
+                          </button>
+                          <span className="w-12 text-center font-bold">
+                            {item.quantity || 1}
+                          </span>
+                          <button
+                            type="button"
+                            className="w-8 h-8 flex items-center justify-center bg-gray-200 hover:bg-gray-300 rounded"
+                            onClick={() =>
+                              updateQuantity(index, (item.quantity || 1) + 1)
+                            }
+                          >
+                            <FaPlus size={12} />
+                          </button>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-sm text-gray-500">Price</div>
+                          <div className="font-bold text-orange-500">
+                            ৳{item.price}
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          className="text-red-500 hover:text-red-600 p-2"
+                          onClick={() => removeItem(index)}
+                        >
+                          <FaTrash />
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -582,7 +641,7 @@ export default function Checkout() {
                 </button>
               </div>
             )}
-            <h2 className="text-3xl font-bold text-gray-800 mt-16 mb-8 flex items-center gap-3">
+            <h2 className="text-2xl sm:text-3xl font-bold text-gray-800 mt-12 sm:mt-16 mb-6 sm:mb-8 flex items-center gap-3">
               <FaCreditCard className="text-orange-500" />
               Checkout
             </h2>
@@ -873,46 +932,37 @@ export default function Checkout() {
                       <h4 className="text-sm font-bold text-gray-800 mb-3">
                         Suggested Products
                       </h4>
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 gap-3">
                         {suggestedProducts.slice(0, 3).map((product) => {
-                          const price = getProductPrice(product);
-                          const imageUrl = getProductImageUrl(product);
+                          const basePrice = Number(product.price) || Number(product.mrp) || 0;
+                          const salePrice = product.special_price
+                            ? Number(product.special_price)
+                            : product.sale_price
+                              ? Number(product.sale_price)
+                              : product.salePrice || basePrice;
+                          const discountPercent = product.discount_percent
+                            || (basePrice > salePrice ? Math.round(((basePrice - salePrice) / basePrice) * 100) : 0);
                           return (
-                            <div
+                            <ElectroProductCard
                               key={product.id}
-                              className="bg-white border border-gray-200 rounded-lg overflow-hidden hover:shadow-md transition-shadow"
-                            >
-                              <div className="h-28 bg-gray-50 flex items-center justify-center overflow-hidden">
-                                <img
-                                  src={imageUrl}
-                                  alt={getProductDisplayName(product)}
-                                  className="w-full h-full object-cover"
-                                  onError={(e) => {
-                                    (e.currentTarget as HTMLImageElement).src =
-                                      "/default-product.png";
-                                  }}
-                                />
-                              </div>
-
-                              <div className="p-3">
-                                <div className="text-sm font-semibold text-gray-800 leading-snug">
-                                  {getProductDisplayName(product)}
-                                </div>
-
-                                <div className="mt-2 flex items-center justify-between gap-2">
-                                  <div className="text-sm font-bold text-orange-500">
-                                    ৳{price}
-                                  </div>
-                                  <button
-                                    type="button"
-                                    onClick={() => addSuggestedToCart(product)}
-                                    className="px-3 py-1.5 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded font-semibold text-sm transition"
-                                  >
-                                    Add to cart
-                                  </button>
-                                </div>
-                              </div>
-                            </div>
+                              id={product.id}
+                              slug={product.slug}
+                              name={product.name_en || product.name}
+                              nameBn={product.name_bn}
+                              nameEn={product.name_en}
+                              categoryName={
+                                product.category_name ||
+                                product.category?.name_en ||
+                                product.category?.name
+                              }
+                              price={salePrice}
+                              originalPrice={basePrice}
+                              stock={product.stock_quantity}
+                              image={product.image_url}
+                              rating={5}
+                              reviews={0}
+                              discount={discountPercent > 0 ? discountPercent : undefined}
+                            />
                           );
                         })}
                       </div>

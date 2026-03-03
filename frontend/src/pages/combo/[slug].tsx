@@ -949,29 +949,41 @@ export default function ComboDetailPage() {
                       transform: `translateX(-${currentSlide * relatedSlideStepPercent}%)`,
                     }}
                   >
-                    {recommendedProducts.map((relatedProduct) => (
-                      <div
-                        key={relatedProduct.id}
-                        className="w-full sm:w-1/2 md:w-1/3 lg:w-1/4 flex-shrink-0 px-3"
-                      >
-                        <ElectroProductCard
-                          id={relatedProduct.id}
-                          slug={relatedProduct.slug}
-                          name={relatedProduct.name_en || relatedProduct.name}
-                          nameEn={relatedProduct.name_en}
-                          nameBn={relatedProduct.name_bn}
-                          categoryName={
-                            relatedProduct.category_name ||
-                            relatedProduct.category?.name_en ||
-                            relatedProduct.category?.name
-                          }
-                          price={relatedProduct.base_price || relatedProduct.price}
-                          image={relatedProduct.image_url}
-                          rating={5}
-                          reviews={0}
-                        />
-                      </div>
-                    ))}
+                    {recommendedProducts.map((relatedProduct) => {
+                      const basePrice = Number(relatedProduct.base_price || relatedProduct.mrp || relatedProduct.price || 0);
+                      const salePrice = relatedProduct.special_price
+                        ? Number(relatedProduct.special_price)
+                        : relatedProduct.sale_price
+                          ? Number(relatedProduct.sale_price)
+                          : relatedProduct.salePrice || basePrice;
+                      const discountPercent = relatedProduct.discount_percent
+                        || (basePrice > salePrice ? Math.round(((basePrice - salePrice) / basePrice) * 100) : 0);
+                      return (
+                        <div
+                          key={relatedProduct.id}
+                          className="w-full sm:w-1/2 md:w-1/3 lg:w-1/4 flex-shrink-0 px-3"
+                        >
+                          <ElectroProductCard
+                            id={relatedProduct.id}
+                            slug={relatedProduct.slug}
+                            name={relatedProduct.name_en || relatedProduct.name}
+                            nameEn={relatedProduct.name_en}
+                            nameBn={relatedProduct.name_bn}
+                            categoryName={
+                              relatedProduct.category_name ||
+                              relatedProduct.category?.name_en ||
+                              relatedProduct.category?.name
+                            }
+                            price={salePrice}
+                            originalPrice={basePrice}
+                            image={relatedProduct.image_url}
+                            rating={5}
+                            reviews={0}
+                            discount={discountPercent > 0 ? discountPercent : undefined}
+                          />
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               </div>

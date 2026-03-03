@@ -152,54 +152,107 @@ export default function CartPage() {
                     {cart.map((item, index) => (
                       <div
                         key={index}
-                        className="flex items-center gap-4 p-4 border border-gray-200 rounded-lg"
+                        className="p-4 border border-gray-200 rounded-lg"
                       >
-                        <img
-                          src={item.image || "/default-product.png"}
-                          alt={item.name}
-                          className="w-20 h-20 object-cover rounded"
-                        />
-                        <div className="flex-1">
-                          <h6 className="font-bold text-gray-800">
-                            {item.name || item.nameEn}
-                          </h6>
-                          <p className="text-sm text-gray-500">
-                            SKU: {item.sku}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <button
-                            className="w-8 h-8 flex items-center justify-center bg-gray-200 hover:bg-gray-300 rounded"
-                            onClick={() =>
-                              updateQuantity(index, (item.quantity || 1) - 1)
-                            }
-                          >
-                            <FaMinus size={12} />
-                          </button>
-                          <span className="w-12 text-center font-bold">
-                            {item.quantity || 1}
-                          </span>
-                          <button
-                            className="w-8 h-8 flex items-center justify-center bg-gray-200 hover:bg-gray-300 rounded"
-                            onClick={() =>
-                              updateQuantity(index, (item.quantity || 1) + 1)
-                            }
-                          >
-                            <FaPlus size={12} />
-                          </button>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-sm text-gray-500">Price</div>
-                          <div className="font-bold text-orange-500">
-                            ৳{item.price}
+                        {/* Mobile layout: stacked */}
+                        <div className="flex items-start gap-3 sm:hidden">
+                          <img
+                            src={item.image || "/default-product.png"}
+                            alt={item.name}
+                            className="w-16 h-16 object-cover rounded flex-shrink-0"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-start justify-between gap-2">
+                              <h6 className="font-bold text-gray-800 text-sm line-clamp-2">
+                                {item.name || item.nameEn}
+                              </h6>
+                              <button
+                                className="text-red-500 hover:text-red-600 p-1 flex-shrink-0"
+                                onClick={() => removeItem(index)}
+                              >
+                                <FaTrash size={14} />
+                              </button>
+                            </div>
+                            <p className="text-xs text-gray-500 mt-0.5">
+                              SKU: {item.sku}
+                            </p>
+                            <div className="flex items-center justify-between mt-2">
+                              <div className="flex items-center gap-2">
+                                <button
+                                  className="w-7 h-7 flex items-center justify-center bg-gray-200 hover:bg-gray-300 rounded"
+                                  onClick={() =>
+                                    updateQuantity(index, (item.quantity || 1) - 1)
+                                  }
+                                >
+                                  <FaMinus size={10} />
+                                </button>
+                                <span className="w-8 text-center font-bold text-sm">
+                                  {item.quantity || 1}
+                                </span>
+                                <button
+                                  className="w-7 h-7 flex items-center justify-center bg-gray-200 hover:bg-gray-300 rounded"
+                                  onClick={() =>
+                                    updateQuantity(index, (item.quantity || 1) + 1)
+                                  }
+                                >
+                                  <FaPlus size={10} />
+                                </button>
+                              </div>
+                              <div className="font-bold text-orange-500">
+                                ৳{item.price}
+                              </div>
+                            </div>
                           </div>
                         </div>
-                        <button
-                          className="text-red-500 hover:text-red-600 p-2"
-                          onClick={() => removeItem(index)}
-                        >
-                          <FaTrash />
-                        </button>
+                        {/* Desktop layout: single row */}
+                        <div className="hidden sm:flex items-center gap-4">
+                          <img
+                            src={item.image || "/default-product.png"}
+                            alt={item.name}
+                            className="w-20 h-20 object-cover rounded"
+                          />
+                          <div className="flex-1">
+                            <h6 className="font-bold text-gray-800">
+                              {item.name || item.nameEn}
+                            </h6>
+                            <p className="text-sm text-gray-500">
+                              SKU: {item.sku}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              className="w-8 h-8 flex items-center justify-center bg-gray-200 hover:bg-gray-300 rounded"
+                              onClick={() =>
+                                updateQuantity(index, (item.quantity || 1) - 1)
+                              }
+                            >
+                              <FaMinus size={12} />
+                            </button>
+                            <span className="w-12 text-center font-bold">
+                              {item.quantity || 1}
+                            </span>
+                            <button
+                              className="w-8 h-8 flex items-center justify-center bg-gray-200 hover:bg-gray-300 rounded"
+                              onClick={() =>
+                                updateQuantity(index, (item.quantity || 1) + 1)
+                              }
+                            >
+                              <FaPlus size={12} />
+                            </button>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-sm text-gray-500">Price</div>
+                            <div className="font-bold text-orange-500">
+                              ৳{item.price}
+                            </div>
+                          </div>
+                          <button
+                            className="text-red-500 hover:text-red-600 p-2"
+                            onClick={() => removeItem(index)}
+                          >
+                            <FaTrash />
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -276,26 +329,37 @@ export default function CartPage() {
               </h3>
 
               <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                {suggestedProducts.map((product) => (
-                  <ElectroProductCard
-                    key={product.id}
-                    id={product.id}
-                    slug={product.slug}
-                    nameEn={product.name_en}
-                    nameBn={product.name_bn}
-                    categoryName={
-                      product.category_name ||
-                      product.category?.name_en ||
-                      product.category?.name
-                    }
-                    price={product.base_price}
-                    originalPrice={product.mrp}
-                    stock={product.stock_quantity}
-                    image={product.image_url || product.image}
-                    rating={5}
-                    reviews={Math.floor(Math.random() * 200)}
-                  />
-                ))}
+                {suggestedProducts.map((product) => {
+                  const basePrice = Number(product.base_price || product.mrp || product.price || 0);
+                  const salePrice = product.special_price
+                    ? Number(product.special_price)
+                    : product.sale_price
+                      ? Number(product.sale_price)
+                      : product.salePrice || basePrice;
+                  const discountPercent = product.discount_percent
+                    || (basePrice > salePrice ? Math.round(((basePrice - salePrice) / basePrice) * 100) : 0);
+                  return (
+                    <ElectroProductCard
+                      key={product.id}
+                      id={product.id}
+                      slug={product.slug}
+                      nameEn={product.name_en}
+                      nameBn={product.name_bn}
+                      categoryName={
+                        product.category_name ||
+                        product.category?.name_en ||
+                        product.category?.name
+                      }
+                      price={salePrice}
+                      originalPrice={basePrice}
+                      stock={product.stock_quantity}
+                      image={product.image_url || product.image}
+                      rating={5}
+                      reviews={Math.floor(Math.random() * 200)}
+                      discount={discountPercent > 0 ? discountPercent : undefined}
+                    />
+                  );
+                })}
               </div>
             </div>
           )}
