@@ -397,8 +397,13 @@ export default function AdminSales() {
       await apiClient.delete(`/sales/${order.id}`);
       toast.success('Order deleted successfully');
       loadOrders();
-    } catch (error) {
-      toast.error('Failed to delete order');
+    } catch (error: any) {
+      const msg = error.response?.data?.message;
+      if (error.response?.status === 403) {
+        toast.error(msg || 'You do not have permission to delete orders');
+      } else {
+        toast.error(msg || 'Failed to delete order');
+      }
     }
   };
 
@@ -424,8 +429,13 @@ export default function AdminSales() {
         setBulkAction('');
         await loadOrders();
         toast.success('Selected orders deleted');
-      } catch (e) {
-        toast.error('Failed to delete selected orders');
+      } catch (e: any) {
+        const msg = e.response?.data?.message;
+        if (e.response?.status === 403) {
+          toast.error(msg || 'You do not have permission to delete orders');
+        } else {
+          toast.error(msg || 'Failed to delete selected orders');
+        }
       }
       return;
     }

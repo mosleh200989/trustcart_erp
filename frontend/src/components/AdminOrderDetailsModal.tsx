@@ -504,8 +504,13 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
       toast.success('Item deleted successfully');
       loadOrderDetails();
       onUpdate();
-    } catch (error) {
-      toast.error('Failed to delete item');
+    } catch (error: any) {
+      const msg = error.response?.data?.message;
+      if (error.response?.status === 403) {
+        toast.error(msg || 'You do not have permission to delete items');
+      } else {
+        toast.error(msg || 'Failed to delete item');
+      }
     }
   };
 
