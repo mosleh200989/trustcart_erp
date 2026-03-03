@@ -921,10 +921,10 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
                                   {featuredLabel}
                                 </div>
                               )}
-                              <div className={`flex items-start gap-3 sm:gap-4 ${isFeatured ? 'mt-1' : ''}`}>
+                              <div className={`flex items-center gap-3 sm:gap-4 ${isFeatured ? 'mt-1' : ''}`}>
                                 {/* Selection indicator */}
                                 <div
-                                  className={`flex-shrink-0 w-6 h-6 mt-1 rounded-full border-2 flex items-center justify-center transition-all ${
+                                  className={`flex-shrink-0 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${
                                     isSelected ? 'border-transparent' : 'border-gray-300'
                                   }`}
                                   style={isSelected ? { backgroundColor: page.primary_color } : {}}
@@ -1091,7 +1091,7 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
                               <span className="text-gray-700 font-medium">
                                 {item.product.name} × {item.quantity}
                               </span>
-                              <span className="font-bold text-gray-800">
+                              <span className="font-bold text-gray-800 whitespace-nowrap">
                                 {(item.product.price * item.quantity).toLocaleString()} ৳
                               </span>
                             </div>
@@ -1251,12 +1251,29 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
               background: `linear-gradient(135deg, ${page.primary_color} 0%, ${adjustColor(page.primary_color, -50)} 100%)`,
             }}
           />
-          <div className="relative py-8 text-center">
+          <div className="relative py-10 text-center space-y-4">
+            <div>
+              <p className="text-base sm:text-lg font-semibold opacity-90 mb-2" style={{ color: page.secondary_color }}>
+                বিশ্বস্ত মানের আরো প্রোডাক্ট পেতে ভিজিট করুন
+              </p>
+              <a
+                href="https://trustcart.com.bd"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full font-bold text-sm sm:text-base shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300"
+                style={{
+                  background: 'linear-gradient(135deg, #FFD700 0%, #FFA500 100%)',
+                  color: '#1a1a2e',
+                }}
+              >
+                trustcart.com.bd →
+              </a>
+            </div>
             <p
               className="text-sm font-medium opacity-70"
               style={{ color: page.secondary_color }}
             >
-              © {new Date().getFullYear()} All rights reserved.
+              © {new Date().getFullYear()} TrustCart. All rights reserved.
             </p>
           </div>
         </div>
