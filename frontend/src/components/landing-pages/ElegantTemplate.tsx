@@ -332,6 +332,16 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
   const primaryLight = adjustColor(page.primary_color, 40);
   const primaryDark = adjustColor(page.primary_color, -30);
 
+  // Helper: render text with Bengali digits in a different font for better readability
+  const renderBengaliText = (text: string) => {
+    const parts = text.split(/([\u09E6-\u09EF]+)/g);
+    return parts.map((part, i) =>
+      /[\u09E6-\u09EF]/.test(part)
+        ? <span key={i} className="price-number">{part}</span>
+        : part
+    );
+  };
+
   return (
     <>
       <Head>
@@ -401,9 +411,19 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
           -webkit-backdrop-filter: blur(10px);
         }
         .red-strikethrough {
-          text-decoration: line-through;
-          text-decoration-color: #ef4444;
-          text-decoration-thickness: 2px;
+          position: relative;
+          text-decoration: none;
+        }
+        .red-strikethrough::after {
+          content: '';
+          position: absolute;
+          left: 0;
+          right: 0;
+          top: 50%;
+          height: 2px;
+          background: #ef4444;
+          transform: rotate(-12deg);
+          pointer-events: none;
         }
         .price-number {
           font-family: 'Arial', 'Helvetica Neue', sans-serif;
@@ -498,7 +518,7 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
                     className="text-base sm:text-lg md:text-xl mb-8 leading-relaxed opacity-85 whitespace-pre-line"
                     style={{ color: page.secondary_color }}
                   >
-                    {page.hero_subtitle}
+                    {renderBengaliText(page.hero_subtitle)}
                   </p>
                 )}
 
