@@ -866,7 +866,7 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
                           return (
                             <div
                               key={product.id}
-                              className={`relative rounded-2xl p-3 sm:p-4 cursor-pointer transition-all duration-300 overflow-hidden ${
+                              className={`relative rounded-2xl p-3 sm:p-4 cursor-pointer transition-all duration-300 ${
                                 isFeatured && !isSelected
                                   ? 'bg-gradient-to-r from-amber-50 to-orange-50 shadow-lg ring-2 ring-amber-200 border-2 border-amber-300'
                                   : isSelected
