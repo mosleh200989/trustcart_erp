@@ -400,6 +400,14 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
           backdrop-filter: blur(10px);
           -webkit-backdrop-filter: blur(10px);
         }
+        .red-strikethrough {
+          text-decoration: line-through;
+          text-decoration-color: #ef4444;
+          text-decoration-thickness: 2px;
+        }
+        .price-number {
+          font-family: 'Arial', 'Helvetica Neue', sans-serif;
+        }
       `}</style>
 
       <div className="min-h-screen elegant-landing" style={{ backgroundColor: page.background_color }}>
@@ -487,7 +495,7 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
 
                 {page.hero_subtitle && (
                   <p
-                    className="text-base sm:text-lg md:text-xl mb-8 leading-relaxed opacity-85"
+                    className="text-base sm:text-lg md:text-xl mb-8 leading-relaxed opacity-85 whitespace-pre-line"
                     style={{ color: page.secondary_color }}
                   >
                     {page.hero_subtitle}
@@ -496,9 +504,9 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
 
                 {/* Price preview */}
                 {page.products?.[0] && (
-                  <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 mb-8">
+                  <div className="flex items-center justify-center md:justify-start gap-3 mb-8 flex-nowrap">
                     {page.products[0].compare_price && page.products[0].compare_price > page.products[0].price && (
-                      <span className="text-lg sm:text-xl line-through font-bold px-4 py-1.5 rounded-lg bg-white/20 backdrop-blur-sm border border-white/30 text-white/90">
+                      <span className="red-strikethrough price-number font-bold px-4 py-1.5 rounded-lg bg-white/20 backdrop-blur-sm border border-white/30 text-white text-base sm:text-xl">
                         ৳{page.products[0].compare_price.toLocaleString()}
                       </span>
                     )}
@@ -506,10 +514,10 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
                       style={{ color: '#FFD700' }}
                     >
                       <span className="text-lg font-normal opacity-80 mr-1">মাত্র</span>
-                      ৳{page.products[0].price.toLocaleString()}
+                      <span className="price-number">৳{page.products[0].price.toLocaleString()}</span>
                     </span>
                     {page.products[0].compare_price && page.products[0].compare_price > page.products[0].price && (
-                      <span className="bg-gradient-to-r from-yellow-400 to-amber-500 text-gray-900 text-xs sm:text-sm font-extrabold px-4 py-2 rounded-full whitespace-nowrap shadow-lg animate-pulse">
+                      <span className="bg-green-500 text-white text-xs sm:text-sm font-extrabold px-3 sm:px-4 py-1.5 sm:py-2 rounded-full whitespace-nowrap shadow-lg">
                         {Math.round(((page.products[0].compare_price - page.products[0].price) / page.products[0].compare_price) * 100)}% ছাড়!
                       </span>
                     )}
@@ -789,7 +797,7 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
             />
             <div className="relative text-center">
               <p className="text-lg mb-3 opacity-80" style={{ color: page.secondary_color }}>
-                প্রশ্ন আছে? এখনই কল করুন
+                প্রশ্ন আছে? এখনই কল করুন অথবা হোয়াটসঅ্যাপ করুন!
               </p>
               <a
                 href={`tel:${page.phone_number}`}
@@ -871,14 +879,14 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
                                   ? 'bg-gradient-to-r from-amber-50 to-orange-50 shadow-lg ring-2 ring-amber-200 border-2 border-amber-300'
                                   : isSelected
                                     ? 'shadow-lg border-2 ring-2'
-                                    : 'border-2 border-gray-100 hover:border-gray-200 hover:shadow-md bg-white'
+                                    : 'border-2 border-gray-100 hover:border-gray-200 hover:shadow-md bg-gray-50/50'
                               }`}
                               style={
                                 isSelected
                                   ? {
                                       borderColor: page.primary_color,
-                                      boxShadow: `0 4px 20px ${page.primary_color}40`,
-                                      background: `linear-gradient(135deg, ${page.primary_color}18 0%, ${page.primary_color}08 100%)`,
+                                      boxShadow: `0 4px 20px ${page.primary_color}50`,
+                                      background: `linear-gradient(135deg, ${page.primary_color}28 0%, ${page.primary_color}18 100%)`,
                                     }
                                   : {}
                               }
