@@ -18,6 +18,15 @@ const AddToCartPopup: React.FC<AddToCartPopupProps> = ({ isOpen, onClose, produc
       item.selling_price ?? item.price ?? item.base_price ?? item.grand_total ?? 0,
     );
 
+    const basePrice = Number(item.base_price || item.mrp || item.price || 0);
+    const salePrice = item.special_price
+      ? Number(item.special_price)
+      : item.sale_price
+        ? Number(item.sale_price)
+        : item.salePrice || resolvedPrice;
+    const discountPercent = item.discount_percent ?? item.discount ?? item.discount_percentage
+      ?? (basePrice > salePrice ? Math.round(((basePrice - salePrice) / basePrice) * 100) : 0);
+
     return {
       id: item.id ?? item.product_id ?? Math.random(),
       nameEn: item.name_en ?? item.nameEn ?? item.name,
@@ -28,13 +37,13 @@ const AddToCartPopup: React.FC<AddToCartPopupProps> = ({ isOpen, onClose, produc
         item.categoryName ??
         item.category?.name_en ??
         item.category?.name,
-      price: resolvedPrice,
-      originalPrice: item.base_price ? Number(item.base_price) : undefined,
+      price: salePrice,
+      originalPrice: basePrice,
       stock: item.stock_quantity ?? item.stock ?? item.stockQuantity,
       image: item.image_url ?? item.imageUrl ?? item.image ?? item.thumb,
       rating: item.rating ?? item.average_rating ?? 5,
       reviews: item.reviews ?? item.review_count ?? 0,
-      discount: item.discount ?? item.discount_percentage,
+      discount: discountPercent > 0 ? discountPercent : undefined,
     };
   };
 

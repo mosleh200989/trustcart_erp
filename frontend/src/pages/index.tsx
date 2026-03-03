@@ -427,7 +427,7 @@ export default function Home() {
           transition={{ duration: 0.5 }}
           className="container mx-auto px-4 lg:px-48 xl:px-56 py-12"
         >
-          <h2 className="text-3xl font-bold text-center mb-8">
+          <h2 className="text-2xl sm:text-3xl font-bold text-center mb-6 sm:mb-8">
             Shop by Categories
           </h2>
           <CategorySlider categories={categories} />

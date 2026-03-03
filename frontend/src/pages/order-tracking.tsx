@@ -141,8 +141,8 @@ export default function OrderTrackingPage() {
         </div>
 
         {/* Search Form */}
-        <form onSubmit={handleSearch} className="bg-white rounded-xl shadow-lg p-6 mb-8">
-          <div className="flex gap-4">
+        <form onSubmit={handleSearch} className="bg-white rounded-xl shadow-lg p-4 sm:p-6 mb-8">
+          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
             <input
               type="text"
               value={searchId}
@@ -152,7 +152,7 @@ export default function OrderTrackingPage() {
             />
             <button
               type="submit"
-              className="bg-orange-500 hover:bg-orange-600 text-white px-8 py-3 rounded-lg font-bold transition"
+              className="bg-orange-500 hover:bg-orange-600 text-white px-8 py-3 rounded-lg font-bold transition w-full sm:w-auto"
             >
               Track
             </button>
@@ -211,7 +211,7 @@ export default function OrderTrackingPage() {
             </div>
 
             {/* Order Status Progress */}
-            <div className="px-6 py-8 border-b border-gray-100">
+            <div className="px-4 sm:px-6 py-6 sm:py-8 border-b border-gray-100">
               <h3 className="text-lg font-semibold text-gray-800 mb-6 text-center">
                 Delivery Status
               </h3>
@@ -226,22 +226,22 @@ export default function OrderTrackingPage() {
                     <React.Fragment key={status.key}>
                       <div className="flex flex-col items-center text-center flex-shrink-0">
                         <div
-                          className={`w-14 h-14 rounded-full flex items-center justify-center mb-2 transition-all ${
+                          className={`w-10 h-10 sm:w-14 sm:h-14 rounded-full flex items-center justify-center mb-1 sm:mb-2 transition-all ${
                             isCompleted
                               ? "bg-green-500 text-white shadow-lg"
                               : "bg-gray-100 text-gray-400"
                           }`}
                         >
-                          <Icon className={`text-2xl ${isActive ? "animate-pulse" : ""}`} />
+                          <Icon className={`text-lg sm:text-2xl ${isActive ? "animate-pulse" : ""}`} />
                         </div>
                         <span
-                          className={`text-sm font-semibold ${
+                          className={`text-[10px] sm:text-sm font-semibold ${
                             isCompleted ? "text-green-600" : "text-gray-400"
                           }`}
                         >
                           {status.label}
                         </span>
-                        <span className="text-xs text-gray-500 max-w-[90px]">
+                        <span className="text-[9px] sm:text-xs text-gray-500 max-w-[60px] sm:max-w-[90px]">
                           {status.key === "under_delivery" && courierName
                             ? `Via ${courierName}`
                             : status.sublabel}
@@ -249,7 +249,7 @@ export default function OrderTrackingPage() {
                       </div>
                       {!isLast && (
                         <div
-                          className={`flex-1 h-1.5 mx-2 rounded-full ${
+                          className={`flex-1 h-1 sm:h-1.5 mx-1 sm:mx-2 rounded-full ${
                             index < currentStatusIndex
                               ? "bg-green-500"
                               : "bg-gray-200"

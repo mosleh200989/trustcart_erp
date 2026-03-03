@@ -78,9 +78,9 @@ export default function Blog() {
 
       <div className="container mx-auto px-4 py-12">
         {/* Page Header */}
-        <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold mb-4">Our Blog</h1>
-          <p className="text-xl text-gray-600">Tips, advice, and insights for a healthier lifestyle</p>
+        <div className="text-center mb-8 sm:mb-12">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-2 sm:mb-4">Our Blog</h1>
+          <p className="text-base sm:text-lg md:text-xl text-gray-600">Tips, advice, and insights for a healthier lifestyle</p>
         </div>
 
         {/* Blog Posts Grid */}
@@ -191,45 +191,38 @@ export default function Blog() {
               <div className="bg-white rounded-lg shadow p-6">
                 <h3 className="text-xl font-bold mb-4 pb-3 border-b border-gray-200">Featured Products</h3>
                 <div className="space-y-4">
-                  {relatedProducts.map((product) => (
-                    <ElectroProductCard
-                      key={product.id}
-                      id={product.id}
-                      slug={product.slug}
-                      name={product.name_en || product.name}
-                      nameBn={product.name_bn}
-                      nameEn={product.name_en}
-                      categoryName={
-                        product.category_name ||
-                        product.category?.name_en ||
-                        product.category?.name
-                      }
-                      price={(() => {
-                        const basePrice = product.base_price ?? product.price ?? 0;
-                        const salePrice = product.sale_price ?? product.salePrice;
-                        const hasDiscount =
-                          typeof salePrice === 'number' &&
-                          typeof basePrice === 'number' &&
-                          salePrice > 0 &&
-                          salePrice < basePrice;
-                        return hasDiscount ? salePrice : basePrice;
-                      })()}
-                      originalPrice={(() => {
-                        const basePrice = product.base_price ?? product.price;
-                        const salePrice = product.sale_price ?? product.salePrice;
-                        const hasDiscount =
-                          typeof salePrice === 'number' &&
-                          typeof basePrice === 'number' &&
-                          salePrice > 0 &&
-                          salePrice < basePrice;
-                        return hasDiscount ? basePrice : undefined;
-                      })()}
-                      stock={product.stock_quantity}
-                      image={product.image_url}
-                      rating={5}
-                      reviews={0}
-                    />
-                  ))}
+                  {relatedProducts.map((product) => {
+                    const basePrice = Number(product.base_price || product.mrp || product.price || 0);
+                    const salePrice = product.special_price
+                      ? Number(product.special_price)
+                      : product.sale_price
+                        ? Number(product.sale_price)
+                        : product.salePrice || basePrice;
+                    const discountPercent = product.discount_percent
+                      || (basePrice > salePrice ? Math.round(((basePrice - salePrice) / basePrice) * 100) : 0);
+                    return (
+                      <ElectroProductCard
+                        key={product.id}
+                        id={product.id}
+                        slug={product.slug}
+                        name={product.name_en || product.name}
+                        nameBn={product.name_bn}
+                        nameEn={product.name_en}
+                        categoryName={
+                          product.category_name ||
+                          product.category?.name_en ||
+                          product.category?.name
+                        }
+                        price={salePrice}
+                        originalPrice={basePrice}
+                        stock={product.stock_quantity}
+                        image={product.image_url}
+                        rating={5}
+                        reviews={0}
+                        discount={discountPercent > 0 ? discountPercent : undefined}
+                      />
+                    );
+                  })}
                 </div>
               </div>
             )}

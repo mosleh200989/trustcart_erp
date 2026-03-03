@@ -347,14 +347,14 @@ export default function ThankYouPage() {
         ) : (
           <div className="bg-white rounded-xl shadow-lg overflow-hidden">
             {/* Header - Thank you message */}
-            <div className="text-center py-8 border-b border-gray-100">
-              <h1 className="text-3xl md:text-4xl font-serif italic text-gray-700">
+            <div className="text-center py-6 sm:py-8 border-b border-gray-100">
+              <h1 className="text-2xl sm:text-3xl md:text-4xl font-serif italic text-gray-700">
                 Thank you for your order.
               </h1>
             </div>
 
             {/* Order Status Progress */}
-            <div className="px-6 py-6 border-b border-gray-100">
+            <div className="px-4 sm:px-6 py-4 sm:py-6 border-b border-gray-100">
               <div className="flex items-center justify-between max-w-3xl mx-auto">
                 {ORDER_STATUSES.map((status, index) => {
                   const Icon = status.icon;
@@ -366,22 +366,22 @@ export default function ThankYouPage() {
                     <React.Fragment key={status.key}>
                       <div className="flex flex-col items-center text-center flex-shrink-0">
                         <div
-                          className={`w-10 h-10 md:w-12 md:h-12 rounded-full flex items-center justify-center mb-2 transition-all ${
+                          className={`w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-full flex items-center justify-center mb-1 sm:mb-2 transition-all ${
                             isCompleted
                               ? "bg-green-100 text-green-600"
                               : "bg-gray-100 text-gray-400"
                           }`}
                         >
-                          <Icon className={`text-lg md:text-xl ${isActive ? "animate-pulse" : ""}`} />
+                          <Icon className={`text-sm sm:text-lg md:text-xl ${isActive ? "animate-pulse" : ""}`} />
                         </div>
                         <span
-                          className={`text-xs md:text-sm font-semibold ${
+                          className={`text-[10px] sm:text-xs md:text-sm font-semibold ${
                             isCompleted ? "text-gray-800" : "text-gray-400"
                           }`}
                         >
                           {status.label}
                         </span>
-                        <span className="text-[10px] md:text-xs text-gray-500 max-w-[80px] md:max-w-[100px]">
+                        <span className="text-[9px] sm:text-[10px] md:text-xs text-gray-500 max-w-[55px] sm:max-w-[80px] md:max-w-[100px]">
                           {status.key === "under_delivery" && courierName
                             ? `On ${courierName}`
                             : status.key === "under_delivery" && !courierName
@@ -391,7 +391,7 @@ export default function ThankYouPage() {
                       </div>
                       {!isLast && (
                         <div
-                          className={`flex-1 h-1 mx-2 rounded ${
+                          className={`flex-1 h-0.5 sm:h-1 mx-1 sm:mx-2 rounded ${
                             index < currentStatusIndex
                               ? "bg-green-500"
                               : "bg-gray-200"
@@ -405,22 +405,22 @@ export default function ThankYouPage() {
             </div>
 
             {/* Order ID, Date and Total */}
-            <div className="px-6 py-5 border-b border-gray-100 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+            <div className="px-4 sm:px-6 py-4 sm:py-5 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div>
-                <h2 className="text-xl md:text-2xl font-semibold text-gray-700 italic">
+                <h2 className="text-lg sm:text-xl md:text-2xl font-semibold text-gray-700 italic">
                   Order Id: {orderId}
                 </h2>
-                <p className="text-sm text-gray-500 mt-1">
+                <p className="text-xs sm:text-sm text-gray-500 mt-1">
                   {formatDate(orderDate)} ({getRelativeTime(orderDate)})
                 </p>
               </div>
-              <div className="bg-green-500 text-white px-6 py-3 rounded-full font-bold text-lg shadow-md">
+              <div className="bg-green-500 text-white px-4 sm:px-6 py-2 sm:py-3 rounded-full font-bold text-base sm:text-lg shadow-md self-start sm:self-auto">
                 Total {Math.round(totalAmount)}TK
               </div>
             </div>
 
             {/* Customer & Order Information */}
-            <div className="px-6 py-6 border-b border-gray-100">
+            <div className="px-4 sm:px-6 py-4 sm:py-6 border-b border-gray-100">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 {/* Customer Information */}
                 <div>
@@ -468,45 +468,65 @@ export default function ThankYouPage() {
 
             {/* Order Items */}
             {items.length > 0 && (
-              <div className="px-6 py-6 border-b border-gray-100">
+              <div className="px-4 sm:px-6 py-4 sm:py-6 border-b border-gray-100">
                 <h3 className="text-lg font-bold text-gray-800 mb-4">Order Items</h3>
                 
-                {/* Table Header */}
-                <div className="bg-amber-50 rounded-t-lg px-4 py-3 grid grid-cols-12 gap-4 text-sm font-semibold text-gray-700">
-                  <div className="col-span-6 md:col-span-7">Product</div>
-                  <div className="col-span-3 md:col-span-3 text-center">Quantity</div>
-                  <div className="col-span-3 md:col-span-2 text-right">Price</div>
+                {/* Table Header - hidden on very small screens */}
+                <div className="hidden sm:grid bg-amber-50 rounded-t-lg px-4 py-3 grid-cols-12 gap-4 text-sm font-semibold text-gray-700">
+                  <div className="col-span-7">Product</div>
+                  <div className="col-span-3 text-center">Quantity</div>
+                  <div className="col-span-2 text-right">Price</div>
                 </div>
 
                 {/* Table Body */}
-                <div className="border border-t-0 border-gray-200 rounded-b-lg overflow-hidden">
+                <div className="border border-gray-200 rounded-lg sm:rounded-t-none sm:border-t-0 overflow-hidden">
                   {items.map((item, index) => (
                     <div
                       key={item.id}
-                      className={`px-4 py-4 grid grid-cols-12 gap-4 items-center ${
+                      className={`px-3 sm:px-4 py-3 sm:py-4 ${
                         index !== items.length - 1 ? "border-b border-gray-100" : ""
                       }`}
                     >
-                      <div className="col-span-6 md:col-span-7 flex items-center gap-3">
+                      {/* Mobile layout */}
+                      <div className="flex items-center gap-3 sm:hidden">
                         <img
                           src={item.productImage || "/default-product.png"}
                           alt={item.productName || `Product #${item.productId}`}
-                          className="w-16 h-16 object-cover rounded-lg border border-gray-200"
+                          className="w-12 h-12 object-cover rounded-lg border border-gray-200 flex-shrink-0"
                         />
-                        <div>
-                          <div className="font-semibold text-gray-800">
+                        <div className="flex-1 min-w-0">
+                          <div className="font-semibold text-gray-800 text-sm truncate">
                             {item.productName || `Product #${item.productId}`}
                           </div>
-                          <div className="text-xs text-gray-500">
-                            SKU: {item.productSku || ""}
+                          <div className="flex items-center justify-between mt-1">
+                            <span className="text-xs text-gray-500">Qty: {item.quantity}</span>
+                            <span className="text-sm font-semibold text-green-600">৳{Number(item.unitPrice || 0).toFixed(0)}</span>
                           </div>
                         </div>
                       </div>
-                      <div className="col-span-3 md:col-span-3 text-center text-gray-700">
-                        {item.quantity}
-                      </div>
-                      <div className="col-span-3 md:col-span-2 text-right font-semibold text-green-600">
-                        ৳{Number(item.unitPrice || 0).toFixed(0)}
+                      {/* Desktop layout */}
+                      <div className="hidden sm:grid grid-cols-12 gap-4 items-center">
+                        <div className="col-span-7 flex items-center gap-3">
+                          <img
+                            src={item.productImage || "/default-product.png"}
+                            alt={item.productName || `Product #${item.productId}`}
+                            className="w-16 h-16 object-cover rounded-lg border border-gray-200"
+                          />
+                          <div>
+                            <div className="font-semibold text-gray-800">
+                              {item.productName || `Product #${item.productId}`}
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              SKU: {item.productSku || ""}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="col-span-3 text-center text-gray-700">
+                          {item.quantity}
+                        </div>
+                        <div className="col-span-2 text-right font-semibold text-green-600">
+                          ৳{Number(item.unitPrice || 0).toFixed(0)}
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -627,25 +647,36 @@ export default function ThankYouPage() {
                   </div>
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  {recommendedProducts.slice(recPage * 4, recPage * 4 + 4).map((product) => (
-                    <ElectroProductCard
-                      key={product.id}
-                      id={product.id}
-                      nameEn={product.name_en}
-                      nameBn={product.name_bn}
-                      categoryName={
-                        product.category_name ||
-                        product.category?.name_en ||
-                        product.category?.name
-                      }
-                      price={product.base_price}
-                      originalPrice={product.mrp}
-                      stock={product.stock_quantity}
-                      image_url={product.image_url}
-                      rating={5}
-                      reviews={Math.floor(Math.random() * 200)}
-                    />
-                  ))}
+                  {recommendedProducts.slice(recPage * 4, recPage * 4 + 4).map((product) => {
+                    const basePrice = Number(product.base_price || product.mrp || product.price || 0);
+                    const salePrice = product.special_price
+                      ? Number(product.special_price)
+                      : product.sale_price
+                        ? Number(product.sale_price)
+                        : product.salePrice || basePrice;
+                    const discountPercent = product.discount_percent
+                      || (basePrice > salePrice ? Math.round(((basePrice - salePrice) / basePrice) * 100) : 0);
+                    return (
+                      <ElectroProductCard
+                        key={product.id}
+                        id={product.id}
+                        nameEn={product.name_en}
+                        nameBn={product.name_bn}
+                        categoryName={
+                          product.category_name ||
+                          product.category?.name_en ||
+                          product.category?.name
+                        }
+                        price={salePrice}
+                        originalPrice={basePrice}
+                        stock={product.stock_quantity}
+                        image_url={product.image_url}
+                        rating={5}
+                        reviews={Math.floor(Math.random() * 200)}
+                        discount={discountPercent > 0 ? discountPercent : undefined}
+                      />
+                    );
+                  })}
                 </div>
               </div>
             )}

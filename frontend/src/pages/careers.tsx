@@ -37,11 +37,13 @@ const CareersPage = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <ElectroNavbar />
+      
       {/* Hero Section */}
-      <div className="bg-gradient-to-r from-blue-600 to-blue-800 text-white py-20">
+      <div className="bg-gradient-to-r from-blue-600 to-blue-800 text-white py-12 sm:py-16 md:py-20">
         <div className="container mx-auto px-4">
-          <h1 className="text-5xl font-bold mb-4">Join Our Team</h1>
-          <p className="text-xl">Build your career with TrustCart ERP</p>
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-2 sm:mb-4">Join Our Team</h1>
+          <p className="text-lg sm:text-xl">Build your career with TrustCart ERP</p>
         </div>
       </div>
 
@@ -97,24 +99,24 @@ const CareersPage = () => {
         ) : (
           <div className="grid gap-6">
             {jobs.map((job: any) => (
-              <div key={job.id} className="bg-white p-6 rounded-lg shadow hover:shadow-lg transition">
-                <div className="flex justify-between items-start mb-4">
+              <div key={job.id} className="bg-white p-4 sm:p-6 rounded-lg shadow hover:shadow-lg transition">
+                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-2 sm:gap-4 mb-4">
                   <div>
-                    <h2 className="text-2xl font-bold text-gray-900 mb-2">{job.title}</h2>
-                    <div className="flex space-x-4 text-sm text-gray-600">
+                    <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">{job.title}</h2>
+                    <div className="flex flex-wrap gap-2 sm:gap-4 text-sm text-gray-600">
                       <span>📍 {job.location}</span>
                       <span>📂 {job.category}</span>
                       <span>💼 {job.job_type.replace('-', ' ')}</span>
                     </div>
                   </div>
-                  <span className="px-4 py-2 bg-blue-100 text-blue-800 rounded-lg text-sm font-medium">
+                  <span className="px-4 py-2 bg-blue-100 text-blue-800 rounded-lg text-sm font-medium self-start whitespace-nowrap">
                     {job.vacancies} Position{job.vacancies > 1 ? 's' : ''}
                   </span>
                 </div>
 
                 <p className="text-gray-700 mb-4 line-clamp-3">{job.description}</p>
 
-                <div className="flex justify-between items-center pt-4 border-t">
+                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 pt-4 border-t">
                   <div className="text-sm text-gray-600">
                     {job.min_salary && job.max_salary && (
                       <span className="font-medium">
@@ -124,7 +126,7 @@ const CareersPage = () => {
                   </div>
                   <button
                     onClick={() => router.push(`/careers/${job.slug}`)}
-                    className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                    className="w-full sm:w-auto px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-center"
                   >
                     View Details & Apply
                   </button>
@@ -141,6 +143,7 @@ const CareersPage = () => {
           </div>
         )}
       </div>
+      <ElectroFooter />
     </div>
   );
 };
