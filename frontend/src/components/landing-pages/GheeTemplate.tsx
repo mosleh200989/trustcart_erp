@@ -548,12 +548,17 @@ export default function GheeTemplate({
         .ghee-strike::after {
           content: '';
           position: absolute;
-          left: -4px;
-          right: -4px;
-          top: 50%;
-          height: 3px;
-          background: #ef4444;
-          transform: rotate(-12deg);
+          left: -2px;
+          right: -2px;
+          bottom: 2px;
+          top: 2px;
+          background: linear-gradient(
+            to top right,
+            transparent calc(50% - 1.5px),
+            #ef4444 calc(50% - 1.5px),
+            #ef4444 calc(50% + 1.5px),
+            transparent calc(50% + 1.5px)
+          );
           pointer-events: none;
         }
 
@@ -591,7 +596,7 @@ export default function GheeTemplate({
         >
           <div className="max-w-5xl mx-auto px-4 py-2.5 flex items-center justify-center gap-3 text-sm font-medium" style={{ color: page.secondary_color }}>
             <FaShieldAlt className="text-yellow-300 text-xs" />
-            <span className="opacity-90">১০০% খাঁটি ও প্রাকৃতিক</span>
+            <span className="opacity-90">100% খাঁটি ও প্রাকৃতিক</span>
             <span className="opacity-40">|</span>
             <FaTruck className="text-yellow-300 text-xs" />
             <span className="opacity-90">{page.free_delivery ? 'সম্পূর্ণ ফ্রি ডেলিভেরি' : 'দ্রুত ডেলিভেরি'}</span>
@@ -663,7 +668,7 @@ export default function GheeTemplate({
                       </span>
                     )}
                     <div
-                      className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl shadow-sm border"
+                      className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl shadow-sm border"
                       style={{
                         backgroundColor: `${page.primary_color}10`,
                         borderColor: `${page.primary_color}20`,
@@ -675,7 +680,7 @@ export default function GheeTemplate({
                       </span>
                     </div>
                     {page.products[0].compare_price && page.products[0].compare_price > page.products[0].price && (
-                      <span className="text-xs sm:text-sm font-bold text-white px-3 py-1.5 rounded-full bg-gradient-to-r from-red-500 to-rose-500 shadow-md">
+                      <span className="text-xs sm:text-sm font-bold text-white px-3 py-1.5 rounded-full bg-gradient-to-r from-emerald-500 to-green-600 shadow-md">
                         {Math.round(
                           ((page.products[0].compare_price - page.products[0].price) /
                             page.products[0].compare_price) *
@@ -705,22 +710,6 @@ export default function GheeTemplate({
                     {page.hero_button_text}
                   </button>
                 )}
-
-                {/* Mini trust row */}
-                <div className="flex items-center justify-center md:justify-start gap-5 mt-8 text-xs text-[#8B7355]">
-                  <div className="flex items-center gap-1.5">
-                    <FaAward className="text-amber-500" />
-                    <span>প্রিমিয়াম মান</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <FaHeart className="text-rose-400" />
-                    <span>গ্রাহক সন্তুষ্টি</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <FaLeaf className="text-green-500" />
-                    <span>অর্গানিক</span>
-                  </div>
-                </div>
               </div>
 
               {/* Hero Image */}
