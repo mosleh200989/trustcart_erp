@@ -174,9 +174,11 @@ export default function LandingPagesIndex() {
                       <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold ${
                         page.template === 'elegant'
                           ? 'bg-gradient-to-r from-purple-100 to-pink-100 text-purple-700'
-                          : 'bg-blue-50 text-blue-600'
+                          : page.template === 'ghee'
+                            ? 'bg-gradient-to-r from-amber-100 to-yellow-100 text-amber-700'
+                            : 'bg-blue-50 text-blue-600'
                       }`}>
-                        {page.template === 'elegant' ? '✨ Elegant' : '📄 Classic'}
+                        {page.template === 'elegant' ? '✨ Elegant' : page.template === 'ghee' ? '🧈 Ghee' : '📄 Classic'}
                       </span>
                     </td>
                     <td className="px-4 py-3">

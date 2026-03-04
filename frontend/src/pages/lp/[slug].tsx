@@ -6,6 +6,7 @@ import PhoneInput from '@/components/PhoneInput';
 import { useToast } from '@/contexts/ToastContext';
 import { FaPhone, FaWhatsapp, FaShoppingCart, FaMinus, FaPlus, FaCheckCircle, FaTruck } from 'react-icons/fa';
 import ElegantTemplate from '@/components/landing-pages/ElegantTemplate';
+import GheeTemplate from '@/components/landing-pages/GheeTemplate';
 
 interface LandingPageSection {
   id: string;
@@ -351,6 +352,11 @@ export default function LandingPagePublic() {
   // ─── Template Routing: Render Elegant template if selected ───
   if (page.template === 'elegant') {
     return <ElegantTemplate page={page} trafficSource="landing_page" />;
+  }
+
+  // ─── Template Routing: Render Ghee template if selected ───
+  if (page.template === 'ghee') {
+    return <GheeTemplate page={page} trafficSource="landing_page" />;
   }
 
   const visibleSections = (page.sections || [])
