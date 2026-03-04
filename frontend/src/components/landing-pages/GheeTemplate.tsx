@@ -542,24 +542,10 @@ export default function GheeTemplate({
         /* ── Strikethrough ── */
         .ghee-strike {
           position: relative;
-          text-decoration: none;
+          text-decoration: line-through;
+          text-decoration-color: #ef4444;
+          text-decoration-thickness: 3px;
           color: #9ca3af;
-        }
-        .ghee-strike::after {
-          content: '';
-          position: absolute;
-          left: -2px;
-          right: -2px;
-          bottom: 2px;
-          top: 2px;
-          background: linear-gradient(
-            to top right,
-            transparent calc(50% - 1.5px),
-            #ef4444 calc(50% - 1.5px),
-            #ef4444 calc(50% + 1.5px),
-            transparent calc(50% + 1.5px)
-          );
-          pointer-events: none;
         }
 
         /* ── Parallax grain on hero ── */
@@ -1078,16 +1064,16 @@ export default function GheeTemplate({
                               key={product.id}
                               className={`ghee-product-card relative rounded-2xl p-3 sm:p-4 cursor-pointer ${
                                 isFeatured && !isSelected
-                                  ? 'bg-gradient-to-r from-amber-50/80 to-orange-50/80 ring-1 ring-amber-200 border border-amber-200'
+                                  ? 'bg-gradient-to-r from-amber-50/50 to-orange-50/50 ring-1 ring-amber-100 border border-amber-100'
                                   : isSelected
-                                    ? 'ring-2 border-2 shadow-md'
+                                    ? 'ring-2 border-[3px] shadow-lg shadow-amber-200/40'
                                     : 'border border-gray-100 hover:border-amber-200/60 bg-gray-50/30'
                               }`}
                               style={
                                 isSelected
                                   ? {
                                       borderColor: page.primary_color,
-                                      backgroundColor: `${page.primary_color}08`,
+                                      backgroundColor: `${page.primary_color}15`,
                                     }
                                   : {}
                               }
@@ -1095,7 +1081,7 @@ export default function GheeTemplate({
                             >
                               {isSelected && (
                                 <div
-                                  className="absolute left-0 top-3 bottom-3 w-1 rounded-r-full"
+                                  className="absolute left-0 top-2 bottom-2 w-1.5 rounded-r-full"
                                   style={{ backgroundColor: page.primary_color }}
                                 />
                               )}
