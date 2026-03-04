@@ -5,6 +5,8 @@ import apiClient from '@/services/api';
 import PhoneInput from '@/components/PhoneInput';
 import InternationalPhoneInput from '@/components/InternationalPhoneInput';
 import { useToast } from '@/contexts/ToastContext';
+import gsap from 'gsap';
+import { ScrollTrigger } from 'gsap/dist/ScrollTrigger';
 import {
   FaPhone,
   FaWhatsapp,
@@ -15,7 +17,16 @@ import {
   FaTruck,
   FaStar,
   FaShieldAlt,
+  FaLeaf,
+  FaAward,
+  FaHeart,
 } from 'react-icons/fa';
+
+if (typeof window !== 'undefined') {
+  gsap.registerPlugin(ScrollTrigger);
+}
+
+/* ─────────────────────────── Interfaces ─────────────────────────── */
 
 interface LandingPageSection {
   id: string;
@@ -83,28 +94,29 @@ interface GheeTemplateProps {
   isInternational?: boolean;
 }
 
-export default function GheeTemplate({ page, trafficSource = 'landing_page', isInternational = false }: GheeTemplateProps) {
+/* ─────────────────────────── Component ─────────────────────────── */
+
+export default function GheeTemplate({
+  page,
+  trafficSource = 'landing_page',
+  isInternational = false,
+}: GheeTemplateProps) {
   const router = useRouter();
   const orderFormRef = useRef<HTMLDivElement>(null);
+  const heroRef = useRef<HTMLDivElement>(null);
+  const heroImageRef = useRef<HTMLImageElement>(null);
+  const heroTextRef = useRef<HTMLDivElement>(null);
+  const sectionsRef = useRef<HTMLDivElement>(null);
   const toast = useToast();
 
-  // Order form state
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
-  const [orderForm, setOrderForm] = useState({
-    name: '',
-    phone: '',
-    address: '',
-    note: '',
-  });
+  const [orderForm, setOrderForm] = useState({ name: '', phone: '', address: '', note: '' });
   const [deliveryZone, setDeliveryZone] = useState<'inside' | 'outside'>('outside');
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [formTouched, setFormTouched] = useState(false);
 
-  // Scroll-based animation
-  const [scrollY, setScrollY] = useState(0);
-
-  // Incomplete order tracking
+  // Incomplete-order tracking
   const sessionIdRef = useRef<string>('');
   const trackingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasTrackedRef = useRef(false);
@@ -113,21 +125,143 @@ export default function GheeTemplate({ page, trafficSource = 'landing_page', isI
     sessionIdRef.current = `lp_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
   }, []);
 
+  /* ── GSAP Animations ── */
   useEffect(() => {
-    const handleScroll = () => setScrollY(window.scrollY);
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
+    if (typeof window === 'undefined') return;
+    const ctx = gsap.context(() => {
+      // Hero entrance
+      if (heroImageRef.current) {
+        gsap.fromTo(
+          heroImageRef.current,
+          { opacity: 0, scale: 0.85, y: 40 },
+          { opacity: 1, scale: 1, y: 0, duration: 1.2, ease: 'power3.out', delay: 0.2 },
+        );
+      }
+      if (heroTextRef.current) {
+        const children = heroTextRef.current.children;
+        gsap.fromTo(
+          children,
+          { opacity: 0, y: 50 },
+          { opacity: 1, y: 0, duration: 0.9, stagger: 0.15, ease: 'power3.out', delay: 0.4 },
+        );
+      }
 
-  // Debounced tracker
+      // Scroll-triggered sections
+      if (sectionsRef.current) {
+        const blocks = sectionsRef.current.querySelectorAll('.gsap-reveal');
+        blocks.forEach((block) => {
+          gsap.fromTo(
+            block,
+            { opacity: 0, y: 60 },
+            {
+              opacity: 1,
+              y: 0,
+              duration: 0.8,
+              ease: 'power2.out',
+              scrollTrigger: {
+                trigger: block,
+                start: 'top 85%',
+                toggleActions: 'play none none none',
+              },
+            },
+          );
+        });
+
+        // Stagger benefit cards
+        const benefitCards = sectionsRef.current.querySelectorAll('.gsap-benefit-card');
+        if (benefitCards.length) {
+          gsap.fromTo(
+            benefitCards,
+            { opacity: 0, y: 40, scale: 0.95 },
+            {
+              opacity: 1,
+              y: 0,
+              scale: 1,
+              duration: 0.6,
+              stagger: 0.1,
+              ease: 'back.out(1.4)',
+              scrollTrigger: {
+                trigger: benefitCards[0],
+                start: 'top 85%',
+                toggleActions: 'play none none none',
+              },
+            },
+          );
+        }
+
+        // Trust items slide in
+        const trustItems = sectionsRef.current.querySelectorAll('.gsap-trust-item');
+        if (trustItems.length) {
+          gsap.fromTo(
+            trustItems,
+            { opacity: 0, x: -30 },
+            {
+              opacity: 1,
+              x: 0,
+              duration: 0.5,
+              stagger: 0.08,
+              ease: 'power2.out',
+              scrollTrigger: {
+                trigger: trustItems[0],
+                start: 'top 85%',
+                toggleActions: 'play none none none',
+              },
+            },
+          );
+        }
+
+        // Gallery images
+        const galleryImages = sectionsRef.current.querySelectorAll('.gsap-gallery-img');
+        if (galleryImages.length) {
+          gsap.fromTo(
+            galleryImages,
+            { opacity: 0, scale: 0.9 },
+            {
+              opacity: 1,
+              scale: 1,
+              duration: 0.7,
+              stagger: 0.12,
+              ease: 'power2.out',
+              scrollTrigger: {
+                trigger: galleryImages[0],
+                start: 'top 85%',
+                toggleActions: 'play none none none',
+              },
+            },
+          );
+        }
+      }
+
+      // Order form reveal
+      if (orderFormRef.current) {
+        gsap.fromTo(
+          orderFormRef.current,
+          { opacity: 0, y: 50 },
+          {
+            opacity: 1,
+            y: 0,
+            duration: 0.9,
+            ease: 'power3.out',
+            scrollTrigger: {
+              trigger: orderFormRef.current,
+              start: 'top 85%',
+              toggleActions: 'play none none none',
+            },
+          },
+        );
+      }
+    });
+
+    return () => ctx.revert();
+  }, [page]);
+
+  /* ── Incomplete order tracking ── */
   const trackIncompleteOrder = useCallback(
     (stage: string) => {
       if (!page || submitted) return;
       const hasAnyData = orderForm.name || orderForm.phone || orderForm.address;
       if (!hasAnyData) return;
-
       if (trackingTimerRef.current) clearTimeout(trackingTimerRef.current);
-
       trackingTimerRef.current = setTimeout(() => {
         const subtotal = orderItems.reduce((s, i) => s + i.product.price * i.quantity, 0);
         apiClient
@@ -164,13 +298,14 @@ export default function GheeTemplate({ page, trafficSource = 'landing_page', isI
 
   useEffect(() => {
     if (!page || submitted) return;
-    const stage = orderForm.name && orderForm.phone && orderForm.address
-      ? 'form_filled'
-      : orderForm.phone
-        ? 'phone_entered'
-        : orderForm.name
-          ? 'name_entered'
-          : 'form_started';
+    const stage =
+      orderForm.name && orderForm.phone && orderForm.address
+        ? 'form_filled'
+        : orderForm.phone
+          ? 'phone_entered'
+          : orderForm.name
+            ? 'name_entered'
+            : 'form_started';
     trackIncompleteOrder(stage);
   }, [orderForm.name, orderForm.phone, orderForm.address, orderForm.note, deliveryZone, trackIncompleteOrder]);
 
@@ -179,25 +314,22 @@ export default function GheeTemplate({ page, trafficSource = 'landing_page', isI
     trackIncompleteOrder('product_changed');
   }, [orderItems]);
 
-  // Initialize order items with default product
+  /* ── Init default product ── */
   useEffect(() => {
     if (page.products?.length > 0) {
-      const defaultProduct = page.products.find((p) => p.is_default) || page.products[0];
-      setOrderItems([{ product: defaultProduct, quantity: 1 }]);
+      const def = page.products.find((p) => p.is_default) || page.products[0];
+      setOrderItems([{ product: def, quantity: 1 }]);
     }
   }, [page]);
 
-  const scrollToOrderForm = () => {
-    orderFormRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
+  /* ── Helpers ── */
+  const scrollToOrderForm = () => orderFormRef.current?.scrollIntoView({ behavior: 'smooth' });
 
   const updateQuantity = (productId: string, delta: number) => {
     setOrderItems((prev) =>
       prev.map((item) =>
-        item.product.id === productId
-          ? { ...item, quantity: Math.max(1, item.quantity + delta) }
-          : item
-      )
+        item.product.id === productId ? { ...item, quantity: Math.max(1, item.quantity + delta) } : item,
+      ),
     );
   };
 
@@ -205,15 +337,11 @@ export default function GheeTemplate({ page, trafficSource = 'landing_page', isI
     setOrderItems([{ product, quantity: 1 }]);
   };
 
-  const getSubtotal = () => orderItems.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
-
+  const getSubtotal = () => orderItems.reduce((sum, i) => sum + i.product.price * i.quantity, 0);
   const getDeliveryCharge = () => {
     if (page.free_delivery) return 0;
-    return deliveryZone === 'inside'
-      ? Number(page.delivery_charge || 0)
-      : Number(page.delivery_charge_outside || 0);
+    return deliveryZone === 'inside' ? Number(page.delivery_charge || 0) : Number(page.delivery_charge_outside || 0);
   };
-
   const getTotal = () => getSubtotal() + getDeliveryCharge();
 
   const isBdPhoneValid = () => {
@@ -223,6 +351,17 @@ export default function GheeTemplate({ page, trafficSource = 'landing_page', isI
     return digits.length === 11 && digits.startsWith('0');
   };
 
+  const adjustColor = (hex: string, amount: number) => {
+    const num = parseInt(hex.replace('#', ''), 16);
+    const r = Math.min(255, Math.max(0, (num >> 16) + amount));
+    const g = Math.min(255, Math.max(0, ((num >> 8) & 0x00ff) + amount));
+    const b = Math.min(255, Math.max(0, (num & 0x0000ff) + amount));
+    return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`;
+  };
+
+  const primaryDark = adjustColor(page.primary_color, -30);
+
+  /* ── Order submit ── */
   const handleSubmitOrder = async () => {
     setFormTouched(true);
     if (!orderForm.name || !orderForm.phone || !orderForm.address) {
@@ -230,20 +369,22 @@ export default function GheeTemplate({ page, trafficSource = 'landing_page', isI
       return;
     }
     if (!isBdPhoneValid()) {
-      toast.warning(isInternational ? 'Please enter a valid phone number' : 'ফোন নম্বর অবশ্যই 0 দিয়ে শুরু হতে হবে এবং ১১ ডিজিট হতে হবে');
+      toast.warning(
+        isInternational
+          ? 'Please enter a valid phone number'
+          : 'ফোন নম্বর অবশ্যই 0 দিয়ে শুরু হতে হবে এবং ১১ ডিজিট হতে হবে',
+      );
       return;
     }
     if (orderItems.length === 0) {
       toast.warning('অনুগ্রহ করে একটি প্রোডাক্ট নির্বাচন করুন');
       return;
     }
-
     try {
       setSubmitting(true);
       const subtotal = getSubtotal();
       const deliveryCharge = getDeliveryCharge();
       const total = subtotal + deliveryCharge;
-
       const orderPayload = {
         customer_name: orderForm.name,
         customer_phone: orderForm.phone,
@@ -271,17 +412,16 @@ export default function GheeTemplate({ page, trafficSource = 'landing_page', isI
       };
       const res = await apiClient.post('/sales', orderPayload);
       const savedOrderId = res.data?.id || res.data?.data?.id;
-
       apiClient.post(`/landing-pages/${page.id}/increment-order`).catch(() => {});
-
       if (savedOrderId && sessionIdRef.current && page.id) {
-        apiClient.post('/lead-management/incomplete-order/converted', {
-          sessionId: sessionIdRef.current,
-          landingPageId: page.id,
-          orderId: savedOrderId,
-        }).catch(() => {});
+        apiClient
+          .post('/lead-management/incomplete-order/converted', {
+            sessionId: sessionIdRef.current,
+            landingPageId: page.id,
+            orderId: savedOrderId,
+          })
+          .catch(() => {});
       }
-
       if (savedOrderId) {
         window.location.href = `/thank-you?orderId=${savedOrderId}`;
         return;
@@ -296,11 +436,13 @@ export default function GheeTemplate({ page, trafficSource = 'landing_page', isI
       if (savedId) {
         apiClient.post(`/landing-pages/${page?.id}/increment-order`).catch(() => {});
         if (sessionIdRef.current && page?.id) {
-          apiClient.post('/lead-management/incomplete-order/converted', {
-            sessionId: sessionIdRef.current,
-            landingPageId: page.id,
-            orderId: savedId,
-          }).catch(() => {});
+          apiClient
+            .post('/lead-management/incomplete-order/converted', {
+              sessionId: sessionIdRef.current,
+              landingPageId: page.id,
+              orderId: savedId,
+            })
+            .catch(() => {});
         }
         window.location.href = `/thank-you?orderId=${savedId}`;
         return;
@@ -320,28 +462,7 @@ export default function GheeTemplate({ page, trafficSource = 'landing_page', isI
     .filter((s) => s.is_visible)
     .sort((a, b) => a.order - b.order);
 
-  // Helper: lighten / darken hex
-  const adjustColor = (hex: string, amount: number) => {
-    const num = parseInt(hex.replace('#', ''), 16);
-    const r = Math.min(255, Math.max(0, (num >> 16) + amount));
-    const g = Math.min(255, Math.max(0, ((num >> 8) & 0x00ff) + amount));
-    const b = Math.min(255, Math.max(0, (num & 0x0000ff) + amount));
-    return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`;
-  };
-
-  const primaryLight = adjustColor(page.primary_color, 40);
-  const primaryDark = adjustColor(page.primary_color, -30);
-
-  // Helper: render text with Bengali digits in a different font for better readability
-  const renderBengaliText = (text: string) => {
-    const parts = text.split(/([\u09E6-\u09EF]+)/g);
-    return parts.map((part, i) =>
-      /[\u09E6-\u09EF]/.test(part)
-        ? <span key={i} className="price-number">{part}</span>
-        : part
-    );
-  };
-
+  /* ════════════════════════════ RENDER ════════════════════════════ */
   return (
     <>
       <Head>
@@ -352,450 +473,522 @@ export default function GheeTemplate({ page, trafficSource = 'landing_page', isI
         <meta property="og:description" content={page.meta_description || page.description} />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700;800;900&family=Hind+Siliguri:wght@300;400;500;600;700&display=swap"
+          rel="stylesheet"
+        />
       </Head>
 
       <style jsx global>{`
-        /* Apply Hind Siliguri for Bengali text */
-        .ghee-landing * {
+        .ghee-page {
           font-family: 'Hind Siliguri', sans-serif;
         }
-        @keyframes float {
-          0%, 100% { transform: translateY(0px); }
-          50% { transform: translateY(-12px); }
+        .ghee-heading {
+          font-family: 'Playfair Display', 'Hind Siliguri', serif;
         }
-        @keyframes shimmer {
-          0% { background-position: -200% 0; }
-          100% { background-position: 200% 0; }
+        .ghee-num {
+          font-family: 'Playfair Display', Arial, serif;
+          font-weight: 700;
         }
-        @keyframes fadeInUp {
-          from { opacity: 0; transform: translateY(30px); }
-          to { opacity: 1; transform: translateY(0); }
+
+        /* ── Warm grain overlay for premium feel ── */
+        .ghee-grain::before {
+          content: '';
+          position: absolute;
+          inset: 0;
+          opacity: 0.04;
+          pointer-events: none;
+          background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='256' height='256' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
         }
-        @keyframes pulseGlow {
-          0%, 100% { box-shadow: 0 0 20px rgba(255, 215, 0, 0.3); }
-          50% { box-shadow: 0 0 40px rgba(255, 215, 0, 0.6); }
+
+        /* ── Decorative divider ── */
+        .ghee-divider {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          justify-content: center;
+          margin: 0 auto 2rem;
+          max-width: 220px;
         }
-        @keyframes slideInLeft {
-          from { opacity: 0; transform: translateX(-40px); }
-          to { opacity: 1; transform: translateX(0); }
+        .ghee-divider::before,
+        .ghee-divider::after {
+          content: '';
+          flex: 1;
+          height: 1px;
+          background: linear-gradient(90deg, transparent, currentColor, transparent);
+          opacity: 0.3;
         }
-        @keyframes slideInRight {
-          from { opacity: 0; transform: translateX(40px); }
-          to { opacity: 1; transform: translateX(0); }
+
+        /* ── CTA button hover ripple ── */
+        .ghee-btn-ripple {
+          position: relative;
+          overflow: hidden;
         }
-        @keyframes scaleIn {
-          from { opacity: 0; transform: scale(0.9); }
-          to { opacity: 1; transform: scale(1); }
+        .ghee-btn-ripple::after {
+          content: '';
+          position: absolute;
+          inset: 0;
+          background: radial-gradient(circle at var(--x, 50%) var(--y, 50%), rgba(255,255,255,0.3) 0%, transparent 60%);
+          opacity: 0;
+          transition: opacity 0.4s;
         }
-        .ghee-fade-in { animation: fadeInUp 0.8s ease-out forwards; }
-        .ghee-slide-left { animation: slideInLeft 0.7s ease-out forwards; }
-        .ghee-slide-right { animation: slideInRight 0.7s ease-out forwards; }
-        .ghee-scale-in { animation: scaleIn 0.6s ease-out forwards; }
-        .ghee-float { animation: float 4s ease-in-out infinite; }
-        .ghee-shimmer {
-          background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
-          background-size: 200% 100%;
-          animation: shimmer 3s infinite;
+        .ghee-btn-ripple:hover::after {
+          opacity: 1;
         }
-        .ghee-glow { animation: pulseGlow 2.5s ease-in-out infinite; }
-        .glass-card-ghee {
-          background: rgba(255, 255, 255, 0.12);
-          backdrop-filter: blur(16px);
-          -webkit-backdrop-filter: blur(16px);
-          border: 1px solid rgba(255, 255, 255, 0.2);
-        }
-        .glass-card-solid-ghee {
-          background: rgba(255, 255, 255, 0.95);
-          backdrop-filter: blur(10px);
-          -webkit-backdrop-filter: blur(10px);
-        }
-        .red-strikethrough-ghee {
+
+        /* ── Strikethrough ── */
+        .ghee-strike {
           position: relative;
           text-decoration: none;
         }
-        .red-strikethrough-ghee::after {
+        .ghee-strike::after {
           content: '';
           position: absolute;
-          left: 0;
-          right: 0;
+          left: -2px;
+          right: -2px;
           top: 50%;
           height: 2px;
-          background: #ef4444;
-          transform: rotate(-12deg);
-          pointer-events: none;
+          background: #dc2626;
+          transform: rotate(-8deg);
         }
-        .price-number-ghee {
-          font-family: 'Arial', 'Helvetica Neue', sans-serif;
+
+        /* ── Parallax grain on hero ── */
+        .ghee-hero-pattern {
+          position: absolute;
+          inset: 0;
+          pointer-events: none;
+          background-image: radial-gradient(circle at 20% 80%, rgba(255,215,0,0.08) 0%, transparent 50%),
+                            radial-gradient(circle at 80% 20%, rgba(255,215,0,0.06) 0%, transparent 50%);
+        }
+
+        /* ── Product card hover ── */
+        .ghee-product-card {
+          transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .ghee-product-card:hover {
+          transform: translateY(-2px);
+        }
+
+        /* ── Smooth input focus ── */
+        .ghee-input {
+          transition: border-color 0.3s, box-shadow 0.3s;
+        }
+        .ghee-input:focus {
+          outline: none;
         }
       `}</style>
 
-      <div className="min-h-screen ghee-landing" style={{ backgroundColor: page.background_color }}>
+      <div className="ghee-page min-h-screen" style={{ backgroundColor: '#FFF9F0' }}>
+        {/* ═══════════════════ TOP BAR ═══════════════════ */}
+        <div
+          className="relative overflow-hidden"
+          style={{ background: `linear-gradient(90deg, ${page.primary_color}, ${primaryDark})` }}
+        >
+          <div className="max-w-5xl mx-auto px-4 py-2.5 flex items-center justify-center gap-3 text-sm font-medium" style={{ color: page.secondary_color }}>
+            <FaShieldAlt className="text-yellow-300 text-xs" />
+            <span className="opacity-90">১০০% খাঁটি ও প্রাকৃতিক</span>
+            <span className="opacity-40">|</span>
+            <FaTruck className="text-yellow-300 text-xs" />
+            <span className="opacity-90">{page.free_delivery ? 'সম্পূর্ণ ফ্রি ডেলিভেরি' : 'দ্রুত ডেলিভেরি'}</span>
+            <span className="opacity-40 hidden sm:inline">|</span>
+            <span className="opacity-90 hidden sm:inline">
+              <FaStar className="text-yellow-300 text-xs inline mr-1" />
+              বিশ্বস্ত মানের নিশ্চয়তা
+            </span>
+          </div>
+        </div>
 
-        {/* ═══════════════ HERO SECTION ═══════════════ */}
-        <div className="relative overflow-hidden" style={{ minHeight: '85vh' }}>
-          {/* Gradient Background */}
+        {/* ═══════════════════ HERO ═══════════════════ */}
+        <div ref={heroRef} className="relative overflow-hidden ghee-grain" style={{ minHeight: '80vh' }}>
+          {/* Warm ambient background */}
           <div
             className="absolute inset-0"
             style={{
-              background: `linear-gradient(135deg, ${page.primary_color} 0%, ${primaryDark} 50%, ${adjustColor(page.primary_color, -60)} 100%)`,
+              background: `linear-gradient(160deg, #FFFBF2 0%, #FFF3E0 35%, ${page.primary_color}12 70%, #FFF8ED 100%)`,
             }}
           />
+          <div className="ghee-hero-pattern" />
 
-          {/* Decorative circles */}
+          {/* Subtle decorative shapes */}
           <div className="absolute inset-0 overflow-hidden pointer-events-none">
-            <div
-              className="absolute -top-32 -right-32 w-96 h-96 rounded-full opacity-10"
-              style={{ backgroundColor: page.secondary_color }}
+            <div className="absolute -top-24 -right-24 w-80 h-80 rounded-full opacity-[0.06]"
+              style={{ background: `radial-gradient(circle, ${page.primary_color}, transparent)` }}
             />
-            <div
-              className="absolute -bottom-48 -left-48 w-[500px] h-[500px] rounded-full opacity-5"
-              style={{ backgroundColor: page.secondary_color }}
-            />
-            <div
-              className="absolute top-1/3 right-1/4 w-64 h-64 rounded-full opacity-5"
-              style={{ backgroundColor: page.secondary_color, transform: `translateY(${scrollY * 0.1}px)` }}
+            <div className="absolute bottom-0 left-0 w-96 h-96 rounded-full opacity-[0.04]"
+              style={{ background: `radial-gradient(circle, ${page.primary_color}, transparent)` }}
             />
           </div>
 
-          {/* Shimmer overlay */}
-          <div className="absolute inset-0 ghee-shimmer pointer-events-none" />
-
-          <div className="relative max-w-6xl mx-auto px-4 sm:px-6 py-16 md:py-24">
-            <div className="flex flex-col md:flex-row items-center gap-10 md:gap-16">
-              {/* Hero Image */}
-              {page.hero_image_url && (
-                <div className="w-full md:w-1/2 ghee-slide-left">
-                  <div className="relative">
-                    {/* Glow behind image */}
-                    <div
-                      className="absolute inset-4 rounded-3xl blur-3xl opacity-30"
-                      style={{ backgroundColor: page.secondary_color }}
-                    />
-                    <img
-                      src={page.hero_image_url}
-                      alt={page.title}
-                      className="relative w-full max-w-lg mx-auto rounded-3xl shadow-2xl ghee-float"
-                      style={{ border: `3px solid rgba(255,255,255,0.15)` }}
-                    />
-                    {/* Floating badge */}
-                    {page.free_delivery && (
-                      <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 z-10">
-                        <div className="inline-flex items-center gap-2 bg-gradient-to-r from-yellow-400 to-amber-500 text-gray-900 px-5 py-2.5 rounded-full shadow-xl font-bold text-sm ghee-glow">
-                          <FaTruck className="text-lg" />
-                          ফ্রি ডেলিভেরি!
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
+          <div className="relative max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16 md:py-24">
+            <div className="flex flex-col-reverse md:flex-row items-center gap-12 md:gap-16 lg:gap-20">
               {/* Hero Text */}
-              <div className="w-full md:w-1/2 text-center md:text-left ghee-slide-right">
+              <div ref={heroTextRef} className="w-full md:w-1/2 text-center md:text-left">
+                {/* Tagline */}
+                <div
+                  className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-semibold mb-6 border"
+                  style={{
+                    backgroundColor: `${page.primary_color}10`,
+                    borderColor: `${page.primary_color}25`,
+                    color: page.primary_color,
+                  }}
+                >
+                  <FaLeaf className="text-xs" />
+                  সম্পূর্ণ প্রাকৃতিক ও খাঁটি
+                </div>
+
                 <h1
-                  className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold mb-5 leading-tight whitespace-pre-line"
-                  style={{ color: page.secondary_color }}
+                  className="ghee-heading text-3xl sm:text-4xl md:text-5xl lg:text-[3.4rem] font-extrabold mb-6 leading-[1.15] whitespace-pre-line"
+                  style={{ color: '#2D1B07' }}
                 >
                   {page.hero_title || page.title}
                 </h1>
 
                 {page.hero_subtitle && (
-                  <p
-                    className="text-base sm:text-lg md:text-xl mb-8 leading-relaxed opacity-85 whitespace-pre-line"
-                    style={{ color: page.secondary_color }}
-                  >
-                    {renderBengaliText(page.hero_subtitle)}
+                  <p className="text-base sm:text-lg md:text-xl mb-8 leading-relaxed text-[#5D4E37] whitespace-pre-line max-w-lg mx-auto md:mx-0">
+                    {page.hero_subtitle}
                   </p>
                 )}
 
-                {/* Price preview */}
+                {/* Price badge */}
                 {page.products?.[0] && (
-                  <div className="flex items-center justify-center md:justify-start gap-3 mb-8 flex-nowrap">
+                  <div className="flex items-center justify-center md:justify-start gap-3 mb-8">
                     {page.products[0].compare_price && page.products[0].compare_price > page.products[0].price && (
-                      <span className="red-strikethrough-ghee price-number-ghee font-bold px-4 py-1.5 rounded-lg bg-white/20 backdrop-blur-sm border border-white/30 text-white text-base sm:text-xl">
+                      <span className="ghee-strike ghee-num text-gray-400 text-lg sm:text-xl">
                         ৳{page.products[0].compare_price.toLocaleString()}
                       </span>
                     )}
-                    <span className="text-3xl sm:text-4xl font-extrabold px-5 py-2 rounded-xl bg-white/15 backdrop-blur-sm border border-yellow-400/40"
-                      style={{ color: '#FFD700' }}
+                    <div
+                      className="inline-flex items-baseline gap-1.5 px-5 py-2 rounded-xl shadow-sm border"
+                      style={{
+                        backgroundColor: `${page.primary_color}10`,
+                        borderColor: `${page.primary_color}20`,
+                      }}
                     >
-                      <span className="text-lg font-normal opacity-80 mr-1">মাত্র</span>
-                      <span className="price-number-ghee">৳{page.products[0].price.toLocaleString()}</span>
-                    </span>
+                      <span className="text-sm text-[#8B7355]">মাত্র</span>
+                      <span className="ghee-num text-3xl sm:text-4xl" style={{ color: page.primary_color }}>
+                        ৳{page.products[0].price.toLocaleString()}
+                      </span>
+                    </div>
                     {page.products[0].compare_price && page.products[0].compare_price > page.products[0].price && (
-                      <span className="bg-green-500 text-white text-xs sm:text-sm font-extrabold px-3 sm:px-4 py-1.5 sm:py-2 rounded-full whitespace-nowrap shadow-lg">
-                        {Math.round(((page.products[0].compare_price - page.products[0].price) / page.products[0].compare_price) * 100)}% ছাড়!
+                      <span className="text-xs sm:text-sm font-bold text-white px-3 py-1.5 rounded-full bg-gradient-to-r from-red-500 to-rose-500 shadow-md">
+                        {Math.round(
+                          ((page.products[0].compare_price - page.products[0].price) /
+                            page.products[0].compare_price) *
+                            100,
+                        )}
+                        % ছাড়
                       </span>
                     )}
                   </div>
                 )}
 
                 {page.hero_button_text && (
-                  <div className="flex items-center justify-center md:justify-start">
-                    <button
-                      onClick={scrollToOrderForm}
-                      className="group relative px-10 py-4 rounded-2xl text-xl sm:text-2xl font-extrabold shadow-2xl hover:shadow-xl transform hover:scale-105 transition-all duration-300 ghee-glow overflow-hidden"
-                      style={{
-                        background: 'linear-gradient(135deg, #FFD700 0%, #FFA500 100%)',
-                        color: '#1a1a2e',
-                      }}
-                    >
-                      <span className="relative z-10 flex items-center gap-2">
-                        <FaShoppingCart className="text-lg" />
-                        {page.hero_button_text}
-                      </span>
-                      <div className="absolute inset-0 bg-white opacity-0 group-hover:opacity-20 transition-opacity duration-300" />
-                    </button>
-                  </div>
+                  <button
+                    onClick={scrollToOrderForm}
+                    onMouseMove={(e) => {
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      e.currentTarget.style.setProperty('--x', `${((e.clientX - rect.left) / rect.width) * 100}%`);
+                      e.currentTarget.style.setProperty('--y', `${((e.clientY - rect.top) / rect.height) * 100}%`);
+                    }}
+                    className="ghee-btn-ripple inline-flex items-center gap-3 px-10 py-4 rounded-full text-lg sm:text-xl font-bold shadow-lg hover:shadow-xl transform hover:scale-[1.03] transition-all duration-300"
+                    style={{
+                      background: `linear-gradient(135deg, ${page.primary_color}, ${primaryDark})`,
+                      color: page.secondary_color,
+                    }}
+                  >
+                    <FaShoppingCart className="text-base" />
+                    {page.hero_button_text}
+                  </button>
                 )}
+
+                {/* Mini trust row */}
+                <div className="flex items-center justify-center md:justify-start gap-5 mt-8 text-xs text-[#8B7355]">
+                  <div className="flex items-center gap-1.5">
+                    <FaAward className="text-amber-500" />
+                    <span>প্রিমিয়াম মান</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <FaHeart className="text-rose-400" />
+                    <span>গ্রাহক সন্তুষ্টি</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <FaLeaf className="text-green-500" />
+                    <span>অর্গানিক</span>
+                  </div>
+                </div>
               </div>
+
+              {/* Hero Image */}
+              {page.hero_image_url && (
+                <div className="w-full md:w-1/2 flex justify-center">
+                  <div className="relative w-full max-w-md">
+                    {/* Soft golden glow */}
+                    <div
+                      className="absolute inset-8 rounded-[2rem] blur-[60px] opacity-20"
+                      style={{ backgroundColor: page.primary_color }}
+                    />
+                    <img
+                      ref={heroImageRef}
+                      src={page.hero_image_url}
+                      alt={page.title}
+                      className="relative w-full rounded-[2rem] shadow-2xl"
+                      style={{
+                        border: '4px solid rgba(255,255,255,0.8)',
+                        boxShadow: '0 25px 60px -12px rgba(0,0,0,0.12), 0 8px 24px -4px rgba(0,0,0,0.06)',
+                      }}
+                    />
+                    {page.free_delivery && (
+                      <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 z-10">
+                        <div
+                          className="inline-flex items-center gap-2 px-5 py-2 rounded-full text-sm font-bold shadow-lg border border-white/50"
+                          style={{
+                            background: 'linear-gradient(135deg, #FFD700, #F59E0B)',
+                            color: '#422006',
+                          }}
+                        >
+                          <FaTruck /> ফ্রি ডেলিভেরি
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
-          {/* Bottom wave */}
-          <div className="absolute bottom-0 left-0 right-0">
-            <svg viewBox="0 0 1440 100" fill="none" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none" className="w-full h-12 md:h-20">
-              <path d="M0,60 C360,100 720,20 1080,60 C1260,80 1380,40 1440,50 L1440,100 L0,100 Z" fill={page.background_color} />
-            </svg>
-          </div>
+          {/* Elegant bottom divider */}
+          <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-amber-200/50 to-transparent" />
         </div>
 
-        {/* ═══════════════ DYNAMIC SECTIONS ═══════════════ */}
-        {visibleSections.map((section, sIdx) => (
-          <div key={section.id}>
-            {/* Benefits Section */}
-            {section.type === 'benefits' && (
-              <div
-                className="py-16 md:py-20 px-4 sm:px-6"
-                style={{
-                  backgroundColor: section.backgroundColor || '#FFFFFF',
-                  color: section.textColor || '#1a1a2e',
-                }}
-              >
-                <div className="max-w-5xl mx-auto">
-                  {section.title && (
-                    <div className="text-center mb-12">
-                      <h2 className="text-2xl sm:text-3xl md:text-4xl font-extrabold mb-3">{section.title}</h2>
-                      <div
-                        className="w-20 h-1 mx-auto rounded-full"
-                        style={{ background: `linear-gradient(to right, ${page.primary_color}, ${primaryLight})` }}
-                      />
-                    </div>
-                  )}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-                    {(section.items || []).map((item, idx) => (
-                      <div
-                        key={idx}
-                        className="group relative bg-white rounded-2xl p-6 shadow-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-1 border border-gray-100"
-                        style={{ animationDelay: `${idx * 100}ms` }}
-                      >
-                        <div
-                          className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"
-                          style={{
-                            background: `linear-gradient(135deg, ${page.primary_color}08 0%, ${page.primary_color}15 100%)`,
-                          }}
-                        />
-                        <div className="relative flex items-start gap-4">
-                          <div
-                            className="flex-shrink-0 w-12 h-12 rounded-xl flex items-center justify-center text-2xl shadow-sm"
-                            style={{
-                              background: `linear-gradient(135deg, ${page.primary_color}15 0%, ${page.primary_color}25 100%)`,
-                            }}
-                          >
-                            {item.icon || '✅'}
-                          </div>
-                          <span className="text-base font-medium leading-relaxed pt-2">{item.text}</span>
+        {/* ═══════════════════ SECTIONS ═══════════════════ */}
+        <div ref={sectionsRef}>
+          {visibleSections.map((section) => (
+            <div key={section.id}>
+              {/* ─── Benefits ─── */}
+              {section.type === 'benefits' && (
+                <div
+                  className="gsap-reveal py-16 md:py-24 px-4 sm:px-6"
+                  style={{
+                    backgroundColor: section.backgroundColor || '#FFFCF5',
+                    color: section.textColor || '#2D1B07',
+                  }}
+                >
+                  <div className="max-w-5xl mx-auto">
+                    {section.title && (
+                      <div className="text-center mb-14">
+                        <h2 className="ghee-heading text-2xl sm:text-3xl md:text-4xl font-bold mb-3">
+                          {section.title}
+                        </h2>
+                        <div className="ghee-divider" style={{ color: page.primary_color }}>
+                          <FaLeaf className="text-sm opacity-60" />
                         </div>
                       </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Trust / Why Choose Us */}
-            {section.type === 'trust' && (
-              <div
-                className="py-16 md:py-20 px-4 sm:px-6"
-                style={{
-                  backgroundColor: section.backgroundColor || '#f8f9fa',
-                  color: section.textColor || '#1a1a2e',
-                }}
-              >
-                <div className="max-w-4xl mx-auto">
-                  {section.title && (
-                    <div className="text-center mb-12">
-                      <h2 className="text-2xl sm:text-3xl md:text-4xl font-extrabold mb-3">{section.title}</h2>
-                      <div
-                        className="w-20 h-1 mx-auto rounded-full"
-                        style={{ background: `linear-gradient(to right, ${page.primary_color}, ${primaryLight})` }}
-                      />
-                    </div>
-                  )}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {(section.items || []).map((item, idx) => (
-                      <div
-                        key={idx}
-                        className="flex items-center gap-4 p-4 rounded-xl bg-white/80 shadow-sm hover:shadow-md transition-all border border-gray-50"
-                      >
+                    )}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {(section.items || []).map((item, idx) => (
                         <div
-                          className="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center"
-                          style={{ backgroundColor: `${page.primary_color}15` }}
+                          key={idx}
+                          className="gsap-benefit-card group bg-white rounded-2xl p-6 border border-amber-100/60 hover:border-amber-200 transition-all duration-400 hover:shadow-[0_8px_30px_-6px_rgba(217,169,78,0.15)]"
                         >
-                          <FaCheckCircle style={{ color: page.primary_color }} className="text-lg" />
+                          <div className="flex items-start gap-4">
+                            <div
+                              className="flex-shrink-0 w-11 h-11 rounded-xl flex items-center justify-center text-xl transition-transform duration-300 group-hover:scale-110"
+                              style={{ backgroundColor: `${page.primary_color}12` }}
+                            >
+                              {item.icon || '✦'}
+                            </div>
+                            <span className="text-base font-medium leading-relaxed pt-2 text-[#3D2E1C]">
+                              {item.text}
+                            </span>
+                          </div>
                         </div>
-                        <span className="text-base font-medium">{item.text}</span>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            {/* Image Gallery */}
-            {section.type === 'images' && (
-              <div
-                className="py-16 md:py-20 px-4 sm:px-6"
-                style={{ backgroundColor: section.backgroundColor || '#FFFFFF' }}
-              >
-                <div className="max-w-5xl mx-auto">
-                  {section.title && (
-                    <div className="text-center mb-12">
+              {/* ─── Trust ─── */}
+              {section.type === 'trust' && (
+                <div
+                  className="gsap-reveal py-16 md:py-24 px-4 sm:px-6"
+                  style={{
+                    backgroundColor: section.backgroundColor || '#FFF8ED',
+                    color: section.textColor || '#2D1B07',
+                  }}
+                >
+                  <div className="max-w-4xl mx-auto">
+                    {section.title && (
+                      <div className="text-center mb-14">
+                        <h2 className="ghee-heading text-2xl sm:text-3xl md:text-4xl font-bold mb-3">
+                          {section.title}
+                        </h2>
+                        <div className="ghee-divider" style={{ color: page.primary_color }}>
+                          <FaShieldAlt className="text-sm opacity-60" />
+                        </div>
+                      </div>
+                    )}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {(section.items || []).map((item, idx) => (
+                        <div
+                          key={idx}
+                          className="gsap-trust-item flex items-center gap-4 p-4 rounded-xl bg-white border border-amber-100/50 hover:shadow-md transition-all duration-300"
+                        >
+                          <div
+                            className="flex-shrink-0 w-9 h-9 rounded-lg flex items-center justify-center"
+                            style={{ backgroundColor: `${page.primary_color}10` }}
+                          >
+                            <FaCheckCircle style={{ color: page.primary_color }} className="text-sm" />
+                          </div>
+                          <span className="text-base font-medium text-[#3D2E1C]">{item.text}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ─── Images ─── */}
+              {section.type === 'images' && (
+                <div
+                  className="gsap-reveal py-16 md:py-24 px-4 sm:px-6"
+                  style={{ backgroundColor: section.backgroundColor || '#FFFCF5' }}
+                >
+                  <div className="max-w-5xl mx-auto">
+                    {section.title && (
+                      <div className="text-center mb-14">
+                        <h2
+                          className="ghee-heading text-2xl sm:text-3xl md:text-4xl font-bold mb-3"
+                          style={{ color: section.textColor || '#2D1B07' }}
+                        >
+                          {section.title}
+                        </h2>
+                        <div className="ghee-divider" style={{ color: page.primary_color }}>
+                          <span className="text-sm opacity-60">✦</span>
+                        </div>
+                      </div>
+                    )}
+                    <div
+                      className={`grid gap-5 ${
+                        (section.images || []).length === 1
+                          ? 'grid-cols-1 max-w-2xl mx-auto'
+                          : (section.images || []).length === 3
+                            ? 'grid-cols-1 sm:grid-cols-3'
+                            : 'grid-cols-1 sm:grid-cols-2'
+                      }`}
+                    >
+                      {(section.images || []).map((img, idx) => (
+                        <div
+                          key={idx}
+                          className="gsap-gallery-img group relative overflow-hidden rounded-2xl shadow-md hover:shadow-xl transition-shadow duration-500"
+                        >
+                          <img
+                            src={img}
+                            alt={`${page.title} - ${idx + 1}`}
+                            className="w-full rounded-2xl transform group-hover:scale-[1.04] transition-transform duration-700 ease-out"
+                          />
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 rounded-2xl" />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ─── CTA ─── */}
+              {section.type === 'cta' && (
+                <div className="gsap-reveal relative overflow-hidden py-16 md:py-20 px-4 sm:px-6 ghee-grain">
+                  <div
+                    className="absolute inset-0"
+                    style={{
+                      background: `linear-gradient(135deg, ${section.backgroundColor || page.primary_color} 0%, ${adjustColor(section.backgroundColor || page.primary_color, -40)} 100%)`,
+                    }}
+                  />
+                  <div className="relative max-w-3xl mx-auto text-center">
+                    {section.title && (
                       <h2
-                        className="text-2xl sm:text-3xl md:text-4xl font-extrabold mb-3"
-                        style={{ color: section.textColor }}
+                        className="ghee-heading text-2xl sm:text-3xl md:text-4xl font-bold mb-4"
+                        style={{ color: section.textColor || page.secondary_color }}
                       >
                         {section.title}
                       </h2>
-                      <div
-                        className="w-20 h-1 mx-auto rounded-full"
-                        style={{ background: `linear-gradient(to right, ${page.primary_color}, ${primaryLight})` }}
-                      />
-                    </div>
-                  )}
-                  <div className={`grid gap-5 ${
-                    (section.images || []).length === 1
-                      ? 'grid-cols-1 max-w-2xl mx-auto'
-                      : (section.images || []).length === 3
-                        ? 'grid-cols-1 sm:grid-cols-3'
-                        : 'grid-cols-1 sm:grid-cols-2'
-                  }`}>
-                    {(section.images || []).map((img, idx) => (
-                      <div key={idx} className="group relative overflow-hidden rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-500">
-                        <img
-                          src={img}
-                          alt={`${page.title} - ${idx + 1}`}
-                          className="w-full rounded-2xl transform group-hover:scale-105 transition-transform duration-700"
-                        />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 rounded-2xl" />
-                      </div>
-                    ))}
+                    )}
+                    {section.content && (
+                      <p
+                        className="text-lg sm:text-xl mb-8 opacity-90 leading-relaxed"
+                        style={{ color: section.textColor || page.secondary_color }}
+                      >
+                        {section.content}
+                      </p>
+                    )}
+                    {section.buttonText && (
+                      <button
+                        onClick={scrollToOrderForm}
+                        className="ghee-btn-ripple inline-flex items-center gap-2 px-10 py-4 rounded-full text-lg font-bold shadow-xl hover:shadow-2xl transform hover:scale-[1.04] transition-all duration-300"
+                        style={{
+                          background: `linear-gradient(135deg, ${section.textColor || page.secondary_color}, ${adjustColor(section.textColor || page.secondary_color, -15)})`,
+                          color: section.backgroundColor || page.primary_color,
+                        }}
+                      >
+                        {section.buttonText}
+                      </button>
+                    )}
                   </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            {/* CTA Section */}
-            {section.type === 'cta' && (
-              <div className="relative overflow-hidden py-16 md:py-20 px-4 sm:px-6">
-                <div
-                  className="absolute inset-0"
-                  style={{
-                    background: `linear-gradient(135deg, ${section.backgroundColor || page.primary_color} 0%, ${adjustColor(section.backgroundColor || page.primary_color, -30)} 100%)`,
-                  }}
-                />
-                {/* Decorative dots */}
-                <div className="absolute inset-0 opacity-5 pointer-events-none"
-                  style={{
-                    backgroundImage: `radial-gradient(${section.textColor || page.secondary_color} 1px, transparent 1px)`,
-                    backgroundSize: '24px 24px',
-                  }}
-                />
-                <div className="relative max-w-3xl mx-auto text-center">
-                  {section.title && (
-                    <h2
-                      className="text-2xl sm:text-3xl md:text-4xl font-extrabold mb-4"
-                      style={{ color: section.textColor || page.secondary_color }}
-                    >
-                      {section.title}
-                    </h2>
-                  )}
-                  {section.content && (
-                    <p
-                      className="text-lg sm:text-xl mb-8 opacity-90 leading-relaxed"
-                      style={{ color: section.textColor || page.secondary_color }}
-                    >
-                      {section.content}
-                    </p>
-                  )}
-                  {section.buttonText && (
-                    <button
-                      onClick={scrollToOrderForm}
-                      className="group relative px-10 py-4 rounded-2xl text-lg font-bold shadow-xl hover:shadow-2xl transform hover:scale-105 transition-all duration-300 overflow-hidden"
-                      style={{
-                        background: `linear-gradient(135deg, ${section.textColor || page.secondary_color}, ${adjustColor(section.textColor || page.secondary_color, -15)})`,
-                        color: section.backgroundColor || page.primary_color,
-                      }}
-                    >
-                      <span className="relative z-10">{section.buttonText}</span>
-                    </button>
-                  )}
+              {/* ─── Hero (mid-page) ─── */}
+              {section.type === 'hero' && (
+                <div className="gsap-reveal relative overflow-hidden py-16 md:py-20 px-4 sm:px-6 ghee-grain">
+                  <div
+                    className="absolute inset-0"
+                    style={{
+                      background: `linear-gradient(160deg, ${section.backgroundColor || page.primary_color} 0%, ${adjustColor(section.backgroundColor || page.primary_color, -50)} 100%)`,
+                    }}
+                  />
+                  <div className="relative max-w-4xl mx-auto text-center">
+                    {section.title && (
+                      <h2
+                        className="ghee-heading text-3xl sm:text-4xl font-bold mb-5"
+                        style={{ color: section.textColor || page.secondary_color }}
+                      >
+                        {section.title}
+                      </h2>
+                    )}
+                    {section.content && (
+                      <p
+                        className="text-lg sm:text-xl opacity-90 leading-relaxed max-w-2xl mx-auto"
+                        style={{ color: section.textColor || page.secondary_color }}
+                      >
+                        {section.content}
+                      </p>
+                    )}
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            {/* Hero (mid-page) */}
-            {section.type === 'hero' && (
-              <div className="relative overflow-hidden py-16 md:py-20 px-4 sm:px-6">
+              {/* ─── Custom HTML ─── */}
+              {section.type === 'custom-html' && (
                 <div
-                  className="absolute inset-0"
+                  className="gsap-reveal py-12 px-4 sm:px-6"
                   style={{
-                    background: `linear-gradient(135deg, ${section.backgroundColor || page.primary_color} 0%, ${adjustColor(section.backgroundColor || page.primary_color, -40)} 100%)`,
+                    backgroundColor: section.backgroundColor || '#FFFCF5',
+                    color: section.textColor || '#2D1B07',
                   }}
-                />
-                <div className="relative max-w-4xl mx-auto text-center">
-                  {section.title && (
-                    <h2
-                      className="text-3xl sm:text-4xl font-extrabold mb-5"
-                      style={{ color: section.textColor || page.secondary_color }}
-                    >
-                      {section.title}
-                    </h2>
-                  )}
-                  {section.content && (
-                    <p
-                      className="text-lg sm:text-xl opacity-90 leading-relaxed max-w-2xl mx-auto"
-                      style={{ color: section.textColor || page.secondary_color }}
-                    >
-                      {section.content}
-                    </p>
-                  )}
+                >
+                  <div
+                    className="max-w-4xl mx-auto prose prose-lg prose-amber"
+                    dangerouslySetInnerHTML={{ __html: section.content || '' }}
+                  />
                 </div>
-              </div>
-            )}
+              )}
+            </div>
+          ))}
+        </div>
 
-            {/* Custom HTML */}
-            {section.type === 'custom-html' && (
-              <div
-                className="py-12 px-4 sm:px-6"
-                style={{
-                  backgroundColor: section.backgroundColor || '#FFFFFF',
-                  color: section.textColor || '#1a1a2e',
-                }}
-              >
-                <div
-                  className="max-w-4xl mx-auto prose prose-lg"
-                  dangerouslySetInnerHTML={{ __html: section.content || '' }}
-                />
-              </div>
-            )}
-          </div>
-        ))}
-
-        {/* ═══════════════ PHONE CTA ═══════════════ */}
+        {/* ═══════════════════ PHONE CTA ═══════════════════ */}
         {page.phone_number && (
-          <div className="relative overflow-hidden py-10">
+          <div className="relative overflow-hidden py-10 ghee-grain">
             <div
               className="absolute inset-0"
               style={{
@@ -803,70 +996,78 @@ export default function GheeTemplate({ page, trafficSource = 'landing_page', isI
               }}
             />
             <div className="relative text-center">
-              <p className="text-lg mb-3 opacity-80" style={{ color: page.secondary_color }}>
-                প্রশ্ন আছে? এখনই কল করুন অথবা হোয়াটসঅ্যাপ করুন!
+              <p className="text-base mb-3 opacity-80" style={{ color: page.secondary_color }}>
+                প্রশ্ন আছে? এখনই কল করুন
               </p>
               <a
                 href={`tel:${page.phone_number}`}
-                className="inline-flex items-center gap-3 text-3xl sm:text-4xl font-bold hover:opacity-80 transition-opacity"
+                className="inline-flex items-center gap-3 text-2xl sm:text-3xl font-bold hover:opacity-80 transition-opacity"
                 style={{ color: page.secondary_color }}
               >
-                <div className="w-14 h-14 rounded-full flex items-center justify-center glass-card-ghee">
-                  <FaPhone className="text-xl" />
+                <div
+                  className="w-12 h-12 rounded-full flex items-center justify-center border border-white/20"
+                  style={{ backgroundColor: 'rgba(255,255,255,0.12)' }}
+                >
+                  <FaPhone className="text-lg" />
                 </div>
-                {page.phone_number}
+                <span className="ghee-num">{page.phone_number}</span>
               </a>
             </div>
           </div>
         )}
 
-        {/* ═══════════════ ORDER FORM ═══════════════ */}
+        {/* ═══════════════════ ORDER FORM ═══════════════════ */}
         {page.show_order_form && (
-          <div ref={orderFormRef} className="py-16 md:py-20 px-4 sm:px-6">
-            <div className="max-w-2xl mx-auto">
+          <div
+            ref={orderFormRef}
+            className="py-16 md:py-24 px-4 sm:px-6"
+            style={{ backgroundColor: '#FFF8ED' }}
+          >
+            <div className="max-w-xl mx-auto">
               {submitted ? (
+                /* ── Success State ── */
                 <div className="text-center py-16">
-                  <div
-                    className="w-24 h-24 rounded-full mx-auto mb-6 flex items-center justify-center ghee-scale-in"
-                    style={{ background: `linear-gradient(135deg, #22c55e, #16a34a)` }}
-                  >
-                    <FaCheckCircle className="text-white text-5xl" />
+                  <div className="w-20 h-20 rounded-full mx-auto mb-6 flex items-center justify-center bg-gradient-to-br from-green-400 to-emerald-500 shadow-lg">
+                    <FaCheckCircle className="text-white text-4xl" />
                   </div>
-                  <h2 className="text-2xl sm:text-3xl font-extrabold text-gray-800 mb-3">
+                  <h2 className="ghee-heading text-2xl sm:text-3xl font-bold text-[#2D1B07] mb-3">
                     আপনার অর্ডার সফলভাবে গ্রহণ করা হয়েছে!
                   </h2>
-                  <p className="text-gray-500 text-lg">আমরা শীঘ্রই আপনার সাথে যোগাযোগ করব।</p>
-                  <p className="text-gray-400 mt-2">আমাদের একজন কাস্টমার প্রতিনিধি আপনাকে কল করে আবার কনফার্ম করবে</p>
+                  <p className="text-[#8B7355] text-lg">আমরা শীঘ্রই আপনার সাথে যোগাযোগ করব।</p>
+                  <p className="text-[#A99B85] mt-2 text-sm">
+                    আমাদের একজন কাস্টমার প্রতিনিধি আপনাকে কল করে আবার কনফার্ম করবে
+                  </p>
                 </div>
               ) : (
-                <div className="bg-white rounded-3xl shadow-2xl overflow-hidden border border-gray-100">
-                  {/* Form header */}
+                /* ── Order Form ── */
+                <div className="bg-white rounded-3xl shadow-[0_8px_40px_-8px_rgba(139,115,85,0.12)] overflow-hidden border border-amber-100/60">
+                  {/* Header */}
                   <div
-                    className="px-6 py-5 text-center"
+                    className="px-6 py-5 text-center ghee-grain relative overflow-hidden"
                     style={{
-                      background: `linear-gradient(135deg, ${page.primary_color} 0%, ${primaryDark} 100%)`,
+                      background: `linear-gradient(135deg, ${page.primary_color}, ${primaryDark})`,
                     }}
                   >
                     <h2
-                      className="text-xl sm:text-2xl font-extrabold"
+                      className="ghee-heading text-xl sm:text-2xl font-bold relative z-10"
                       style={{ color: page.secondary_color }}
                     >
-                      অর্ডার করতে ফর্মটি পূরণ করুন
+                      অর্ডার করুন
                     </h2>
                     {page.delivery_note && (
-                      <p className="mt-1.5 text-sm opacity-80" style={{ color: page.secondary_color }}>
+                      <p className="mt-1 text-sm opacity-80 relative z-10" style={{ color: page.secondary_color }}>
                         {page.delivery_note}
                       </p>
                     )}
                   </div>
 
                   <div className="p-6 sm:p-8">
-                    {/* Product Selection */}
+                    {/* ── Step 1: Products ── */}
                     <div className="mb-8">
-                      <h3 className="font-bold text-gray-800 mb-4 text-lg flex items-center gap-2">
+                      <h3 className="font-bold text-[#2D1B07] mb-4 text-base flex items-center gap-2.5">
                         <span
-                          className="w-7 h-7 rounded-full flex items-center justify-center text-white text-sm font-bold"
-                          style={{ backgroundColor: page.primary_color }}
+                          className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold"
+                          style={{ background: `linear-gradient(135deg, ${page.primary_color}, ${primaryDark})` }}
                         >
                           1
                         </span>
@@ -881,90 +1082,101 @@ export default function GheeTemplate({ page, trafficSource = 'landing_page', isI
                           return (
                             <div
                               key={product.id}
-                              className={`relative rounded-2xl p-3 sm:p-4 cursor-pointer transition-all duration-300 ${
+                              className={`ghee-product-card relative rounded-2xl p-3 sm:p-4 cursor-pointer ${
                                 isFeatured && !isSelected
-                                  ? 'bg-gradient-to-r from-amber-50 to-orange-50 shadow-lg ring-2 ring-amber-200 border-2 border-amber-300'
+                                  ? 'bg-gradient-to-r from-amber-50/80 to-orange-50/80 ring-1 ring-amber-200 border border-amber-200'
                                   : isSelected
-                                    ? 'shadow-lg border-2 ring-2'
-                                    : 'border-2 border-gray-100 hover:border-gray-200 hover:shadow-md bg-gray-50/50'
+                                    ? 'ring-2 border-2 shadow-md'
+                                    : 'border border-gray-100 hover:border-amber-200/60 bg-gray-50/30'
                               }`}
                               style={
                                 isSelected
                                   ? {
                                       borderColor: page.primary_color,
-                                      boxShadow: `0 4px 20px ${page.primary_color}50`,
-                                      background: `linear-gradient(135deg, ${page.primary_color}28 0%, ${page.primary_color}18 100%)`,
+                                      backgroundColor: `${page.primary_color}08`,
                                     }
                                   : {}
                               }
                               onClick={() => toggleProduct(product)}
                             >
-                              {/* Selected accent bar */}
                               {isSelected && (
-                                <div className="absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl" style={{ backgroundColor: page.primary_color }} />
+                                <div
+                                  className="absolute left-0 top-3 bottom-3 w-1 rounded-r-full"
+                                  style={{ backgroundColor: page.primary_color }}
+                                />
                               )}
                               {isFeatured && (
-                                <div className="absolute -top-3 left-4 bg-gradient-to-r from-orange-500 to-red-500 text-white text-xs font-bold px-4 py-1 rounded-full shadow-lg">
+                                <div className="absolute -top-2.5 left-4 bg-gradient-to-r from-orange-500 to-rose-500 text-white text-[10px] font-bold px-3 py-0.5 rounded-full shadow">
                                   {featuredLabel}
                                 </div>
                               )}
                               <div className={`flex items-center gap-3 sm:gap-4 ${isFeatured ? 'mt-1' : ''}`}>
-                                {/* Selection indicator */}
                                 <div
-                                  className={`flex-shrink-0 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${
-                                    isSelected ? 'border-transparent' : 'border-gray-300'
+                                  className={`flex-shrink-0 w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all duration-300 ${
+                                    isSelected ? 'border-transparent scale-110' : 'border-gray-300'
                                   }`}
                                   style={isSelected ? { backgroundColor: page.primary_color } : {}}
                                 >
-                                  {isSelected && <FaCheckCircle className="text-white text-sm" />}
+                                  {isSelected && <FaCheckCircle className="text-white text-[10px]" />}
                                 </div>
-
                                 {product.image_url && (
                                   <img
                                     src={product.image_url}
                                     alt={product.name}
-                                    className={`object-cover rounded-xl flex-shrink-0 ${
-                                      isFeatured ? 'w-16 h-16 sm:w-20 sm:h-20 ring-2 ring-amber-200' : 'w-14 h-14 sm:w-16 sm:h-16'
+                                    className={`object-cover rounded-xl flex-shrink-0 transition-shadow duration-300 ${
+                                      isSelected
+                                        ? 'w-16 h-16 sm:w-18 sm:h-18 shadow-md'
+                                        : 'w-14 h-14 sm:w-16 sm:h-16'
                                     }`}
                                   />
                                 )}
                                 <div className="flex-1 min-w-0">
-                                  <div className={`font-bold text-sm sm:text-base leading-tight ${
-                                    isFeatured ? 'text-amber-900' : 'text-gray-800'
-                                  }`}>{product.name}</div>
+                                  <div className="font-semibold text-sm sm:text-base text-[#2D1B07] leading-tight">
+                                    {product.name}
+                                  </div>
                                   {product.description && (
-                                    <div className="text-xs sm:text-sm text-gray-500 mt-0.5 leading-tight">{product.description}</div>
+                                    <div className="text-xs text-[#8B7355] mt-0.5 leading-tight">
+                                      {product.description}
+                                    </div>
                                   )}
                                   <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mt-1.5">
                                     {product.compare_price && product.compare_price > product.price && (
-                                      <span className="text-xs sm:text-sm line-through font-bold text-red-500 bg-red-50 px-2 py-0.5 rounded border border-red-200">
+                                      <span className="text-xs line-through text-red-400 font-medium">
                                         {product.compare_price.toLocaleString()} ৳
                                       </span>
                                     )}
                                     <span
-                                      className="text-base sm:text-xl font-extrabold px-2 sm:px-3 py-0.5 rounded-lg text-white"
-                                      style={{ backgroundColor: page.primary_color }}
+                                      className="ghee-num text-base sm:text-lg font-bold"
+                                      style={{ color: page.primary_color }}
                                     >
                                       {product.price.toLocaleString()} ৳
                                     </span>
                                     {product.compare_price && product.compare_price > product.price && (
-                                      <span className="text-[10px] sm:text-xs font-bold text-green-600 bg-green-100 px-1.5 sm:px-2 py-0.5 rounded-full whitespace-nowrap">
-                                        {Math.round(((product.compare_price - product.price) / product.compare_price) * 100)}% OFF
+                                      <span className="text-[10px] font-bold text-green-600 bg-green-50 px-1.5 py-0.5 rounded-full">
+                                        {Math.round(
+                                          ((product.compare_price - product.price) / product.compare_price) * 100,
+                                        )}
+                                        % OFF
                                       </span>
                                     )}
                                   </div>
                                   {isSelected && (
-                                    <div className="flex items-center gap-3 mt-2" onClick={(e) => e.stopPropagation()}>
+                                    <div
+                                      className="flex items-center gap-3 mt-2.5"
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
                                       <button
                                         onClick={() => updateQuantity(product.id, -1)}
-                                        className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition-colors"
+                                        className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition-colors active:scale-95"
                                       >
-                                        <FaMinus className="text-xs" />
+                                        <FaMinus className="text-xs text-gray-600" />
                                       </button>
-                                      <span className="w-8 text-center font-bold text-lg">{orderItem!.quantity}</span>
+                                      <span className="w-6 text-center font-bold text-base ghee-num">
+                                        {orderItem!.quantity}
+                                      </span>
                                       <button
                                         onClick={() => updateQuantity(product.id, 1)}
-                                        className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center text-white hover:opacity-90 transition-opacity"
+                                        className="w-8 h-8 rounded-lg flex items-center justify-center text-white hover:opacity-90 transition-all active:scale-95"
                                         style={{ backgroundColor: page.primary_color }}
                                       >
                                         <FaPlus className="text-xs" />
@@ -979,12 +1191,12 @@ export default function GheeTemplate({ page, trafficSource = 'landing_page', isI
                       </div>
                     </div>
 
-                    {/* Customer Info */}
+                    {/* ── Step 2: Info ── */}
                     <div className="mb-8">
-                      <h3 className="font-bold text-gray-800 mb-4 text-lg flex items-center gap-2">
+                      <h3 className="font-bold text-[#2D1B07] mb-4 text-base flex items-center gap-2.5">
                         <span
-                          className="w-7 h-7 rounded-full flex items-center justify-center text-white text-sm font-bold"
-                          style={{ backgroundColor: page.primary_color }}
+                          className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold"
+                          style={{ background: `linear-gradient(135deg, ${page.primary_color}, ${primaryDark})` }}
                         >
                           2
                         </span>
@@ -992,40 +1204,45 @@ export default function GheeTemplate({ page, trafficSource = 'landing_page', isI
                       </h3>
                       <div className="space-y-4">
                         <div>
-                          <label className={`block text-sm font-semibold mb-1.5 ${formTouched && !orderForm.name ? 'text-red-600' : 'text-gray-700'}`}>
+                          <label
+                            className={`block text-sm font-semibold mb-1.5 ${formTouched && !orderForm.name ? 'text-red-600' : 'text-[#5D4E37]'}`}
+                          >
                             নাম *
                           </label>
                           <input
                             type="text"
                             value={orderForm.name}
                             onChange={(e) => setOrderForm((prev) => ({ ...prev, name: e.target.value }))}
-                            className={`w-full border-2 rounded-xl px-4 py-3 focus:ring-2 focus:border-transparent transition-all ${
+                            className={`ghee-input w-full border rounded-xl px-4 py-3 ${
                               formTouched && !orderForm.name
-                                ? 'border-red-400 bg-red-50'
-                                : 'border-gray-200 focus:ring-opacity-30'
+                                ? 'border-red-300 bg-red-50/50'
+                                : 'border-amber-200/60 bg-amber-50/20 focus:border-amber-400 focus:shadow-[0_0_0_3px_rgba(217,169,78,0.1)]'
                             }`}
-                            style={{ ...(formTouched && !orderForm.name ? {} : { '--tw-ring-color': page.primary_color } as any) }}
                             placeholder="আপনার নাম লিখুন"
                           />
                         </div>
                         <div>
-                          <label className={`block text-sm font-semibold mb-1.5 ${formTouched && !orderForm.address ? 'text-red-600' : 'text-gray-700'}`}>
+                          <label
+                            className={`block text-sm font-semibold mb-1.5 ${formTouched && !orderForm.address ? 'text-red-600' : 'text-[#5D4E37]'}`}
+                          >
                             সম্পূর্ণ ঠিকানা *
                           </label>
                           <textarea
                             value={orderForm.address}
                             onChange={(e) => setOrderForm((prev) => ({ ...prev, address: e.target.value }))}
-                            className={`w-full border-2 rounded-xl px-4 py-3 focus:ring-2 focus:border-transparent transition-all ${
+                            className={`ghee-input w-full border rounded-xl px-4 py-3 ${
                               formTouched && !orderForm.address
-                                ? 'border-red-400 bg-red-50'
-                                : 'border-gray-200 focus:ring-opacity-30'
+                                ? 'border-red-300 bg-red-50/50'
+                                : 'border-amber-200/60 bg-amber-50/20 focus:border-amber-400 focus:shadow-[0_0_0_3px_rgba(217,169,78,0.1)]'
                             }`}
                             rows={2}
                             placeholder="সম্পূর্ণ ঠিকানা লিখুন"
                           />
                         </div>
                         <div>
-                          <label className={`block text-sm font-semibold mb-1.5 ${formTouched && (!orderForm.phone || !isBdPhoneValid()) ? 'text-red-600' : 'text-gray-700'}`}>
+                          <label
+                            className={`block text-sm font-semibold mb-1.5 ${formTouched && (!orderForm.phone || !isBdPhoneValid()) ? 'text-red-600' : 'text-[#5D4E37]'}`}
+                          >
                             মোবাইল নম্বর *
                           </label>
                           {isInternational ? (
@@ -1045,134 +1262,130 @@ export default function GheeTemplate({ page, trafficSource = 'landing_page', isI
                           )}
                         </div>
                         <div>
-                          <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                          <label className="block text-sm font-semibold text-[#5D4E37] mb-1.5">
                             অতিরিক্ত নোট (ঐচ্ছিক)
                           </label>
                           <textarea
                             value={orderForm.note}
                             onChange={(e) => setOrderForm((prev) => ({ ...prev, note: e.target.value }))}
-                            className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-opacity-30 focus:border-transparent transition-all"
+                            className="ghee-input w-full border border-amber-200/60 bg-amber-50/20 rounded-xl px-4 py-3 focus:border-amber-400 focus:shadow-[0_0_0_3px_rgba(217,169,78,0.1)]"
                             rows={2}
-                            placeholder="কোনো বিশেষ নির্দেশনা থাকলে লিখুন..."
+                            placeholder="কোনো বিশেষ নির্দেশনা..."
                           />
                         </div>
                       </div>
                     </div>
 
-                    {/* Order Summary */}
+                    {/* ── Step 3: Summary ── */}
                     <div>
-                      <h3 className="font-bold text-gray-800 mb-4 text-lg flex items-center gap-2">
+                      <h3 className="font-bold text-[#2D1B07] mb-4 text-base flex items-center gap-2.5">
                         <span
-                          className="w-7 h-7 rounded-full flex items-center justify-center text-white text-sm font-bold"
-                          style={{ backgroundColor: page.primary_color }}
+                          className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold"
+                          style={{ background: `linear-gradient(135deg, ${page.primary_color}, ${primaryDark})` }}
                         >
                           3
                         </span>
                         অর্ডার সামারি
                       </h3>
-
-                      <div className="bg-gray-50 rounded-2xl p-5 border border-gray-100">
-                        <div className="space-y-2 border-b border-gray-200 pb-3 mb-3">
+                      <div className="rounded-2xl border border-amber-100/60 bg-gradient-to-b from-amber-50/40 to-white p-5">
+                        {/* Items */}
+                        <div className="space-y-2 border-b border-amber-100 pb-3 mb-3">
                           {orderItems.map((item) => (
-                            <div key={item.product.id} className="flex justify-between items-center text-sm">
-                              <span className="text-gray-700 font-medium">
+                            <div key={item.product.id} className="flex justify-between text-sm">
+                              <span className="text-[#5D4E37]">
                                 {item.product.name} × {item.quantity}
                               </span>
-                              <span className="font-bold text-gray-800 whitespace-nowrap">
+                              <span className="font-semibold text-[#2D1B07] ghee-num">
                                 {(item.product.price * item.quantity).toLocaleString()} ৳
                               </span>
                             </div>
                           ))}
                         </div>
 
-                        {/* Delivery Zone */}
-                        {!page.free_delivery && (Number(page.delivery_charge) > 0 || Number(page.delivery_charge_outside) > 0) && (
-                          <div className="mb-4">
-                            <label className="block text-sm font-semibold text-gray-700 mb-2">ডেলিভারি এলাকা</label>
-                            <div className="grid grid-cols-2 gap-2">
-                              <button
-                                type="button"
-                                onClick={() => setDeliveryZone('inside')}
-                                className={`py-3 px-3 rounded-xl text-sm font-medium border-2 transition-all duration-300 ${
-                                  deliveryZone === 'inside'
-                                    ? 'text-white shadow-md'
-                                    : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
-                                }`}
-                                style={
-                                  deliveryZone === 'inside'
-                                    ? { backgroundColor: page.primary_color, borderColor: page.primary_color }
-                                    : {}
-                                }
-                              >
-                                ঢাকার ভিতরে
-                                <div className="text-xs mt-0.5 opacity-80">
-                                  {Number(page.delivery_charge) === 0 ? 'ফ্রি' : `${Number(page.delivery_charge).toLocaleString()} ৳`}
-                                </div>
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setDeliveryZone('outside')}
-                                className={`py-3 px-3 rounded-xl text-sm font-medium border-2 transition-all duration-300 ${
-                                  deliveryZone === 'outside'
-                                    ? 'text-white shadow-md'
-                                    : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
-                                }`}
-                                style={
-                                  deliveryZone === 'outside'
-                                    ? { backgroundColor: page.primary_color, borderColor: page.primary_color }
-                                    : {}
-                                }
-                              >
-                                ঢাকার বাইরে
-                                <div className="text-xs mt-0.5 opacity-80">
-                                  {Number(page.delivery_charge_outside) === 0 ? 'ফ্রি' : `${Number(page.delivery_charge_outside).toLocaleString()} ৳`}
-                                </div>
-                              </button>
+                        {/* Delivery zone */}
+                        {!page.free_delivery &&
+                          (Number(page.delivery_charge) > 0 || Number(page.delivery_charge_outside) > 0) && (
+                            <div className="mb-4">
+                              <label className="block text-sm font-semibold text-[#5D4E37] mb-2">
+                                ডেলিভারি এলাকা
+                              </label>
+                              <div className="grid grid-cols-2 gap-2">
+                                {(['inside', 'outside'] as const).map((zone) => (
+                                  <button
+                                    key={zone}
+                                    type="button"
+                                    onClick={() => setDeliveryZone(zone)}
+                                    className={`py-3 px-3 rounded-xl text-sm font-medium border transition-all duration-300 ${
+                                      deliveryZone === zone
+                                        ? 'text-white shadow-sm border-transparent'
+                                        : 'border-amber-200/60 bg-white text-[#5D4E37] hover:border-amber-300'
+                                    }`}
+                                    style={
+                                      deliveryZone === zone
+                                        ? { background: `linear-gradient(135deg, ${page.primary_color}, ${primaryDark})` }
+                                        : {}
+                                    }
+                                  >
+                                    {zone === 'inside' ? 'ঢাকার ভিতরে' : 'ঢাকার বাইরে'}
+                                    <div className="text-xs mt-0.5 opacity-80">
+                                      {zone === 'inside'
+                                        ? Number(page.delivery_charge) === 0
+                                          ? 'ফ্রি'
+                                          : `${Number(page.delivery_charge).toLocaleString()} ৳`
+                                        : Number(page.delivery_charge_outside) === 0
+                                          ? 'ফ্রি'
+                                          : `${Number(page.delivery_charge_outside).toLocaleString()} ৳`}
+                                    </div>
+                                  </button>
+                                ))}
+                              </div>
                             </div>
-                          </div>
-                        )}
+                          )}
 
-                        {/* Charges */}
+                        {/* Totals */}
                         <div className="space-y-2 text-sm">
                           <div className="flex justify-between">
-                            <span className="text-gray-500">সাবটোটাল</span>
-                            <span className="font-medium text-gray-700">{getSubtotal().toLocaleString()} ৳</span>
+                            <span className="text-[#8B7355]">সাবটোটাল</span>
+                            <span className="font-medium text-[#5D4E37] ghee-num">
+                              {getSubtotal().toLocaleString()} ৳
+                            </span>
                           </div>
                           <div className="flex justify-between">
-                            <span className="text-gray-500">ডেলিভারি চার্জ</span>
+                            <span className="text-[#8B7355]">ডেলিভারি চার্জ</span>
                             {page.free_delivery || getDeliveryCharge() === 0 ? (
-                              <span className="font-bold text-green-600">ফ্রি ✨</span>
+                              <span className="font-semibold text-green-600">ফ্রি ✦</span>
                             ) : (
-                              <span className="font-medium text-gray-700">{getDeliveryCharge().toLocaleString()} ৳</span>
+                              <span className="font-medium text-[#5D4E37] ghee-num">
+                                {getDeliveryCharge().toLocaleString()} ৳
+                              </span>
                             )}
                           </div>
                         </div>
 
-                        {/* Total */}
                         <div
-                          className="flex justify-between items-center mt-3 pt-3 border-t-2 border-dashed"
-                          style={{ borderColor: `${page.primary_color}30` }}
+                          className="flex justify-between items-center mt-4 pt-4 border-t-2 border-dashed"
+                          style={{ borderColor: `${page.primary_color}25` }}
                         >
-                          <span className="text-lg font-extrabold text-gray-800">সর্বমোট</span>
-                          <span className="text-2xl font-extrabold" style={{ color: page.primary_color }}>
+                          <span className="text-base font-bold text-[#2D1B07]">সর্বমোট</span>
+                          <span className="ghee-num text-2xl font-bold" style={{ color: page.primary_color }}>
                             {getTotal().toLocaleString()} ৳
                           </span>
                         </div>
 
                         {page.delivery_note && (
-                          <div className="mt-3 text-xs bg-green-50 text-green-700 rounded-xl px-4 py-2.5 flex items-center gap-2 border border-green-100">
-                            <FaTruck className="flex-shrink-0" /> {page.delivery_note}
+                          <div className="mt-3 text-xs text-green-700 bg-green-50 rounded-xl px-4 py-2.5 flex items-center gap-2 border border-green-100">
+                            <FaTruck className="flex-shrink-0 text-green-500" /> {page.delivery_note}
                           </div>
                         )}
 
                         {page.cash_on_delivery && (
-                          <div className="mt-3 flex items-center gap-2 text-sm text-gray-600">
+                          <div className="mt-3 flex items-center gap-2 text-sm text-[#5D4E37]">
                             <div
-                              className="w-5 h-5 rounded-full border-2 flex items-center justify-center"
+                              className="w-4 h-4 rounded-full border-2 flex items-center justify-center"
                               style={{ borderColor: page.primary_color }}
                             >
                               <div
-                                className="w-2.5 h-2.5 rounded-full"
+                                className="w-2 h-2 rounded-full"
                                 style={{ backgroundColor: page.primary_color }}
                               />
                             </div>
@@ -1180,21 +1393,36 @@ export default function GheeTemplate({ page, trafficSource = 'landing_page', isI
                           </div>
                         )}
 
-                        <div className="text-xs text-gray-400 mt-3">
+                        <p className="text-[10px] text-[#A99B85] mt-3">
                           Your personal data will be used to process your order.
-                        </div>
+                        </p>
 
-                        {/* Submit Button */}
+                        {/* Submit */}
                         <button
                           onClick={handleSubmitOrder}
                           disabled={submitting || orderItems.length === 0}
-                          className="w-full mt-5 py-4 rounded-2xl text-sm sm:text-lg font-extrabold text-white shadow-lg hover:shadow-xl transform hover:scale-[1.02] transition-all duration-300 disabled:opacity-50 disabled:transform-none flex items-center justify-center gap-2 whitespace-nowrap"
+                          onMouseMove={(e) => {
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            e.currentTarget.style.setProperty(
+                              '--x',
+                              `${((e.clientX - rect.left) / rect.width) * 100}%`,
+                            );
+                            e.currentTarget.style.setProperty(
+                              '--y',
+                              `${((e.clientY - rect.top) / rect.height) * 100}%`,
+                            );
+                          }}
+                          className="ghee-btn-ripple w-full mt-5 py-4 rounded-2xl text-sm sm:text-base font-bold text-white shadow-lg hover:shadow-xl transform hover:scale-[1.02] transition-all duration-300 disabled:opacity-50 disabled:transform-none disabled:hover:shadow-lg flex items-center justify-center gap-2"
                           style={{
                             background: `linear-gradient(135deg, ${page.primary_color} 0%, ${primaryDark} 100%)`,
                           }}
                         >
-                          <FaShoppingCart className="text-base sm:text-lg flex-shrink-0" />
-                          <span>{submitting ? 'প্রসেসিং...' : `অর্ডার কনফার্ম করুন — ${getTotal().toLocaleString()} ৳`}</span>
+                          <FaShoppingCart className="text-sm flex-shrink-0" />
+                          <span>
+                            {submitting
+                              ? 'প্রসেসিং...'
+                              : `অর্ডার কনফার্ম করুন — ${getTotal().toLocaleString()} ৳`}
+                          </span>
                         </button>
                       </div>
                     </div>
@@ -1205,14 +1433,15 @@ export default function GheeTemplate({ page, trafficSource = 'landing_page', isI
           </div>
         )}
 
-        {/* ═══════════════ FLOATING BUTTONS ═══════════════ */}
+        {/* ═══════════════════ FLOATING BUTTONS ═══════════════════ */}
         <div className="fixed bottom-6 right-6 flex flex-col gap-3 z-50">
           {page.whatsapp_number && (
             <a
               href={`https://wa.me/${page.whatsapp_number}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="w-14 h-14 bg-gradient-to-br from-green-400 to-green-600 text-white rounded-full flex items-center justify-center shadow-xl hover:shadow-2xl hover:scale-110 transition-all duration-300"
+              className="bg-gradient-to-br from-green-400 to-green-600 text-white rounded-full flex items-center justify-center shadow-lg hover:shadow-xl hover:scale-110 transition-all duration-300"
+              style={{ width: 52, height: 52 }}
             >
               <FaWhatsapp className="text-2xl" />
             </a>
@@ -1220,46 +1449,45 @@ export default function GheeTemplate({ page, trafficSource = 'landing_page', isI
           {page.phone_number && (
             <a
               href={`tel:${page.phone_number}`}
-              className="w-14 h-14 rounded-full text-white flex items-center justify-center shadow-xl hover:shadow-2xl hover:scale-110 transition-all duration-300"
+              className="rounded-full text-white flex items-center justify-center shadow-lg hover:shadow-xl hover:scale-110 transition-all duration-300"
               style={{
+                width: 52,
+                height: 52,
                 background: `linear-gradient(135deg, ${page.primary_color}, ${primaryDark})`,
               }}
             >
-              <FaPhone className="text-xl" />
+              <FaPhone className="text-lg" />
             </a>
           )}
         </div>
 
-        {/* ═══════════════ FOOTER ═══════════════ */}
-        <div className="relative overflow-hidden">
+        {/* ═══════════════════ FOOTER ═══════════════════ */}
+        <div className="relative overflow-hidden ghee-grain">
           <div
             className="absolute inset-0"
             style={{
-              background: `linear-gradient(135deg, ${page.primary_color} 0%, ${adjustColor(page.primary_color, -50)} 100%)`,
+              background: `linear-gradient(160deg, ${page.primary_color} 0%, ${adjustColor(page.primary_color, -50)} 100%)`,
             }}
           />
           <div className="relative py-10 text-center space-y-4">
             <div>
-              <p className="text-base sm:text-lg font-semibold opacity-90 mb-2" style={{ color: page.secondary_color }}>
+              <p className="text-sm sm:text-base font-medium opacity-90 mb-2" style={{ color: page.secondary_color }}>
                 আমাদের আরো প্রোডাক্ট পেতে ভিজিট করুন
               </p>
               <a
                 href="https://trustcart.com.bd"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full font-bold text-sm sm:text-base shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300"
+                className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full font-bold text-sm shadow-md hover:shadow-lg transform hover:scale-105 transition-all duration-300"
                 style={{
-                  background: 'linear-gradient(135deg, #FFD700 0%, #FFA500 100%)',
-                  color: '#1a1a2e',
+                  background: 'linear-gradient(135deg, #FFD700, #F59E0B)',
+                  color: '#422006',
                 }}
               >
                 trustcart.com.bd →
               </a>
             </div>
-            <p
-              className="text-sm font-medium opacity-70"
-              style={{ color: page.secondary_color }}
-            >
+            <p className="text-xs font-medium opacity-60" style={{ color: page.secondary_color }}>
               © {new Date().getFullYear()} TrustCart. All rights reserved.
             </p>
           </div>
