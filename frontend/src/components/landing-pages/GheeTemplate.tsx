@@ -474,7 +474,7 @@ export default function GheeTemplate({
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link
-          href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700;800;900&family=Hind+Siliguri:wght@300;400;500;600;700&display=swap"
+          href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@300;400;500;600;700&display=swap"
           rel="stylesheet"
         />
       </Head>
@@ -483,11 +483,14 @@ export default function GheeTemplate({
         .ghee-page {
           font-family: 'Hind Siliguri', sans-serif;
         }
+        .ghee-page * {
+          font-family: 'Hind Siliguri', sans-serif;
+        }
         .ghee-heading {
-          font-family: 'Playfair Display', 'Hind Siliguri', serif;
+          font-family: 'Hind Siliguri', sans-serif;
         }
         .ghee-num {
-          font-family: 'Playfair Display', Arial, serif;
+          font-family: 'Arial', 'Helvetica Neue', sans-serif;
           font-weight: 700;
         }
 
@@ -540,16 +543,18 @@ export default function GheeTemplate({
         .ghee-strike {
           position: relative;
           text-decoration: none;
+          color: #9ca3af;
         }
         .ghee-strike::after {
           content: '';
           position: absolute;
-          left: -2px;
-          right: -2px;
+          left: -4px;
+          right: -4px;
           top: 50%;
-          height: 2px;
-          background: #dc2626;
-          transform: rotate(-8deg);
+          height: 3px;
+          background: #ef4444;
+          transform: rotate(-12deg);
+          pointer-events: none;
         }
 
         /* ── Parallax grain on hero ── */
@@ -651,21 +656,21 @@ export default function GheeTemplate({
 
                 {/* Price badge */}
                 {page.products?.[0] && (
-                  <div className="flex items-center justify-center md:justify-start gap-3 mb-8">
+                  <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 mb-8">
                     {page.products[0].compare_price && page.products[0].compare_price > page.products[0].price && (
-                      <span className="ghee-strike ghee-num text-gray-400 text-lg sm:text-xl">
+                      <span className="ghee-strike ghee-num text-xl sm:text-2xl">
                         ৳{page.products[0].compare_price.toLocaleString()}
                       </span>
                     )}
                     <div
-                      className="inline-flex items-baseline gap-1.5 px-5 py-2 rounded-xl shadow-sm border"
+                      className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl shadow-sm border"
                       style={{
                         backgroundColor: `${page.primary_color}10`,
                         borderColor: `${page.primary_color}20`,
                       }}
                     >
-                      <span className="text-sm text-[#8B7355]">মাত্র</span>
-                      <span className="ghee-num text-3xl sm:text-4xl" style={{ color: page.primary_color }}>
+                      <span className="text-sm text-[#8B7355] leading-none">মাত্র</span>
+                      <span className="ghee-num text-3xl sm:text-4xl leading-none" style={{ color: page.primary_color }}>
                         ৳{page.products[0].price.toLocaleString()}
                       </span>
                     </div>
@@ -1462,32 +1467,26 @@ export default function GheeTemplate({
         </div>
 
         {/* ═══════════════════ FOOTER ═══════════════════ */}
-        <div className="relative overflow-hidden ghee-grain">
-          <div
-            className="absolute inset-0"
-            style={{
-              background: `linear-gradient(160deg, ${page.primary_color} 0%, ${adjustColor(page.primary_color, -50)} 100%)`,
-            }}
-          />
-          <div className="relative py-10 text-center space-y-4">
+        <div style={{ backgroundColor: '#2D1B07' }}>
+          <div className="py-10 text-center space-y-4">
             <div>
-              <p className="text-sm sm:text-base font-medium opacity-90 mb-2" style={{ color: page.secondary_color }}>
+              <p className="text-sm sm:text-base font-medium text-amber-100/80 mb-2">
                 আমাদের আরো প্রোডাক্ট পেতে ভিজিট করুন
               </p>
               <a
                 href="https://trustcart.com.bd"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full font-bold text-sm shadow-md hover:shadow-lg transform hover:scale-105 transition-all duration-300"
+                className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full font-bold text-sm hover:opacity-90 transition-opacity duration-300"
                 style={{
-                  background: 'linear-gradient(135deg, #FFD700, #F59E0B)',
-                  color: '#422006',
+                  backgroundColor: page.primary_color,
+                  color: page.secondary_color,
                 }}
               >
                 trustcart.com.bd →
               </a>
             </div>
-            <p className="text-xs font-medium opacity-60" style={{ color: page.secondary_color }}>
+            <p className="text-xs font-medium text-amber-200/40">
               © {new Date().getFullYear()} TrustCart. All rights reserved.
             </p>
           </div>
