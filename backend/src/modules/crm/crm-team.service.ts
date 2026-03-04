@@ -227,8 +227,13 @@ export class CrmTeamService {
     qb.where('c.is_deleted = false');
     qb.andWhere('c.is_active = true');
 
-    // Scope: TL can see customers they supervise, plus globally-unclaimed customers.
-    qb.andWhere('(c.assigned_supervisor_id IS NULL OR c.assigned_supervisor_id = :tl)', { tl: teamLeaderId });
+    // Scope: Check if user is actually a team leader (has teams assigned)
+    const isTeamLeader = await this.salesTeamRepository.count({ where: { teamLeaderId } });
+    if (isTeamLeader > 0) {
+      // TL can see customers they supervise, plus globally-unclaimed customers.
+      qb.andWhere('(c.assigned_supervisor_id IS NULL OR c.assigned_supervisor_id = :tl)', { tl: teamLeaderId });
+    }
+    // Non-TL users with assign-leads-to-team permission see all leads (no supervisor filter)
 
     // Assignment status filter
     if (assignmentStatus === 'assigned') {
@@ -1473,7 +1478,12 @@ export class CrmTeamService {
 
   async getTeamsForLeader(teamLeaderId: number): Promise<any[]> {
     await this.ensureDefaultTeamsForLeader(teamLeaderId);
-    const teams = await this.salesTeamRepository.find({ where: { teamLeaderId } });
+    let teams = await this.salesTeamRepository.find({ where: { teamLeaderId } });
+
+    // If user is not a team leader, return all teams so they can still assign leads
+    if (teams.length === 0) {
+      teams = await this.salesTeamRepository.find();
+    }
 
     const order = new Map<string, number>(this.DEFAULT_TEAM_CODES.map((c, idx) => [c, idx]));
     teams.sort((a, b) => {
@@ -1703,7 +1713,7 @@ export class CrmTeamService {
     }
 
     const page = Number(options?.page) || 1;
-    const limit = Math.min(Number(options?.limit) || 50, 200);
+    const limit = Math.min(Number(options?.limit) || 50, 500);
     const skip = (page - 1) * limit;
 
     // Build date range

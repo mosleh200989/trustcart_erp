@@ -22,7 +22,7 @@ export class CrmTeamController {
   }
 
   @Get('agents/search')
-  @RequirePermissions('view-team-leader-dashboard')
+  @RequirePermissions('assign-leads-to-team')
   async searchAgents(@Query('q') searchTerm: string, @Request() req: any) {
     return await this.crmTeamService.searchAgents(req.user.id, searchTerm || '');
   }
@@ -52,7 +52,7 @@ export class CrmTeamController {
   }
 
   @Get('leads')
-  @RequirePermissions('receive-new-leads')
+  @RequirePermissions('assign-leads-to-team')
   async getTeamLeads(@Query() query: any, @Request() req: any) {
     return await this.crmTeamService.getTeamLeads(req.user.id, query);
   }
@@ -133,7 +133,7 @@ export class CrmTeamController {
   // ==================== TEAM MANAGEMENT ====================
 
   @Get('teams')
-  @RequirePermissions('view-team-leader-dashboard')
+  @RequirePermissions('assign-leads-to-team')
   async getTeams(@Request() req: any) {
     return await this.crmTeamService.getTeamsForLeader(req.user.id);
   }
@@ -171,7 +171,7 @@ export class CrmTeamController {
   }
 
   @Get('available-agents')
-  @RequirePermissions('view-team-leader-dashboard')
+  @RequirePermissions('assign-leads-to-team')
   async getAvailableAgents(@Request() req: any) {
     return await this.crmTeamService.getAvailableAgentsForTeamLeader(req.user.id);
   }

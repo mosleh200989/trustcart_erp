@@ -141,7 +141,7 @@ export class TelephonyService {
     page?: number;
     limit?: number;
   }) {
-    const safeLimit = Number.isFinite(params?.limit) ? Math.max(1, Math.min(200, Number(params?.limit))) : 50;
+    const safeLimit = Number.isFinite(params?.limit) ? Math.max(1, Math.min(500, Number(params?.limit))) : 50;
     const safePage = Number.isFinite(params?.page) ? Math.max(1, Number(params?.page)) : 1;
     const skip = (safePage - 1) * safeLimit;
 

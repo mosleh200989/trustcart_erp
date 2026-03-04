@@ -101,7 +101,7 @@ export default function AdminSalesIncompleteOrders() {
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState(INITIAL_FILTERS);
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(20);
+  const [itemsPerPage, setItemsPerPage] = useState(50);
   const [showFilters, setShowFilters] = useState(true);
   const [expandedRow, setExpandedRow] = useState<number | null>(null);
   const [editingOrder, setEditingOrder] = useState<IncompleteOrder | null>(null);
