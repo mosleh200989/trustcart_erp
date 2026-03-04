@@ -1,11 +1,347 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import AdminLayout from '@/layouts/AdminLayout';
 import apiClient from '@/services/api';
-import { FaSave, FaArrowLeft, FaPlus, FaTrash, FaEye, FaGripVertical, FaChevronDown, FaChevronUp } from 'react-icons/fa';
+import { FaSave, FaArrowLeft, FaPlus, FaTrash, FaEye, FaGripVertical, FaChevronDown, FaChevronUp, FaUpload, FaSpinner, FaTimes, FaSearch, FaLink, FaUnlink } from 'react-icons/fa';
 
 // Simple unique ID generator (no uuid dependency needed)
 const generateId = () => `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+
+// ─── Reusable Image Upload Field ───
+function ImageUploadField({
+  label,
+  value,
+  onChange,
+  placeholder = '/image.jpg or https://...',
+  showPreview = true,
+  className = '',
+  inputClassName = 'w-full border rounded-lg px-3 py-2',
+  labelClassName = 'block text-sm font-medium text-gray-700 mb-1',
+}: {
+  label: string;
+  value: string;
+  onChange: (url: string) => void;
+  placeholder?: string;
+  showPreview?: boolean;
+  className?: string;
+  inputClassName?: string;
+  labelClassName?: string;
+}) {
+  const [uploading, setUploading] = useState(false);
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await apiClient.post('/upload/image', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      const url = res.data?.url;
+      if (url) onChange(url);
+    } catch (err) {
+      console.error('Image upload failed:', err);
+      alert('Image upload failed. Please try again.');
+    } finally {
+      setUploading(false);
+      e.target.value = '';
+    }
+  };
+
+  return (
+    <div className={className}>
+      <label className={labelClassName}>{label}</label>
+      <div className="flex gap-2">
+        <input
+          type="text"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className={`${inputClassName} flex-1`}
+          placeholder={placeholder}
+        />
+        <label
+          className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium cursor-pointer transition ${
+            uploading
+              ? 'bg-gray-300 text-gray-500 cursor-wait'
+              : 'bg-blue-600 hover:bg-blue-700 text-white'
+          }`}
+        >
+          {uploading ? <FaSpinner className="animate-spin" /> : <FaUpload />}
+          <span className="hidden sm:inline">{uploading ? 'Uploading...' : 'Upload'}</span>
+          <input
+            type="file"
+            accept="image/*"
+            onChange={handleFileUpload}
+            disabled={uploading}
+            className="hidden"
+          />
+        </label>
+        {value && (
+          <button
+            type="button"
+            onClick={() => onChange('')}
+            className="px-2 py-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition"
+            title="Clear image"
+          >
+            <FaTimes />
+          </button>
+        )}
+      </div>
+      {showPreview && value && (
+        <img src={value} alt="Preview" className="mt-2 w-40 h-28 object-cover rounded border" />
+      )}
+    </div>
+  );
+}
+
+// ─── Section Images Upload Button ───
+function SectionImageUploadButton({
+  currentImages,
+  onImagesChange,
+}: {
+  currentImages: string[];
+  onImagesChange: (images: string[]) => void;
+}) {
+  const [uploading, setUploading] = useState(false);
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    setUploading(true);
+    try {
+      const newUrls: string[] = [];
+      for (let i = 0; i < files.length; i++) {
+        const formData = new FormData();
+        formData.append('file', files[i]);
+        const res = await apiClient.post('/upload/image', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        });
+        if (res.data?.url) newUrls.push(res.data.url);
+      }
+      onImagesChange([...currentImages, ...newUrls]);
+    } catch (err) {
+      console.error('Image upload failed:', err);
+      alert('Image upload failed. Please try again.');
+    } finally {
+      setUploading(false);
+      e.target.value = '';
+    }
+  };
+
+  return (
+    <label
+      className={`inline-flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium cursor-pointer transition ${
+        uploading
+          ? 'bg-gray-300 text-gray-500 cursor-wait'
+          : 'bg-blue-600 hover:bg-blue-700 text-white'
+      }`}
+    >
+      {uploading ? <FaSpinner className="animate-spin" /> : <FaUpload />}
+      {uploading ? 'Uploading...' : 'Upload Images'}
+      <input
+        type="file"
+        accept="image/*"
+        multiple
+        onChange={handleFileUpload}
+        disabled={uploading}
+        className="hidden"
+      />
+    </label>
+  );
+}
+
+// ─── Product Search Field (type-ahead with variant support) ───
+function ProductSearchField({
+  productId,
+  variantName,
+  onSelect,
+}: {
+  productId?: number;
+  variantName?: string;
+  onSelect: (data: { product_id?: number; variant_name?: string; name?: string; price?: number; compare_price?: number; image_url?: string }) => void;
+}) {
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [linkedName, setLinkedName] = useState('');
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Fetch product name on mount if product_id exists
+  useEffect(() => {
+    if (productId) {
+      apiClient.get(`/products/${productId}`)
+        .then((res) => {
+          const p = res.data;
+          const name = p?.name_en || p?.name || `Product #${productId}`;
+          setLinkedName(variantName ? `${name} — ${variantName}` : name);
+        })
+        .catch(() => setLinkedName(`Product #${productId}`));
+    } else {
+      setLinkedName('');
+    }
+  }, [productId, variantName]);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
+        setShowDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const searchProducts = useCallback(async (q: string) => {
+    if (q.length < 2) { setResults([]); setShowDropdown(false); return; }
+    setLoading(true);
+    try {
+      const res = await apiClient.get(`/products/search?q=${encodeURIComponent(q)}`);
+      const products = Array.isArray(res.data) ? res.data : (res.data?.data || []);
+      setResults(products.slice(0, 10));
+      setShowDropdown(products.length > 0);
+    } catch { setResults([]); } finally { setLoading(false); }
+  }, []);
+
+  const handleInputChange = (value: string) => {
+    setQuery(value);
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => searchProducts(value), 300);
+  };
+
+  const handleSelect = (product: any, variant?: { name: string; price: number }) => {
+    const vName = variant?.name || '';
+    const price = variant ? Number(variant.price) : Number(product.sale_price || product.base_price || product.price || 0);
+    const basePrice = Number(product.base_price || product.price || 0);
+    const displayName = vName
+      ? `${product.name_en || product.name} — ${vName}`
+      : (product.name_en || product.name || '');
+    onSelect({
+      product_id: product.id,
+      variant_name: vName || undefined,
+      name: vName ? `${product.name_en || product.name} - ${vName}` : (product.name_en || product.name),
+      price: price,
+      compare_price: price < basePrice ? basePrice : undefined,
+      image_url: product.image_url || product.image || undefined,
+    });
+    setLinkedName(displayName);
+    setQuery('');
+    setShowDropdown(false);
+    setResults([]);
+    setExpandedId(null);
+  };
+
+  const handleUnlink = () => {
+    onSelect({ product_id: undefined, variant_name: undefined });
+    setLinkedName('');
+  };
+
+  return (
+    <div ref={wrapperRef} className="relative">
+      <label className="block text-xs text-gray-500 mb-1">Link Product</label>
+      {/* Show linked product badge */}
+      {productId && linkedName && (
+        <div className="flex items-center gap-2 mb-1.5 px-2 py-1.5 bg-green-50 border border-green-200 rounded text-sm">
+          <FaLink className="text-green-500 flex-shrink-0" />
+          <span className="flex-1 truncate text-green-800 font-medium">{linkedName}</span>
+          <span className="text-xs text-green-500">ID: {productId}</span>
+          <button type="button" onClick={handleUnlink} className="text-red-400 hover:text-red-600 ml-1" title="Unlink product">
+            <FaUnlink />
+          </button>
+        </div>
+      )}
+      {/* Search input */}
+      <div className="relative">
+        <FaSearch className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs" />
+        <input
+          type="text"
+          value={query}
+          onChange={(e) => handleInputChange(e.target.value)}
+          onFocus={() => { if (results.length > 0) setShowDropdown(true); }}
+          className="w-full border rounded px-3 py-2 pl-7 text-sm"
+          placeholder="Type to search products..."
+          autoComplete="off"
+        />
+        {loading && (
+          <div className="absolute right-2.5 top-1/2 -translate-y-1/2">
+            <FaSpinner className="animate-spin text-blue-500 text-xs" />
+          </div>
+        )}
+      </div>
+      {/* Dropdown */}
+      {showDropdown && results.length > 0 && (
+        <div className="absolute z-50 left-0 right-0 mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-64 overflow-y-auto">
+          {results.map((p: any) => {
+            const salePrice = Number(p.sale_price || p.base_price || p.price || 0);
+            const basePrice = Number(p.base_price || p.price || 0);
+            const hasDiscount = p.sale_price && salePrice < basePrice;
+            const variants: Array<{ name: string; price: number }> = Array.isArray(p.size_variants) && p.size_variants.length > 0 ? p.size_variants : [];
+            const isExp = expandedId === p.id;
+            return (
+              <div key={p.id} className="border-b last:border-b-0">
+                <button
+                  type="button"
+                  onClick={() => variants.length > 0 ? setExpandedId(isExp ? null : p.id) : handleSelect(p)}
+                  className="w-full text-left px-3 py-2 hover:bg-blue-50 flex items-center gap-2 transition-colors"
+                >
+                  {(p.image_url || p.image) && (
+                    <img src={p.image_url || p.image} alt="" className="w-8 h-8 object-contain rounded border flex-shrink-0" crossOrigin="anonymous" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium text-gray-900 truncate flex items-center gap-1">
+                      {variants.length > 0 && <span className={`text-xs transition-transform inline-block ${isExp ? 'rotate-90' : ''}`}>▶</span>}
+                      {p.name_en || p.name}
+                    </div>
+                    {variants.length > 0 && <div className="text-xs text-blue-500">{variants.length} variant{variants.length > 1 ? 's' : ''}</div>}
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    {variants.length === 0 && (
+                      <>
+                        <div className="text-xs font-semibold text-blue-600">৳{salePrice.toFixed(2)}</div>
+                        {hasDiscount && <div className="text-xs text-gray-400 line-through">৳{basePrice.toFixed(2)}</div>}
+                      </>
+                    )}
+                  </div>
+                </button>
+                {variants.length > 0 && isExp && (
+                  <div className="bg-gray-50 border-t">
+                    {variants.map((v, vi) => (
+                      <button
+                        key={vi}
+                        type="button"
+                        onClick={() => handleSelect(p, v)}
+                        className="w-full text-left pl-8 pr-3 py-1.5 hover:bg-blue-100 flex items-center gap-2 transition-colors border-b last:border-b-0 border-gray-100"
+                      >
+                        <span className="text-gray-400 text-xs">├─</span>
+                        <span className="flex-1 text-sm text-gray-800">{v.name}</span>
+                        <span className="text-xs font-semibold text-green-600">৳{Number(v.price).toFixed(2)}</span>
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => handleSelect(p)}
+                      className="w-full text-left pl-8 pr-3 py-1.5 hover:bg-yellow-50 flex items-center gap-2 transition-colors border-t border-gray-200"
+                    >
+                      <span className="text-gray-400 text-xs">└─</span>
+                      <span className="flex-1 text-sm text-gray-500 italic">Base product (no variant)</span>
+                      <span className="text-xs font-semibold text-blue-600">৳{salePrice.toFixed(2)}</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+      <p className="text-xs text-gray-400 mt-0.5">Search &amp; link a real product for order tracking. Fills name, price &amp; image.</p>
+    </div>
+  );
+}
 
 interface LandingPageSection {
   id: string;
@@ -31,6 +367,7 @@ interface LandingPageProduct {
   compare_price?: number;
   sku?: string;
   product_id?: number;
+  variant_name?: string;
   is_default: boolean;
   is_featured?: boolean;
   featured_label?: string;
@@ -384,17 +721,12 @@ export default function LandingPageEditor() {
         <h3 className="text-lg font-semibold mb-3">Hero Section</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Hero Image URL</label>
-            <input
-              type="text"
+            <ImageUploadField
+              label="Hero Image URL"
               value={form.hero_image_url}
-              onChange={(e) => setForm((prev) => ({ ...prev, hero_image_url: e.target.value }))}
-              className="w-full border rounded-lg px-3 py-2"
+              onChange={(url) => setForm((prev) => ({ ...prev, hero_image_url: url }))}
               placeholder="/seed-mix.jpg or https://..."
             />
-            {form.hero_image_url && (
-              <img src={form.hero_image_url} alt="Hero preview" className="mt-2 w-40 h-28 object-cover rounded" />
-            )}
           </div>
           <div className="space-y-3">
             <div>
@@ -644,7 +976,13 @@ export default function LandingPageEditor() {
                 {/* Images (for images type) */}
                 {section.type === 'images' && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Image URLs (one per line)</label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-sm font-medium text-gray-700">Image URLs (one per line)</label>
+                      <SectionImageUploadButton
+                        currentImages={section.images || []}
+                        onImagesChange={(imgs) => updateSection(section.id, { images: imgs })}
+                      />
+                    </div>
                     <textarea
                       value={(section.images || []).join('\n')}
                       onChange={(e) => updateSection(section.id, { images: e.target.value.split('\n').filter(Boolean) })}
@@ -652,6 +990,26 @@ export default function LandingPageEditor() {
                       className="w-full border rounded-lg px-3 py-2 font-mono text-sm"
                       placeholder="/image1.jpg&#10;/image2.jpg"
                     />
+                    {(section.images || []).length > 0 && (
+                      <div className="flex gap-2 mt-2 flex-wrap">
+                        {(section.images || []).map((img, idx) => (
+                          <div key={idx} className="relative group">
+                            <img src={img} alt={`Section image ${idx + 1}`} className="w-20 h-16 object-cover rounded border" />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const newImages = [...(section.images || [])];
+                                newImages.splice(idx, 1);
+                                updateSection(section.id, { images: newImages });
+                              }}
+                              className="absolute -top-1.5 -right-1.5 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition"
+                            >
+                              <FaTimes />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -748,27 +1106,26 @@ export default function LandingPageEditor() {
                   className="w-full border rounded px-3 py-2 text-sm"
                 />
               </div>
-              <div>
-                <label className="block text-xs text-gray-500 mb-1">Image URL</label>
-                <input
-                  type="text"
-                  value={product.image_url || ''}
-                  onChange={(e) => updateProduct(product.id, { image_url: e.target.value })}
-                  className="w-full border rounded px-3 py-2 text-sm"
-                  placeholder="/seed-mix.jpg"
-                />
-              </div>
-              <div>
-                <label className="block text-xs text-gray-500 mb-1">Linked Product ID</label>
-                <input
-                  type="number"
-                  value={product.product_id || ''}
-                  onChange={(e) => updateProduct(product.id, { product_id: parseInt(e.target.value) || undefined })}
-                  className="w-full border rounded px-3 py-2 text-sm"
-                  placeholder="e.g. 396 (from All Products)"
-                />
-                <p className="text-xs text-gray-400 mt-0.5">Link to a real product for order tracking &amp; images</p>
-              </div>
+              <ImageUploadField
+                label="Image URL"
+                value={product.image_url || ''}
+                onChange={(url) => updateProduct(product.id, { image_url: url })}
+                placeholder="/seed-mix.jpg or https://..."
+                inputClassName="w-full border rounded px-3 py-2 text-sm"
+                labelClassName="block text-xs text-gray-500 mb-1"
+              />
+              <ProductSearchField
+                productId={product.product_id}
+                variantName={product.variant_name}
+                onSelect={(data) => updateProduct(product.id, {
+                  product_id: data.product_id,
+                  variant_name: data.variant_name,
+                  ...(data.name ? { name: data.name } : {}),
+                  ...(data.price ? { price: data.price } : {}),
+                  ...(data.compare_price ? { compare_price: data.compare_price } : {}),
+                  ...(data.image_url ? { image_url: data.image_url } : {}),
+                })}
+              />
               <div>
                 <label className="block text-xs text-gray-500 mb-1">Description</label>
                 <input
@@ -964,12 +1321,10 @@ export default function LandingPageEditor() {
         />
       </div>
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">OG Image URL</label>
-        <input
-          type="text"
+        <ImageUploadField
+          label="OG Image URL"
           value={form.og_image_url}
-          onChange={(e) => setForm((prev) => ({ ...prev, og_image_url: e.target.value }))}
-          className="w-full border rounded-lg px-3 py-2"
+          onChange={(url) => setForm((prev) => ({ ...prev, og_image_url: url }))}
           placeholder="Social sharing image URL"
         />
       </div>
