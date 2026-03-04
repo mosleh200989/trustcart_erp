@@ -1703,7 +1703,7 @@ export class CrmTeamService {
     }
 
     const page = Number(options?.page) || 1;
-    const limit = Math.min(Number(options?.limit) || 50, 200);
+    const limit = Math.min(Number(options?.limit) || 50, 500);
     const skip = (page - 1) * limit;
 
     // Build date range

@@ -74,7 +74,7 @@ export default function AllTasksPage() {
   
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(20);
+  const [itemsPerPage, setItemsPerPage] = useState(50);
 
   // Stats
   const [stats, setStats] = useState<Stats>({

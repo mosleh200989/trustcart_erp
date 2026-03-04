@@ -191,7 +191,7 @@ export class LeadManagementService {
     qb.orderBy('io.created_at', 'DESC');
 
     const page = filters.page && filters.page > 0 ? filters.page : 1;
-    const limit = filters.limit && filters.limit > 0 ? Math.min(filters.limit, 200) : 20;
+    const limit = filters.limit && filters.limit > 0 ? Math.min(filters.limit, 500) : 20;
     const [data, total] = await qb.skip((page - 1) * limit).take(limit).getManyAndCount();
 
     // Get summary stats
