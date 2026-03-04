@@ -116,17 +116,18 @@ export class SalesService {
     const map = new Map<number, { productName: string; quantity: number }[]>();
     if (orderIds.length === 0) return map;
 
-    // Query both item tables in one go, coalesce product_name from products table if missing
+    // Query both item tables — prefer order_items (admin/migrated) when they exist,
+    // fall back to sales_order_items (checkout/landing-page) for orders not yet migrated.
     const rows: { order_id: number; product_name: string | null; product_id: number | null; quantity: number }[] =
       await this.salesRepository.manager.query(
-        `SELECT sales_order_id AS order_id, soi.product_name, soi.product_id, soi.quantity
-         FROM sales_order_items soi
-         WHERE soi.sales_order_id = ANY($1)
-         UNION ALL
-         SELECT oi.order_id, oi.product_name, oi.product_id, oi.quantity
+        `SELECT oi.order_id, oi.product_name, oi.product_id, oi.quantity
          FROM order_items oi
          WHERE oi.order_id = ANY($1)
-           AND oi.order_id NOT IN (SELECT DISTINCT s2.sales_order_id FROM sales_order_items s2 WHERE s2.sales_order_id = ANY($1))`,
+         UNION ALL
+         SELECT soi.sales_order_id AS order_id, soi.product_name, soi.product_id, soi.quantity
+         FROM sales_order_items soi
+         WHERE soi.sales_order_id = ANY($1)
+           AND soi.sales_order_id NOT IN (SELECT DISTINCT oi2.order_id FROM order_items oi2 WHERE oi2.order_id = ANY($1))`,
         [orderIds],
       );
 

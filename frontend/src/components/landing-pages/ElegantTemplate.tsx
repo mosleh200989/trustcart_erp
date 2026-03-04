@@ -507,7 +507,7 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
                 </div> */}
 
                 <h1
-                  className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold mb-5 leading-tight"
+                  className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold mb-5 leading-tight whitespace-pre-line"
                   style={{ color: page.secondary_color }}
                 >
                   {page.hero_title || page.title}

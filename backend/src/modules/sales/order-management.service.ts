@@ -479,6 +479,10 @@ export class OrderManagementService {
           order.deliveryCharge = derivedDeliveryCharge as any;
           await this.salesOrderRepository.save(order);
         }
+
+        // Remove migrated rows from sales_order_items so the batchFetchOrderItems
+        // query in the listing reads exclusively from `order_items` for this order.
+        await this.salesOrderItemRepository.delete({ salesOrderId: data.orderId });
       }
     }
 
