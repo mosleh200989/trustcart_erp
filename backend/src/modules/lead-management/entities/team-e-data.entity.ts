@@ -12,7 +12,7 @@ export class TeamEData {
   permanentMembershipNumber: string;
 
   @Column({ name: 'membership_tier', nullable: true })
-  membershipTier: string; // silver, gold, platinum, vip
+  membershipTier: string; // silver, gold, platinum, vip, blacklist
 
   @Column({ name: 'membership_start_date', type: 'date', nullable: true })
   membershipStartDate: Date;

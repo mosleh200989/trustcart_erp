@@ -7,7 +7,7 @@ import apiClient from '@/services/api';
 interface MembershipData {
   id: number;
   customerId: number;
-  membershipTier: 'none' | 'silver' | 'gold';
+  membershipTier: 'none' | 'silver' | 'gold' | 'permanent';
   discountPercentage: number;
   currentMonthSpend: number;
   totalMonthlySpend: number;
@@ -107,27 +107,29 @@ export default function MembershipDashboard() {
     );
   }
 
-  const tierColor = {
+  const tierColor: Record<string, string> = {
     none: 'bg-gray-100 text-gray-800 border-gray-300',
     silver: 'bg-gradient-to-r from-gray-300 to-gray-400 text-gray-900 border-gray-500',
     gold: 'bg-gradient-to-r from-yellow-400 to-yellow-600 text-yellow-900 border-yellow-700',
-  }[membership.membershipTier];
+    permanent: 'bg-gradient-to-r from-green-400 to-green-600 text-white border-green-700',
+  };
 
-  const tierIcon = {
+  const tierIcon: Record<string, string> = {
     none: '👤',
     silver: '🥈',
     gold: '🥇',
-  }[membership.membershipTier];
+    permanent: '🏅',
+  };
 
   return (
     <AdminLayout>
       <div className="p-6 space-y-6">
         {/* Header */}
-        <div className={`rounded-lg shadow-lg p-6 border-4 ${tierColor}`}>
+        <div className={`rounded-lg shadow-lg p-6 border-4 ${tierColor[membership.membershipTier] || tierColor.none}`}>
           <div className="flex items-center justify-between">
             <div>
               <div className="flex items-center gap-3 mb-2">
-                <span className="text-4xl">{tierIcon}</span>
+                <span className="text-4xl">{tierIcon[membership.membershipTier] || tierIcon.none}</span>
                 <h1 className="text-3xl font-bold uppercase">{membership.membershipTier} Member</h1>
               </div>
               <div className="text-sm opacity-90">

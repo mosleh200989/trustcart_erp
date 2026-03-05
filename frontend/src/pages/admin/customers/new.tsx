@@ -29,7 +29,7 @@ export default function NewCustomerPage() {
     phone: '',
     mobile: '',
     company: '',
-    tier: 'bronze',
+    tier: 'silver',
     notes: '',
     source: '',
     priority: 'cold',
@@ -185,10 +185,11 @@ export default function NewCustomerPage() {
                   onChange={handleChange}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 >
-                  <option value="bronze">Bronze</option>
                   <option value="silver">Silver</option>
                   <option value="gold">Gold</option>
                   <option value="platinum">Platinum</option>
+                  <option value="vip">VIP</option>
+                  <option value="blacklist">Black List</option>
                 </select>
               </div>
               <div>
