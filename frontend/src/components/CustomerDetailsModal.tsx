@@ -43,7 +43,9 @@ export default function CustomerDetailsModal({ customerId, onClose }: CustomerDe
       case 'platinum': return 'bg-purple-100 text-purple-800';
       case 'gold': return 'bg-yellow-100 text-yellow-800';
       case 'silver': return 'bg-gray-200 text-gray-800';
-      default: return 'bg-orange-100 text-orange-800';
+      case 'vip': return 'bg-red-100 text-red-800';
+      case 'blacklist': return 'bg-black text-white';
+      default: return 'bg-gray-100 text-gray-600';
     }
   };
 
@@ -90,7 +92,7 @@ export default function CustomerDetailsModal({ customerId, onClose }: CustomerDe
                   </div>
                   <div className="flex items-center gap-2 mt-2">
                     <span className={`px-2 py-1 text-xs rounded-full ${getTierBadgeColor(customer.tier)}`}>
-                      {customer.tier || 'Bronze'} Tier
+                      {customer.tier ? customer.tier.charAt(0).toUpperCase() + customer.tier.slice(1) : 'No Tier'} Tier
                     </span>
                     <span className="text-sm text-gray-500">
                       ID: #{customer.id}

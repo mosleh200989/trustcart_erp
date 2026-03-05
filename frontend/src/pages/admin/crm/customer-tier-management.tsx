@@ -62,6 +62,7 @@ export default function CustomerTierManagementPage() {
     gold: 0,
     platinum: 0,
     vip: 0,
+    blacklist: 0,
     noTier: 0,
   });
 
@@ -200,6 +201,8 @@ export default function CustomerTierManagementPage() {
         return 'bg-purple-200 text-purple-800';
       case 'vip':
         return 'bg-red-200 text-red-800';
+      case 'blacklist':
+        return 'bg-black text-white';
       default:
         return 'bg-gray-100 text-gray-600';
     }
@@ -214,7 +217,7 @@ export default function CustomerTierManagementPage() {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-6 gap-4 mb-6">
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4 mb-6">
           <div className="bg-green-50 p-4 rounded-lg shadow">
             <div className="text-sm text-green-600 font-medium">Active Customers</div>
             <div className="text-2xl font-bold text-green-700">{stats.totalActive}</div>
@@ -244,6 +247,11 @@ export default function CustomerTierManagementPage() {
             <div className="text-sm text-red-600 font-medium">VIP</div>
             <div className="text-2xl font-bold text-red-700">{stats.vip}</div>
           </div>
+
+          <div className="bg-gray-900 p-4 rounded-lg shadow">
+            <div className="text-sm text-gray-300 font-medium">Black List</div>
+            <div className="text-2xl font-bold text-white">{stats.blacklist || 0}</div>
+          </div>
         </div>
 
         {/* Filters */}
@@ -261,6 +269,7 @@ export default function CustomerTierManagementPage() {
                 <option value="gold">Gold</option>
                 <option value="platinum">Platinum</option>
                 <option value="vip">VIP</option>
+                <option value="blacklist">Black List</option>
               </select>
             </div>
 
@@ -427,6 +436,7 @@ export default function CustomerTierManagementPage() {
                     <option value="gold">Gold</option>
                     <option value="platinum">Platinum</option>
                     <option value="vip">VIP</option>
+                    <option value="blacklist">Black List</option>
                   </select>
                 </div>
 

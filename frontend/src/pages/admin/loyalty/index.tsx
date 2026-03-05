@@ -275,15 +275,15 @@ export default function LoyaltyKPIDashboard() {
               <div className="flex justify-between items-center mb-2">
                 <span className="text-sm font-medium">👤 No Membership</span>
                 <span className="text-sm font-bold">
-                  {kpis.total_customers - kpis.silver_members - kpis.gold_members} 
-                  ({(((kpis.total_customers - kpis.silver_members - kpis.gold_members) / kpis.total_customers) * 100).toFixed(1)}%)
+                  {kpis.total_customers - kpis.silver_members - kpis.gold_members - (kpis.permanent_members || 0)} 
+                  ({(((kpis.total_customers - kpis.silver_members - kpis.gold_members - (kpis.permanent_members || 0)) / kpis.total_customers) * 100).toFixed(1)}%)
                 </span>
               </div>
               <div className="bg-gray-200 rounded-full h-3">
                 <div 
                   className="bg-gray-400 rounded-full h-3"
                   style={{ 
-                    width: `${((kpis.total_customers - kpis.silver_members - kpis.gold_members) / kpis.total_customers) * 100}%` 
+                    width: `${((kpis.total_customers - kpis.silver_members - kpis.gold_members - (kpis.permanent_members || 0)) / kpis.total_customers) * 100}%` 
                   }}
                 />
               </div>

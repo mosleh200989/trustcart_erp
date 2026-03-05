@@ -444,6 +444,7 @@ export default function TeamDataCollectionPage() {
           <option value="gold">Gold</option>
           <option value="platinum">Platinum</option>
           <option value="vip">VIP</option>
+          <option value="blacklist">Black List</option>
         </select>
       </div>
 

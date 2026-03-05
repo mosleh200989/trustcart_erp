@@ -175,9 +175,10 @@ export default function CustomersPage() {
       platinum: 'bg-purple-100 text-purple-800',
       gold: 'bg-yellow-100 text-yellow-800',
       silver: 'bg-gray-100 text-gray-800',
-      bronze: 'bg-orange-100 text-orange-800',
+      vip: 'bg-red-100 text-red-800',
+      blacklist: 'bg-black text-white',
     };
-    return colors[tier?.toLowerCase() || 'bronze'] || 'bg-gray-100 text-gray-800';
+    return colors[tier?.toLowerCase() || ''] || 'bg-gray-100 text-gray-600';
   };
 
   const openSmsModal = (customer: Customer) => {
@@ -301,10 +302,11 @@ export default function CustomersPage() {
                 onChange={(e) => setTierFilter(e.target.value)}
               >
                 <option value="">All Tiers</option>
-                <option value="platinum">Platinum</option>
-                <option value="gold">Gold</option>
                 <option value="silver">Silver</option>
-                <option value="bronze">Bronze</option>
+                <option value="gold">Gold</option>
+                <option value="platinum">Platinum</option>
+                <option value="vip">VIP</option>
+                <option value="blacklist">Black List</option>
               </select>
             </div>
           </div>
@@ -388,7 +390,7 @@ export default function CustomersPage() {
                       </td>
                       <td className="px-6 py-4">
                         <span className={`px-2 py-1 text-xs rounded-full ${getTierBadgeColor(customer.tier)}`}>
-                          {customer.tier || 'Bronze'}
+                          {customer.tier ? customer.tier.charAt(0).toUpperCase() + customer.tier.slice(1) : 'No Tier'}
                         </span>
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-700">

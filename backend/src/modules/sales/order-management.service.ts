@@ -277,7 +277,7 @@ export class OrderManagementService {
       .join(', ')
       .slice(0, 250);
 
-    const totalLot = items.reduce((sum, i) => sum + Number(i.quantity || 0), 0);
+    const totalLot = 1;
     const noteParts = [order.courierNotes, order.riderInstructions].filter(Boolean).map((v) => String(v));
     const note = noteParts.join(' | ').slice(0, 250) || undefined;
 

@@ -548,6 +548,7 @@ export class LeadManagementService {
         COUNT(CASE WHEN ct.tier = 'gold' THEN 1 END)::int as gold,
         COUNT(CASE WHEN ct.tier = 'platinum' THEN 1 END)::int as platinum,
         COUNT(CASE WHEN ct.tier = 'vip' THEN 1 END)::int as vip,
+        COUNT(CASE WHEN ct.tier = 'blacklist' THEN 1 END)::int as blacklist,
         COUNT(CASE WHEN ct.tier IS NULL THEN 1 END)::int as no_tier
       FROM customers c
       LEFT JOIN customer_tiers ct ON ct.customer_id = c.id

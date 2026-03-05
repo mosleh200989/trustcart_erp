@@ -341,10 +341,11 @@ function SegmentModal({
                       }
                     >
                       <option value="">Any Tier</option>
-                      <option value="bronze">Bronze</option>
                       <option value="silver">Silver</option>
                       <option value="gold">Gold</option>
                       <option value="platinum">Platinum</option>
+                      <option value="vip">VIP</option>
+                      <option value="blacklist">Black List</option>
                     </select>
                   </div>
                 </div>
