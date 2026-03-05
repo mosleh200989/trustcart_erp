@@ -273,7 +273,7 @@ export class OrderManagementService {
 
     const itemDescription = items
       .slice(0, 20)
-      .map((i) => `${i.productName} x${Number(i.quantity || 0)}`)
+      .map((i) => `${i.displayName || i.customProductName || i.productName} x${Number(i.quantity || 0)}`)
       .join(', ')
       .slice(0, 250);
 
@@ -386,7 +386,14 @@ export class OrderManagementService {
     });
 
     // Preferred source for admin-managed orders
-    if (orderItems.length > 0) return orderItems;
+    // Return with customProductName so display name can be overridden
+    if (orderItems.length > 0) {
+      return orderItems.map((item) => ({
+        ...item,
+        // Display name: prefer customProductName over productName
+        displayName: item.customProductName || item.productName,
+      }));
+    }
 
     // Fallback for checkout-created orders (stored in sales_order_items)
     const salesItems = await this.salesOrderItemRepository.find({
@@ -407,12 +414,16 @@ export class OrderManagementService {
       const unit = Number(si.unitPrice || 0);
       const subtotal = si.lineTotal != null ? Number(si.lineTotal) : qty * unit;
       const product = si.productId ? productById.get(Number(si.productId)) : null;
+      const originalName = product?.name_en || (si as any).productName || (si as any).product_name || 'Landing Page Product';
+      const customName = (si as any).customProductName || (si as any).custom_product_name || null;
 
       return {
         id: si.id,
         orderId,
         productId: si.productId ? Number(si.productId) : null,
-        productName: product?.name_en || (si as any).productName || (si as any).product_name || 'Landing Page Product',
+        productName: originalName,
+        customProductName: customName,
+        displayName: customName || originalName,
         variantName: (si as any).variantName || (si as any).variant_name || null,
         productImage: product?.image_url || (si as any).productImage || (si as any).product_image || null,
         quantity: qty,
@@ -461,6 +472,7 @@ export class OrderManagementService {
             orderId: data.orderId,
             productId: si.productId ? Number(si.productId) : 0,
             productName: product?.name_en || (si as any).productName || (si as any).product_name || 'Product',
+            customProductName: (si as any).customProductName || (si as any).custom_product_name || null,
             variantName: (si as any).variantName || (si as any).variant_name || undefined,
             quantity: qty,
             unitPrice: unit,
@@ -538,31 +550,123 @@ export class OrderManagementService {
     data: {
       quantity?: number;
       unitPrice?: number;
+      customProductName?: string | null;
+      orderId?: number;
       userId: number;
       userName: string;
       ipAddress?: string;
     }
   ): Promise<OrderItem> {
-    const item = await this.orderItemRepository.findOne({ where: { id: itemId } });
-    if (!item) throw new Error('Order item not found');
+    let item = await this.orderItemRepository.findOne({ where: { id: itemId } });
 
-    const oldValue = { quantity: item.quantity, unitPrice: item.unitPrice, subtotal: item.subtotal };
+    // If not found in order_items, the item likely lives in sales_order_items (checkout-created).
+    // Auto-migrate ALL items for this order from sales_order_items → order_items, then find it.
+    if (!item) {
+      // Try to find in sales_order_items
+      const salesItem = await this.salesOrderItemRepository.findOne({ where: { id: itemId } });
+      if (!salesItem) {
+        // Also try with orderId if provided — the itemId might be an index-based lookup
+        throw new Error('Order item not found');
+      }
+
+      const orderId = salesItem.salesOrderId;
+
+      // Migrate all sales_order_items for this order → order_items
+      const existingAdminItems = await this.orderItemRepository.find({ where: { orderId } });
+      if (existingAdminItems.length === 0) {
+        const salesItems = await this.salesOrderItemRepository.find({ where: { salesOrderId: orderId } });
+        if (salesItems.length > 0) {
+          const productIds = Array.from(new Set(salesItems.map((i) => Number(i.productId)).filter(Boolean)));
+          const products = productIds.length
+            ? await this.productRepository.find({ where: { id: In(productIds) } })
+            : [];
+          const productById = new Map(products.map((p) => [Number(p.id), p]));
+
+          // Map old sales_order_items ids to new order_items ids
+          const idMapping = new Map<number, number>();
+          let migratedSubtotal = 0;
+          for (const si of salesItems) {
+            const qty = Number(si.quantity || 0);
+            const unit = Number(si.unitPrice || 0);
+            const sub = si.lineTotal != null ? Number(si.lineTotal) : qty * unit;
+            const product = si.productId ? productById.get(Number(si.productId)) : null;
+
+            const migratedItem = this.orderItemRepository.create({
+              orderId,
+              productId: si.productId ? Number(si.productId) : 0,
+              productName: product?.name_en || (si as any).productName || (si as any).product_name || 'Product',
+              customProductName: (si as any).customProductName || (si as any).custom_product_name || null,
+              variantName: (si as any).variantName || (si as any).variant_name || undefined,
+              quantity: qty,
+              unitPrice: unit,
+              subtotal: sub,
+              updatedBy: data.userId,
+            });
+            const saved = await this.orderItemRepository.save(migratedItem);
+            idMapping.set(si.id, saved.id);
+            migratedSubtotal += sub;
+          }
+
+          // Persist deliveryCharge if needed
+          const order = await this.salesOrderRepository.findOne({ where: { id: orderId } });
+          if (order && (!order.deliveryCharge || Number(order.deliveryCharge) === 0)) {
+            const discountAmount = Number(order.discountAmount || 0);
+            const derivedDeliveryCharge = Math.max(0, Number(order.totalAmount || 0) - migratedSubtotal + discountAmount);
+            order.deliveryCharge = derivedDeliveryCharge as any;
+            await this.salesOrderRepository.save(order);
+          }
+
+          // Remove migrated rows
+          await this.salesOrderItemRepository.delete({ salesOrderId: orderId });
+
+          // Now find the migrated item by its new ID
+          const newItemId = idMapping.get(itemId);
+          if (newItemId) {
+            item = await this.orderItemRepository.findOne({ where: { id: newItemId } });
+          }
+        }
+      }
+
+      if (!item) throw new Error('Order item not found after migration');
+    }
+
+    const oldValue = { quantity: item.quantity, unitPrice: item.unitPrice, subtotal: item.subtotal, customProductName: item.customProductName };
 
     if (data.quantity !== undefined) item.quantity = data.quantity;
     if (data.unitPrice !== undefined) item.unitPrice = data.unitPrice;
+    if (data.customProductName !== undefined) {
+      // Allow null/empty to clear the override, trimmed empty string becomes null
+      const trimmed = data.customProductName ? data.customProductName.trim() : null;
+      item.customProductName = trimmed || null;
+    }
     
     item.subtotal = item.quantity * item.unitPrice;
     item.updatedBy = data.userId;
 
     const updatedItem = await this.orderItemRepository.save(item);
 
+    // Recalculate order total after update
+    try {
+      const order = await this.salesOrderRepository.findOne({ where: { id: item.orderId } });
+      if (order) {
+        const allItems = await this.orderItemRepository.find({ where: { orderId: item.orderId } });
+        const newItemsSubtotal = allItems.reduce((sum, it) => sum + Number(it.subtotal || 0), 0);
+        const discountAmount = Number(order.discountAmount || 0);
+        const dc = Number(order.deliveryCharge || 0);
+        order.totalAmount = newItemsSubtotal + dc - discountAmount;
+        await this.salesOrderRepository.save(order);
+      }
+    } catch (e) {
+      this.logger.warn(`Failed to update order total after editing item: ${e}`);
+    }
+
     // Log activity
     await this.logActivity({
       orderId: item.orderId,
       actionType: 'product_updated',
-      actionDescription: `Updated product: ${item.productName}`,
+      actionDescription: `Updated product: ${item.customProductName || item.productName}`,
       oldValue,
-      newValue: { quantity: item.quantity, unitPrice: item.unitPrice, subtotal: item.subtotal },
+      newValue: { quantity: item.quantity, unitPrice: item.unitPrice, subtotal: item.subtotal, customProductName: item.customProductName },
       performedBy: data.userId,
       performedByName: data.userName,
       ipAddress: data.ipAddress,
@@ -798,9 +902,9 @@ export class OrderManagementService {
     const order = await this.salesOrderRepository.findOne({ where: { id: orderId } });
     if (!order) throw new Error('Order not found');
 
-    // Cannot cancel if already picked/in_transit/delivered
-    if (['picked', 'in_transit', 'delivered'].includes(order.status)) {
-      throw new Error('Cannot cancel order - already shipped');
+    // Cannot cancel if already picked/in_transit/delivered/cancelled
+    if (['picked', 'in_transit', 'delivered', 'cancelled', 'admin_cancelled'].includes(order.status)) {
+      throw new Error('Cannot cancel order - already shipped or cancelled');
     }
 
     if (!cancelReason || cancelReason.trim() === '') {
@@ -808,7 +912,7 @@ export class OrderManagementService {
     }
 
     const oldStatus = order.status;
-    order.status = 'cancelled';
+    order.status = 'admin_cancelled';
     order.cancelReason = cancelReason;
     order.cancelledBy = userId;
     order.cancelledAt = new Date();
@@ -817,10 +921,10 @@ export class OrderManagementService {
 
     await this.logActivity({
       orderId,
-      actionType: 'cancelled',
+      actionType: 'admin_cancelled',
       actionDescription: `Order cancelled by ${userName}. Reason: ${cancelReason}`,
       oldValue: { status: oldStatus },
-      newValue: { status: 'cancelled', cancelReason },
+      newValue: { status: 'admin_cancelled', cancelReason },
       performedBy: userId,
       performedByName: userName,
       ipAddress,
@@ -1699,7 +1803,9 @@ export class OrderManagementService {
       },
       items: items.map((item: any) => ({
         id: item.id,
-        productName: item.productName || item.product_name || 'Product',
+        productName: item.displayName || item.customProductName || item.productName || item.product_name || 'Product',
+        originalProductName: item.productName || item.product_name || 'Product',
+        customProductName: item.customProductName || item.custom_product_name || null,
         productImage: item.productImage || item.product_image || null,
         quantity: Number(item.quantity || 0),
         unitPrice: Number(item.unitPrice || item.unit_price || 0),
@@ -1726,7 +1832,8 @@ export class OrderManagementService {
         trackingId: order.trackingId,
       },
       items: items.map((item: any) => ({
-        productName: item.productName || item.product_name || 'Product',
+        productName: item.displayName || item.customProductName || item.productName || item.product_name || 'Product',
+        originalProductName: item.productName || item.product_name || 'Product',
         quantity: Number(item.quantity || 0),
       })),
       itemCount: items.length,
@@ -1897,16 +2004,21 @@ export class OrderManagementService {
       for (const item of adminItems) {
         if (!itemsMap[item.orderId]) itemsMap[item.orderId] = [];
         itemsMap[item.orderId].push({
-          productName: item.productName,
+          productName: item.customProductName || item.productName,
           quantity: Number(item.quantity || 0),
+          customProductName: item.customProductName || null,
+          itemId: item.id,
         });
       }
       for (const item of checkoutItems) {
         const orderId = (item as any).salesOrderId;
         if (!itemsMap[orderId]) itemsMap[orderId] = [];
+        const customName = (item as any).customProductName || (item as any).custom_product_name || null;
         itemsMap[orderId].push({
-          productName: item.productName,
+          productName: customName || item.productName,
           quantity: Number(item.quantity || 0),
+          customProductName: customName,
+          itemId: item.id,
         });
       }
     }
@@ -1933,7 +2045,7 @@ export class OrderManagementService {
       const activeQb = this.salesOrderRepository.createQueryBuilder('ao');
       const phoneLikeConditions = phoneArr.map((_, i) => `REPLACE(ao.customer_phone, '+88', '') = :ph${i}`).join(' OR ');
       activeQb.where(`(${phoneLikeConditions})`, phoneArr.reduce((acc, ph, i) => ({ ...acc, [`ph${i}`]: ph }), {} as Record<string, string>));
-      activeQb.andWhere("ao.status NOT IN ('delivered', 'cancelled', 'partial_delivered', 'completed', 'returned')");
+      activeQb.andWhere("ao.status NOT IN ('delivered', 'cancelled', 'admin_cancelled', 'partial_delivered', 'completed', 'returned')");
       activeQb.orderBy('ao.created_at', 'ASC');
       const activeOrders = await activeQb.getMany();
 

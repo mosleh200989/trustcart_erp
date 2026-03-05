@@ -223,11 +223,11 @@ export class LandingPagesService {
     const pending = await this.ordersRepository.count({ where: { status: 'pending' } });
     const confirmed = await this.ordersRepository.count({ where: { status: 'confirmed' } });
     const delivered = await this.ordersRepository.count({ where: { status: 'delivered' } });
-    const cancelled = await this.ordersRepository.count({ where: { status: 'cancelled' } });
+    const cancelled = await this.ordersRepository.count({ where: [{ status: 'cancelled' }, { status: 'admin_cancelled' as any }] });
     const revenueResult = await this.ordersRepository
       .createQueryBuilder('o')
       .select('COALESCE(SUM(o.total_amount), 0)', 'totalRevenue')
-      .where('o.status NOT IN (:...excluded)', { excluded: ['cancelled', 'returned'] })
+      .where('o.status NOT IN (:...excluded)', { excluded: ['cancelled', 'admin_cancelled', 'returned'] })
       .getRawOne();
 
     return {

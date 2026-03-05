@@ -109,7 +109,7 @@ export class OrderManagementController {
   @RequirePermissions('edit-sales-orders')
   async updateOrderItem(
     @Param('itemId') itemId: number,
-    @Body() body: { quantity?: number; unitPrice?: number },
+    @Body() body: { quantity?: number; unitPrice?: number; customProductName?: string | null },
     @Req() req: Request
   ) {
     const userInfo = this.getUserInfo(req);

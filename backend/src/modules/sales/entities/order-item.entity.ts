@@ -15,6 +15,9 @@ export class OrderItem {
   @Column({ name: 'product_name', type: 'varchar', length: 255 })
   productName: string;
 
+  @Column({ name: 'custom_product_name', type: 'varchar', length: 500, nullable: true })
+  customProductName: string | null;
+
   @Column({ name: 'variant_name', type: 'varchar', length: 255, nullable: true })
   variantName: string;
 

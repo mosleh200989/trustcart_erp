@@ -427,7 +427,11 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
   
   const startEditItem = (item: any) => {
     setEditingItem(item.id);
-    setEditItemData({ quantity: String(item.quantity ?? ''), unitPrice: String(item.unitPrice ?? '') });
+    setEditItemData({
+      quantity: String(item.quantity ?? ''),
+      unitPrice: String(item.unitPrice ?? ''),
+      customProductName: item.customProductName ?? item.displayName ?? item.productName ?? '',
+    });
   };
 
   const saveEditItem = async (itemId: number) => {
@@ -442,7 +446,8 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
         toast.warning('Unit price must be a valid number');
         return;
       }
-      await apiClient.put(`/order-management/items/${itemId}`, { quantity: qty, unitPrice: unit });
+      const customName = (editItemData.customProductName ?? '').trim() || null;
+      await apiClient.put(`/order-management/items/${itemId}`, { quantity: qty, unitPrice: unit, customProductName: customName });
       toast.success('Item updated successfully');
       loadOrderDetails();
       setEditingItem(null);
@@ -929,13 +934,13 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
             <FaPlus /> Create New Order
           </button>
 
-          {order.status !== 'approved' && order.status !== 'shipped' && order.status !== 'delivered' && order.status !== 'cancelled' && (
+          {order.status !== 'approved' && order.status !== 'shipped' && order.status !== 'delivered' && order.status !== 'cancelled' && order.status !== 'admin_cancelled' && (
             <button onClick={approveOrder} className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2">
               <FaCheck /> Approve
             </button>
           )}
           
-          {canHoldOrCancel && order.status !== 'hold' && order.status !== 'cancelled' && (
+          {canHoldOrCancel && order.status !== 'hold' && order.status !== 'cancelled' && order.status !== 'admin_cancelled' && (
             <button onClick={holdOrder} className="bg-yellow-600 text-white px-4 py-2 rounded-lg hover:bg-yellow-700 flex items-center gap-2">
               <FaPause /> Hold
             </button>
@@ -947,7 +952,7 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
             </button>
           )}
           
-          {canHoldOrCancel && order.status !== 'cancelled' && (
+          {canHoldOrCancel && order.status !== 'cancelled' && order.status !== 'admin_cancelled' && (
             <button onClick={() => setShowCancelModal(true)} className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 flex items-center gap-2">
               <FaBan /> Cancel
             </button>
@@ -996,6 +1001,7 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
             <option value="partial_delivered">Partial Delivered</option>
             <option value="completed">Completed</option>
             <option value="cancelled">Cancelled</option>
+            <option value="admin_cancelled">Admin Cancelled</option>
             <option value="returned">Returned</option>
           </select>
           <button
@@ -1247,9 +1253,29 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                     {items.map((item) => (
                       <tr key={item.id} className="hover:bg-gray-50">
                         <td className="border p-3">
-                          {item.productName}
-                          {item.variantName && (
-                            <span className="ml-1 text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">{item.variantName}</span>
+                          {editingItem === item.id ? (
+                            <div>
+                              <input
+                                type="text"
+                                value={editItemData.customProductName ?? ''}
+                                onChange={(e) => setEditItemData({ ...editItemData, customProductName: e.target.value })}
+                                className="w-full border px-2 py-1 rounded text-sm"
+                                placeholder={item.productName || 'Product name'}
+                              />
+                              {item.customProductName && item.productName && item.customProductName !== item.productName && (
+                                <div className="text-[10px] text-gray-400 mt-0.5">Original: {item.productName}</div>
+                              )}
+                            </div>
+                          ) : (
+                            <div>
+                              {item.displayName || item.customProductName || item.productName}
+                              {item.customProductName && (
+                                <span className="ml-1 text-[9px] text-orange-500" title={`Original: ${item.productName}`}>✎</span>
+                              )}
+                              {item.variantName && (
+                                <span className="ml-1 text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">{item.variantName}</span>
+                              )}
+                            </div>
                           )}
                         </td>
                         <td className="border p-3 text-center">
@@ -1819,7 +1845,7 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                             >
                               View
                             </button>
-                            {h.status && !['approved', 'sent', 'shipped', 'in_transit', 'picked', 'delivered', 'partial_delivered', 'completed', 'cancelled'].includes(h.status.toLowerCase()) && (
+                            {h.status && !['approved', 'sent', 'shipped', 'in_transit', 'picked', 'delivered', 'partial_delivered', 'completed', 'cancelled', 'admin_cancelled'].includes(h.status.toLowerCase()) && (
                               <button
                                 onClick={async () => {
                                   if (!confirm(`Approve order #${h.salesOrderNumber || h.id}?`)) return;

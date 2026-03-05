@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { FaTrash } from 'react-icons/fa';
 import AdminLayout from '@/layouts/AdminLayout';
 import { wrapCustomerName } from '@/utils/wrapCustomerName';
@@ -11,7 +11,7 @@ import InvoicePrintModal from '@/components/admin/InvoicePrintModal';
 import StickerPrintModal from '@/components/admin/StickerPrintModal';
 import ProductAutocomplete from '@/components/admin/ProductAutocomplete';
 import { useToast } from '@/contexts/ToastContext';
-import { FaPlus, FaPrint, FaBoxOpen, FaFileInvoice, FaTag } from 'react-icons/fa';
+import { FaPlus, FaPrint, FaBoxOpen, FaFileInvoice, FaTag, FaCheck, FaTimes } from 'react-icons/fa';
 import apiClient from '@/services/api';
 import { getOrderStatusLabel, getOrderStatusColor } from '@/utils/orderStatus';
 
@@ -115,7 +115,7 @@ interface SalesOrder {
   order_source?: string | null;
   order_source_display?: string | null;
 
-  items?: { productName: string; quantity: number }[];
+  items?: { productName: string; quantity: number; customProductName?: string | null; itemId?: number; source?: string }[];
 
   notes?: string | null;
 }
@@ -134,7 +134,7 @@ export default function AdminSales() {
   const [showOrderDetails, setShowOrderDetails] = useState(false);
   const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
   const [selectedRowIds, setSelectedRowIds] = useState<Array<number | string>>([]);
-  const [bulkAction, setBulkAction] = useState<'delete' | 'processing' | 'completed' | 'cancelled' | ''>('');
+  const [bulkAction, setBulkAction] = useState<'delete' | 'processing' | 'completed' | 'cancelled' | 'admin_cancelled' | ''>('');
   const [itemsPerPage, setItemsPerPage] = useState(50);
 
   // Print & Pack state
@@ -154,6 +154,76 @@ export default function AdminSales() {
 
   // Source filter options
   const [sourceOptions, setSourceOptions] = useState<{ value: string; label: string }[]>([]);
+
+  // Inline product name editing state
+  const [editingProductName, setEditingProductName] = useState<{ orderId: number; itemIndex: number } | null>(null);
+  const [editProductNameValue, setEditProductNameValue] = useState('');
+  const [savingProductName, setSavingProductName] = useState(false);
+
+  const startEditProductName = useCallback((orderId: number, itemIndex: number, currentName: string) => {
+    setEditingProductName({ orderId, itemIndex });
+    setEditProductNameValue(currentName);
+  }, []);
+
+  const cancelEditProductName = useCallback(() => {
+    setEditingProductName(null);
+    setEditProductNameValue('');
+  }, []);
+
+  const saveProductName = useCallback(async () => {
+    if (!editingProductName) return;
+    const { orderId, itemIndex } = editingProductName;
+    const order = orders.find((o) => o.id === orderId);
+    if (!order || !order.items) return;
+    const item = order.items[itemIndex];
+
+    setSavingProductName(true);
+    try {
+      let targetItemId = item?.itemId;
+
+      // If we don't have an itemId, fetch from order-management to get real IDs
+      if (!targetItemId) {
+        const res = await apiClient.get(`/order-management/${orderId}/items`);
+        const realItems: any[] = res.data || [];
+        const realItem = realItems[itemIndex];
+        if (!realItem) {
+          toast.error('Could not find item to update');
+          setSavingProductName(false);
+          return;
+        }
+        targetItemId = realItem.id;
+      }
+
+      await apiClient.put(`/order-management/items/${targetItemId}`, {
+        customProductName: editProductNameValue.trim() || null,
+      });
+
+      // Update local state immediately
+      setOrders((prev) =>
+        prev.map((o) => {
+          if (o.id !== orderId) return o;
+          const newItems = [...(o.items || [])];
+          if (newItems[itemIndex]) {
+            const trimmed = editProductNameValue.trim();
+            newItems[itemIndex] = {
+              ...newItems[itemIndex],
+              productName: trimmed || newItems[itemIndex].productName,
+              customProductName: trimmed || null,
+            };
+          }
+          return { ...o, items: newItems };
+        })
+      );
+
+      toast.success('Product name updated');
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || 'Failed to update product name');
+    } finally {
+      setEditingProductName(null);
+      setEditProductNameValue('');
+      setSavingProductName(false);
+    }
+  }, [editingProductName, editProductNameValue, orders, toast]);
 
   const [formData, setFormData] = useState({
     order_number: '',
@@ -727,17 +797,69 @@ export default function AdminSales() {
     {
       key: 'items',
       label: 'Products',
+      className: 'min-w-[200px] !whitespace-normal',
       render: (_: any, row: SalesOrder) => {
         const items = row.items || [];
         if (items.length === 0) return <span className="text-gray-400 text-xs">No items</span>;
         return (
-          <div className="text-xs max-h-24 overflow-y-auto" style={{ whiteSpace: 'pre-line' }}>
-            {items.map((item, idx) => (
-              <span key={idx}>
-                {item.productName} <span className="text-gray-500">(x{item.quantity})</span>
-                {idx < items.length - 1 && <br />}
-              </span>
-            ))}
+          <div className="text-xs max-h-32 overflow-y-auto" style={{ whiteSpace: 'normal' }}>
+            {items.map((item, idx) => {
+              const isEditing = editingProductName?.orderId === row.id && editingProductName?.itemIndex === idx;
+              if (isEditing) {
+                return (
+                  <div key={idx} className="my-1">
+                    <textarea
+                      value={editProductNameValue}
+                      onChange={(e) => setEditProductNameValue(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); saveProductName(); }
+                        if (e.key === 'Escape') cancelEditProductName();
+                      }}
+                      className="border border-blue-400 rounded px-2 py-1.5 text-xs w-full min-h-[60px] resize-y focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      autoFocus
+                      disabled={savingProductName}
+                      rows={3}
+                    />
+                    <div className="flex items-center gap-1 mt-1">
+                      <button
+                        onClick={saveProductName}
+                        disabled={savingProductName}
+                        className="text-green-600 hover:text-green-800 p-0.5 flex-shrink-0"
+                        title="Save (Enter)"
+                      >
+                        <FaCheck size={12} />
+                      </button>
+                      <button
+                        onClick={cancelEditProductName}
+                        disabled={savingProductName}
+                        className="text-red-500 hover:text-red-700 p-0.5 flex-shrink-0"
+                        title="Cancel (Esc)"
+                      >
+                        <FaTimes size={12} />
+                      </button>
+                    </div>
+                  </div>
+                );
+              }
+              return (
+                <div key={idx} className="flex items-center gap-1 my-0.5">
+                  <span
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      startEditProductName(row.id, idx, item.productName);
+                    }}
+                    className="cursor-pointer hover:text-blue-600 hover:underline border-b border-dashed border-gray-300"
+                    title="Click to edit product name"
+                  >
+                    {item.productName}
+                  </span>
+                  {item.customProductName && (
+                    <span className="text-[9px] text-orange-500 flex-shrink-0" title="Custom name (original product unchanged)">✎</span>
+                  )}
+                  <span className="text-gray-500 flex-shrink-0">(x{item.quantity})</span>
+                </div>
+              );
+            })}
           </div>
         );
       },
@@ -841,7 +963,7 @@ export default function AdminSales() {
               <option value="delete">Delete Selected</option>
               <option value="processing">Mark as Processing</option>
               <option value="completed">Mark as Completed</option>
-              <option value="cancelled">Mark as Cancelled</option>
+              <option value="admin_cancelled">Mark as Admin Cancelled</option>
             </select>
             <button
               type="button"
@@ -928,6 +1050,7 @@ export default function AdminSales() {
                     { value: 'delivered', label: 'Delivered' },
                     { value: 'partial_delivered', label: 'Partial Delivered' },
                     { value: 'cancelled', label: 'Cancelled' },
+                    { value: 'admin_cancelled', label: 'Admin Cancelled' },
                     { value: 'completed', label: 'Completed' },
                     { value: 'returned', label: 'Returned' },
                   ]}
@@ -1420,7 +1543,7 @@ export default function AdminSales() {
                   options={[
                     { value: 'processing', label: 'Processing' },
                     { value: 'completed', label: 'Completed' },
-                    { value: 'cancelled', label: 'Cancelled' }
+                    { value: 'admin_cancelled', label: 'Admin Cancelled' }
                   ]}
                 />
               </div>

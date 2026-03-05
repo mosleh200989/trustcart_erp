@@ -112,19 +112,19 @@ export class SalesService {
    * Fetch items for a batch of order IDs from BOTH tables (sales_order_items + order_items),
    * with a fallback to the products table for missing product names.
    */
-  private async batchFetchOrderItems(orderIds: number[]): Promise<Map<number, { productName: string; quantity: number }[]>> {
-    const map = new Map<number, { productName: string; quantity: number }[]>();
+  private async batchFetchOrderItems(orderIds: number[]): Promise<Map<number, { productName: string; quantity: number; customProductName?: string | null; itemId?: number; source?: string }[]>> {
+    const map = new Map<number, { productName: string; quantity: number; customProductName?: string | null; itemId?: number; source?: string }[]>();
     if (orderIds.length === 0) return map;
 
     // Query both item tables — prefer order_items (admin/migrated) when they exist,
     // fall back to sales_order_items (checkout/landing-page) for orders not yet migrated.
-    const rows: { order_id: number; product_name: string | null; product_id: number | null; quantity: number }[] =
+    const rows: { order_id: number; item_id: number; product_name: string | null; custom_product_name: string | null; product_id: number | null; quantity: number; source: string }[] =
       await this.salesRepository.manager.query(
-        `SELECT oi.order_id, oi.product_name, oi.product_id, oi.quantity
+        `SELECT oi.id AS item_id, oi.order_id, oi.product_name, oi.custom_product_name, oi.product_id, oi.quantity, 'order_items' AS source
          FROM order_items oi
          WHERE oi.order_id = ANY($1)
          UNION ALL
-         SELECT soi.sales_order_id AS order_id, soi.product_name, soi.product_id, soi.quantity
+         SELECT soi.id AS item_id, soi.sales_order_id AS order_id, soi.product_name, soi.custom_product_name, soi.product_id, soi.quantity, 'sales_order_items' AS source
          FROM sales_order_items soi
          WHERE soi.sales_order_id = ANY($1)
            AND soi.sales_order_id NOT IN (SELECT DISTINCT oi2.order_id FROM order_items oi2 WHERE oi2.order_id = ANY($1))`,
@@ -134,7 +134,7 @@ export class SalesService {
     // Collect product IDs that have no name so we can look them up
     const missingNameProductIds = new Set<number>();
     for (const r of rows) {
-      if (!r.product_name && r.product_id) {
+      if (!r.product_name && !r.custom_product_name && r.product_id) {
         missingNameProductIds.add(r.product_id);
       }
     }
@@ -152,9 +152,12 @@ export class SalesService {
     }
 
     for (const r of rows) {
-      const name = r.product_name || (r.product_id ? productNameMap.get(r.product_id) : null) || 'Unknown Product';
+      const originalName = r.product_name || (r.product_id ? productNameMap.get(r.product_id) : null) || 'Unknown Product';
+      const customName = r.custom_product_name || null;
+      // Display name: prefer custom over original
+      const displayName = customName || originalName;
       const arr = map.get(r.order_id) || [];
-      arr.push({ productName: name, quantity: Number(r.quantity) || 0 });
+      arr.push({ productName: displayName, quantity: Number(r.quantity) || 0, customProductName: customName, itemId: r.item_id, source: r.source });
       map.set(r.order_id, arr);
     }
 
@@ -485,6 +488,7 @@ export class SalesService {
       .andWhere('o.delivered_at IS NULL')
       .andWhere('o.shipped_at <= :cutoff', { cutoff })
       .andWhere('o.status != :cancelledStatus', { cancelledStatus: 'cancelled' })
+      .andWhere('o.status != :adminCancelledStatus', { adminCancelledStatus: 'admin_cancelled' })
       .andWhere('o.status != :deliveredStatus', { deliveredStatus: 'delivered' })
       .orderBy('o.shipped_at', 'ASC');
 
@@ -937,7 +941,7 @@ export class SalesService {
     }
 
     const status = this.normalizeOrderStatus(order.status);
-    if (['cancelled', 'delivered', 'completed'].includes(status)) {
+    if (['cancelled', 'admin_cancelled', 'delivered', 'completed'].includes(status)) {
       throw new Error(`Cannot cancel order in status: ${status}`);
     }
     // Cannot cancel if already picked/in_transit/delivered
@@ -978,6 +982,8 @@ export class SalesService {
         'item.sales_order_id as "salesOrderId"',
         'item.product_id as "productId"',
         'COALESCE(product.name_en, item.product_name) as "productName"',
+        'item.custom_product_name as "customProductName"',
+        'COALESCE(item.custom_product_name, product.name_en, item.product_name) as "displayName"',
         'COALESCE(product.image_url, item.product_image) as "productImage"',
         'product.sku as "productSku"',
         'item.quantity as quantity',
@@ -1068,7 +1074,7 @@ export class SalesService {
         `COUNT(DISTINCT CASE WHEN LOWER(o.courier_company) = 'redx' THEN o.id END) AS redx_orders`,
         `COUNT(DISTINCT CASE WHEN o.courier_company IS NULL OR o.courier_company = '' THEN o.id END) AS no_courier_orders`,
         `COUNT(DISTINCT CASE WHEN LOWER(o.status::text) = 'delivered' THEN o.id END) AS delivered_orders`,
-        `COUNT(DISTINCT CASE WHEN LOWER(o.status::text) = 'cancelled' THEN o.id END) AS cancelled_orders`,
+        `COUNT(DISTINCT CASE WHEN LOWER(o.status::text) IN ('cancelled', 'admin_cancelled') THEN o.id END) AS cancelled_orders`,
         `COUNT(DISTINCT CASE WHEN LOWER(o.status::text) = 'pending' THEN o.id END) AS pending_orders`,
         `COUNT(DISTINCT CASE WHEN LOWER(o.status::text) = 'approved' THEN o.id END) AS approved_orders`,
         `COUNT(DISTINCT CASE WHEN LOWER(o.status::text) = 'shipped' THEN o.id END) AS shipped_orders`,
@@ -1091,7 +1097,7 @@ export class SalesService {
         `COUNT(CASE WHEN LOWER(o.status::text) = 'approved' THEN 1 END) AS approved_orders`,
         `COUNT(CASE WHEN LOWER(o.status::text) = 'shipped' THEN 1 END) AS shipped_orders`,
         `COUNT(CASE WHEN LOWER(o.status::text) = 'delivered' THEN 1 END) AS delivered_orders`,
-        `COUNT(CASE WHEN LOWER(o.status::text) = 'cancelled' THEN 1 END) AS cancelled_orders`,
+        `COUNT(CASE WHEN LOWER(o.status::text) IN ('cancelled', 'admin_cancelled') THEN 1 END) AS cancelled_orders`,
         `COUNT(CASE WHEN LOWER(o.courier_company) = 'steadfast' THEN 1 END) AS steadfast_orders`,
         `COUNT(CASE WHEN LOWER(o.courier_company) = 'pathao' THEN 1 END) AS pathao_orders`,
         `COUNT(CASE WHEN LOWER(o.courier_company) = 'redx' THEN 1 END) AS redx_orders`,
@@ -1277,7 +1283,7 @@ export class SalesService {
         `COUNT(CASE WHEN LOWER(o.status::text) = 'approved' THEN 1 END) AS approved_orders`,
         `COUNT(CASE WHEN LOWER(o.status::text) = 'shipped' THEN 1 END) AS shipped_orders`,
         `COUNT(CASE WHEN LOWER(o.status::text) = 'delivered' THEN 1 END) AS delivered_orders`,
-        `COUNT(CASE WHEN LOWER(o.status::text) = 'cancelled' THEN 1 END) AS cancelled_orders`,
+        `COUNT(CASE WHEN LOWER(o.status::text) IN ('cancelled', 'admin_cancelled') THEN 1 END) AS cancelled_orders`,
         `COUNT(CASE WHEN LOWER(o.courier_company) = 'steadfast' THEN 1 END) AS steadfast_orders`,
         `COUNT(CASE WHEN LOWER(o.courier_company) = 'pathao' THEN 1 END) AS pathao_orders`,
         `COUNT(CASE WHEN LOWER(o.courier_company) = 'redx' THEN 1 END) AS redx_orders`,
@@ -1500,7 +1506,7 @@ export class SalesService {
         'u.last_name AS agent_last_name',
         'COUNT(o.id) AS total_orders',
         `COUNT(CASE WHEN LOWER(o.status::text) = 'delivered' THEN 1 END) AS delivered_orders`,
-        `COUNT(CASE WHEN LOWER(o.status::text) = 'cancelled' THEN 1 END) AS cancelled_orders`,
+        `COUNT(CASE WHEN LOWER(o.status::text) IN ('cancelled', 'admin_cancelled') THEN 1 END) AS cancelled_orders`,
       ])
       .where('o.created_by IS NOT NULL')
       .andWhere('o.order_source IN (:...agentSources6)', { agentSources6: ['admin_panel', 'agent_dashboard'] })
