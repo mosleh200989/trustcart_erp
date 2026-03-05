@@ -427,7 +427,11 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
   
   const startEditItem = (item: any) => {
     setEditingItem(item.id);
-    setEditItemData({ quantity: String(item.quantity ?? ''), unitPrice: String(item.unitPrice ?? '') });
+    setEditItemData({
+      quantity: String(item.quantity ?? ''),
+      unitPrice: String(item.unitPrice ?? ''),
+      customProductName: item.customProductName ?? item.displayName ?? item.productName ?? '',
+    });
   };
 
   const saveEditItem = async (itemId: number) => {
@@ -442,7 +446,8 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
         toast.warning('Unit price must be a valid number');
         return;
       }
-      await apiClient.put(`/order-management/items/${itemId}`, { quantity: qty, unitPrice: unit });
+      const customName = (editItemData.customProductName ?? '').trim() || null;
+      await apiClient.put(`/order-management/items/${itemId}`, { quantity: qty, unitPrice: unit, customProductName: customName });
       toast.success('Item updated successfully');
       loadOrderDetails();
       setEditingItem(null);
@@ -1248,9 +1253,29 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                     {items.map((item) => (
                       <tr key={item.id} className="hover:bg-gray-50">
                         <td className="border p-3">
-                          {item.productName}
-                          {item.variantName && (
-                            <span className="ml-1 text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">{item.variantName}</span>
+                          {editingItem === item.id ? (
+                            <div>
+                              <input
+                                type="text"
+                                value={editItemData.customProductName ?? ''}
+                                onChange={(e) => setEditItemData({ ...editItemData, customProductName: e.target.value })}
+                                className="w-full border px-2 py-1 rounded text-sm"
+                                placeholder={item.productName || 'Product name'}
+                              />
+                              {item.customProductName && item.productName && item.customProductName !== item.productName && (
+                                <div className="text-[10px] text-gray-400 mt-0.5">Original: {item.productName}</div>
+                              )}
+                            </div>
+                          ) : (
+                            <div>
+                              {item.displayName || item.customProductName || item.productName}
+                              {item.customProductName && (
+                                <span className="ml-1 text-[9px] text-orange-500" title={`Original: ${item.productName}`}>✎</span>
+                              )}
+                              {item.variantName && (
+                                <span className="ml-1 text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">{item.variantName}</span>
+                              )}
+                            </div>
                           )}
                         </td>
                         <td className="border p-3 text-center">
