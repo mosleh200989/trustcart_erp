@@ -24,6 +24,7 @@ export const ORDER_STATUS_MAP: Record<string, StatusConfig> = {
   completed:         { label: 'Completed',          color: 'bg-green-100 text-green-800' },
   hold:              { label: 'On Hold',            color: 'bg-orange-100 text-orange-800' },
   cancelled:         { label: 'Cancelled',          color: 'bg-red-100 text-red-800' },
+  admin_cancelled:   { label: 'Admin Cancelled',    color: 'bg-red-200 text-red-900' },
   returned:          { label: 'Returned',           color: 'bg-gray-100 text-gray-800' },
   unknown:           { label: 'Unknown',            color: 'bg-gray-100 text-gray-800' },
 };

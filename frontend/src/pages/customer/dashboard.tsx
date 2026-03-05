@@ -86,11 +86,11 @@ export default function CustomerAccountDashboard() {
       const completedOrders = normalized.filter(
         (o: any) => o._status === 'completed' || o._status === 'delivered',
       ).length;
-      const cancelledOrders = normalized.filter((o: any) => o._status === 'cancelled').length;
+      const cancelledOrders = normalized.filter((o: any) => o._status === 'cancelled' || o._status === 'admin_cancelled').length;
 
       // Treat anything that isn't completed/delivered/cancelled as "pending"
       const pendingOrders = normalized.filter(
-        (o: any) => !['completed', 'delivered', 'cancelled'].includes(o._status),
+        (o: any) => !['completed', 'delivered', 'cancelled', 'admin_cancelled'].includes(o._status),
       ).length;
 
       const totalSpent = normalized.reduce(

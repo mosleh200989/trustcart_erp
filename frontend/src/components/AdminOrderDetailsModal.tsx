@@ -929,13 +929,13 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
             <FaPlus /> Create New Order
           </button>
 
-          {order.status !== 'approved' && order.status !== 'shipped' && order.status !== 'delivered' && order.status !== 'cancelled' && (
+          {order.status !== 'approved' && order.status !== 'shipped' && order.status !== 'delivered' && order.status !== 'cancelled' && order.status !== 'admin_cancelled' && (
             <button onClick={approveOrder} className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2">
               <FaCheck /> Approve
             </button>
           )}
           
-          {canHoldOrCancel && order.status !== 'hold' && order.status !== 'cancelled' && (
+          {canHoldOrCancel && order.status !== 'hold' && order.status !== 'cancelled' && order.status !== 'admin_cancelled' && (
             <button onClick={holdOrder} className="bg-yellow-600 text-white px-4 py-2 rounded-lg hover:bg-yellow-700 flex items-center gap-2">
               <FaPause /> Hold
             </button>
@@ -947,7 +947,7 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
             </button>
           )}
           
-          {canHoldOrCancel && order.status !== 'cancelled' && (
+          {canHoldOrCancel && order.status !== 'cancelled' && order.status !== 'admin_cancelled' && (
             <button onClick={() => setShowCancelModal(true)} className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 flex items-center gap-2">
               <FaBan /> Cancel
             </button>
@@ -996,6 +996,7 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
             <option value="partial_delivered">Partial Delivered</option>
             <option value="completed">Completed</option>
             <option value="cancelled">Cancelled</option>
+            <option value="admin_cancelled">Admin Cancelled</option>
             <option value="returned">Returned</option>
           </select>
           <button
@@ -1819,7 +1820,7 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                             >
                               View
                             </button>
-                            {h.status && !['approved', 'sent', 'shipped', 'in_transit', 'picked', 'delivered', 'partial_delivered', 'completed', 'cancelled'].includes(h.status.toLowerCase()) && (
+                            {h.status && !['approved', 'sent', 'shipped', 'in_transit', 'picked', 'delivered', 'partial_delivered', 'completed', 'cancelled', 'admin_cancelled'].includes(h.status.toLowerCase()) && (
                               <button
                                 onClick={async () => {
                                   if (!confirm(`Approve order #${h.salesOrderNumber || h.id}?`)) return;

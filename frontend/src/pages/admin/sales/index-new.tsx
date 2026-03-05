@@ -316,7 +316,8 @@ export default function AdminSales() {
                 options={[
                   { value: 'pending', label: 'Pending' },
                   { value: 'completed', label: 'Completed' },
-                  { value: 'cancelled', label: 'Cancelled' }
+                  { value: 'cancelled', label: 'Cancelled' },
+                  { value: 'admin_cancelled', label: 'Admin Cancelled' }
                 ]}
               />
             </form>

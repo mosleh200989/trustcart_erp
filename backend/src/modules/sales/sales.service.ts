@@ -485,6 +485,7 @@ export class SalesService {
       .andWhere('o.delivered_at IS NULL')
       .andWhere('o.shipped_at <= :cutoff', { cutoff })
       .andWhere('o.status != :cancelledStatus', { cancelledStatus: 'cancelled' })
+      .andWhere('o.status != :adminCancelledStatus', { adminCancelledStatus: 'admin_cancelled' })
       .andWhere('o.status != :deliveredStatus', { deliveredStatus: 'delivered' })
       .orderBy('o.shipped_at', 'ASC');
 
@@ -937,7 +938,7 @@ export class SalesService {
     }
 
     const status = this.normalizeOrderStatus(order.status);
-    if (['cancelled', 'delivered', 'completed'].includes(status)) {
+    if (['cancelled', 'admin_cancelled', 'delivered', 'completed'].includes(status)) {
       throw new Error(`Cannot cancel order in status: ${status}`);
     }
     // Cannot cancel if already picked/in_transit/delivered
@@ -1068,7 +1069,7 @@ export class SalesService {
         `COUNT(DISTINCT CASE WHEN LOWER(o.courier_company) = 'redx' THEN o.id END) AS redx_orders`,
         `COUNT(DISTINCT CASE WHEN o.courier_company IS NULL OR o.courier_company = '' THEN o.id END) AS no_courier_orders`,
         `COUNT(DISTINCT CASE WHEN LOWER(o.status::text) = 'delivered' THEN o.id END) AS delivered_orders`,
-        `COUNT(DISTINCT CASE WHEN LOWER(o.status::text) = 'cancelled' THEN o.id END) AS cancelled_orders`,
+        `COUNT(DISTINCT CASE WHEN LOWER(o.status::text) IN ('cancelled', 'admin_cancelled') THEN o.id END) AS cancelled_orders`,
         `COUNT(DISTINCT CASE WHEN LOWER(o.status::text) = 'pending' THEN o.id END) AS pending_orders`,
         `COUNT(DISTINCT CASE WHEN LOWER(o.status::text) = 'approved' THEN o.id END) AS approved_orders`,
         `COUNT(DISTINCT CASE WHEN LOWER(o.status::text) = 'shipped' THEN o.id END) AS shipped_orders`,
@@ -1091,7 +1092,7 @@ export class SalesService {
         `COUNT(CASE WHEN LOWER(o.status::text) = 'approved' THEN 1 END) AS approved_orders`,
         `COUNT(CASE WHEN LOWER(o.status::text) = 'shipped' THEN 1 END) AS shipped_orders`,
         `COUNT(CASE WHEN LOWER(o.status::text) = 'delivered' THEN 1 END) AS delivered_orders`,
-        `COUNT(CASE WHEN LOWER(o.status::text) = 'cancelled' THEN 1 END) AS cancelled_orders`,
+        `COUNT(CASE WHEN LOWER(o.status::text) IN ('cancelled', 'admin_cancelled') THEN 1 END) AS cancelled_orders`,
         `COUNT(CASE WHEN LOWER(o.courier_company) = 'steadfast' THEN 1 END) AS steadfast_orders`,
         `COUNT(CASE WHEN LOWER(o.courier_company) = 'pathao' THEN 1 END) AS pathao_orders`,
         `COUNT(CASE WHEN LOWER(o.courier_company) = 'redx' THEN 1 END) AS redx_orders`,
@@ -1277,7 +1278,7 @@ export class SalesService {
         `COUNT(CASE WHEN LOWER(o.status::text) = 'approved' THEN 1 END) AS approved_orders`,
         `COUNT(CASE WHEN LOWER(o.status::text) = 'shipped' THEN 1 END) AS shipped_orders`,
         `COUNT(CASE WHEN LOWER(o.status::text) = 'delivered' THEN 1 END) AS delivered_orders`,
-        `COUNT(CASE WHEN LOWER(o.status::text) = 'cancelled' THEN 1 END) AS cancelled_orders`,
+        `COUNT(CASE WHEN LOWER(o.status::text) IN ('cancelled', 'admin_cancelled') THEN 1 END) AS cancelled_orders`,
         `COUNT(CASE WHEN LOWER(o.courier_company) = 'steadfast' THEN 1 END) AS steadfast_orders`,
         `COUNT(CASE WHEN LOWER(o.courier_company) = 'pathao' THEN 1 END) AS pathao_orders`,
         `COUNT(CASE WHEN LOWER(o.courier_company) = 'redx' THEN 1 END) AS redx_orders`,
@@ -1500,7 +1501,7 @@ export class SalesService {
         'u.last_name AS agent_last_name',
         'COUNT(o.id) AS total_orders',
         `COUNT(CASE WHEN LOWER(o.status::text) = 'delivered' THEN 1 END) AS delivered_orders`,
-        `COUNT(CASE WHEN LOWER(o.status::text) = 'cancelled' THEN 1 END) AS cancelled_orders`,
+        `COUNT(CASE WHEN LOWER(o.status::text) IN ('cancelled', 'admin_cancelled') THEN 1 END) AS cancelled_orders`,
       ])
       .where('o.created_by IS NOT NULL')
       .andWhere('o.order_source IN (:...agentSources6)', { agentSources6: ['admin_panel', 'agent_dashboard'] })

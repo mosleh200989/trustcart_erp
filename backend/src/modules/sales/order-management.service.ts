@@ -798,9 +798,9 @@ export class OrderManagementService {
     const order = await this.salesOrderRepository.findOne({ where: { id: orderId } });
     if (!order) throw new Error('Order not found');
 
-    // Cannot cancel if already picked/in_transit/delivered
-    if (['picked', 'in_transit', 'delivered'].includes(order.status)) {
-      throw new Error('Cannot cancel order - already shipped');
+    // Cannot cancel if already picked/in_transit/delivered/cancelled
+    if (['picked', 'in_transit', 'delivered', 'cancelled', 'admin_cancelled'].includes(order.status)) {
+      throw new Error('Cannot cancel order - already shipped or cancelled');
     }
 
     if (!cancelReason || cancelReason.trim() === '') {
@@ -808,7 +808,7 @@ export class OrderManagementService {
     }
 
     const oldStatus = order.status;
-    order.status = 'cancelled';
+    order.status = 'admin_cancelled';
     order.cancelReason = cancelReason;
     order.cancelledBy = userId;
     order.cancelledAt = new Date();
@@ -817,10 +817,10 @@ export class OrderManagementService {
 
     await this.logActivity({
       orderId,
-      actionType: 'cancelled',
+      actionType: 'admin_cancelled',
       actionDescription: `Order cancelled by ${userName}. Reason: ${cancelReason}`,
       oldValue: { status: oldStatus },
-      newValue: { status: 'cancelled', cancelReason },
+      newValue: { status: 'admin_cancelled', cancelReason },
       performedBy: userId,
       performedByName: userName,
       ipAddress,
@@ -1933,7 +1933,7 @@ export class OrderManagementService {
       const activeQb = this.salesOrderRepository.createQueryBuilder('ao');
       const phoneLikeConditions = phoneArr.map((_, i) => `REPLACE(ao.customer_phone, '+88', '') = :ph${i}`).join(' OR ');
       activeQb.where(`(${phoneLikeConditions})`, phoneArr.reduce((acc, ph, i) => ({ ...acc, [`ph${i}`]: ph }), {} as Record<string, string>));
-      activeQb.andWhere("ao.status NOT IN ('delivered', 'cancelled', 'partial_delivered', 'completed', 'returned')");
+      activeQb.andWhere("ao.status NOT IN ('delivered', 'cancelled', 'admin_cancelled', 'partial_delivered', 'completed', 'returned')");
       activeQb.orderBy('ao.created_at', 'ASC');
       const activeOrders = await activeQb.getMany();
 

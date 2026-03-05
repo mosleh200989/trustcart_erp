@@ -181,7 +181,7 @@ export default function CustomerOrdersPage() {
                           >
                             <FaTruck /> Track
                           </button>
-                          {o.status !== 'cancelled' && o.status !== 'delivered' && o.status !== 'completed' && (
+                          {o.status !== 'cancelled' && o.status !== 'admin_cancelled' && o.status !== 'delivered' && o.status !== 'completed' && (
                             <button
                               onClick={() => handleCancelOrder(o)}
                               className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-red-600 hover:text-red-800 hover:bg-red-50 rounded transition"
@@ -294,6 +294,7 @@ export default function CustomerOrdersPage() {
                     {selectedOrder.status === 'shipped' && <p>• Order has been shipped</p>}
                     {selectedOrder.status === 'delivered' && <p>• Order delivered successfully</p>}
                     {selectedOrder.status === 'cancelled' && <p>• Order was cancelled</p>}
+                    {selectedOrder.status === 'admin_cancelled' && <p>• Order was cancelled by admin</p>}
                   </div>
                 </div>
               </div>
@@ -305,7 +306,7 @@ export default function CustomerOrdersPage() {
                 >
                   Close
                 </button>
-                {selectedOrder.status !== 'cancelled' && selectedOrder.status !== 'delivered' && (
+                {selectedOrder.status !== 'cancelled' && selectedOrder.status !== 'admin_cancelled' && selectedOrder.status !== 'delivered' && (
                   <button
                     onClick={() => {
                       setShowDetailsModal(false);

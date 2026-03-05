@@ -65,6 +65,7 @@ const STATUS_OPTIONS = [
   { value: 'partial_delivered', label: 'Partial Delivered' },
   { value: 'completed', label: 'Completed' },
   { value: 'cancelled', label: 'Cancelled' },
+  { value: 'admin_cancelled', label: 'Admin Cancelled' },
   { value: 'returned', label: 'Returned' },
 ];
 
@@ -80,6 +81,7 @@ const MANUAL_STATUS_OPTIONS = [
   { value: 'pending', label: 'Pending' },
   { value: 'delivered', label: 'Delivered' },
   { value: 'cancelled', label: 'Cancelled' },
+  { value: 'admin_cancelled', label: 'Admin Cancelled' },
   { value: 'deleted', label: 'Deleted' },
 ];
 

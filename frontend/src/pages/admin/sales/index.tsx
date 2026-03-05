@@ -134,7 +134,7 @@ export default function AdminSales() {
   const [showOrderDetails, setShowOrderDetails] = useState(false);
   const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
   const [selectedRowIds, setSelectedRowIds] = useState<Array<number | string>>([]);
-  const [bulkAction, setBulkAction] = useState<'delete' | 'processing' | 'completed' | 'cancelled' | ''>('');
+  const [bulkAction, setBulkAction] = useState<'delete' | 'processing' | 'completed' | 'cancelled' | 'admin_cancelled' | ''>('');
   const [itemsPerPage, setItemsPerPage] = useState(50);
 
   // Print & Pack state
@@ -841,7 +841,7 @@ export default function AdminSales() {
               <option value="delete">Delete Selected</option>
               <option value="processing">Mark as Processing</option>
               <option value="completed">Mark as Completed</option>
-              <option value="cancelled">Mark as Cancelled</option>
+              <option value="admin_cancelled">Mark as Admin Cancelled</option>
             </select>
             <button
               type="button"
@@ -928,6 +928,7 @@ export default function AdminSales() {
                     { value: 'delivered', label: 'Delivered' },
                     { value: 'partial_delivered', label: 'Partial Delivered' },
                     { value: 'cancelled', label: 'Cancelled' },
+                    { value: 'admin_cancelled', label: 'Admin Cancelled' },
                     { value: 'completed', label: 'Completed' },
                     { value: 'returned', label: 'Returned' },
                   ]}
@@ -1420,7 +1421,7 @@ export default function AdminSales() {
                   options={[
                     { value: 'processing', label: 'Processing' },
                     { value: 'completed', label: 'Completed' },
-                    { value: 'cancelled', label: 'Cancelled' }
+                    { value: 'admin_cancelled', label: 'Admin Cancelled' }
                   ]}
                 />
               </div>
