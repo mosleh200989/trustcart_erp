@@ -83,12 +83,22 @@ export default function TeamAgentsReportPage() {
   const [selectedTeamId, setSelectedTeamId] = useState<number | 'all'>('all');
   const [selectedAgentFilter, setSelectedAgentFilter] = useState<number | 'all'>('all');
   
+  const [todayOnly, setTodayOnly] = useState(false);
   const [dateFrom, setDateFrom] = useState(() => {
     const d = new Date();
     d.setDate(d.getDate() - 30);
     return d.toISOString().split('T')[0];
   });
   const [dateTo, setDateTo] = useState(() => new Date().toISOString().split('T')[0]);
+
+  const handleTodayToggle = (checked: boolean) => {
+    setTodayOnly(checked);
+    if (checked) {
+      const today = new Date().toISOString().split('T')[0];
+      setDateFrom(today);
+      setDateTo(today);
+    }
+  };
 
   useEffect(() => {
     loadTeams();
@@ -221,16 +231,30 @@ export default function TeamAgentsReportPage() {
           <input
             type="date"
             value={dateFrom}
-            onChange={(e) => setDateFrom(e.target.value)}
-            className="px-3 py-2 border rounded-lg text-sm"
+            onChange={(e) => { setDateFrom(e.target.value); setTodayOnly(false); }}
+            disabled={todayOnly}
+            className="px-3 py-2 border rounded-lg text-sm disabled:bg-gray-100 disabled:text-gray-400"
           />
           <span className="text-gray-500">to</span>
           <input
             type="date"
             value={dateTo}
-            onChange={(e) => setDateTo(e.target.value)}
-            className="px-3 py-2 border rounded-lg text-sm"
+            onChange={(e) => { setDateTo(e.target.value); setTodayOnly(false); }}
+            disabled={todayOnly}
+            className="px-3 py-2 border rounded-lg text-sm disabled:bg-gray-100 disabled:text-gray-400"
           />
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="todayFilter"
+              checked={todayOnly}
+              onChange={(e) => handleTodayToggle(e.target.checked)}
+              className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+            />
+            <label htmlFor="todayFilter" className="text-sm font-medium text-gray-700 cursor-pointer select-none">
+              Today Only
+            </label>
+          </div>
           <button
             onClick={loadReport}
             className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"

@@ -2026,7 +2026,7 @@ export class CrmTeamService {
       [agentId, from, to],
     );
 
-    // Get telephony call stats (if the table exists)
+    // Get telephony call stats (try telephony_calls first, then fallback)
     let telephonyStats: any = null;
     try {
       const callStats = await this.activityRepo.query(
@@ -2061,20 +2061,98 @@ export class CrmTeamService {
         [agentId, from, to],
       );
 
-      telephonyStats = {
-        byStatusAndDirection: callStats,
-        summary: callSummary[0] || {},
-      };
+      const hasTelephonyData = callStats.length > 0 && Number(callSummary[0]?.total_calls || 0) > 0;
+
+      if (hasTelephonyData) {
+        telephonyStats = {
+          byStatusAndDirection: callStats,
+          summary: callSummary[0] || {},
+        };
+      }
     } catch {
       // Table may not exist
     }
 
-    // Get customer stats
+    // If telephony_calls had no data, build stats from crm_call_tasks + activities
+    if (!telephonyStats) {
+      try {
+        const callTaskSummary = await this.callTaskRepo.query(
+          `
+          SELECT
+            COUNT(*)::int AS total_calls,
+            COUNT(*) FILTER (WHERE status = 'completed')::int AS completed_calls,
+            COUNT(*) FILTER (WHERE status = 'failed' OR status = 'skipped')::int AS failed_calls,
+            0::int AS outbound_calls,
+            0::int AS inbound_calls
+          FROM crm_call_tasks
+          WHERE assigned_agent_id = $1 AND task_date >= $2 AND task_date <= $3
+          `,
+          [agentId, from, to],
+        );
+
+        // Get talk time from activities (type = 'call')
+        let talkTime = { total_talk_time: 0, avg_call_duration: 0 };
+        try {
+          const ttRows = await this.activityRepo.query(
+            `
+            SELECT
+              COALESCE(SUM(duration), 0)::int AS total_talk_time,
+              COALESCE(AVG(NULLIF(duration, 0)), 0)::numeric AS avg_call_duration
+            FROM activities
+            WHERE user_id = $1 AND type = 'call' AND created_at >= $2 AND created_at <= $3
+            `,
+            [agentId, from, to],
+          );
+          if (ttRows.length > 0 && Number(ttRows[0].total_talk_time) > 0) {
+            talkTime = ttRows[0];
+          }
+        } catch { /* ignore */ }
+
+        // If activities had no duration, try customer_interactions
+        if (Number(talkTime.total_talk_time) === 0) {
+          try {
+            const ciRows = await this.activityRepo.query(
+              `
+              SELECT
+                COALESCE(SUM(duration_seconds), 0)::int AS total_talk_time,
+                COALESCE(AVG(NULLIF(duration_seconds, 0)), 0)::numeric AS avg_call_duration
+              FROM customer_interactions
+              WHERE agent_id = $1 AND interaction_type = 'call' AND created_at >= $2 AND created_at <= $3
+              `,
+              [agentId, from, to],
+            );
+            if (ciRows.length > 0) {
+              talkTime = ciRows[0];
+            }
+          } catch { /* ignore */ }
+        }
+
+        const summary = callTaskSummary[0] || {};
+        telephonyStats = {
+          byStatusAndDirection: [],
+          summary: {
+            total_calls: Number(summary.total_calls || 0),
+            completed_calls: Number(summary.completed_calls || 0),
+            failed_calls: Number(summary.failed_calls || 0),
+            outbound_calls: 0,
+            inbound_calls: 0,
+            total_talk_time: Number(talkTime.total_talk_time || 0),
+            avg_call_duration: Number(talkTime.avg_call_duration || 0),
+          },
+        };
+      } catch {
+        // Fallback also failed
+      }
+    }
+
+    // Get customer stats (count converted = lifecycle_stage='customer' OR has placed orders)
     const customerStats = await this.customerRepository.query(
       `
       SELECT
         COUNT(*)::int AS total_assigned,
-        COUNT(*) FILTER (WHERE lifecycle_stage = 'customer')::int AS converted,
+        COUNT(*) FILTER (WHERE lifecycle_stage = 'customer'
+          OR id IN (SELECT DISTINCT customer_id FROM sales_orders WHERE customer_id IS NOT NULL)
+        )::int AS converted,
         COUNT(*) FILTER (WHERE is_escalated = true)::int AS escalated
       FROM customers
       WHERE assigned_to = $1
@@ -2204,6 +2282,7 @@ export class CrmTeamService {
     );
 
     // Get telephony stats per agent
+    // Try telephony_calls first, then fallback to crm_call_tasks + activities for call data
     let telephonyStats: any[] = [];
     try {
       telephonyStats = await this.activityRepo.query(
@@ -2225,13 +2304,108 @@ export class CrmTeamService {
       // Table may not exist
     }
 
-    // Get customer stats per agent
+    // If telephony_calls returned no data, aggregate from crm_call_tasks + activities
+    if (telephonyStats.length === 0) {
+      try {
+        // Get call counts from crm_call_tasks (completed/in_progress tasks = actual calls made)
+        const callCountRows: any[] = await this.callTaskRepo.query(
+          `
+          SELECT
+            assigned_agent_id AS agent_id,
+            COUNT(*)::int AS total_calls,
+            COUNT(*) FILTER (WHERE status = 'completed')::int AS completed_calls,
+            COUNT(*) FILTER (WHERE status = 'failed' OR status = 'skipped')::int AS failed_calls
+          FROM crm_call_tasks
+          WHERE assigned_agent_id = ANY($1) AND task_date >= $2 AND task_date <= $3
+          GROUP BY assigned_agent_id
+          `,
+          [agentIds, from, to],
+        );
+
+        // Get talk time from activities (type = 'call')
+        let talkTimeRows: any[] = [];
+        try {
+          talkTimeRows = await this.activityRepo.query(
+            `
+            SELECT
+              user_id AS agent_id,
+              COALESCE(SUM(duration), 0)::int AS total_talk_time,
+              COALESCE(AVG(NULLIF(duration, 0)), 0)::numeric AS avg_call_duration
+            FROM activities
+            WHERE user_id = ANY($1) AND type = 'call' AND created_at >= $2 AND created_at <= $3
+            GROUP BY user_id
+            `,
+            [agentIds, from, to],
+          );
+        } catch {
+          // activities table might not have duration
+        }
+
+        // If activities had no duration data, try customer_interactions
+        if (talkTimeRows.length === 0) {
+          try {
+            talkTimeRows = await this.activityRepo.query(
+              `
+              SELECT
+                agent_id,
+                COALESCE(SUM(duration_seconds), 0)::int AS total_talk_time,
+                COALESCE(AVG(NULLIF(duration_seconds, 0)), 0)::numeric AS avg_call_duration
+              FROM customer_interactions
+              WHERE agent_id = ANY($1) AND interaction_type = 'call' AND created_at >= $2 AND created_at <= $3
+              GROUP BY agent_id
+              `,
+              [agentIds, from, to],
+            );
+          } catch {
+            // table may not exist
+          }
+        }
+
+        const talkTimeMap = new Map<number, any>();
+        for (const tt of talkTimeRows) {
+          talkTimeMap.set(Number(tt.agent_id), tt);
+        }
+
+        telephonyStats = callCountRows.map(cc => {
+          const tt = talkTimeMap.get(Number(cc.agent_id)) || {};
+          return {
+            agent_id: cc.agent_id,
+            total_calls: cc.total_calls,
+            completed_calls: cc.completed_calls,
+            failed_calls: cc.failed_calls,
+            total_talk_time: Number(tt.total_talk_time || 0),
+            avg_call_duration: Number(tt.avg_call_duration || 0),
+          };
+        });
+
+        // Also add agents who have talk time but no call tasks
+        for (const tt of talkTimeRows) {
+          const agentId = Number(tt.agent_id);
+          if (!callCountRows.some(cc => Number(cc.agent_id) === agentId)) {
+            telephonyStats.push({
+              agent_id: tt.agent_id,
+              total_calls: 0,
+              completed_calls: 0,
+              failed_calls: 0,
+              total_talk_time: Number(tt.total_talk_time || 0),
+              avg_call_duration: Number(tt.avg_call_duration || 0),
+            });
+          }
+        }
+      } catch {
+        // Fallback queries also failed
+      }
+    }
+
+    // Get customer stats per agent (count converted = lifecycle_stage='customer' OR has placed orders)
     const customerStats = await this.customerRepository.query(
       `
       SELECT
         assigned_to AS agent_id,
         COUNT(*)::int AS total_assigned,
-        COUNT(*) FILTER (WHERE lifecycle_stage = 'customer')::int AS converted
+        COUNT(*) FILTER (WHERE lifecycle_stage = 'customer'
+          OR id IN (SELECT DISTINCT customer_id FROM sales_orders WHERE customer_id IS NOT NULL)
+        )::int AS converted
       FROM customers
       WHERE assigned_to = ANY($1)
       GROUP BY assigned_to
