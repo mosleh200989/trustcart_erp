@@ -187,6 +187,57 @@ export class CrmTeamService {
     return await this.customerRepository.save(customer);
   }
 
+  // ==================== CUSTOMER TIER MANAGEMENT ====================
+  private static readonly VALID_TIERS = ['new', 'silver', 'gold', 'platinum', 'vip', 'normal', 'repeat'];
+
+  async updateCustomerTier(customerId: string, tier: string, actorUserId: number): Promise<Customer> {
+    const customerIdNum = Number(customerId);
+    if (!Number.isFinite(customerIdNum)) {
+      throw new BadRequestException('Invalid customer ID');
+    }
+
+    const normalizedTier = (tier || '').trim().toLowerCase();
+    if (!normalizedTier || !CrmTeamService.VALID_TIERS.includes(normalizedTier)) {
+      throw new BadRequestException(
+        `Invalid tier. Valid tiers: ${CrmTeamService.VALID_TIERS.join(', ')}`,
+      );
+    }
+
+    const customer = await this.customerRepository.findOne({ where: { id: customerIdNum } });
+    if (!customer) {
+      throw new NotFoundException(`Customer with ID ${customerId} not found`);
+    }
+
+    const previousTier = (customer as any).customerType || 'new';
+    (customer as any).customerType = normalizedTier;
+    customer.updatedAt = new Date();
+
+    const saved = await this.customerRepository.save(customer);
+
+    // Audit log
+    try {
+      const activity = this.activityRepo.create({
+        type: 'tier_updated',
+        customerId: saved.id,
+        userId: actorUserId,
+        subject: 'Customer tier updated',
+        description: `Customer tier changed from '${previousTier}' to '${normalizedTier}' by user ${actorUserId}.`,
+        outcome: 'updated',
+        completedAt: new Date(),
+        metadata: {
+          from: previousTier,
+          to: normalizedTier,
+          actorUserId,
+        },
+      } as any);
+      await this.activityRepo.save(activity as any);
+    } catch {
+      // never block tier update if logging fails
+    }
+
+    return saved;
+  }
+
   // ==================== TEAM MONITORING ====================
   async getTeamLeads(teamLeaderId: number, query: any = {}): Promise<{ data: any[], total: number }> {
     const { 
@@ -351,7 +402,10 @@ export class CrmTeamService {
     const countQb = this.customerRepository.createQueryBuilder('c');
     countQb.where('c.is_deleted = false');
     countQb.andWhere('c.is_active = true');
-    countQb.andWhere('(c.assigned_supervisor_id IS NULL OR c.assigned_supervisor_id = :tl)', { tl: teamLeaderId });
+    // Apply same conditional TL filter as data query
+    if (isTeamLeader > 0) {
+      countQb.andWhere('(c.assigned_supervisor_id IS NULL OR c.assigned_supervisor_id = :tl)', { tl: teamLeaderId });
+    }
     
     if (assignmentStatus === 'assigned') {
       countQb.andWhere('c.assigned_to IS NOT NULL');
@@ -436,11 +490,101 @@ export class CrmTeamService {
       });
     }
 
+    // Fetch recent orders with product items for each customer
+    const customerIds = data.map(c => c.id);
+    let customerOrdersMap = new Map<number, any[]>();
+    
+    if (customerIds.length > 0) {
+      try {
+        // Fetch recent orders (up to 5 per customer) with their items
+        const ordersRaw = await this.customerRepository.query(
+          `SELECT so.id, so.sales_order_number, so.customer_id, so.total_amount, so.status, so.order_date, so.created_at
+           FROM sales_orders so
+           WHERE so.customer_id = ANY($1)
+           ORDER BY so.order_date DESC NULLS LAST, so.created_at DESC`,
+          [customerIds],
+        );
+
+        // Group orders by customer (limit 5 per customer)
+        const ordersByCustomer = new Map<number, any[]>();
+        for (const o of ordersRaw) {
+          const cid = Number(o.customer_id);
+          if (!ordersByCustomer.has(cid)) ordersByCustomer.set(cid, []);
+          const arr = ordersByCustomer.get(cid)!;
+          if (arr.length < 5) arr.push(o);
+        }
+
+        // Collect all order IDs to fetch items in batch
+        const allOrderIds: number[] = [];
+        ordersByCustomer.forEach(orders => orders.forEach(o => allOrderIds.push(o.id)));
+
+        let itemsByOrderId = new Map<number, any[]>();
+        if (allOrderIds.length > 0) {
+          // Fetch items from order_items table
+          const items = await this.customerRepository.query(
+            `SELECT oi.order_id, oi.product_name, COALESCE(oi.custom_product_name, oi.product_name) as display_name, oi.quantity, oi.unit_price, oi.source
+             FROM order_items oi
+             WHERE oi.order_id = ANY($1)
+             ORDER BY oi.id`,
+            [allOrderIds],
+          );
+          for (const item of items) {
+            const oid = Number(item.order_id);
+            if (!itemsByOrderId.has(oid)) itemsByOrderId.set(oid, []);
+            itemsByOrderId.get(oid)!.push({
+              productName: item.display_name || item.product_name,
+              quantity: Number(item.quantity) || 1,
+              unitPrice: parseFloat(item.unit_price || '0'),
+              source: item.source || null,
+            });
+          }
+
+          // Also check sales_order_items for orders that have no items in order_items
+          const orderIdsWithoutItems = allOrderIds.filter(id => !itemsByOrderId.has(id));
+          if (orderIdsWithoutItems.length > 0) {
+            const soiItems = await this.customerRepository.query(
+              `SELECT soi.sales_order_id as order_id, COALESCE(soi.custom_product_name, soi.product_name, 'Product') as product_name, soi.quantity, soi.unit_price
+               FROM sales_order_items soi
+               WHERE soi.sales_order_id = ANY($1)
+               ORDER BY soi.id`,
+              [orderIdsWithoutItems],
+            );
+            for (const item of soiItems) {
+              const oid = Number(item.order_id);
+              if (!itemsByOrderId.has(oid)) itemsByOrderId.set(oid, []);
+              itemsByOrderId.get(oid)!.push({
+                productName: item.product_name,
+                quantity: Number(item.quantity) || 1,
+                unitPrice: parseFloat(item.unit_price || '0'),
+                source: null,
+              });
+            }
+          }
+        }
+
+        // Build the orders map with items
+        ordersByCustomer.forEach((orders, cid) => {
+          customerOrdersMap.set(cid, orders.map(o => ({
+            id: o.id,
+            salesOrderNumber: o.sales_order_number,
+            totalAmount: parseFloat(o.total_amount || '0'),
+            status: o.status,
+            orderDate: o.order_date || o.created_at,
+            items: itemsByOrderId.get(o.id) || [],
+          })));
+        });
+      } catch (err) {
+        // If order enrichment fails, continue without it
+        console.error('Failed to enrich leads with order items:', err);
+      }
+    }
+
     const enrichedData = data.map(c => ({
       ...c,
       assigned_to_name: c.assigned_to ? (agentMap.get(c.assigned_to) || `Agent #${c.assigned_to}`) : null,
       first_order_date: orderDateMap.get(c.id) || null,
       order_count: orderCountMap.get(c.id) || 0,
+      orders: customerOrdersMap.get(c.id) || [],
     }));
 
     return { data: enrichedData, total };
@@ -710,7 +854,7 @@ export class CrmTeamService {
   }
 
   async getAgentCustomers(agentId: number, query: any = {}): Promise<{ data: Customer[], total: number }> {
-    const { page = 1, limit = 20, search, priority, stage, calledStatus, outcome, startDate, endDate, followUpDate } = query;
+    const { page = 1, limit = 20, search, priority, stage, customerType, calledStatus, outcome, startDate, endDate, followUpDate } = query;
     const skip = (page - 1) * limit;
 
     // Use query builder for complex filtering
@@ -736,6 +880,11 @@ export class CrmTeamService {
     // Stage/Lifecycle filter
     if (stage && stage !== 'all') {
       qb.andWhere('c.lifecycle_stage = :stage', { stage });
+    }
+
+    // Customer tier/type filter
+    if (customerType && customerType !== 'all') {
+      qb.andWhere('c.customer_type = :customerType', { customerType });
     }
 
     // Follow-up date filters

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import AdminLayout from '@/layouts/AdminLayout';
 import PageSizeSelector from '@/components/admin/PageSizeSelector';
@@ -8,7 +8,24 @@ import ProductAutocomplete from '@/components/admin/ProductAutocomplete';
 import CustomerReportModal from '@/components/admin/crm/CustomerReportModal';
 import apiClient from '@/services/api';
 import { useToast } from '@/contexts/ToastContext';
-import { FaEye, FaChartBar } from 'react-icons/fa';
+import { FaEye, FaChartBar, FaChevronDown, FaChevronRight, FaBoxOpen } from 'react-icons/fa';
+import { getOrderStatusLabel, getOrderStatusColor } from '@/utils/orderStatus';
+
+interface OrderItem {
+  productName: string;
+  quantity: number;
+  unitPrice: number;
+  source?: string | null;
+}
+
+interface CustomerOrder {
+  id: number;
+  salesOrderNumber?: string;
+  totalAmount: number;
+  status: string;
+  orderDate?: string;
+  items: OrderItem[];
+}
 
 interface LeadCustomer {
   id: number | string;
@@ -21,6 +38,7 @@ interface LeadCustomer {
   created_at?: string;
   first_order_date?: string;
   order_count?: number;
+  orders?: CustomerOrder[];
 }
 
 interface PaginatedResponse {
@@ -84,6 +102,13 @@ export default function LeadAssignmentPage() {
   // Customer Report Modal
   const [showCustomerReport, setShowCustomerReport] = useState(false);
 
+  // Expanded rows for order details
+  const [expandedLeadIds, setExpandedLeadIds] = useState<Set<number | string>>(new Set());
+
+  // Debounce timer ref
+  const searchDebounceRef = useRef<NodeJS.Timeout | null>(null);
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
+
   // Agent autocomplete
   const [agentSearchTerm, setAgentSearchTerm] = useState('');
   const [agentSuggestions, setAgentSuggestions] = useState<User[]>([]);
@@ -97,10 +122,19 @@ export default function LeadAssignmentPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Debounce the search term
+  useEffect(() => {
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    searchDebounceRef.current = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+    }, 400);
+    return () => { if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current); };
+  }, [searchTerm]);
+
   useEffect(() => {
     loadLeads();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [assignmentStatus, searchTerm, priorityFilter, customerTypeFilter, purchaseStageFilter, productNameFilter, dateFrom, dateTo, page]);
+  }, [assignmentStatus, debouncedSearchTerm, priorityFilter, customerTypeFilter, purchaseStageFilter, productNameFilter, dateFrom, dateTo, page, limit]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -147,7 +181,7 @@ export default function LeadAssignmentPage() {
         limit,
         assignmentStatus,
       };
-      if (searchTerm.trim()) params.search = searchTerm.trim();
+      if (debouncedSearchTerm.trim()) params.search = debouncedSearchTerm.trim();
       if (priorityFilter) params.priority = priorityFilter;
       if (customerTypeFilter) params.customerType = customerTypeFilter;
       if (purchaseStageFilter) params.purchaseStage = purchaseStageFilter;
@@ -303,6 +337,7 @@ export default function LeadAssignmentPage() {
   // Clear filters
   const clearFilters = () => {
     setSearchTerm('');
+    setDebouncedSearchTerm('');
     setPriorityFilter('');
     setCustomerTypeFilter('');
     setPurchaseStageFilter('');
@@ -311,6 +346,24 @@ export default function LeadAssignmentPage() {
     setDateTo('');
     setAssignmentStatus('unassigned');
     setPage(1);
+    setExpandedLeadIds(new Set());
+  };
+
+  // Toggle expand for order details
+  const toggleExpandLead = (leadId: number | string) => {
+    setExpandedLeadIds(prev => {
+      const next = new Set(prev);
+      if (next.has(leadId)) {
+        next.delete(leadId);
+      } else {
+        next.add(leadId);
+      }
+      return next;
+    });
+  };
+
+  const formatCurrency = (amount: number) => {
+    return `৳${amount.toLocaleString('en-BD', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
   };
 
   // Agent autocomplete component
@@ -624,6 +677,7 @@ export default function LeadAssignmentPage() {
                 <table className="w-full">
                   <thead className="bg-gray-50">
                     <tr>
+                      <th className="px-2 py-3 text-left w-8"></th>
                       <th className="px-4 py-3 text-left">
                         <input
                           type="checkbox"
@@ -642,69 +696,161 @@ export default function LeadAssignmentPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
-                    {leads.map((lead) => (
-                      <tr key={String(lead.id)} className="hover:bg-gray-50">
-                        <td className="px-4 py-4">
-                          <input
-                            type="checkbox"
-                            checked={selectedLeadIds.has(lead.id)}
-                            onChange={() => toggleSelectLead(lead.id)}
-                            className="w-4 h-4 rounded border-gray-300"
-                          />
-                        </td>
-                        <td className="px-4 py-4">
-                          <div className="font-medium text-gray-900">{formatLeadName(lead)}</div>
-                          <div className="text-xs text-gray-500">ID: {lead.id}</div>
-                        </td>
-                        <td className="px-4 py-4">
-                          <div className="text-sm text-gray-900">{lead.email || 'No email'}</div>
-                          <div className="text-xs text-gray-500">{lead.phone || 'No phone'}</div>
-                        </td>
-                        <td className="px-4 py-4">
-                          <span className={`text-xs px-2 py-1 rounded-full capitalize ${
-                            lead.priority === 'hot' ? 'bg-red-100 text-red-700' :
-                            lead.priority === 'warm' ? 'bg-orange-100 text-orange-700' :
-                            lead.priority === 'cold' ? 'bg-blue-100 text-blue-700' :
-                            'bg-gray-100 text-gray-700'
-                          }`}>
-                            {lead.priority === 'cold' ? 'Sleep/Dead' : (lead.priority || 'new')}
-                          </span>
-                        </td>
-                        <td className="px-4 py-4">
-                          {lead.assigned_to ? (
-                            <span className="text-xs px-2 py-1 rounded-full bg-green-100 text-green-700">
-                              Assigned ({users.find(u => u.id === lead.assigned_to)?.name || `#${lead.assigned_to}`})
-                            </span>
-                          ) : (
-                            <span className="text-xs px-2 py-1 rounded-full bg-yellow-100 text-yellow-700">
-                              Unassigned
-                            </span>
+                    {leads.map((lead) => {
+                      const isExpanded = expandedLeadIds.has(lead.id);
+                      const hasOrders = (lead.orders && lead.orders.length > 0);
+                      return (
+                        <React.Fragment key={String(lead.id)}>
+                          <tr className={`hover:bg-gray-50 ${isExpanded ? 'bg-blue-50' : ''}`}>
+                            <td className="px-2 py-4 text-center">
+                              {hasOrders ? (
+                                <button
+                                  onClick={() => toggleExpandLead(lead.id)}
+                                  className="text-gray-500 hover:text-blue-600 transition-colors p-1"
+                                  title={isExpanded ? 'Collapse orders' : 'Expand orders'}
+                                >
+                                  {isExpanded ? <FaChevronDown size={12} /> : <FaChevronRight size={12} />}
+                                </button>
+                              ) : (
+                                <span className="text-gray-300 p-1 inline-block">
+                                  <FaChevronRight size={12} />
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-4 py-4">
+                              <input
+                                type="checkbox"
+                                checked={selectedLeadIds.has(lead.id)}
+                                onChange={() => toggleSelectLead(lead.id)}
+                                className="w-4 h-4 rounded border-gray-300"
+                              />
+                            </td>
+                            <td className="px-4 py-4">
+                              <div className="font-medium text-gray-900">{formatLeadName(lead)}</div>
+                              <div className="text-xs text-gray-500">ID: {lead.id}</div>
+                            </td>
+                            <td className="px-4 py-4">
+                              <div className="text-sm text-gray-900">{lead.email || 'No email'}</div>
+                              <div className="text-xs text-gray-500">{lead.phone || 'No phone'}</div>
+                            </td>
+                            <td className="px-4 py-4">
+                              <span className={`text-xs px-2 py-1 rounded-full capitalize ${
+                                lead.priority === 'hot' ? 'bg-red-100 text-red-700' :
+                                lead.priority === 'warm' ? 'bg-orange-100 text-orange-700' :
+                                lead.priority === 'cold' ? 'bg-blue-100 text-blue-700' :
+                                'bg-gray-100 text-gray-700'
+                              }`}>
+                                {lead.priority === 'cold' ? 'Sleep/Dead' : (lead.priority || 'new')}
+                              </span>
+                            </td>
+                            <td className="px-4 py-4">
+                              {lead.assigned_to ? (
+                                <span className="text-xs px-2 py-1 rounded-full bg-green-100 text-green-700">
+                                  Assigned ({users.find(u => u.id === lead.assigned_to)?.name || `#${lead.assigned_to}`})
+                                </span>
+                              ) : (
+                                <span className="text-xs px-2 py-1 rounded-full bg-yellow-100 text-yellow-700">
+                                  Unassigned
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-4 py-4 text-sm text-gray-600 font-medium">
+                              {lead.order_count || 0}
+                            </td>
+                            <td className="px-4 py-4 text-sm text-gray-600">
+                              {lead.first_order_date ? formatDate(lead.first_order_date) : 'No orders'}
+                            </td>
+                            <td className="px-4 py-4">
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={() => handleViewOrder(lead.id)}
+                                  className="bg-blue-600 text-white px-3 py-1.5 rounded text-sm hover:bg-blue-700 flex items-center gap-1"
+                                >
+                                  <FaEye size={12} /> View
+                                </button>
+                                <button
+                                  onClick={() => openAssignModal(lead)}
+                                  className="bg-green-600 text-white px-3 py-1.5 rounded text-sm hover:bg-green-700"
+                                >
+                                  {lead.assigned_to ? 'Reassign' : 'Assign'}
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+
+                          {/* Expanded order details with products */}
+                          {isExpanded && hasOrders && (
+                            <tr>
+                              <td colSpan={9} className="px-0 py-0">
+                                <div className="bg-gray-50 border-t border-b border-gray-200 px-8 py-4">
+                                  <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                                    <FaBoxOpen size={14} className="text-blue-600" />
+                                    Recent Orders & Products for {formatLeadName(lead)}
+                                  </h4>
+                                  <div className="space-y-3">
+                                    {lead.orders!.map((order) => (
+                                      <div key={order.id} className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                                        <div className="flex items-center justify-between px-4 py-2 bg-gray-100 border-b">
+                                          <div className="flex items-center gap-4">
+                                            <span className="text-sm font-medium text-gray-800">
+                                              #{order.salesOrderNumber || order.id}
+                                            </span>
+                                            <span className={`text-xs px-2 py-0.5 rounded-full ${getOrderStatusColor(order.status)}`}>
+                                              {getOrderStatusLabel(order.status)}
+                                            </span>
+                                            <span className="text-xs text-gray-500">
+                                              {order.orderDate ? formatDate(order.orderDate) : 'N/A'}
+                                            </span>
+                                          </div>
+                                          <div className="flex items-center gap-3">
+                                            <span className="text-sm font-semibold text-gray-800">
+                                              {formatCurrency(order.totalAmount)}
+                                            </span>
+                                            <button
+                                              onClick={() => {
+                                                setSelectedOrderId(order.id);
+                                                setShowOrderModal(true);
+                                              }}
+                                              className="text-blue-600 hover:text-blue-800 text-xs underline"
+                                            >
+                                              Details
+                                            </button>
+                                          </div>
+                                        </div>
+                                        {order.items.length > 0 ? (
+                                          <table className="w-full text-sm">
+                                            <thead>
+                                              <tr className="text-xs text-gray-500 border-b">
+                                                <th className="px-4 py-1.5 text-left font-medium">Product</th>
+                                                <th className="px-4 py-1.5 text-center font-medium">Qty</th>
+                                                <th className="px-4 py-1.5 text-right font-medium">Unit Price</th>
+                                                <th className="px-4 py-1.5 text-right font-medium">Subtotal</th>
+                                              </tr>
+                                            </thead>
+                                            <tbody>
+                                              {order.items.map((item, idx) => (
+                                                <tr key={idx} className="border-b last:border-b-0 hover:bg-gray-50">
+                                                  <td className="px-4 py-1.5 text-gray-800">{item.productName}</td>
+                                                  <td className="px-4 py-1.5 text-center text-gray-600">{item.quantity}</td>
+                                                  <td className="px-4 py-1.5 text-right text-gray-600">{formatCurrency(item.unitPrice)}</td>
+                                                  <td className="px-4 py-1.5 text-right text-gray-800 font-medium">{formatCurrency(item.unitPrice * item.quantity)}</td>
+                                                </tr>
+                                              ))}
+                                            </tbody>
+                                          </table>
+                                        ) : (
+                                          <div className="px-4 py-2 text-xs text-gray-400 italic">No product items found</div>
+                                        )}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              </td>
+                            </tr>
                           )}
-                        </td>
-                        <td className="px-4 py-4 text-sm text-gray-600 font-medium">
-                          {lead.order_count || 0}
-                        </td>
-                        <td className="px-4 py-4 text-sm text-gray-600">
-                          {lead.first_order_date ? formatDate(lead.first_order_date) : 'No orders'}
-                        </td>
-                        <td className="px-4 py-4">
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={() => handleViewOrder(lead.id)}
-                              className="bg-blue-600 text-white px-3 py-1.5 rounded text-sm hover:bg-blue-700 flex items-center gap-1"
-                            >
-                              <FaEye size={12} /> View
-                            </button>
-                            <button
-                              onClick={() => openAssignModal(lead)}
-                              className="bg-green-600 text-white px-3 py-1.5 rounded text-sm hover:bg-green-700"
-                            >
-                              {lead.assigned_to ? 'Reassign' : 'Assign'}
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
+                        </React.Fragment>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

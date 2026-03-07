@@ -3,7 +3,7 @@ import AdminLayout from '@/layouts/AdminLayout';
 import { 
   FaPhone, FaWhatsapp, FaSms, FaEnvelope, FaFire, FaChartLine, FaCheckCircle, FaClock, 
   FaMoneyBillWave, FaDollarSign, FaStickyNote, FaCalendarAlt, FaCheckDouble, FaThumbsUp, FaThumbsDown,
-  FaChevronLeft, FaChevronRight, FaShoppingCart
+  FaChevronLeft, FaChevronRight, FaShoppingCart, FaCrown
 } from 'react-icons/fa';
 import apiClient, { auth, users as usersApi } from '@/services/api';
 import AdminOrderDetailsModal from '@/components/AdminOrderDetailsModal';
@@ -69,6 +69,7 @@ interface AssignedCustomer {
   phone?: string;
   priority?: string;
   lifecycleStage?: string;
+  customerType?: string;
   createdAt?: string;
   last_contact_date?: string;
 }
@@ -155,6 +156,7 @@ export default function AgentDashboard() {
   const [leadsSearchTerm, setLeadsSearchTerm] = useState('');
   const [leadsPriorityFilter, setLeadsPriorityFilter] = useState('');
   const [leadsStageFilter, setLeadsStageFilter] = useState('');
+  const [leadsTierFilter, setLeadsTierFilter] = useState('');
   const [leadsCalledFilter, setLeadsCalledFilter] = useState<FilterCalledStatus>('all');
   const [leadsOutcomeFilter, setLeadsOutcomeFilter] = useState<FilterOutcome>('all');
   const [leadsPage, setLeadsPage] = useState(1);
@@ -214,6 +216,9 @@ export default function AgentDashboard() {
   const [callActionOutcome, setCallActionOutcome] = useState<'connected' | 'no_answer' | 'busy' | 'callback_requested' | 'not_interested' | 'order_placed' | ''>('');
   const [savingCallAction, setSavingCallAction] = useState(false);
   const [markingLeadAsCalled, setMarkingLeadAsCalled] = useState<number | null>(null);
+
+  // Tier management state
+  const [updatingTierId, setUpdatingTierId] = useState<number | string | null>(null);
 
   // Legacy modals (keeping for backward compatibility if needed)
   const [showLeadFollowUpModal, setShowLeadFollowUpModal] = useState(false);
@@ -383,6 +388,7 @@ export default function AgentDashboard() {
     search?: string;
     priority?: string;
     stage?: string;
+    customerType?: string;
     calledStatus?: FilterCalledStatus;
     outcome?: FilterOutcome;
     page?: number;
@@ -404,6 +410,10 @@ export default function AgentDashboard() {
       if (filters?.search || leadsSearchTerm) params.search = filters?.search || leadsSearchTerm;
       if (filters?.priority || leadsPriorityFilter) params.priority = filters?.priority || leadsPriorityFilter;
       if (filters?.stage || leadsStageFilter) params.stage = filters?.stage || leadsStageFilter;
+      
+      // Tier filter
+      const tierVal = filters?.customerType || leadsTierFilter;
+      if (tierVal) params.customerType = tierVal;
       
       // Add new filters
       const calledStatus = filters?.calledStatus ?? leadsCalledFilter;
@@ -550,6 +560,24 @@ export default function AgentDashboard() {
       toast.error(error?.response?.data?.message || 'Failed to mark customer as called');
     } finally {
       setMarkingLeadAsCalled(null);
+    }
+  };
+
+  // Handle customer tier update
+  const handleUpdateTier = async (customerId: number | string, newTier: string) => {
+    setUpdatingTierId(customerId);
+    try {
+      await apiClient.put(`/crm/team/leads/${customerId}/tier`, { tier: newTier });
+      toast.success('Customer tier updated successfully!');
+      // Update local state immediately for responsive UI
+      setAssignedCustomers(prev =>
+        prev.map(c => c.id === customerId ? { ...c, customerType: newTier } : c)
+      );
+    } catch (error: any) {
+      console.error('Failed to update tier:', error);
+      toast.error(error?.response?.data?.message || 'Failed to update customer tier');
+    } finally {
+      setUpdatingTierId(null);
     }
   };
 
@@ -1080,7 +1108,7 @@ export default function AgentDashboard() {
 
           {/* Filters Section */}
           <div className="p-4 border-b bg-gray-50">
-            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-7 gap-3">
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Search</label>
                 <input
@@ -1119,6 +1147,23 @@ export default function AgentDashboard() {
                 </select>
               </div>
               <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Tier</label>
+                <select
+                  value={leadsTierFilter}
+                  onChange={(e) => setLeadsTierFilter(e.target.value)}
+                  className="w-full border rounded-lg px-3 py-2 text-sm"
+                >
+                  <option value="">All Tiers</option>
+                  <option value="new">New</option>
+                  <option value="normal">Normal</option>
+                  <option value="silver">Silver</option>
+                  <option value="gold">Gold</option>
+                  <option value="platinum">Platinum</option>
+                  <option value="vip">VIP</option>
+                  <option value="repeat">Repeat</option>
+                </select>
+              </div>
+              <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Called Status</label>
                 <select
                   value={leadsCalledFilter}
@@ -1153,6 +1198,7 @@ export default function AgentDashboard() {
                         search: leadsSearchTerm,
                         priority: leadsPriorityFilter,
                         stage: leadsStageFilter,
+                        customerType: leadsTierFilter,
                         calledStatus: leadsCalledFilter,
                         outcome: leadsOutcomeFilter,
                         page: 1
@@ -1169,6 +1215,7 @@ export default function AgentDashboard() {
                     setLeadsSearchTerm('');
                     setLeadsPriorityFilter('');
                     setLeadsStageFilter('');
+                    setLeadsTierFilter('');
                     setLeadsCalledFilter('all');
                     setLeadsOutcomeFilter('all');
                     setLeadsPage(1);
@@ -1187,7 +1234,7 @@ export default function AgentDashboard() {
           <div className="p-6">
             <div className="text-sm text-gray-600 mb-4">
               Total assigned: <span className="font-semibold">{assignedTotal}</span>
-              {(leadsSearchTerm || leadsPriorityFilter || leadsStageFilter || leadsCalledFilter !== 'all' || leadsOutcomeFilter !== 'all') && (
+              {(leadsSearchTerm || leadsPriorityFilter || leadsStageFilter || leadsTierFilter || leadsCalledFilter !== 'all' || leadsOutcomeFilter !== 'all') && (
                 <span className="ml-2 text-blue-600">(filtered)</span>
               )}
             </div>
@@ -1211,6 +1258,9 @@ export default function AgentDashboard() {
                       <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Phone</th>
                       <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
                       <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Stage</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                        <span className="flex items-center gap-1"><FaCrown size={10} className="text-yellow-500" /> Tier</span>
+                      </th>
                       <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Priority</th>
                       <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Last Called</th>
                       <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Action</th>
@@ -1235,6 +1285,31 @@ export default function AgentDashboard() {
                           <td className="px-4 py-3 text-sm text-gray-700">{c.phone || '—'}</td>
                           <td className="px-4 py-3 text-sm text-gray-700">{c.email || '—'}</td>
                           <td className="px-4 py-3 text-sm text-gray-700 capitalize">{(c.lifecycleStage as any) || '—'}</td>
+                          <td className="px-4 py-3">
+                            <select
+                              value={c.customerType || 'new'}
+                              onChange={(e) => handleUpdateTier(c.id, e.target.value)}
+                              disabled={updatingTierId === c.id}
+                              className={`text-xs px-2 py-1 rounded-lg border cursor-pointer focus:ring-2 focus:ring-blue-300 focus:outline-none ${
+                                updatingTierId === c.id ? 'opacity-50 cursor-wait' : ''
+                              } ${
+                                c.customerType === 'vip' ? 'bg-purple-100 text-purple-800 border-purple-300' :
+                                c.customerType === 'platinum' ? 'bg-blue-100 text-blue-800 border-blue-300' :
+                                c.customerType === 'gold' ? 'bg-yellow-100 text-yellow-800 border-yellow-300' :
+                                c.customerType === 'silver' ? 'bg-gray-200 text-gray-800 border-gray-400' :
+                                c.customerType === 'repeat' ? 'bg-green-100 text-green-800 border-green-300' :
+                                'bg-gray-100 text-gray-700 border-gray-300'
+                              }`}
+                            >
+                              <option value="new">New</option>
+                              <option value="normal">Normal</option>
+                              <option value="silver">Silver</option>
+                              <option value="gold">Gold</option>
+                              <option value="platinum">Platinum</option>
+                              <option value="vip">VIP</option>
+                              <option value="repeat">Repeat</option>
+                            </select>
+                          </td>
                           <td className="px-4 py-3">
                             <span className="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-700 capitalize">
                               {c.priority || 'new'}

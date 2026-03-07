@@ -499,7 +499,11 @@ export class OrderManagementService {
     }
 
     const subtotal = data.quantity * data.unitPrice;
-    
+
+    // Determine if this is a cross-sell: agent adding product to a website/landing-page order
+    const order = await this.salesOrderRepository.findOne({ where: { id: data.orderId } });
+    const isCrossSell = order != null && ['website', 'landing_page'].includes(order.orderSource || '');
+
     const orderItem = this.orderItemRepository.create({
       orderId: data.orderId,
       productId: data.productId,
@@ -509,15 +513,14 @@ export class OrderManagementService {
       unitPrice: data.unitPrice,
       subtotal: subtotal,
       updatedBy: data.userId,
+      isCrossSell,
+      addedBy: data.userId,
     });
 
     const savedItem = await this.orderItemRepository.save(orderItem);
 
     // ── Recalculate totalAmount = allItemsSubtotal + deliveryCharge - discount ──
-    // Read deliveryCharge from the DB (already persisted during migration or by updateDeliveryCharge).
-    // If it's still null/0, derive it from the pre-add state: oldTotal - oldItemsSubtotal + discount.
     try {
-      const order = await this.salesOrderRepository.findOne({ where: { id: data.orderId } });
       if (order) {
         const allItems = await this.orderItemRepository.find({ where: { orderId: data.orderId } });
         const newItemsSubtotal = allItems.reduce((sum, item) => sum + Number(item.subtotal || 0), 0);
