@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { SalesOrder } from './sales-order.entity';
 import { SalesOrderItem } from './sales-order-item.entity';
+import { OrderItem } from './entities/order-item.entity';
 import { User } from '../users/user.entity';
 import { LoyaltyService } from '../loyalty/loyalty.service';
 import { OffersService } from '../offers/offers.service';
@@ -16,6 +17,8 @@ export class SalesService {
     private salesRepository: Repository<SalesOrder>,
     @InjectRepository(SalesOrderItem)
     private orderItemsRepository: Repository<SalesOrderItem>,
+    @InjectRepository(OrderItem)
+    private orderItemsRepository2: Repository<OrderItem>,
     private loyaltyService: LoyaltyService,
     private offersService: OffersService,
     private whatsAppService: WhatsAppService,
@@ -1312,6 +1315,37 @@ export class SalesService {
       upsellMap.set(toNum(r.agent_id), toNum(r.upsell_revenue));
     }
 
+    // ──── 2b) Cross-sell per agent: items added by an agent to website/landing-page orders ────
+    const crossSellQb = this.orderItemsRepository2
+      .createQueryBuilder('oi')
+      .innerJoin('sales_orders', 'o', 'o.id = oi.order_id')
+      .select([
+        'oi.added_by AS agent_id',
+        'COUNT(oi.id) AS cross_sell_items',
+        'COALESCE(SUM(oi.subtotal), 0) AS cross_sell_revenue',
+        'COUNT(DISTINCT oi.order_id) AS cross_sell_orders',
+      ])
+      .where('oi.is_cross_sell = TRUE')
+      .andWhere('oi.added_by IS NOT NULL')
+      .andWhere('DATE(o.order_date) >= :startDate', { startDate })
+      .andWhere('DATE(o.order_date) <= :endDate', { endDate });
+
+    if (params.agentId) {
+      crossSellQb.andWhere('oi.added_by = :agentId', { agentId: params.agentId });
+    }
+
+    crossSellQb.groupBy('oi.added_by');
+
+    const crossSellRows = await crossSellQb.getRawMany();
+    const crossSellMap = new Map<number, { items: number; revenue: number; orders: number }>();
+    for (const r of crossSellRows) {
+      crossSellMap.set(toNum(r.agent_id), {
+        items: toNum(r.cross_sell_items),
+        revenue: toNum(r.cross_sell_revenue),
+        orders: toNum(r.cross_sell_orders),
+      });
+    }
+
     // ──── 3) Daily trend (for chart) ────
     const dailyQb = this.salesRepository
       .createQueryBuilder('o')
@@ -1386,34 +1420,40 @@ export class SalesService {
     const productRows = await productQb.getRawMany();
 
     // ──── 6) Overall totals ────
-    const agents = agentRows.map((r: any) => ({
-      agentId: toNum(r.agent_id),
-      agentName: [r.agent_name, r.agent_last_name].filter(Boolean).join(' ') || `Agent #${r.agent_id}`,
-      totalOrders: toNum(r.total_orders),
-      totalRevenue: toNum(r.total_revenue),
-      avgOrderValue: toNum(r.avg_order_value),
-      totalDiscount: toNum(r.total_discount),
-      uniqueCustomers: toNum(r.unique_customers),
-      upsellOrders: toNum(r.upsell_orders),
-      upsellRevenue: upsellMap.get(toNum(r.agent_id)) || 0,
-      upsellRate: toNum(r.total_orders) > 0
-        ? Math.round((toNum(r.upsell_orders) / toNum(r.total_orders)) * 100)
-        : 0,
-      pendingOrders: toNum(r.pending_orders),
-      approvedOrders: toNum(r.approved_orders),
-      shippedOrders: toNum(r.shipped_orders),
-      deliveredOrders: toNum(r.delivered_orders),
-      cancelledOrders: toNum(r.cancelled_orders),
-      steadfastOrders: toNum(r.steadfast_orders),
-      pathaoOrders: toNum(r.pathao_orders),
-      redxOrders: toNum(r.redx_orders),
-      conversionRate: toNum(r.total_orders) > 0
-        ? Math.round((toNum(r.delivered_orders) / toNum(r.total_orders)) * 100)
-        : 0,
-      cancelRate: toNum(r.total_orders) > 0
-        ? Math.round((toNum(r.cancelled_orders) / toNum(r.total_orders)) * 100)
-        : 0,
-    }));
+    const agents = agentRows.map((r: any) => {
+      const cs = crossSellMap.get(toNum(r.agent_id)) || { items: 0, revenue: 0, orders: 0 };
+      return {
+        agentId: toNum(r.agent_id),
+        agentName: [r.agent_name, r.agent_last_name].filter(Boolean).join(' ') || `Agent #${r.agent_id}`,
+        totalOrders: toNum(r.total_orders),
+        totalRevenue: toNum(r.total_revenue),
+        avgOrderValue: toNum(r.avg_order_value),
+        totalDiscount: toNum(r.total_discount),
+        uniqueCustomers: toNum(r.unique_customers),
+        upsellOrders: toNum(r.upsell_orders),
+        upsellRevenue: upsellMap.get(toNum(r.agent_id)) || 0,
+        upsellRate: toNum(r.total_orders) > 0
+          ? Math.round((toNum(r.upsell_orders) / toNum(r.total_orders)) * 100)
+          : 0,
+        crossSellOrders: cs.orders,
+        crossSellItems: cs.items,
+        crossSellRevenue: cs.revenue,
+        pendingOrders: toNum(r.pending_orders),
+        approvedOrders: toNum(r.approved_orders),
+        shippedOrders: toNum(r.shipped_orders),
+        deliveredOrders: toNum(r.delivered_orders),
+        cancelledOrders: toNum(r.cancelled_orders),
+        steadfastOrders: toNum(r.steadfast_orders),
+        pathaoOrders: toNum(r.pathao_orders),
+        redxOrders: toNum(r.redx_orders),
+        conversionRate: toNum(r.total_orders) > 0
+          ? Math.round((toNum(r.delivered_orders) / toNum(r.total_orders)) * 100)
+          : 0,
+        cancelRate: toNum(r.total_orders) > 0
+          ? Math.round((toNum(r.cancelled_orders) / toNum(r.total_orders)) * 100)
+          : 0,
+      };
+    });
 
     const totalSummary = {
       totalOrders: agents.reduce((s, a) => s + a.totalOrders, 0),
@@ -1421,6 +1461,9 @@ export class SalesService {
       totalDiscount: agents.reduce((s, a) => s + a.totalDiscount, 0),
       totalUpsellOrders: agents.reduce((s, a) => s + a.upsellOrders, 0),
       totalUpsellRevenue: agents.reduce((s, a) => s + a.upsellRevenue, 0),
+      totalCrossSellOrders: agents.reduce((s, a) => s + a.crossSellOrders, 0),
+      totalCrossSellItems: agents.reduce((s, a) => s + a.crossSellItems, 0),
+      totalCrossSellRevenue: agents.reduce((s, a) => s + a.crossSellRevenue, 0),
       totalUniqueCustomers: agents.reduce((s, a) => s + a.uniqueCustomers, 0),
       activeAgents: agents.length,
     };

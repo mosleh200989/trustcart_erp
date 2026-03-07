@@ -39,6 +39,12 @@ export class OrderItem {
   @Column({ name: 'updated_by', nullable: true })
   updatedBy: number;
 
+  @Column({ name: 'is_cross_sell', type: 'boolean', default: false })
+  isCrossSell: boolean;
+
+  @Column({ name: 'added_by', nullable: true })
+  addedBy: number;
+
   @ManyToOne(() => SalesOrder, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'order_id' })
   order: SalesOrder;

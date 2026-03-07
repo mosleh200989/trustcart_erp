@@ -187,6 +187,57 @@ export class CrmTeamService {
     return await this.customerRepository.save(customer);
   }
 
+  // ==================== CUSTOMER TIER MANAGEMENT ====================
+  private static readonly VALID_TIERS = ['new', 'silver', 'gold', 'platinum', 'vip', 'normal', 'repeat'];
+
+  async updateCustomerTier(customerId: string, tier: string, actorUserId: number): Promise<Customer> {
+    const customerIdNum = Number(customerId);
+    if (!Number.isFinite(customerIdNum)) {
+      throw new BadRequestException('Invalid customer ID');
+    }
+
+    const normalizedTier = (tier || '').trim().toLowerCase();
+    if (!normalizedTier || !CrmTeamService.VALID_TIERS.includes(normalizedTier)) {
+      throw new BadRequestException(
+        `Invalid tier. Valid tiers: ${CrmTeamService.VALID_TIERS.join(', ')}`,
+      );
+    }
+
+    const customer = await this.customerRepository.findOne({ where: { id: customerIdNum } });
+    if (!customer) {
+      throw new NotFoundException(`Customer with ID ${customerId} not found`);
+    }
+
+    const previousTier = (customer as any).customerType || 'new';
+    (customer as any).customerType = normalizedTier;
+    customer.updatedAt = new Date();
+
+    const saved = await this.customerRepository.save(customer);
+
+    // Audit log
+    try {
+      const activity = this.activityRepo.create({
+        type: 'tier_updated',
+        customerId: saved.id,
+        userId: actorUserId,
+        subject: 'Customer tier updated',
+        description: `Customer tier changed from '${previousTier}' to '${normalizedTier}' by user ${actorUserId}.`,
+        outcome: 'updated',
+        completedAt: new Date(),
+        metadata: {
+          from: previousTier,
+          to: normalizedTier,
+          actorUserId,
+        },
+      } as any);
+      await this.activityRepo.save(activity as any);
+    } catch {
+      // never block tier update if logging fails
+    }
+
+    return saved;
+  }
+
   // ==================== TEAM MONITORING ====================
   async getTeamLeads(teamLeaderId: number, query: any = {}): Promise<{ data: any[], total: number }> {
     const { 
@@ -803,7 +854,7 @@ export class CrmTeamService {
   }
 
   async getAgentCustomers(agentId: number, query: any = {}): Promise<{ data: Customer[], total: number }> {
-    const { page = 1, limit = 20, search, priority, stage, calledStatus, outcome, startDate, endDate, followUpDate } = query;
+    const { page = 1, limit = 20, search, priority, stage, customerType, calledStatus, outcome, startDate, endDate, followUpDate } = query;
     const skip = (page - 1) * limit;
 
     // Use query builder for complex filtering
@@ -829,6 +880,11 @@ export class CrmTeamService {
     // Stage/Lifecycle filter
     if (stage && stage !== 'all') {
       qb.andWhere('c.lifecycle_stage = :stage', { stage });
+    }
+
+    // Customer tier/type filter
+    if (customerType && customerType !== 'all') {
+      qb.andWhere('c.customer_type = :customerType', { customerType });
     }
 
     // Follow-up date filters

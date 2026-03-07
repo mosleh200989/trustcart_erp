@@ -39,6 +39,16 @@ export class CrmTeamController {
     return await this.crmTeamService.setLeadPriority(customerId, body.priority);
   }
 
+  @Put('leads/:customerId/tier')
+  @RequirePermissions('edit-customers')
+  async updateCustomerTier(
+    @Param('customerId') customerId: string,
+    @Body() body: { tier: string },
+    @Request() req: any,
+  ) {
+    return await this.crmTeamService.updateCustomerTier(customerId, body.tier, req.user.id);
+  }
+
   @Post('leads/:customerId/convert')
   @RequirePermissions('edit-leads')
   async convertLead(
