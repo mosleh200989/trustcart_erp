@@ -2073,22 +2073,75 @@ export class CrmTeamService {
       // Table may not exist
     }
 
-    // If telephony_calls had no data, build stats from crm_call_tasks + activities
+    // If telephony_calls had no data, build stats from multiple fallback sources
     if (!telephonyStats) {
       try {
-        const callTaskSummary = await this.callTaskRepo.query(
-          `
-          SELECT
-            COUNT(*)::int AS total_calls,
-            COUNT(*) FILTER (WHERE status = 'completed')::int AS completed_calls,
-            COUNT(*) FILTER (WHERE status = 'failed' OR status = 'skipped')::int AS failed_calls,
-            0::int AS outbound_calls,
-            0::int AS inbound_calls
-          FROM crm_call_tasks
-          WHERE assigned_agent_id = $1 AND task_date >= $2 AND task_date <= $3
-          `,
-          [agentId, from, to],
-        );
+        let totalCalls = 0;
+        let completedCalls = 0;
+        let failedCalls = 0;
+
+        // Try crm_call_tasks first
+        try {
+          const callTaskSummary = await this.callTaskRepo.query(
+            `
+            SELECT
+              COUNT(*)::int AS total_calls,
+              COUNT(*) FILTER (WHERE status = 'completed')::int AS completed_calls,
+              COUNT(*) FILTER (WHERE status = 'failed' OR status = 'skipped')::int AS failed_calls
+            FROM crm_call_tasks
+            WHERE assigned_agent_id = $1 AND task_date >= $2 AND task_date <= $3
+            `,
+            [agentId, from, to],
+          );
+          const cts = callTaskSummary[0] || {};
+          totalCalls = Number(cts.total_calls || 0);
+          completedCalls = Number(cts.completed_calls || 0);
+          failedCalls = Number(cts.failed_calls || 0);
+        } catch { /* ignore */ }
+
+        // If crm_call_tasks had no data, count calls from customer_engagement_history
+        if (totalCalls === 0) {
+          try {
+            const engRows = await this.engagementRepository.query(
+              `
+              SELECT
+                COUNT(*)::int AS total_calls,
+                COUNT(*) FILTER (WHERE status = 'completed')::int AS completed_calls,
+                COUNT(*) FILTER (WHERE status = 'failed')::int AS failed_calls
+              FROM customer_engagement_history
+              WHERE agent_id = $1 AND engagement_type = 'call' AND created_at >= $2 AND created_at <= $3
+              `,
+              [agentId, from, to],
+            );
+            if (engRows.length > 0) {
+              totalCalls = Number(engRows[0].total_calls || 0);
+              completedCalls = Number(engRows[0].completed_calls || 0);
+              failedCalls = Number(engRows[0].failed_calls || 0);
+            }
+          } catch { /* ignore */ }
+        }
+
+        // If still no data, count call activities from activities table
+        if (totalCalls === 0) {
+          try {
+            const actRows = await this.activityRepo.query(
+              `
+              SELECT
+                COUNT(*)::int AS total_calls,
+                COUNT(*) FILTER (WHERE outcome = 'completed' OR outcome = 'connected')::int AS completed_calls,
+                COUNT(*) FILTER (WHERE outcome = 'failed' OR outcome = 'no_answer')::int AS failed_calls
+              FROM activities
+              WHERE user_id = $1 AND type = 'call' AND created_at >= $2 AND created_at <= $3
+              `,
+              [agentId, from, to],
+            );
+            if (actRows.length > 0) {
+              totalCalls = Number(actRows[0].total_calls || 0);
+              completedCalls = Number(actRows[0].completed_calls || 0);
+              failedCalls = Number(actRows[0].failed_calls || 0);
+            }
+          } catch { /* ignore */ }
+        }
 
         // Get talk time from activities (type = 'call')
         let talkTime = { total_talk_time: 0, avg_call_duration: 0 };
@@ -2127,13 +2180,12 @@ export class CrmTeamService {
           } catch { /* ignore */ }
         }
 
-        const summary = callTaskSummary[0] || {};
         telephonyStats = {
           byStatusAndDirection: [],
           summary: {
-            total_calls: Number(summary.total_calls || 0),
-            completed_calls: Number(summary.completed_calls || 0),
-            failed_calls: Number(summary.failed_calls || 0),
+            total_calls: totalCalls,
+            completed_calls: completedCalls,
+            failed_calls: failedCalls,
             outbound_calls: 0,
             inbound_calls: 0,
             total_talk_time: Number(talkTime.total_talk_time || 0),

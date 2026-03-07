@@ -448,13 +448,17 @@ export default function TeamAgentsReportPage() {
                               </tr>
                             </thead>
                             <tbody>
-                              {agentDetail.dailyBreakdown.slice(0, 20).map((row: any, idx: number) => (
-                                <tr key={idx} className="border-b">
-                                  <td className="py-2 px-2">{row.date}</td>
-                                  <td className="py-2 px-2 capitalize">{row.type}</td>
-                                  <td className="py-2 px-2 text-right font-semibold">{row.count}</td>
-                                </tr>
-                              ))}
+                              {agentDetail.dailyBreakdown.slice(0, 20).map((row: any, idx: number) => {
+                                const d = new Date(row.date);
+                                const formattedDate = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+                                return (
+                                  <tr key={idx} className="border-b">
+                                    <td className="py-2 px-2">{formattedDate}</td>
+                                    <td className="py-2 px-2 capitalize">{row.type}</td>
+                                    <td className="py-2 px-2 text-right font-semibold">{row.count}</td>
+                                  </tr>
+                                );
+                              })}
                             </tbody>
                           </table>
                         </div>
