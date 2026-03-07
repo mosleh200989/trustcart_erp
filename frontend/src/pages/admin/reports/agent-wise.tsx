@@ -52,6 +52,7 @@ interface AgentRow {
   uniqueCustomers: number;
   upsellOrders: number;
   upsellQty: number;
+  productsQty: number;
   crossSellOrders: number;
   crossSellItems: number;
   crossSellRevenue: number;
@@ -73,6 +74,7 @@ interface AgentSummary {
   totalDiscount: number;
   totalUpsellOrders: number;
   totalUpsellQty: number;
+  totalProductsQty: number;
   totalCrossSellOrders: number;
   totalCrossSellItems: number;
   totalCrossSellRevenue: number;
@@ -299,14 +301,14 @@ export default function AgentWiseReportPage() {
     if (!data?.agents?.length) return;
     const headers = [
       'Agent Name', 'Total Orders', 'Unique Customers',
-      'Upsell Qty', 'Cross-Sell Orders', 'Cross-Sell Items', 'Cross-Sell Revenue',
+      'Products Qty', 'Upsell Qty', 'Cross-Sell Orders', 'Cross-Sell Items', 'Cross-Sell Revenue',
       'Delivered', 'Cancelled',
       'Conversion %', 'Cancel %', 'Steadfast', 'Pathao', 'RedX',
     ];
     const rows = data.agents.map((a) =>
       [
         `"${a.agentName}"`, a.totalOrders,
-        a.uniqueCustomers, a.upsellQty,
+        a.uniqueCustomers, a.productsQty, a.upsellQty,
         a.crossSellOrders, a.crossSellItems, a.crossSellRevenue,
         a.deliveredOrders, a.cancelledOrders, a.conversionRate, a.cancelRate,
         a.steadfastOrders, a.pathaoOrders, a.redxOrders,
@@ -496,6 +498,9 @@ export default function AgentWiseReportPage() {
                           <th className="px-3 py-3 text-center cursor-pointer hover:text-violet-600" onClick={() => handleSort('uniqueCustomers')}>
                             Customers <SortIcon field="uniqueCustomers" />
                           </th>
+                          <th className="px-3 py-3 text-center cursor-pointer hover:text-violet-600" onClick={() => handleSort('productsQty')}>
+                            Products Qty <SortIcon field="productsQty" />
+                          </th>
                           <th className="px-3 py-3 text-center cursor-pointer hover:text-violet-600" onClick={() => handleSort('upsellQty')}>
                             <span className="text-amber-600">Upsell Qty</span> <SortIcon field="upsellQty" />
                           </th>
@@ -525,7 +530,7 @@ export default function AgentWiseReportPage() {
                       <tbody className="divide-y divide-gray-200">
                         {sortedAgents.length === 0 ? (
                           <tr>
-                            <td colSpan={13} className="px-4 py-16 text-center text-gray-500">
+                            <td colSpan={14} className="px-4 py-16 text-center text-gray-500">
                               No agent data for the selected period
                             </td>
                           </tr>
@@ -560,9 +565,8 @@ export default function AgentWiseReportPage() {
                                 </td>
                                 <td className="px-3 py-3 text-center font-semibold text-gray-900">{a.totalOrders}</td>
                                 <td className="px-3 py-3 text-center text-gray-600">{a.uniqueCustomers}</td>
-                                <td className="px-3 py-3 text-center">
-                                  <Badge value={a.upsellQty} color="amber" />
-                                </td>
+                                <td className="px-3 py-3 text-center font-medium text-gray-700">{a.productsQty}</td>
+                                <td className="px-3 py-3 text-center font-medium text-amber-600">{a.upsellQty}</td>
                                 <td className="px-3 py-3 text-center">
                                   <Badge value={a.crossSellOrders} color="pink" />
                                 </td>
@@ -597,6 +601,7 @@ export default function AgentWiseReportPage() {
                             <td className="px-3 py-3 text-violet-600">TOTAL</td>
                             <td className="px-3 py-3 text-center">{sortedAgents.reduce((s, a) => s + a.totalOrders, 0)}</td>
                             <td className="px-3 py-3 text-center">{sortedAgents.reduce((s, a) => s + a.uniqueCustomers, 0)}</td>
+                            <td className="px-3 py-3 text-center">{sortedAgents.reduce((s, a) => s + a.productsQty, 0)}</td>
                             <td className="px-3 py-3 text-center text-amber-600">{sortedAgents.reduce((s, a) => s + a.upsellQty, 0)}</td>
                             <td className="px-3 py-3 text-center text-pink-600">{sortedAgents.reduce((s, a) => s + a.crossSellOrders, 0)}</td>
                             <td className="px-3 py-3 text-center text-emerald-600">{sortedAgents.reduce((s, a) => s + a.deliveredOrders, 0)}</td>

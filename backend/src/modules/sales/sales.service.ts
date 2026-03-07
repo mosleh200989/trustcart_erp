@@ -1465,6 +1465,51 @@ export class SalesService {
 
     const productRows = await productQb.getRawMany();
 
+    // ──── 5b) Total product quantity per agent (from both item tables) ────
+    const prodQtySoiQb = this.orderItemsRepository
+      .createQueryBuilder('soi')
+      .innerJoin('soi.salesOrder', 'o')
+      .select([
+        'o.created_by AS agent_id',
+        'COALESCE(SUM(soi.quantity), 0) AS total_product_qty',
+      ])
+      .where('o.created_by IS NOT NULL')
+      .andWhere('o.order_source IN (:...pqs1)', { pqs1: ['admin_panel', 'agent_dashboard'] })
+      .andWhere('DATE(o.order_date) >= :startDate', { startDate })
+      .andWhere('DATE(o.order_date) <= :endDate', { endDate });
+    if (params.agentId) {
+      prodQtySoiQb.andWhere('o.created_by = :agentId', { agentId: params.agentId });
+    }
+    prodQtySoiQb.groupBy('o.created_by');
+    const prodQtySoiRows = await prodQtySoiQb.getRawMany();
+
+    const prodQtyOiQb = this.orderItemsRepository2
+      .createQueryBuilder('oi')
+      .innerJoin('sales_orders', 'o', 'o.id = oi.order_id')
+      .select([
+        'o.created_by AS agent_id',
+        'COALESCE(SUM(oi.quantity), 0) AS total_product_qty',
+      ])
+      .where('o.created_by IS NOT NULL')
+      .andWhere('o.order_source IN (:...pqs2)', { pqs2: ['admin_panel', 'agent_dashboard'] })
+      .andWhere('DATE(o.order_date) >= :startDate', { startDate })
+      .andWhere('DATE(o.order_date) <= :endDate', { endDate });
+    if (params.agentId) {
+      prodQtyOiQb.andWhere('o.created_by = :agentId', { agentId: params.agentId });
+    }
+    prodQtyOiQb.groupBy('o.created_by');
+    const prodQtyOiRows = await prodQtyOiQb.getRawMany();
+
+    const prodQtyMap = new Map<number, number>();
+    for (const r of prodQtySoiRows) {
+      const id = toNum(r.agent_id);
+      prodQtyMap.set(id, (prodQtyMap.get(id) || 0) + toNum(r.total_product_qty));
+    }
+    for (const r of prodQtyOiRows) {
+      const id = toNum(r.agent_id);
+      prodQtyMap.set(id, (prodQtyMap.get(id) || 0) + toNum(r.total_product_qty));
+    }
+
     // ──── 6) Overall totals ────
     const agents = agentRows.map((r: any) => {
       const cs = crossSellMap.get(toNum(r.agent_id)) || { items: 0, revenue: 0, orders: 0 };
@@ -1479,6 +1524,7 @@ export class SalesService {
         uniqueCustomers: toNum(r.unique_customers),
         upsellOrders: us.orders,
         upsellQty: us.qty,
+        productsQty: prodQtyMap.get(toNum(r.agent_id)) || 0,
         crossSellOrders: cs.orders,
         crossSellItems: cs.items,
         crossSellRevenue: cs.revenue,
@@ -1505,6 +1551,7 @@ export class SalesService {
       totalDiscount: agents.reduce((s, a) => s + a.totalDiscount, 0),
       totalUpsellOrders: agents.reduce((s, a) => s + a.upsellOrders, 0),
       totalUpsellQty: agents.reduce((s, a) => s + a.upsellQty, 0),
+      totalProductsQty: agents.reduce((s, a) => s + a.productsQty, 0),
       totalCrossSellOrders: agents.reduce((s, a) => s + a.crossSellOrders, 0),
       totalCrossSellItems: agents.reduce((s, a) => s + a.crossSellItems, 0),
       totalCrossSellRevenue: agents.reduce((s, a) => s + a.crossSellRevenue, 0),
