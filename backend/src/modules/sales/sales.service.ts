@@ -1281,7 +1281,7 @@ export class SalesService {
         'COALESCE(AVG(o.total_amount), 0) AS avg_order_value',
         'COALESCE(SUM(o.discount_amount), 0) AS total_discount',
         'COUNT(DISTINCT o.customer_id) AS unique_customers',
-        `0 AS upsell_orders`,
+
         `COUNT(CASE WHEN LOWER(o.status::text) = 'pending' THEN 1 END) AS pending_orders`,
         `COUNT(CASE WHEN LOWER(o.status::text) = 'approved' THEN 1 END) AS approved_orders`,
         `COUNT(CASE WHEN LOWER(o.status::text) = 'shipped' THEN 1 END) AS shipped_orders`,
@@ -1308,11 +1308,33 @@ export class SalesService {
 
     const agentRows = await agentQb.getRawMany();
 
-    // ──── 2) Upsell revenue per agent (skipped: thank_you_offer_accepted column not yet migrated) ────
-    const upsellRows: any[] = [];
-    const upsellMap = new Map<number, number>();
+    // ──── 2) Upsell per agent: items added later to agent-created orders ────
+    const upsellQb = this.orderItemsRepository2
+      .createQueryBuilder('oi')
+      .innerJoin('sales_orders', 'o', 'o.id = oi.order_id')
+      .select([
+        'oi.added_by AS agent_id',
+        'COALESCE(SUM(oi.quantity), 0) AS upsell_qty',
+        'COUNT(DISTINCT oi.order_id) AS upsell_orders',
+      ])
+      .where('oi.is_upsell = TRUE')
+      .andWhere('oi.added_by IS NOT NULL')
+      .andWhere('DATE(o.order_date) >= :startDate', { startDate })
+      .andWhere('DATE(o.order_date) <= :endDate', { endDate });
+
+    if (params.agentId) {
+      upsellQb.andWhere('oi.added_by = :agentId', { agentId: params.agentId });
+    }
+
+    upsellQb.groupBy('oi.added_by');
+
+    const upsellRows = await upsellQb.getRawMany();
+    const upsellMap = new Map<number, { qty: number; orders: number }>();
     for (const r of upsellRows) {
-      upsellMap.set(toNum(r.agent_id), toNum(r.upsell_revenue));
+      upsellMap.set(toNum(r.agent_id), {
+        qty: toNum(r.upsell_qty),
+        orders: toNum(r.upsell_orders),
+      });
     }
 
     // ──── 2b) Cross-sell per agent: items added by an agent to website/landing-page orders ────
@@ -1354,7 +1376,7 @@ export class SalesService {
         'o.created_by AS agent_id',
         'COUNT(o.id) AS orders',
         'COALESCE(SUM(o.total_amount), 0) AS revenue',
-        '0 AS upsells',
+
       ])
       .where('o.created_by IS NOT NULL')
       .andWhere('o.order_source IN (:...agentSources2)', { agentSources2: ['admin_panel', 'agent_dashboard'] })
@@ -1371,6 +1393,30 @@ export class SalesService {
       .orderBy('date', 'ASC');
 
     const dailyRows = await dailyQb.getRawMany();
+
+    // ──── 3b) Daily upsell counts from order_items ────
+    const dailyUpsellQb = this.orderItemsRepository2
+      .createQueryBuilder('oi')
+      .innerJoin('sales_orders', 'o', 'o.id = oi.order_id')
+      .select([
+        'DATE(o.order_date) AS date',
+        'COALESCE(SUM(oi.quantity), 0) AS upsell_qty',
+      ])
+      .where('oi.is_upsell = TRUE')
+      .andWhere('oi.added_by IS NOT NULL')
+      .andWhere('DATE(o.order_date) >= :startDate', { startDate })
+      .andWhere('DATE(o.order_date) <= :endDate', { endDate });
+
+    if (params.agentId) {
+      dailyUpsellQb.andWhere('oi.added_by = :agentId', { agentId: params.agentId });
+    }
+
+    dailyUpsellQb.groupBy('date').orderBy('date', 'ASC');
+    const dailyUpsellRows = await dailyUpsellQb.getRawMany();
+    const dailyUpsellMap = new Map<string, number>();
+    for (const r of dailyUpsellRows) {
+      dailyUpsellMap.set(String(r.date).slice(0, 10), toNum(r.upsell_qty));
+    }
 
     // ──── 4) Hourly distribution for selected agent(s) (use created_at which is timestamp) ────
     const hourlyQb = this.salesRepository
@@ -1422,6 +1468,7 @@ export class SalesService {
     // ──── 6) Overall totals ────
     const agents = agentRows.map((r: any) => {
       const cs = crossSellMap.get(toNum(r.agent_id)) || { items: 0, revenue: 0, orders: 0 };
+      const us = upsellMap.get(toNum(r.agent_id)) || { qty: 0, orders: 0 };
       return {
         agentId: toNum(r.agent_id),
         agentName: [r.agent_name, r.agent_last_name].filter(Boolean).join(' ') || `Agent #${r.agent_id}`,
@@ -1430,11 +1477,8 @@ export class SalesService {
         avgOrderValue: toNum(r.avg_order_value),
         totalDiscount: toNum(r.total_discount),
         uniqueCustomers: toNum(r.unique_customers),
-        upsellOrders: toNum(r.upsell_orders),
-        upsellRevenue: upsellMap.get(toNum(r.agent_id)) || 0,
-        upsellRate: toNum(r.total_orders) > 0
-          ? Math.round((toNum(r.upsell_orders) / toNum(r.total_orders)) * 100)
-          : 0,
+        upsellOrders: us.orders,
+        upsellQty: us.qty,
         crossSellOrders: cs.orders,
         crossSellItems: cs.items,
         crossSellRevenue: cs.revenue,
@@ -1460,7 +1504,7 @@ export class SalesService {
       totalRevenue: agents.reduce((s, a) => s + a.totalRevenue, 0),
       totalDiscount: agents.reduce((s, a) => s + a.totalDiscount, 0),
       totalUpsellOrders: agents.reduce((s, a) => s + a.upsellOrders, 0),
-      totalUpsellRevenue: agents.reduce((s, a) => s + a.upsellRevenue, 0),
+      totalUpsellQty: agents.reduce((s, a) => s + a.upsellQty, 0),
       totalCrossSellOrders: agents.reduce((s, a) => s + a.crossSellOrders, 0),
       totalCrossSellItems: agents.reduce((s, a) => s + a.crossSellItems, 0),
       totalCrossSellRevenue: agents.reduce((s, a) => s + a.crossSellRevenue, 0),
@@ -1473,12 +1517,12 @@ export class SalesService {
     for (const r of dailyRows) {
       const d = String(r.date).slice(0, 10);
       if (!dateMap.has(d)) {
-        dateMap.set(d, { date: d, orders: 0, revenue: 0, upsells: 0 });
+        dateMap.set(d, { date: d, orders: 0, revenue: 0, upsells: dailyUpsellMap.get(d) || 0 });
       }
       const entry = dateMap.get(d)!;
       entry.orders += toNum(r.orders);
       entry.revenue += toNum(r.revenue);
-      entry.upsells += toNum(r.upsells);
+
     }
     const dailyTrend = [...dateMap.values()].sort((a, b) => a.date.localeCompare(b.date));
 
