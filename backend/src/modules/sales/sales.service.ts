@@ -1286,10 +1286,7 @@ export class SalesService {
         `COUNT(CASE WHEN LOWER(o.status::text) = 'approved' THEN 1 END) AS approved_orders`,
         `COUNT(CASE WHEN LOWER(o.status::text) = 'shipped' THEN 1 END) AS shipped_orders`,
         `COUNT(CASE WHEN LOWER(o.status::text) = 'delivered' THEN 1 END) AS delivered_orders`,
-        `COUNT(CASE WHEN LOWER(o.status::text) IN ('cancelled', 'admin_cancelled') THEN 1 END) AS cancelled_orders`,
-        `COUNT(CASE WHEN LOWER(o.courier_company) = 'steadfast' THEN 1 END) AS steadfast_orders`,
-        `COUNT(CASE WHEN LOWER(o.courier_company) = 'pathao' THEN 1 END) AS pathao_orders`,
-        `COUNT(CASE WHEN LOWER(o.courier_company) = 'redx' THEN 1 END) AS redx_orders`,
+        `COUNT(CASE WHEN LOWER(o.status::text) = 'admin_cancelled' THEN 1 END) AS admin_cancelled_orders`,
       ])
       .where('o.created_by IS NOT NULL')
       .andWhere('o.order_source IN (:...agentSources)', { agentSources: ['admin_panel', 'agent_dashboard'] })
@@ -1308,18 +1305,18 @@ export class SalesService {
 
     const agentRows = await agentQb.getRawMany();
 
-    // ──── 2) Cross-sell per agent: items added by an agent to website/landing-page orders ────
+    // ──── 2) Cross-sell per agent: product qty added later to website/landing-page orders ────
+    // Any item in order_items for a website/landing_page order is a cross-sell (added after initial checkout)
     const crossSellQb = this.orderItemsRepository2
       .createQueryBuilder('oi')
       .innerJoin('sales_orders', 'o', 'o.id = oi.order_id')
       .select([
         'oi.added_by AS agent_id',
-        'COUNT(oi.id) AS cross_sell_items',
-        'COALESCE(SUM(oi.subtotal), 0) AS cross_sell_revenue',
+        'COALESCE(SUM(oi.quantity), 0) AS cross_sell_qty',
         'COUNT(DISTINCT oi.order_id) AS cross_sell_orders',
       ])
-      .where('oi.is_cross_sell = TRUE')
-      .andWhere('oi.added_by IS NOT NULL')
+      .where('oi.added_by IS NOT NULL')
+      .andWhere("o.order_source IN ('website', 'landing_page')")
       .andWhere('DATE(o.order_date) >= :startDate', { startDate })
       .andWhere('DATE(o.order_date) <= :endDate', { endDate });
 
@@ -1330,11 +1327,10 @@ export class SalesService {
     crossSellQb.groupBy('oi.added_by');
 
     const crossSellRows = await crossSellQb.getRawMany();
-    const crossSellMap = new Map<number, { items: number; revenue: number; orders: number }>();
+    const crossSellMap = new Map<number, { qty: number; orders: number }>();
     for (const r of crossSellRows) {
       crossSellMap.set(toNum(r.agent_id), {
-        items: toNum(r.cross_sell_items),
-        revenue: toNum(r.cross_sell_revenue),
+        qty: toNum(r.cross_sell_qty),
         orders: toNum(r.cross_sell_orders),
       });
     }
@@ -1521,7 +1517,7 @@ export class SalesService {
 
     // ──── 7) Overall totals ────
     const agents = agentRows.map((r: any) => {
-      const cs = crossSellMap.get(toNum(r.agent_id)) || { items: 0, revenue: 0, orders: 0 };
+      const cs = crossSellMap.get(toNum(r.agent_id)) || { qty: 0, orders: 0 };
       const totalOrders = toNum(r.total_orders);
       const productsQty = prodQtyMap.get(toNum(r.agent_id)) || 0;
       const upsellQty = Math.max(0, productsQty - totalOrders);
@@ -1535,9 +1531,8 @@ export class SalesService {
         uniqueCustomers: toNum(r.unique_customers),
         upsellQty,
         productsQty,
+        crossSellQty: cs.qty,
         crossSellOrders: cs.orders,
-        crossSellItems: cs.items,
-        crossSellRevenue: cs.revenue,
         pendingOrders: toNum(r.pending_orders),
         approvedOrders: toNum(r.approved_orders),
         shippedOrders: toNum(r.shipped_orders),
@@ -1556,9 +1551,8 @@ export class SalesService {
       totalDiscount: agents.reduce((s, a) => s + a.totalDiscount, 0),
       totalUpsellQty: agents.reduce((s, a) => s + a.upsellQty, 0),
       totalProductsQty: agents.reduce((s, a) => s + a.productsQty, 0),
+      totalCrossSellQty: agents.reduce((s, a) => s + a.crossSellQty, 0),
       totalCrossSellOrders: agents.reduce((s, a) => s + a.crossSellOrders, 0),
-      totalCrossSellItems: agents.reduce((s, a) => s + a.crossSellItems, 0),
-      totalCrossSellRevenue: agents.reduce((s, a) => s + a.crossSellRevenue, 0),
       totalUniqueCustomers: agents.reduce((s, a) => s + a.uniqueCustomers, 0),
       activeAgents: agents.length,
     };
