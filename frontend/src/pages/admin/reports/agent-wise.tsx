@@ -50,7 +50,6 @@ interface AgentRow {
   avgOrderValue: number;
   totalDiscount: number;
   uniqueCustomers: number;
-  upsellOrders: number;
   upsellQty: number;
   productsQty: number;
   crossSellOrders: number;
@@ -60,10 +59,7 @@ interface AgentRow {
   approvedOrders: number;
   shippedOrders: number;
   deliveredOrders: number;
-  cancelledOrders: number;
-  steadfastOrders: number;
-  pathaoOrders: number;
-  redxOrders: number;
+  adminCancelledOrders: number;
   conversionRate: number;
   cancelRate: number;
 }
@@ -72,7 +68,6 @@ interface AgentSummary {
   totalOrders: number;
   totalRevenue: number;
   totalDiscount: number;
-  totalUpsellOrders: number;
   totalUpsellQty: number;
   totalProductsQty: number;
   totalCrossSellOrders: number;
@@ -247,13 +242,11 @@ export default function AgentWiseReportPage() {
   const radarData = useMemo(() => {
     if (comparedAgents.length === 0) return [];
     const maxOrders = Math.max(...comparedAgents.map((a) => a.totalOrders), 1);
-    const maxCustomers = Math.max(...comparedAgents.map((a) => a.uniqueCustomers), 1);
     const maxUpsells = Math.max(...comparedAgents.map((a) => a.upsellQty), 1);
     const maxCrossSells = Math.max(...comparedAgents.map((a) => a.crossSellOrders), 1);
 
     const metrics = [
       { metric: 'Orders' },
-      { metric: 'Customers' },
       { metric: 'Upsells' },
       { metric: 'Cross-Sells' },
       { metric: 'Conversion %' },
@@ -265,7 +258,6 @@ export default function AgentWiseReportPage() {
         let val = 0;
         switch (m.metric) {
           case 'Orders': val = (a.totalOrders / maxOrders) * 100; break;
-          case 'Customers': val = (a.uniqueCustomers / maxCustomers) * 100; break;
           case 'Upsells': val = (a.upsellQty / maxUpsells) * 100; break;
           case 'Cross-Sells': val = (a.crossSellOrders / maxCrossSells) * 100; break;
           case 'Conversion %': val = a.conversionRate; break;
@@ -300,18 +292,17 @@ export default function AgentWiseReportPage() {
   const handleExportCSV = () => {
     if (!data?.agents?.length) return;
     const headers = [
-      'Agent Name', 'Total Orders', 'Unique Customers',
+      'Agent Name', 'Total Orders',
       'Products Qty', 'Upsell Qty', 'Cross-Sell Orders', 'Cross-Sell Items', 'Cross-Sell Revenue',
-      'Delivered', 'Cancelled',
-      'Conversion %', 'Cancel %', 'Steadfast', 'Pathao', 'RedX',
+      'Admin Cancelled',
+      'Conversion %', 'Cancel %',
     ];
     const rows = data.agents.map((a) =>
       [
         `"${a.agentName}"`, a.totalOrders,
-        a.uniqueCustomers, a.productsQty, a.upsellQty,
+        a.productsQty, a.upsellQty,
         a.crossSellOrders, a.crossSellItems, a.crossSellRevenue,
-        a.deliveredOrders, a.cancelledOrders, a.conversionRate, a.cancelRate,
-        a.steadfastOrders, a.pathaoOrders, a.redxOrders,
+        a.adminCancelledOrders, a.conversionRate, a.cancelRate,
       ].join(','),
     );
     const csv = [headers.join(','), ...rows].join('\n');
@@ -495,9 +486,6 @@ export default function AgentWiseReportPage() {
                           <th className="px-3 py-3 text-center cursor-pointer hover:text-violet-600" onClick={() => handleSort('totalOrders')}>
                             Orders <SortIcon field="totalOrders" />
                           </th>
-                          <th className="px-3 py-3 text-center cursor-pointer hover:text-violet-600" onClick={() => handleSort('uniqueCustomers')}>
-                            Customers <SortIcon field="uniqueCustomers" />
-                          </th>
                           <th className="px-3 py-3 text-center cursor-pointer hover:text-violet-600" onClick={() => handleSort('productsQty')}>
                             Products Qty <SortIcon field="productsQty" />
                           </th>
@@ -507,30 +495,18 @@ export default function AgentWiseReportPage() {
                           <th className="px-3 py-3 text-center cursor-pointer hover:text-violet-600" onClick={() => handleSort('crossSellOrders')}>
                             <span className="text-pink-600">Cross-Sells</span> <SortIcon field="crossSellOrders" />
                           </th>
-                          <th className="px-3 py-3 text-center cursor-pointer hover:text-violet-600" onClick={() => handleSort('deliveredOrders')}>
-                            <span className="text-emerald-600">Delivered</span> <SortIcon field="deliveredOrders" />
-                          </th>
-                          <th className="px-3 py-3 text-center cursor-pointer hover:text-violet-600" onClick={() => handleSort('cancelledOrders')}>
-                            <span className="text-red-600">Cancelled</span> <SortIcon field="cancelledOrders" />
+                          <th className="px-3 py-3 text-center cursor-pointer hover:text-violet-600" onClick={() => handleSort('adminCancelledOrders')}>
+                            <span className="text-red-600">Admin Cancelled</span> <SortIcon field="adminCancelledOrders" />
                           </th>
                           <th className="px-3 py-3 text-center cursor-pointer hover:text-violet-600" onClick={() => handleSort('conversionRate')}>
                             Conv % <SortIcon field="conversionRate" />
-                          </th>
-                          <th className="px-3 py-3 text-center cursor-pointer hover:text-violet-600" onClick={() => handleSort('steadfastOrders')}>
-                            <span className="text-blue-600">SF</span> <SortIcon field="steadfastOrders" />
-                          </th>
-                          <th className="px-3 py-3 text-center cursor-pointer hover:text-violet-600" onClick={() => handleSort('pathaoOrders')}>
-                            <span className="text-red-600">PT</span> <SortIcon field="pathaoOrders" />
-                          </th>
-                          <th className="px-3 py-3 text-center cursor-pointer hover:text-violet-600" onClick={() => handleSort('redxOrders')}>
-                            <span className="text-orange-600">RX</span> <SortIcon field="redxOrders" />
                           </th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-200">
                         {sortedAgents.length === 0 ? (
                           <tr>
-                            <td colSpan={14} className="px-4 py-16 text-center text-gray-500">
+                            <td colSpan={9} className="px-4 py-16 text-center text-gray-500">
                               No agent data for the selected period
                             </td>
                           </tr>
@@ -564,29 +540,12 @@ export default function AgentWiseReportPage() {
                                   </div>
                                 </td>
                                 <td className="px-3 py-3 text-center font-semibold text-gray-900">{a.totalOrders}</td>
-                                <td className="px-3 py-3 text-center text-gray-600">{a.uniqueCustomers}</td>
                                 <td className="px-3 py-3 text-center font-medium text-gray-700">{a.productsQty}</td>
                                 <td className="px-3 py-3 text-center font-medium text-amber-600">{a.upsellQty}</td>
-                                <td className="px-3 py-3 text-center">
-                                  <Badge value={a.crossSellOrders} color="pink" />
-                                </td>
-                                <td className="px-3 py-3 text-center">
-                                  <Badge value={a.deliveredOrders} color="emerald" />
-                                </td>
-                                <td className="px-3 py-3 text-center">
-                                  <Badge value={a.cancelledOrders} color="red" />
-                                </td>
+                                <td className="px-3 py-3 text-center font-medium text-pink-600">{a.crossSellOrders}</td>
+                                <td className="px-3 py-3 text-center font-medium text-red-600">{a.adminCancelledOrders}</td>
                                 <td className="px-3 py-3 text-center">
                                   <ConversionBadge value={a.conversionRate} />
-                                </td>
-                                <td className="px-3 py-3 text-center">
-                                  <Badge value={a.steadfastOrders} color="blue" />
-                                </td>
-                                <td className="px-3 py-3 text-center">
-                                  <Badge value={a.pathaoOrders} color="red" />
-                                </td>
-                                <td className="px-3 py-3 text-center">
-                                  <Badge value={a.redxOrders} color="orange" />
                                 </td>
                               </tr>
                             );
@@ -600,16 +559,11 @@ export default function AgentWiseReportPage() {
                             <td className="px-3 py-3" />
                             <td className="px-3 py-3 text-violet-600">TOTAL</td>
                             <td className="px-3 py-3 text-center">{sortedAgents.reduce((s, a) => s + a.totalOrders, 0)}</td>
-                            <td className="px-3 py-3 text-center">{sortedAgents.reduce((s, a) => s + a.uniqueCustomers, 0)}</td>
                             <td className="px-3 py-3 text-center">{sortedAgents.reduce((s, a) => s + a.productsQty, 0)}</td>
                             <td className="px-3 py-3 text-center text-amber-600">{sortedAgents.reduce((s, a) => s + a.upsellQty, 0)}</td>
                             <td className="px-3 py-3 text-center text-pink-600">{sortedAgents.reduce((s, a) => s + a.crossSellOrders, 0)}</td>
-                            <td className="px-3 py-3 text-center text-emerald-600">{sortedAgents.reduce((s, a) => s + a.deliveredOrders, 0)}</td>
-                            <td className="px-3 py-3 text-center text-red-600">{sortedAgents.reduce((s, a) => s + a.cancelledOrders, 0)}</td>
+                            <td className="px-3 py-3 text-center text-red-600">{sortedAgents.reduce((s, a) => s + a.adminCancelledOrders, 0)}</td>
                             <td className="px-3 py-3 text-center">—</td>
-                            <td className="px-3 py-3 text-center text-blue-600">{sortedAgents.reduce((s, a) => s + a.steadfastOrders, 0)}</td>
-                            <td className="px-3 py-3 text-center text-red-600">{sortedAgents.reduce((s, a) => s + a.pathaoOrders, 0)}</td>
-                            <td className="px-3 py-3 text-center text-orange-600">{sortedAgents.reduce((s, a) => s + a.redxOrders, 0)}</td>
                           </tr>
                         </tfoot>
                       )}
@@ -782,10 +736,9 @@ export default function AgentWiseReportPage() {
                             </div>
                           </div>
                           <div className="space-y-2 text-xs">
-                            <MetricRow label="Customers" value={fmt(a.uniqueCustomers)} />
                             <MetricRow label="Upsell Qty" value={fmt(a.upsellQty)} highlight />
-                            <MetricRow label="Delivered" value={`${a.deliveredOrders} (${a.conversionRate}%)`} />
-                            <MetricRow label="Cancelled" value={`${a.cancelledOrders} (${a.cancelRate}%)`} />
+                            <MetricRow label="Conversion" value={`${a.conversionRate}%`} />
+                            <MetricRow label="Admin Cancelled" value={`${a.adminCancelledOrders} (${a.cancelRate}%)`} />
                           </div>
                         </div>
                       ))}
@@ -831,8 +784,8 @@ export default function AgentWiseReportPage() {
                             <Tooltip contentStyle={{ backgroundColor: '#ffffff', border: '1px solid #e5e7eb', borderRadius: '8px', color: '#111827' }} />
                             <Legend wrapperStyle={{ color: '#374151' }} />
                             <Bar dataKey="totalOrders" name="Orders" fill="#6366f1" radius={[4, 4, 0, 0]} barSize={28} />
-                            <Bar dataKey="upsellOrders" name="Upsells" fill="#f59e0b" radius={[4, 4, 0, 0]} barSize={28} />
-                            <Bar dataKey="uniqueCustomers" name="Customers" fill="#06b6d4" radius={[4, 4, 0, 0]} barSize={28} />
+                            <Bar dataKey="upsellQty" name="Upsell Qty" fill="#f59e0b" radius={[4, 4, 0, 0]} barSize={28} />
+                            <Bar dataKey="crossSellOrders" name="Cross-Sells" fill="#ec4899" radius={[4, 4, 0, 0]} barSize={28} />
                           </BarChart>
                         </ResponsiveContainer>
                       </ChartCard>

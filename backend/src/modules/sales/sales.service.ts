@@ -1308,36 +1308,7 @@ export class SalesService {
 
     const agentRows = await agentQb.getRawMany();
 
-    // ──── 2) Upsell per agent: items added later to agent-created orders ────
-    const upsellQb = this.orderItemsRepository2
-      .createQueryBuilder('oi')
-      .innerJoin('sales_orders', 'o', 'o.id = oi.order_id')
-      .select([
-        'oi.added_by AS agent_id',
-        'COALESCE(SUM(oi.quantity), 0) AS upsell_qty',
-        'COUNT(DISTINCT oi.order_id) AS upsell_orders',
-      ])
-      .where('oi.is_upsell = TRUE')
-      .andWhere('oi.added_by IS NOT NULL')
-      .andWhere('DATE(o.order_date) >= :startDate', { startDate })
-      .andWhere('DATE(o.order_date) <= :endDate', { endDate });
-
-    if (params.agentId) {
-      upsellQb.andWhere('oi.added_by = :agentId', { agentId: params.agentId });
-    }
-
-    upsellQb.groupBy('oi.added_by');
-
-    const upsellRows = await upsellQb.getRawMany();
-    const upsellMap = new Map<number, { qty: number; orders: number }>();
-    for (const r of upsellRows) {
-      upsellMap.set(toNum(r.agent_id), {
-        qty: toNum(r.upsell_qty),
-        orders: toNum(r.upsell_orders),
-      });
-    }
-
-    // ──── 2b) Cross-sell per agent: items added by an agent to website/landing-page orders ────
+    // ──── 2) Cross-sell per agent: items added by an agent to website/landing-page orders ────
     const crossSellQb = this.orderItemsRepository2
       .createQueryBuilder('oi')
       .innerJoin('sales_orders', 'o', 'o.id = oi.order_id')
@@ -1394,28 +1365,37 @@ export class SalesService {
 
     const dailyRows = await dailyQb.getRawMany();
 
-    // ──── 3b) Daily upsell counts from order_items ────
-    const dailyUpsellQb = this.orderItemsRepository2
-      .createQueryBuilder('oi')
-      .innerJoin('sales_orders', 'o', 'o.id = oi.order_id')
-      .select([
-        'DATE(o.order_date) AS date',
-        'COALESCE(SUM(oi.quantity), 0) AS upsell_qty',
-      ])
-      .where('oi.is_upsell = TRUE')
-      .andWhere('oi.added_by IS NOT NULL')
-      .andWhere('DATE(o.order_date) >= :startDate', { startDate })
-      .andWhere('DATE(o.order_date) <= :endDate', { endDate });
-
-    if (params.agentId) {
-      dailyUpsellQb.andWhere('oi.added_by = :agentId', { agentId: params.agentId });
+    // ──── 3b) Daily product qty for upsell trend (from both item tables) ────
+    const dailyProdQtySoiRows: any[] = await this.salesRepository.manager.query(
+      `SELECT DATE(o.order_date) AS date, COALESCE(SUM(soi.quantity), 0) AS prod_qty
+       FROM sales_order_items soi
+       INNER JOIN sales_orders o ON o.id = soi.sales_order_id
+       WHERE o.created_by IS NOT NULL
+         AND o.order_source IN ('admin_panel', 'agent_dashboard')
+         AND DATE(o.order_date) >= $1 AND DATE(o.order_date) <= $2
+         ${params.agentId ? 'AND o.created_by = $3' : ''}
+       GROUP BY DATE(o.order_date)`,
+      params.agentId ? [startDate, endDate, params.agentId] : [startDate, endDate],
+    );
+    const dailyProdQtyOiRows: any[] = await this.salesRepository.manager.query(
+      `SELECT DATE(o.order_date) AS date, COALESCE(SUM(oi.quantity), 0) AS prod_qty
+       FROM order_items oi
+       INNER JOIN sales_orders o ON o.id = oi.order_id
+       WHERE o.created_by IS NOT NULL
+         AND o.order_source IN ('admin_panel', 'agent_dashboard')
+         AND DATE(o.order_date) >= $1 AND DATE(o.order_date) <= $2
+         ${params.agentId ? 'AND o.created_by = $3' : ''}
+       GROUP BY DATE(o.order_date)`,
+      params.agentId ? [startDate, endDate, params.agentId] : [startDate, endDate],
+    );
+    const dailyProdQtyMap = new Map<string, number>();
+    for (const r of dailyProdQtySoiRows) {
+      const d = String(r.date).slice(0, 10);
+      dailyProdQtyMap.set(d, (dailyProdQtyMap.get(d) || 0) + toNum(r.prod_qty));
     }
-
-    dailyUpsellQb.groupBy('date').orderBy('date', 'ASC');
-    const dailyUpsellRows = await dailyUpsellQb.getRawMany();
-    const dailyUpsellMap = new Map<string, number>();
-    for (const r of dailyUpsellRows) {
-      dailyUpsellMap.set(String(r.date).slice(0, 10), toNum(r.upsell_qty));
+    for (const r of dailyProdQtyOiRows) {
+      const d = String(r.date).slice(0, 10);
+      dailyProdQtyMap.set(d, (dailyProdQtyMap.get(d) || 0) + toNum(r.prod_qty));
     }
 
     // ──── 4) Hourly distribution for selected agent(s) (use created_at which is timestamp) ────
@@ -1510,21 +1490,51 @@ export class SalesService {
       prodQtyMap.set(id, (prodQtyMap.get(id) || 0) + toNum(r.total_product_qty));
     }
 
-    // ──── 6) Overall totals ────
+    // ──── 6) Call-based conversion rate per agent ────
+    // Conversion = (customers called who placed an order / total customers called) * 100
+    const convRateRows: any[] = await this.salesRepository.manager.query(
+      `SELECT
+         a.user_id AS agent_id,
+         COUNT(DISTINCT a.customer_id) AS total_called,
+         COUNT(DISTINCT CASE WHEN o.id IS NOT NULL THEN a.customer_id END) AS converted
+       FROM activities a
+       LEFT JOIN sales_orders o
+         ON o.customer_id = a.customer_id
+         AND o.created_by = a.user_id
+         AND o.order_source IN ('admin_panel', 'agent_dashboard')
+         AND DATE(o.order_date) >= $1
+         AND DATE(o.order_date) <= $2
+       WHERE a.type = 'call'
+         AND a.customer_id IS NOT NULL
+         AND DATE(a.created_at) >= $1
+         AND DATE(a.created_at) <= $2
+         ${params.agentId ? 'AND a.user_id = $3' : ''}
+       GROUP BY a.user_id`,
+      params.agentId ? [startDate, endDate, params.agentId] : [startDate, endDate],
+    );
+    const convRateMap = new Map<number, number>();
+    for (const r of convRateRows) {
+      const called = toNum(r.total_called);
+      const converted = toNum(r.converted);
+      convRateMap.set(toNum(r.agent_id), called > 0 ? Math.round((converted / called) * 100) : 0);
+    }
+
+    // ──── 7) Overall totals ────
     const agents = agentRows.map((r: any) => {
       const cs = crossSellMap.get(toNum(r.agent_id)) || { items: 0, revenue: 0, orders: 0 };
-      const us = upsellMap.get(toNum(r.agent_id)) || { qty: 0, orders: 0 };
+      const totalOrders = toNum(r.total_orders);
+      const productsQty = prodQtyMap.get(toNum(r.agent_id)) || 0;
+      const upsellQty = Math.max(0, productsQty - totalOrders);
       return {
         agentId: toNum(r.agent_id),
         agentName: [r.agent_name, r.agent_last_name].filter(Boolean).join(' ') || `Agent #${r.agent_id}`,
-        totalOrders: toNum(r.total_orders),
+        totalOrders,
         totalRevenue: toNum(r.total_revenue),
         avgOrderValue: toNum(r.avg_order_value),
         totalDiscount: toNum(r.total_discount),
         uniqueCustomers: toNum(r.unique_customers),
-        upsellOrders: us.orders,
-        upsellQty: us.qty,
-        productsQty: prodQtyMap.get(toNum(r.agent_id)) || 0,
+        upsellQty,
+        productsQty,
         crossSellOrders: cs.orders,
         crossSellItems: cs.items,
         crossSellRevenue: cs.revenue,
@@ -1532,15 +1542,10 @@ export class SalesService {
         approvedOrders: toNum(r.approved_orders),
         shippedOrders: toNum(r.shipped_orders),
         deliveredOrders: toNum(r.delivered_orders),
-        cancelledOrders: toNum(r.cancelled_orders),
-        steadfastOrders: toNum(r.steadfast_orders),
-        pathaoOrders: toNum(r.pathao_orders),
-        redxOrders: toNum(r.redx_orders),
-        conversionRate: toNum(r.total_orders) > 0
-          ? Math.round((toNum(r.delivered_orders) / toNum(r.total_orders)) * 100)
-          : 0,
+        adminCancelledOrders: toNum(r.admin_cancelled_orders),
+        conversionRate: convRateMap.get(toNum(r.agent_id)) || 0,
         cancelRate: toNum(r.total_orders) > 0
-          ? Math.round((toNum(r.cancelled_orders) / toNum(r.total_orders)) * 100)
+          ? Math.round((toNum(r.admin_cancelled_orders) / toNum(r.total_orders)) * 100)
           : 0,
       };
     });
@@ -1549,7 +1554,6 @@ export class SalesService {
       totalOrders: agents.reduce((s, a) => s + a.totalOrders, 0),
       totalRevenue: agents.reduce((s, a) => s + a.totalRevenue, 0),
       totalDiscount: agents.reduce((s, a) => s + a.totalDiscount, 0),
-      totalUpsellOrders: agents.reduce((s, a) => s + a.upsellOrders, 0),
       totalUpsellQty: agents.reduce((s, a) => s + a.upsellQty, 0),
       totalProductsQty: agents.reduce((s, a) => s + a.productsQty, 0),
       totalCrossSellOrders: agents.reduce((s, a) => s + a.crossSellOrders, 0),
@@ -1564,11 +1568,14 @@ export class SalesService {
     for (const r of dailyRows) {
       const d = String(r.date).slice(0, 10);
       if (!dateMap.has(d)) {
-        dateMap.set(d, { date: d, orders: 0, revenue: 0, upsells: dailyUpsellMap.get(d) || 0 });
+        dateMap.set(d, { date: d, orders: 0, revenue: 0, upsells: 0 });
       }
       const entry = dateMap.get(d)!;
       entry.orders += toNum(r.orders);
       entry.revenue += toNum(r.revenue);
+      // Upsell = productsQty - orders for this date
+      const dailyProdQty = dailyProdQtyMap.get(d) || 0;
+      entry.upsells = Math.max(0, dailyProdQty - entry.orders);
 
     }
     const dailyTrend = [...dateMap.values()].sort((a, b) => a.date.localeCompare(b.date));
