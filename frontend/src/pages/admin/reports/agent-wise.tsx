@@ -37,7 +37,6 @@ import {
   FaArrowUp,
 
   FaTrophy,
-  FaPercent,
 
   FaExchangeAlt,
 } from 'react-icons/fa';
@@ -52,8 +51,7 @@ interface AgentRow {
   totalDiscount: number;
   uniqueCustomers: number;
   upsellOrders: number;
-  upsellRevenue: number;
-  upsellRate: number;
+  upsellQty: number;
   crossSellOrders: number;
   crossSellItems: number;
   crossSellRevenue: number;
@@ -74,7 +72,7 @@ interface AgentSummary {
   totalRevenue: number;
   totalDiscount: number;
   totalUpsellOrders: number;
-  totalUpsellRevenue: number;
+  totalUpsellQty: number;
   totalCrossSellOrders: number;
   totalCrossSellItems: number;
   totalCrossSellRevenue: number;
@@ -248,7 +246,7 @@ export default function AgentWiseReportPage() {
     if (comparedAgents.length === 0) return [];
     const maxOrders = Math.max(...comparedAgents.map((a) => a.totalOrders), 1);
     const maxCustomers = Math.max(...comparedAgents.map((a) => a.uniqueCustomers), 1);
-    const maxUpsells = Math.max(...comparedAgents.map((a) => a.upsellOrders), 1);
+    const maxUpsells = Math.max(...comparedAgents.map((a) => a.upsellQty), 1);
     const maxCrossSells = Math.max(...comparedAgents.map((a) => a.crossSellOrders), 1);
 
     const metrics = [
@@ -266,7 +264,7 @@ export default function AgentWiseReportPage() {
         switch (m.metric) {
           case 'Orders': val = (a.totalOrders / maxOrders) * 100; break;
           case 'Customers': val = (a.uniqueCustomers / maxCustomers) * 100; break;
-          case 'Upsells': val = (a.upsellOrders / maxUpsells) * 100; break;
+          case 'Upsells': val = (a.upsellQty / maxUpsells) * 100; break;
           case 'Cross-Sells': val = (a.crossSellOrders / maxCrossSells) * 100; break;
           case 'Conversion %': val = a.conversionRate; break;
         }
@@ -301,14 +299,14 @@ export default function AgentWiseReportPage() {
     if (!data?.agents?.length) return;
     const headers = [
       'Agent Name', 'Total Orders', 'Unique Customers',
-      'Upsell Orders', 'Upsell Rate %', 'Cross-Sell Orders', 'Cross-Sell Items', 'Cross-Sell Revenue',
+      'Upsell Qty', 'Cross-Sell Orders', 'Cross-Sell Items', 'Cross-Sell Revenue',
       'Delivered', 'Cancelled',
       'Conversion %', 'Cancel %', 'Steadfast', 'Pathao', 'RedX',
     ];
     const rows = data.agents.map((a) =>
       [
         `"${a.agentName}"`, a.totalOrders,
-        a.uniqueCustomers, a.upsellOrders, a.upsellRate,
+        a.uniqueCustomers, a.upsellQty,
         a.crossSellOrders, a.crossSellItems, a.crossSellRevenue,
         a.deliveredOrders, a.cancelledOrders, a.conversionRate, a.cancelRate,
         a.steadfastOrders, a.pathaoOrders, a.redxOrders,
@@ -434,8 +432,7 @@ export default function AgentWiseReportPage() {
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
               <KPICard icon={<FaUsers />} label="Active Agents" value={fmt(data.summary.activeAgents)} color="violet" />
               <KPICard icon={<FaShoppingCart />} label="Total Orders" value={fmt(data.summary.totalOrders)} color="indigo" />
-              <KPICard icon={<FaArrowUp />} label="Upsell Orders" value={fmt(data.summary.totalUpsellOrders)} color="amber" />
-              <KPICard icon={<FaPercent />} label="Upsell Rate" value={`${data.summary.totalOrders > 0 ? Math.round((data.summary.totalUpsellOrders / data.summary.totalOrders) * 100) : 0}%`} color="cyan" />
+              <KPICard icon={<FaArrowUp />} label="Upsell Qty" value={fmt(data.summary.totalUpsellQty)} color="amber" />
               <KPICard icon={<FaExchangeAlt />} label="Cross-Sell Orders" value={fmt(data.summary.totalCrossSellOrders)} color="pink" />
               <KPICard icon={<FaUsers />} label="Unique Customers" value={fmt(data.summary.totalUniqueCustomers)} color="teal" />
             </div>
@@ -499,11 +496,8 @@ export default function AgentWiseReportPage() {
                           <th className="px-3 py-3 text-center cursor-pointer hover:text-violet-600" onClick={() => handleSort('uniqueCustomers')}>
                             Customers <SortIcon field="uniqueCustomers" />
                           </th>
-                          <th className="px-3 py-3 text-center cursor-pointer hover:text-violet-600" onClick={() => handleSort('upsellOrders')}>
-                            <span className="text-amber-600">Upsells</span> <SortIcon field="upsellOrders" />
-                          </th>
-                          <th className="px-3 py-3 text-center cursor-pointer hover:text-violet-600" onClick={() => handleSort('upsellRate')}>
-                            <span className="text-amber-600">Upsell %</span> <SortIcon field="upsellRate" />
+                          <th className="px-3 py-3 text-center cursor-pointer hover:text-violet-600" onClick={() => handleSort('upsellQty')}>
+                            <span className="text-amber-600">Upsell Qty</span> <SortIcon field="upsellQty" />
                           </th>
                           <th className="px-3 py-3 text-center cursor-pointer hover:text-violet-600" onClick={() => handleSort('crossSellOrders')}>
                             <span className="text-pink-600">Cross-Sells</span> <SortIcon field="crossSellOrders" />
@@ -531,7 +525,7 @@ export default function AgentWiseReportPage() {
                       <tbody className="divide-y divide-gray-200">
                         {sortedAgents.length === 0 ? (
                           <tr>
-                            <td colSpan={14} className="px-4 py-16 text-center text-gray-500">
+                            <td colSpan={13} className="px-4 py-16 text-center text-gray-500">
                               No agent data for the selected period
                             </td>
                           </tr>
@@ -567,10 +561,7 @@ export default function AgentWiseReportPage() {
                                 <td className="px-3 py-3 text-center font-semibold text-gray-900">{a.totalOrders}</td>
                                 <td className="px-3 py-3 text-center text-gray-600">{a.uniqueCustomers}</td>
                                 <td className="px-3 py-3 text-center">
-                                  <Badge value={a.upsellOrders} color="amber" />
-                                </td>
-                                <td className="px-3 py-3 text-center">
-                                  <PercentBadge value={a.upsellRate} />
+                                  <Badge value={a.upsellQty} color="amber" />
                                 </td>
                                 <td className="px-3 py-3 text-center">
                                   <Badge value={a.crossSellOrders} color="pink" />
@@ -606,8 +597,7 @@ export default function AgentWiseReportPage() {
                             <td className="px-3 py-3 text-violet-600">TOTAL</td>
                             <td className="px-3 py-3 text-center">{sortedAgents.reduce((s, a) => s + a.totalOrders, 0)}</td>
                             <td className="px-3 py-3 text-center">{sortedAgents.reduce((s, a) => s + a.uniqueCustomers, 0)}</td>
-                            <td className="px-3 py-3 text-center text-amber-600">{sortedAgents.reduce((s, a) => s + a.upsellOrders, 0)}</td>
-                            <td className="px-3 py-3 text-center">—</td>
+                            <td className="px-3 py-3 text-center text-amber-600">{sortedAgents.reduce((s, a) => s + a.upsellQty, 0)}</td>
                             <td className="px-3 py-3 text-center text-pink-600">{sortedAgents.reduce((s, a) => s + a.crossSellOrders, 0)}</td>
                             <td className="px-3 py-3 text-center text-emerald-600">{sortedAgents.reduce((s, a) => s + a.deliveredOrders, 0)}</td>
                             <td className="px-3 py-3 text-center text-red-600">{sortedAgents.reduce((s, a) => s + a.cancelledOrders, 0)}</td>
@@ -661,7 +651,7 @@ export default function AgentWiseReportPage() {
                           <XAxis dataKey="date" stroke="#6b7280" tick={{ fontSize: 10 }} />
                           <YAxis stroke="#6b7280" tick={{ fontSize: 11 }} />
                           <Tooltip contentStyle={{ backgroundColor: '#ffffff', border: '1px solid #e5e7eb', borderRadius: '8px', color: '#111827' }} />
-                          <Area type="monotone" dataKey="upsells" name="Upsell Orders" stroke="#f59e0b" fill="url(#agGradUpsell)" strokeWidth={2} />
+                          <Area type="monotone" dataKey="upsells" name="Upsell Qty" stroke="#f59e0b" fill="url(#agGradUpsell)" strokeWidth={2} />
                         </AreaChart>
                       </ResponsiveContainer>
                     </ChartCard>
@@ -735,7 +725,7 @@ export default function AgentWiseReportPage() {
                   <ChartCard title="Upsell Leaderboard" subtitle="Agents ranked by upsell performance">
                     <ResponsiveContainer width="100%" height={300}>
                       <BarChart
-                        data={[...data.agents].sort((a, b) => b.upsellOrders - a.upsellOrders).slice(0, 10)}
+                        data={[...data.agents].sort((a, b) => b.upsellQty - a.upsellQty).slice(0, 10)}
                         margin={{ top: 5, right: 30, left: 5, bottom: 5 }}
                       >
                         <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
@@ -748,8 +738,7 @@ export default function AgentWiseReportPage() {
                         <YAxis stroke="#6b7280" tick={{ fontSize: 11 }} />
                         <Tooltip contentStyle={{ backgroundColor: '#ffffff', border: '1px solid #e5e7eb', borderRadius: '8px', color: '#111827' }} />
                         <Legend wrapperStyle={{ color: '#374151' }} />
-                        <Bar dataKey="upsellOrders" name="Upsell Orders" fill="#f59e0b" radius={[4, 4, 0, 0]} barSize={28} />
-                        <Bar dataKey="upsellRate" name="Upsell Rate %" fill="#a855f7" radius={[4, 4, 0, 0]} barSize={28} />
+                        <Bar dataKey="upsellQty" name="Upsell Qty" fill="#f59e0b" radius={[4, 4, 0, 0]} barSize={28} />
                       </BarChart>
                     </ResponsiveContainer>
                   </ChartCard>
@@ -789,7 +778,7 @@ export default function AgentWiseReportPage() {
                           </div>
                           <div className="space-y-2 text-xs">
                             <MetricRow label="Customers" value={fmt(a.uniqueCustomers)} />
-                            <MetricRow label="Upsells" value={`${a.upsellOrders} (${a.upsellRate}%)`} highlight />
+                            <MetricRow label="Upsell Qty" value={fmt(a.upsellQty)} highlight />
                             <MetricRow label="Delivered" value={`${a.deliveredOrders} (${a.conversionRate}%)`} />
                             <MetricRow label="Cancelled" value={`${a.cancelledOrders} (${a.cancelRate}%)`} />
                           </div>

@@ -503,6 +503,8 @@ export class OrderManagementService {
     // Determine if this is a cross-sell: agent adding product to a website/landing-page order
     const order = await this.salesOrderRepository.findOne({ where: { id: data.orderId } });
     const isCrossSell = order != null && ['website', 'landing_page'].includes(order.orderSource || '');
+    // Determine if this is an upsell: agent adding product to an agent-created order
+    const isUpsell = order != null && ['admin_panel', 'agent_dashboard'].includes(order.orderSource || '');
 
     const orderItem = this.orderItemRepository.create({
       orderId: data.orderId,
@@ -514,6 +516,7 @@ export class OrderManagementService {
       subtotal: subtotal,
       updatedBy: data.userId,
       isCrossSell,
+      isUpsell,
       addedBy: data.userId,
     });
 

@@ -42,6 +42,9 @@ export class OrderItem {
   @Column({ name: 'is_cross_sell', type: 'boolean', default: false })
   isCrossSell: boolean;
 
+  @Column({ name: 'is_upsell', type: 'boolean', default: false })
+  isUpsell: boolean;
+
   @Column({ name: 'added_by', nullable: true })
   addedBy: number;
 
