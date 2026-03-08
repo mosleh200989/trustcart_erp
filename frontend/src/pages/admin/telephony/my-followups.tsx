@@ -125,7 +125,12 @@ export default function MyFollowupsPage() {
         url += `&specificDate=${specificDate}`;
       }
       const res = await apiClient.get(url);
-      const tasks: FollowUp[] = Array.isArray(res.data) ? res.data : [];
+      let tasks: FollowUp[] = Array.isArray(res.data) ? res.data : [];
+
+      // Safety filter: ensure only tasks assigned to this agent are shown
+      if (agentId) {
+        tasks = tasks.filter(t => !t.assigned_agent_id || Number(t.assigned_agent_id) === agentId);
+      }
       
       setFollowUps(tasks);
     } catch (error) {
