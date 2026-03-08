@@ -54,9 +54,16 @@ export class CrmAutomationService {
     const todayStr = today.toISOString().split('T')[0];
 
     // Build raw SQL for maximum reliability — ensures strict agent filtering
+    // Only match manually-created follow-ups, NOT auto-generated daily call tasks
+    // Manual: 'Follow-up Call', 'Follow-up from call on ...', callback requests
+    // Exclude auto-generated: 'Follow-up / Support', 'Follow-up - Repeat customer', 'Product Reminder', 'Win-back', 'Offer / Cross-sell'
     const conditions: string[] = [
       't.assigned_agent_id = $1',
-      "(t.call_reason ILIKE '%follow%' OR t.call_reason ILIKE '%reminder%' OR t.call_reason ILIKE '%callback%')",
+      `(
+        t.call_reason ILIKE 'Follow-up Call%'
+        OR t.call_reason ILIKE 'Follow-up from %'
+        OR t.call_reason ILIKE '%callback%'
+      )`,
     ];
     const params: any[] = [safeAgentId];
     let paramIdx = 2;
