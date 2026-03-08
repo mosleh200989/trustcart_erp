@@ -127,9 +127,9 @@ export default function MyFollowupsPage() {
       const res = await apiClient.get(url);
       let tasks: FollowUp[] = Array.isArray(res.data) ? res.data : [];
 
-      // Safety filter: ensure only tasks assigned to this agent are shown
+      // Safety filter: strictly show only tasks assigned to this agent
       if (agentId) {
-        tasks = tasks.filter(t => !t.assigned_agent_id || Number(t.assigned_agent_id) === agentId);
+        tasks = tasks.filter(t => t.assigned_agent_id != null && Number(t.assigned_agent_id) === agentId);
       }
       
       setFollowUps(tasks);
