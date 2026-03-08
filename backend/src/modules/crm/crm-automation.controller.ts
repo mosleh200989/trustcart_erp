@@ -21,6 +21,7 @@ export class CrmAutomationController {
     @Query('specificDate') specificDate?: string
   ) {
     const agentId = Number(req.user?.id || req.user?.userId);
+    console.log('[MyFollowups] req.user =', JSON.stringify({ id: req.user?.id, userId: req.user?.userId, email: req.user?.email }), '=> agentId =', agentId);
     if (!agentId || isNaN(agentId)) {
       return [];
     }

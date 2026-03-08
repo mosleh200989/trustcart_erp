@@ -48,29 +48,40 @@ export class CrmAutomationService {
   async getAgentFollowUpTasks(agentId: number, dateRange?: string, specificDate?: string) {
     if (!agentId || isNaN(agentId)) return [];
 
+    const safeAgentId = Number(agentId);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    
-    const qb = this.callTaskRepo.createQueryBuilder('t')
-      .where('t.assigned_agent_id = :agentId', { agentId: Number(agentId) })
-      .andWhere("(t.call_reason ILIKE '%follow%' OR t.call_reason ILIKE '%reminder%' OR t.call_reason ILIKE '%callback%')");
-    
-    // Specific date filter (takes priority over date range)
+    const todayStr = today.toISOString().split('T')[0];
+
+    // Build raw SQL for maximum reliability — ensures strict agent filtering
+    const conditions: string[] = [
+      't.assigned_agent_id = $1',
+      "(t.call_reason ILIKE '%follow%' OR t.call_reason ILIKE '%reminder%' OR t.call_reason ILIKE '%callback%')",
+    ];
+    const params: any[] = [safeAgentId];
+    let paramIdx = 2;
+
+    // Date range conditions
     if (specificDate) {
-      qb.andWhere('t.task_date = :specificDate', { specificDate });
+      conditions.push(`t.task_date = $${paramIdx}`);
+      params.push(specificDate);
+      paramIdx++;
     } else if (dateRange === 'today') {
-      qb.andWhere('t.task_date = :today', { today: today.toISOString().split('T')[0] });
+      conditions.push(`t.task_date = $${paramIdx}`);
+      params.push(todayStr);
+      paramIdx++;
     } else if (dateRange === 'tomorrow') {
       const tomorrow = new Date(today);
       tomorrow.setDate(tomorrow.getDate() + 1);
-      qb.andWhere('t.task_date = :tomorrow', { tomorrow: tomorrow.toISOString().split('T')[0] });
+      conditions.push(`t.task_date = $${paramIdx}`);
+      params.push(tomorrow.toISOString().split('T')[0]);
+      paramIdx++;
     } else if (dateRange === 'this_week') {
       const endOfWeek = new Date(today);
       endOfWeek.setDate(endOfWeek.getDate() + (7 - today.getDay()));
-      qb.andWhere('t.task_date >= :today AND t.task_date <= :endOfWeek', { 
-        today: today.toISOString().split('T')[0],
-        endOfWeek: endOfWeek.toISOString().split('T')[0]
-      });
+      conditions.push(`t.task_date >= $${paramIdx} AND t.task_date <= $${paramIdx + 1}`);
+      params.push(todayStr, endOfWeek.toISOString().split('T')[0]);
+      paramIdx += 2;
     } else if (dateRange === 'next_week') {
       const endOfThisWeek = new Date(today);
       endOfThisWeek.setDate(endOfThisWeek.getDate() + (7 - today.getDay()));
@@ -78,76 +89,63 @@ export class CrmAutomationService {
       startOfNextWeek.setDate(startOfNextWeek.getDate() + 1);
       const endOfNextWeek = new Date(startOfNextWeek);
       endOfNextWeek.setDate(endOfNextWeek.getDate() + 6);
-      qb.andWhere('t.task_date >= :startOfNextWeek AND t.task_date <= :endOfNextWeek', { 
-        startOfNextWeek: startOfNextWeek.toISOString().split('T')[0],
-        endOfNextWeek: endOfNextWeek.toISOString().split('T')[0]
-      });
+      conditions.push(`t.task_date >= $${paramIdx} AND t.task_date <= $${paramIdx + 1}`);
+      params.push(startOfNextWeek.toISOString().split('T')[0], endOfNextWeek.toISOString().split('T')[0]);
+      paramIdx += 2;
     } else if (dateRange === 'this_month') {
       const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-      qb.andWhere('t.task_date >= :today AND t.task_date <= :endOfMonth', { 
-        today: today.toISOString().split('T')[0],
-        endOfMonth: endOfMonth.toISOString().split('T')[0]
-      });
+      conditions.push(`t.task_date >= $${paramIdx} AND t.task_date <= $${paramIdx + 1}`);
+      params.push(todayStr, endOfMonth.toISOString().split('T')[0]);
+      paramIdx += 2;
     } else if (dateRange === 'next_month') {
       const startOfNextMonth = new Date(today.getFullYear(), today.getMonth() + 1, 1);
       const endOfNextMonth = new Date(today.getFullYear(), today.getMonth() + 2, 0);
-      qb.andWhere('t.task_date >= :startOfNextMonth AND t.task_date <= :endOfNextMonth', { 
-        startOfNextMonth: startOfNextMonth.toISOString().split('T')[0],
-        endOfNextMonth: endOfNextMonth.toISOString().split('T')[0]
-      });
+      conditions.push(`t.task_date >= $${paramIdx} AND t.task_date <= $${paramIdx + 1}`);
+      params.push(startOfNextMonth.toISOString().split('T')[0], endOfNextMonth.toISOString().split('T')[0]);
+      paramIdx += 2;
     } else if (dateRange === 'overdue') {
-      qb.andWhere('t.task_date < :today', { today: today.toISOString().split('T')[0] });
-      qb.andWhere("t.status NOT IN ('completed', 'failed')");
+      conditions.push(`t.task_date < $${paramIdx}`);
+      params.push(todayStr);
+      paramIdx++;
+      conditions.push("t.status NOT IN ('completed', 'failed')");
     } else if (dateRange === 'week') {
-      // Legacy: next 7 days
       const weekEnd = new Date(today);
       weekEnd.setDate(weekEnd.getDate() + 7);
-      qb.andWhere('t.task_date >= :today AND t.task_date <= :weekEnd', { 
-        today: today.toISOString().split('T')[0],
-        weekEnd: weekEnd.toISOString().split('T')[0]
-      });
+      conditions.push(`t.task_date >= $${paramIdx} AND t.task_date <= $${paramIdx + 1}`);
+      params.push(todayStr, weekEnd.toISOString().split('T')[0]);
+      paramIdx += 2;
     } else if (dateRange === 'month') {
-      // Legacy: next 30 days
       const monthEnd = new Date(today);
       monthEnd.setMonth(monthEnd.getMonth() + 1);
-      qb.andWhere('t.task_date >= :today AND t.task_date <= :monthEnd', { 
-        today: today.toISOString().split('T')[0],
-        monthEnd: monthEnd.toISOString().split('T')[0]
-      });
+      conditions.push(`t.task_date >= $${paramIdx} AND t.task_date <= $${paramIdx + 1}`);
+      params.push(todayStr, monthEnd.toISOString().split('T')[0]);
+      paramIdx += 2;
     }
-    // 'all' or undefined = no date filter
-    
-    qb.orderBy('t.task_date', 'ASC')
-      .addOrderBy('t.scheduled_time', 'ASC')
-      .addOrderBy('t.priority', 'ASC');
-    
-    const tasks = await qb.getMany();
-    
-    // Enrich with customer info
-    const enrichedTasks = await Promise.all(tasks.map(async (task) => {
-      try {
-        const customerResult = await this.callTaskRepo.query(
-          'SELECT id, name, phone, email FROM customers WHERE id = $1',
-          [Number(task.customer_id)]
-        );
-        const customer = customerResult[0];
-        return {
-          ...task,
-          customer_name: customer?.name || 'Unknown',
-          customer_phone: customer?.phone || '',
-          customer_email: customer?.email || ''
-        };
-      } catch {
-        return {
-          ...task,
-          customer_name: 'Unknown',
-          customer_phone: '',
-          customer_email: ''
-        };
-      }
+
+    const sql = `
+      SELECT t.*,
+             COALESCE(c1.name, c2.name) AS customer_name,
+             COALESCE(c1.phone, c2.phone, t.customer_id) AS customer_phone,
+             COALESCE(c1.email, c2.email) AS customer_email
+      FROM crm_call_tasks t
+      LEFT JOIN customers c1 ON c1.phone = t.customer_id
+      LEFT JOIN customers c2 ON c2.id::text = t.customer_id AND c1.id IS NULL
+      WHERE ${conditions.join(' AND ')}
+      ORDER BY t.task_date ASC, t.scheduled_time ASC, t.priority ASC
+    `;
+
+    console.log('[MyFollowups] agentId =', safeAgentId, '| dateRange =', dateRange, '| params =', params);
+
+    const rows: any[] = await this.callTaskRepo.query(sql, params);
+
+    console.log('[MyFollowups] returned', rows.length, 'rows, agent_ids:', [...new Set(rows.map(r => r.assigned_agent_id))]);
+
+    return rows.map(r => ({
+      ...r,
+      customer_name: r.customer_name || 'Unknown',
+      customer_phone: r.customer_phone || r.customer_id || '',
+      customer_email: r.customer_email || '',
     }));
-    
-    return enrichedTasks;
   }
   
   async updateCallTaskStatus(taskId: number, status: TaskStatus, outcome?: string, notes?: string) {
