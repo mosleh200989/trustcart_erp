@@ -1161,6 +1161,7 @@ export default function AgentDashboard() {
                   <option value="platinum">Platinum</option>
                   <option value="vip">VIP</option>
                   <option value="repeat">Repeat</option>
+                  <option value="rejected">Rejected</option>
                 </select>
               </div>
               <div>
@@ -1298,6 +1299,7 @@ export default function AgentDashboard() {
                                 c.customerType === 'gold' ? 'bg-yellow-100 text-yellow-800 border-yellow-300' :
                                 c.customerType === 'silver' ? 'bg-gray-200 text-gray-800 border-gray-400' :
                                 c.customerType === 'repeat' ? 'bg-green-100 text-green-800 border-green-300' :
+                                c.customerType === 'rejected' ? 'bg-orange-100 text-orange-800 border-orange-300' :
                                 'bg-gray-100 text-gray-700 border-gray-300'
                               }`}
                             >
@@ -1308,6 +1310,7 @@ export default function AgentDashboard() {
                               <option value="platinum">Platinum</option>
                               <option value="vip">VIP</option>
                               <option value="repeat">Repeat</option>
+                              <option value="rejected">Rejected</option>
                             </select>
                           </td>
                           <td className="px-4 py-3">

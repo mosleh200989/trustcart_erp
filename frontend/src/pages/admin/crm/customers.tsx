@@ -177,6 +177,7 @@ export default function CustomersPage() {
       silver: 'bg-gray-100 text-gray-800',
       vip: 'bg-red-100 text-red-800',
       blacklist: 'bg-black text-white',
+      rejected: 'bg-orange-200 text-orange-800',
     };
     return colors[tier?.toLowerCase() || ''] || 'bg-gray-100 text-gray-600';
   };
@@ -307,6 +308,7 @@ export default function CustomersPage() {
                 <option value="platinum">Platinum</option>
                 <option value="vip">VIP</option>
                 <option value="blacklist">Black List</option>
+                <option value="rejected">Rejected</option>
               </select>
             </div>
           </div>

@@ -115,6 +115,8 @@ interface SalesOrder {
   order_source?: string | null;
   order_source_display?: string | null;
 
+  isRejectedCustomer?: boolean;
+
   items?: { productName: string; quantity: number; customProductName?: string | null; itemId?: number; source?: string }[];
 
   notes?: string | null;
@@ -778,7 +780,16 @@ export default function AdminSales() {
     {
       key: 'customerName',
       label: 'Customer',
-      render: (_: any, row: SalesOrder) => wrapCustomerName(row.customerName ?? row.customer_name)
+      render: (_: any, row: SalesOrder) => (
+        <div>
+          {wrapCustomerName(row.customerName ?? row.customer_name)}
+          {row.isRejectedCustomer && (
+            <span className="inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 bg-red-100 text-red-700 text-[10px] font-bold rounded">
+              ⚠ Rejected
+            </span>
+          )}
+        </div>
+      )
     },
     {
       key: 'customerPhone',

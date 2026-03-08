@@ -188,7 +188,7 @@ export class CrmTeamService {
   }
 
   // ==================== CUSTOMER TIER MANAGEMENT ====================
-  private static readonly VALID_TIERS = ['new', 'silver', 'gold', 'platinum', 'vip', 'normal', 'repeat'];
+  private static readonly VALID_TIERS = ['new', 'silver', 'gold', 'platinum', 'vip', 'normal', 'repeat', 'rejected'];
 
   async updateCustomerTier(customerId: string, tier: string, actorUserId: number): Promise<Customer> {
     const customerIdNum = Number(customerId);

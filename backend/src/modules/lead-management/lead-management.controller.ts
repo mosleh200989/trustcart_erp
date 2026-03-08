@@ -256,6 +256,7 @@ export class LeadManagementController {
     @Query('assignedTo') assignedTo?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
+    @Query('search') search?: string,
   ) {
     return this.leadService.getAllCustomersWithTiers({
       tier,
@@ -263,6 +264,7 @@ export class LeadManagementController {
       assignedTo: assignedTo ? parseInt(assignedTo, 10) : undefined,
       page: page ? parseInt(page, 10) : 1,
       limit: limit ? parseInt(limit, 10) : 10,
+      search,
     });
   }
 

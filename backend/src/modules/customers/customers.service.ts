@@ -63,6 +63,72 @@ export class CustomersService {
     return this.customersRepository.findOne({ where: { phone: normalized } });
   }
 
+  /**
+   * Ensures a customer record exists for a delivered order.
+   * If the order already has a customer_id, returns it.
+   * If not, finds or creates a customer by phone, returns the customer id.
+   */
+  async ensureCustomerForDeliveredOrder(order: {
+    customerId?: number | null;
+    customerPhone?: string | null;
+    customerName?: string | null;
+    customerEmail?: string | null;
+    orderSource?: string | null;
+  }): Promise<number | null> {
+    // Already linked to a customer
+    if (order.customerId) return order.customerId;
+
+    const phone = typeof order.customerPhone === 'string' ? order.customerPhone.trim() : '';
+    if (!phone) return null;
+
+    // Try finding existing customer by phone (try both raw and +88-prefixed variants)
+    const phonePlain = phone.replace(/^\+88/, '');
+    const phoneWith88 = phone.startsWith('+88') ? phone : `+88${phonePlain}`;
+
+    let customer = await this.customersRepository.findOne({ where: { phone: phonePlain } });
+    if (!customer) {
+      customer = await this.customersRepository.findOne({ where: { phone: phoneWith88 } });
+    }
+    if (!customer && phone !== phonePlain && phone !== phoneWith88) {
+      customer = await this.customersRepository.findOne({ where: { phone } });
+    }
+
+    if (customer) return customer.id;
+
+    // Create new customer from order data
+    const nameParts = (order.customerName || '').trim().split(/\s+/);
+    const firstName = nameParts[0] || 'Customer';
+    const lastName = nameParts.slice(1).join(' ') || '';
+    const email = typeof order.customerEmail === 'string' && order.customerEmail.trim()
+      ? order.customerEmail.trim()
+      : null;
+
+    // Avoid unique constraint on email if it already exists
+    let finalEmail = email;
+    if (finalEmail) {
+      const existingByEmail = await this.customersRepository.findOne({ where: { email: finalEmail } });
+      if (existingByEmail) {
+        finalEmail = null; // Don't duplicate email
+      }
+    }
+
+    const newCustomer = this.customersRepository.create({
+      name: firstName,
+      lastName: lastName,
+      phone: phoneWith88,
+      email: finalEmail,
+      isGuest: true,
+      customerType: 'new',
+      lifecycleStage: 'lead',
+      isActive: true,
+      is_deleted: false,
+      source: order.orderSource || 'order',
+    });
+
+    const saved = await this.customersRepository.save(newCustomer);
+    return saved.id;
+  }
+
   async findAll() {
     return this.customersRepository.find({ where: { is_deleted: false } as any });
   }

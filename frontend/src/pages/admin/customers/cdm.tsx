@@ -59,6 +59,7 @@ export default function CustomersList360() {
             <option value="vip">VIP</option>
             <option value="repeat">Repeat</option>
             <option value="new">New</option>
+            <option value="rejected">Rejected</option>
           </select>
 
           <select

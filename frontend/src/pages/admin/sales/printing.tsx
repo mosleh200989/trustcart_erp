@@ -68,6 +68,7 @@ interface PrintingOrder {
   items?: PrintingOrderItem[];
   hasActiveOrders?: boolean;
   activeOrders?: ActiveOrder[];
+  isRejectedCustomer?: boolean;
 }
 
 function getCourierTrackingUrl(courierCompany: string | null | undefined, trackingId: string | null | undefined, courierOrderId?: string | null): string | null {
@@ -420,6 +421,11 @@ export default function PrintingPage() {
         <div>
           <div className="font-medium">{wrapCustomerName(row.customerName)}</div>
           <div className="text-xs text-gray-500">{row.customerPhone || '-'}</div>
+          {row.isRejectedCustomer && (
+            <span className="inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 bg-red-100 text-red-700 text-[10px] font-bold rounded">
+              ⚠ Rejected
+            </span>
+          )}
         </div>
       ),
     },

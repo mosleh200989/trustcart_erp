@@ -535,9 +535,15 @@ export class LeadManagementService {
     });
   }
 
-  async getAllCustomersWithTiers(filters: { tier?: string; status?: string; assignedTo?: number; page?: number; limit?: number } = {}) {
+  async getAllCustomersWithTiers(filters: { tier?: string; status?: string; assignedTo?: number; page?: number; limit?: number; search?: string } = {}) {
     const { page = 1, limit = 10 } = filters;
     const offset = (page - 1) * limit;
+
+    // Build search clause
+    const searchTerm = (filters.search || '').trim().toLowerCase();
+    const searchClause = searchTerm
+      ? `AND (LOWER(c.name) LIKE '%${searchTerm.replace(/'/g, "''")}%' OR LOWER(c.last_name) LIKE '%${searchTerm.replace(/'/g, "''")}%' OR c.phone LIKE '%${searchTerm.replace(/'/g, "''")}%' OR LOWER(c.email) LIKE '%${searchTerm.replace(/'/g, "''")}%')`
+      : '';
 
     // First, get total count for stats (before pagination)
     const statsQuery = `
@@ -549,6 +555,7 @@ export class LeadManagementService {
         COUNT(CASE WHEN ct.tier = 'platinum' THEN 1 END)::int as platinum,
         COUNT(CASE WHEN ct.tier = 'vip' THEN 1 END)::int as vip,
         COUNT(CASE WHEN ct.tier = 'blacklist' THEN 1 END)::int as blacklist,
+        COUNT(CASE WHEN ct.tier = 'rejected' THEN 1 END)::int as rejected,
         COUNT(CASE WHEN ct.tier IS NULL THEN 1 END)::int as no_tier
       FROM customers c
       LEFT JOIN customer_tiers ct ON ct.customer_id = c.id
@@ -557,6 +564,7 @@ export class LeadManagementService {
       ${filters.status === 'active' ? 'AND ct.is_active = true' : ''}
       ${filters.status === 'inactive' ? 'AND ct.is_active = false' : ''}
       ${filters.assignedTo ? `AND c.assigned_to = ${filters.assignedTo}` : ''}
+      ${searchClause}
     `;
 
     const statsResults = await this.sessionRepo.query(statsQuery);
@@ -572,6 +580,7 @@ export class LeadManagementService {
       ${filters.status === 'active' ? 'AND ct.is_active = true' : ''}
       ${filters.status === 'inactive' ? 'AND ct.is_active = false' : ''}
       ${filters.assignedTo ? `AND c.assigned_to = ${filters.assignedTo}` : ''}
+      ${searchClause}
     `;
 
     const countResults = await this.sessionRepo.query(countQuery);
@@ -615,6 +624,7 @@ export class LeadManagementService {
       ${filters.status === 'active' ? 'AND ct.is_active = true' : ''}
       ${filters.status === 'inactive' ? 'AND ct.is_active = false' : ''}
       ${filters.assignedTo ? `AND c.assigned_to = ${filters.assignedTo}` : ''}
+      ${searchClause}
       ORDER BY c.created_at DESC
       LIMIT ${limit} OFFSET ${offset}
     `;
@@ -653,6 +663,8 @@ export class LeadManagementService {
         gold: statsRow.gold || 0,
         platinum: statsRow.platinum || 0,
         vip: statsRow.vip || 0,
+        blacklist: statsRow.blacklist || 0,
+        rejected: statsRow.rejected || 0,
         noTier: statsRow.no_tier || 0,
       },
       pagination: {

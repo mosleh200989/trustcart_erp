@@ -9,6 +9,7 @@ import { LoyaltyService } from '../loyalty/loyalty.service';
 import { OffersService } from '../offers/offers.service';
 import { WhatsAppService } from '../messaging/whatsapp.service';
 import { CommissionService } from '../crm/commission.service';
+import { CustomersService } from '../customers/customers.service';
 
 @Injectable()
 export class SalesService {
@@ -24,6 +25,7 @@ export class SalesService {
     private whatsAppService: WhatsAppService,
     @Inject(forwardRef(() => CommissionService))
     private commissionService: CommissionService,
+    private customersService: CustomersService,
   ) {}
 
   private normalizeOfferCode(value: any): string {
@@ -327,10 +329,31 @@ export class SalesService {
     const orderIds = orders.map(o => o.id);
     const itemsByOrderId = await this.batchFetchOrderItems(orderIds);
 
+    // ──── Check rejected customer phones ────
+    const phoneSet = new Set<string>();
+    for (const o of orders) {
+      const ph = (o.customerPhone || '').replace(/^\+88/, '').trim();
+      if (ph) phoneSet.add(ph);
+    }
+    const rejectedPhones = new Set<string>();
+    if (phoneSet.size > 0) {
+      const rows: { phone: string }[] = await this.salesRepository.query(
+        `SELECT DISTINCT REPLACE(c.phone, '+88', '') AS phone
+         FROM customers c
+         INNER JOIN customer_tiers ct ON ct.customer_id = c.id
+         WHERE ct.tier = 'rejected' AND REPLACE(c.phone, '+88', '') = ANY($1)`,
+        [Array.from(phoneSet)],
+      );
+      for (const r of rows) rejectedPhones.add(r.phone);
+    }
+
     return {
       data: orders.map((order) => {
         (order as any)._items = itemsByOrderId.get(order.id) || [];
-        return this.toAdminListDto(order);
+        const dto = this.toAdminListDto(order);
+        const norm = (order.customerPhone || '').replace(/^\+88/, '').trim();
+        (dto as any).isRejectedCustomer = rejectedPhones.has(norm);
+        return dto;
       }),
       total,
       page,
@@ -901,6 +924,23 @@ export class SalesService {
     const updated = await this.findOne(id);
 
     if (becameDelivered && updated) {
+      // Ensure customer record exists for lead assignment
+      try {
+        const customerId = await this.customersService.ensureCustomerForDeliveredOrder({
+          customerId: updated.customerId,
+          customerPhone: updated.customerPhone,
+          customerName: updated.customerName,
+          customerEmail: updated.customerEmail,
+          orderSource: (updated as any).orderSource,
+        });
+        if (customerId && !updated.customerId) {
+          await this.salesRepository.update(updated.id, { customerId });
+          updated.customerId = customerId;
+        }
+      } catch {
+        // never block order updates
+      }
+
       try {
         await this.loyaltyService.autoCompleteReferralForDeliveredOrder({
           orderId: updated.id,
