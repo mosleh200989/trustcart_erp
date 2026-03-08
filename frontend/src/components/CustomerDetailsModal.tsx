@@ -45,6 +45,7 @@ export default function CustomerDetailsModal({ customerId, onClose }: CustomerDe
       case 'silver': return 'bg-gray-200 text-gray-800';
       case 'vip': return 'bg-red-100 text-red-800';
       case 'blacklist': return 'bg-black text-white';
+      case 'rejected': return 'bg-orange-200 text-orange-800';
       default: return 'bg-gray-100 text-gray-600';
     }
   };

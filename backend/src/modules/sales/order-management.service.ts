@@ -190,6 +190,21 @@ export class OrderManagementService {
 
       if (becameDelivered) {
         try {
+          const custId = await this.customersService.ensureCustomerForDeliveredOrder({
+            customerId: saved.customerId,
+            customerPhone: saved.customerPhone,
+            customerName: saved.customerName,
+            customerEmail: saved.customerEmail,
+            orderSource: (saved as any).orderSource,
+          });
+          if (custId && !saved.customerId) {
+            await this.salesOrderRepository.update(saved.id, { customerId: custId });
+          }
+        } catch {
+          // never block courier sync
+        }
+
+        try {
           await this.loyaltyService.autoCompleteReferralForDeliveredOrder({
             orderId: saved.id,
             customerId: saved.customerId,
@@ -1004,6 +1019,22 @@ export class OrderManagementService {
     const saved = await this.salesOrderRepository.save(order);
 
     if (becameDelivered) {
+      // Ensure customer record exists for lead assignment
+      try {
+        const custId = await this.customersService.ensureCustomerForDeliveredOrder({
+          customerId: saved.customerId,
+          customerPhone: saved.customerPhone,
+          customerName: saved.customerName,
+          customerEmail: saved.customerEmail,
+          orderSource: (saved as any).orderSource,
+        });
+        if (custId && !saved.customerId) {
+          await this.salesOrderRepository.update(saved.id, { customerId: custId });
+        }
+      } catch {
+        // never block courier updates
+      }
+
       try {
         await this.loyaltyService.autoCompleteReferralForDeliveredOrder({
           orderId: saved.id,
@@ -1656,6 +1687,22 @@ export class OrderManagementService {
    * Errors are caught and logged — they must never block the webhook response.
    */
   private executeSteadfastPostDeliveryActions(order: SalesOrder): void {
+    // Ensure customer record exists for lead assignment
+    this.customersService
+      .ensureCustomerForDeliveredOrder({
+        customerId: order.customerId,
+        customerPhone: order.customerPhone,
+        customerName: order.customerName,
+        customerEmail: order.customerEmail,
+        orderSource: (order as any).orderSource,
+      })
+      .then((custId) => {
+        if (custId && !order.customerId) {
+          return this.salesOrderRepository.update(order.id, { customerId: custId });
+        }
+      })
+      .catch((err) => this.logger.error(`[Steadfast Webhook] Customer ensure failed for order #${order.id}: ${err.message}`));
+
     // Referral completion
     this.loyaltyService
       .autoCompleteReferralForDeliveredOrder({ orderId: order.id, customerId: order.customerId })
@@ -2095,6 +2142,19 @@ export class OrderManagementService {
       }
     }
 
+    // ──── Check rejected customer phones ────
+    const rejectedPhones = new Set<string>();
+    if (phoneSet.size > 0) {
+      const rejRows: { phone: string }[] = await this.salesOrderRepository.query(
+        `SELECT DISTINCT REPLACE(c.phone, '+88', '') AS phone
+         FROM customers c
+         INNER JOIN customer_tiers ct ON ct.customer_id = c.id
+         WHERE ct.tier = 'rejected' AND REPLACE(c.phone, '+88', '') = ANY($1)`,
+        [Array.from(phoneSet)],
+      );
+      for (const r of rejRows) rejectedPhones.add(r.phone);
+    }
+
     const data = orders.map((order) => {
       const norm = orderPhoneMap[order.id] || '';
       // Active orders for same phone, excluding THIS order
@@ -2118,6 +2178,7 @@ export class OrderManagementService {
         items: itemsMap[order.id] || [],
         hasActiveOrders: phoneActiveOrders.length > 0,
         activeOrders: phoneActiveOrders.length > 0 ? phoneActiveOrders : undefined,
+        isRejectedCustomer: rejectedPhones.has(norm),
       };
     });
 

@@ -7,7 +7,7 @@ import apiClient from '@/services/api';
 import { 
   FaTachometerAlt, FaBoxes, FaShoppingCart, FaUsers, FaWarehouse, 
   FaShoppingBag, FaUserTie, FaBook, FaBullseye, FaHandshake, 
-  FaHeadset, FaUser, FaCog, FaBars, FaTimes, FaBell, FaChevronDown, FaChartBar, FaTags, FaGift, FaPhone, FaMoneyBillWave, FaImage, FaList, FaRocket, FaPrint
+  FaHeadset, FaUser, FaCog, FaBars, FaTimes, FaBell, FaChevronDown, FaChartBar, FaTags, FaGift, FaPhone, FaMoneyBillWave, FaImage, FaList, FaRocket, FaPrint, FaBan
 } from 'react-icons/fa';
 
 interface MenuItem {
@@ -291,6 +291,7 @@ const menuItems: MenuItem[] = [
       { title: 'Team Data Collection', icon: FaBullseye, path: '/admin/crm/team-data-collection', requiredPermissions: ['view-team-performance'] },
       { title: 'Commission Settings', icon: FaMoneyBillWave, path: '/admin/crm/commission-settings', requiredPermissions: ['manage-commission-settings'] },
       { title: 'Tier Management', icon: FaTachometerAlt, path: '/admin/crm/customer-tier-management', requiredPermissions: ['view-customers'] },
+      { title: 'Rejected Customers', icon: FaBan, path: '/admin/crm/rejected-customers', requiredPermissions: ['view-customers'] },
       { title: 'Pipeline', icon: FaBullseye, path: '/admin/crm/pipeline' },
       { title: 'Tasks', icon: FaBullseye, path: '/admin/crm/tasks' },
       { title: 'Analytics', icon: FaTachometerAlt, path: '/admin/crm/analytics' },

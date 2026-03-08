@@ -542,6 +542,7 @@ export default function LeadAssignmentPage() {
                 <option value="gold">Gold</option>
                 <option value="silver">Silver</option>
                 <option value="normal">Normal</option>
+                <option value="rejected">Rejected</option>
               </select>
             </div>
 
