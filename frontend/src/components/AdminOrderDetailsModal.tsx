@@ -99,6 +99,13 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
   const [fraudCheckHistory, setFraudCheckHistory] = useState<any[]>([]);
   const [fraudHistoryLoading, setFraudHistoryLoading] = useState(false);
 
+  // Customer tab fraud stats (auto-loaded)
+  const [customerFraudStats, setCustomerFraudStats] = useState<{
+    totalParcels: number; totalDelivered: number; totalCanceled: number;
+    cancellationRate: number; riskLevel: string; checkedAt?: string;
+  } | null>(null);
+  const [customerFraudLoading, setCustomerFraudLoading] = useState(false);
+
   // Call Logs state
   const [callLogs, setCallLogs] = useState<any[]>([]);
   const [callLogsLoading, setCallLogsLoading] = useState(false);
@@ -130,6 +137,40 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
       setFraudHistoryLoading(false);
     }
   };
+
+  // Auto-load fraud stats for Customer tab (uses saved result or auto-runs once)
+  const loadCustomerFraudStats = useCallback(async () => {
+    const phone = customer?.phone || customerRecord?.phone || order?.customerPhone;
+    if (!phone) return;
+    setCustomerFraudLoading(true);
+    try {
+      const res = await apiClient.get('/sales/fraud-check/latest', {
+        params: { phone, orderId: currentOrderId },
+      });
+      if (res.data?.success && res.data?.data) {
+        setCustomerFraudStats({
+          totalParcels: res.data.data.totalParcels ?? 0,
+          totalDelivered: res.data.data.totalDelivered ?? 0,
+          totalCanceled: res.data.data.totalCanceled ?? 0,
+          cancellationRate: res.data.data.cancellationRate ?? 0,
+          riskLevel: res.data.data.riskLevel ?? 'medium',
+          checkedAt: res.data.checkedAt,
+        });
+      }
+    } catch (err) {
+      console.error('Failed to load customer fraud stats:', err);
+    } finally {
+      setCustomerFraudLoading(false);
+    }
+  }, [customer, customerRecord, order, currentOrderId]);
+
+  // Trigger fraud stats load once customer data is available
+  useEffect(() => {
+    const phone = customer?.phone || customerRecord?.phone || order?.customerPhone;
+    if (phone && !customerFraudStats && !customerFraudLoading) {
+      loadCustomerFraudStats();
+    }
+  }, [customer, customerRecord, order]);
 
   // Load call logs when logs tab is opened
   useEffect(() => {
@@ -1434,6 +1475,42 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                   <span className="text-gray-900">{viewCustomer.phone || viewCustomer.mobile || 'N/A'}</span>
                 </div>
               </div>
+
+              {/* Fraud Stats: Delivered / Cancelled */}
+              {customerFraudLoading ? (
+                <div className="flex items-center gap-2 text-sm text-gray-500 py-2">
+                  <svg className="animate-spin h-4 w-4 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path></svg>
+                  Loading delivery stats...
+                </div>
+              ) : customerFraudStats ? (
+                <div className="flex flex-wrap gap-3">
+                  <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg px-4 py-2">
+                    <span className="text-green-700 font-semibold text-sm">Delivered:</span>
+                    <span className="text-green-800 font-bold text-lg">{customerFraudStats.totalDelivered}</span>
+                  </div>
+                  <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-lg px-4 py-2">
+                    <span className="text-red-700 font-semibold text-sm">Cancelled:</span>
+                    <span className="text-red-800 font-bold text-lg">{customerFraudStats.totalCanceled}</span>
+                  </div>
+                  <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-4 py-2">
+                    <span className="text-blue-700 font-semibold text-sm">Total:</span>
+                    <span className="text-blue-800 font-bold text-lg">{customerFraudStats.totalParcels}</span>
+                  </div>
+                  <div className={`flex items-center gap-2 rounded-lg px-4 py-2 border ${
+                    customerFraudStats.riskLevel === 'high' ? 'bg-red-50 border-red-300' :
+                    customerFraudStats.riskLevel === 'medium' ? 'bg-yellow-50 border-yellow-300' :
+                    'bg-green-50 border-green-300'
+                  }`}>
+                    <span className="text-gray-700 font-semibold text-sm">Risk:</span>
+                    <span className={`font-bold text-sm uppercase ${
+                      customerFraudStats.riskLevel === 'high' ? 'text-red-700' :
+                      customerFraudStats.riskLevel === 'medium' ? 'text-yellow-700' :
+                      'text-green-700'
+                    }`}>{customerFraudStats.riskLevel}</span>
+                    <span className="text-gray-500 text-xs">({customerFraudStats.cancellationRate}%)</span>
+                  </div>
+                </div>
+              ) : null}
 
               <div className="bg-gray-50 border rounded-lg p-3 flex gap-2 flex-wrap">
                 {([

@@ -70,6 +70,46 @@ export class FraudCheckController {
   }
 
   /**
+   * Get the latest saved fraud check for a phone, or auto-run one if none exists.
+   * GET /sales/fraud-check/latest?phone=01XXXXXXXXX&orderId=123
+   */
+  @Get('latest')
+  async getLatestOrRun(
+    @Query('phone') phone: string,
+    @Query('orderId') orderId?: string,
+    @Req() req?: any,
+  ) {
+    if (!phone) {
+      throw new BadRequestException('Phone number is required');
+    }
+
+    // Try to find saved result first
+    const saved = await this.fraudCheckService.getLatestSuccessfulCheck(phone);
+    if (saved) {
+      return {
+        success: true,
+        source: 'saved',
+        data: {
+          totalParcels: saved.totalParcels ?? 0,
+          totalDelivered: saved.totalDelivered ?? 0,
+          totalCanceled: saved.totalCanceled ?? 0,
+          cancellationRate: saved.cancellationRate ?? 0,
+          riskLevel: saved.riskLevel ?? 'medium',
+        },
+        checkedAt: saved.createdAt,
+        fraudCheckId: saved.id,
+      };
+    }
+
+    // No saved result — run a fresh check
+    const userId = req?.user?.id || req?.user?.sub;
+    const orderIdNum = orderId ? parseInt(orderId, 10) : undefined;
+    const result = await this.fraudCheckService.checkCourierSummaries(phone, orderIdNum, userId);
+
+    return { ...result, source: 'fresh' };
+  }
+
+  /**
    * Get fraud check history for an order
    * GET /sales/fraud-check/order/:orderId/history
    */
