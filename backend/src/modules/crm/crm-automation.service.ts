@@ -46,11 +46,13 @@ export class CrmAutomationService {
   }
 
   async getAgentFollowUpTasks(agentId: number, dateRange?: string, specificDate?: string) {
+    if (!agentId || isNaN(agentId)) return [];
+
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     
     const qb = this.callTaskRepo.createQueryBuilder('t')
-      .where('t.assigned_agent_id = :agentId', { agentId })
+      .where('t.assigned_agent_id = :agentId', { agentId: Number(agentId) })
       .andWhere("(t.call_reason ILIKE '%follow%' OR t.call_reason ILIKE '%reminder%' OR t.call_reason ILIKE '%callback%')");
     
     // Specific date filter (takes priority over date range)
