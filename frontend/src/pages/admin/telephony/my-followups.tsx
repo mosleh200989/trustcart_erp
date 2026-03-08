@@ -203,8 +203,8 @@ export default function MyFollowupsPage() {
       setSaving(true);
       
       // Create a new task through the CRM automation API
-      await apiClient.post('/crm/automation/tasks/generate', {
-        customer_id: parseInt(formData.customer_id),
+      await apiClient.post('/crm/automation/tasks', {
+        customer_id: formData.customer_id,
         priority: formData.priority,
         call_reason: formData.call_reason,
         notes: formData.notes,

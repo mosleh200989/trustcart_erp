@@ -41,16 +41,6 @@ interface SuggestedScriptResponse {
   context?: any;
 }
 
-interface NextAction {
-  action: string;
-  priority: string;
-  message: string;
-  task?: CallTask;
-  customer_intel?: any;
-  recommendations?: any[];
-  products_to_push?: string[];
-}
-
 interface DashboardStats {
   today_tasks: number;
   hot_leads: number;
@@ -143,7 +133,6 @@ export default function AgentDashboard() {
   const [agentId, setAgentId] = useState<number | null>(null);
   const [meRoles, setMeRoles] = useState<any[]>([]);
   const [stats, setStats] = useState<DashboardStats | null>(null);
-  const [nextAction, setNextAction] = useState<NextAction | null>(null);
   const [selectedTask, setSelectedTask] = useState<CallTask | null>(null);
   const [showCustomerModal, setShowCustomerModal] = useState(false);
 
@@ -368,14 +357,12 @@ export default function AgentDashboard() {
   const loadDashboard = async () => {
     try {
       setLoading(true);
-      const [dashboardRes, actionRes, orderStatsRes] = await Promise.all([
+      const [dashboardRes, orderStatsRes] = await Promise.all([
         apiClient.get('/crm/automation/agent/me/dashboard'),
-        apiClient.get('/crm/automation/agent/me/next-action'),
         apiClient.get('/sales/my-order-stats').catch(() => ({ data: null }))
       ]);
       
       setStats(dashboardRes.data);
-      setNextAction(actionRes.data);
       if (orderStatsRes.data) setOrderStats(orderStatsRes.data);
     } catch (error) {
       console.error('Failed to load dashboard:', error);
@@ -1480,60 +1467,6 @@ export default function AgentDashboard() {
             )}
           </div>
         </div>
-
-        {/* Next Best Action Card */}
-        {nextAction && nextAction.action !== 'no_tasks' && (
-          <div className={`p-6 rounded-lg shadow-lg border-2 ${
-            nextAction.priority === 'HIGH' ? 'bg-red-50 border-red-400' :
-            nextAction.priority === 'MEDIUM' ? 'bg-orange-50 border-orange-400' :
-            'bg-blue-50 border-blue-400'
-          }`}>
-            <div className="flex items-start gap-4">
-              <div className="text-4xl">
-                {nextAction.priority === 'HIGH' ? '🔥' : 
-                 nextAction.priority === 'MEDIUM' ? '📞' : '📧'}
-              </div>
-              <div className="flex-1">
-                <h2 className="text-2xl font-bold text-gray-800 mb-2">
-                  What To Do Next?
-                </h2>
-                <p className="text-lg text-gray-700 mb-4">{nextAction.message}</p>
-                
-                {nextAction.customer_intel && (
-                  <div className="bg-white p-4 rounded-lg mb-4">
-                    <h3 className="font-semibold text-gray-800 mb-2">Customer Info:</h3>
-                    <div className="grid grid-cols-2 gap-2 text-sm">
-                      <div>📱 Phone: {nextAction.customer_intel.phone || 'N/A'}</div>
-                      <div>💰 Lifetime Value: ৳{nextAction.customer_intel.lifetime_value || 0}</div>
-                      <div>📦 Total Orders: {nextAction.customer_intel.total_orders || 0}</div>
-                      <div>📅 Last Purchase: {nextAction.customer_intel.days_since_last_order || 0} days ago</div>
-                    </div>
-                  </div>
-                )}
-                
-                {nextAction.products_to_push && nextAction.products_to_push.length > 0 && (
-                  <div className="bg-white p-4 rounded-lg">
-                    <h3 className="font-semibold text-gray-800 mb-2">🎯 Products to Push:</h3>
-                    <ul className="list-disc list-inside text-sm">
-                      {nextAction.products_to_push.map((product, idx) => (
-                        <li key={idx} className="text-gray-700">{product}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                
-                {nextAction.task && (
-                  <button
-                    onClick={() => handleStartCall(nextAction.task!)}
-                    className="mt-4 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold flex items-center gap-2"
-                  >
-                    <FaPhone /> Start Call Now
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* Call Task List */}
         <div className="bg-white rounded-lg shadow">

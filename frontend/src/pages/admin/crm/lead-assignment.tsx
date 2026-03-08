@@ -73,7 +73,6 @@ export default function LeadAssignmentPage() {
   // Filters
   const [assignmentStatus, setAssignmentStatus] = useState<'all' | 'assigned' | 'unassigned'>('unassigned');
   const [searchTerm, setSearchTerm] = useState('');
-  const [priorityFilter, setPriorityFilter] = useState('');
   const [customerTypeFilter, setCustomerTypeFilter] = useState('');
   const [purchaseStageFilter, setPurchaseStageFilter] = useState('');
   const [productNameFilter, setProductNameFilter] = useState('');
@@ -134,7 +133,7 @@ export default function LeadAssignmentPage() {
   useEffect(() => {
     loadLeads();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [assignmentStatus, debouncedSearchTerm, priorityFilter, customerTypeFilter, purchaseStageFilter, productNameFilter, dateFrom, dateTo, page, limit]);
+  }, [assignmentStatus, debouncedSearchTerm, customerTypeFilter, purchaseStageFilter, productNameFilter, dateFrom, dateTo, page, limit]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -182,7 +181,6 @@ export default function LeadAssignmentPage() {
         assignmentStatus,
       };
       if (debouncedSearchTerm.trim()) params.search = debouncedSearchTerm.trim();
-      if (priorityFilter) params.priority = priorityFilter;
       if (customerTypeFilter) params.customerType = customerTypeFilter;
       if (purchaseStageFilter) params.purchaseStage = purchaseStageFilter;
       if (productNameFilter) params.productName = productNameFilter;
@@ -338,7 +336,6 @@ export default function LeadAssignmentPage() {
   const clearFilters = () => {
     setSearchTerm('');
     setDebouncedSearchTerm('');
-    setPriorityFilter('');
     setCustomerTypeFilter('');
     setPurchaseStageFilter('');
     setProductNameFilter('');
@@ -506,28 +503,9 @@ export default function LeadAssignmentPage() {
               />
             </div>
 
-            {/* Priority */}
+            {/* Tier */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Priority</label>
-              <select
-                value={priorityFilter}
-                onChange={(e) => {
-                  setPriorityFilter(e.target.value);
-                  setPage(1);
-                }}
-                className="w-full border rounded-lg px-3 py-2"
-              >
-                <option value="">All Priorities</option>
-                <option value="hot">Hot</option>
-                <option value="warm">Warm</option>
-                <option value="cold">Sleep/Dead</option>
-                <option value="new">New</option>
-              </select>
-            </div>
-
-            {/* Customer Type (VIP/Platinum) */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Customer Type</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Tier</label>
               <select
                 value={customerTypeFilter}
                 onChange={(e) => {
@@ -536,12 +514,16 @@ export default function LeadAssignmentPage() {
                 }}
                 className="w-full border rounded-lg px-3 py-2"
               >
-                <option value="">All Types</option>
-                <option value="vip">VIP</option>
-                <option value="platinum">Platinum</option>
-                <option value="gold">Gold</option>
-                <option value="silver">Silver</option>
+                <option value="">All Tiers</option>
+                <option value="new">New</option>
                 <option value="normal">Normal</option>
+                <option value="silver">Silver</option>
+                <option value="gold">Gold</option>
+                <option value="platinum">Platinum</option>
+                <option value="vip">VIP</option>
+                <option value="repeat">Repeat</option>
+                <option value="inactive">Inactive</option>
+                <option value="blacklist">Blacklist</option>
                 <option value="rejected">Rejected</option>
               </select>
             </div>

@@ -20,7 +20,10 @@ export class CrmAutomationController {
     @Query('dateRange') dateRange?: string,
     @Query('specificDate') specificDate?: string
   ) {
-    const agentId = req.user?.id || req.user?.userId;
+    const agentId = Number(req.user?.id || req.user?.userId);
+    if (!agentId || isNaN(agentId)) {
+      return [];
+    }
     return await this.automationService.getAgentFollowUpTasks(agentId, dateRange, specificDate);
   }
   
