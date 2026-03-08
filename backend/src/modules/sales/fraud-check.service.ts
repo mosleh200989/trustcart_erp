@@ -233,6 +233,18 @@ export class FraudCheckService {
   }
 
   /**
+   * Get the latest successful courier_summary fraud check for a phone number.
+   * Returns null if none exists.
+   */
+  async getLatestSuccessfulCheck(phoneNumber: string): Promise<FraudCheck | null> {
+    const cleanPhone = this.cleanPhoneNumber(phoneNumber);
+    return this.fraudCheckRepository.findOne({
+      where: { phoneNumber: cleanPhone, checkType: 'courier_summary', status: 'success' },
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  /**
    * Get a specific fraud check by ID
    */
   async getFraudCheckById(id: number): Promise<FraudCheck | null> {
