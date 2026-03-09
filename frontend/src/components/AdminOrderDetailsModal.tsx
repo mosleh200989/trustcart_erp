@@ -8,6 +8,7 @@ import {
 } from 'react-icons/fa';
 import PhoneInput, { validateBDPhone } from '@/components/PhoneInput';
 import { getOrderStatusLabel, getOrderStatusColor } from '@/utils/orderStatus';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface OrderDetailsModalProps {
   orderId: number;
@@ -17,6 +18,7 @@ interface OrderDetailsModalProps {
 
 export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: OrderDetailsModalProps) {
   const toast = useToast();
+  const { hasPermission } = useAuth();
   const [order, setOrder] = useState<any>(null);
   const [items, setItems] = useState<any[]>([]);
   const [activityLogs, setActivityLogs] = useState<any[]>([]);
@@ -750,7 +752,7 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
     const statusLabel = getOrderStatusLabel(manualStatus);
     if (!confirm(`Change order status to "${statusLabel}"?`)) return;
     try {
-      await apiClient.put(`/sales/${currentOrderId}`, { status: manualStatus });
+      await apiClient.put(`/order-management/${currentOrderId}/change-status`, { status: manualStatus });
       toast.success(`Order status updated to "${statusLabel}"`);
       setManualStatus('');
       loadOrderDetails();
@@ -1023,7 +1025,7 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
         </div>
 
         {/* Manual Status Update */}
-        <div className="px-6 py-3 border-b bg-white flex items-center gap-3 flex-wrap">
+        {hasPermission('change-order-status') && <div className="px-6 py-3 border-b bg-white flex items-center gap-3 flex-wrap">
           <span className="text-sm font-medium text-gray-700">Update Status:</span>
           <select
             value={manualStatus}
@@ -1056,7 +1058,7 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
             Update
           </button>
           <span className="text-xs text-gray-400">Current: {getOrderStatusLabel(order.status)}</span>
-        </div>
+        </div>}
 
         {/* Tabs */}
         <div className="border-b">

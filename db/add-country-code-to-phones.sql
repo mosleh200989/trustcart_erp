@@ -129,11 +129,11 @@ JOIN customers keeper ON keeper.phone = '+88' || dup.phone
 WHERE dup.phone NOT LIKE '+%'
   AND customer_tag_assignments.customer_id = dup.id;
 
-UPDATE support_tickets SET customer_id = keeper.id
+UPDATE support_tickets SET customer_id = keeper.id::text
 FROM customers dup
 JOIN customers keeper ON keeper.phone = '+88' || dup.phone
 WHERE dup.phone NOT LIKE '+%'
-  AND support_tickets.customer_id = dup.id;
+  AND support_tickets.customer_id = dup.id::text;
 
 UPDATE incomplete_orders SET customer_id = keeper.id
 FROM customers dup

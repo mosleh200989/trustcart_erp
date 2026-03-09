@@ -272,7 +272,7 @@ export class LeadManagementService {
       delivery_charge: order.deliveryCharge || 0,
       order_source: 'incomplete_order_conversion',
       created_by: userId,
-      status: 'pending',
+      status: 'processing',
     };
 
     if (order.customerId) {
