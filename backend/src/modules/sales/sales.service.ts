@@ -111,6 +111,8 @@ export class SalesService {
         productNameBn: i.productNameBn || null,
         variantName: i.variantName || null,
         quantity: Number(i.quantity) || 0,
+        customProductName: i.customProductName || null,
+        itemId: i.itemId || null,
       })),
     };
   }
@@ -181,7 +183,8 @@ export class SalesService {
       const customName = r.custom_product_name || null;
       // Display name: prefer custom over original
       const displayName = customName || originalName;
-      const nameBn = r.product_id ? productNameBnMap.get(r.product_id) || null : null;
+      // If there's a custom name override, don't send Bengali name — the custom name IS the display name
+      const nameBn = customName ? null : (r.product_id ? productNameBnMap.get(r.product_id) || null : null);
       const arr = map.get(r.order_id) || [];
       arr.push({ productName: displayName, productNameBn: nameBn, variantName: r.variant_name || null, quantity: Number(r.quantity) || 0, customProductName: customName, itemId: r.item_id, source: r.source });
       map.set(r.order_id, arr);

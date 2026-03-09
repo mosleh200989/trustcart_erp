@@ -200,7 +200,7 @@ export default function AdminSales() {
         customProductName: editProductNameValue.trim() || null,
       });
 
-      // Update local state immediately
+      // Update local state immediately — custom name overrides everything
       setOrders((prev) =>
         prev.map((o) => {
           if (o.id !== orderId) return o;
@@ -209,7 +209,6 @@ export default function AdminSales() {
             const trimmed = editProductNameValue.trim();
             newItems[itemIndex] = {
               ...newItems[itemIndex],
-              productName: trimmed || newItems[itemIndex].productName,
               customProductName: trimmed || null,
             };
           }
@@ -858,12 +857,13 @@ export default function AdminSales() {
                   <span
                     onClick={(e) => {
                       e.stopPropagation();
-                      startEditProductName(row.id, idx, item.productName);
+                      const displayedName = (item.customProductName || item.productNameBn || item.productName || '') + (item.variantName ? ` - ${item.variantName}` : '');
+                      startEditProductName(row.id, idx, displayedName);
                     }}
                     className="cursor-pointer hover:text-blue-600 hover:underline border-b border-dashed border-gray-300"
                     title="Click to edit product name"
                   >
-                    {item.productNameBn || item.productName}{item.variantName ? ` - ${item.variantName}` : ''}
+                    {item.customProductName || item.productNameBn || item.productName}{item.variantName ? ` - ${item.variantName}` : ''}
                   </span>
                   {item.customProductName && (
                     <span className="text-[9px] text-orange-500 flex-shrink-0" title="Custom name (original product unchanged)">✎</span>
