@@ -292,7 +292,7 @@ export default function AgentWiseReportPage() {
     const headers = [
       'Agent Name', 'Total Orders',
       'Products Qty', 'Upsell Qty', 'Cross-Sell Qty',
-      'Admin Cancelled',
+      'Order Rejected',
       'Conversion %', 'Cancel %',
     ];
     const rows = data.agents.map((a) =>
@@ -494,7 +494,7 @@ export default function AgentWiseReportPage() {
                             <span className="text-pink-600">Cross-Sell Qty</span> <SortIcon field="crossSellQty" />
                           </th>
                           <th className="px-3 py-3 text-center cursor-pointer hover:text-violet-600" onClick={() => handleSort('adminCancelledOrders')}>
-                            <span className="text-red-600">Admin Cancelled</span> <SortIcon field="adminCancelledOrders" />
+                            <span className="text-red-600">Order Rejected</span> <SortIcon field="adminCancelledOrders" />
                           </th>
                           <th className="px-3 py-3 text-center cursor-pointer hover:text-violet-600" onClick={() => handleSort('conversionRate')}>
                             Conv % <SortIcon field="conversionRate" />
@@ -736,7 +736,7 @@ export default function AgentWiseReportPage() {
                           <div className="space-y-2 text-xs">
                             <MetricRow label="Upsell Qty" value={fmt(a.upsellQty)} highlight />
                             <MetricRow label="Conversion" value={`${a.conversionRate}%`} />
-                            <MetricRow label="Admin Cancelled" value={`${a.adminCancelledOrders} (${a.cancelRate}%)`} />
+                            <MetricRow label="Order Rejected" value={`${a.adminCancelledOrders} (${a.cancelRate}%)`} />
                           </div>
                         </div>
                       ))}
