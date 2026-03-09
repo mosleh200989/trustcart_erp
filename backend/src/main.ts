@@ -15,8 +15,8 @@ async function bootstrap() {
   /*
   app.enableCors({
     origin: [
-      'https://trustkert.com',
-      'https://www.trustkert.com',
+      'https://www.trustcart.com.bd',
+      'https://trustcart.com.bd',
       'https://trustcart.com.bd',
       'https://www.trustcart.com.bd',
       'http://localhost:3000',

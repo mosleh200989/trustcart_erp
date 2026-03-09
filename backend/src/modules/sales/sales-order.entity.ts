@@ -165,6 +165,22 @@ export class SalesOrder {
   @Column({ name: 'delivered_at', type: 'timestamp', nullable: true })
   deliveredAt: Date;
 
+  // Payment fields
+  @Column({ name: 'payment_method', type: 'varchar', length: 50, default: 'cash' })
+  paymentMethod: string;
+
+  @Column({ name: 'payment_status', type: 'varchar', length: 50, default: 'unpaid' })
+  paymentStatus: string;
+
+  @Column({ name: 'payment_transaction_id', type: 'varchar', length: 255, nullable: true })
+  paymentTransactionId: string;
+
+  @Column({ name: 'paid_amount', type: 'decimal', precision: 12, scale: 2, default: 0 })
+  paidAmount: number;
+
+  @Column({ name: 'paid_at', type: 'timestamp', nullable: true })
+  paidAt: Date;
+
   @OneToMany(() => SalesOrderItem, item => item.salesOrder, { eager: false })
   salesOrderItems: SalesOrderItem[];
 

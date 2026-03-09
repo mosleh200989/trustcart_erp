@@ -760,6 +760,15 @@ export class SalesService {
     // Status: use provided or default to 'processing'
     sales.status = createSalesDto.status || 'processing';
 
+    // Payment fields
+    const paymentMethod =
+      createSalesDto.payment_method ?? createSalesDto.paymentMethod ?? 'cash';
+    sales.paymentMethod = String(paymentMethod);
+
+    const paymentStatus =
+      createSalesDto.payment_status ?? createSalesDto.paymentStatus ?? 'unpaid';
+    sales.paymentStatus = String(paymentStatus);
+
     // Store shipping address and notes
     const shippingAddress =
       createSalesDto.shipping_address ??

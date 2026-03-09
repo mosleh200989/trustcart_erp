@@ -96,6 +96,9 @@ import { DashboardConfig } from './modules/crm/entities/dashboard-config.entity'
 import { CustomerTier } from './modules/lead-management/entities/customer-tier.entity';
 import { IncompleteOrder } from './modules/lead-management/entities/incomplete-order.entity';
 
+// Payment Entities
+import { PaymentTransaction } from './modules/payment/payment-transaction.entity';
+
 // Modules
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
@@ -157,6 +160,7 @@ import { LegacyMigrationModule } from './modules/legacy-migration/legacy-migrati
 import { LandingPagesModule } from './modules/landing-pages/landing-pages.module';
 import { LandingPage } from './modules/landing-pages/landing-page.entity';
 import { LandingPageOrder } from './modules/landing-pages/landing-page-order.entity';
+import { PaymentModule } from './modules/payment/payment.module';
 
 // Sitemap & Feed Module
 import { SitemapFeedModule } from './modules/sitemap-feed/sitemap-feed.module';
@@ -216,6 +220,8 @@ import { SitemapFeedModule } from './modules/sitemap-feed/sitemap-feed.module';
             // Landing Page Entities
             LandingPage,
             LandingPageOrder,
+            // Payment Entities
+            PaymentTransaction,
             // HRM Entities
             HrmBranches, HrmDepartments, HrmDesignations, HrmEmployees, HrmAwardTypes, HrmAwards, HrmPromotions, HrmResignations, HrmTerminations, HrmWarnings, HrmTrips, HrmComplaints, HrmTransfers, HrmHolidays, HrmAnnouncements, HrmTrainingTypes, HrmTrainingPrograms, HrmTrainingSessions, HrmEmployeeTrainings, HrmPerformanceIndicatorCategories, HrmPerformanceIndicators, HrmEmployeePerformance, HrmDocumentTypes, HrmEmployeeDocuments
           ],
@@ -269,6 +275,7 @@ import { SitemapFeedModule } from './modules/sitemap-feed/sitemap-feed.module';
     LegacyMigrationModule,
     LandingPagesModule,
     SitemapFeedModule,
+    PaymentModule,
   ],
   controllers: [],
   providers: [],
