@@ -295,7 +295,7 @@ export default function CustomerOrdersPage() {
                     {selectedOrder.status === 'shipped' && <p>• Order has been shipped</p>}
                     {selectedOrder.status === 'delivered' && <p>• Order delivered successfully</p>}
                     {selectedOrder.status === 'cancelled' && <p>• Order was cancelled</p>}
-                    {selectedOrder.status === 'admin_cancelled' && <p>• Order was cancelled by admin</p>}
+                    {selectedOrder.status === 'admin_cancelled' && <p>• Order was rejected</p>}
                   </div>
                 </div>
               </div>

@@ -1042,7 +1042,7 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
             <option value="partial_delivered">Partial Delivered</option>
             <option value="completed">Completed</option>
             <option value="cancelled">Cancelled</option>
-            <option value="admin_cancelled">Admin Cancelled</option>
+            <option value="admin_cancelled">Order Rejected</option>
             <option value="returned">Returned</option>
           </select>
           <button

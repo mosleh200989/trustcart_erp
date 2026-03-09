@@ -975,7 +975,7 @@ export default function AdminSales() {
               <option value="delete">Delete Selected</option>
               <option value="processing">Mark as Processing</option>
               <option value="completed">Mark as Completed</option>
-              <option value="admin_cancelled">Mark as Admin Cancelled</option>
+              <option value="admin_cancelled">Mark as Order Rejected</option>
             </select>
             <button
               type="button"
@@ -1062,7 +1062,7 @@ export default function AdminSales() {
                     { value: 'delivered', label: 'Delivered' },
                     { value: 'partial_delivered', label: 'Partial Delivered' },
                     { value: 'cancelled', label: 'Cancelled' },
-                    { value: 'admin_cancelled', label: 'Admin Cancelled' },
+                    { value: 'admin_cancelled', label: 'Order Rejected' },
                     { value: 'completed', label: 'Completed' },
                     { value: 'returned', label: 'Returned' },
                   ]}
@@ -1555,7 +1555,7 @@ export default function AdminSales() {
                   options={[
                     { value: 'processing', label: 'Processing' },
                     { value: 'completed', label: 'Completed' },
-                    { value: 'admin_cancelled', label: 'Admin Cancelled' }
+                    { value: 'admin_cancelled', label: 'Order Rejected' }
                   ]}
                 />
               </div>
