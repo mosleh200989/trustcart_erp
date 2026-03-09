@@ -35,6 +35,7 @@ const INITIAL_FILTERS = {
 
 interface PrintingOrderItem {
   productName: string;
+  productNameBn?: string | null;
   quantity: number;
 }
 
@@ -440,7 +441,7 @@ export default function PrintingPage() {
           <div className="text-xs max-h-28 overflow-y-auto" style={{ whiteSpace: 'pre-line' }}>
             {items.map((item, idx) => (
               <span key={idx}>
-                {item.productName} <span className="text-gray-500">({item.quantity})</span>
+                {item.productNameBn || item.productName} <span className="text-gray-500">({item.quantity})</span>
                 {idx < items.length - 1 && <br />}
               </span>
             ))}
@@ -868,7 +869,7 @@ export default function PrintingPage() {
                             <div className="max-w-[200px]">
                               {ao.items.slice(0, 3).map((item, i) => (
                                 <div key={i} className="text-xs text-gray-700 truncate">
-                                  {item.quantity}x {item.productName}
+                                  {item.quantity}x {item.productNameBn || item.productName}
                                 </div>
                               ))}
                               {ao.items.length > 3 && <div className="text-xs text-blue-600">+{ao.items.length - 3} more</div>}

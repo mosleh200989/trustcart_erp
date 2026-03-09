@@ -11,6 +11,7 @@ import { getOrderStatusLabel, getOrderStatusColor } from '@/utils/orderStatus';
 interface OrderItem {
   product_id: string;
   name: string;
+  productNameBn?: string | null;
   price: number;
   quantity: number;
   subtotal: number;
@@ -324,7 +325,7 @@ export default function LandingPageOrders() {
                   {(selectedOrder.items || []).map((item, idx) => (
                     <div key={idx} className="flex justify-between text-sm">
                       <span className="text-gray-700">
-                        {item.name} <span className="text-gray-400">× {item.quantity}</span>
+                        {item.productNameBn || item.name} <span className="text-gray-400">× {item.quantity}</span>
                       </span>
                       <span className="font-medium">৳{item.subtotal.toLocaleString()}</span>
                     </div>

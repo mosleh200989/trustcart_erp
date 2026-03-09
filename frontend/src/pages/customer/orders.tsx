@@ -20,6 +20,7 @@ interface OrderProduct {
   id: number;
   productId: number;
   productName: string;
+  productNameBn?: string | null;
   quantity: number;
   unitPrice: number;
   lineTotal: number;
@@ -270,7 +271,7 @@ export default function CustomerOrdersPage() {
                         <tbody className="divide-y divide-gray-100 bg-white">
                           {orderProducts.map((item) => (
                             <tr key={item.id}>
-                              <td className="px-4 py-2 text-sm text-gray-800">{item.productName || `Product #${item.productId}`}</td>
+                              <td className="px-4 py-2 text-sm text-gray-800">{item.productNameBn || item.productName || `Product #${item.productId}`}</td>
                               <td className="px-4 py-2 text-sm text-gray-600">{Number(item.quantity).toFixed(0)}</td>
                               <td className="px-4 py-2 text-sm text-gray-600">৳{Number(item.unitPrice).toFixed(2)}</td>
                               <td className="px-4 py-2 text-sm text-gray-800 font-semibold">৳{Number(item.lineTotal || item.quantity * item.unitPrice).toFixed(2)}</td>

@@ -43,7 +43,7 @@ interface SalesOrder {
   order_source?: string | null;
   order_source_display?: string | null;
 
-  items?: { productName: string | null; quantity: number }[];
+  items?: { productName: string | null; productNameBn?: string | null; quantity: number }[];
 
   createdAt?: string;
   created_at?: string;
@@ -381,9 +381,9 @@ export default function AdminSalesLateDelivery() {
         return (
           <div className="max-w-[220px]">
             {items.slice(0, 3).map((item, i) => (
-              <div key={i} className="text-xs text-gray-700 truncate" title={`${item.productName ?? 'Unknown'} x${item.quantity}`}>
+              <div key={i} className="text-xs text-gray-700 truncate" title={`${item.productNameBn || item.productName || 'Unknown'} x${item.quantity}`}>
                 <span className="font-medium">{item.quantity}x</span>{' '}
-                {item.productName ?? 'Unknown'}
+                {item.productNameBn || item.productName || 'Unknown'}
               </div>
             ))}
             {items.length > 3 && (

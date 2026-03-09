@@ -12,7 +12,7 @@ async function bootstrap() {
 
   // CORS is handled by nginx reverse proxy - do not enable here to avoid duplicate headers
   // If running without nginx (local dev), uncomment the enableCors block below
-  /*
+  // /*
   app.enableCors({
     origin: [
       'https://trustkert.com',
@@ -26,7 +26,7 @@ async function bootstrap() {
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
   });
-  */
+  // */
 
   // Handle Private Network Access preflight (Chrome's local network access prompt)
   app.use((req: any, res: any, next: any) => {

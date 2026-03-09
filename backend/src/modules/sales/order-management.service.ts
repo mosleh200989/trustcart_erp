@@ -403,8 +403,13 @@ export class OrderManagementService {
     // Preferred source for admin-managed orders
     // Return with customProductName so display name can be overridden
     if (orderItems.length > 0) {
+      // Fetch products to get Bengali names
+      const pids = Array.from(new Set(orderItems.map((i) => Number(i.productId)).filter(Boolean)));
+      const prods = pids.length ? await this.productRepository.find({ where: { id: In(pids) } }) : [];
+      const prodMap = new Map(prods.map((p) => [Number(p.id), p]));
       return orderItems.map((item) => ({
         ...item,
+        productNameBn: prodMap.get(Number(item.productId))?.name_bn || null,
         // Display name: prefer customProductName over productName
         displayName: item.customProductName || item.productName,
       }));
@@ -437,6 +442,7 @@ export class OrderManagementService {
         orderId,
         productId: si.productId ? Number(si.productId) : null,
         productName: originalName,
+        productNameBn: product?.name_bn || null,
         customProductName: customName,
         displayName: customName || originalName,
         variantName: (si as any).variantName || (si as any).variant_name || null,
@@ -1857,6 +1863,7 @@ export class OrderManagementService {
       items: items.map((item: any) => ({
         id: item.id,
         productName: item.displayName || item.customProductName || item.productName || item.product_name || 'Product',
+        productNameBn: item.productNameBn || null,
         originalProductName: item.productName || item.product_name || 'Product',
         customProductName: item.customProductName || item.custom_product_name || null,
         productImage: item.productImage || item.product_image || null,
@@ -1886,6 +1893,7 @@ export class OrderManagementService {
       },
       items: items.map((item: any) => ({
         productName: item.displayName || item.customProductName || item.productName || item.product_name || 'Product',
+        productNameBn: item.productNameBn || null,
         originalProductName: item.productName || item.product_name || 'Product',
         quantity: Number(item.quantity || 0),
       })),
@@ -2053,11 +2061,23 @@ export class OrderManagementService {
           .getMany();
       }
 
-      // Build the map
+      // Build the map — also fetch Bengali names from products table
+      const allProdIds = new Set<number>();
+      for (const item of adminItems) { if (item.productId) allProdIds.add(Number(item.productId)); }
+      for (const item of checkoutItems) { if ((item as any).productId) allProdIds.add(Number((item as any).productId)); }
+      const bnMap = new Map<number, string>();
+      if (allProdIds.size > 0) {
+        const bnRows: { id: number; name_bn: string | null }[] = await this.salesOrderRepository.manager.query(
+          `SELECT id, name_bn FROM products WHERE id = ANY($1)`, [[...allProdIds]],
+        );
+        for (const p of bnRows) { if (p.name_bn) bnMap.set(p.id, p.name_bn); }
+      }
+
       for (const item of adminItems) {
         if (!itemsMap[item.orderId]) itemsMap[item.orderId] = [];
         itemsMap[item.orderId].push({
           productName: item.customProductName || item.productName,
+          productNameBn: bnMap.get(Number(item.productId)) || null,
           quantity: Number(item.quantity || 0),
           customProductName: item.customProductName || null,
           itemId: item.id,
@@ -2069,6 +2089,7 @@ export class OrderManagementService {
         const customName = (item as any).customProductName || (item as any).custom_product_name || null;
         itemsMap[orderId].push({
           productName: customName || item.productName,
+          productNameBn: bnMap.get(Number((item as any).productId)) || null,
           quantity: Number(item.quantity || 0),
           customProductName: customName,
           itemId: item.id,
