@@ -6,6 +6,7 @@ import DataTable from '@/components/admin/DataTable';
 import PageSizeSelector from '@/components/admin/PageSizeSelector';
 import Modal from '@/components/admin/Modal';
 import FormInput from '@/components/admin/FormInput';
+import PhoneInput from '@/components/PhoneInput';
 import AdminOrderDetailsModal from '@/components/AdminOrderDetailsModal';
 import InvoicePrintModal from '@/components/admin/InvoicePrintModal';
 import StickerPrintModal from '@/components/admin/StickerPrintModal';
@@ -1200,14 +1201,16 @@ export default function AdminSales() {
                   required
                   placeholder="Customer name"
                 />
-                <FormInput
-                  label="Phone Number"
-                  name="customer_phone"
-                  value={formData.customer_phone}
-                  onChange={handleInputChange}
-                  required
-                  placeholder="e.g. 01XXXXXXXXX"
-                />
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number <span className="text-red-500">*</span></label>
+                  <PhoneInput
+                    name="customer_phone"
+                    value={formData.customer_phone}
+                    onChange={(value) => setFormData((prev: any) => ({ ...prev, customer_phone: value }))}
+                    required
+                    placeholder="01XXXXXXXXX"
+                  />
+                </div>
               </div>
 
               {/* Product Search & Selection */}
