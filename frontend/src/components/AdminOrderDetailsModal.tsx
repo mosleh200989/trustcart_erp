@@ -1309,7 +1309,7 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                             </div>
                           ) : (
                             <div>
-                              {item.displayName || item.customProductName || item.productName}
+                              {item.productNameBn || item.displayName || item.customProductName || item.productName}
                               {item.customProductName && (
                                 <span className="ml-1 text-[9px] text-orange-500" title={`Original: ${item.productName}`}>✎</span>
                               )}

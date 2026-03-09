@@ -117,7 +117,7 @@ interface SalesOrder {
 
   isRejectedCustomer?: boolean;
 
-  items?: { productName: string; quantity: number; customProductName?: string | null; itemId?: number; source?: string }[];
+  items?: { productName: string; productNameBn?: string | null; quantity: number; customProductName?: string | null; itemId?: number; source?: string }[];
 
   notes?: string | null;
 }
@@ -145,7 +145,7 @@ export default function AdminSales() {
   const [printOrderIds, setPrintOrderIds] = useState<number[]>([]);
 
   // Product search state for create order
-  const [orderItems, setOrderItems] = useState<Array<{ productId: number; productName: string; variantName: string; quantity: number; unitPrice: number }>>([]);
+  const [orderItems, setOrderItems] = useState<Array<{ productId: number; productName: string; productNameBn?: string | null; variantName: string; quantity: number; unitPrice: number }>>([]);
   const [productSearchQuery, setProductSearchQuery] = useState('');
   const [productSearchResults, setProductSearchResults] = useState<any[]>([]);
   const [showProductDropdown, setShowProductDropdown] = useState(false);
@@ -351,6 +351,7 @@ export default function AdminSales() {
       setOrderItems([...orderItems, {
         productId: product.id,
         productName: displayName,
+        productNameBn: product.name_bn || null,
         variantName,
         quantity: 1,
         unitPrice: price,
@@ -862,7 +863,7 @@ export default function AdminSales() {
                     className="cursor-pointer hover:text-blue-600 hover:underline border-b border-dashed border-gray-300"
                     title="Click to edit product name"
                   >
-                    {item.productName}
+                    {item.productNameBn || item.productName}
                   </span>
                   {item.customProductName && (
                     <span className="text-[9px] text-orange-500 flex-shrink-0" title="Custom name (original product unchanged)">✎</span>
@@ -1342,7 +1343,7 @@ export default function AdminSales() {
                       <tbody className="divide-y">
                         {orderItems.map((item) => (
                           <tr key={`${item.productId}-${item.variantName}`} className="hover:bg-gray-50">
-                            <td className="px-3 py-2">{item.productName}</td>
+                            <td className="px-3 py-2">{item.productNameBn || item.productName}</td>
                             <td className="px-3 py-2 text-center">
                               <input
                                 type="number"

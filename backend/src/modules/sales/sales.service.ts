@@ -108,6 +108,7 @@ export class SalesService {
       order_source_display: this.computeOrderSourceDisplay(order),
       items: ((order as any)._items || []).map((i: any) => ({
         productName: i.productName || i.product_name || 'Unknown',
+        productNameBn: i.productNameBn || null,
         quantity: Number(i.quantity) || 0,
       })),
     };
@@ -117,8 +118,8 @@ export class SalesService {
    * Fetch items for a batch of order IDs from BOTH tables (sales_order_items + order_items),
    * with a fallback to the products table for missing product names.
    */
-  private async batchFetchOrderItems(orderIds: number[]): Promise<Map<number, { productName: string; quantity: number; customProductName?: string | null; itemId?: number; source?: string }[]>> {
-    const map = new Map<number, { productName: string; quantity: number; customProductName?: string | null; itemId?: number; source?: string }[]>();
+  private async batchFetchOrderItems(orderIds: number[]): Promise<Map<number, { productName: string; productNameBn?: string | null; quantity: number; customProductName?: string | null; itemId?: number; source?: string }[]>> {
+    const map = new Map<number, { productName: string; productNameBn?: string | null; quantity: number; customProductName?: string | null; itemId?: number; source?: string }[]>();
     if (orderIds.length === 0) return map;
 
     // Query both item tables — prefer order_items (admin/migrated) when they exist,
@@ -146,13 +147,31 @@ export class SalesService {
 
     // Lookup product names from products table
     let productNameMap = new Map<number, string>();
+    let productNameBnMap = new Map<number, string>();
     if (missingNameProductIds.size > 0) {
-      const productRows: { id: number; name_en: string }[] = await this.salesRepository.manager.query(
-        `SELECT id, name_en FROM products WHERE id = ANY($1)`,
+      const productRows: { id: number; name_en: string; name_bn: string | null }[] = await this.salesRepository.manager.query(
+        `SELECT id, name_en, name_bn FROM products WHERE id = ANY($1)`,
         [[...missingNameProductIds]],
       );
       for (const p of productRows) {
         productNameMap.set(p.id, p.name_en);
+        if (p.name_bn) productNameBnMap.set(p.id, p.name_bn);
+      }
+    }
+
+    // Also fetch name_bn for ALL product IDs (not just missing names)
+    const allProductIds = new Set<number>();
+    for (const r of rows) {
+      if (r.product_id) allProductIds.add(r.product_id);
+    }
+    // Fetch Bengali names for all products in these items
+    if (allProductIds.size > 0) {
+      const bnRows: { id: number; name_bn: string | null }[] = await this.salesRepository.manager.query(
+        `SELECT id, name_bn FROM products WHERE id = ANY($1)`,
+        [[...allProductIds]],
+      );
+      for (const p of bnRows) {
+        if (p.name_bn) productNameBnMap.set(p.id, p.name_bn);
       }
     }
 
@@ -161,8 +180,9 @@ export class SalesService {
       const customName = r.custom_product_name || null;
       // Display name: prefer custom over original
       const displayName = customName || originalName;
+      const nameBn = r.product_id ? productNameBnMap.get(r.product_id) || null : null;
       const arr = map.get(r.order_id) || [];
-      arr.push({ productName: displayName, quantity: Number(r.quantity) || 0, customProductName: customName, itemId: r.item_id, source: r.source });
+      arr.push({ productName: displayName, productNameBn: nameBn, quantity: Number(r.quantity) || 0, customProductName: customName, itemId: r.item_id, source: r.source });
       map.set(r.order_id, arr);
     }
 
@@ -1027,6 +1047,7 @@ export class SalesService {
         'COALESCE(product.name_en, item.product_name) as "productName"',
         'item.custom_product_name as "customProductName"',
         'COALESCE(item.custom_product_name, product.name_en, item.product_name) as "displayName"',
+        'product.name_bn as "productNameBn"',
         'COALESCE(product.image_url, item.product_image) as "productImage"',
         'product.sku as "productSku"',
         'item.quantity as quantity',

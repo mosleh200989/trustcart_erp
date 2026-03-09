@@ -18,6 +18,7 @@ interface PrinterSetting {
 interface InvoiceItem {
   id: number;
   productName: string;
+  productNameBn?: string | null;
   productImage: string | null;
   quantity: number;
   unitPrice: number;
@@ -293,7 +294,7 @@ export default function InvoicePrintModal({ orderIds, onClose }: InvoicePrintMod
                       <tbody>
                         {items.map((item) => (
                           <tr key={item.id}>
-                            <td style={{ fontSize: '10px', padding: '2px 0' }}>{item.productName}</td>
+                            <td style={{ fontSize: '10px', padding: '2px 0' }}>{item.productNameBn || item.productName}</td>
                             <td style={{ fontSize: '10px', padding: '2px 0', textAlign: 'center' }}>{item.quantity}</td>
                             <td style={{ fontSize: '10px', padding: '2px 0', textAlign: 'right' }}>{formatCurrency(item.unitPrice)}</td>
                             <td style={{ fontSize: '10px', padding: '2px 0', textAlign: 'right' }}>{formatCurrency(item.lineTotal)}</td>
