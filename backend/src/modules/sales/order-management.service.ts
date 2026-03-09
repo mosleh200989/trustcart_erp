@@ -961,6 +961,43 @@ export class OrderManagementService {
     return updatedOrder;
   }
 
+  async changeOrderStatus(
+    orderId: number,
+    newStatus: string,
+    userId: number,
+    userName: string,
+    ipAddress?: string
+  ): Promise<SalesOrder> {
+    const validStatuses = [
+      'processing', 'approved', 'sent', 'pending', 'in_review',
+      'in_transit', 'picked', 'hold', 'shipped', 'delivered',
+      'partial_delivered', 'completed', 'cancelled', 'admin_cancelled', 'returned',
+    ];
+    if (!validStatuses.includes(newStatus)) {
+      throw new BadRequestException(`Invalid status: ${newStatus}`);
+    }
+
+    const order = await this.salesOrderRepository.findOne({ where: { id: orderId } });
+    if (!order) throw new NotFoundException('Order not found');
+
+    const oldStatus = order.status;
+    order.status = newStatus;
+    const updatedOrder = await this.salesOrderRepository.save(order);
+
+    await this.logActivity({
+      orderId,
+      actionType: 'status_changed',
+      actionDescription: `Order status manually changed from "${oldStatus}" to "${newStatus}" by ${userName}`,
+      oldValue: { status: oldStatus },
+      newValue: { status: newStatus },
+      performedBy: userId,
+      performedByName: userName,
+      ipAddress,
+    });
+
+    return updatedOrder;
+  }
+
   // ==================== COURIER MANAGEMENT ====================
 
   async shipOrder(data: {

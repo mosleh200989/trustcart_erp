@@ -221,6 +221,23 @@ export class OrderManagementController {
     );
   }
 
+  @Put(':orderId/change-status')
+  @RequirePermissions('change-order-status')
+  async changeOrderStatus(
+    @Param('orderId') orderId: number,
+    @Body() body: { status: string },
+    @Req() req: Request
+  ) {
+    const userInfo = this.getUserInfo(req);
+    return await this.orderManagementService.changeOrderStatus(
+      orderId,
+      body.status,
+      userInfo.userId,
+      userInfo.userName,
+      userInfo.ipAddress
+    );
+  }
+
   // ==================== COURIER ====================
 
   @Post(':orderId/ship')
