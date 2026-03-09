@@ -28,6 +28,7 @@ interface StickerOrder {
 interface StickerItem {
   productName: string;
   productNameBn?: string | null;
+  variantName?: string | null;
   quantity: number;
 }
 
@@ -321,7 +322,7 @@ export default function StickerPrintModal({ orderIds, onClose }: StickerPrintMod
                           <tbody>
                             {st.items.map((item: any, i: number) => (
                               <tr key={i}>
-                                <td style={{ fontSize: '9px', padding: '1px 0' }}>{item.productNameBn || item.productName}</td>
+                                <td style={{ fontSize: '9px', padding: '1px 0' }}>{item.productNameBn || item.productName}{item.variantName ? ` - ${item.variantName}` : ''}</td>
                                 <td style={{ fontSize: '9px', padding: '1px 0', textAlign: 'right' }}>{item.quantity}</td>
                               </tr>
                             ))}

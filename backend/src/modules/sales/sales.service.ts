@@ -109,7 +109,10 @@ export class SalesService {
       items: ((order as any)._items || []).map((i: any) => ({
         productName: i.productName || i.product_name || 'Unknown',
         productNameBn: i.productNameBn || null,
+        variantName: i.variantName || null,
         quantity: Number(i.quantity) || 0,
+        customProductName: i.customProductName || null,
+        itemId: i.itemId || null,
       })),
     };
   }
@@ -118,19 +121,19 @@ export class SalesService {
    * Fetch items for a batch of order IDs from BOTH tables (sales_order_items + order_items),
    * with a fallback to the products table for missing product names.
    */
-  private async batchFetchOrderItems(orderIds: number[]): Promise<Map<number, { productName: string; productNameBn?: string | null; quantity: number; customProductName?: string | null; itemId?: number; source?: string }[]>> {
-    const map = new Map<number, { productName: string; productNameBn?: string | null; quantity: number; customProductName?: string | null; itemId?: number; source?: string }[]>();
+  private async batchFetchOrderItems(orderIds: number[]): Promise<Map<number, { productName: string; productNameBn?: string | null; variantName?: string | null; quantity: number; customProductName?: string | null; itemId?: number; source?: string }[]>> {
+    const map = new Map<number, { productName: string; productNameBn?: string | null; variantName?: string | null; quantity: number; customProductName?: string | null; itemId?: number; source?: string }[]>();
     if (orderIds.length === 0) return map;
 
     // Query both item tables — prefer order_items (admin/migrated) when they exist,
     // fall back to sales_order_items (checkout/landing-page) for orders not yet migrated.
-    const rows: { order_id: number; item_id: number; product_name: string | null; custom_product_name: string | null; product_id: number | null; quantity: number; source: string }[] =
+    const rows: { order_id: number; item_id: number; product_name: string | null; custom_product_name: string | null; product_id: number | null; quantity: number; source: string; variant_name: string | null }[] =
       await this.salesRepository.manager.query(
-        `SELECT oi.id AS item_id, oi.order_id, oi.product_name, oi.custom_product_name, oi.product_id, oi.quantity, 'order_items' AS source
+        `SELECT oi.id AS item_id, oi.order_id, oi.product_name, oi.custom_product_name, oi.product_id, oi.quantity, oi.variant_name, 'order_items' AS source
          FROM order_items oi
          WHERE oi.order_id = ANY($1)
          UNION ALL
-         SELECT soi.id AS item_id, soi.sales_order_id AS order_id, soi.product_name, soi.custom_product_name, soi.product_id, soi.quantity, 'sales_order_items' AS source
+         SELECT soi.id AS item_id, soi.sales_order_id AS order_id, soi.product_name, soi.custom_product_name, soi.product_id, soi.quantity, NULL AS variant_name, 'sales_order_items' AS source
          FROM sales_order_items soi
          WHERE soi.sales_order_id = ANY($1)
            AND soi.sales_order_id NOT IN (SELECT DISTINCT oi2.order_id FROM order_items oi2 WHERE oi2.order_id = ANY($1))`,
@@ -180,9 +183,10 @@ export class SalesService {
       const customName = r.custom_product_name || null;
       // Display name: prefer custom over original
       const displayName = customName || originalName;
-      const nameBn = r.product_id ? productNameBnMap.get(r.product_id) || null : null;
+      // If there's a custom name override, don't send Bengali name — the custom name IS the display name
+      const nameBn = customName ? null : (r.product_id ? productNameBnMap.get(r.product_id) || null : null);
       const arr = map.get(r.order_id) || [];
-      arr.push({ productName: displayName, productNameBn: nameBn, quantity: Number(r.quantity) || 0, customProductName: customName, itemId: r.item_id, source: r.source });
+      arr.push({ productName: displayName, productNameBn: nameBn, variantName: r.variant_name || null, quantity: Number(r.quantity) || 0, customProductName: customName, itemId: r.item_id, source: r.source });
       map.set(r.order_id, arr);
     }
 

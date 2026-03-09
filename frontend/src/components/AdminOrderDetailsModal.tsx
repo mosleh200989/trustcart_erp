@@ -468,10 +468,12 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
   
   const startEditItem = (item: any) => {
     setEditingItem(item.id);
+    // Pre-populate with the currently displayed name (custom name takes priority, then Bengali, then English)
+    const displayedName = item.customProductName || item.productNameBn || item.displayName || item.productName || '';
     setEditItemData({
       quantity: String(item.quantity ?? ''),
       unitPrice: String(item.unitPrice ?? ''),
-      customProductName: item.customProductName ?? item.displayName ?? item.productName ?? '',
+      customProductName: displayedName,
     });
   };
 
@@ -1309,12 +1311,9 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                             </div>
                           ) : (
                             <div>
-                              {item.productNameBn || item.displayName || item.customProductName || item.productName}
+                              {item.customProductName || item.productNameBn || item.displayName || item.productName}{item.variantName ? ` - ${item.variantName}` : ''}
                               {item.customProductName && (
                                 <span className="ml-1 text-[9px] text-orange-500" title={`Original: ${item.productName}`}>✎</span>
-                              )}
-                              {item.variantName && (
-                                <span className="ml-1 text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">{item.variantName}</span>
                               )}
                             </div>
                           )}

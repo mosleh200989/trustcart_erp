@@ -409,7 +409,8 @@ export class OrderManagementService {
       const prodMap = new Map(prods.map((p) => [Number(p.id), p]));
       return orderItems.map((item) => ({
         ...item,
-        productNameBn: prodMap.get(Number(item.productId))?.name_bn || null,
+        // If there's a custom name override, don't send Bengali name — the custom name IS the display name
+        productNameBn: item.customProductName ? null : (prodMap.get(Number(item.productId))?.name_bn || null),
         // Display name: prefer customProductName over productName
         displayName: item.customProductName || item.productName,
       }));
@@ -442,7 +443,7 @@ export class OrderManagementService {
         orderId,
         productId: si.productId ? Number(si.productId) : null,
         productName: originalName,
-        productNameBn: product?.name_bn || null,
+        productNameBn: customName ? null : (product?.name_bn || null),
         customProductName: customName,
         displayName: customName || originalName,
         variantName: (si as any).variantName || (si as any).variant_name || null,
@@ -1864,6 +1865,7 @@ export class OrderManagementService {
         id: item.id,
         productName: item.displayName || item.customProductName || item.productName || item.product_name || 'Product',
         productNameBn: item.productNameBn || null,
+        variantName: item.variantName || item.variant_name || null,
         originalProductName: item.productName || item.product_name || 'Product',
         customProductName: item.customProductName || item.custom_product_name || null,
         productImage: item.productImage || item.product_image || null,
@@ -1894,6 +1896,7 @@ export class OrderManagementService {
       items: items.map((item: any) => ({
         productName: item.displayName || item.customProductName || item.productName || item.product_name || 'Product',
         productNameBn: item.productNameBn || null,
+        variantName: item.variantName || item.variant_name || null,
         originalProductName: item.productName || item.product_name || 'Product',
         quantity: Number(item.quantity || 0),
       })),
@@ -2075,11 +2078,13 @@ export class OrderManagementService {
 
       for (const item of adminItems) {
         if (!itemsMap[item.orderId]) itemsMap[item.orderId] = [];
+        const customName = item.customProductName || null;
         itemsMap[item.orderId].push({
-          productName: item.customProductName || item.productName,
-          productNameBn: bnMap.get(Number(item.productId)) || null,
+          productName: customName || item.productName,
+          productNameBn: customName ? null : (bnMap.get(Number(item.productId)) || null),
+          variantName: item.variantName || null,
           quantity: Number(item.quantity || 0),
-          customProductName: item.customProductName || null,
+          customProductName: customName,
           itemId: item.id,
         });
       }
@@ -2089,7 +2094,8 @@ export class OrderManagementService {
         const customName = (item as any).customProductName || (item as any).custom_product_name || null;
         itemsMap[orderId].push({
           productName: customName || item.productName,
-          productNameBn: bnMap.get(Number((item as any).productId)) || null,
+          productNameBn: customName ? null : (bnMap.get(Number((item as any).productId)) || null),
+          variantName: null,
           quantity: Number(item.quantity || 0),
           customProductName: customName,
           itemId: item.id,
