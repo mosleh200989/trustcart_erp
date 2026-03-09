@@ -1864,6 +1864,7 @@ export class OrderManagementService {
         id: item.id,
         productName: item.displayName || item.customProductName || item.productName || item.product_name || 'Product',
         productNameBn: item.productNameBn || null,
+        variantName: item.variantName || item.variant_name || null,
         originalProductName: item.productName || item.product_name || 'Product',
         customProductName: item.customProductName || item.custom_product_name || null,
         productImage: item.productImage || item.product_image || null,
@@ -1894,6 +1895,7 @@ export class OrderManagementService {
       items: items.map((item: any) => ({
         productName: item.displayName || item.customProductName || item.productName || item.product_name || 'Product',
         productNameBn: item.productNameBn || null,
+        variantName: item.variantName || item.variant_name || null,
         originalProductName: item.productName || item.product_name || 'Product',
         quantity: Number(item.quantity || 0),
       })),
@@ -2078,6 +2080,7 @@ export class OrderManagementService {
         itemsMap[item.orderId].push({
           productName: item.customProductName || item.productName,
           productNameBn: bnMap.get(Number(item.productId)) || null,
+          variantName: item.variantName || null,
           quantity: Number(item.quantity || 0),
           customProductName: item.customProductName || null,
           itemId: item.id,
@@ -2090,6 +2093,7 @@ export class OrderManagementService {
         itemsMap[orderId].push({
           productName: customName || item.productName,
           productNameBn: bnMap.get(Number((item as any).productId)) || null,
+          variantName: null,
           quantity: Number(item.quantity || 0),
           customProductName: customName,
           itemId: item.id,

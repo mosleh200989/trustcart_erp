@@ -1309,12 +1309,9 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                             </div>
                           ) : (
                             <div>
-                              {item.productNameBn || item.displayName || item.customProductName || item.productName}
+                              {item.productNameBn || item.displayName || item.customProductName || item.productName}{item.variantName ? ` - ${item.variantName}` : ''}
                               {item.customProductName && (
                                 <span className="ml-1 text-[9px] text-orange-500" title={`Original: ${item.productName}`}>✎</span>
-                              )}
-                              {item.variantName && (
-                                <span className="ml-1 text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">{item.variantName}</span>
                               )}
                             </div>
                           )}

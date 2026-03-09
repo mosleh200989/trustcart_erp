@@ -117,7 +117,7 @@ interface SalesOrder {
 
   isRejectedCustomer?: boolean;
 
-  items?: { productName: string; productNameBn?: string | null; quantity: number; customProductName?: string | null; itemId?: number; source?: string }[];
+  items?: { productName: string; productNameBn?: string | null; variantName?: string | null; quantity: number; customProductName?: string | null; itemId?: number; source?: string }[];
 
   notes?: string | null;
 }
@@ -863,7 +863,7 @@ export default function AdminSales() {
                     className="cursor-pointer hover:text-blue-600 hover:underline border-b border-dashed border-gray-300"
                     title="Click to edit product name"
                   >
-                    {item.productNameBn || item.productName}
+                    {item.productNameBn || item.productName}{item.variantName ? ` - ${item.variantName}` : ''}
                   </span>
                   {item.customProductName && (
                     <span className="text-[9px] text-orange-500 flex-shrink-0" title="Custom name (original product unchanged)">✎</span>
