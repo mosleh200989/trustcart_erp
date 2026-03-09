@@ -23,11 +23,11 @@ JOIN customers keeper ON keeper.phone = '+88' || dup.phone
 WHERE dup.phone NOT LIKE '+%'
   AND sales_orders.customer_id = dup.id;
 
-UPDATE customer_addresses SET customer_id = keeper.id::text
+UPDATE customer_addresses SET customer_id = keeper.id
 FROM customers dup
 JOIN customers keeper ON keeper.phone = '+88' || dup.phone
 WHERE dup.phone NOT LIKE '+%'
-  AND customer_addresses.customer_id = dup.id::text;
+  AND customer_addresses.customer_id = dup.id;
 
 UPDATE customer_family_members SET customer_id = keeper.id
 FROM customers dup
