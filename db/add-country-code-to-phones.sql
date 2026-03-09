@@ -23,11 +23,11 @@ JOIN customers keeper ON keeper.phone = '+88' || dup.phone
 WHERE dup.phone NOT LIKE '+%'
   AND sales_orders.customer_id = dup.id;
 
-UPDATE customer_addresses SET customer_id = keeper.id
+UPDATE customer_addresses SET customer_id = keeper.id::text
 FROM customers dup
 JOIN customers keeper ON keeper.phone = '+88' || dup.phone
 WHERE dup.phone NOT LIKE '+%'
-  AND customer_addresses.customer_id = dup.id;
+  AND customer_addresses.customer_id = dup.id::text;
 
 UPDATE customer_family_members SET customer_id = keeper.id
 FROM customers dup
@@ -141,17 +141,35 @@ JOIN customers keeper ON keeper.phone = '+88' || dup.phone
 WHERE dup.phone NOT LIKE '+%'
   AND incomplete_orders.customer_id = dup.id;
 
+-- customer_sessions: delete dup's row if keeper already has one
+DELETE FROM customer_sessions USING customers dup
+JOIN customers keeper ON keeper.phone = '+88' || dup.phone
+WHERE dup.phone NOT LIKE '+%' AND customer_sessions.customer_id = dup.id
+  AND EXISTS (SELECT 1 FROM customer_sessions t2 WHERE t2.customer_id = keeper.id);
+
 UPDATE customer_sessions SET customer_id = keeper.id
 FROM customers dup
 JOIN customers keeper ON keeper.phone = '+88' || dup.phone
 WHERE dup.phone NOT LIKE '+%'
   AND customer_sessions.customer_id = dup.id;
 
+-- customer_points: delete dup's row if keeper already has one (unique constraint)
+DELETE FROM customer_points USING customers dup
+JOIN customers keeper ON keeper.phone = '+88' || dup.phone
+WHERE dup.phone NOT LIKE '+%' AND customer_points.customer_id = dup.id
+  AND EXISTS (SELECT 1 FROM customer_points t2 WHERE t2.customer_id = keeper.id);
+
 UPDATE customer_points SET customer_id = keeper.id
 FROM customers dup
 JOIN customers keeper ON keeper.phone = '+88' || dup.phone
 WHERE dup.phone NOT LIKE '+%'
   AND customer_points.customer_id = dup.id;
+
+-- customer_wallets: delete dup's row if keeper already has one (unique constraint)
+DELETE FROM customer_wallets USING customers dup
+JOIN customers keeper ON keeper.phone = '+88' || dup.phone
+WHERE dup.phone NOT LIKE '+%' AND customer_wallets.customer_id = dup.id
+  AND EXISTS (SELECT 1 FROM customer_wallets t2 WHERE t2.customer_id = keeper.id);
 
 UPDATE customer_wallets SET customer_id = keeper.id
 FROM customers dup
@@ -176,6 +194,12 @@ FROM customers dup
 JOIN customers keeper ON keeper.phone = '+88' || dup.phone
 WHERE dup.phone NOT LIKE '+%'
   AND monthly_grocery_lists.customer_id = dup.id;
+
+-- customer_memberships: delete dup's row if keeper already has one (unique constraint)
+DELETE FROM customer_memberships USING customers dup
+JOIN customers keeper ON keeper.phone = '+88' || dup.phone
+WHERE dup.phone NOT LIKE '+%' AND customer_memberships.customer_id = dup.id
+  AND EXISTS (SELECT 1 FROM customer_memberships t2 WHERE t2.customer_id = keeper.id);
 
 UPDATE customer_memberships SET customer_id = keeper.id
 FROM customers dup
