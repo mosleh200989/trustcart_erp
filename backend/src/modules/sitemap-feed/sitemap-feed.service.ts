@@ -49,7 +49,7 @@ export class SitemapFeedService {
     this.config = {
       baseUrl:
         this.configService.get<string>('SITE_BASE_URL') ||
-        'https://trustkert.com',
+        'https://www.trustcart.com.bd',
       defaultChangeFreq: 'daily',
       defaultPriority: 0.5,
       maxUrlsPerSitemap: 50000,
