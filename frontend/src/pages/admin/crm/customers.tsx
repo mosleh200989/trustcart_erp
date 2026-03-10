@@ -49,11 +49,13 @@ export default function CustomersPage() {
     const timer = setTimeout(() => {
       setSearchDebounced(searchTerm);
       setCurrentPage(1); // Reset to first page on search
+      setSelectedCustomers([]);
     }, 500);
     return () => clearTimeout(timer);
   }, [searchTerm]);
 
   useEffect(() => {
+    setSelectedCustomers([]);
     loadCustomers();
   }, [tierFilter, currentPage, itemsPerPage, searchDebounced]);
 

@@ -131,6 +131,7 @@ export default function LeadAssignmentPage() {
   }, [searchTerm]);
 
   useEffect(() => {
+    setSelectedLeadIds(new Set());
     loadLeads();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [assignmentStatus, debouncedSearchTerm, customerTypeFilter, purchaseStageFilter, productNameFilter, dateFrom, dateTo, page, limit]);

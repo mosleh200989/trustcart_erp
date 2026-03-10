@@ -76,6 +76,7 @@ export default function CrmLeadsPage() {
   }, []);
 
   useEffect(() => {
+    setSelectedLeads(new Set());
     loadLeads();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, priority, status, customerType, purchaseStage, assignmentStatus, selectedAgentFilter, pageSize]);
@@ -83,6 +84,7 @@ export default function CrmLeadsPage() {
   // Debounced search
   useEffect(() => {
     const timer = setTimeout(() => {
+      setSelectedLeads(new Set());
       if (page === 1) {
         loadLeads();
       } else {
