@@ -81,19 +81,17 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
   // Create new order
   const [showCreateOrderModal, setShowCreateOrderModal] = useState(false);
   const [creatingOrder, setCreatingOrder] = useState(false);
-  const [newOrderForm, setNewOrderForm] = useState({
-    notes: '',
-    shippingAddress: '',
-    status: 'processing',
-    productId: null as number | null,
-    productName: '',
-    quantity: 1,
-    unitPrice: 0
-  });
+  const [newOrderShippingAddress, setNewOrderShippingAddress] = useState('');
+  const [newOrderCourierNotes, setNewOrderCourierNotes] = useState('');
+  const [newOrderInternalNotes, setNewOrderInternalNotes] = useState('');
+  const [newOrderDeliveryCharge, setNewOrderDeliveryCharge] = useState<number>(0);
+  const [newOrderItems, setNewOrderItems] = useState<Array<{ productId: number; productName: string; productNameBn?: string | null; variantName: string; quantity: number; unitPrice: number }>>([]);
   const [productSearchQuery, setProductSearchQuery] = useState('');
   const [productSearchResults, setProductSearchResults] = useState<any[]>([]);
   const [searchingProducts, setSearchingProducts] = useState(false);
   const [showProductDropdown, setShowProductDropdown] = useState(false);
+  const [newOrderExpandedProductId, setNewOrderExpandedProductId] = useState<number | null>(null);
+  const productDropdownRef = useRef<HTMLDivElement>(null);
 
   // Fraud Check states
   const [fraudCheckLoading, setFraudCheckLoading] = useState(false);
@@ -667,15 +665,41 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
     }
   };
 
-  const selectProductForNewOrder = (product: any) => {
-    setNewOrderForm({
-      ...newOrderForm,
-      productId: product.id,
-      productName: product.name_en || product.name,
-      unitPrice: product.sale_price || product.base_price || product.price || 0
-    });
-    setProductSearchQuery(product.name_en || product.name);
+  const addProductToNewOrder = (product: any, variant?: { name: string; price: number }) => {
+    const variantName = variant?.name || '';
+    const price = variant ? Number(variant.price) : Number(product.sale_price || product.base_price || product.price || 0);
+    const displayName = variantName ? `${product.name_en || product.name} - ${variantName}` : (product.name_en || product.name);
+    const itemKey = `${product.id}-${variantName}`;
+    const existing = newOrderItems.find(item => `${item.productId}-${item.variantName}` === itemKey);
+    if (existing) {
+      setNewOrderItems(newOrderItems.map(item =>
+        `${item.productId}-${item.variantName}` === itemKey ? { ...item, quantity: item.quantity + 1 } : item
+      ));
+    } else {
+      setNewOrderItems([...newOrderItems, {
+        productId: product.id,
+        productName: displayName,
+        productNameBn: product.name_bn || null,
+        variantName,
+        quantity: 1,
+        unitPrice: price,
+      }]);
+    }
+    setProductSearchQuery('');
+    setProductSearchResults([]);
     setShowProductDropdown(false);
+    setNewOrderExpandedProductId(null);
+  };
+
+  const removeProductFromNewOrder = (productId: number, variantName: string) => {
+    setNewOrderItems(newOrderItems.filter(item => !(item.productId === productId && item.variantName === variantName)));
+  };
+
+  const updateNewOrderItemQty = (productId: number, variantName: string, quantity: number) => {
+    if (quantity < 1) return;
+    setNewOrderItems(newOrderItems.map(item =>
+      (item.productId === productId && item.variantName === variantName) ? { ...item, quantity } : item
+    ));
   };
 
   const handleCreateNewOrder = async () => {
@@ -684,54 +708,57 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
       return;
     }
 
-    // Validate product is selected if quantity > 0
-    if (newOrderForm.quantity > 0 && !newOrderForm.productId) {
-      toast.error('Please select a product');
+    if (newOrderItems.length === 0) {
+      toast.error('Please add at least one product');
       return;
     }
 
     setCreatingOrder(true);
     try {
       const customerId = customerRecord?.id || customer?.customerId || order?.customerId;
-      
-      // Calculate total amount based on product
-      const totalAmount = newOrderForm.productId ? newOrderForm.quantity * newOrderForm.unitPrice : 0;
+      const itemsTotal = newOrderItems.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
+      const totalAmount = itemsTotal + (newOrderDeliveryCharge || 0);
       
       const payload = {
         customerId: customerId ? Number(customerId) : null,
         customerName: customerRecord?.name || customer?.customerName || order?.customerName || null,
         customerEmail: customerRecord?.email || customer?.customerEmail || order?.customerEmail || null,
         customerPhone: customerRecord?.phone || customer?.customerPhone || order?.customerPhone || null,
-        shippingAddress: newOrderForm.shippingAddress || null,
-        notes: newOrderForm.notes || null,
-        status: newOrderForm.status,
+        shippingAddress: newOrderShippingAddress || null,
+        courierNotes: newOrderCourierNotes || null,
+        internalNotes: newOrderInternalNotes || null,
+        deliveryCharge: newOrderDeliveryCharge || 0,
+        status: 'processing',
         orderDate: new Date().toISOString(),
-        totalAmount: totalAmount,
+        totalAmount,
         order_source: 'agent_dashboard',
       };
 
       const response = await apiClient.post('/sales', payload);
       const newOrderId = response.data?.id;
       
-      // If a product was selected, add it as an order item
-      if (newOrderId && newOrderForm.productId) {
+      if (newOrderId && newOrderItems.length > 0) {
         try {
-          await apiClient.post(`/order-management/${newOrderId}/items`, {
-            productId: newOrderForm.productId,
-            productName: newOrderForm.productName,
-            quantity: newOrderForm.quantity,
-            unitPrice: newOrderForm.unitPrice,
-          });
+          await Promise.all(
+            newOrderItems.map(item =>
+              apiClient.post(`/order-management/${newOrderId}/items`, {
+                productId: item.productId,
+                productName: item.productName,
+                variantName: item.variantName || null,
+                quantity: item.quantity,
+                unitPrice: item.unitPrice,
+              })
+            )
+          );
         } catch (itemError) {
-          console.error('Failed to add product to order:', itemError);
-          toast.warning('Order created but failed to add product');
+          console.error('Failed to add products to order:', itemError);
+          toast.warning('Order created but some products failed to add');
         }
       }
       
       toast.success('New order created successfully');
       setShowCreateOrderModal(false);
       
-      // Switch to the new order
       if (newOrderId) {
         setCurrentOrderId(newOrderId);
       }
@@ -960,18 +987,15 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
         <div className="p-6 border-b bg-gray-50 flex gap-3 flex-wrap">
           <button 
             onClick={() => {
-              setNewOrderForm({
-                notes: '',
-                shippingAddress: order?.shippingAddress || customerRecord?.address || '',
-                status: 'processing',
-                productId: null,
-                productName: '',
-                quantity: 1,
-                unitPrice: 0
-              });
+              setNewOrderShippingAddress(order?.shippingAddress || customerRecord?.address || '');
+              setNewOrderCourierNotes('');
+              setNewOrderInternalNotes('');
+              setNewOrderDeliveryCharge(0);
+              setNewOrderItems([]);
               setProductSearchQuery('');
               setProductSearchResults([]);
               setShowProductDropdown(false);
+              setNewOrderExpandedProductId(null);
               setShowCreateOrderModal(true);
             }} 
             className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 flex items-center gap-2"
@@ -2588,137 +2612,267 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
         {/* Create New Order Modal */}
         {showCreateOrderModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white p-6 rounded-lg max-w-lg w-full max-h-[90vh] overflow-y-auto">
-              <h3 className="text-xl font-bold mb-4 text-purple-600">Create New Order</h3>
-              <p className="text-gray-600 mb-4">
-                Create a new order for: <strong>{customerRecord?.name || customer?.customerName || order?.customerName || 'Customer'}</strong>
-              </p>
-              
-              <div className="space-y-4">
+            <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+              <div className="p-6 border-b flex items-center justify-between">
                 <div>
-                  <label className="block font-semibold mb-1">Shipping Address</label>
-                  <textarea
-                    value={newOrderForm.shippingAddress}
-                    onChange={(e) => setNewOrderForm({ ...newOrderForm, shippingAddress: e.target.value })}
-                    className="w-full border p-2 rounded"
-                    rows={3}
-                    placeholder="Enter shipping address..."
-                  />
+                  <h3 className="text-xl font-bold text-purple-600">Create New Order</h3>
+                  <p className="text-sm text-gray-600 mt-1">
+                    For: <strong>{customerRecord?.name || customer?.customerName || order?.customerName || 'Customer'}</strong>
+                    {(customerRecord?.phone || customer?.customerPhone || order?.customerPhone) && (
+                      <span className="ml-2 text-gray-500">({customerRecord?.phone || customer?.customerPhone || order?.customerPhone})</span>
+                    )}
+                  </p>
                 </div>
+                <button onClick={() => setShowCreateOrderModal(false)} className="text-gray-400 hover:text-gray-600">
+                  <FaTimes size={20} />
+                </button>
+              </div>
 
-                {/* Product Selection */}
-                <div className="relative">
-                  <label className="block font-semibold mb-1">Product <span className="text-red-500">*</span></label>
-                  <input
-                    type="text"
-                    value={productSearchQuery}
-                    onChange={(e) => searchProductsForNewOrder(e.target.value)}
-                    onFocus={() => productSearchResults.length > 0 && setShowProductDropdown(true)}
-                    className="w-full border p-2 rounded"
-                    placeholder="Search for product..."
-                  />
-                  {searchingProducts && (
-                    <span className="absolute right-3 top-9 text-gray-400 text-sm">Searching...</span>
-                  )}
-                  {showProductDropdown && productSearchResults.length > 0 && (
-                    <div className="absolute z-10 w-full mt-1 bg-white border rounded-lg shadow-lg max-h-48 overflow-y-auto">
-                      {productSearchResults.map((product) => (
-                        <div
-                          key={product.id}
-                          onClick={() => selectProductForNewOrder(product)}
-                          className="p-3 hover:bg-gray-100 cursor-pointer border-b last:border-b-0"
-                        >
-                          <div className="font-medium">{product.name_en}</div>
-                          <div className="text-sm text-gray-500">
-                            Price: ৳{product.sale_price || product.base_price || product.price || 0}
-                            {product.sku && <span className="ml-2">SKU: {product.sku}</span>}
-                          </div>
+              <div className="p-6 space-y-4">
+                {/* Product Search & Selection */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Products <span className="text-red-500">*</span></label>
+                  <div className="relative" ref={productDropdownRef}>
+                    <input
+                      type="text"
+                      value={productSearchQuery}
+                      onChange={(e) => searchProductsForNewOrder(e.target.value)}
+                      onFocus={() => productSearchResults.length > 0 && setShowProductDropdown(true)}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="Search products to add..."
+                    />
+                    {searchingProducts && (
+                      <span className="absolute right-3 top-2.5 text-gray-400 text-sm">Searching...</span>
+                    )}
+                    {showProductDropdown && productSearchResults.length > 0 && (
+                      <div className="absolute z-10 w-full mt-1 bg-white border rounded-lg shadow-lg max-h-72 overflow-y-auto">
+                        {productSearchResults.map((product) => {
+                          const salePrice = Number(product.sale_price || product.base_price || product.price || 0);
+                          const basePrice = Number(product.base_price || product.price || 0);
+                          const hasDiscount = product.sale_price && salePrice < basePrice;
+                          const rawVariants = (() => {
+                            let sv = product.size_variants;
+                            if (!sv) return [];
+                            if (typeof sv === 'string') { try { sv = JSON.parse(sv); } catch { return []; } }
+                            if (!Array.isArray(sv)) return [];
+                            return sv;
+                          })();
+                          const variants: Array<{ name: string; price: number; stock?: number; sku_suffix?: string }> = rawVariants.filter((v: any) => v && typeof v.name === 'string' && v.name.trim().length > 0 && v.price != null && Number(v.price) > 0);
+                          const isExpanded = newOrderExpandedProductId === product.id;
+                          return (
+                            <div key={product.id} className="border-b last:border-b-0">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (variants.length > 0) {
+                                    setNewOrderExpandedProductId(isExpanded ? null : product.id);
+                                  } else {
+                                    addProductToNewOrder(product);
+                                  }
+                                }}
+                                className="w-full text-left px-3 py-2 hover:bg-blue-50 flex items-center gap-3 transition-colors"
+                              >
+                                {(product.image_url || product.image) && (
+                                  <img
+                                    src={product.image_url || product.image}
+                                    alt=""
+                                    className="w-10 h-10 object-contain rounded border flex-shrink-0"
+                                    crossOrigin="anonymous"
+                                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                                  />
+                                )}
+                                <div className="flex-1 min-w-0">
+                                  <div className="font-medium text-sm text-gray-900 truncate flex items-center gap-1">
+                                    {variants.length > 0 && (
+                                      <span className={`text-xs transition-transform inline-block ${isExpanded ? 'rotate-90' : ''}`}>▶</span>
+                                    )}
+                                    {product.name_en || product.name}
+                                  </div>
+                                  {product.name_bn && <div className="text-xs text-gray-500 truncate">{product.name_bn}</div>}
+                                  {variants.length > 0 && (
+                                    <div className="text-xs text-blue-500 mt-0.5">{variants.length} variant{variants.length > 1 ? 's' : ''} available</div>
+                                  )}
+                                </div>
+                                <div className="text-right flex-shrink-0">
+                                  {variants.length === 0 && (
+                                    <>
+                                      <div className="text-sm font-semibold text-blue-600">৳{salePrice.toFixed(2)}</div>
+                                      {hasDiscount && (
+                                        <div className="text-xs text-gray-400 line-through">৳{basePrice.toFixed(2)}</div>
+                                      )}
+                                    </>
+                                  )}
+                                </div>
+                              </button>
+                              {/* Variant sub-items */}
+                              {variants.length > 0 && isExpanded && (
+                                <div className="bg-gray-50 border-t">
+                                  {variants.map((v, vi) => (
+                                    <button
+                                      key={vi}
+                                      type="button"
+                                      onClick={() => addProductToNewOrder(product, v)}
+                                      className="w-full text-left pl-10 pr-3 py-2 hover:bg-blue-100 flex items-center gap-3 transition-colors border-b last:border-b-0 border-gray-100"
+                                    >
+                                      <span className="text-gray-400 text-xs">├─</span>
+                                      <div className="flex-1 min-w-0">
+                                        <div className="text-sm text-gray-800">{v.name}</div>
+                                        {v.sku_suffix && <div className="text-xs text-gray-400">SKU: {v.sku_suffix}</div>}
+                                      </div>
+                                      <div className="text-right flex-shrink-0">
+                                        <div className="text-sm font-semibold text-green-600">৳{Number(v.price).toFixed(2)}</div>
+                                        {v.stock !== undefined && v.stock !== null && (
+                                          <div className="text-xs text-gray-400">Stock: {v.stock}</div>
+                                        )}
+                                      </div>
+                                    </button>
+                                  ))}
+                                  {/* Option to select base product without variant */}
+                                  <button
+                                    type="button"
+                                    onClick={() => addProductToNewOrder(product)}
+                                    className="w-full text-left pl-10 pr-3 py-2 hover:bg-yellow-50 flex items-center gap-3 transition-colors border-t border-gray-200"
+                                  >
+                                    <span className="text-gray-400 text-xs">└─</span>
+                                    <div className="flex-1 text-sm text-gray-500 italic">Base product (no variant)</div>
+                                    <div className="text-sm font-semibold text-blue-600">৳{Number(product.sale_price || product.base_price || product.price || 0).toFixed(2)}</div>
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Selected Products List */}
+                  {newOrderItems.length > 0 && (
+                    <div className="mt-3 border rounded-lg overflow-hidden">
+                      <table className="w-full text-sm">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="text-left px-3 py-2 font-medium text-gray-600">Product</th>
+                            <th className="text-center px-3 py-2 font-medium text-gray-600 w-24">Qty</th>
+                            <th className="text-right px-3 py-2 font-medium text-gray-600 w-28">Price</th>
+                            <th className="text-right px-3 py-2 font-medium text-gray-600 w-28">Subtotal</th>
+                            <th className="w-10"></th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y">
+                          {newOrderItems.map((item) => (
+                            <tr key={`${item.productId}-${item.variantName}`} className="hover:bg-gray-50">
+                              <td className="px-3 py-2">{item.productNameBn || item.productName}</td>
+                              <td className="px-3 py-2 text-center">
+                                <input
+                                  type="number"
+                                  min="1"
+                                  value={item.quantity}
+                                  onChange={(e) => updateNewOrderItemQty(item.productId, item.variantName, parseInt(e.target.value) || 1)}
+                                  className="w-16 text-center border rounded px-1 py-0.5"
+                                />
+                              </td>
+                              <td className="px-3 py-2 text-right">৳{item.unitPrice.toFixed(2)}</td>
+                              <td className="px-3 py-2 text-right font-medium">৳{(item.quantity * item.unitPrice).toFixed(2)}</td>
+                              <td className="px-1 py-2 text-center">
+                                <button
+                                  type="button"
+                                  onClick={() => removeProductFromNewOrder(item.productId, item.variantName)}
+                                  className="text-red-500 hover:text-red-700 p-1"
+                                  title="Remove"
+                                >
+                                  <FaTrash className="text-xs" />
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      <div className="bg-gray-50 px-3 py-2 space-y-1 border-t">
+                        <div className="flex justify-between items-center text-sm text-gray-600">
+                          <span>Subtotal:</span>
+                          <span>৳{newOrderItems.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0).toFixed(2)}</span>
                         </div>
-                      ))}
-                    </div>
-                  )}
-                  {newOrderForm.productId && (
-                    <div className="mt-1 text-sm text-green-600">
-                      ✓ Selected: {newOrderForm.productName}
+                        <div className="flex justify-between items-center text-sm text-gray-600">
+                          <span>Delivery Charge:</span>
+                          <span>৳{(newOrderDeliveryCharge || 0).toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between items-center border-t pt-1">
+                          <span className="font-semibold text-gray-700">Total:</span>
+                          <span className="font-bold text-lg text-purple-600">
+                            ৳{(newOrderItems.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0) + (newOrderDeliveryCharge || 0)).toFixed(2)}
+                          </span>
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>
 
-                {/* Quantity and Unit Price in a row */}
+                {/* Delivery Charge */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Delivery Charge (৳)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={newOrderDeliveryCharge}
+                    onChange={(e) => setNewOrderDeliveryCharge(parseFloat(e.target.value) || 0)}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="0.00"
+                  />
+                </div>
+
+                {/* Shipping Address */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Shipping Address <span className="text-red-500">*</span></label>
+                  <textarea
+                    value={newOrderShippingAddress}
+                    onChange={(e) => setNewOrderShippingAddress(e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    rows={3}
+                    placeholder="Full delivery address"
+                    required
+                  />
+                </div>
+
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block font-semibold mb-1">Quantity <span className="text-red-500">*</span></label>
-                    <input
-                      type="number"
-                      min="1"
-                      value={newOrderForm.quantity}
-                      onChange={(e) => setNewOrderForm({ ...newOrderForm, quantity: parseInt(e.target.value) || 1 })}
-                      className="w-full border p-2 rounded"
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Courier Notes</label>
+                    <textarea
+                      value={newOrderCourierNotes}
+                      onChange={(e) => setNewOrderCourierNotes(e.target.value)}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      rows={2}
+                      placeholder="Notes for courier"
                     />
                   </div>
                   <div>
-                    <label className="block font-semibold mb-1">Unit Price (৳)</label>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={newOrderForm.unitPrice}
-                      onChange={(e) => setNewOrderForm({ ...newOrderForm, unitPrice: parseFloat(e.target.value) || 0 })}
-                      className="w-full border p-2 rounded"
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Internal Notes</label>
+                    <textarea
+                      value={newOrderInternalNotes}
+                      onChange={(e) => setNewOrderInternalNotes(e.target.value)}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      rows={2}
+                      placeholder="Internal notes (not visible to customer)"
                     />
                   </div>
-                </div>
-
-                {/* Total display */}
-                {newOrderForm.productId && (
-                  <div className="bg-gray-50 p-3 rounded border">
-                    <div className="flex justify-between items-center">
-                      <span className="font-semibold">Total Amount:</span>
-                      <span className="text-lg font-bold text-purple-600">
-                        ৳{(newOrderForm.quantity * newOrderForm.unitPrice).toFixed(2)}
-                      </span>
-                    </div>
-                  </div>
-                )}
-                
-                <div>
-                  <label className="block font-semibold mb-1">Initial Status</label>
-                  <select
-                    value={newOrderForm.status}
-                    onChange={(e) => setNewOrderForm({ ...newOrderForm, status: e.target.value })}
-                    className="w-full border p-2 rounded"
-                  >
-                    <option value="processing">Processing</option>
-                    <option value="approved">Approved</option>
-                  </select>
-                </div>
-                
-                <div>
-                  <label className="block font-semibold mb-1">Notes</label>
-                  <textarea
-                    value={newOrderForm.notes}
-                    onChange={(e) => setNewOrderForm({ ...newOrderForm, notes: e.target.value })}
-                    className="w-full border p-2 rounded"
-                    rows={2}
-                    placeholder="Add any notes for this order..."
-                  />
                 </div>
               </div>
               
-              <div className="flex gap-3 mt-6">
-                <button 
-                  onClick={handleCreateNewOrder} 
-                  disabled={creatingOrder || !newOrderForm.productId}
-                  className="bg-purple-600 text-white px-6 py-2 rounded hover:bg-purple-700 flex-1 disabled:opacity-50"
-                >
-                  {creatingOrder ? 'Creating...' : 'Create Order'}
-                </button>
+              <div className="p-6 border-t bg-gray-50 flex gap-3 justify-end">
                 <button 
                   onClick={() => setShowCreateOrderModal(false)} 
                   disabled={creatingOrder}
-                  className="bg-gray-400 text-white px-6 py-2 rounded hover:bg-gray-500"
+                  className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100"
                 >
                   Cancel
+                </button>
+                <button 
+                  onClick={handleCreateNewOrder} 
+                  disabled={creatingOrder || newOrderItems.length === 0}
+                  className="bg-purple-600 text-white px-6 py-2 rounded-lg hover:bg-purple-700 disabled:opacity-50 flex items-center gap-2"
+                >
+                  {creatingOrder ? 'Creating...' : 'Create Order'}
                 </button>
               </div>
             </div>

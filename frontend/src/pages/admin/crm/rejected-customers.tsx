@@ -59,6 +59,7 @@ export default function RejectedCustomersPage() {
     const timer = setTimeout(() => {
       setSearchDebounced(searchTerm);
       setCurrentPage(1);
+      setSelectedIds([]);
     }, 500);
     return () => clearTimeout(timer);
   }, [searchTerm]);
@@ -116,6 +117,7 @@ export default function RejectedCustomersPage() {
   }, [currentPage, itemsPerPage, statusFilter, agentFilter, searchDebounced]);
 
   useEffect(() => {
+    setSelectedIds([]);
     fetchCustomers();
   }, [fetchCustomers]);
 

@@ -743,11 +743,13 @@ export default function AdminSales() {
     const value = target.type === 'checkbox' ? target.checked : target.value;
     setFilters((prev) => ({ ...prev, [name]: value }));
     setCurrentPage(1);
+    setSelectedRowIds([]);
   };
 
   const resetFilters = () => {
     setFilters(INITIAL_FILTERS);
     setCurrentPage(1);
+    setSelectedRowIds([]);
   };
 
   const activeFilterCount = Object.values(filters).filter((v) => {
@@ -1092,7 +1094,7 @@ export default function AdminSales() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Product</label>
                   <ProductAutocomplete
                     value={filters.productName}
-                    onChange={(val) => setFilters((prev) => ({ ...prev, productName: val }))}
+                    onChange={(val) => { setFilters((prev) => ({ ...prev, productName: val })); setSelectedRowIds([]); }}
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
                 </div>
