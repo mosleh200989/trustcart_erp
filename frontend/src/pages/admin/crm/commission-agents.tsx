@@ -1,9 +1,10 @@
 import { useEffect, useState, useCallback } from 'react';
+import { useRouter } from 'next/router';
 import AdminLayout from '@/layouts/AdminLayout';
 import DataTable from '@/components/admin/DataTable';
 import PageSizeSelector from '@/components/admin/PageSizeSelector';
 import { useToast } from '@/contexts/ToastContext';
-import { FaSearch } from 'react-icons/fa';
+import { FaSearch, FaMoneyBillWave, FaEye } from 'react-icons/fa';
 import apiClient from '@/services/api';
 
 interface AgentRow {
@@ -20,6 +21,7 @@ interface AgentRow {
 
 export default function CommissionAgentsPage() {
   const toast = useToast();
+  const router = useRouter();
 
   const [agents, setAgents] = useState<AgentRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -122,6 +124,29 @@ export default function CommissionAgentsPage() {
         <span className={`text-sm font-semibold ${row.balance > 0 ? 'text-red-600' : 'text-gray-600'}`}>
           ৳{row.balance.toLocaleString()}
         </span>
+      ),
+    },
+    {
+      key: 'actions',
+      label: 'Actions',
+      sortable: false,
+      render: (_: any, row: AgentRow) => (
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => toast.info('Payment Request feature coming soon')}
+            className="bg-yellow-500 hover:bg-yellow-600 text-white px-2.5 py-1 rounded text-xs font-medium flex items-center gap-1"
+            title="Payment Request"
+          >
+            <FaMoneyBillWave size={12} /> Payment Request
+          </button>
+          <button
+            onClick={() => router.push(`/admin/crm/commission-sales?agentId=${row.agentId}`)}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-2.5 py-1 rounded text-xs font-medium flex items-center gap-1"
+            title="View Agent Orders"
+          >
+            <FaEye size={12} /> View
+          </button>
+        </div>
       ),
     },
   ];

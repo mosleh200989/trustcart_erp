@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import { useRouter } from 'next/router';
 import AdminLayout from '@/layouts/AdminLayout';
 import DataTable from '@/components/admin/DataTable';
 import PageSizeSelector from '@/components/admin/PageSizeSelector';
@@ -52,6 +53,7 @@ function getTodayDateString() {
 
 export default function CommissionSalesPage() {
   const toast = useToast();
+  const router = useRouter();
 
   const [sales, setSales] = useState<CommissionSale[]>([]);
   const [agents, setAgents] = useState<Agent[]>([]);
@@ -70,6 +72,13 @@ export default function CommissionSalesPage() {
   const [paymentStatusFilter, setPaymentStatusFilter] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+
+  // Pre-fill agent filter from URL query param
+  useEffect(() => {
+    if (router.isReady && router.query.agentId) {
+      setAgentFilter(String(router.query.agentId));
+    }
+  }, [router.isReady, router.query.agentId]);
 
   // Order details modal
   const [showOrderDetails, setShowOrderDetails] = useState(false);
@@ -150,7 +159,7 @@ export default function CommissionSalesPage() {
 
   useEffect(() => {
     loadSales(currentPage, itemsPerPage);
-  }, [currentPage, itemsPerPage]);
+  }, [currentPage, itemsPerPage, agentFilter]);
 
   const handleSearch = () => {
     setCurrentPage(1);

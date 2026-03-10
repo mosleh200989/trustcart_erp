@@ -557,13 +557,18 @@ export class CommissionService {
       LEFT JOIN (
         SELECT
           c.assigned_to as agent_id,
-          COUNT(DISTINCT so.id) as total_orders,
-          COALESCE(SUM(soi.quantity), 0) as total_product_qty,
-          COALESCE(SUM(so.total_amount), 0) as total_amount
+          COUNT(so.id) as total_orders,
+          COALESCE(SUM(so.total_amount), 0) as total_amount,
+          COALESCE(SUM(item_qty.qty), 0) as total_product_qty
         FROM sales_orders so
         INNER JOIN customers c ON c.id = so.customer_id
-        LEFT JOIN sales_order_items soi ON soi.sales_order_id = so.id
+        LEFT JOIN (
+          SELECT sales_order_id, SUM(quantity) as qty
+          FROM sales_order_items
+          GROUP BY sales_order_id
+        ) item_qty ON item_qty.sales_order_id = so.id
         WHERE c.assigned_to IS NOT NULL
+          AND (so.order_source IS NULL OR so.order_source != 'website')
         GROUP BY c.assigned_to
       ) order_stats ON order_stats.agent_id = u.id
       LEFT JOIN (
@@ -696,6 +701,9 @@ export class CommissionService {
       params.push(`%${search.trim()}%`);
       paramIdx++;
     }
+
+    // Always exclude website orders
+    conditions.push(`(so.order_source IS NULL OR so.order_source != 'website')`);
 
     const whereClause = conditions.length > 0 ? 'AND ' + conditions.join(' AND ') : '';
 
