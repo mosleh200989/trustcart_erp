@@ -19,6 +19,14 @@ interface AgentRow {
   balance: number;
 }
 
+const PAYMENT_METHODS = [
+  { value: 'bank_transfer', label: 'Bank Transfer' },
+  { value: 'bkash', label: 'bKash' },
+  { value: 'nagad', label: 'Nagad' },
+  { value: 'cash', label: 'Cash' },
+  { value: 'other', label: 'Other' },
+];
+
 export default function CommissionAgentsPage() {
   const toast = useToast();
   const router = useRouter();
@@ -29,6 +37,11 @@ export default function CommissionAgentsPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(50);
   const [searchText, setSearchText] = useState('');
+
+  // Payment request modal
+  const [paymentModal, setPaymentModal] = useState<AgentRow | null>(null);
+  const [paymentForm, setPaymentForm] = useState({ amount: '', paymentMethod: '', notes: '' });
+  const [submitting, setSubmitting] = useState(false);
 
   const loadAgents = useCallback(async (page?: number, pageSize?: number) => {
     try {
@@ -57,6 +70,31 @@ export default function CommissionAgentsPage() {
   const handleSearch = () => {
     setCurrentPage(1);
     loadAgents(1, itemsPerPage);
+  };
+
+  const handlePaymentRequest = async () => {
+    if (!paymentModal) return;
+    const amount = parseFloat(paymentForm.amount);
+    if (!amount || amount <= 0) {
+      toast.error('Please enter a valid amount');
+      return;
+    }
+    try {
+      setSubmitting(true);
+      await apiClient.post('/crm/commissions/payment-requests', {
+        agentId: paymentModal.agentId,
+        requestedAmount: amount,
+        paymentMethod: paymentForm.paymentMethod || undefined,
+        notes: paymentForm.notes || undefined,
+      });
+      toast.success(`Payment request of ৳${amount.toLocaleString()} created for ${paymentModal.agentName}`);
+      setPaymentModal(null);
+      loadAgents();
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || 'Failed to create payment request');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const columns = [
@@ -133,7 +171,10 @@ export default function CommissionAgentsPage() {
       render: (_: any, row: AgentRow) => (
         <div className="flex items-center gap-2">
           <button
-            onClick={() => toast.info('Payment Request feature coming soon')}
+            onClick={() => {
+              setPaymentModal(row);
+              setPaymentForm({ amount: String(row.balance > 0 ? row.balance : ''), paymentMethod: '', notes: '' });
+            }}
             className="bg-yellow-500 hover:bg-yellow-600 text-white px-2.5 py-1 rounded text-xs font-medium flex items-center gap-1"
             title="Payment Request"
           >
@@ -202,6 +243,58 @@ export default function CommissionAgentsPage() {
           totalPages={totalPages}
           onPageChange={(p) => setCurrentPage(p)}
         />
+
+        {/* Payment Request Modal */}
+        {paymentModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6">
+              <h2 className="text-lg font-bold text-gray-800 mb-1">New Payment Request</h2>
+              <p className="text-sm text-gray-500 mb-4">
+                Agent: <strong>{paymentModal.agentName}</strong> | Balance: <strong className="text-red-600">৳{paymentModal.balance.toLocaleString()}</strong>
+              </p>
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-sm text-gray-600 mb-1">Amount (৳) *</label>
+                  <input
+                    type="number" min="0" step="0.01"
+                    value={paymentForm.amount}
+                    onChange={(e) => setPaymentForm(f => ({ ...f, amount: e.target.value }))}
+                    className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Enter amount"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-600 mb-1">Payment Method</label>
+                  <select
+                    value={paymentForm.paymentMethod}
+                    onChange={(e) => setPaymentForm(f => ({ ...f, paymentMethod: e.target.value }))}
+                    className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Select Method</option>
+                    {PAYMENT_METHODS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-600 mb-1">Notes</label>
+                  <textarea
+                    value={paymentForm.notes}
+                    onChange={(e) => setPaymentForm(f => ({ ...f, notes: e.target.value }))}
+                    className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    rows={2} placeholder="Optional notes"
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end gap-2 mt-5">
+                <button onClick={() => setPaymentModal(null)} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800">Cancel</button>
+                <button onClick={handlePaymentRequest} disabled={submitting}
+                  className="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded text-sm font-medium disabled:opacity-50 flex items-center gap-2">
+                  <FaMoneyBillWave size={12} />
+                  {submitting ? 'Submitting...' : 'Submit Request'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </AdminLayout>
   );

@@ -75,6 +75,7 @@ import { CommissionController } from './commission.controller';
 import { CommissionService } from './commission.service';
 import { AgentCommission } from './entities/agent-commission.entity';
 import { CommissionSettings } from './entities/commission-settings.entity';
+import { CommissionPaymentRequest } from './entities/commission-payment-request.entity';
 import { DashboardConfig } from './entities/dashboard-config.entity';
 
 @Module({
@@ -110,6 +111,7 @@ import { DashboardConfig } from './entities/dashboard-config.entity';
       // Commission entities
       AgentCommission,
       CommissionSettings,
+      CommissionPaymentRequest,
       // Dashboard config entity
       DashboardConfig
     ]),

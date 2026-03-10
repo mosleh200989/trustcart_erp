@@ -603,6 +603,286 @@ export class CommissionService {
     };
   }
 
+  // ==================== PAYMENT REQUESTS ====================
+
+  async createPaymentRequest(data: {
+    agentId: number;
+    requestedAmount: number;
+    paymentMethod?: string;
+    notes?: string;
+    requestedBy: number;
+  }): Promise<any> {
+    const sql = `
+      INSERT INTO commission_payment_requests (agent_id, requested_amount, payment_method, notes, requested_by)
+      VALUES ($1, $2, $3, $4, $5)
+      RETURNING *
+    `;
+    const result = await this.dataSource.query(sql, [
+      data.agentId, data.requestedAmount, data.paymentMethod || null, data.notes || null, data.requestedBy,
+    ]);
+    return result[0];
+  }
+
+  async getPaymentRequests(query: {
+    status?: string;
+    agentId?: number;
+    search?: string;
+    startDate?: string;
+    endDate?: string;
+    page?: number;
+    limit?: number;
+  } = {}): Promise<{ data: any[]; total: number; agents: any[] }> {
+    const { status, agentId, search, startDate, endDate, page = 1, limit = 50 } = query;
+    const pageNum = Number(page) || 1;
+    const limitNum = Number(limit) || 50;
+    const offset = (pageNum - 1) * limitNum;
+
+    const conditions: string[] = [];
+    const params: any[] = [];
+    let paramIdx = 1;
+
+    if (status) {
+      conditions.push(`pr.status = $${paramIdx++}`);
+      params.push(status);
+    }
+    if (agentId) {
+      conditions.push(`pr.agent_id = $${paramIdx++}`);
+      params.push(Number(agentId));
+    }
+    if (startDate) {
+      conditions.push(`pr.created_at >= $${paramIdx++}`);
+      params.push(startDate);
+    }
+    if (endDate) {
+      conditions.push(`pr.created_at <= ($${paramIdx++}::date + INTERVAL '1 day')`);
+      params.push(endDate);
+    }
+    if (search && search.trim()) {
+      conditions.push(`(u.name ILIKE $${paramIdx} OR u.last_name ILIKE $${paramIdx} OR u.phone ILIKE $${paramIdx} OR pr.payment_reference ILIKE $${paramIdx})`);
+      params.push(`%${search.trim()}%`);
+      paramIdx++;
+    }
+
+    const whereClause = conditions.length > 0 ? 'AND ' + conditions.join(' AND ') : '';
+
+    const countSql = `
+      SELECT COUNT(*) as total
+      FROM commission_payment_requests pr
+      LEFT JOIN users u ON u.id = pr.agent_id
+      WHERE 1=1 ${whereClause}
+    `;
+    const countResult = await this.dataSource.query(countSql, params);
+    const total = parseInt(countResult[0]?.total || '0', 10);
+
+    const dataSql = `
+      SELECT
+        pr.*,
+        CONCAT(COALESCE(u.name, ''), ' ', COALESCE(u.last_name, '')) as agent_name,
+        u.phone as agent_phone,
+        CONCAT(COALESCE(ab.name, ''), ' ', COALESCE(ab.last_name, '')) as approved_by_name,
+        CONCAT(COALESCE(pb.name, ''), ' ', COALESCE(pb.last_name, '')) as paid_by_name,
+        CONCAT(COALESCE(rb.name, ''), ' ', COALESCE(rb.last_name, '')) as rejected_by_name
+      FROM commission_payment_requests pr
+      LEFT JOIN users u ON u.id = pr.agent_id
+      LEFT JOIN users ab ON ab.id = pr.approved_by
+      LEFT JOIN users pb ON pb.id = pr.paid_by
+      LEFT JOIN users rb ON rb.id = pr.rejected_by
+      WHERE 1=1 ${whereClause}
+      ORDER BY pr.created_at DESC
+      LIMIT $${paramIdx} OFFSET $${paramIdx + 1}
+    `;
+    const dataParams = [...params, limitNum, offset];
+    const rows = await this.dataSource.query(dataSql, dataParams);
+
+    // Get all Sales Executives for filter
+    const agentsSql = `
+      SELECT u.id, CONCAT(COALESCE(u.name, ''), ' ', COALESCE(u.last_name, '')) as name
+      FROM users u
+      INNER JOIN roles r ON r.id = u.role_id
+      WHERE LOWER(r.name) LIKE '%sales executive%' OR r.slug = 'sales-executive'
+      ORDER BY u.name ASC
+    `;
+    const agents = await this.dataSource.query(agentsSql);
+
+    return {
+      data: rows.map((r: any) => ({
+        id: r.id,
+        agentId: r.agent_id,
+        agentName: (r.agent_name || '').trim(),
+        agentPhone: r.agent_phone || '',
+        requestedAmount: parseFloat(r.requested_amount || '0'),
+        approvedAmount: r.approved_amount ? parseFloat(r.approved_amount) : null,
+        paymentMethod: r.payment_method,
+        paymentReference: r.payment_reference,
+        status: r.status,
+        notes: r.notes,
+        adminNotes: r.admin_notes,
+        approvedByName: (r.approved_by_name || '').trim(),
+        paidByName: (r.paid_by_name || '').trim(),
+        rejectedByName: (r.rejected_by_name || '').trim(),
+        approvedAt: r.approved_at,
+        paidAt: r.paid_at,
+        rejectedAt: r.rejected_at,
+        createdAt: r.created_at,
+      })),
+      total,
+      agents: agents.map((a: any) => ({ id: a.id, name: (a.name || '').trim() })),
+    };
+  }
+
+  async approvePaymentRequest(id: number, adminUserId: number, approvedAmount?: number): Promise<any> {
+    const rows = await this.dataSource.query(`SELECT * FROM commission_payment_requests WHERE id = $1`, [id]);
+    if (!rows.length) throw new NotFoundException('Payment request not found');
+    if (rows[0].status !== 'pending') throw new BadRequestException('Only pending requests can be approved');
+
+    const amount = approvedAmount ?? parseFloat(rows[0].requested_amount);
+    await this.dataSource.query(
+      `UPDATE commission_payment_requests SET status = 'approved', approved_amount = $1, approved_by = $2, approved_at = NOW(), updated_at = NOW() WHERE id = $3`,
+      [amount, adminUserId, id],
+    );
+    return { success: true };
+  }
+
+  async markPaymentRequestPaid(id: number, adminUserId: number, paymentMethod?: string, paymentReference?: string, adminNotes?: string): Promise<any> {
+    const rows = await this.dataSource.query(`SELECT * FROM commission_payment_requests WHERE id = $1`, [id]);
+    if (!rows.length) throw new NotFoundException('Payment request not found');
+    if (rows[0].status !== 'approved') throw new BadRequestException('Only approved requests can be marked as paid');
+
+    await this.dataSource.query(
+      `UPDATE commission_payment_requests SET status = 'paid', paid_by = $1, paid_at = NOW(), payment_method = COALESCE($2, payment_method), payment_reference = COALESCE($3, payment_reference), admin_notes = COALESCE($4, admin_notes), updated_at = NOW() WHERE id = $5`,
+      [adminUserId, paymentMethod || null, paymentReference || null, adminNotes || null, id],
+    );
+    return { success: true };
+  }
+
+  async rejectPaymentRequest(id: number, adminUserId: number, adminNotes?: string): Promise<any> {
+    const rows = await this.dataSource.query(`SELECT * FROM commission_payment_requests WHERE id = $1`, [id]);
+    if (!rows.length) throw new NotFoundException('Payment request not found');
+    if (rows[0].status !== 'pending' && rows[0].status !== 'approved') throw new BadRequestException('This request cannot be rejected');
+
+    await this.dataSource.query(
+      `UPDATE commission_payment_requests SET status = 'rejected', rejected_by = $1, rejected_at = NOW(), admin_notes = COALESCE($2, admin_notes), updated_at = NOW() WHERE id = $3`,
+      [adminUserId, adminNotes || null, id],
+    );
+    return { success: true };
+  }
+
+  async getPaymentHistory(query: {
+    agentId?: number;
+    paymentMethod?: string;
+    search?: string;
+    startDate?: string;
+    endDate?: string;
+    page?: number;
+    limit?: number;
+  } = {}): Promise<{ data: any[]; total: number; agents: any[]; summary: any }> {
+    const { agentId, paymentMethod, search, startDate, endDate, page = 1, limit = 50 } = query;
+    const pageNum = Number(page) || 1;
+    const limitNum = Number(limit) || 50;
+    const offset = (pageNum - 1) * limitNum;
+
+    const conditions: string[] = [`pr.status = 'paid'`];
+    const params: any[] = [];
+    let paramIdx = 1;
+
+    if (agentId) {
+      conditions.push(`pr.agent_id = $${paramIdx++}`);
+      params.push(Number(agentId));
+    }
+    if (paymentMethod) {
+      conditions.push(`pr.payment_method = $${paramIdx++}`);
+      params.push(paymentMethod);
+    }
+    if (startDate) {
+      conditions.push(`pr.paid_at >= $${paramIdx++}`);
+      params.push(startDate);
+    }
+    if (endDate) {
+      conditions.push(`pr.paid_at <= ($${paramIdx++}::date + INTERVAL '1 day')`);
+      params.push(endDate);
+    }
+    if (search && search.trim()) {
+      conditions.push(`(u.name ILIKE $${paramIdx} OR u.last_name ILIKE $${paramIdx} OR u.phone ILIKE $${paramIdx} OR pr.payment_reference ILIKE $${paramIdx})`);
+      params.push(`%${search.trim()}%`);
+      paramIdx++;
+    }
+
+    const whereClause = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
+
+    const countSql = `
+      SELECT COUNT(*) as total
+      FROM commission_payment_requests pr
+      LEFT JOIN users u ON u.id = pr.agent_id
+      ${whereClause}
+    `;
+    const countResult = await this.dataSource.query(countSql, params);
+    const total = parseInt(countResult[0]?.total || '0', 10);
+
+    // Summary stats
+    const summarySql = `
+      SELECT
+        COUNT(*) as total_payments,
+        COALESCE(SUM(pr.approved_amount), 0) as total_paid_amount
+      FROM commission_payment_requests pr
+      LEFT JOIN users u ON u.id = pr.agent_id
+      ${whereClause}
+    `;
+    const summaryResult = await this.dataSource.query(summarySql, params);
+
+    const dataSql = `
+      SELECT
+        pr.*,
+        CONCAT(COALESCE(u.name, ''), ' ', COALESCE(u.last_name, '')) as agent_name,
+        u.phone as agent_phone,
+        CONCAT(COALESCE(ab.name, ''), ' ', COALESCE(ab.last_name, '')) as approved_by_name,
+        CONCAT(COALESCE(pb.name, ''), ' ', COALESCE(pb.last_name, '')) as paid_by_name
+      FROM commission_payment_requests pr
+      LEFT JOIN users u ON u.id = pr.agent_id
+      LEFT JOIN users ab ON ab.id = pr.approved_by
+      LEFT JOIN users pb ON pb.id = pr.paid_by
+      ${whereClause}
+      ORDER BY pr.paid_at DESC
+      LIMIT $${paramIdx} OFFSET $${paramIdx + 1}
+    `;
+    const dataParams = [...params, limitNum, offset];
+    const rows = await this.dataSource.query(dataSql, dataParams);
+
+    const agentsSql = `
+      SELECT u.id, CONCAT(COALESCE(u.name, ''), ' ', COALESCE(u.last_name, '')) as name
+      FROM users u
+      INNER JOIN roles r ON r.id = u.role_id
+      WHERE LOWER(r.name) LIKE '%sales executive%' OR r.slug = 'sales-executive'
+      ORDER BY u.name ASC
+    `;
+    const agents = await this.dataSource.query(agentsSql);
+
+    return {
+      data: rows.map((r: any) => ({
+        id: r.id,
+        agentId: r.agent_id,
+        agentName: (r.agent_name || '').trim(),
+        agentPhone: r.agent_phone || '',
+        requestedAmount: parseFloat(r.requested_amount || '0'),
+        approvedAmount: r.approved_amount ? parseFloat(r.approved_amount) : null,
+        paymentMethod: r.payment_method,
+        paymentReference: r.payment_reference,
+        notes: r.notes,
+        adminNotes: r.admin_notes,
+        approvedByName: (r.approved_by_name || '').trim(),
+        paidByName: (r.paid_by_name || '').trim(),
+        approvedAt: r.approved_at,
+        paidAt: r.paid_at,
+        createdAt: r.created_at,
+      })),
+      total,
+      agents: agents.map((a: any) => ({ id: a.id, name: (a.name || '').trim() })),
+      summary: {
+        totalPayments: parseInt(summaryResult[0]?.total_payments || '0', 10),
+        totalPaidAmount: parseFloat(summaryResult[0]?.total_paid_amount || '0'),
+      },
+    };
+  }
+
   // ==================== HELPER: AUTO-CREATE COMMISSION ON ORDER ====================
 
   /**

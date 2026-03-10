@@ -144,6 +144,48 @@ export class CommissionController {
     return { success: true, approvedCount: count };
   }
 
+  // ==================== PAYMENT REQUESTS ====================
+
+  @Post('payment-requests')
+  @RequirePermissions('approve-commissions')
+  async createPaymentRequest(@Body() body: { agentId: number; requestedAmount: number; paymentMethod?: string; notes?: string }, @Request() req: any) {
+    return await this.commissionService.createPaymentRequest({ ...body, requestedBy: req.user.id });
+  }
+
+  @Get('payment-requests')
+  @RequirePermissions('view-commission-reports')
+  async getPaymentRequests(@Query() query: any) {
+    return await this.commissionService.getPaymentRequests(query);
+  }
+
+  @Put('payment-requests/:id/approve')
+  @RequirePermissions('approve-commissions')
+  async approvePaymentRequest(@Param('id') id: string, @Body() body: { approvedAmount?: number }, @Request() req: any) {
+    return await this.commissionService.approvePaymentRequest(Number(id), req.user.id, body.approvedAmount);
+  }
+
+  @Put('payment-requests/:id/pay')
+  @RequirePermissions('approve-commissions')
+  async markPaymentRequestPaid(
+    @Param('id') id: string,
+    @Body() body: { paymentMethod?: string; paymentReference?: string; adminNotes?: string },
+    @Request() req: any,
+  ) {
+    return await this.commissionService.markPaymentRequestPaid(Number(id), req.user.id, body.paymentMethod, body.paymentReference, body.adminNotes);
+  }
+
+  @Put('payment-requests/:id/reject')
+  @RequirePermissions('approve-commissions')
+  async rejectPaymentRequest(@Param('id') id: string, @Body() body: { adminNotes?: string }, @Request() req: any) {
+    return await this.commissionService.rejectPaymentRequest(Number(id), req.user.id, body.adminNotes);
+  }
+
+  @Get('payment-history')
+  @RequirePermissions('view-commission-reports')
+  async getPaymentHistory(@Query() query: any) {
+    return await this.commissionService.getPaymentHistory(query);
+  }
+
   // ==================== AGENT ENDPOINTS ====================
 
   /**
