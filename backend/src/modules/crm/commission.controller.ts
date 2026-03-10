@@ -60,6 +60,15 @@ export class CommissionController {
   }
 
   /**
+   * Get agent-wise commission summary report
+   */
+  @Get('agents')
+  @RequirePermissions('view-commission-reports')
+  async getAgentCommissionReport(@Query() query: any) {
+    return await this.commissionService.getAgentCommissionReport(query);
+  }
+
+  /**
    * Get commission sales data (orders with commission details)
    */
   @Get('sales')

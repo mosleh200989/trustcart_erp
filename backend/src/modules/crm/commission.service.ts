@@ -508,6 +508,96 @@ export class CommissionService {
     return await qb.getRawMany();
   }
 
+  // ==================== AGENT REPORT ====================
+
+  /**
+   * Get agent-wise commission summary report
+   */
+  async getAgentCommissionReport(query: {
+    search?: string;
+    page?: number;
+    limit?: number;
+  } = {}): Promise<{ data: any[]; total: number }> {
+    const { search, page = 1, limit = 50 } = query;
+    const pageNum = Number(page) || 1;
+    const limitNum = Number(limit) || 50;
+    const offset = (pageNum - 1) * limitNum;
+
+    const searchCondition = search && search.trim()
+      ? `AND (u.name ILIKE $1 OR u.last_name ILIKE $1 OR u.phone ILIKE $1)`
+      : '';
+    const searchParam = search && search.trim() ? [`%${search.trim()}%`] : [];
+
+    // Count distinct agents
+    const countSql = `
+      SELECT COUNT(DISTINCT u.id) as total
+      FROM users u
+      INNER JOIN roles r ON r.id = u.role_id
+      WHERE (LOWER(r.name) LIKE '%sales executive%' OR r.slug = 'sales-executive')
+      ${searchCondition}
+    `;
+    const countResult = await this.dataSource.query(countSql, searchParam);
+    const total = parseInt(countResult[0]?.total || '0', 10);
+
+    // Main data query
+    const pIdx = searchParam.length + 1;
+    const dataSql = `
+      SELECT
+        u.id as agent_id,
+        CONCAT(COALESCE(u.name, ''), ' ', COALESCE(u.last_name, '')) as agent_name,
+        u.phone,
+        COALESCE(order_stats.total_orders, 0) as total_orders,
+        COALESCE(order_stats.total_product_qty, 0) as total_product_qty,
+        COALESCE(order_stats.total_amount, 0) as total_amount,
+        COALESCE(commission_stats.total_commission, 0) as total_commission,
+        COALESCE(commission_stats.paid_commission, 0) as paid_commission,
+        COALESCE(commission_stats.total_commission, 0) - COALESCE(commission_stats.paid_commission, 0) as balance
+      FROM users u
+      INNER JOIN roles r ON r.id = u.role_id
+      LEFT JOIN (
+        SELECT
+          c.assigned_to as agent_id,
+          COUNT(DISTINCT so.id) as total_orders,
+          COALESCE(SUM(soi.quantity), 0) as total_product_qty,
+          COALESCE(SUM(so.total_amount), 0) as total_amount
+        FROM sales_orders so
+        INNER JOIN customers c ON c.id = so.customer_id
+        LEFT JOIN sales_order_items soi ON soi.sales_order_id = so.id
+        WHERE c.assigned_to IS NOT NULL
+        GROUP BY c.assigned_to
+      ) order_stats ON order_stats.agent_id = u.id
+      LEFT JOIN (
+        SELECT
+          ac.agent_id,
+          COALESCE(SUM(ac.commission_amount), 0) as total_commission,
+          COALESCE(SUM(CASE WHEN ac.status = 'paid' THEN ac.commission_amount ELSE 0 END), 0) as paid_commission
+        FROM agent_commissions ac
+        GROUP BY ac.agent_id
+      ) commission_stats ON commission_stats.agent_id = u.id
+      WHERE (LOWER(r.name) LIKE '%sales executive%' OR r.slug = 'sales-executive')
+      ${searchCondition}
+      ORDER BY agent_name ASC
+      LIMIT $${pIdx} OFFSET $${pIdx + 1}
+    `;
+    const dataParams = [...searchParam, limitNum, offset];
+    const rows = await this.dataSource.query(dataSql, dataParams);
+
+    return {
+      data: rows.map((r: any) => ({
+        agentId: r.agent_id,
+        agentName: (r.agent_name || '').trim(),
+        phone: r.phone || '',
+        totalOrders: parseInt(r.total_orders || '0', 10),
+        totalProductQty: parseInt(r.total_product_qty || '0', 10),
+        totalAmount: parseFloat(r.total_amount || '0'),
+        totalCommission: parseFloat(r.total_commission || '0'),
+        paidCommission: parseFloat(r.paid_commission || '0'),
+        balance: parseFloat(r.balance || '0'),
+      })),
+      total,
+    };
+  }
+
   // ==================== HELPER: AUTO-CREATE COMMISSION ON ORDER ====================
 
   /**

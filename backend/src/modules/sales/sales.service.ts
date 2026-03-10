@@ -1695,6 +1695,7 @@ export class SalesService {
         'COUNT(o.id) AS order_count',
       ])
       .where('o.created_by IS NOT NULL')
+      .andWhere('o.courier_order_id IS NOT NULL')
       .andWhere('o.order_source IN (:...agentSources5)', { agentSources5: ['admin_panel', 'agent_dashboard'] })
       .andWhere('DATE(o.order_date) >= :startDate', { startDate })
       .andWhere('DATE(o.order_date) <= :endDate', { endDate })
@@ -1716,9 +1717,10 @@ export class SalesService {
         'u.last_name AS agent_last_name',
         'COUNT(o.id) AS total_orders',
         `COUNT(CASE WHEN LOWER(o.status::text) = 'delivered' THEN 1 END) AS delivered_orders`,
-        `COUNT(CASE WHEN LOWER(o.status::text) IN ('cancelled', 'admin_cancelled') THEN 1 END) AS cancelled_orders`,
+        `COUNT(CASE WHEN LOWER(o.status::text) = 'cancelled' THEN 1 END) AS cancelled_orders`,
       ])
       .where('o.created_by IS NOT NULL')
+      .andWhere('o.courier_order_id IS NOT NULL')
       .andWhere('o.order_source IN (:...agentSources6)', { agentSources6: ['admin_panel', 'agent_dashboard'] })
       .andWhere('DATE(o.order_date) >= :startDate', { startDate })
       .andWhere('DATE(o.order_date) <= :endDate', { endDate })

@@ -279,6 +279,7 @@ const menuItems: MenuItem[] = [
     requiredPermissions: ['manage-commission-settings', 'view-commission-reports', 'approve-commissions'],
     children: [
       { title: 'Commission Sales', icon: FaMoneyBillWave, path: '/admin/crm/commission-sales', requiredPermissions: ['view-commission-reports'] },
+      { title: 'Agents', icon: FaUsers, path: '/admin/crm/commission-agents', requiredPermissions: ['view-commission-reports'] },
       { title: 'Commission Settings', icon: FaCog, path: '/admin/crm/commission-settings', requiredPermissions: ['manage-commission-settings'] },
     ],
   },
