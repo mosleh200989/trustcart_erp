@@ -60,6 +60,27 @@ export class CommissionController {
   }
 
   /**
+   * Get commission sales data (orders with commission details)
+   */
+  @Get('sales')
+  @RequirePermissions('view-commission-reports')
+  async getCommissionSales(@Query() query: any) {
+    return await this.commissionService.getCommissionSales(query);
+  }
+
+  /**
+   * Update editable fields on a commission sales row
+   */
+  @Put('sales/:orderId')
+  @RequirePermissions('view-commission-reports')
+  async updateCommissionSaleFields(
+    @Param('orderId') orderId: string,
+    @Body() body: { totalAmount?: number; deliveryCharge?: number; codAmount?: number; commissionAmount?: number },
+  ) {
+    return await this.commissionService.updateCommissionSaleFields(Number(orderId), body);
+  }
+
+  /**
    * Get all commissions (Admin view)
    */
   @Get()

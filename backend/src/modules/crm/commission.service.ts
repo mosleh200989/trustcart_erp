@@ -511,6 +511,208 @@ export class CommissionService {
   // ==================== HELPER: AUTO-CREATE COMMISSION ON ORDER ====================
 
   /**
+   * Update editable fields on a commission sales row
+   */
+  async updateCommissionSaleFields(
+    orderId: number,
+    data: { totalAmount?: number; deliveryCharge?: number; codAmount?: number; commissionAmount?: number },
+  ): Promise<{ success: boolean }> {
+    // Update sales_orders fields
+    const orderUpdates: string[] = [];
+    const orderParams: any[] = [];
+    let idx = 1;
+
+    if (data.totalAmount !== undefined) {
+      orderUpdates.push(`total_amount = $${idx++}`);
+      orderParams.push(data.totalAmount);
+    }
+    if (data.deliveryCharge !== undefined) {
+      orderUpdates.push(`delivery_charge = $${idx++}`);
+      orderParams.push(data.deliveryCharge);
+    }
+    if (data.codAmount !== undefined) {
+      orderUpdates.push(`cod_amount = $${idx++}`);
+      orderParams.push(data.codAmount);
+    }
+
+    if (orderUpdates.length > 0) {
+      orderParams.push(orderId);
+      await this.dataSource.query(
+        `UPDATE sales_orders SET ${orderUpdates.join(', ')} WHERE id = $${idx}`,
+        orderParams,
+      );
+    }
+
+    // Update commission amount in agent_commissions (if record exists)
+    if (data.commissionAmount !== undefined) {
+      await this.dataSource.query(
+        `UPDATE agent_commissions SET commission_amount = $1 WHERE sales_order_id = $2`,
+        [data.commissionAmount, orderId],
+      );
+    }
+
+    return { success: true };
+  }
+
+  /**
+   * Get commission sales data (orders with commission info, agent/reseller details, products)
+   */
+  async getCommissionSales(query: {
+    status?: string;
+    agentId?: number;
+    commissionStatus?: string;
+    paymentStatus?: string;
+    startDate?: string;
+    endDate?: string;
+    search?: string;
+    page?: number;
+    limit?: number;
+  } = {}): Promise<{ data: any[]; total: number; agents: any[] }> {
+    const { status, agentId, commissionStatus, paymentStatus, startDate, endDate, search, page = 1, limit = 50 } = query;
+    const pageNum = Number(page) || 1;
+    const limitNum = Number(limit) || 50;
+    const offset = (pageNum - 1) * limitNum;
+
+    const conditions: string[] = [];
+    const params: any[] = [];
+    let paramIdx = 1;
+
+    if (status) {
+      conditions.push(`so.status = $${paramIdx++}`);
+      params.push(status);
+    }
+    if (agentId) {
+      conditions.push(`c.assigned_to = $${paramIdx++}`);
+      params.push(Number(agentId));
+    }
+    if (commissionStatus) {
+      conditions.push(`ac.status = $${paramIdx++}`);
+      params.push(commissionStatus);
+    }
+    if (paymentStatus) {
+      conditions.push(`so.payment_status = $${paramIdx++}`);
+      params.push(paymentStatus);
+    }
+    if (startDate) {
+      conditions.push(`so.order_date >= $${paramIdx++}`);
+      params.push(startDate);
+    }
+    if (endDate) {
+      conditions.push(`so.order_date <= $${paramIdx++}`);
+      params.push(endDate);
+    }
+    if (search && search.trim()) {
+      conditions.push(`(so.courier_order_id ILIKE $${paramIdx} OR so.sales_order_number ILIKE $${paramIdx})`);
+      params.push(`%${search.trim()}%`);
+      paramIdx++;
+    }
+
+    const whereClause = conditions.length > 0 ? 'AND ' + conditions.join(' AND ') : '';
+
+    // Count query — start from sales_orders, join customers for agent link
+    const countSql = `
+      SELECT COUNT(*) as total
+      FROM sales_orders so
+      LEFT JOIN customers c ON c.id = so.customer_id
+      LEFT JOIN agent_commissions ac ON ac.sales_order_id = so.id
+      WHERE 1=1 ${whereClause}
+    `;
+    const countResult = await this.dataSource.query(countSql, params);
+    const total = parseInt(countResult[0]?.total || '0', 10);
+
+    // Data query
+    const dataSql = `
+      SELECT
+        ac.id as commission_id,
+        c.assigned_to as agent_id,
+        so.customer_id,
+        ac.order_amount as commission_order_amount,
+        ac.commission_rate,
+        ac.commission_amount,
+        ac.commission_type,
+        ac.status as commission_status,
+        ac.approved_at,
+        ac.paid_at,
+        so.id as order_id,
+        so.sales_order_number,
+        so.order_date,
+        so.status as order_status,
+        so.total_amount,
+        so.delivery_charge,
+        so.cod_amount,
+        so.discount_amount,
+        so.courier_company,
+        so.courier_order_id,
+        so.tracking_id,
+        so.payment_status,
+        so.customer_name,
+        so.customer_phone,
+        so.shipping_address,
+        CONCAT(COALESCE(u.name, ''), ' ', COALESCE(u.last_name, '')) as agent_name,
+        (
+          SELECT STRING_AGG(
+            REGEXP_REPLACE(COALESCE(p.name_bn, soi.product_name, ''), '\s*\([0-9]+(\.[0-9]+)?\)\s*$', '') || '|||' || CAST(soi.quantity AS TEXT),
+            ':::'
+          )
+          FROM sales_order_items soi
+          LEFT JOIN products p ON p.id = soi.product_id
+          WHERE soi.sales_order_id = so.id
+        ) as products
+      FROM sales_orders so
+      LEFT JOIN customers c ON c.id = so.customer_id
+      LEFT JOIN users u ON u.id = c.assigned_to
+      LEFT JOIN agent_commissions ac ON ac.sales_order_id = so.id
+      WHERE 1=1 ${whereClause}
+      ORDER BY so.order_date DESC, so.id DESC
+      LIMIT $${paramIdx} OFFSET $${paramIdx + 1}
+    `;
+    const dataParams = [...params, limitNum, offset];
+    const rows = await this.dataSource.query(dataSql, dataParams);
+
+    // Get all Sales Executives for filter dropdown
+    const agentsSql = `
+      SELECT u.id, CONCAT(COALESCE(u.name, ''), ' ', COALESCE(u.last_name, '')) as name
+      FROM users u
+      INNER JOIN roles r ON r.id = u.role_id
+      WHERE LOWER(r.name) LIKE '%sales executive%' OR r.slug = 'sales-executive'
+      ORDER BY name
+    `;
+    const agents = await this.dataSource.query(agentsSql);
+
+    return {
+      data: rows.map((r: any) => ({
+        commissionId: r.commission_id || r.order_id,
+        agentId: r.agent_id,
+        agentName: (r.agent_name || '').trim(),
+        customerId: r.customer_id,
+        orderId: r.order_id,
+        salesOrderNumber: r.sales_order_number,
+        orderDate: r.order_date,
+        orderStatus: r.order_status,
+        totalAmount: parseFloat(r.total_amount || '0'),
+        deliveryCharge: parseFloat(r.delivery_charge || '0'),
+        codAmount: parseFloat(r.cod_amount || '0'),
+        discountAmount: parseFloat(r.discount_amount || '0'),
+        courierCompany: r.courier_company,
+        courierOrderId: r.courier_order_id,
+        trackingId: r.tracking_id,
+        paymentStatus: r.payment_status,
+        customerName: r.customer_name,
+        customerPhone: r.customer_phone,
+        commissionRate: parseFloat(r.commission_rate || '0'),
+        commissionAmount: parseFloat(r.commission_amount || '0'),
+        commissionType: r.commission_type || '',
+        commissionStatus: r.commission_status || 'pending',
+        approvedAt: r.approved_at,
+        paidAt: r.paid_at,
+        products: r.products || '',
+      })),
+      total,
+      agents: agents.map((a: any) => ({ id: a.id, name: (a.name || '').trim() })),
+    };
+  }
+
+  /**
    * Process a completed order and create commission if applicable
    * Call this when an order is completed/delivered
    */
