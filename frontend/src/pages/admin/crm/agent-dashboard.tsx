@@ -7,6 +7,7 @@ import {
 } from 'react-icons/fa';
 import apiClient, { auth, users as usersApi } from '@/services/api';
 import AdminOrderDetailsModal from '@/components/AdminOrderDetailsModal';
+import PageSizeSelector from '@/components/admin/PageSizeSelector';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { getTelephonySocket, type IncomingCallPayload } from '@/services/telephonySocket';
@@ -149,11 +150,11 @@ export default function AgentDashboard() {
   const [leadsCalledFilter, setLeadsCalledFilter] = useState<FilterCalledStatus>('all');
   const [leadsOutcomeFilter, setLeadsOutcomeFilter] = useState<FilterOutcome>('all');
   const [leadsPage, setLeadsPage] = useState(1);
-  const leadsLimit = 20;
+  const [leadsLimit, setLeadsLimit] = useState(20);
 
   // Tasks pagination
   const [tasksPage, setTasksPage] = useState(1);
-  const tasksPerPage = 10;
+  const [tasksPerPage, setTasksPerPage] = useState(10);
 
   const [agentUsers, setAgentUsers] = useState<any[]>([]);
   const [selectedViewAgentId, setSelectedViewAgentId] = useState<number | null>(null);
@@ -379,6 +380,7 @@ export default function AgentDashboard() {
     calledStatus?: FilterCalledStatus;
     outcome?: FilterOutcome;
     page?: number;
+    limit?: number;
   }) => {
     try {
       setAssignedLoading(true);
@@ -392,7 +394,7 @@ export default function AgentDashboard() {
       
       const params: any = { 
         page: filters?.page || leadsPage, 
-        limit: leadsLimit 
+        limit: filters?.limit || leadsLimit 
       };
       if (filters?.search || leadsSearchTerm) params.search = filters?.search || leadsSearchTerm;
       if (filters?.priority || leadsPriorityFilter) params.priority = filters?.priority || leadsPriorityFilter;
@@ -1220,11 +1222,22 @@ export default function AgentDashboard() {
           </div>
 
           <div className="p-6">
-            <div className="text-sm text-gray-600 mb-4">
-              Total assigned: <span className="font-semibold">{assignedTotal}</span>
-              {(leadsSearchTerm || leadsPriorityFilter || leadsStageFilter || leadsTierFilter || leadsCalledFilter !== 'all' || leadsOutcomeFilter !== 'all') && (
-                <span className="ml-2 text-blue-600">(filtered)</span>
-              )}
+            <div className="flex items-center justify-between mb-4">
+              <div className="text-sm text-gray-600">
+                Total assigned: <span className="font-semibold">{assignedTotal}</span>
+                {(leadsSearchTerm || leadsPriorityFilter || leadsStageFilter || leadsTierFilter || leadsCalledFilter !== 'all' || leadsOutcomeFilter !== 'all') && (
+                  <span className="ml-2 text-blue-600">(filtered)</span>
+                )}
+              </div>
+              <PageSizeSelector
+                value={leadsLimit}
+                onChange={(size) => {
+                  setLeadsLimit(size);
+                  setLeadsPage(1);
+                  if (selectedViewAgentId) loadAssignedCustomers(selectedViewAgentId, { page: 1, limit: size });
+                }}
+                options={[10, 20, 50, 100, 200]}
+              />
             </div>
 
             {assignedError && (
@@ -1470,9 +1483,19 @@ export default function AgentDashboard() {
 
         {/* Call Task List */}
         <div className="bg-white rounded-lg shadow">
-          <div className="p-6 border-b">
-            <h2 className="text-xl font-bold text-gray-800">Today's Call List</h2>
-            <p className="text-sm text-gray-600">Sorted by priority</p>
+          <div className="p-6 border-b flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-bold text-gray-800">Today's Call List</h2>
+              <p className="text-sm text-gray-600">Sorted by priority</p>
+            </div>
+            <PageSizeSelector
+              value={tasksPerPage}
+              onChange={(size) => {
+                setTasksPerPage(size);
+                setTasksPage(1);
+              }}
+              options={[10, 20, 50, 100]}
+            />
           </div>
           
           <div className="overflow-x-auto">
