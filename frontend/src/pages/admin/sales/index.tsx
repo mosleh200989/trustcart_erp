@@ -1136,6 +1136,7 @@ export default function AdminSales() {
           currentPage={currentPage}
           totalPages={totalPages}
           onPageChange={setCurrentPage}
+          rowClassName={(row: SalesOrder) => row.isRejectedCustomer ? 'bg-red-50 border-l-4 border-l-red-400' : ''}
         />
 
         <Modal

@@ -278,6 +278,9 @@ export class CrmTeamService {
     qb.where('c.is_deleted = false');
     qb.andWhere('c.is_active = true');
 
+    // Exclude rejected customers
+    qb.andWhere(`NOT EXISTS (SELECT 1 FROM customer_tiers ct WHERE ct.customer_id = c.id AND ct.tier = 'rejected')`);
+
     // Scope: Check if user is actually a team leader (has teams assigned)
     const isTeamLeader = await this.salesTeamRepository.count({ where: { teamLeaderId } });
     if (isTeamLeader > 0) {
@@ -402,6 +405,8 @@ export class CrmTeamService {
     const countQb = this.customerRepository.createQueryBuilder('c');
     countQb.where('c.is_deleted = false');
     countQb.andWhere('c.is_active = true');
+    // Exclude rejected customers
+    countQb.andWhere(`NOT EXISTS (SELECT 1 FROM customer_tiers ct WHERE ct.customer_id = c.id AND ct.tier = 'rejected')`);
     // Apply same conditional TL filter as data query
     if (isTeamLeader > 0) {
       countQb.andWhere('(c.assigned_supervisor_id IS NULL OR c.assigned_supervisor_id = :tl)', { tl: teamLeaderId });
@@ -862,6 +867,9 @@ export class CrmTeamService {
       .where('c.assigned_to = :agentId', { agentId })
       .andWhere('c.is_deleted = false')
       .andWhere('c.is_active = true');
+
+    // Exclude rejected customers
+    qb.andWhere(`NOT EXISTS (SELECT 1 FROM customer_tiers ct WHERE ct.customer_id = c.id AND ct.tier = 'rejected')`);
 
     // Search filter (name, email, phone)
     if (search && search.trim()) {
