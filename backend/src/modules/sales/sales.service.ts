@@ -754,6 +754,7 @@ export class SalesService {
 
     sales.totalAmount = Number.isFinite(totalAmount as any) ? Number(totalAmount) : 0;
     sales.discountAmount = Number.isFinite(discountAmount as any) ? Number(discountAmount) : 0;
+    sales.deliveryCharge = Number.isFinite(deliveryCharge) ? deliveryCharge : 0;
     sales.offerId = appliedOfferId;
     sales.offerCode = appliedOfferCode;
 
