@@ -7,7 +7,7 @@ import apiClient from '@/services/api';
 import { 
   FaTachometerAlt, FaBoxes, FaShoppingCart, FaUsers, FaWarehouse, 
   FaShoppingBag, FaUserTie, FaBook, FaBullseye, FaHandshake, 
-  FaHeadset, FaUser, FaCog, FaBars, FaTimes, FaBell, FaChevronDown, FaChartBar, FaTags, FaGift, FaPhone, FaMoneyBillWave, FaImage, FaList, FaRocket, FaPrint, FaBan
+  FaHeadset, FaUser, FaCog, FaBars, FaTimes, FaBell, FaChevronDown, FaChartBar, FaTags, FaGift, FaPhone, FaMoneyBillWave, FaImage, FaList, FaRocket, FaPrint, FaBan, FaHistory
 } from 'react-icons/fa';
 
 interface MenuItem {
@@ -276,8 +276,14 @@ const menuItems: MenuItem[] = [
   {
     title: 'Commission',
     icon: FaMoneyBillWave,
-    path: '/admin/crm/commission-settings',
     requiredPermissions: ['manage-commission-settings', 'view-commission-reports', 'approve-commissions'],
+    children: [
+      { title: 'Commission Sales', icon: FaMoneyBillWave, path: '/admin/crm/commission-sales', requiredPermissions: ['view-commission-reports'] },
+      { title: 'Agents', icon: FaUsers, path: '/admin/crm/commission-agents', requiredPermissions: ['view-commission-reports'] },
+      { title: 'Payment Requests', icon: FaMoneyBillWave, path: '/admin/crm/commission-payment-requests', requiredPermissions: ['approve-commissions'] },
+      { title: 'Payment History', icon: FaHistory, path: '/admin/crm/commission-payment-history', requiredPermissions: ['view-commission-reports'] },
+      { title: 'Commission Settings', icon: FaCog, path: '/admin/crm/commission-settings', requiredPermissions: ['manage-commission-settings'] },
+    ],
   },
   {
     title: 'CRM',

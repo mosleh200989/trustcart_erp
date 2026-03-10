@@ -60,6 +60,36 @@ export class CommissionController {
   }
 
   /**
+   * Get agent-wise commission summary report
+   */
+  @Get('agents')
+  @RequirePermissions('view-commission-reports')
+  async getAgentCommissionReport(@Query() query: any) {
+    return await this.commissionService.getAgentCommissionReport(query);
+  }
+
+  /**
+   * Get commission sales data (orders with commission details)
+   */
+  @Get('sales')
+  @RequirePermissions('view-commission-reports')
+  async getCommissionSales(@Query() query: any) {
+    return await this.commissionService.getCommissionSales(query);
+  }
+
+  /**
+   * Update editable fields on a commission sales row
+   */
+  @Put('sales/:orderId')
+  @RequirePermissions('view-commission-reports')
+  async updateCommissionSaleFields(
+    @Param('orderId') orderId: string,
+    @Body() body: { totalAmount?: number; deliveryCharge?: number; codAmount?: number; commissionAmount?: number },
+  ) {
+    return await this.commissionService.updateCommissionSaleFields(Number(orderId), body);
+  }
+
+  /**
    * Get all commissions (Admin view)
    */
   @Get()
@@ -112,6 +142,48 @@ export class CommissionController {
   async bulkApprove(@Body() body: { commissionIds: number[] }, @Request() req: any) {
     const count = await this.commissionService.bulkApprove(body.commissionIds, req.user.id);
     return { success: true, approvedCount: count };
+  }
+
+  // ==================== PAYMENT REQUESTS ====================
+
+  @Post('payment-requests')
+  @RequirePermissions('approve-commissions')
+  async createPaymentRequest(@Body() body: { agentId: number; requestedAmount: number; paymentMethod?: string; notes?: string }, @Request() req: any) {
+    return await this.commissionService.createPaymentRequest({ ...body, requestedBy: req.user.id });
+  }
+
+  @Get('payment-requests')
+  @RequirePermissions('view-commission-reports')
+  async getPaymentRequests(@Query() query: any) {
+    return await this.commissionService.getPaymentRequests(query);
+  }
+
+  @Put('payment-requests/:id/approve')
+  @RequirePermissions('approve-commissions')
+  async approvePaymentRequest(@Param('id') id: string, @Body() body: { approvedAmount?: number }, @Request() req: any) {
+    return await this.commissionService.approvePaymentRequest(Number(id), req.user.id, body.approvedAmount);
+  }
+
+  @Put('payment-requests/:id/pay')
+  @RequirePermissions('approve-commissions')
+  async markPaymentRequestPaid(
+    @Param('id') id: string,
+    @Body() body: { paymentMethod?: string; paymentReference?: string; adminNotes?: string },
+    @Request() req: any,
+  ) {
+    return await this.commissionService.markPaymentRequestPaid(Number(id), req.user.id, body.paymentMethod, body.paymentReference, body.adminNotes);
+  }
+
+  @Put('payment-requests/:id/reject')
+  @RequirePermissions('approve-commissions')
+  async rejectPaymentRequest(@Param('id') id: string, @Body() body: { adminNotes?: string }, @Request() req: any) {
+    return await this.commissionService.rejectPaymentRequest(Number(id), req.user.id, body.adminNotes);
+  }
+
+  @Get('payment-history')
+  @RequirePermissions('view-commission-reports')
+  async getPaymentHistory(@Query() query: any) {
+    return await this.commissionService.getPaymentHistory(query);
   }
 
   // ==================== AGENT ENDPOINTS ====================
