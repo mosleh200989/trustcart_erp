@@ -6,8 +6,8 @@ import { useToast } from '@/contexts/ToastContext';
 
 interface SlabRow {
   agentTier: string;
-  minOrderAmount: string;
-  maxOrderAmount: string;
+  minOrderCount: string;
+  maxOrderCount: string;
   commissionAmount: string;
 }
 
@@ -19,8 +19,8 @@ const TIERS = [
 
 const emptySlabRow = (tier: string): SlabRow => ({
   agentTier: tier,
-  minOrderAmount: '',
-  maxOrderAmount: '',
+  minOrderCount: '',
+  maxOrderCount: '',
   commissionAmount: '',
 });
 
@@ -45,8 +45,8 @@ export default function CommissionSettingsPage() {
         }
         return slabs.map((s: any) => ({
           agentTier: s.agentTier,
-          minOrderAmount: String(Number(s.minOrderAmount)),
-          maxOrderAmount: s.maxOrderAmount ? String(Number(s.maxOrderAmount)) : '',
+          minOrderCount: String(Number(s.minOrderCount)),
+          maxOrderCount: s.maxOrderCount ? String(Number(s.maxOrderCount)) : '',
           commissionAmount: String(Number(s.commissionAmount)),
         }));
       };
@@ -102,23 +102,23 @@ export default function CommissionSettingsPage() {
     const slabs = getCurrentSlabs();
 
     // Validate
-    const validSlabs = slabs.filter(s => s.minOrderAmount !== '' && s.commissionAmount !== '');
+    const validSlabs = slabs.filter(s => s.minOrderCount !== '' && s.commissionAmount !== '');
     if (validSlabs.length === 0) {
       toast.error('Please add at least one valid slab');
       return;
     }
 
     for (const slab of validSlabs) {
-      const min = Number(slab.minOrderAmount);
-      const max = slab.maxOrderAmount ? Number(slab.maxOrderAmount) : null;
+      const min = Number(slab.minOrderCount);
+      const max = slab.maxOrderCount ? Number(slab.maxOrderCount) : null;
       const comm = Number(slab.commissionAmount);
 
       if (isNaN(min) || min < 0) {
-        toast.error('Min order amount must be a valid non-negative number');
+        toast.error('Min order count must be a valid non-negative number');
         return;
       }
       if (max !== null && (isNaN(max) || max <= min)) {
-        toast.error('Max order amount must be greater than min');
+        toast.error('Max order count must be greater than min');
         return;
       }
       if (isNaN(comm) || comm < 0) {
@@ -132,8 +132,8 @@ export default function CommissionSettingsPage() {
       await apiClient.post(`/crm/commissions/slabs/${activeTab}`, {
         slabs: validSlabs.map(s => ({
           agentTier: s.agentTier,
-          minOrderAmount: Number(s.minOrderAmount),
-          maxOrderAmount: s.maxOrderAmount ? Number(s.maxOrderAmount) : null,
+          minOrderCount: Number(s.minOrderCount),
+          maxOrderCount: s.maxOrderCount ? Number(s.maxOrderCount) : null,
           commissionAmount: Number(s.commissionAmount),
         })),
       });
@@ -171,8 +171,8 @@ export default function CommissionSettingsPage() {
             <thead className="bg-gray-50">
               <tr>
                 <th className="text-left py-2.5 px-4 text-xs font-semibold text-gray-600 uppercase w-10">#</th>
-                <th className="text-left py-2.5 px-4 text-xs font-semibold text-gray-600 uppercase">Min Order Amount (৳)</th>
-                <th className="text-left py-2.5 px-4 text-xs font-semibold text-gray-600 uppercase">Max Order Amount (৳)</th>
+                <th className="text-left py-2.5 px-4 text-xs font-semibold text-gray-600 uppercase">Min Order Count</th>
+                <th className="text-left py-2.5 px-4 text-xs font-semibold text-gray-600 uppercase">Max Order Count</th>
                 <th className="text-left py-2.5 px-4 text-xs font-semibold text-gray-600 uppercase">Commission (৳)</th>
                 <th className="py-2.5 px-4 text-xs font-semibold text-gray-600 uppercase w-16"></th>
               </tr>
@@ -191,8 +191,8 @@ export default function CommissionSettingsPage() {
                         type="number"
                         min="0"
                         step="1"
-                        value={slab.minOrderAmount}
-                        onChange={(e) => updateRow(slab.globalIndex, 'minOrderAmount', e.target.value)}
+                        value={slab.minOrderCount}
+                        onChange={(e) => updateRow(slab.globalIndex, 'minOrderCount', e.target.value)}
                         placeholder="e.g. 0"
                         className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                       />
@@ -202,8 +202,8 @@ export default function CommissionSettingsPage() {
                         type="number"
                         min="0"
                         step="1"
-                        value={slab.maxOrderAmount}
-                        onChange={(e) => updateRow(slab.globalIndex, 'maxOrderAmount', e.target.value)}
+                        value={slab.maxOrderCount}
+                        onChange={(e) => updateRow(slab.globalIndex, 'maxOrderCount', e.target.value)}
                         placeholder="No limit"
                         className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                       />
@@ -248,7 +248,7 @@ export default function CommissionSettingsPage() {
             <h1 className="text-2xl font-bold text-blue-700">Commission Settings</h1>
           </div>
           <p className="text-gray-500 text-sm">
-            Configure tier-based commission slabs for Sales Executives and Team Leaders. Commission is calculated per order based on order amount and agent tier.
+            Configure tier-based commission slabs for Sales Executives and Team Leaders. Commission is calculated based on order count and agent tier.
           </p>
         </div>
 
@@ -256,9 +256,9 @@ export default function CommissionSettingsPage() {
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6 text-sm text-blue-800">
           <p className="font-medium mb-1">How commission calculation works:</p>
           <ul className="list-disc ml-5 space-y-0.5 text-blue-700">
-            <li>Each order is matched against the slab where Order Amount falls between Min and Max.</li>
+            <li>The agent&apos;s total order count is matched against the slab where it falls between Min and Max Order Count.</li>
             <li>The commission amount (৳) from the matching slab is applied as a fixed amount per order.</li>
-            <li>Different tiers (Silver, Gold, Platinum) can have different commission rates for the same order range.</li>
+            <li>Different tiers (Silver, Gold, Platinum) can have different commission rates for the same order count range.</li>
             <li>If an agent&apos;s tier changes mid-month, orders placed before the change use the old tier, and orders after use the new tier.</li>
           </ul>
         </div>
@@ -313,9 +313,9 @@ export default function CommissionSettingsPage() {
               <div className="mt-6 bg-gray-50 rounded-lg p-4 text-sm text-gray-600">
                 <p className="font-semibold text-gray-700 mb-2">Example:</p>
                 <div className="space-y-1">
-                  <p>• Silver agent gets an order of ৳350 → Matches slab where min=300, max=400 → Commission = ৳10</p>
-                  <p>• Gold agent gets the same ৳350 order → Matches Gold slab → Commission = ৳15</p>
-                  <p>• Leave &quot;Max Order Amount&quot; empty for the last slab to handle all orders above that minimum.</p>
+                  <p>• Silver agent takes 300+ orders → Matches slab where min=300, max=400 → Commission = ৳10 per order</p>
+                  <p>• Gold agent takes the same 300+ orders → Matches Gold slab → Commission = ৳15 per order</p>
+                  <p>• Leave &quot;Max Order Count&quot; empty for the last slab to handle all counts above that minimum.</p>
                 </div>
               </div>
             </>

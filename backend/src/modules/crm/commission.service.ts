@@ -154,7 +154,7 @@ export class CommissionService {
   async getSlabs(roleType: string): Promise<CommissionSlab[]> {
     return await this.slabRepository.find({
       where: { roleType, isActive: true },
-      order: { agentTier: 'ASC', minOrderAmount: 'ASC' },
+      order: { agentTier: 'ASC', minOrderCount: 'ASC' },
     });
   }
 
@@ -164,7 +164,7 @@ export class CommissionService {
   async getAllSlabs(): Promise<{ agent: CommissionSlab[]; teamLeader: CommissionSlab[] }> {
     const all = await this.slabRepository.find({
       where: { isActive: true },
-      order: { roleType: 'ASC', agentTier: 'ASC', minOrderAmount: 'ASC' },
+      order: { roleType: 'ASC', agentTier: 'ASC', minOrderCount: 'ASC' },
     });
     return {
       agent: all.filter(s => s.roleType === 'agent'),
@@ -177,8 +177,8 @@ export class CommissionService {
    */
   async saveSlabs(roleType: string, slabs: Array<{
     agentTier: string;
-    minOrderAmount: number;
-    maxOrderAmount: number | null;
+    minOrderCount: number;
+    maxOrderCount: number | null;
     commissionAmount: number;
   }>, adminUserId: number): Promise<CommissionSlab[]> {
     const validTiers = ['silver', 'gold', 'platinum'];
@@ -191,11 +191,11 @@ export class CommissionService {
       if (!validTiers.includes(slab.agentTier)) {
         throw new BadRequestException(`Invalid tier: ${slab.agentTier}`);
       }
-      if (slab.minOrderAmount < 0 || slab.commissionAmount < 0) {
-        throw new BadRequestException('Amounts cannot be negative');
+      if (slab.minOrderCount < 0 || slab.commissionAmount < 0) {
+        throw new BadRequestException('Values cannot be negative');
       }
-      if (slab.maxOrderAmount !== null && slab.maxOrderAmount <= slab.minOrderAmount) {
-        throw new BadRequestException('Max order amount must be greater than min');
+      if (slab.maxOrderCount !== null && slab.maxOrderCount <= slab.minOrderCount) {
+        throw new BadRequestException('Max order count must be greater than min');
       }
     }
 
@@ -209,8 +209,8 @@ export class CommissionService {
     const entities = slabs.map(s => this.slabRepository.create({
       roleType,
       agentTier: s.agentTier,
-      minOrderAmount: s.minOrderAmount,
-      maxOrderAmount: s.maxOrderAmount,
+      minOrderCount: s.minOrderCount,
+      maxOrderCount: s.maxOrderCount,
       commissionAmount: s.commissionAmount,
       isActive: true,
       createdBy: adminUserId,
@@ -222,14 +222,14 @@ export class CommissionService {
   /**
    * Calculate commission using slab system for an agent/team_leader
    */
-  async calculateSlabCommission(orderAmount: number, agentTier: string, roleType: string = 'agent'): Promise<number> {
+  async calculateSlabCommission(orderCount: number, agentTier: string, roleType: string = 'agent'): Promise<number> {
     const slab = await this.slabRepository
       .createQueryBuilder('s')
       .where('s.role_type = :roleType', { roleType })
       .andWhere('s.agent_tier = :agentTier', { agentTier })
       .andWhere('s.is_active = true')
-      .andWhere('s.min_order_amount <= :orderAmount', { orderAmount })
-      .andWhere('(s.max_order_amount IS NULL OR s.max_order_amount > :orderAmount)', { orderAmount })
+      .andWhere('s.min_order_count <= :orderCount', { orderCount })
+      .andWhere('(s.max_order_count IS NULL OR s.max_order_count > :orderCount)', { orderCount })
       .getOne();
 
     if (!slab) return 0;
