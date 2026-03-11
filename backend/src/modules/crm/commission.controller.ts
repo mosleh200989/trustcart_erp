@@ -59,6 +59,31 @@ export class CommissionController {
     return { success: true, message: 'Commission settings deleted' };
   }
 
+  // ==================== COMMISSION SLABS ====================
+
+  /**
+   * Get all commission slabs (both agent and team_leader)
+   */
+  @Get('slabs')
+  @RequirePermissions('manage-commission-settings')
+  async getAllSlabs() {
+    return await this.commissionService.getAllSlabs();
+  }
+
+  /**
+   * Save slabs for a role type (replaces all existing)
+   */
+  @Post('slabs/:roleType')
+  @RequirePermissions('manage-commission-settings')
+  async saveSlabs(
+    @Param('roleType') roleType: string,
+    @Body() body: { slabs: Array<{ agentTier: string; minOrderAmount: number; maxOrderAmount: number | null; commissionAmount: number }> },
+    @Request() req: any,
+  ) {
+    const saved = await this.commissionService.saveSlabs(roleType, body.slabs, req.user.id);
+    return { success: true, count: saved.length, data: saved };
+  }
+
   /**
    * Get agent-wise commission summary report
    */
