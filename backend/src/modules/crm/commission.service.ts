@@ -547,7 +547,8 @@ export class CommissionService {
         CONCAT(COALESCE(u.name, ''), ' ', COALESCE(u.last_name, '')) as agent_name,
         u.phone,
         COALESCE(order_stats.total_orders, 0) as total_orders,
-        COALESCE(order_stats.total_product_qty, 0) as total_product_qty,
+        COALESCE(product_qty_stats.total_product_qty, 0) as total_product_qty,
+        GREATEST(COALESCE(product_qty_stats.total_product_qty, 0) - COALESCE(order_stats.total_orders, 0), 0) as upsell_qty,
         COALESCE(order_stats.total_amount, 0) as total_amount,
         COALESCE(commission_stats.total_commission, 0) as total_commission,
         COALESCE(commission_stats.paid_commission, 0) as paid_commission,
@@ -556,21 +557,31 @@ export class CommissionService {
       INNER JOIN roles r ON r.id = u.role_id
       LEFT JOIN (
         SELECT
-          c.assigned_to as agent_id,
+          so.created_by as agent_id,
           COUNT(so.id) as total_orders,
-          COALESCE(SUM(so.total_amount), 0) as total_amount,
-          COALESCE(SUM(item_qty.qty), 0) as total_product_qty
+          COALESCE(SUM(so.total_amount), 0) as total_amount
         FROM sales_orders so
-        INNER JOIN customers c ON c.id = so.customer_id
-        LEFT JOIN (
-          SELECT sales_order_id, SUM(quantity) as qty
-          FROM sales_order_items
-          GROUP BY sales_order_id
-        ) item_qty ON item_qty.sales_order_id = so.id
-        WHERE c.assigned_to IS NOT NULL
-          AND (so.order_source IS NULL OR so.order_source != 'website')
-        GROUP BY c.assigned_to
+        WHERE so.created_by IS NOT NULL
+          AND so.order_source IN ('admin_panel', 'agent_dashboard')
+        GROUP BY so.created_by
       ) order_stats ON order_stats.agent_id = u.id
+      LEFT JOIN (
+        SELECT agent_id, SUM(qty) as total_product_qty FROM (
+          SELECT so.created_by as agent_id, COALESCE(SUM(soi.quantity), 0) as qty
+          FROM sales_order_items soi
+          INNER JOIN sales_orders so ON so.id = soi.sales_order_id
+          WHERE so.created_by IS NOT NULL
+            AND so.order_source IN ('admin_panel', 'agent_dashboard')
+          GROUP BY so.created_by
+          UNION ALL
+          SELECT so.created_by as agent_id, COALESCE(SUM(oi.quantity), 0) as qty
+          FROM order_items oi
+          INNER JOIN sales_orders so ON so.id = oi.order_id
+          WHERE so.created_by IS NOT NULL
+            AND so.order_source IN ('admin_panel', 'agent_dashboard')
+          GROUP BY so.created_by
+        ) combined GROUP BY agent_id
+      ) product_qty_stats ON product_qty_stats.agent_id = u.id
       LEFT JOIN (
         SELECT
           ac.agent_id,
@@ -594,6 +605,7 @@ export class CommissionService {
         phone: r.phone || '',
         totalOrders: parseInt(r.total_orders || '0', 10),
         totalProductQty: parseInt(r.total_product_qty || '0', 10),
+        upsellQty: parseInt(r.upsell_qty || '0', 10),
         totalAmount: parseFloat(r.total_amount || '0'),
         totalCommission: parseFloat(r.total_commission || '0'),
         paidCommission: parseFloat(r.paid_commission || '0'),
