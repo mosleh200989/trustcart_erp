@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 import { AgentCommission } from './entities/agent-commission.entity';
 import { CommissionSettings } from './entities/commission-settings.entity';
+import { CommissionSlab } from './entities/commission-slab.entity';
 import { Customer } from '../customers/customer.entity';
 import { User } from '../users/user.entity';
 
@@ -41,6 +42,8 @@ export class CommissionService {
     private commissionRepository: Repository<AgentCommission>,
     @InjectRepository(CommissionSettings)
     private settingsRepository: Repository<CommissionSettings>,
+    @InjectRepository(CommissionSlab)
+    private slabRepository: Repository<CommissionSlab>,
     @InjectRepository(Customer)
     private customerRepository: Repository<Customer>,
     @InjectRepository(User)
@@ -141,6 +144,96 @@ export class CommissionService {
       throw new NotFoundException('Commission settings not found');
     }
     await this.settingsRepository.remove(settings);
+  }
+
+  // ==================== COMMISSION SLABS ====================
+
+  /**
+   * Get all slabs for a role type
+   */
+  async getSlabs(roleType: string): Promise<CommissionSlab[]> {
+    return await this.slabRepository.find({
+      where: { roleType, isActive: true },
+      order: { agentTier: 'ASC', minOrderAmount: 'ASC' },
+    });
+  }
+
+  /**
+   * Get all slabs (both agent and team_leader)
+   */
+  async getAllSlabs(): Promise<{ agent: CommissionSlab[]; teamLeader: CommissionSlab[] }> {
+    const all = await this.slabRepository.find({
+      where: { isActive: true },
+      order: { roleType: 'ASC', agentTier: 'ASC', minOrderAmount: 'ASC' },
+    });
+    return {
+      agent: all.filter(s => s.roleType === 'agent'),
+      teamLeader: all.filter(s => s.roleType === 'team_leader'),
+    };
+  }
+
+  /**
+   * Save slabs for a role type (replace all existing slabs for that role type)
+   */
+  async saveSlabs(roleType: string, slabs: Array<{
+    agentTier: string;
+    minOrderAmount: number;
+    maxOrderAmount: number | null;
+    commissionAmount: number;
+  }>, adminUserId: number): Promise<CommissionSlab[]> {
+    const validTiers = ['silver', 'gold', 'platinum'];
+    const validRoles = ['agent', 'team_leader'];
+    if (!validRoles.includes(roleType)) {
+      throw new BadRequestException('Invalid role type');
+    }
+
+    for (const slab of slabs) {
+      if (!validTiers.includes(slab.agentTier)) {
+        throw new BadRequestException(`Invalid tier: ${slab.agentTier}`);
+      }
+      if (slab.minOrderAmount < 0 || slab.commissionAmount < 0) {
+        throw new BadRequestException('Amounts cannot be negative');
+      }
+      if (slab.maxOrderAmount !== null && slab.maxOrderAmount <= slab.minOrderAmount) {
+        throw new BadRequestException('Max order amount must be greater than min');
+      }
+    }
+
+    // Deactivate existing slabs for this role type
+    await this.slabRepository.update(
+      { roleType, isActive: true },
+      { isActive: false, updatedBy: adminUserId },
+    );
+
+    // Create new slabs
+    const entities = slabs.map(s => this.slabRepository.create({
+      roleType,
+      agentTier: s.agentTier,
+      minOrderAmount: s.minOrderAmount,
+      maxOrderAmount: s.maxOrderAmount,
+      commissionAmount: s.commissionAmount,
+      isActive: true,
+      createdBy: adminUserId,
+    }));
+
+    return await this.slabRepository.save(entities);
+  }
+
+  /**
+   * Calculate commission using slab system for an agent/team_leader
+   */
+  async calculateSlabCommission(orderAmount: number, agentTier: string, roleType: string = 'agent'): Promise<number> {
+    const slab = await this.slabRepository
+      .createQueryBuilder('s')
+      .where('s.role_type = :roleType', { roleType })
+      .andWhere('s.agent_tier = :agentTier', { agentTier })
+      .andWhere('s.is_active = true')
+      .andWhere('s.min_order_amount <= :orderAmount', { orderAmount })
+      .andWhere('(s.max_order_amount IS NULL OR s.max_order_amount > :orderAmount)', { orderAmount })
+      .getOne();
+
+    if (!slab) return 0;
+    return Number(slab.commissionAmount);
   }
 
   // ==================== COMMISSION CALCULATION ====================
