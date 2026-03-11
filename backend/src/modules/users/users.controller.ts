@@ -22,6 +22,14 @@ export class UsersController {
       lastName: body?.lastName,
       phone: body?.phone ?? null,
       avatarUrl: body?.avatarUrl ?? null,
+      paymentMethod: body?.paymentMethod ?? null,
+      bkashNumber: body?.bkashNumber ?? null,
+      nagadNumber: body?.nagadNumber ?? null,
+      rocketNumber: body?.rocketNumber ?? null,
+      bankName: body?.bankName ?? null,
+      bankAccountHolder: body?.bankAccountHolder ?? null,
+      bankAccountNumber: body?.bankAccountNumber ?? null,
+      bankBranchName: body?.bankBranchName ?? null,
     };
 
     if (typeof body?.password === 'string') {

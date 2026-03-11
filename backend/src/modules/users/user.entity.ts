@@ -41,6 +41,30 @@ export class User {
   @Column({ name: 'avatar_url', type: 'text', nullable: true })
   avatarUrl!: string | null;
 
+  @Column({ name: 'payment_method', type: 'varchar', length: 50, nullable: true })
+  paymentMethod!: string | null;
+
+  @Column({ name: 'bkash_number', type: 'varchar', length: 20, nullable: true })
+  bkashNumber!: string | null;
+
+  @Column({ name: 'nagad_number', type: 'varchar', length: 20, nullable: true })
+  nagadNumber!: string | null;
+
+  @Column({ name: 'rocket_number', type: 'varchar', length: 20, nullable: true })
+  rocketNumber!: string | null;
+
+  @Column({ name: 'bank_name', type: 'varchar', length: 100, nullable: true })
+  bankName!: string | null;
+
+  @Column({ name: 'bank_account_holder', type: 'varchar', length: 100, nullable: true })
+  bankAccountHolder!: string | null;
+
+  @Column({ name: 'bank_account_number', type: 'varchar', length: 50, nullable: true })
+  bankAccountNumber!: string | null;
+
+  @Column({ name: 'bank_branch_name', type: 'varchar', length: 100, nullable: true })
+  bankBranchName!: string | null;
+
   @Column({ name: 'two_factor_enabled', type: 'boolean', default: false })
   twoFactorEnabled!: boolean;
 

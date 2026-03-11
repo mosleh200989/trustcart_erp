@@ -11,6 +11,14 @@ interface PaymentRequest {
   agentId: number;
   agentName: string;
   agentPhone: string;
+  agentPreferredMethod: string | null;
+  agentBkashNumber: string | null;
+  agentNagadNumber: string | null;
+  agentRocketNumber: string | null;
+  agentBankName: string | null;
+  agentBankAccountHolder: string | null;
+  agentBankAccountNumber: string | null;
+  agentBankBranchName: string | null;
   requestedAmount: number;
   approvedAmount: number | null;
   paymentMethod: string | null;
@@ -30,6 +38,7 @@ interface PaymentRequest {
 interface Agent {
   id: number;
   name: string;
+  preferredMethod: string | null;
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -169,7 +178,7 @@ export default function CommissionPaymentRequestsPage() {
     setActionModal({ type, request });
     setActionForm({
       approvedAmount: type === 'approve' ? String(request.requestedAmount) : '',
-      paymentMethod: request.paymentMethod || '',
+      paymentMethod: type === 'pay' ? (request.agentPreferredMethod || request.paymentMethod || '') : (request.paymentMethod || ''),
       paymentReference: request.paymentReference || '',
       adminNotes: '',
     });
@@ -407,7 +416,11 @@ export default function CommissionPaymentRequestsPage() {
                   <label className="block text-sm text-gray-600 mb-1">Agent *</label>
                   <select
                     value={createForm.agentId}
-                    onChange={(e) => setCreateForm(f => ({ ...f, agentId: e.target.value }))}
+                    onChange={(e) => {
+                      const agentId = e.target.value;
+                      const agent = agents.find(a => String(a.id) === agentId);
+                      setCreateForm(f => ({ ...f, agentId, paymentMethod: agent?.preferredMethod || f.paymentMethod }));
+                    }}
                     className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="">Select Agent</option>
@@ -459,11 +472,69 @@ export default function CommissionPaymentRequestsPage() {
         {/* Action Modal (Approve / Pay / Reject) */}
         {actionModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6">
+            <div className="bg-white rounded-lg shadow-xl w-full max-w-lg p-6">
               <h2 className="text-lg font-bold text-gray-800 mb-1 capitalize">{actionModal.type} Payment Request</h2>
               <p className="text-sm text-gray-500 mb-4">
                 Agent: <strong>{actionModal.request.agentName}</strong> | Amount: <strong>৳{actionModal.request.requestedAmount.toLocaleString()}</strong>
               </p>
+
+              {/* Agent Payment Info Card (shown in Pay modal) */}
+              {actionModal.type === 'pay' && (actionModal.request.agentBkashNumber || actionModal.request.agentNagadNumber || actionModal.request.agentRocketNumber || actionModal.request.agentBankName) && (
+                <div className="mb-4 p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                  <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">
+                    Agent&apos;s Saved Payment Info
+                    {actionModal.request.agentPreferredMethod && (
+                      <span className="ml-2 text-blue-600 normal-case font-medium">
+                        (Preferred: {PAYMENT_METHODS.find(m => m.value === actionModal.request.agentPreferredMethod)?.label || actionModal.request.agentPreferredMethod})
+                      </span>
+                    )}
+                  </p>
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                    {actionModal.request.agentBkashNumber && (
+                      <>
+                        <span className="text-gray-500">bKash:</span>
+                        <span className="font-medium text-gray-800">{actionModal.request.agentBkashNumber}</span>
+                      </>
+                    )}
+                    {actionModal.request.agentNagadNumber && (
+                      <>
+                        <span className="text-gray-500">Nagad:</span>
+                        <span className="font-medium text-gray-800">{actionModal.request.agentNagadNumber}</span>
+                      </>
+                    )}
+                    {actionModal.request.agentRocketNumber && (
+                      <>
+                        <span className="text-gray-500">Rocket:</span>
+                        <span className="font-medium text-gray-800">{actionModal.request.agentRocketNumber}</span>
+                      </>
+                    )}
+                    {actionModal.request.agentBankName && (
+                      <>
+                        <span className="text-gray-500">Bank:</span>
+                        <span className="font-medium text-gray-800">{actionModal.request.agentBankName}</span>
+                      </>
+                    )}
+                    {actionModal.request.agentBankAccountHolder && (
+                      <>
+                        <span className="text-gray-500">Account Holder:</span>
+                        <span className="font-medium text-gray-800">{actionModal.request.agentBankAccountHolder}</span>
+                      </>
+                    )}
+                    {actionModal.request.agentBankAccountNumber && (
+                      <>
+                        <span className="text-gray-500">Account No:</span>
+                        <span className="font-medium text-gray-800">{actionModal.request.agentBankAccountNumber}</span>
+                      </>
+                    )}
+                    {actionModal.request.agentBankBranchName && (
+                      <>
+                        <span className="text-gray-500">Branch:</span>
+                        <span className="font-medium text-gray-800">{actionModal.request.agentBankBranchName}</span>
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
               <div className="space-y-3">
                 {actionModal.type === 'approve' && (
                   <div>
