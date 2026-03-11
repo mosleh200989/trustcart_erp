@@ -679,6 +679,14 @@ export class CommissionService {
         pr.*,
         CONCAT(COALESCE(u.name, ''), ' ', COALESCE(u.last_name, '')) as agent_name,
         u.phone as agent_phone,
+        u.payment_method as agent_preferred_method,
+        u.bkash_number as agent_bkash_number,
+        u.nagad_number as agent_nagad_number,
+        u.rocket_number as agent_rocket_number,
+        u.bank_name as agent_bank_name,
+        u.bank_account_holder as agent_bank_account_holder,
+        u.bank_account_number as agent_bank_account_number,
+        u.bank_branch_name as agent_bank_branch_name,
         CONCAT(COALESCE(ab.name, ''), ' ', COALESCE(ab.last_name, '')) as approved_by_name,
         CONCAT(COALESCE(pb.name, ''), ' ', COALESCE(pb.last_name, '')) as paid_by_name,
         CONCAT(COALESCE(rb.name, ''), ' ', COALESCE(rb.last_name, '')) as rejected_by_name
@@ -696,7 +704,8 @@ export class CommissionService {
 
     // Get all Sales Executives for filter
     const agentsSql = `
-      SELECT u.id, CONCAT(COALESCE(u.name, ''), ' ', COALESCE(u.last_name, '')) as name
+      SELECT u.id, CONCAT(COALESCE(u.name, ''), ' ', COALESCE(u.last_name, '')) as name,
+             u.payment_method as preferred_method
       FROM users u
       INNER JOIN roles r ON r.id = u.role_id
       WHERE LOWER(r.name) LIKE '%sales executive%' OR r.slug = 'sales-executive'
@@ -710,6 +719,14 @@ export class CommissionService {
         agentId: r.agent_id,
         agentName: (r.agent_name || '').trim(),
         agentPhone: r.agent_phone || '',
+        agentPreferredMethod: r.agent_preferred_method || null,
+        agentBkashNumber: r.agent_bkash_number || null,
+        agentNagadNumber: r.agent_nagad_number || null,
+        agentRocketNumber: r.agent_rocket_number || null,
+        agentBankName: r.agent_bank_name || null,
+        agentBankAccountHolder: r.agent_bank_account_holder || null,
+        agentBankAccountNumber: r.agent_bank_account_number || null,
+        agentBankBranchName: r.agent_bank_branch_name || null,
         requestedAmount: parseFloat(r.requested_amount || '0'),
         approvedAmount: r.approved_amount ? parseFloat(r.approved_amount) : null,
         paymentMethod: r.payment_method,
@@ -726,7 +743,7 @@ export class CommissionService {
         createdAt: r.created_at,
       })),
       total,
-      agents: agents.map((a: any) => ({ id: a.id, name: (a.name || '').trim() })),
+      agents: agents.map((a: any) => ({ id: a.id, name: (a.name || '').trim(), preferredMethod: a.preferred_method || null })),
     };
   }
 

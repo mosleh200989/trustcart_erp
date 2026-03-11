@@ -5,17 +5,15 @@ import PasswordInput from '@/components/common/PasswordInput';
 import { users as usersAPI } from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { uploadImageToCloudinary, validateImageFile } from '@/utils/cloudinary';
-import { FaCamera, FaUser, FaMoneyBillWave, FaLock } from 'react-icons/fa';
+import { FaCamera, FaUser, FaMoneyBillWave, FaLock, FaStar, FaUniversity } from 'react-icons/fa';
 
-const PAYMENT_METHODS = [
-  { value: '', label: 'Select payment method' },
+const PREFERRED_OPTIONS = [
+  { value: '', label: 'No preference' },
   { value: 'bkash', label: 'bKash' },
   { value: 'nagad', label: 'Nagad' },
   { value: 'rocket', label: 'Rocket' },
   { value: 'bank_transfer', label: 'Bank Transfer' },
 ];
-
-const MFS_METHODS = ['bkash', 'nagad', 'rocket'];
 
 type Profile = {
   id: number;
@@ -25,7 +23,9 @@ type Profile = {
   phone?: string | null;
   avatarUrl?: string | null;
   paymentMethod?: string | null;
-  paymentPhone?: string | null;
+  bkashNumber?: string | null;
+  nagadNumber?: string | null;
+  rocketNumber?: string | null;
   bankName?: string | null;
   bankAccountHolder?: string | null;
   bankAccountNumber?: string | null;
@@ -50,7 +50,9 @@ export default function AdminProfilePage() {
     phone: '',
     avatarUrl: '',
     paymentMethod: '',
-    paymentPhone: '',
+    bkashNumber: '',
+    nagadNumber: '',
+    rocketNumber: '',
     bankName: '',
     bankAccountHolder: '',
     bankAccountNumber: '',
@@ -78,7 +80,9 @@ export default function AdminProfilePage() {
           phone: me?.phone || '',
           avatarUrl: me?.avatarUrl || '',
           paymentMethod: me?.paymentMethod || '',
-          paymentPhone: me?.paymentPhone || '',
+          bkashNumber: me?.bkashNumber || '',
+          nagadNumber: me?.nagadNumber || '',
+          rocketNumber: me?.rocketNumber || '',
           bankName: me?.bankName || '',
           bankAccountHolder: me?.bankAccountHolder || '',
           bankAccountNumber: me?.bankAccountNumber || '',
@@ -135,18 +139,24 @@ export default function AdminProfilePage() {
         }
       }
 
-      // Validate bank transfer fields
+      // Validate preferred method has credentials
+      if (form.paymentMethod === 'bkash' && !form.bkashNumber.trim()) {
+        setError('Please enter your bKash number to set it as preferred.');
+        return;
+      }
+      if (form.paymentMethod === 'nagad' && !form.nagadNumber.trim()) {
+        setError('Please enter your Nagad number to set it as preferred.');
+        return;
+      }
+      if (form.paymentMethod === 'rocket' && !form.rocketNumber.trim()) {
+        setError('Please enter your Rocket number to set it as preferred.');
+        return;
+      }
       if (form.paymentMethod === 'bank_transfer') {
         if (!form.bankName.trim() || !form.bankAccountHolder.trim() || !form.bankAccountNumber.trim() || !form.bankBranchName.trim()) {
-          setError('For bank transfer, bank name, account holder name, account number and branch name are mandatory.');
+          setError('Please fill in all bank details to set Bank Transfer as preferred.');
           return;
         }
-      }
-
-      // Validate MFS phone
-      if (MFS_METHODS.includes(form.paymentMethod) && !form.paymentPhone.trim()) {
-        setError(`Please enter your ${PAYMENT_METHODS.find(m => m.value === form.paymentMethod)?.label} phone number.`);
-        return;
       }
 
       const payload: any = {
@@ -155,11 +165,13 @@ export default function AdminProfilePage() {
         phone: form.phone || null,
         avatarUrl: form.avatarUrl || null,
         paymentMethod: form.paymentMethod || null,
-        paymentPhone: MFS_METHODS.includes(form.paymentMethod) ? (form.paymentPhone || null) : null,
-        bankName: form.paymentMethod === 'bank_transfer' ? (form.bankName || null) : null,
-        bankAccountHolder: form.paymentMethod === 'bank_transfer' ? (form.bankAccountHolder || null) : null,
-        bankAccountNumber: form.paymentMethod === 'bank_transfer' ? (form.bankAccountNumber || null) : null,
-        bankBranchName: form.paymentMethod === 'bank_transfer' ? (form.bankBranchName || null) : null,
+        bkashNumber: form.bkashNumber || null,
+        nagadNumber: form.nagadNumber || null,
+        rocketNumber: form.rocketNumber || null,
+        bankName: form.bankName || null,
+        bankAccountHolder: form.bankAccountHolder || null,
+        bankAccountNumber: form.bankAccountNumber || null,
+        bankBranchName: form.bankBranchName || null,
       };
 
       if (form.password) {
@@ -179,12 +191,14 @@ export default function AdminProfilePage() {
     }
   };
 
+  const isPreferred = (method: string) => form.paymentMethod === method;
+
   return (
     <AdminLayout>
       <div className="p-6 max-w-4xl mx-auto">
         <div className="mb-6">
           <h1 className="text-3xl font-bold text-gray-800">My Profile</h1>
-          <p className="text-gray-600 mt-1">Update your profile information and preferences.</p>
+          <p className="text-gray-600 mt-1">Update your profile information and payment credentials.</p>
         </div>
 
         {error && (
@@ -305,83 +319,129 @@ export default function AdminProfilePage() {
               </div>
             </div>
 
-            {/* Payment Preferences */}
+            {/* Payment Credentials */}
             <div className="bg-white rounded-lg shadow p-6">
-              <h2 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
-                <FaMoneyBillWave className="text-green-600" /> Payment Preference
+              <h2 className="text-lg font-semibold text-gray-800 mb-1 flex items-center gap-2">
+                <FaMoneyBillWave className="text-green-600" /> Payment Credentials
               </h2>
-              <p className="text-sm text-gray-500 mb-4">Set your preferred payment method for salary or commission payouts.</p>
+              <p className="text-sm text-gray-500 mb-5">
+                Save all your payment credentials below. You can set one as your <strong>preferred method</strong> for commission payouts.
+              </p>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Payment Method</label>
-                  <select
-                    value={form.paymentMethod}
-                    onChange={(e) => setForm((p) => ({ ...p, paymentMethod: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-400 focus:outline-none"
-                  >
-                    {PAYMENT_METHODS.map((m) => (
-                      <option key={m.value} value={m.value}>{m.label}</option>
-                    ))}
-                  </select>
-                </div>
+              {/* Preferred Method */}
+              <div className="mb-5 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <label className="flex items-center gap-2 text-sm font-semibold text-blue-800 mb-2">
+                  <FaStar className="text-yellow-500" /> Preferred Payment Method
+                </label>
+                <select
+                  value={form.paymentMethod}
+                  onChange={(e) => setForm((p) => ({ ...p, paymentMethod: e.target.value }))}
+                  className="w-full md:w-64 px-3 py-2 border border-blue-300 rounded focus:ring-2 focus:ring-blue-400 focus:outline-none bg-white"
+                >
+                  {PREFERRED_OPTIONS.map((m) => (
+                    <option key={m.value} value={m.value}>{m.label}</option>
+                  ))}
+                </select>
+                <p className="text-xs text-blue-600 mt-1">This will be shown as default when you submit a payment request.</p>
+              </div>
 
-                {/* MFS phone number */}
-                {MFS_METHODS.includes(form.paymentMethod) && (
-                  <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      {PAYMENT_METHODS.find(m => m.value === form.paymentMethod)?.label} Number <span className="text-red-500">*</span>
+              {/* Mobile Financial Services */}
+              <div className="mb-5">
+                <h3 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide">Mobile Financial Services</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {/* bKash */}
+                  <div className={`p-4 rounded-lg border-2 transition-colors ${isPreferred('bkash') ? 'border-pink-400 bg-pink-50' : 'border-gray-200 bg-gray-50'}`}>
+                    <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
+                      <span className="w-2 h-2 rounded-full bg-pink-500 inline-block"></span>
+                      bKash Number
+                      {isPreferred('bkash') && <span className="text-xs bg-pink-500 text-white px-1.5 py-0.5 rounded-full ml-auto">Preferred</span>}
                     </label>
                     <input
-                      value={form.paymentPhone}
-                      onChange={(e) => setForm((p) => ({ ...p, paymentPhone: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-400 focus:outline-none"
+                      value={form.bkashNumber}
+                      onChange={(e) => setForm((p) => ({ ...p, bkashNumber: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-pink-400 focus:outline-none bg-white"
                       placeholder="01XXXXXXXXX"
                     />
                   </div>
-                )}
 
-                {/* Bank transfer fields */}
-                {form.paymentMethod === 'bank_transfer' && (
-                  <>
+                  {/* Nagad */}
+                  <div className={`p-4 rounded-lg border-2 transition-colors ${isPreferred('nagad') ? 'border-orange-400 bg-orange-50' : 'border-gray-200 bg-gray-50'}`}>
+                    <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
+                      <span className="w-2 h-2 rounded-full bg-orange-500 inline-block"></span>
+                      Nagad Number
+                      {isPreferred('nagad') && <span className="text-xs bg-orange-500 text-white px-1.5 py-0.5 rounded-full ml-auto">Preferred</span>}
+                    </label>
+                    <input
+                      value={form.nagadNumber}
+                      onChange={(e) => setForm((p) => ({ ...p, nagadNumber: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-orange-400 focus:outline-none bg-white"
+                      placeholder="01XXXXXXXXX"
+                    />
+                  </div>
+
+                  {/* Rocket */}
+                  <div className={`p-4 rounded-lg border-2 transition-colors ${isPreferred('rocket') ? 'border-purple-400 bg-purple-50' : 'border-gray-200 bg-gray-50'}`}>
+                    <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
+                      <span className="w-2 h-2 rounded-full bg-purple-500 inline-block"></span>
+                      Rocket Number
+                      {isPreferred('rocket') && <span className="text-xs bg-purple-500 text-white px-1.5 py-0.5 rounded-full ml-auto">Preferred</span>}
+                    </label>
+                    <input
+                      value={form.rocketNumber}
+                      onChange={(e) => setForm((p) => ({ ...p, rocketNumber: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-purple-400 focus:outline-none bg-white"
+                      placeholder="01XXXXXXXXX"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Bank Transfer */}
+              <div>
+                <h3 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide flex items-center gap-2">
+                  <FaUniversity className="text-gray-500" /> Bank Transfer
+                  {isPreferred('bank_transfer') && <span className="text-xs bg-green-600 text-white px-1.5 py-0.5 rounded-full normal-case font-medium">Preferred</span>}
+                </h3>
+                <div className={`p-4 rounded-lg border-2 transition-colors ${isPreferred('bank_transfer') ? 'border-green-400 bg-green-50' : 'border-gray-200 bg-gray-50'}`}>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Bank Name <span className="text-red-500">*</span></label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Bank Name</label>
                       <input
                         value={form.bankName}
                         onChange={(e) => setForm((p) => ({ ...p, bankName: e.target.value }))}
-                        className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-400 focus:outline-none"
+                        className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-green-400 focus:outline-none bg-white"
                         placeholder="e.g. Dutch-Bangla Bank"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Account Holder Name <span className="text-red-500">*</span></label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Account Holder Name</label>
                       <input
                         value={form.bankAccountHolder}
                         onChange={(e) => setForm((p) => ({ ...p, bankAccountHolder: e.target.value }))}
-                        className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-400 focus:outline-none"
+                        className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-green-400 focus:outline-none bg-white"
                         placeholder="Full name as on bank account"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Account Number <span className="text-red-500">*</span></label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Account Number</label>
                       <input
                         value={form.bankAccountNumber}
                         onChange={(e) => setForm((p) => ({ ...p, bankAccountNumber: e.target.value }))}
-                        className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-400 focus:outline-none"
+                        className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-green-400 focus:outline-none bg-white"
                         placeholder="Account number"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Branch Name <span className="text-red-500">*</span></label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Branch Name</label>
                       <input
                         value={form.bankBranchName}
                         onChange={(e) => setForm((p) => ({ ...p, bankBranchName: e.target.value }))}
-                        className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-400 focus:outline-none"
+                        className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-green-400 focus:outline-none bg-white"
                         placeholder="e.g. Gulshan Branch"
                       />
                     </div>
-                  </>
-                )}
+                  </div>
+                </div>
               </div>
             </div>
 
