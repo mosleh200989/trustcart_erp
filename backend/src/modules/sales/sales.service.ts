@@ -430,6 +430,8 @@ export class SalesService {
 
     const qb = this.salesRepository.createQueryBuilder('o');
     qb.where('o.shipped_at IS NOT NULL');
+    // Only show orders with status = 'sent'
+    qb.andWhere('o.status = :sentStatus', { sentStatus: 'sent' });
 
     if (params?.q?.trim()) {
       const q = `%${params.q.trim().toLowerCase()}%`;
@@ -443,10 +445,6 @@ export class SalesService {
         'OR CAST(o.courier_order_id AS TEXT) ILIKE :q)',
         { q, normalizedPhone },
       );
-    }
-
-    if (params?.status?.trim()) {
-      qb.andWhere('LOWER(o.status::text) = LOWER(:status)', { status: params.status.trim() });
     }
 
     if (params?.courierCompany?.trim()) {
@@ -537,9 +535,7 @@ export class SalesService {
     qb.where('o.shipped_at IS NOT NULL')
       .andWhere('o.delivered_at IS NULL')
       .andWhere('o.shipped_at <= :cutoff', { cutoff })
-      .andWhere('o.status != :cancelledStatus', { cancelledStatus: 'cancelled' })
-      .andWhere('o.status != :adminCancelledStatus', { adminCancelledStatus: 'admin_cancelled' })
-      .andWhere('o.status != :deliveredStatus', { deliveredStatus: 'delivered' })
+      .andWhere('o.status IN (:...lateStatuses)', { lateStatuses: ['pending', 'in_review'] })
       .orderBy('o.shipped_at', 'ASC');
 
     const orders = await qb.getMany();

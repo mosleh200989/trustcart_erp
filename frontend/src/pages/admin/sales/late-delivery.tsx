@@ -52,20 +52,8 @@ interface SalesOrder {
 }
 
 const STATUS_OPTIONS = [
-  { value: 'processing', label: 'Processing' },
-  { value: 'approved', label: 'Approved' },
-  { value: 'sent', label: 'Sent' },
   { value: 'pending', label: 'Pending' },
   { value: 'in_review', label: 'In Review' },
-  { value: 'in_transit', label: 'In Transit' },
-  { value: 'picked', label: 'Picked' },
-  { value: 'hold', label: 'Hold' },
-  { value: 'delivered', label: 'Delivered' },
-  { value: 'partial_delivered', label: 'Partial Delivered' },
-  { value: 'completed', label: 'Completed' },
-  { value: 'cancelled', label: 'Cancelled' },
-  { value: 'admin_cancelled', label: 'Order Rejected' },
-  { value: 'returned', label: 'Returned' },
 ];
 
 const COURIER_COMPANY_OPTIONS = [
