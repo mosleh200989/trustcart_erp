@@ -35,6 +35,9 @@ export class User {
   @Column({ name: 'team_id', type: 'integer', nullable: true })
   teamId!: number | null;
 
+  @Column({ name: 'agent_tier', type: 'varchar', length: 20, default: 'silver' })
+  agentTier!: string;
+
   @Column('enum', { enum: ['active', 'inactive', 'suspended'], default: 'active', name: 'status' })
   status!: string;
 

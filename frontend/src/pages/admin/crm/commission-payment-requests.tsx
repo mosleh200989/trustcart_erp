@@ -551,14 +551,23 @@ export default function CommissionPaymentRequestsPage() {
                   <>
                     <div>
                       <label className="block text-sm text-gray-600 mb-1">Payment Method</label>
-                      <select
-                        value={actionForm.paymentMethod}
-                        onChange={(e) => setActionForm(f => ({ ...f, paymentMethod: e.target.value }))}
-                        className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      >
-                        <option value="">Select Method</option>
-                        {PAYMENT_METHODS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
-                      </select>
+                      {actionModal.request.agentPreferredMethod ? (
+                        <input
+                          type="text"
+                          readOnly
+                          value={PAYMENT_METHODS.find(m => m.value === actionModal.request.agentPreferredMethod)?.label || actionModal.request.agentPreferredMethod}
+                          className="w-full border border-gray-200 rounded px-3 py-2 text-sm bg-gray-50 text-gray-700 cursor-not-allowed"
+                        />
+                      ) : (
+                        <select
+                          value={actionForm.paymentMethod}
+                          onChange={(e) => setActionForm(f => ({ ...f, paymentMethod: e.target.value }))}
+                          className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                          <option value="">Select Method</option>
+                          {PAYMENT_METHODS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+                        </select>
+                      )}
                     </div>
                     <div>
                       <label className="block text-sm text-gray-600 mb-1">Payment Reference / TrxID</label>

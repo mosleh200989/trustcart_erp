@@ -13,6 +13,7 @@ interface AgentRow {
   phone: string;
   totalOrders: number;
   totalProductQty: number;
+  upsellQty: number;
   totalAmount: number;
   totalCommission: number;
   paidCommission: number;
@@ -128,6 +129,14 @@ export default function CommissionAgentsPage() {
       sortable: true,
       render: (_: any, row: AgentRow) => (
         <span className="text-sm">{row.totalProductQty.toLocaleString()}</span>
+      ),
+    },
+    {
+      key: 'upsellQty',
+      label: 'Upsell Qty',
+      sortable: true,
+      render: (_: any, row: AgentRow) => (
+        <span className="text-sm">{row.upsellQty.toLocaleString()}</span>
       ),
     },
     {

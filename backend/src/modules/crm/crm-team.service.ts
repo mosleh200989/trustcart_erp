@@ -2270,6 +2270,96 @@ export class CrmTeamService {
     };
   }
 
+  // ==================== AGENT TIERS ====================
+
+  /**
+   * Get all agents under a team leader with their tiers and assigned customer count
+   */
+  async getAgentTiers(teamLeaderId: number): Promise<any[]> {
+    const agents = await this.usersRepository.find({
+      where: { teamLeaderId, isDeleted: false } as any,
+      select: ['id', 'name', 'lastName', 'phone', 'agentTier', 'status'],
+    });
+
+    if (agents.length === 0) return [];
+
+    const agentIds = agents.map(a => a.id);
+    const customerCounts = await this.customerRepository
+      .createQueryBuilder('c')
+      .select('c.assigned_to', 'agentId')
+      .addSelect('COUNT(c.id)', 'count')
+      .where('c.assigned_to IN (:...agentIds)', { agentIds })
+      .groupBy('c.assigned_to')
+      .getRawMany();
+
+    const countMap = new Map(customerCounts.map((r: any) => [Number(r.agentId), Number(r.count)]));
+
+    return agents.map(agent => ({
+      id: agent.id,
+      name: `${agent.name} ${agent.lastName || ''}`.trim(),
+      phone: agent.phone,
+      tier: agent.agentTier || 'silver',
+      status: agent.status,
+      assignedCustomers: countMap.get(agent.id) || 0,
+    }));
+  }
+
+  /**
+   * Update agent tier and unassign all customers from that agent
+   */
+  async updateAgentTier(teamLeaderId: number, agentId: number, newTier: string): Promise<any> {
+    const validTiers = ['silver', 'gold', 'platinum'];
+    if (!validTiers.includes(newTier)) {
+      throw new BadRequestException(`Invalid tier. Must be one of: ${validTiers.join(', ')}`);
+    }
+
+    const agent = await this.usersRepository.findOne({
+      where: { id: agentId, isDeleted: false } as any,
+    });
+
+    if (!agent) {
+      throw new NotFoundException('Agent not found');
+    }
+
+    if (agent.teamLeaderId !== teamLeaderId) {
+      throw new ForbiddenException('You can only update tiers for agents in your team');
+    }
+
+    const oldTier = agent.agentTier || 'silver';
+    if (oldTier === newTier) {
+      throw new BadRequestException('Agent is already on this tier');
+    }
+
+    // Update tier
+    await this.usersRepository.update(agentId, { agentTier: newTier } as any);
+
+    // Unassign all customers from this agent
+    const unassignResult = await this.customerRepository
+      .createQueryBuilder()
+      .update()
+      .set({ assigned_to: null } as any)
+      .where('assigned_to = :agentId', { agentId })
+      .execute();
+
+    const unassignedCount = unassignResult.affected || 0;
+
+    // Log activity
+    const activity = this.activityRepo.create({
+      type: 'tier_change',
+      userId: teamLeaderId,
+      description: `Agent tier changed from ${oldTier} to ${newTier}. ${unassignedCount} customer(s) unassigned.`,
+      metadata: { agentId, oldTier, newTier, unassignedCount },
+    } as any);
+    await this.activityRepo.save(activity);
+
+    return {
+      message: `Agent tier updated to ${newTier}. ${unassignedCount} customer(s) have been unassigned.`,
+      oldTier,
+      newTier,
+      unassignedCount,
+    };
+  }
+
   /**
    * Get aggregated report for all team agents
    */

@@ -188,6 +188,22 @@ export class CrmTeamController {
 
   // ==================== TEAM AGENT REPORTS ====================
 
+  @Get('agent-tiers')
+  @RequirePermissions('view-team-leader-dashboard')
+  async getAgentTiers(@Request() req: any) {
+    return await this.crmTeamService.getAgentTiers(req.user.id);
+  }
+
+  @Put('agents/:agentId/tier')
+  @RequirePermissions('manage-team-members')
+  async updateAgentTier(
+    @Param('agentId') agentId: string,
+    @Body() body: { tier: string },
+    @Request() req: any,
+  ) {
+    return await this.crmTeamService.updateAgentTier(req.user.id, Number(agentId), body.tier);
+  }
+
   @Get('agents')
   @RequirePermissions('view-team-leader-dashboard')
   async getTeamAgents(@Request() req: any) {
