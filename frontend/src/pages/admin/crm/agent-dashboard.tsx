@@ -144,8 +144,6 @@ export default function AgentDashboard() {
 
   // Assigned leads filters
   const [leadsSearchTerm, setLeadsSearchTerm] = useState('');
-  const [leadsPriorityFilter, setLeadsPriorityFilter] = useState('');
-  const [leadsStageFilter, setLeadsStageFilter] = useState('');
   const [leadsTierFilter, setLeadsTierFilter] = useState('');
   const [leadsCalledFilter, setLeadsCalledFilter] = useState<FilterCalledStatus>('all');
   const [leadsOutcomeFilter, setLeadsOutcomeFilter] = useState<FilterOutcome>('all');
@@ -397,8 +395,6 @@ export default function AgentDashboard() {
         limit: filters?.limit || leadsLimit 
       };
       if (filters?.search || leadsSearchTerm) params.search = filters?.search || leadsSearchTerm;
-      if (filters?.priority || leadsPriorityFilter) params.priority = filters?.priority || leadsPriorityFilter;
-      if (filters?.stage || leadsStageFilter) params.stage = filters?.stage || leadsStageFilter;
       
       // Tier filter
       const tierVal = filters?.customerType || leadsTierFilter;
@@ -1097,45 +1093,19 @@ export default function AgentDashboard() {
 
           {/* Filters Section */}
           <div className="p-4 border-b bg-gray-50">
-            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-7 gap-3">
-              <div>
+            <div className="flex flex-wrap items-end gap-3">
+              <div className="w-56">
                 <label className="block text-xs font-medium text-gray-600 mb-1">Search</label>
                 <input
                   type="text"
                   value={leadsSearchTerm}
                   onChange={(e) => setLeadsSearchTerm(e.target.value)}
-                  placeholder="Name, email, phone..."
+                  placeholder="Name, phone..."
                   className="w-full border rounded-lg px-3 py-2 text-sm"
                 />
               </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Priority</label>
-                <select
-                  value={leadsPriorityFilter}
-                  onChange={(e) => setLeadsPriorityFilter(e.target.value)}
-                  className="w-full border rounded-lg px-3 py-2 text-sm"
-                >
-                  <option value="">All Priorities</option>
-                  <option value="hot">Hot</option>
-                  <option value="warm">Warm</option>
-                  <option value="cold">Sleep/Dead</option>
-                  <option value="new">New</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Stage</label>
-                <select
-                  value={leadsStageFilter}
-                  onChange={(e) => setLeadsStageFilter(e.target.value)}
-                  className="w-full border rounded-lg px-3 py-2 text-sm"
-                >
-                  <option value="">All Stages</option>
-                  <option value="lead">Lead</option>
-                  <option value="customer">Customer</option>
-                  <option value="prospect">Prospect</option>
-                </select>
-              </div>
-              <div>
+
+              <div className="w-40">
                 <label className="block text-xs font-medium text-gray-600 mb-1">Tier</label>
                 <select
                   value={leadsTierFilter}
@@ -1153,7 +1123,7 @@ export default function AgentDashboard() {
                   <option value="rejected">Rejected</option>
                 </select>
               </div>
-              <div>
+              <div className="w-40">
                 <label className="block text-xs font-medium text-gray-600 mb-1">Called Status</label>
                 <select
                   value={leadsCalledFilter}
@@ -1165,7 +1135,7 @@ export default function AgentDashboard() {
                   <option value="not_called">Not Called</option>
                 </select>
               </div>
-              <div>
+              <div className="w-40">
                 <label className="block text-xs font-medium text-gray-600 mb-1">Outcome</label>
                 <select
                   value={leadsOutcomeFilter}
@@ -1186,8 +1156,6 @@ export default function AgentDashboard() {
                     if (selectedViewAgentId) {
                       loadAssignedCustomers(selectedViewAgentId, {
                         search: leadsSearchTerm,
-                        priority: leadsPriorityFilter,
-                        stage: leadsStageFilter,
                         customerType: leadsTierFilter,
                         calledStatus: leadsCalledFilter,
                         outcome: leadsOutcomeFilter,
@@ -1203,8 +1171,6 @@ export default function AgentDashboard() {
                 <button
                   onClick={() => {
                     setLeadsSearchTerm('');
-                    setLeadsPriorityFilter('');
-                    setLeadsStageFilter('');
                     setLeadsTierFilter('');
                     setLeadsCalledFilter('all');
                     setLeadsOutcomeFilter('all');
@@ -1225,7 +1191,7 @@ export default function AgentDashboard() {
             <div className="flex items-center justify-between mb-4">
               <div className="text-sm text-gray-600">
                 Total assigned: <span className="font-semibold">{assignedTotal}</span>
-                {(leadsSearchTerm || leadsPriorityFilter || leadsStageFilter || leadsTierFilter || leadsCalledFilter !== 'all' || leadsOutcomeFilter !== 'all') && (
+                {(leadsSearchTerm || leadsTierFilter || leadsCalledFilter !== 'all' || leadsOutcomeFilter !== 'all') && (
                   <span className="ml-2 text-blue-600">(filtered)</span>
                 )}
               </div>
@@ -1257,12 +1223,9 @@ export default function AgentDashboard() {
                     <tr>
                       <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
                       <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Phone</th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Stage</th>
                       <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
                         <span className="flex items-center gap-1"><FaCrown size={10} className="text-yellow-500" /> Tier</span>
                       </th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Priority</th>
                       <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Last Called</th>
                       <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Action</th>
                     </tr>
@@ -1284,8 +1247,6 @@ export default function AgentDashboard() {
                             <div className="text-xs text-gray-500">ID: {String(c.id)}</div>
                           </td>
                           <td className="px-4 py-3 text-sm text-gray-700">{c.phone || '—'}</td>
-                          <td className="px-4 py-3 text-sm text-gray-700">{c.email || '—'}</td>
-                          <td className="px-4 py-3 text-sm text-gray-700 capitalize">{(c.lifecycleStage as any) || '—'}</td>
                           <td className="px-4 py-3">
                             <select
                               value={c.customerType || 'new'}
@@ -1312,11 +1273,6 @@ export default function AgentDashboard() {
                               <option value="repeat">Repeat</option>
                               <option value="rejected">Rejected</option>
                             </select>
-                          </td>
-                          <td className="px-4 py-3">
-                            <span className="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-700 capitalize">
-                              {c.priority || 'new'}
-                            </span>
                           </td>
                           <td className="px-4 py-3">
                             {(() => {
@@ -1475,6 +1431,24 @@ export default function AgentDashboard() {
                   >
                     Next <FaChevronRight size={10} />
                   </button>
+                  <span className="mx-1 text-gray-300">|</span>
+                  <span className="text-xs text-gray-500">Go to</span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={Math.ceil(assignedTotal / leadsLimit)}
+                    placeholder="#"
+                    className="w-14 px-2 py-1 border rounded text-sm text-center focus:outline-none focus:ring-2 focus:ring-blue-400"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        const totalPages = Math.ceil(assignedTotal / leadsLimit);
+                        const val = Math.max(1, Math.min(totalPages, parseInt((e.target as HTMLInputElement).value, 10) || 1));
+                        setLeadsPage(val);
+                        if (selectedViewAgentId) loadAssignedCustomers(selectedViewAgentId, { page: val });
+                        (e.target as HTMLInputElement).value = '';
+                      }
+                    }}
+                  />
                 </div>
               </div>
             )}
