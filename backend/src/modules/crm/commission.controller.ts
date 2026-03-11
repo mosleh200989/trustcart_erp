@@ -77,7 +77,7 @@ export class CommissionController {
   @RequirePermissions('manage-commission-settings')
   async saveSlabs(
     @Param('roleType') roleType: string,
-    @Body() body: { slabs: Array<{ agentTier: string; minOrderAmount: number; maxOrderAmount: number | null; commissionAmount: number }> },
+    @Body() body: { slabs: Array<{ agentTier: string; minOrderCount: number; maxOrderCount: number | null; commissionAmount: number }> },
     @Request() req: any,
   ) {
     const saved = await this.commissionService.saveSlabs(roleType, body.slabs, req.user.id);

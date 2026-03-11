@@ -11,11 +11,11 @@ export class CommissionSlab {
   @Column({ name: 'agent_tier', type: 'varchar', length: 20, default: 'silver' })
   agentTier!: string; // 'silver' | 'gold' | 'platinum'
 
-  @Column({ name: 'min_order_amount', type: 'decimal', precision: 12, scale: 2, default: 0 })
-  minOrderAmount!: number;
+  @Column({ name: 'min_order_count', type: 'integer', default: 0 })
+  minOrderCount!: number;
 
-  @Column({ name: 'max_order_amount', type: 'decimal', precision: 12, scale: 2, nullable: true })
-  maxOrderAmount!: number | null;
+  @Column({ name: 'max_order_count', type: 'integer', nullable: true })
+  maxOrderCount!: number | null;
 
   @Column({ name: 'commission_amount', type: 'decimal', precision: 12, scale: 2, default: 0 })
   commissionAmount!: number;
