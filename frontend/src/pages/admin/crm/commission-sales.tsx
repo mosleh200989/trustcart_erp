@@ -413,6 +413,13 @@ export default function CommissionSalesPage() {
           </div>
         </div>
 
+        {/* Selected count */}
+        {selectedRowIds.length > 0 && (
+          <div className="mb-3 bg-blue-50 border border-blue-200 rounded px-4 py-2 text-sm text-blue-800 font-medium">
+            {selectedRowIds.length} row{selectedRowIds.length > 1 ? 's' : ''} selected
+          </div>
+        )}
+
         {/* Table Controls */}
         <div className="mb-3 flex items-center justify-between">
           <PageSizeSelector

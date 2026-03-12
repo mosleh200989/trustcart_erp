@@ -112,7 +112,7 @@ export default function CommissionPaymentBreakdownPage() {
                 <option value="">Select Agent</option>
                 {agents.map((a) => (
                   <option key={a.agent_id} value={a.agent_id}>
-                    {(a.agent_name || '').trim()} {a.phone ? `(${a.phone})` : ''}
+                    {(a.agent_name || '').trim() || 'Unknown'} — {a.phone || 'No phone'}
                   </option>
                 ))}
               </select>

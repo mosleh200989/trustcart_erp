@@ -104,15 +104,10 @@ export default function CommissionAgentsPage() {
       label: 'Name',
       sortable: true,
       render: (_: any, row: AgentRow) => (
-        <span className="text-sm font-medium">{row.agentName || '-'}</span>
-      ),
-    },
-    {
-      key: 'phone',
-      label: 'Phone',
-      sortable: true,
-      render: (_: any, row: AgentRow) => (
-        <span className="text-sm">{row.phone || '-'}</span>
+        <div>
+          <div className="text-sm font-medium">{row.agentName || '-'}</div>
+          {row.phone && <div className="text-xs text-gray-500 mt-0.5">{row.phone}</div>}
+        </div>
       ),
     },
     {
