@@ -730,7 +730,16 @@ export class CommissionService {
     const totalOrderCommission = breakdown.reduce((sum: number, b: any) => sum + b.orderCommission, 0);
     const totalUpsellCommission = breakdown.reduce((sum: number, b: any) => sum + b.upsellCommission, 0);
     const totalCrossSellCommission = breakdown.reduce((sum: number, b: any) => sum + b.crossSellCommission, 0);
-    const grandTotal = totalOrderCommission + totalUpsellCommission + totalCrossSellCommission;
+
+    // Fetch extra partial amount for this agent/month
+    const extraRows = await this.dataSource.query(
+      `SELECT amount, notes FROM commission_extra_partial WHERE agent_id = $1 AND month = $2`,
+      [agentId, monthStr],
+    );
+    const extraPartial = extraRows.length > 0 ? parseFloat(extraRows[0].amount || '0') : 0;
+    const extraPartialNotes = extraRows.length > 0 ? (extraRows[0].notes || '') : '';
+
+    const grandTotal = totalOrderCommission + totalUpsellCommission + totalCrossSellCommission + extraPartial;
 
     return {
       agent: {
@@ -750,6 +759,8 @@ export class CommissionService {
         totalOrderCommission,
         totalUpsellCommission,
         totalCrossSellCommission,
+        extraPartial,
+        extraPartialNotes,
         grandTotal,
       },
       breakdown,
@@ -819,7 +830,8 @@ export class CommissionService {
         COALESCE(product_qty_stats.total_product_qty, 0) as total_product_qty,
         GREATEST(COALESCE(product_qty_stats.total_product_qty, 0) - COALESCE(order_stats.total_orders, 0), 0) as upsell_qty,
         COALESCE(order_stats.total_amount, 0) as total_amount,
-        COALESCE(paid_stats.paid_commission, 0) as paid_commission
+        COALESCE(paid_stats.paid_commission, 0) as paid_commission,
+        COALESCE(extra_partial.amount, 0) as extra_partial
       FROM users u
       INNER JOIN roles r ON r.id = u.role_id
       LEFT JOIN (
@@ -863,6 +875,7 @@ export class CommissionService {
         WHERE ac.created_at >= '${this.COMMISSION_CUTOFF_DATE}'
         GROUP BY ac.agent_id
       ) paid_stats ON paid_stats.agent_id = u.id
+      LEFT JOIN commission_extra_partial extra_partial ON extra_partial.agent_id = u.id AND extra_partial.month = '${monthStart.substring(0, 7)}'
       WHERE (LOWER(r.name) LIKE '%sales executive%' OR r.slug = 'sales-executive')
       ${searchCondition}
       ORDER BY agent_name ASC
@@ -897,7 +910,8 @@ export class CommissionService {
         const orderRate = findSlabRate(tier, 'order', totalOrders);
         const upsellRate = findSlabRate(tier, 'upsell', upsellQty);
         const crossSellRate = findSlabRate(tier, 'cross_sell', 0);
-        const totalCommission = (totalOrders * orderRate) + (upsellQty * upsellRate);
+        const extraPartial = parseFloat(r.extra_partial || '0');
+        const totalCommission = (totalOrders * orderRate) + (upsellQty * upsellRate) + extraPartial;
 
         return {
           agentId: r.agent_id,
@@ -907,6 +921,7 @@ export class CommissionService {
           totalProductQty,
           upsellQty,
           totalAmount: parseFloat(r.total_amount || '0'),
+          extraPartial,
           totalCommission,
           paidCommission,
           balance: totalCommission - paidCommission,
@@ -914,6 +929,20 @@ export class CommissionService {
       }),
       total,
     };
+  }
+
+  // ==================== EXTRA PARTIAL ====================
+
+  async saveExtraPartial(agentId: number, month: string, amount: number, updatedBy: number, notes?: string): Promise<any> {
+    if (!agentId || !month) throw new BadRequestException('Agent ID and month are required');
+    const result = await this.dataSource.query(
+      `INSERT INTO commission_extra_partial (agent_id, month, amount, notes, updated_by, updated_at)
+       VALUES ($1, $2, $3, $4, $5, NOW())
+       ON CONFLICT (agent_id, month) DO UPDATE SET amount = $3, notes = $4, updated_by = $5, updated_at = NOW()
+       RETURNING *`,
+      [agentId, month, amount || 0, notes || null, updatedBy],
+    );
+    return result[0];
   }
 
   // ==================== PAYMENT REQUESTS ====================

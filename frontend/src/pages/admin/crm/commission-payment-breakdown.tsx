@@ -36,6 +36,8 @@ interface BreakdownData {
     totalOrderCommission: number;
     totalUpsellCommission: number;
     totalCrossSellCommission: number;
+    extraPartial: number;
+    extraPartialNotes: string;
     grandTotal: number;
   };
   breakdown: BreakdownRow[];
@@ -183,6 +185,15 @@ export default function CommissionPaymentBreakdownPage() {
                     All commissions combined
                   </div>
                 </div>
+                {data.summary.extraPartial > 0 && (
+                  <div className="bg-teal-50 rounded-lg p-4">
+                    <div className="text-sm text-teal-600 font-medium">Extra (Partial)</div>
+                    <div className="text-2xl font-bold text-teal-800">{formatCurrency(data.summary.extraPartial)}</div>
+                    <div className="text-sm text-teal-500 mt-1">
+                      {data.summary.extraPartialNotes || 'For partial deliveries'}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -253,6 +264,36 @@ export default function CommissionPaymentBreakdownPage() {
                 </table>
               </div>
             </div>
+
+            {/* Extra Partial Table */}
+            {data.summary.extraPartial > 0 && (
+              <div className="bg-white rounded-lg shadow overflow-hidden mt-6">
+                <div className="px-4 py-3 bg-teal-50 border-b border-teal-100">
+                  <h3 className="text-lg font-semibold text-teal-800">Extra Commission (Partial Delivery)</h3>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200 text-sm">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-4 py-3 text-left font-semibold text-gray-600">Description</th>
+                        <th className="px-4 py-3 text-right font-semibold text-gray-600">Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      <tr className="hover:bg-gray-50">
+                        <td className="px-4 py-3">
+                          <div className="font-medium">Partial Delivery Commission</div>
+                          {data.summary.extraPartialNotes && (
+                            <div className="text-xs text-gray-500 mt-0.5">{data.summary.extraPartialNotes}</div>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-right font-bold text-teal-700">{formatCurrency(data.summary.extraPartial)}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
           </>
         )}
 
