@@ -151,10 +151,12 @@ export class CommissionService {
   /**
    * Get all slabs for a role type
    */
-  async getSlabs(roleType: string): Promise<CommissionSlab[]> {
+  async getSlabs(roleType: string, slabType?: string): Promise<CommissionSlab[]> {
+    const where: any = { roleType, isActive: true };
+    if (slabType) where.slabType = slabType;
     return await this.slabRepository.find({
-      where: { roleType, isActive: true },
-      order: { agentTier: 'ASC', minOrderCount: 'ASC' },
+      where,
+      order: { agentTier: 'ASC', slabType: 'ASC', minOrderCount: 'ASC' },
     });
   }
 
@@ -164,7 +166,7 @@ export class CommissionService {
   async getAllSlabs(): Promise<{ agent: CommissionSlab[]; teamLeader: CommissionSlab[] }> {
     const all = await this.slabRepository.find({
       where: { isActive: true },
-      order: { roleType: 'ASC', agentTier: 'ASC', minOrderCount: 'ASC' },
+      order: { roleType: 'ASC', agentTier: 'ASC', slabType: 'ASC', minOrderCount: 'ASC' },
     });
     return {
       agent: all.filter(s => s.roleType === 'agent'),
@@ -177,12 +179,14 @@ export class CommissionService {
    */
   async saveSlabs(roleType: string, slabs: Array<{
     agentTier: string;
+    slabType: string;
     minOrderCount: number;
     maxOrderCount: number | null;
     commissionAmount: number;
   }>, adminUserId: number): Promise<CommissionSlab[]> {
     const validTiers = ['silver', 'gold', 'platinum'];
     const validRoles = ['agent', 'team_leader'];
+    const validSlabTypes = ['order', 'upsell', 'cross_sell'];
     if (!validRoles.includes(roleType)) {
       throw new BadRequestException('Invalid role type');
     }
@@ -190,6 +194,9 @@ export class CommissionService {
     for (const slab of slabs) {
       if (!validTiers.includes(slab.agentTier)) {
         throw new BadRequestException(`Invalid tier: ${slab.agentTier}`);
+      }
+      if (!validSlabTypes.includes(slab.slabType)) {
+        throw new BadRequestException(`Invalid slab type: ${slab.slabType}`);
       }
       if (slab.minOrderCount < 0 || slab.commissionAmount < 0) {
         throw new BadRequestException('Values cannot be negative');
@@ -209,6 +216,7 @@ export class CommissionService {
     const entities = slabs.map(s => this.slabRepository.create({
       roleType,
       agentTier: s.agentTier,
+      slabType: s.slabType,
       minOrderCount: s.minOrderCount,
       maxOrderCount: s.maxOrderCount,
       commissionAmount: s.commissionAmount,
@@ -222,11 +230,12 @@ export class CommissionService {
   /**
    * Calculate commission using slab system for an agent/team_leader
    */
-  async calculateSlabCommission(orderCount: number, agentTier: string, roleType: string = 'agent'): Promise<number> {
+  async calculateSlabCommission(orderCount: number, agentTier: string, roleType: string = 'agent', slabType: string = 'order'): Promise<number> {
     const slab = await this.slabRepository
       .createQueryBuilder('s')
       .where('s.role_type = :roleType', { roleType })
       .andWhere('s.agent_tier = :agentTier', { agentTier })
+      .andWhere('s.slab_type = :slabType', { slabType })
       .andWhere('s.is_active = true')
       .andWhere('s.min_order_count <= :orderCount', { orderCount })
       .andWhere('(s.max_order_count IS NULL OR s.max_order_count > :orderCount)', { orderCount })
