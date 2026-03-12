@@ -376,7 +376,7 @@ export class SalesService {
     if (phoneSet.size > 0) {
       const countRows: { phone: string; cnt: string }[] = await this.salesRepository.query(
         `SELECT REPLACE(customer_phone, '+88', '') AS phone, COUNT(*)::text AS cnt
-         FROM orders
+         FROM sales_orders
          WHERE REPLACE(customer_phone, '+88', '') = ANY($1)
          GROUP BY REPLACE(customer_phone, '+88', '')`,
         [Array.from(phoneSet)],
