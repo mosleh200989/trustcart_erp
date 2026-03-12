@@ -561,6 +561,13 @@ export class SalesService {
       (order as any)._items = itemsByOrderId.get(order.id) || [];
     }
 
+    // Batch-fetch creator names for order source display
+    const creatorIds = [...new Set(orders.map(o => o.createdBy).filter((id): id is number => id != null))];
+    const creatorMap = await this.getUserNameMap(creatorIds);
+    for (const order of orders) {
+      (order as any).createdByName = order.createdBy ? (creatorMap.get(order.createdBy) ?? null) : null;
+    }
+
     return orders.map((order) => this.toAdminListDto(order));
   }
 
