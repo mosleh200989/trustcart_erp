@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { FaTrash } from 'react-icons/fa';
 import AdminLayout from '@/layouts/AdminLayout';
+import { useAuth } from '@/contexts/AuthContext';
 import { wrapCustomerName } from '@/utils/wrapCustomerName';
 import DataTable from '@/components/admin/DataTable';
 import PageSizeSelector from '@/components/admin/PageSizeSelector';
@@ -12,7 +13,7 @@ import InvoicePrintModal from '@/components/admin/InvoicePrintModal';
 import StickerPrintModal from '@/components/admin/StickerPrintModal';
 import ProductAutocomplete from '@/components/admin/ProductAutocomplete';
 import { useToast } from '@/contexts/ToastContext';
-import { FaPlus, FaPrint, FaBoxOpen, FaFileInvoice, FaTag, FaCheck, FaTimes } from 'react-icons/fa';
+import { FaPlus, FaPrint, FaBoxOpen, FaFileInvoice, FaTag, FaCheck, FaTimes, FaSync } from 'react-icons/fa';
 import apiClient from '@/services/api';
 import { getOrderStatusLabel, getOrderStatusColor } from '@/utils/orderStatus';
 
@@ -125,6 +126,7 @@ interface SalesOrder {
 
 export default function AdminSales() {
   const toast = useToast();
+  const { hasPermission } = useAuth();
   const [orders, setOrders] = useState<SalesOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState(INITIAL_FILTERS);
@@ -591,6 +593,23 @@ export default function AdminSales() {
 
   // ==================== PRINT HANDLERS ====================
 
+  const [syncingSteadfast, setSyncingSteadfast] = useState(false);
+
+  const syncAllSteadfast = async () => {
+    if (!confirm('Sync all Steadfast order statuses? This may take a while.')) return;
+    setSyncingSteadfast(true);
+    try {
+      const res = await apiClient.post('/order-management/steadfast/sync-all');
+      const data = res.data;
+      toast.success(`Synced ${data.synced} of ${data.total} orders. Failed: ${data.failed}.`);
+      await loadOrders();
+    } catch (e: any) {
+      toast.error(e?.response?.data?.message || 'Failed to sync Steadfast statuses');
+    } finally {
+      setSyncingSteadfast(false);
+    }
+  };
+
   const handlePrintInvoice = (orderId?: number) => {
     if (orderId) {
       setPrintOrderIds([orderId]);
@@ -968,6 +987,18 @@ export default function AdminSales() {
             >
               Send to Pathao
             </button>
+
+            {hasPermission('sync-steadfast') && (
+              <button
+                type="button"
+                onClick={syncAllSteadfast}
+                disabled={syncingSteadfast}
+                className="px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-emerald-500 to-emerald-600 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:from-emerald-600 hover:to-emerald-700 transition-all flex items-center gap-1.5"
+              >
+                <FaSync className={syncingSteadfast ? 'animate-spin' : ''} />
+                {syncingSteadfast ? 'Syncing...' : 'Sync Steadfast'}
+              </button>
+            )}
 
             <select
               value={bulkAction}

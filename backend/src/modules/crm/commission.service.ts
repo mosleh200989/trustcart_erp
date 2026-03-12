@@ -1394,12 +1394,20 @@ export class CommissionService {
         CONCAT(COALESCE(u.name, ''), ' ', COALESCE(u.last_name, '')) as agent_name,
         (
           SELECT STRING_AGG(
-            REGEXP_REPLACE(COALESCE(p.name_bn, soi.product_name, ''), '\s*\([0-9]+(\.[0-9]+)?\)\s*$', '') || '|||' || CAST(soi.quantity AS TEXT),
+            REGEXP_REPLACE(COALESCE(sub.pname, ''), '\s*\([0-9]+(\.[0-9]+)?\)\s*$', '') || '|||' || CAST(sub.qty AS TEXT),
             ':::'
           )
-          FROM sales_order_items soi
-          LEFT JOIN products p ON p.id = soi.product_id
-          WHERE soi.sales_order_id = so.id
+          FROM (
+            SELECT COALESCE(p.name_bn, soi.product_name, '') as pname, soi.quantity as qty
+            FROM sales_order_items soi
+            LEFT JOIN products p ON p.id = soi.product_id
+            WHERE soi.sales_order_id = so.id
+            UNION ALL
+            SELECT COALESCE(p2.name_bn, oi.product_name, '') as pname, oi.quantity as qty
+            FROM order_items oi
+            LEFT JOIN products p2 ON p2.id = oi.product_id
+            WHERE oi.order_id = so.id
+          ) sub
         ) as products
       FROM sales_orders so
       LEFT JOIN customers c ON c.id = so.customer_id

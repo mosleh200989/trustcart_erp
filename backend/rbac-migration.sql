@@ -196,7 +196,8 @@ INSERT INTO permissions (name, slug, module, action, description) VALUES
 ('View Courier Returns', 'view-courier-returns', 'sales', 'read', 'View courier return orders'),
 ('Manage Courier Returns', 'manage-courier-returns', 'sales', 'update', 'Mark orders as courier returned'),
 ('View Incomplete Orders', 'view-incomplete-orders', 'sales', 'read', 'View incomplete/abandoned orders'),
-('Change Order Status', 'change-order-status', 'sales', 'update', 'Manually change order status from order details modal')
+('Change Order Status', 'change-order-status', 'sales', 'update', 'Manually change order status from order details modal'),
+('Sync Steadfast Status', 'sync-steadfast', 'sales', 'update', 'Trigger bulk sync of all Steadfast courier statuses')
 ON CONFLICT (slug) DO NOTHING;
 -- PURCHASE PERMISSIONS
 INSERT INTO permissions (name, slug, module, action, description) VALUES

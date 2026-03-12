@@ -482,7 +482,7 @@ export class OrderManagementController {
    * Useful for batch syncing or recovery.
    */
   @Post('steadfast/sync-all')
-  @RequirePermissions('edit-sales-orders')
+  @RequirePermissions('sync-steadfast')
   async syncAllSteadfastStatuses() {
     return await this.orderManagementService.syncAllSteadfastStatuses();
   }
