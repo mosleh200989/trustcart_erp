@@ -932,8 +932,8 @@ export default function Checkout() {
                       <h4 className="text-sm font-bold text-gray-800 mb-3">
                         Suggested Products
                       </h4>
-                      <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                        {suggestedProducts.slice(0, 3).map((product) => {
+                      <div className="grid grid-cols-2 gap-3">
+                        {suggestedProducts.slice(0, 2).map((product) => {
                           const basePrice = Number(product.price) || Number(product.mrp) || 0;
                           const salePrice = product.special_price
                             ? Number(product.special_price)

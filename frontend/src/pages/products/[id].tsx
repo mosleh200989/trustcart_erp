@@ -224,7 +224,11 @@ export default function ProductDetailsPage() {
     
     const existingItem = cart.find((item: any) => item.cartItemId === cartItemId || (item.id === product.id && !item.variant && !selectedVariant));
 
-    const itemPrice = selectedVariant ? selectedVariant.price : Number(product.base_price);
+    const bp = Number(product.base_price || product.price || 0);
+    const sp = product.sale_price ? Number(product.sale_price) : null;
+    const itemPrice = selectedVariant
+      ? selectedVariant.price
+      : (sp != null && sp > 0 && sp < bp ? sp : bp);
 
     if (existingItem && existingItem.cartItemId === cartItemId) {
       existingItem.quantity += quantity;
@@ -272,7 +276,11 @@ export default function ProductDetailsPage() {
     
     const existingItem = cart.find((item: any) => item.cartItemId === cartItemId || (item.id === product.id && !item.variant && !selectedVariant));
 
-    const itemPrice = selectedVariant ? selectedVariant.price : Number(product.base_price);
+    const bp = Number(product.base_price || product.price || 0);
+    const sp = product.sale_price ? Number(product.sale_price) : null;
+    const itemPrice = selectedVariant
+      ? selectedVariant.price
+      : (sp != null && sp > 0 && sp < bp ? sp : bp);
 
     if (existingItem && existingItem.cartItemId === cartItemId) {
       existingItem.quantity += quantity;
