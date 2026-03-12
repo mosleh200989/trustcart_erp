@@ -261,7 +261,26 @@ export default function AdminSalesIncompleteOrders() {
             <div className="font-semibold text-gray-900" title={name}>{wrapCustomerName(name)}</div>
             {phone && (
               <div className="flex items-center gap-1 text-xs text-gray-600 mt-0.5">
-                <FaPhone className="text-[10px]" /> {phone}
+                <FaPhone className="text-[10px]" />
+                <a
+                  href={`tel:${phone}`}
+                  className="text-blue-600 hover:text-blue-800 hover:underline"
+                  title="Call via microSIP"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {phone}
+                </a>
+                <button
+                  type="button"
+                  className="text-gray-400 hover:text-gray-600 p-0.5"
+                  title="Copy number"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigator.clipboard.writeText(phone);
+                  }}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path d="M8 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z" /><path d="M6 3a2 2 0 00-2 2v11a2 2 0 002 2h8a2 2 0 002-2V5a2 2 0 00-2-2 3 3 0 01-3 3H9a3 3 0 01-3-3z" /></svg>
+                </button>
               </div>
             )}
             {address && (

@@ -13,7 +13,7 @@ import InvoicePrintModal from '@/components/admin/InvoicePrintModal';
 import StickerPrintModal from '@/components/admin/StickerPrintModal';
 import ProductAutocomplete from '@/components/admin/ProductAutocomplete';
 import { useToast } from '@/contexts/ToastContext';
-import { FaPlus, FaPrint, FaBoxOpen, FaFileInvoice, FaTag, FaCheck, FaTimes, FaSync } from 'react-icons/fa';
+import { FaPlus, FaPrint, FaBoxOpen, FaFileInvoice, FaTag, FaCheck, FaTimes, FaSync, FaPhone } from 'react-icons/fa';
 import apiClient from '@/services/api';
 import { getOrderStatusLabel, getOrderStatusColor } from '@/utils/orderStatus';
 
@@ -802,21 +802,57 @@ export default function AdminSales() {
     {
       key: 'customerName',
       label: 'Customer',
-      render: (_: any, row: SalesOrder) => (
-        <div>
-          {wrapCustomerName(row.customerName ?? row.customer_name)}
-          {row.isRejectedCustomer && (
-            <span className="inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 bg-red-100 text-red-700 text-[10px] font-bold rounded">
-              ⚠ Rejected
-            </span>
-          )}
-        </div>
-      )
+      render: (_: any, row: SalesOrder) => {
+        const name = row.customerName ?? row.customer_name ?? '-';
+        const phone = row.customerPhone ?? row.customer_phone ?? '';
+        return (
+          <div>
+            <div>{wrapCustomerName(name)}</div>
+            {row.isRejectedCustomer && (
+              <span className="inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 bg-red-100 text-red-700 text-[10px] font-bold rounded">
+                ⚠ Rejected
+              </span>
+            )}
+            {phone && (
+              <div className="flex items-center gap-1 text-xs text-gray-600 mt-0.5">
+                <FaPhone className="text-[10px]" />
+                <a
+                  href={`tel:${phone}`}
+                  className="text-blue-600 hover:text-blue-800 hover:underline"
+                  title="Call via microSIP"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {phone}
+                </a>
+                <button
+                  type="button"
+                  className="text-gray-400 hover:text-gray-600 p-0.5"
+                  title="Copy number"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigator.clipboard.writeText(phone);
+                    toast.success('Phone number copied');
+                  }}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path d="M8 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z" /><path d="M6 3a2 2 0 00-2 2v11a2 2 0 002 2h8a2 2 0 002-2V5a2 2 0 00-2-2 3 3 0 01-3 3H9a3 3 0 01-3-3z" /></svg>
+                </button>
+              </div>
+            )}
+          </div>
+        );
+      }
     },
     {
-      key: 'customerPhone',
-      label: 'Customer Phone',
-      render: (_: any, row: SalesOrder) => row.customerPhone ?? row.customer_phone ?? '-'
+      key: 'customerTotalOrders',
+      label: 'Total Orders',
+      render: (_: any, row: SalesOrder) => {
+        const count = (row as any).customerTotalOrders ?? 0;
+        return (
+          <span className="inline-flex items-center justify-center min-w-[28px] px-1.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-100 text-indigo-700">
+            {count}
+          </span>
+        );
+      }
     },
     { 
       key: 'totalAmount', 
