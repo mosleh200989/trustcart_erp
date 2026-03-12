@@ -94,6 +94,15 @@ export class CommissionController {
   }
 
   /**
+   * Get payment breakdown for an agent (daily order/upsell/cross-sell counts with slab rates)
+   */
+  @Get('payment-breakdown')
+  @RequirePermissions('view-commission-reports')
+  async getPaymentBreakdown(@Query() query: { agentId: string; month: string }) {
+    return await this.commissionService.getPaymentBreakdown(query);
+  }
+
+  /**
    * Get commission sales data (orders with commission details)
    */
   @Get('sales')

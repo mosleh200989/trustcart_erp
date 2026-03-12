@@ -610,6 +610,143 @@ export class CommissionService {
     return await qb.getRawMany();
   }
 
+  // ==================== PAYMENT BREAKDOWN ====================
+
+  /**
+   * Get daily payment breakdown for an agent in a given month.
+   * Returns daily order count, upsell count, cross-sell count with matched slab rates.
+   */
+  async getPaymentBreakdown(query: { agentId: string; month: string }): Promise<any> {
+    const agentId = Number(query.agentId);
+    if (!agentId) throw new BadRequestException('Agent ID is required');
+
+    // Parse month (YYYY-MM)
+    const monthStr = query.month || '';
+    const match = monthStr.match(/^(\d{4})-(\d{2})$/);
+    if (!match) throw new BadRequestException('Month must be in YYYY-MM format');
+    const year = Number(match[1]);
+    const monthNum = Number(match[2]);
+    const startDate = `${year}-${String(monthNum).padStart(2, '0')}-01`;
+    const lastDay = new Date(year, monthNum, 0).getDate();
+    const endDate = `${year}-${String(monthNum).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+
+    // Get agent info + tier
+    const agentRows = await this.dataSource.query(
+      `SELECT u.id, CONCAT(COALESCE(u.name,''),' ',COALESCE(u.last_name,'')) as name, u.phone, u.agent_tier
+       FROM users u WHERE u.id = $1`, [agentId]
+    );
+    if (!agentRows.length) throw new NotFoundException('Agent not found');
+    const agent = agentRows[0];
+    const agentTier = agent.agent_tier || 'silver';
+
+    // Daily order counts (only orders from admin_panel/agent_dashboard created by this agent)
+    const dailyOrdersSql = `
+      SELECT
+        DATE(so.created_at AT TIME ZONE 'Asia/Dhaka') as order_date,
+        COUNT(so.id) as order_count,
+        COALESCE(SUM(product_qty.total_qty), 0) as total_product_qty
+      FROM sales_orders so
+      LEFT JOIN (
+        SELECT sub.order_id, SUM(sub.qty) as total_qty FROM (
+          SELECT soi.sales_order_id as order_id, COALESCE(SUM(soi.quantity), 0) as qty
+          FROM sales_order_items soi GROUP BY soi.sales_order_id
+          UNION ALL
+          SELECT oi.order_id as order_id, COALESCE(SUM(oi.quantity), 0) as qty
+          FROM order_items oi GROUP BY oi.order_id
+        ) sub GROUP BY sub.order_id
+      ) product_qty ON product_qty.order_id = so.id
+      WHERE so.created_by = $1
+        AND so.order_source IN ('admin_panel', 'agent_dashboard')
+        AND DATE(so.created_at AT TIME ZONE 'Asia/Dhaka') BETWEEN $2 AND $3
+      GROUP BY DATE(so.created_at AT TIME ZONE 'Asia/Dhaka')
+      ORDER BY order_date ASC
+    `;
+    const dailyRows = await this.dataSource.query(dailyOrdersSql, [agentId, startDate, endDate]);
+
+    // Get active slabs for this agent's tier
+    const slabs = await this.slabRepository.find({
+      where: { roleType: 'agent', agentTier, isActive: true },
+      order: { slabType: 'ASC', minOrderCount: 'ASC' },
+    });
+
+    // Calculate running totals to determine which slab applies
+    // First pass: accumulate totals for the whole month
+    let monthOrderCount = 0;
+    let monthUpsellCount = 0;
+
+    const dailyData = dailyRows.map((row: any) => {
+      const orderCount = parseInt(row.order_count || '0', 10);
+      const totalProductQty = parseInt(row.total_product_qty || '0', 10);
+      const upsellCount = Math.max(totalProductQty - orderCount, 0);
+
+      monthOrderCount += orderCount;
+      monthUpsellCount += upsellCount;
+
+      return {
+        date: row.order_date,
+        orderCount,
+        upsellCount,
+        totalProductQty,
+      };
+    });
+
+    // Find matching slabs based on total month counts
+    const findSlabRate = (slabType: string, count: number): number => {
+      const typeSlabs = slabs.filter(s => s.slabType === slabType);
+      const matched = typeSlabs.find(s =>
+        count >= s.minOrderCount && (s.maxOrderCount === null || count < s.maxOrderCount)
+      );
+      return matched ? Number(matched.commissionAmount) : 0;
+    };
+
+    const orderRate = findSlabRate('order', monthOrderCount);
+    const upsellRate = findSlabRate('upsell', monthUpsellCount);
+    const crossSellRate = findSlabRate('cross_sell', 0); // cross-sell to be tracked separately later
+
+    // Build breakdown rows with daily commission
+    const breakdown = dailyData.map((d: any) => ({
+      date: d.date,
+      orderCount: d.orderCount,
+      orderRate,
+      orderCommission: d.orderCount * orderRate,
+      upsellCount: d.upsellCount,
+      upsellRate,
+      upsellCommission: d.upsellCount * upsellRate,
+      crossSellCount: 0,
+      crossSellRate,
+      crossSellCommission: 0,
+      dailyTotal: (d.orderCount * orderRate) + (d.upsellCount * upsellRate),
+    }));
+
+    const totalOrderCommission = breakdown.reduce((sum: number, b: any) => sum + b.orderCommission, 0);
+    const totalUpsellCommission = breakdown.reduce((sum: number, b: any) => sum + b.upsellCommission, 0);
+    const totalCrossSellCommission = breakdown.reduce((sum: number, b: any) => sum + b.crossSellCommission, 0);
+    const grandTotal = totalOrderCommission + totalUpsellCommission + totalCrossSellCommission;
+
+    return {
+      agent: {
+        id: agent.id,
+        name: (agent.name || '').trim(),
+        phone: agent.phone,
+        tier: agentTier,
+      },
+      month: monthStr,
+      summary: {
+        totalOrders: monthOrderCount,
+        totalUpsells: monthUpsellCount,
+        totalCrossSells: 0,
+        orderRate,
+        upsellRate,
+        crossSellRate,
+        totalOrderCommission,
+        totalUpsellCommission,
+        totalCrossSellCommission,
+        grandTotal,
+      },
+      breakdown,
+    };
+  }
+
   // ==================== AGENT REPORT ====================
 
   /**
