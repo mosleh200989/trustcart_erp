@@ -371,12 +371,26 @@ export class SalesService {
       for (const r of rows) rejectedPhones.add(r.phone);
     }
 
+    // ──── Batch-fetch customer lifetime order counts by phone ────
+    const phoneTotalMap = new Map<string, number>();
+    if (phoneSet.size > 0) {
+      const countRows: { phone: string; cnt: string }[] = await this.salesRepository.query(
+        `SELECT REPLACE(customer_phone, '+88', '') AS phone, COUNT(*)::text AS cnt
+         FROM orders
+         WHERE REPLACE(customer_phone, '+88', '') = ANY($1)
+         GROUP BY REPLACE(customer_phone, '+88', '')`,
+        [Array.from(phoneSet)],
+      );
+      for (const r of countRows) phoneTotalMap.set(r.phone, parseInt(r.cnt, 10) || 0);
+    }
+
     return {
       data: orders.map((order) => {
         (order as any)._items = itemsByOrderId.get(order.id) || [];
         const dto = this.toAdminListDto(order);
         const norm = (order.customerPhone || '').replace(/^\+88/, '').trim();
         (dto as any).isRejectedCustomer = rejectedPhones.has(norm);
+        (dto as any).customerTotalOrders = phoneTotalMap.get(norm) || 0;
         return dto;
       }),
       total,
