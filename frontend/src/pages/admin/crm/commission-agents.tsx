@@ -38,6 +38,10 @@ export default function CommissionAgentsPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(50);
   const [searchText, setSearchText] = useState('');
+  const [monthFilter, setMonthFilter] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  });
 
   // Payment request modal
   const [paymentModal, setPaymentModal] = useState<AgentRow | null>(null);
@@ -51,6 +55,7 @@ export default function CommissionAgentsPage() {
       const ps = pageSize ?? itemsPerPage;
       const params: any = { page: p, limit: ps };
       if (searchText.trim()) params.search = searchText.trim();
+      if (monthFilter) params.month = monthFilter;
 
       const response = await apiClient.get('/crm/commissions/agents', { params });
       const data = response.data;
@@ -62,11 +67,11 @@ export default function CommissionAgentsPage() {
     } finally {
       setLoading(false);
     }
-  }, [currentPage, itemsPerPage, searchText]);
+  }, [currentPage, itemsPerPage, searchText, monthFilter]);
 
   useEffect(() => {
     loadAgents(currentPage, itemsPerPage);
-  }, [currentPage, itemsPerPage]);
+  }, [currentPage, itemsPerPage, monthFilter]);
 
   const handleSearch = () => {
     setCurrentPage(1);
@@ -210,15 +215,26 @@ export default function CommissionAgentsPage() {
           </p>
         </div>
 
-        {/* Table Controls */}
+        {/* Month Filter + Table Controls */}
         <div className="mb-3 flex items-center justify-between">
-          <PageSizeSelector
-            value={itemsPerPage}
-            onChange={(size) => {
-              setItemsPerPage(size);
-              setCurrentPage(1);
-            }}
-          />
+          <div className="flex items-center gap-4">
+            <PageSizeSelector
+              value={itemsPerPage}
+              onChange={(size) => {
+                setItemsPerPage(size);
+                setCurrentPage(1);
+              }}
+            />
+            <div className="flex items-center gap-2">
+              <label className="text-sm text-gray-600">Month:</label>
+              <input
+                type="month"
+                value={monthFilter}
+                onChange={(e) => { setMonthFilter(e.target.value); setCurrentPage(1); }}
+                className="border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          </div>
           <div className="flex items-center gap-2">
             <label className="text-sm text-gray-600">Search:</label>
             <input

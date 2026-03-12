@@ -1,9 +1,10 @@
 import { useEffect, useState, useCallback } from 'react';
+import { useRouter } from 'next/router';
 import AdminLayout from '@/layouts/AdminLayout';
 import DataTable from '@/components/admin/DataTable';
 import PageSizeSelector from '@/components/admin/PageSizeSelector';
 import { useToast } from '@/contexts/ToastContext';
-import { FaSearch, FaPlus, FaCheck, FaMoneyBillWave, FaTimes } from 'react-icons/fa';
+import { FaSearch, FaPlus, FaCheck, FaMoneyBillWave, FaTimes, FaEye } from 'react-icons/fa';
 import apiClient from '@/services/api';
 
 interface PaymentRequest {
@@ -58,6 +59,7 @@ const PAYMENT_METHODS = [
 
 export default function CommissionPaymentRequestsPage() {
   const toast = useToast();
+  const router = useRouter();
 
   const [requests, setRequests] = useState<PaymentRequest[]>([]);
   const [agents, setAgents] = useState<Agent[]>([]);
@@ -307,6 +309,13 @@ export default function CommissionPaymentRequestsPage() {
           {(row.status === 'paid' || row.status === 'rejected') && (
             <span className="text-xs text-gray-400 italic">No actions</span>
           )}
+          <button
+            onClick={() => router.push(`/admin/crm/commission-sales?agentId=${row.agentId}`)}
+            className="bg-gray-600 hover:bg-gray-700 text-white px-2 py-1 rounded text-xs font-medium flex items-center gap-1"
+            title="View Agent Sales"
+          >
+            <FaEye size={10} /> View
+          </button>
         </div>
       ),
     },

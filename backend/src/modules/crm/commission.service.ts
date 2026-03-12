@@ -758,10 +758,11 @@ export class CommissionService {
   // ==================== AGENT REPORT ====================
 
   /**
-   * Get agent-wise commission summary report
+   * Get agent-wise commission summary report (slab-based, matching Payment Breakdown)
    */
   async getAgentCommissionReport(query: {
     search?: string;
+    month?: string;
     page?: number;
     limit?: number;
   } = {}): Promise<{ data: any[]; total: number }> {
@@ -769,6 +770,25 @@ export class CommissionService {
     const pageNum = Number(page) || 1;
     const limitNum = Number(limit) || 50;
     const offset = (pageNum - 1) * limitNum;
+
+    // Parse month (default: current month)
+    let monthStart: string;
+    let monthEnd: string;
+    const monthMatch = (query.month || '').match(/^(\d{4})-(\d{2})$/);
+    if (monthMatch) {
+      const y = Number(monthMatch[1]);
+      const m = Number(monthMatch[2]);
+      monthStart = `${y}-${String(m).padStart(2, '0')}-01`;
+      const lastDay = new Date(y, m, 0).getDate();
+      monthEnd = `${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+    } else {
+      const now = new Date();
+      const y = now.getFullYear();
+      const m = now.getMonth() + 1;
+      monthStart = `${y}-${String(m).padStart(2, '0')}-01`;
+      const lastDay = new Date(y, m, 0).getDate();
+      monthEnd = `${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+    }
 
     const searchCondition = search && search.trim()
       ? `AND (u.name ILIKE $1 OR u.last_name ILIKE $1 OR u.phone ILIKE $1)`
@@ -786,20 +806,19 @@ export class CommissionService {
     const countResult = await this.dataSource.query(countSql, searchParam);
     const total = parseInt(countResult[0]?.total || '0', 10);
 
-    // Main data query
+    // Main data query — get order/upsell counts for the selected month
     const pIdx = searchParam.length + 1;
     const dataSql = `
       SELECT
         u.id as agent_id,
         CONCAT(COALESCE(u.name, ''), ' ', COALESCE(u.last_name, '')) as agent_name,
         u.phone,
+        COALESCE(u.agent_tier, 'silver') as agent_tier,
         COALESCE(order_stats.total_orders, 0) as total_orders,
         COALESCE(product_qty_stats.total_product_qty, 0) as total_product_qty,
         GREATEST(COALESCE(product_qty_stats.total_product_qty, 0) - COALESCE(order_stats.total_orders, 0), 0) as upsell_qty,
         COALESCE(order_stats.total_amount, 0) as total_amount,
-        COALESCE(commission_stats.total_commission, 0) as total_commission,
-        COALESCE(commission_stats.paid_commission, 0) as paid_commission,
-        COALESCE(commission_stats.total_commission, 0) - COALESCE(commission_stats.paid_commission, 0) as balance
+        COALESCE(paid_stats.paid_commission, 0) as paid_commission
       FROM users u
       INNER JOIN roles r ON r.id = u.role_id
       LEFT JOIN (
@@ -810,7 +829,7 @@ export class CommissionService {
         FROM sales_orders so
         WHERE so.created_by IS NOT NULL
           AND so.order_source IN ('admin_panel', 'agent_dashboard')
-          AND so.created_at >= '2026-03-01'
+          AND DATE(so.created_at AT TIME ZONE 'Asia/Dhaka') BETWEEN '${monthStart}' AND '${monthEnd}'
         GROUP BY so.created_by
       ) order_stats ON order_stats.agent_id = u.id
       LEFT JOIN (
@@ -820,7 +839,7 @@ export class CommissionService {
           INNER JOIN sales_orders so ON so.id = soi.sales_order_id
           WHERE so.created_by IS NOT NULL
             AND so.order_source IN ('admin_panel', 'agent_dashboard')
-            AND so.created_at >= '2026-03-01'
+            AND DATE(so.created_at AT TIME ZONE 'Asia/Dhaka') BETWEEN '${monthStart}' AND '${monthEnd}'
           GROUP BY so.created_by
           UNION ALL
           SELECT so.created_by as agent_id, COALESCE(SUM(oi.quantity), 0) as qty
@@ -828,19 +847,18 @@ export class CommissionService {
           INNER JOIN sales_orders so ON so.id = oi.order_id
           WHERE so.created_by IS NOT NULL
             AND so.order_source IN ('admin_panel', 'agent_dashboard')
-            AND so.created_at >= '2026-03-01'
+            AND DATE(so.created_at AT TIME ZONE 'Asia/Dhaka') BETWEEN '${monthStart}' AND '${monthEnd}'
           GROUP BY so.created_by
         ) combined GROUP BY agent_id
       ) product_qty_stats ON product_qty_stats.agent_id = u.id
       LEFT JOIN (
         SELECT
           ac.agent_id,
-          COALESCE(SUM(ac.commission_amount), 0) as total_commission,
           COALESCE(SUM(CASE WHEN ac.status = 'paid' THEN ac.commission_amount ELSE 0 END), 0) as paid_commission
         FROM agent_commissions ac
-        WHERE ac.created_at >= '2026-03-01'
+        WHERE ac.created_at >= '${this.COMMISSION_CUTOFF_DATE}'
         GROUP BY ac.agent_id
-      ) commission_stats ON commission_stats.agent_id = u.id
+      ) paid_stats ON paid_stats.agent_id = u.id
       WHERE (LOWER(r.name) LIKE '%sales executive%' OR r.slug = 'sales-executive')
       ${searchCondition}
       ORDER BY agent_name ASC
@@ -849,19 +867,47 @@ export class CommissionService {
     const dataParams = [...searchParam, limitNum, offset];
     const rows = await this.dataSource.query(dataSql, dataParams);
 
+    // Load all active slabs to calculate commission per agent using slab rates
+    const allSlabs = await this.slabRepository.find({
+      where: { roleType: 'agent', isActive: true },
+      order: { slabType: 'ASC', minOrderCount: 'ASC' },
+    });
+
+    const findSlabRate = (tier: string, slabType: string, count: number): number => {
+      const tierSlabs = allSlabs.filter(s => s.agentTier === tier && s.slabType === slabType);
+      const matched = tierSlabs.find(s =>
+        count >= s.minOrderCount && (s.maxOrderCount === null || count < s.maxOrderCount)
+      );
+      return matched ? Number(matched.commissionAmount) : 0;
+    };
+
     return {
-      data: rows.map((r: any) => ({
-        agentId: r.agent_id,
-        agentName: (r.agent_name || '').trim(),
-        phone: r.phone || '',
-        totalOrders: parseInt(r.total_orders || '0', 10),
-        totalProductQty: parseInt(r.total_product_qty || '0', 10),
-        upsellQty: parseInt(r.upsell_qty || '0', 10),
-        totalAmount: parseFloat(r.total_amount || '0'),
-        totalCommission: parseFloat(r.total_commission || '0'),
-        paidCommission: parseFloat(r.paid_commission || '0'),
-        balance: parseFloat(r.balance || '0'),
-      })),
+      data: rows.map((r: any) => {
+        const totalOrders = parseInt(r.total_orders || '0', 10);
+        const totalProductQty = parseInt(r.total_product_qty || '0', 10);
+        const upsellQty = parseInt(r.upsell_qty || '0', 10);
+        const tier = r.agent_tier || 'silver';
+        const paidCommission = parseFloat(r.paid_commission || '0');
+
+        // Slab-based commission calculation (matches Payment Breakdown)
+        const orderRate = findSlabRate(tier, 'order', totalOrders);
+        const upsellRate = findSlabRate(tier, 'upsell', upsellQty);
+        const crossSellRate = findSlabRate(tier, 'cross_sell', 0);
+        const totalCommission = (totalOrders * orderRate) + (upsellQty * upsellRate);
+
+        return {
+          agentId: r.agent_id,
+          agentName: (r.agent_name || '').trim(),
+          phone: r.phone || '',
+          totalOrders,
+          totalProductQty,
+          upsellQty,
+          totalAmount: parseFloat(r.total_amount || '0'),
+          totalCommission,
+          paidCommission,
+          balance: totalCommission - paidCommission,
+        };
+      }),
       total,
     };
   }
