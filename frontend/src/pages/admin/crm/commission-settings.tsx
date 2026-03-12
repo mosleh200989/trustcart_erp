@@ -16,6 +16,7 @@ const TIERS = [
   { value: 'silver', label: 'Silver', icon: '🥈', color: 'gray' },
   { value: 'gold', label: 'Gold', icon: '🥇', color: 'yellow' },
   { value: 'platinum', label: 'Platinum', icon: '💎', color: 'blue' },
+  { value: 'website_sale', label: 'Website Sale', icon: '🌐', color: 'green' },
 ];
 
 const SLAB_TYPES = [

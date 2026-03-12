@@ -16,6 +16,7 @@ const TIERS = [
   { value: 'silver', label: 'Silver', color: 'bg-gray-200 text-gray-800', icon: '🥈' },
   { value: 'gold', label: 'Gold', color: 'bg-yellow-100 text-yellow-800', icon: '🥇' },
   { value: 'platinum', label: 'Platinum', color: 'bg-blue-100 text-blue-800', icon: '💎' },
+  { value: 'website_sale', label: 'Website Sale', color: 'bg-green-100 text-green-800', icon: '🌐' },
 ];
 
 export default function AgentTiersPage() {
