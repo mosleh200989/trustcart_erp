@@ -60,6 +60,7 @@ export default function CartPage() {
     localStorage.removeItem("cart");
     setCart([]);
     setSubtotal(0);
+    window.dispatchEvent(new Event('cartUpdated'));
   }
 
   function removeItem(index: number) {
@@ -77,6 +78,7 @@ export default function CartPage() {
     const newCart = cart.filter((_, i) => i !== index);
     localStorage.setItem("cart", JSON.stringify(newCart));
     setCart(newCart);
+    window.dispatchEvent(new Event('cartUpdated'));
 
     const total = newCart.reduce(
       (sum: number, item: any) => sum + item.price * (item.quantity || 1),
@@ -92,6 +94,7 @@ export default function CartPage() {
     newCart[index] = { ...newCart[index], quantity: newQuantity };
     localStorage.setItem("cart", JSON.stringify(newCart));
     setCart(newCart);
+    window.dispatchEvent(new Event('cartUpdated'));
 
     const total = newCart.reduce(
       (sum: number, item: any) => sum + item.price * (item.quantity || 1),

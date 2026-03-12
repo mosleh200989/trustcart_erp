@@ -4,8 +4,8 @@ import { useToast } from '@/contexts/ToastContext';
 import apiClient from '@/services/api';
 
 interface Agent {
-  agent_id: number;
-  agent_name: string;
+  agentId: number;
+  agentName: string;
   phone: string;
 }
 
@@ -111,8 +111,8 @@ export default function CommissionPaymentBreakdownPage() {
               >
                 <option value="">Select Agent</option>
                 {agents.map((a) => (
-                  <option key={a.agent_id} value={a.agent_id}>
-                    {(a.agent_name || '').trim() || 'Unknown'} — {a.phone || 'No phone'}
+                  <option key={a.agentId} value={a.agentId}>
+                    {(a.agentName || '').trim() || 'Unknown'}
                   </option>
                 ))}
               </select>
