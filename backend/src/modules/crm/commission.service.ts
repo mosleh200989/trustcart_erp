@@ -51,6 +51,9 @@ export class CommissionService {
     private dataSource: DataSource,
   ) {}
 
+  // Commission calculations start from this date; all data before this is nullified
+  private readonly COMMISSION_CUTOFF_DATE = '2026-03-01';
+
   // ==================== COMMISSION SETTINGS (ADMIN) ====================
 
   /**
@@ -389,21 +392,23 @@ export class CommissionService {
     const agent = await this.userRepository.findOne({ where: { id: agentId } });
     const agentName = agent ? `${agent.name || ''} ${agent.lastName || ''}`.trim() : `Agent #${agentId}`;
 
-    // Total stats
+    // Total stats (from cutoff date onwards)
     const totalStats = await this.commissionRepository
       .createQueryBuilder('c')
       .select('SUM(c.order_amount)', 'totalSales')
       .addSelect('SUM(c.commission_amount)', 'totalCommission')
       .addSelect('COUNT(c.id)', 'totalOrders')
       .where('c.agent_id = :agentId', { agentId })
+      .andWhere('c.created_at >= :cutoff', { cutoff: this.COMMISSION_CUTOFF_DATE })
       .getRawOne();
 
-    // Status breakdown
+    // Status breakdown (from cutoff date onwards)
     const statusStats = await this.commissionRepository
       .createQueryBuilder('c')
       .select('c.status', 'status')
       .addSelect('SUM(c.commission_amount)', 'amount')
       .where('c.agent_id = :agentId', { agentId })
+      .andWhere('c.created_at >= :cutoff', { cutoff: this.COMMISSION_CUTOFF_DATE })
       .groupBy('c.status')
       .getRawMany();
 
@@ -594,6 +599,9 @@ export class CommissionService {
       `SUM(CASE WHEN c.status = 'paid' THEN c.commission_amount ELSE 0 END)`,
       'paidCommission',
     );
+
+    // Always enforce commission cutoff date
+    qb.andWhere('c.created_at >= :cutoff', { cutoff: this.COMMISSION_CUTOFF_DATE });
 
     if (params.startDate) {
       qb.andWhere('c.created_at >= :startDate', { startDate: params.startDate });
@@ -802,6 +810,7 @@ export class CommissionService {
         FROM sales_orders so
         WHERE so.created_by IS NOT NULL
           AND so.order_source IN ('admin_panel', 'agent_dashboard')
+          AND so.created_at >= '2026-03-01'
         GROUP BY so.created_by
       ) order_stats ON order_stats.agent_id = u.id
       LEFT JOIN (
@@ -811,6 +820,7 @@ export class CommissionService {
           INNER JOIN sales_orders so ON so.id = soi.sales_order_id
           WHERE so.created_by IS NOT NULL
             AND so.order_source IN ('admin_panel', 'agent_dashboard')
+            AND so.created_at >= '2026-03-01'
           GROUP BY so.created_by
           UNION ALL
           SELECT so.created_by as agent_id, COALESCE(SUM(oi.quantity), 0) as qty
@@ -818,6 +828,7 @@ export class CommissionService {
           INNER JOIN sales_orders so ON so.id = oi.order_id
           WHERE so.created_by IS NOT NULL
             AND so.order_source IN ('admin_panel', 'agent_dashboard')
+            AND so.created_at >= '2026-03-01'
           GROUP BY so.created_by
         ) combined GROUP BY agent_id
       ) product_qty_stats ON product_qty_stats.agent_id = u.id
@@ -827,6 +838,7 @@ export class CommissionService {
           COALESCE(SUM(ac.commission_amount), 0) as total_commission,
           COALESCE(SUM(CASE WHEN ac.status = 'paid' THEN ac.commission_amount ELSE 0 END), 0) as paid_commission
         FROM agent_commissions ac
+        WHERE ac.created_at >= '2026-03-01'
         GROUP BY ac.agent_id
       ) commission_stats ON commission_stats.agent_id = u.id
       WHERE (LOWER(r.name) LIKE '%sales executive%' OR r.slug = 'sales-executive')
@@ -1252,6 +1264,9 @@ export class CommissionService {
 
     // Always exclude website orders
     conditions.push(`(so.order_source IS NULL OR so.order_source != 'website')`);
+
+    // Commission cutoff: only show orders from March 2026 onwards
+    conditions.push(`so.created_at >= '2026-03-01'`);
 
     const whereClause = conditions.length > 0 ? 'AND ' + conditions.join(' AND ') : '';
 
