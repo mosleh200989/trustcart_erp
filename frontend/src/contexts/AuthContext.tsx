@@ -89,7 +89,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const res = await apiClient.get('/auth/me');
       const data = res.data as any;
 
-      const nextUser = data?.user ? ({ ...data.user, id: normalizeUserId(data.user) } as AuthUser) : null;
+      const nextUser = data?.user ? ({ ...data.user, id: normalizeUserId(data.user), name: data.user.name || data.user.username || null } as AuthUser) : null;
       setUser(nextUser);
       setRoles(Array.isArray(data?.roles) ? data.roles : []);
       setPermissions(Array.isArray(data?.permissions) ? data.permissions : []);
