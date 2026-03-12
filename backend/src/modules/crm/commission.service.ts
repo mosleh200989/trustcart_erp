@@ -665,6 +665,7 @@ export class CommissionService {
       ) product_qty ON product_qty.order_id = so.id
       WHERE so.created_by = $1
         AND so.order_source IN ('admin_panel', 'agent_dashboard')
+        AND so.status != 'cancelled'
         AND DATE(so.created_at AT TIME ZONE 'Asia/Dhaka') BETWEEN $2 AND $3
       GROUP BY DATE(so.created_at AT TIME ZONE 'Asia/Dhaka')
       ORDER BY order_date ASC
@@ -829,6 +830,7 @@ export class CommissionService {
         FROM sales_orders so
         WHERE so.created_by IS NOT NULL
           AND so.order_source IN ('admin_panel', 'agent_dashboard')
+          AND so.status != 'cancelled'
           AND DATE(so.created_at AT TIME ZONE 'Asia/Dhaka') BETWEEN '${monthStart}' AND '${monthEnd}'
         GROUP BY so.created_by
       ) order_stats ON order_stats.agent_id = u.id
@@ -839,6 +841,7 @@ export class CommissionService {
           INNER JOIN sales_orders so ON so.id = soi.sales_order_id
           WHERE so.created_by IS NOT NULL
             AND so.order_source IN ('admin_panel', 'agent_dashboard')
+            AND so.status != 'cancelled'
             AND DATE(so.created_at AT TIME ZONE 'Asia/Dhaka') BETWEEN '${monthStart}' AND '${monthEnd}'
           GROUP BY so.created_by
           UNION ALL
@@ -847,6 +850,7 @@ export class CommissionService {
           INNER JOIN sales_orders so ON so.id = oi.order_id
           WHERE so.created_by IS NOT NULL
             AND so.order_source IN ('admin_panel', 'agent_dashboard')
+            AND so.status != 'cancelled'
             AND DATE(so.created_at AT TIME ZONE 'Asia/Dhaka') BETWEEN '${monthStart}' AND '${monthEnd}'
           GROUP BY so.created_by
         ) combined GROUP BY agent_id
@@ -1310,6 +1314,9 @@ export class CommissionService {
 
     // Always exclude website orders
     conditions.push(`(so.order_source IS NULL OR so.order_source != 'website')`);
+
+    // Exclude cancelled orders from commission
+    conditions.push(`so.status != 'cancelled'`);
 
     // Commission cutoff: only show orders from March 2026 onwards
     conditions.push(`so.created_at >= '2026-03-01'`);
