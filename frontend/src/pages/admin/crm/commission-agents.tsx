@@ -15,6 +15,7 @@ interface AgentRow {
   totalProductQty: number;
   upsellQty: number;
   totalAmount: number;
+  extraPartial: number;
   totalCommission: number;
   paidCommission: number;
   balance: number;
@@ -47,6 +48,26 @@ export default function CommissionAgentsPage() {
   const [paymentModal, setPaymentModal] = useState<AgentRow | null>(null);
   const [paymentForm, setPaymentForm] = useState({ amount: '', paymentMethod: '', notes: '' });
   const [submitting, setSubmitting] = useState(false);
+
+  // Extra partial editing
+  const [extraPartialEdits, setExtraPartialEdits] = useState<Record<number, string>>({});
+  const [savingExtra, setSavingExtra] = useState<number | null>(null);
+
+  const handleSaveExtraPartial = async (agentId: number) => {
+    const val = parseFloat(extraPartialEdits[agentId] ?? '0');
+    if (isNaN(val) || val < 0) { toast.error('Invalid amount'); return; }
+    try {
+      setSavingExtra(agentId);
+      await apiClient.put('/crm/commissions/extra-partial', { agentId, month: monthFilter, amount: val });
+      toast.success('Extra (for partial) saved');
+      setExtraPartialEdits(prev => { const n = { ...prev }; delete n[agentId]; return n; });
+      loadAgents();
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || 'Failed to save');
+    } finally {
+      setSavingExtra(null);
+    }
+  };
 
   const loadAgents = useCallback(async (page?: number, pageSize?: number) => {
     try {
@@ -146,6 +167,38 @@ export default function CommissionAgentsPage() {
       render: (_: any, row: AgentRow) => (
         <span className="text-sm font-medium">৳{row.totalAmount.toLocaleString()}</span>
       ),
+    },
+    {
+      key: 'extraPartial',
+      label: 'Extra (for partial)',
+      sortable: false,
+      render: (_: any, row: AgentRow) => {
+        const editVal = extraPartialEdits[row.agentId];
+        const isEditing = editVal !== undefined;
+        const currentVal = isEditing ? editVal : String(row.extraPartial || 0);
+        return (
+          <div className="flex items-center gap-1">
+            <input
+              type="number"
+              min="0"
+              step="1"
+              value={currentVal}
+              onChange={(e) => setExtraPartialEdits(prev => ({ ...prev, [row.agentId]: e.target.value }))}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleSaveExtraPartial(row.agentId); }}
+              className="w-20 border border-gray-300 rounded px-2 py-1 text-sm text-center focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+            {isEditing && (
+              <button
+                onClick={() => handleSaveExtraPartial(row.agentId)}
+                disabled={savingExtra === row.agentId}
+                className="bg-green-500 hover:bg-green-600 text-white px-1.5 py-1 rounded text-xs disabled:opacity-50"
+              >
+                {savingExtra === row.agentId ? '...' : '✓'}
+              </button>
+            )}
+          </div>
+        );
+      },
     },
     {
       key: 'totalCommission',

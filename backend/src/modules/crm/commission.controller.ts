@@ -103,6 +103,15 @@ export class CommissionController {
   }
 
   /**
+   * Save extra partial amount for an agent+month
+   */
+  @Put('extra-partial')
+  @RequirePermissions('view-commission-reports')
+  async saveExtraPartial(@Body() body: { agentId: number; month: string; amount: number; notes?: string }, @Request() req: any) {
+    return await this.commissionService.saveExtraPartial(body.agentId, body.month, body.amount, req.user.id, body.notes);
+  }
+
+  /**
    * Get commission sales data (orders with commission details)
    */
   @Get('sales')
