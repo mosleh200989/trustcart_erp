@@ -70,6 +70,7 @@ export default function CommissionSalesPage() {
   const [agentFilter, setAgentFilter] = useState('');
   const [commissionStatusFilter, setCommissionStatusFilter] = useState('');
   const [paymentStatusFilter, setPaymentStatusFilter] = useState('');
+  const [monthFilter, setMonthFilter] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
 
@@ -137,8 +138,15 @@ export default function CommissionSalesPage() {
       if (agentFilter) params.agentId = agentFilter;
       if (commissionStatusFilter) params.commissionStatus = commissionStatusFilter;
       if (paymentStatusFilter) params.paymentStatus = paymentStatusFilter;
-      if (startDate) params.startDate = startDate;
-      if (endDate) params.endDate = endDate;
+      if (monthFilter) {
+        const [y, m] = monthFilter.split('-');
+        params.startDate = `${y}-${m}-01`;
+        const lastDay = new Date(Number(y), Number(m), 0).getDate();
+        params.endDate = `${y}-${m}-${String(lastDay).padStart(2, '0')}`;
+      } else {
+        if (startDate) params.startDate = startDate;
+        if (endDate) params.endDate = endDate;
+      }
       if (searchText.trim()) params.search = searchText.trim();
 
       const response = await apiClient.get('/crm/commissions/sales', { params });
@@ -155,7 +163,7 @@ export default function CommissionSalesPage() {
     } finally {
       setLoading(false);
     }
-  }, [currentPage, itemsPerPage, statusFilter, agentFilter, commissionStatusFilter, paymentStatusFilter, startDate, endDate, searchText]);
+  }, [currentPage, itemsPerPage, statusFilter, agentFilter, commissionStatusFilter, paymentStatusFilter, monthFilter, startDate, endDate, searchText]);
 
   useEffect(() => {
     loadSales(currentPage, itemsPerPage);
@@ -307,7 +315,7 @@ export default function CommissionSalesPage() {
 
         {/* Filters */}
         <div className="bg-white rounded-lg shadow mb-6 p-4">
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-3">
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 mb-3">
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Order Status</label>
               <select
@@ -365,11 +373,21 @@ export default function CommissionSalesPage() {
             </div>
 
             <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Month</label>
+              <input
+                type="month"
+                value={monthFilter}
+                onChange={(e) => { setMonthFilter(e.target.value); if (e.target.value) { setStartDate(''); setEndDate(''); } }}
+                className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+
+            <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Start Date</label>
               <input
                 type="date"
                 value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
+                onChange={(e) => { setStartDate(e.target.value); if (e.target.value) setMonthFilter(''); }}
                 className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
@@ -379,7 +397,7 @@ export default function CommissionSalesPage() {
               <input
                 type="date"
                 value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
+                onChange={(e) => { setEndDate(e.target.value); if (e.target.value) setMonthFilter(''); }}
                 className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>

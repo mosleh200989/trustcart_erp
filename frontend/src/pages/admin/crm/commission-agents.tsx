@@ -157,7 +157,7 @@ export default function CommissionAgentsPage() {
     },
     {
       key: 'paidCommission',
-      label: 'Paid',
+      label: 'Last Paid',
       sortable: true,
       render: (_: any, row: AgentRow) => (
         <span className="text-sm text-green-600 font-medium">৳{row.paidCommission.toLocaleString()}</span>
@@ -165,7 +165,7 @@ export default function CommissionAgentsPage() {
     },
     {
       key: 'balance',
-      label: 'Balance',
+      label: 'Unpaid Balance',
       sortable: true,
       render: (_: any, row: AgentRow) => (
         <span className={`text-sm font-semibold ${row.balance > 0 ? 'text-red-600' : 'text-gray-600'}`}>
