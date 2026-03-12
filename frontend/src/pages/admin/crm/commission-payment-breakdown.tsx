@@ -147,9 +147,10 @@ export default function CommissionPaymentBreakdownPage() {
                 <span className={`text-xs font-medium px-2 py-1 rounded-full ${
                   data.agent.tier === 'platinum' ? 'bg-purple-100 text-purple-800' :
                   data.agent.tier === 'gold' ? 'bg-yellow-100 text-yellow-800' :
+                  data.agent.tier === 'website_sale' ? 'bg-green-100 text-green-800' :
                   'bg-gray-100 text-gray-800'
                 }`}>
-                  {data.agent.tier.charAt(0).toUpperCase() + data.agent.tier.slice(1)}
+                  {data.agent.tier === 'website_sale' ? 'Website Sale' : data.agent.tier.charAt(0).toUpperCase() + data.agent.tier.slice(1)}
                 </span>
               </div>
 

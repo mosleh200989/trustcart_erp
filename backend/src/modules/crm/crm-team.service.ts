@@ -2308,7 +2308,7 @@ export class CrmTeamService {
    * Update agent tier and unassign all customers from that agent
    */
   async updateAgentTier(teamLeaderId: number, agentId: number, newTier: string): Promise<any> {
-    const validTiers = ['silver', 'gold', 'platinum'];
+    const validTiers = ['silver', 'gold', 'platinum', 'website_sale'];
     if (!validTiers.includes(newTier)) {
       throw new BadRequestException(`Invalid tier. Must be one of: ${validTiers.join(', ')}`);
     }

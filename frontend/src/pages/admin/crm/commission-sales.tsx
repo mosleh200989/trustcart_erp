@@ -69,7 +69,6 @@ export default function CommissionSalesPage() {
   const [statusFilter, setStatusFilter] = useState('');
   const [agentFilter, setAgentFilter] = useState('');
   const [commissionStatusFilter, setCommissionStatusFilter] = useState('');
-  const [paymentStatusFilter, setPaymentStatusFilter] = useState('');
   const [monthFilter, setMonthFilter] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -137,7 +136,6 @@ export default function CommissionSalesPage() {
       if (statusFilter) params.status = statusFilter;
       if (agentFilter) params.agentId = agentFilter;
       if (commissionStatusFilter) params.commissionStatus = commissionStatusFilter;
-      if (paymentStatusFilter) params.paymentStatus = paymentStatusFilter;
       if (monthFilter) {
         const [y, m] = monthFilter.split('-');
         params.startDate = `${y}-${m}-01`;
@@ -163,7 +161,7 @@ export default function CommissionSalesPage() {
     } finally {
       setLoading(false);
     }
-  }, [currentPage, itemsPerPage, statusFilter, agentFilter, commissionStatusFilter, paymentStatusFilter, monthFilter, startDate, endDate, searchText]);
+  }, [currentPage, itemsPerPage, statusFilter, agentFilter, commissionStatusFilter, monthFilter, startDate, endDate, searchText]);
 
   useEffect(() => {
     loadSales(currentPage, itemsPerPage);
@@ -214,9 +212,23 @@ export default function CommissionSalesPage() {
       key: 'courierOrderId',
       label: 'Courier ID',
       sortable: true,
-      render: (_: any, row: CommissionSale) => (
-        <span className="text-sm text-blue-600 font-medium">{row.courierOrderId || '-'}</span>
-      ),
+      render: (_: any, row: CommissionSale) => {
+        if (!row.courierOrderId) return <span className="text-sm">-</span>;
+        const company = (row.courierCompany || '').toLowerCase();
+        let url: string | null = null;
+        if (company.includes('steadfast') && row.courierOrderId) {
+          url = `https://steadfast.com.bd/user/consignment/${row.courierOrderId}`;
+        }
+        if (url) {
+          return (
+            <a href={url} target="_blank" rel="noopener noreferrer"
+              className="text-sm text-blue-600 font-medium hover:underline cursor-pointer">
+              {row.courierOrderId}
+            </a>
+          );
+        }
+        return <span className="text-sm text-blue-600 font-medium">{row.courierOrderId}</span>;
+      },
     },
     {
       key: 'orderStatus',
@@ -287,16 +299,6 @@ export default function CommissionSalesPage() {
         <span className="text-sm">{row.agentName || '-'}</span>
       ),
     },
-
-    {
-      key: 'paymentStatus',
-      label: 'Is Paid',
-      render: (_: any, row: CommissionSale) => (
-        <span className={`text-sm font-medium ${row.paymentStatus === 'paid' ? 'text-green-600' : 'text-red-500'}`}>
-          {row.paymentStatus === 'paid' ? 'Paid' : 'Unpaid'}
-        </span>
-      ),
-    },
   ];
 
   return (
@@ -356,19 +358,6 @@ export default function CommissionSalesPage() {
                 <option value="approved">Approved</option>
                 <option value="paid">Paid</option>
                 <option value="cancelled">Cancelled</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Payment Status</label>
-              <select
-                value={paymentStatusFilter}
-                onChange={(e) => setPaymentStatusFilter(e.target.value)}
-                className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">All</option>
-                <option value="paid">Paid</option>
-                <option value="unpaid">Unpaid</option>
               </select>
             </div>
 
