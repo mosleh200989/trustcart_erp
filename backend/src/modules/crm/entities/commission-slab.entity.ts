@@ -11,6 +11,9 @@ export class CommissionSlab {
   @Column({ name: 'agent_tier', type: 'varchar', length: 20, default: 'silver' })
   agentTier!: string; // 'silver' | 'gold' | 'platinum'
 
+  @Column({ name: 'slab_type', type: 'varchar', length: 20, default: 'order' })
+  slabType!: string; // 'order' | 'upsell' | 'cross_sell'
+
   @Column({ name: 'min_order_count', type: 'integer', default: 0 })
   minOrderCount!: number;
 

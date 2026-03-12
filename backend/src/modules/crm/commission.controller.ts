@@ -77,7 +77,7 @@ export class CommissionController {
   @RequirePermissions('manage-commission-settings')
   async saveSlabs(
     @Param('roleType') roleType: string,
-    @Body() body: { slabs: Array<{ agentTier: string; minOrderCount: number; maxOrderCount: number | null; commissionAmount: number }> },
+    @Body() body: { slabs: Array<{ agentTier: string; slabType: string; minOrderCount: number; maxOrderCount: number | null; commissionAmount: number }> },
     @Request() req: any,
   ) {
     const saved = await this.commissionService.saveSlabs(roleType, body.slabs, req.user.id);
@@ -91,6 +91,15 @@ export class CommissionController {
   @RequirePermissions('view-commission-reports')
   async getAgentCommissionReport(@Query() query: any) {
     return await this.commissionService.getAgentCommissionReport(query);
+  }
+
+  /**
+   * Get payment breakdown for an agent (daily order/upsell/cross-sell counts with slab rates)
+   */
+  @Get('payment-breakdown')
+  @RequirePermissions('view-commission-reports')
+  async getPaymentBreakdown(@Query() query: { agentId: string; month: string }) {
+    return await this.commissionService.getPaymentBreakdown(query);
   }
 
   /**

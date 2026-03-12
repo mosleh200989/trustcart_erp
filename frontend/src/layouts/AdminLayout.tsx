@@ -282,6 +282,7 @@ const menuItems: MenuItem[] = [
       { title: 'Agents', icon: FaUsers, path: '/admin/crm/commission-agents', requiredPermissions: ['view-commission-reports'] },
       { title: 'Payment Requests', icon: FaMoneyBillWave, path: '/admin/crm/commission-payment-requests', requiredPermissions: ['approve-commissions'] },
       { title: 'Payment History', icon: FaHistory, path: '/admin/crm/commission-payment-history', requiredPermissions: ['view-commission-reports'] },
+      { title: 'Payment Breakdown', icon: FaChartBar, path: '/admin/crm/commission-payment-breakdown', requiredPermissions: ['view-commission-reports'] },
       { title: 'Commission Settings', icon: FaCog, path: '/admin/crm/commission-settings', requiredPermissions: ['manage-commission-settings'] },
     ],
   },
