@@ -784,17 +784,25 @@ export default function AdminSales() {
       key: 'orderDate',
       label: 'Date',
       render: (_: any, row: SalesOrder) => {
-        // Use orderDate (actual order date) first, fall back to createdAt
-        const raw = row.order_date ?? row.orderDate ?? row.created_at ?? row.createdAt;
-        if (!raw) return '-';
-        const d = new Date(raw);
-        if (isNaN(d.getTime())) return '-';
-        const date = d.toLocaleDateString('en-GB', { timeZone: 'Asia/Dhaka', day: '2-digit', month: '2-digit', year: 'numeric' });
-        const time = d.toLocaleTimeString('en-US', { timeZone: 'Asia/Dhaka', hour: '2-digit', minute: '2-digit', hour12: true });
+        // Use order_date for the date, createdAt for the time (order_date is DATE-only, no time)
+        const dateRaw = row.order_date ?? row.orderDate ?? row.created_at ?? row.createdAt;
+        const timeRaw = row.created_at ?? row.createdAt;
+        if (!dateRaw) return '-';
+        const dd = new Date(dateRaw);
+        if (isNaN(dd.getTime())) return '-';
+        const date = dd.toLocaleDateString('en-GB', { timeZone: 'Asia/Dhaka', day: '2-digit', month: '2-digit', year: 'numeric' });
+        // Only show time from createdAt (which has actual timestamp)
+        let time = '';
+        if (timeRaw) {
+          const td = new Date(timeRaw);
+          if (!isNaN(td.getTime())) {
+            time = td.toLocaleTimeString('en-US', { timeZone: 'Asia/Dhaka', hour: '2-digit', minute: '2-digit', hour12: true });
+          }
+        }
         return (
           <div>
             <div>{date}</div>
-            <div className="text-xs text-gray-500">{time}</div>
+            {time && <div className="text-xs text-gray-500">{time}</div>}
           </div>
         );
       }
