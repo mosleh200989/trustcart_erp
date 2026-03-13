@@ -2,6 +2,19 @@
  * DTO representing the raw order data from the legacy API
  * API: https://kasrioil.com/dropbd/api/v1/sales/currier
  */
+export interface LegacyCustomerInfo {
+  id: string;
+  company_id: string;
+  line1: string; // Customer name
+  line2: string; // Full address
+  city: string;
+  postal_code: string;
+  state: string;
+  country: string;
+  phone: string;
+  updated_at: string;
+}
+
 export interface LegacyOrderDto {
   id: string;
   daily_serial: string;
@@ -32,6 +45,7 @@ export interface LegacyOrderDto {
   is_sent_trustcart: string;
   is_shipped: string;
   is_syncronized: string;
+  customerinfo?: LegacyCustomerInfo;
 }
 
 /**
@@ -83,6 +97,14 @@ export class MigrateLegacyOrdersDto {
   @IsOptional()
   @IsNumber()
   limit?: number;
+
+  /**
+   * If true, skip calling the sync API (for local testing)
+   * @default true
+   */
+  @IsOptional()
+  @IsBoolean()
+  skipSync?: boolean;
 }
 
 /**
@@ -110,6 +132,14 @@ export class MigrateBatchDto {
   @IsOptional()
   @IsBoolean()
   dryRun?: boolean;
+
+  /**
+   * If true, skip calling the sync API (for local testing)
+   * @default true
+   */
+  @IsOptional()
+  @IsBoolean()
+  skipSync?: boolean;
 }
 
 /**
@@ -122,8 +152,10 @@ export interface BatchMigrationResult {
   totalDays: number;
   totalOrdersFetched: number;
   totalOrdersCreated: number;
+  totalOrdersUpdated: number;
   totalOrdersSkipped: number;
   totalCustomersCreated: number;
+  totalCustomersUpdated: number;
   totalErrors: number;
   dailyResults: MigrationResult[];
   duration: number;
@@ -139,7 +171,9 @@ export interface MigrationResult {
   totalProcessed: number;
   customersCreated: number;
   customersFound: number;
+  customersUpdated: number;
   ordersCreated: number;
+  ordersUpdated: number;
   ordersSkipped: number;
   orderItemsCreated: number;
   errors: MigrationError[];

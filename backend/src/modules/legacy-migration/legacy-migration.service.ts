@@ -59,7 +59,7 @@ export class LegacyMigrationService {
   /**
    * Main migration method
    */
-  async migrateOrders(dto: MigrateLegacyOrdersDto): Promise<MigrationResult> {
+  async migrateOrders(dto: MigrateLegacyOrdersDto & { skipSync?: boolean }): Promise<MigrationResult> {
     const startTime = Date.now();
     const result: MigrationResult = {
       date: dto.date,
@@ -68,7 +68,9 @@ export class LegacyMigrationService {
       totalProcessed: 0,
       customersCreated: 0,
       customersFound: 0,
+      customersUpdated: 0,
       ordersCreated: 0,
+      ordersUpdated: 0,
       ordersSkipped: 0,
       orderItemsCreated: 0,
       errors: [],
@@ -91,7 +93,7 @@ export class LegacyMigrationService {
       // Step 2: Process each order
       for (const legacyOrder of legacyOrders) {
         try {
-          await this.processOrder(legacyOrder, result, dto.dryRun ?? false);
+          await this.processOrder(legacyOrder, result, dto.dryRun ?? false, dto.skipSync ?? true);
           result.totalProcessed++;
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -112,7 +114,7 @@ export class LegacyMigrationService {
 
     result.duration = Date.now() - startTime;
     this.logger.log(`Migration completed in ${result.duration}ms`);
-    this.logger.log(`Summary: Created ${result.ordersCreated} orders, Skipped ${result.ordersSkipped}, Errors: ${result.errors.length}`);
+    this.logger.log(`Summary: Created ${result.ordersCreated} orders, Updated ${result.ordersUpdated}, Skipped ${result.ordersSkipped}, Errors: ${result.errors.length}`);
 
     return result;
   }
@@ -129,8 +131,10 @@ export class LegacyMigrationService {
       totalDays: 0,
       totalOrdersFetched: 0,
       totalOrdersCreated: 0,
+      totalOrdersUpdated: 0,
       totalOrdersSkipped: 0,
       totalCustomersCreated: 0,
+      totalCustomersUpdated: 0,
       totalErrors: 0,
       dailyResults: [],
       duration: 0,
@@ -151,16 +155,19 @@ export class LegacyMigrationService {
           date,
           dryRun: dto.dryRun,
           limit: 10000, // High limit to get all orders for the day
+          skipSync: dto.skipSync ?? true,
         });
 
         result.dailyResults.push(dayResult);
         result.totalOrdersFetched += dayResult.totalFetched;
         result.totalOrdersCreated += dayResult.ordersCreated;
+        result.totalOrdersUpdated += dayResult.ordersUpdated;
         result.totalOrdersSkipped += dayResult.ordersSkipped;
         result.totalCustomersCreated += dayResult.customersCreated;
+        result.totalCustomersUpdated += dayResult.customersUpdated;
         result.totalErrors += dayResult.errors.length;
 
-        this.logger.log(`Date ${date}: Fetched=${dayResult.totalFetched}, Created=${dayResult.ordersCreated}, Skipped=${dayResult.ordersSkipped}, Errors=${dayResult.errors.length}`);
+        this.logger.log(`Date ${date}: Fetched=${dayResult.totalFetched}, Created=${dayResult.ordersCreated}, Updated=${dayResult.ordersUpdated}, Skipped=${dayResult.ordersSkipped}, Errors=${dayResult.errors.length}`);
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         this.logger.error(`Failed to process date ${date}: ${errorMessage}`);
@@ -175,6 +182,8 @@ export class LegacyMigrationService {
           customersFound: 0,
           ordersCreated: 0,
           ordersSkipped: 0,
+          ordersUpdated: 0,
+          customersUpdated: 0,
           orderItemsCreated: 0,
           errors: [{ legacyId: 'N/A', mobile: 'N/A', error: errorMessage }],
           duration: 0,
@@ -185,7 +194,7 @@ export class LegacyMigrationService {
 
     result.duration = Date.now() - startTime;
     this.logger.log(`Batch migration completed in ${result.duration}ms`);
-    this.logger.log(`Total: Fetched=${result.totalOrdersFetched}, Created=${result.totalOrdersCreated}, Skipped=${result.totalOrdersSkipped}, Errors=${result.totalErrors}`);
+    this.logger.log(`Total: Fetched=${result.totalOrdersFetched}, Created=${result.totalOrdersCreated}, Updated=${result.totalOrdersUpdated}, Skipped=${result.totalOrdersSkipped}, Errors=${result.totalErrors}`);
 
     return result;
   }
@@ -263,7 +272,7 @@ export class LegacyMigrationService {
       'api-key': this.API_KEY,
       created_by: this.CREATED_BY,
       date: date,
-      is_sent_trustcart: '0',  // Fetch only unsynced orders
+      is_sent_trustcart: '1',  // Fetch orders not yet fully synced
     });
     return `${this.API_BASE_URL}?${params.toString()}`;
   }
@@ -275,46 +284,45 @@ export class LegacyMigrationService {
     legacyOrder: LegacyOrderDto,
     result: MigrationResult,
     dryRun: boolean,
+    skipSync: boolean = true,
   ): Promise<void> {
-    // Step 1: Check for duplicate
-    const isDuplicate = await this.checkDuplicate(legacyOrder.id);
-    if (isDuplicate) {
-      this.logger.debug(`Skipping duplicate order: Legacy ID ${legacyOrder.id}`);
-      result.ordersSkipped++;
+    // Step 1: Check if order already exists
+    const existingOrder = await this.findExistingOrder(legacyOrder.id);
+    
+    if (existingOrder) {
+      // UPDATE path: order exists, update customer name/address
+      await this.updateExistingOrder(existingOrder, legacyOrder, result, dryRun);
+      
+      // Mark as synced only if not skipping sync
+      if (!dryRun && !skipSync) {
+        await this.markAsSyncedInLegacy(legacyOrder.curier_id, legacyOrder.date);
+      }
       return;
     }
 
-    // Step 2: Find or create customer
+    // CREATE path: new order
     const customer = await this.findOrCreateCustomer(legacyOrder, result, dryRun);
     if (!customer && !dryRun) {
       throw new Error('Failed to find or create customer');
     }
 
-    // Step 3: Determine product ID
     const productId = this.determineProductId(legacyOrder);
-
-    // Step 4: Map status
     const status = this.mapStatus(legacyOrder.delivery_status);
-
-    // Step 5: Generate order data
     const orderData = this.buildOrderData(legacyOrder, customer?.id ?? null, status);
     const orderItemData = this.buildOrderItemData(legacyOrder, productId);
 
     if (dryRun) {
       this.logger.debug(`[DRY RUN] Would create order:`, JSON.stringify(orderData, null, 2));
-      this.logger.debug(`[DRY RUN] Would create order item:`, JSON.stringify(orderItemData, null, 2));
       result.ordersCreated++;
       result.orderItemsCreated++;
       return;
     }
 
-    // Step 6: Insert order and order item in a transaction
+    // Insert order and order item in a transaction
     await this.dataSource.transaction(async (manager) => {
-      // Insert sales order
       const salesOrder = manager.create(SalesOrder, orderData);
       const savedOrder = await manager.save(SalesOrder, salesOrder);
 
-      // Insert order item with the new order ID
       const orderItem = manager.create(SalesOrderItem, {
         ...orderItemData,
         salesOrderId: savedOrder.id,
@@ -327,8 +335,73 @@ export class LegacyMigrationService {
       this.logger.debug(`Created order ${savedOrder.id} (Legacy ID: ${legacyOrder.id})`);
     });
 
-    // Step 7: Mark as synced in legacy database (only after successful insert)
-    await this.markAsSyncedInLegacy(legacyOrder.curier_id, legacyOrder.date);
+    // Mark as synced only if not skipping sync
+    if (!skipSync) {
+      await this.markAsSyncedInLegacy(legacyOrder.curier_id, legacyOrder.date);
+    }
+  }
+
+  /**
+   * Find existing order by legacy ID in internal_notes
+   */
+  private async findExistingOrder(legacyId: string): Promise<SalesOrder | null> {
+    return await this.salesOrderRepository
+      .createQueryBuilder('order')
+      .where('order.internal_notes LIKE :pattern', { pattern: `%Legacy API ID: ${legacyId}%` })
+      .getOne();
+  }
+
+  /**
+   * Update existing order and customer with name/address from customerinfo
+   */
+  private async updateExistingOrder(
+    existingOrder: SalesOrder,
+    legacyOrder: LegacyOrderDto,
+    result: MigrationResult,
+    dryRun: boolean,
+  ): Promise<void> {
+    const customerName = legacyOrder.customerinfo?.line1?.trim() || null;
+    const customerAddress = legacyOrder.customerinfo?.line2?.trim() || null;
+
+    if (!customerName && !customerAddress) {
+      this.logger.debug(`No customerinfo for Legacy ID ${legacyOrder.id}, skipping update`);
+      result.ordersSkipped++;
+      return;
+    }
+
+    if (dryRun) {
+      this.logger.debug(`[DRY RUN] Would update order ${existingOrder.id} with name=${customerName}, address=${customerAddress}`);
+      result.ordersUpdated++;
+      return;
+    }
+
+    // Update the sales order
+    const orderUpdates: Partial<SalesOrder> = {};
+    if (customerName) orderUpdates.customerName = customerName;
+    if (customerAddress) orderUpdates.shippingAddress = customerAddress;
+
+    await this.salesOrderRepository.update(existingOrder.id, orderUpdates);
+    result.ordersUpdated++;
+    this.logger.debug(`Updated order ${existingOrder.id} (Legacy ID: ${legacyOrder.id}) with name/address`);
+
+    // Update the customer if linked
+    if (existingOrder.customerId) {
+      const customer = await this.customerRepository.findOne({ where: { id: existingOrder.customerId } });
+      if (customer) {
+        const customerUpdates: Partial<Customer> = {};
+        if (customerName && (!customer.name || customer.name.startsWith('Customer 0'))) {
+          customerUpdates.name = customerName;
+        }
+        if (customerAddress && !customer.address) {
+          customerUpdates.address = customerAddress;
+        }
+        if (Object.keys(customerUpdates).length > 0) {
+          await this.customerRepository.update(customer.id, customerUpdates);
+          result.customersUpdated++;
+          this.logger.debug(`Updated customer ${customer.id} with name/address`);
+        }
+      }
+    }
   }
 
   /**
@@ -375,17 +448,6 @@ export class LegacyMigrationService {
   }
 
   /**
-   * Check if order already exists (by legacy ID in internal_notes)
-   */
-  private async checkDuplicate(legacyId: string): Promise<boolean> {
-    const existing = await this.salesOrderRepository
-      .createQueryBuilder('order')
-      .where('order.internal_notes LIKE :pattern', { pattern: `%Legacy API ID: ${legacyId}%` })
-      .getOne();
-    return !!existing;
-  }
-
-  /**
    * Find existing customer or create new one
    */
   private async findOrCreateCustomer(
@@ -414,12 +476,15 @@ export class LegacyMigrationService {
     }
 
     // Create new customer
+    const customerName = legacyOrder.customerinfo?.line1?.trim() || `Customer ${mobile}`;
+    const customerAddress = legacyOrder.customerinfo?.line2?.trim() || undefined;
     const newCustomer = this.customerRepository.create({
       phone: mobile,
       mobile: mobile,
-      name: `Customer ${mobile}`,
+      name: customerName,
+      address: customerAddress,
       customerType: 'new',
-      lifecycleStage: 'first_buyer', // Valid values: lead, prospect, first_buyer, repeat_buyer, loyal, inactive
+      lifecycleStage: 'first_buyer',
       source: 'legacy_migration',
       isGuest: false,
       isActive: true,
@@ -524,7 +589,9 @@ export class LegacyMigrationService {
     return {
       salesOrderNumber: `LEG-${dateStr}-${uniqueId}`,
       customerId: customerId,
+      customerName: legacyOrder.customerinfo?.line1?.trim() || undefined,
       customerPhone: this.normalizePhone(legacyOrder.mobile_no),
+      shippingAddress: legacyOrder.customerinfo?.line2?.trim() || undefined,
       orderDate: orderDate,
       status: status,
       totalAmount: totalAmount,
