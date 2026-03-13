@@ -784,8 +784,8 @@ export default function AdminSales() {
       key: 'orderDate',
       label: 'Date',
       render: (_: any, row: SalesOrder) => {
-        // Use createdAt as the single source of truth (orderDate may only store the date portion without time)
-        const raw = row.createdAt ?? row.created_at ?? row.orderDate ?? row.order_date;
+        // Use orderDate (actual order date) first, fall back to createdAt
+        const raw = row.order_date ?? row.orderDate ?? row.created_at ?? row.createdAt;
         if (!raw) return '-';
         const d = new Date(raw);
         if (isNaN(d.getTime())) return '-';
