@@ -332,7 +332,8 @@ export class SalesService {
       }
     }
 
-    qb.orderBy('o.created_at', 'DESC');
+    qb.orderBy('o.order_date', 'DESC')
+      .addOrderBy('o.created_at', 'DESC');
 
     // Get total count before applying pagination
     const total = await qb.getCount();
