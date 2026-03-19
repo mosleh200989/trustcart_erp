@@ -9,6 +9,7 @@ import ElectroProductCard from "@/components/ElectroProductCard";
 import {
   FaArrowLeft,
   FaCreditCard,
+  FaLock,
   FaMinus,
   FaPlus,
   FaShoppingBag,
@@ -19,6 +20,7 @@ import apiClient, { auth, customers } from "@/services/api";
 import { TrackingService } from "@/utils/tracking";
 import PhoneInput, { validateBDPhone } from "@/components/PhoneInput";
 import { trackBeginCheckout, trackAddPaymentInfo, trackPurchaseWithUser, extractLocationFromAddress } from "@/utils/gtm";
+import { initiatePayment, redirectToPaymentGateway } from "@/services/payment";
 
 export default function Checkout() {
   const router = useRouter();
@@ -393,8 +395,7 @@ export default function Checkout() {
         delivery_charge: deliveryCharge,
         total_amount: total,
         status: "processing",
-        payment_status:
-          formData.paymentMethod === "cash" ? "pending" : "pending",
+        payment_status: "pending",
         // User tracking info
         user_ip: trackingInfo.userIp,
         geo_location: trackingInfo.geoLocation,
@@ -450,9 +451,45 @@ export default function Checkout() {
           total,
           formData.paymentMethod
         );
-        
-        localStorage.removeItem("cart");
-        router.push(`/thank-you?orderId=${response.data.id}`);
+
+        // For online payment methods (bKash, Card), initiate SSLCommerz payment
+        if (formData.paymentMethod === "bkash" || formData.paymentMethod === "card") {
+          try {
+            const paymentResult = await initiatePayment({
+              orderId: response.data.id,
+              customerName: formData.fullName,
+              customerEmail: formData.email || undefined,
+              customerPhone: formData.phone,
+              shippingAddress: formData.address,
+            });
+
+            if (paymentResult.success && paymentResult.gatewayUrl) {
+              // Clear cart before redirecting to payment gateway
+              localStorage.removeItem("cart");
+              window.dispatchEvent(new Event("cartUpdated"));
+              // Redirect to SSLCommerz payment gateway
+              redirectToPaymentGateway(paymentResult.gatewayUrl);
+              return; // Don't proceed further — browser will navigate away
+            } else {
+              // Payment initiation failed, redirect to thank-you with pending status
+              toast.warning("Payment gateway could not be initialized. Your order has been placed — you can pay later.");
+              localStorage.removeItem("cart");
+              window.dispatchEvent(new Event("cartUpdated"));
+              router.push(`/thank-you?orderId=${response.data.id}`);
+            }
+          } catch (paymentError: any) {
+            console.error("Payment initiation error:", paymentError);
+            toast.warning("Payment gateway is temporarily unavailable. Your order has been saved — please try paying again from your order page or contact support.");
+            localStorage.removeItem("cart");
+            window.dispatchEvent(new Event("cartUpdated"));
+            router.push(`/thank-you?orderId=${response.data.id}`);
+          }
+        } else {
+          // Cash on Delivery — go to thank-you page
+          localStorage.removeItem("cart");
+          window.dispatchEvent(new Event("cartUpdated"));
+          router.push(`/thank-you?orderId=${response.data.id}`);
+        }
       }
     } catch (error: any) {
       console.error("Order submission error:", error);
@@ -817,7 +854,11 @@ export default function Checkout() {
                   </h3>
 
                   <div className="space-y-3">
-                    <label className="flex items-center gap-3 p-4 border border-gray-300 rounded-lg cursor-pointer hover:border-orange-500">
+                    <label className={`flex items-center gap-3 p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                      formData.paymentMethod === "cash"
+                        ? "border-orange-500 bg-orange-50"
+                        : "border-gray-300 hover:border-orange-300"
+                    }`}>
                       <input
                         type="radio"
                         name="paymentMethod"
@@ -826,10 +867,17 @@ export default function Checkout() {
                         onChange={handleChange}
                         className="text-orange-500"
                       />
-                      <span className="font-semibold">Cash on Delivery</span>
+                      <div>
+                        <span className="font-semibold">Cash on Delivery</span>
+                        <span className="block text-sm text-gray-500">Pay when you receive the product</span>
+                      </div>
                     </label>
 
-                    <label className="flex items-center gap-3 p-4 border border-gray-300 rounded-lg cursor-pointer hover:border-orange-500">
+                    <label className={`flex items-center gap-3 p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                      formData.paymentMethod === "bkash"
+                        ? "border-orange-500 bg-orange-50"
+                        : "border-gray-300 hover:border-orange-300"
+                    }`}>
                       <input
                         type="radio"
                         name="paymentMethod"
@@ -838,10 +886,17 @@ export default function Checkout() {
                         onChange={handleChange}
                         className="text-orange-500"
                       />
-                      <span className="font-semibold">bKash</span>
+                      <div>
+                        <span className="font-semibold">bKash / Mobile Banking</span>
+                        <span className="block text-sm text-gray-500">Pay securely via bKash, Nagad, Rocket & more</span>
+                      </div>
                     </label>
 
-                    <label className="flex items-center gap-3 p-4 border border-gray-300 rounded-lg cursor-pointer hover:border-orange-500">
+                    <label className={`flex items-center gap-3 p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                      formData.paymentMethod === "card"
+                        ? "border-orange-500 bg-orange-50"
+                        : "border-gray-300 hover:border-orange-300"
+                    }`}>
                       <input
                         type="radio"
                         name="paymentMethod"
@@ -850,9 +905,21 @@ export default function Checkout() {
                         onChange={handleChange}
                         className="text-orange-500"
                       />
-                      <span className="font-semibold">Credit/Debit Card</span>
+                      <div>
+                        <span className="font-semibold">Credit/Debit Card</span>
+                        <span className="block text-sm text-gray-500">Visa, Mastercard, AMEX & more</span>
+                      </div>
                     </label>
                   </div>
+
+                  {(formData.paymentMethod === "bkash" || formData.paymentMethod === "card") && (
+                    <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center gap-2 text-sm text-blue-800">
+                      <FaLock className="text-blue-600 flex-shrink-0" />
+                      <span>
+                        You will be redirected to <strong>SSLCommerz</strong> secure payment gateway to complete your payment.
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -924,7 +991,9 @@ export default function Checkout() {
                     disabled={loading || cart.length === 0}
                     className="w-full bg-orange-500 hover:bg-orange-600 text-white py-3 rounded-lg font-bold transition disabled:bg-gray-400 disabled:cursor-not-allowed"
                   >
-                    {loading ? "Placing Order..." : "Place Order"}
+                    {loading
+                      ? (formData.paymentMethod === "cash" ? "Placing Order..." : "Redirecting to Payment...")
+                      : (formData.paymentMethod === "cash" ? "Place Order" : "Place Order & Pay Now")}
                   </button>
 
                   {suggestedProducts.length > 0 && (

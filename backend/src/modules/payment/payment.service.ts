@@ -5,8 +5,7 @@ import { Repository } from 'typeorm';
 import { PaymentTransaction } from './payment-transaction.entity';
 import { SalesOrder } from '../sales/sales-order.entity';
 import { InitiatePaymentDto } from './dto/initiate-payment.dto';
-import * as https from 'https';
-import * as http from 'http';
+import axios from 'axios';
 import * as querystring from 'querystring';
 
 @Injectable()
@@ -115,9 +114,11 @@ export class PaymentService {
       // Value-add params
       value_a: String(order.id), // pass order ID for IPN reference
       value_b: order.salesOrderNumber,
+      // Return JSON response with GatewayPageURL (not the HTML payment page)
+      format: 'json',
     };
 
-    const response = await this.sslcommerzRequest('/gwprocess/v4', postData);
+    const response = await this.sslcommerzRequest('/gwprocess/v4/api.php', postData);
 
     if (response.status !== 'SUCCESS') {
       // Update transaction with error
@@ -440,50 +441,49 @@ export class PaymentService {
   }
 
   /**
-   * Make an HTTPS request to SSLCommerz API.
-   * Uses native Node.js http/https for zero external dependencies.
+   * Make a POST request to SSLCommerz API.
+   * Uses axios which handles redirects, encoding, and content negotiation properly.
    */
-  private sslcommerzRequest(path: string, postData: Record<string, string>): Promise<any> {
-    return new Promise((resolve, reject) => {
-      const encodedData = querystring.stringify(postData);
-      const url = new URL(path, this.baseUrl);
-      const isHttps = url.protocol === 'https:';
-      const transport = isHttps ? https : http;
+  private async sslcommerzRequest(path: string, postData: Record<string, string>): Promise<any> {
+    const url = new URL(path, this.baseUrl).toString();
 
-      const options = {
-        hostname: url.hostname,
-        port: url.port || (isHttps ? 443 : 80),
-        path: url.pathname + url.search,
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'Content-Length': Buffer.byteLength(encodedData),
-        },
-      };
+    // Use URLSearchParams — axios recognises it natively & sets the correct
+    // Content-Type header without double-encoding
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(postData)) {
+      params.append(key, value);
+    }
 
-      const req = transport.request(options, (res) => {
-        let body = '';
-        res.on('data', (chunk: Buffer | string) => {
-          body += chunk;
-        });
-        res.on('end', () => {
-          try {
-            const parsed = JSON.parse(body);
-            resolve(parsed);
-          } catch {
-            this.logger.error(`SSLCommerz response parse error: ${body.substring(0, 500)}`);
-            reject(new Error('Invalid response from SSLCommerz'));
-          }
-        });
+    this.logger.log(`SSLCommerz POST ${url}  store_id=${postData.store_id}  tran_id=${postData.tran_id || ''}  format=${postData.format || 'NOT SET'}`);
+
+    try {
+      const response = await axios.post(url, params, {
+        maxRedirects: 5,
+        timeout: 30000,
+        // Force axios to give us the raw string so we can inspect it
+        responseType: 'text',
+        transformResponse: [(data) => data],
       });
 
-      req.on('error', (err: Error) => {
+      this.logger.log(`SSLCommerz response status: ${response.status}, content-type: ${response.headers['content-type']}, length: ${String(response.data).length}`);
+
+      const raw = String(response.data);
+
+      // Try parsing as JSON
+      try {
+        return JSON.parse(raw);
+      } catch {
+        // Not JSON – log first 800 chars for debugging
+        this.logger.error(`SSLCommerz returned non-JSON (status ${response.status}): ${raw.substring(0, 800)}`);
+        throw new Error('SSLCommerz returned HTML instead of JSON. Verify store_id, store_passwd, and that the account is active.');
+      }
+    } catch (err: any) {
+      if (err.response) {
+        this.logger.error(`SSLCommerz HTTP ${err.response.status}: ${String(err.response.data).substring(0, 800)}`);
+      } else if (!err.message?.includes('SSLCommerz returned')) {
         this.logger.error(`SSLCommerz request error: ${err.message}`);
-        reject(err);
-      });
-
-      req.write(encodedData);
-      req.end();
-    });
+      }
+      throw err;
+    }
   }
 }
