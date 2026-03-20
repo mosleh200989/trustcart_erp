@@ -13,6 +13,12 @@ export default function PaymentSuccess() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Clear cart on successful payment — order is confirmed
+    localStorage.removeItem("cart");
+    window.dispatchEvent(new Event("cartUpdated"));
+  }, []);
+
+  useEffect(() => {
     if (!orderId) return;
 
     const fetchStatus = async () => {

@@ -464,10 +464,7 @@ export default function Checkout() {
             });
 
             if (paymentResult.success && paymentResult.gatewayUrl) {
-              // Clear cart before redirecting to payment gateway
-              localStorage.removeItem("cart");
-              window.dispatchEvent(new Event("cartUpdated"));
-              // Redirect to SSLCommerz payment gateway
+              // Cart will be cleared on payment success page — keep it until order is confirmed
               redirectToPaymentGateway(paymentResult.gatewayUrl);
               return; // Don't proceed further — browser will navigate away
             } else {

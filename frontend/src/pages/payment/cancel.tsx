@@ -3,19 +3,11 @@ import { useRouter } from "next/router";
 import Link from "next/link";
 import ElectroNavbar from "@/components/ElectroNavbar";
 import ElectroFooter from "@/components/ElectroFooter";
-import { FaExclamationTriangle, FaRedo, FaShoppingCart } from "react-icons/fa";
+import { FaExclamationTriangle, FaCreditCard, FaShoppingCart } from "react-icons/fa";
 
 export default function PaymentCancel() {
   const router = useRouter();
   const { orderId, transactionId } = router.query;
-
-  const handleRetryPayment = () => {
-    if (orderId) {
-      router.push(`/checkout?retryOrderId=${orderId}`);
-    } else {
-      router.push("/checkout");
-    }
-  };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -59,13 +51,13 @@ export default function PaymentCancel() {
 
           {/* Actions */}
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
-            <button
-              onClick={handleRetryPayment}
+            <Link
+              href="/checkout"
               className="inline-flex items-center justify-center gap-2 bg-orange-500 hover:bg-orange-600 text-white px-6 py-3 rounded-lg font-semibold transition"
             >
-              <FaRedo />
-              Retry Payment
-            </button>
+              <FaCreditCard />
+              Go to Checkout
+            </Link>
             <Link
               href="/products"
               className="inline-flex items-center justify-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-800 px-6 py-3 rounded-lg font-semibold transition"

@@ -625,6 +625,35 @@ export class SalesService {
     }));
   }
 
+  /**
+   * Find an order by tracking ID, order number, or consignment ID.
+   * Tries each lookup strategy in order.
+   */
+  async findByTrackingId(identifier: string): Promise<SalesOrder | null> {
+    if (!identifier) return null;
+
+    // 1. Try by tracking_id column
+    const byTracking = await this.salesRepository.findOne({ where: { trackingId: identifier } });
+    if (byTracking) return byTracking;
+
+    // 2. Try by sales_order_number (customers often know their order number)
+    const byOrderNumber = await this.salesRepository.findOne({ where: { salesOrderNumber: identifier } });
+    if (byOrderNumber) return byOrderNumber;
+
+    // 3. Try by courier_order_id (Steadfast consignment_id)
+    const byConsignment = await this.salesRepository.findOne({ where: { courierOrderId: identifier } });
+    if (byConsignment) return byConsignment;
+
+    // 4. Try numeric ID as last resort
+    const numId = Number(identifier);
+    if (Number.isFinite(numId) && numId > 0) {
+      const byId = await this.salesRepository.findOne({ where: { id: numId } });
+      if (byId) return byId;
+    }
+
+    return null;
+  }
+
   async findOne(id: string) {
     const order = await this.salesRepository.findOne({ where: { id: Number(id) } });
     if (!order) return null;

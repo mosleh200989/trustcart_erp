@@ -1,5 +1,6 @@
 import { BadRequestException, Controller, ForbiddenException, Get, NotFoundException, Post, Body, Param, Put, Delete, Request, Req, UseGuards, Query } from '@nestjs/common';
 import { SalesService } from './sales.service';
+import { OrderManagementService } from './order-management.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CustomersService } from '../customers/customers.service';
 import { CancelSalesOrderDto } from './dto/cancel-sales-order.dto';
@@ -14,9 +15,50 @@ import * as jwt from 'jsonwebtoken';
 export class SalesController {
   constructor(
     private readonly salesService: SalesService,
+    private readonly orderManagementService: OrderManagementService,
     private readonly customersService: CustomersService,
     private readonly specialOffersService: SpecialOffersService,
   ) {}
+
+  // Public endpoint: track order by tracking ID, order number, or consignment ID
+  @Get('public/track/:trackingId')
+  @Public()
+  async trackByTrackingId(@Param('trackingId') trackingId: string) {
+    const order = await this.salesService.findByTrackingId(trackingId);
+    if (!order) {
+      throw new NotFoundException('No order found for this tracking ID or order number');
+    }
+
+    // Fetch local tracking history; also get live Steadfast status if it's a Steadfast order with a tracking code
+    const isSteadfast = order.courierCompany && String(order.courierCompany).toLowerCase() === 'steadfast';
+    const [trackingHistory, liveStatus] = await Promise.all([
+      this.orderManagementService.getCourierTrackingHistory(order.id),
+      isSteadfast && order.trackingId
+        ? this.orderManagementService.getLiveSteadfastStatus(order.trackingId)
+        : Promise.resolve(null),
+    ]);
+
+    return {
+      id: order.id,
+      salesOrderNumber: order.salesOrderNumber,
+      status: liveStatus || order.status,
+      courierCompany: order.courierCompany,
+      courierStatus: liveStatus || order.courierStatus,
+      trackingId: order.trackingId,
+      totalAmount: order.totalAmount,
+      createdAt: order.createdAt,
+      shippedAt: order.shippedAt,
+      deliveredAt: order.deliveredAt,
+      shippingAddress: order.shippingAddress,
+      trackingHistory: trackingHistory.map(h => ({
+        status: h.status,
+        location: h.location,
+        remarks: h.remarks,
+        trackingMessage: h.trackingMessage,
+        updatedAt: h.updatedAt,
+      })),
+    };
+  }
 
   // Public endpoint for thank-you page to get order details
   @Get('public/:id')

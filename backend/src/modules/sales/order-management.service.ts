@@ -1125,6 +1125,22 @@ export class OrderManagementService {
     });
   }
 
+  /**
+   * Call Steadfast API live to get the current delivery status for a tracking code.
+   * Returns null if the API is unavailable or credentials are missing.
+   */
+  async getLiveSteadfastStatus(trackingCode: string): Promise<string | null> {
+    if (!trackingCode) return null;
+    try {
+      const headers = this.getSteadfastHeaders();
+      const url = `${this.steadfastBaseUrl}/status_by_trackingcode/${encodeURIComponent(trackingCode)}`;
+      const res = await axios.get(url, { headers, timeout: 15000 });
+      return this.extractSteadfastStatus(res.data);
+    } catch {
+      return null;
+    }
+  }
+
   // ==================== NOTES MANAGEMENT ====================
 
   async updateOrderNotes(data: {
