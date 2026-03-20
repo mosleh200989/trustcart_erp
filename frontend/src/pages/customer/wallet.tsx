@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import CustomerLayout from '@/layouts/CustomerLayout';
-import { auth, loyalty } from '@/services/api';
+import { loyalty } from '@/services/api';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface WalletSummary {
   balance: number;
@@ -9,6 +10,7 @@ interface WalletSummary {
 }
 
 export default function CustomerWalletPage() {
+  const { user } = useAuth();
   const [wallet, setWallet] = useState<WalletSummary | null>(null);
   const [transactions, setTransactions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -19,7 +21,6 @@ export default function CustomerWalletPage() {
       setLoading(true);
       setError(null);
       try {
-        const user = await auth.getCurrentUser();
         if (!user || !user.id) {
           setError('Unable to load wallet. Please login again.');
           setLoading(false);

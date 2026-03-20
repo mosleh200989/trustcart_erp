@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import Router from 'next/router';
-import { auth } from '@/services/api';
+import { useAuth } from '@/contexts/AuthContext';
 import { getAuthReturnPath } from '@/utils/authReturnPath';
 import { FaArrowLeft } from 'react-icons/fa';
 import PasswordInput from '@/components/common/PasswordInput';
 
 export default function SupplierLogin() {
+  const { login } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -16,7 +17,7 @@ export default function SupplierLogin() {
     setLoading(true);
     setError(null);
     try {
-      const data = await auth.login(email, password);
+      const data = await login(email, password);
       if (data && data.accessToken) {
         const roleSlug = data?.user?.roleSlug as string | undefined;
 
@@ -25,7 +26,6 @@ export default function SupplierLogin() {
           return;
         }
 
-        localStorage.setItem('authToken', data.accessToken);
         Router.push('/supplier/dashboard');
       } else {
         setError('Invalid response from server');

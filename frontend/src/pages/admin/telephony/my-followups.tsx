@@ -3,7 +3,8 @@ import { useToast } from '@/contexts/ToastContext';
 import AdminLayout from '@/layouts/AdminLayout';
 import { wrapCustomerName } from '@/utils/wrapCustomerName';
 import Pagination from '@/components/admin/Pagination';
-import apiClient, { auth } from '@/services/api';
+import apiClient from '@/services/api';
+import { useAuth } from '@/contexts/AuthContext';
 import { 
   FaPlus, FaSearch, FaFilter, FaTimes, FaPhone, FaCalendarAlt, 
   FaClock, FaCheckCircle, FaSpinner, FaEdit, FaTrash,
@@ -43,6 +44,7 @@ type FilterDateRange = '' | 'today' | 'tomorrow' | 'this_week' | 'next_week' | '
 
 export default function MyFollowupsPage() {
   const toast = useToast();
+  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [agentId, setAgentId] = useState<number | null>(null);
   const [followUps, setFollowUps] = useState<FollowUp[]>([]);
@@ -97,17 +99,11 @@ export default function MyFollowupsPage() {
   });
 
   useEffect(() => {
-    (async () => {
-      try {
-        const me = await auth.getCurrentUser();
-        const id = Number((me as any)?.id);
-        if (!id) throw new Error('Unable to resolve agent id');
-        setAgentId(id);
-      } catch (err) {
-        console.error('Failed to load current user', err);
-      }
-    })();
-  }, []);
+    if (user?.id) {
+      const id = Number(user.id);
+      if (id) setAgentId(id);
+    }
+  }, [user]);
 
   useEffect(() => {
     if (!agentId) return;

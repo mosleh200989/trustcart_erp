@@ -16,16 +16,18 @@ import {
   FaShoppingCart,
   FaTrash,
 } from "react-icons/fa";
-import apiClient, { auth, customers } from "@/services/api";
+import apiClient, { customers } from "@/services/api";
 import { TrackingService } from "@/utils/tracking";
 import PhoneInput, { validateBDPhone } from "@/components/PhoneInput";
 import { trackBeginCheckout, trackAddPaymentInfo, trackPurchaseWithUser, extractLocationFromAddress } from "@/utils/gtm";
 import { initiatePayment, redirectToPaymentGateway } from "@/services/payment";
 import { useCart } from "@/contexts/CartContext";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function Checkout() {
   const router = useRouter();
   const toast = useToast();
+  const { user: authUser } = useAuth();
   const { items: cart, addItem, removeItem: removeCartItem, updateQuantity: updateCartQuantity, clearCart: clearAllCart, setItems: setCartItems } = useCart();
   const touchedRef = useRef<Record<string, boolean>>({});
   const [suggestedProducts, setSuggestedProducts] = useState<any[]>([]);
@@ -106,7 +108,7 @@ export default function Checkout() {
 
     const initCustomer = async () => {
       try {
-        const user = await auth.getCurrentUser();
+        const user = authUser;
         if (!user || !(user as any).email) return;
 
         setCurrentUser(user);
@@ -155,10 +157,7 @@ export default function Checkout() {
 
         // Load customer addresses to get default address details
         try {
-          const token = localStorage.getItem("authToken");
-          const addressResponse = await apiClient.get("/customer-addresses", {
-            headers: { Authorization: `Bearer ${token}` },
-          });
+          const addressResponse = await apiClient.get("/customer-addresses");
           const addresses = addressResponse.data;
           const primaryAddress =
             addresses.find((addr: any) => addr.isPrimary) || addresses[0];

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import AdminLayout from '@/layouts/AdminLayout';
 import { rbac } from '@/services/api';
+import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/contexts/ToastContext';
 import { FaChevronDown, FaChevronRight } from 'react-icons/fa';
 
@@ -16,6 +17,7 @@ function titleize(s: string) {
 
 export default function AdminRolePermissions() {
   const router = useRouter();
+  const { isAuthenticated } = useAuth();
   const toast = useToast();
   const [roles, setRoles] = useState<Role[]>([]);
   const [allPermissions, setAllPermissions] = useState<Permission[]>([]);
@@ -33,8 +35,7 @@ export default function AdminRolePermissions() {
   const [newRole, setNewRole] = useState({ name: '', slug: '', description: '', priority: 0 });
 
   useEffect(() => {
-    const token = localStorage.getItem('authToken');
-    if (!token) {
+    if (!isAuthenticated) {
       router.push('/admin/login');
       return;
     }

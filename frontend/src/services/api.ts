@@ -23,35 +23,6 @@ apiClient.interceptors.request.use((config) => {
 
 export default apiClient;
 
-export const auth = {
-  async login(identifier: string, password: string) {
-    const res = await apiClient.post('/auth/login', { identifier, email: identifier, password });
-    return res.data;
-  },
-
-  async getCurrentUser() {
-    if (typeof window === 'undefined') return null;
-    const token = localStorage.getItem('authToken');
-    if (!token) return null;
-
-    try {
-      const res = await apiClient.get('/auth/me');
-      const data = res.data as any;
-      const user = data?.user as any;
-      if (!user) return null;
-      return {
-        ...user,
-        id: String(user?.id ?? ''),
-        roles: data?.roles,
-        permissions: data?.permissions,
-      } as any;
-    } catch (err) {
-      console.error('Error loading current user:', err);
-      return null;
-    }
-  },
-};
-
 // Transform snake_case API response to camelCase for frontend
 const transformProduct = (p: any) => {
   console.log('Transforming product:', p);

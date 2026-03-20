@@ -1,6 +1,8 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import apiClient from '@/services/api';
 
+const AUTH_TOKEN_KEY = 'authToken';
+
 export type AuthRole = { id: number; name: string; slug: string };
 export type AuthPermission = { id: number; slug: string; name: string };
 
@@ -22,8 +24,12 @@ type AuthContextValue = {
   roles: AuthRole[];
   permissions: AuthPermission[];
   isLoading: boolean;
+  /** Log in with identifier (email/phone) + password. Stores token, refreshes state. Returns the raw API response data. */
+  login: (identifier: string, password: string) => Promise<any>;
   refresh: () => Promise<void>;
   logout: () => void;
+  /** True while the user/token state is being read on first mount. */
+  isAuthenticated: boolean;
   hasPermission: (slug: string) => boolean;
   hasAnyPermission: (slugs: string[]) => boolean;
   hasAllPermissions: (slugs: string[]) => boolean;
@@ -61,8 +67,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = useCallback(() => {
     if (typeof window !== 'undefined') {
-      localStorage.removeItem('authToken');
-      localStorage.removeItem('admin_token');
+      localStorage.removeItem(AUTH_TOKEN_KEY);
     }
     setUser(null);
     setRoles([]);
@@ -75,7 +80,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    const token = localStorage.getItem('authToken');
+    const token = localStorage.getItem(AUTH_TOKEN_KEY);
     if (!token) {
       setUser(null);
       setRoles([]);
@@ -101,9 +106,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [logout]);
 
+  /** Authenticate, store token, and hydrate user state in one call. Returns raw API response. */
+  const login = useCallback(async (identifier: string, password: string) => {
+    const res = await apiClient.post('/auth/login', { identifier, email: identifier, password });
+    const data = res.data;
+    if (data?.accessToken) {
+      localStorage.setItem(AUTH_TOKEN_KEY, data.accessToken);
+      await refresh();
+    }
+    return data;
+  }, [refresh]);
+
   useEffect(() => {
     refresh();
   }, [refresh]);
+
+  const isAuthenticated = !!user && !isLoading;
 
   const permissionSet = useMemo(() => {
     return new Set((permissions || []).map((p) => p.slug));
@@ -164,8 +182,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       roles,
       permissions,
       isLoading,
+      login,
       refresh,
       logout,
+      isAuthenticated,
       hasPermission,
       hasAnyPermission,
       hasAllPermissions,
@@ -176,8 +196,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       roles,
       permissions,
       isLoading,
+      login,
       refresh,
       logout,
+      isAuthenticated,
       hasPermission,
       hasAnyPermission,
       hasAllPermissions,

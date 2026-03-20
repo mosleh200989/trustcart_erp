@@ -5,6 +5,7 @@ import { FaStar, FaShoppingCart, FaHeart, FaEye, FaTag } from "react-icons/fa";
 import AddToCartPopup from "./AddToCartPopup";
 import { BACKEND_ORIGIN } from "@/config/backend";
 import { useToast } from "@/contexts/ToastContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { useCart } from "@/contexts/CartContext";
 import { trackAddToCart } from "@/utils/gtm";
 
@@ -57,6 +58,7 @@ export default function ElectroProductCard({
   discount,
 }: ProductCardProps) {
   const toast = useToast();
+  const { isAuthenticated } = useAuth();
   const { addItem } = useCart();
   const [showPopup, setShowPopup] = useState(false);
   const [imageError, setImageError] = useState(false);
@@ -112,8 +114,7 @@ export default function ElectroProductCard({
 
   const handleAddToWishlist = (e: React.MouseEvent) => {
     e.preventDefault();
-    const token = localStorage.getItem("authToken");
-    if (!token) {
+    if (!isAuthenticated) {
       toast.warning("Please login to add items to your wishlist.");
       router.push("/customer/login");
       return;

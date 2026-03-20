@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import Head from "next/head";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import ElectroNavbar from "@/components/ElectroNavbar";
@@ -7,6 +8,7 @@ import ElectroProductCard from "@/components/ElectroProductCard";
 import HeroBannerCarousel from "@/components/HeroBannerCarousel";
 import SideBanner from "@/components/SideBanner";
 import CategorySlider from "@/components/CategorySlider";
+import { SITE_NAME, SITE_URL, SITE_DESCRIPTION, DEFAULT_OG_IMAGE, SITE_LOCALE } from '@/config/seo';
 import {
   FaTruck,
   FaUndo,
@@ -197,6 +199,52 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <Head>
+        <title>{SITE_NAME} — Premium Organic Groceries in Bangladesh</title>
+        <meta name="description" content={SITE_DESCRIPTION} />
+        <link rel="canonical" href={SITE_URL} />
+        <meta property="og:type" content="website" />
+        <meta property="og:title" content={`${SITE_NAME} — Premium Organic Groceries in Bangladesh`} />
+        <meta property="og:description" content={SITE_DESCRIPTION} />
+        <meta property="og:url" content={SITE_URL} />
+        <meta property="og:image" content={DEFAULT_OG_IMAGE} />
+        <meta property="og:site_name" content={SITE_NAME} />
+        <meta property="og:locale" content={SITE_LOCALE} />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content={`${SITE_NAME} — Premium Organic Groceries in Bangladesh`} />
+        <meta name="twitter:description" content={SITE_DESCRIPTION} />
+        <meta name="twitter:image" content={DEFAULT_OG_IMAGE} />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify({
+            '@context': 'https://schema.org',
+            '@type': 'WebSite',
+            name: SITE_NAME,
+            url: SITE_URL,
+            description: SITE_DESCRIPTION,
+            potentialAction: {
+              '@type': 'SearchAction',
+              target: `${SITE_URL}/products?search={search_term_string}`,
+              'query-input': 'required name=search_term_string',
+            },
+          }) }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify({
+            '@context': 'https://schema.org',
+            '@type': 'Organization',
+            name: SITE_NAME,
+            url: SITE_URL,
+            logo: DEFAULT_OG_IMAGE,
+            contactPoint: {
+              '@type': 'ContactPoint',
+              telephone: process.env.NEXT_PUBLIC_SUPPORT_PHONE || '',
+              contactType: 'customer service',
+            },
+          }) }}
+        />
+      </Head>
       <ElectroNavbar />
       <div className="max-w-7xl mx-auto">
         {/* Hero Carousel with Side Banner */}

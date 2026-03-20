@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import CustomerLayout from '@/layouts/CustomerLayout';
-import { auth, support } from '@/services/api';
+import { support } from '@/services/api';
 
 interface SupportTicket {
   id: number;

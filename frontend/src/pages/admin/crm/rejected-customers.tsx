@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import AdminLayout from '@/layouts/AdminLayout';
-import { apiUrl } from '@/config/backend';
+import apiClient from '@/services/api';
 import { useToast } from '@/contexts/ToastContext';
 import PageSizeSelector from '@/components/admin/PageSizeSelector';
 import Pagination from '@/components/admin/Pagination';
@@ -68,11 +68,8 @@ export default function RejectedCustomersPage() {
   useEffect(() => {
     (async () => {
       try {
-        const token = localStorage.getItem('authToken');
-        const res = await fetch(apiUrl('/crm/team/available-agents'), {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (res.ok) setAgents(await res.json());
+        const res = await apiClient.get('/crm/team/available-agents');
+        setAgents(res.data);
       } catch {}
     })();
   }, []);
@@ -81,7 +78,6 @@ export default function RejectedCustomersPage() {
   const fetchCustomers = useCallback(async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('authToken');
       const params = new URLSearchParams();
       params.append('tier', 'rejected');
       if (statusFilter) params.append('status', statusFilter);
@@ -90,14 +86,8 @@ export default function RejectedCustomersPage() {
       params.append('page', currentPage.toString());
       params.append('limit', itemsPerPage.toString());
 
-      const res = await fetch(apiUrl(`/lead-management/tiers/all?${params}`), {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) {
-        setCustomers([]);
-        return;
-      }
-      const data = await res.json();
+      const res = await apiClient.get(`/lead-management/tiers/all?${params}`);
+      const data = res.data;
       setCustomers(data.customers || []);
       setStats({
         totalActive: data.stats?.totalActive || 0,
@@ -137,18 +127,9 @@ export default function RejectedCustomersPage() {
   const removeTier = async (customerId: number) => {
     try {
       setUpdatingId(customerId);
-      const token = localStorage.getItem('authToken');
-      const res = await fetch(apiUrl('/lead-management/tier'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ customerId, tier: 'silver', isActive: true, notes: 'Removed from rejected list' }),
-      });
-      if (res.ok) {
-        toast.success('Customer removed from rejected list');
-        fetchCustomers();
-      } else {
-        toast.error('Failed to update tier');
-      }
+      await apiClient.post('/lead-management/tier', { customerId, tier: 'silver', isActive: true, notes: 'Removed from rejected list' });
+      toast.success('Customer removed from rejected list');
+      fetchCustomers();
     } catch {
       toast.error('Failed to update tier');
     } finally {
@@ -160,16 +141,11 @@ export default function RejectedCustomersPage() {
   const bulkRemove = async () => {
     if (!selectedIds.length) return;
     if (!confirm(`Remove ${selectedIds.length} customer(s) from rejected list?`)) return;
-    const token = localStorage.getItem('authToken');
     let success = 0;
     for (const id of selectedIds) {
       try {
-        const res = await fetch(apiUrl('/lead-management/tier'), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ customerId: id, tier: 'silver', isActive: true, notes: 'Bulk removed from rejected list' }),
-        });
-        if (res.ok) success++;
+        await apiClient.post('/lead-management/tier', { customerId: id, tier: 'silver', isActive: true, notes: 'Bulk removed from rejected list' });
+        success++;
       } catch {}
     }
     toast.success(`${success} customer(s) removed from rejected list`);

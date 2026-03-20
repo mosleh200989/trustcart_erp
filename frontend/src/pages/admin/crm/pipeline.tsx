@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import { Plus, Filter, Search, DollarSign, Calendar, User, Tag, TrendingUp, Eye, Edit, Trash2, X } from 'lucide-react';
 import AdminLayout from '@/layouts/AdminLayout';
-import { apiUrl } from '@/config/backend';
+import apiClient from '@/services/api';
 import { useToast } from '@/contexts/ToastContext';
 
 interface Deal {
@@ -148,18 +148,8 @@ const Pipeline = () => {
 
   const fetchStages = async () => {
     try {
-      const token = localStorage.getItem('authToken');
-      const response = await fetch(apiUrl('/crm/deal-stages'), {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      
-      if (!response.ok) {
-        console.error('Failed to fetch stages:', response.statusText);
-        setStages([]);
-        return;
-      }
-      
-      const data = await response.json();
+      const response = await apiClient.get('/crm/deal-stages');
+      const data = response.data;
       if (Array.isArray(data)) {
         setStages(data.sort((a: Stage, b: Stage) => a.displayOrder - b.displayOrder));
       } else {
@@ -175,23 +165,12 @@ const Pipeline = () => {
   const fetchDeals = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('authToken');
       const params = new URLSearchParams();
       if (filterOwner) params.append('ownerId', filterOwner);
       if (filterPriority) params.append('priority', filterPriority);
 
-      const response = await fetch(apiUrl(`/crm/deals?${params}`), {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      
-      if (!response.ok) {
-        console.error('Failed to fetch deals:', response.statusText);
-        setDeals({});
-        setLoading(false);
-        return;
-      }
-      
-      const data = await response.json();
+      const response = await apiClient.get(`/crm/deals?${params}`);
+      const data = response.data;
       if (!Array.isArray(data)) {
         console.error('Deals API returned non-array:', data);
         setDeals({});
@@ -214,17 +193,8 @@ const Pipeline = () => {
 
   const fetchStats = async () => {
     try {
-      const token = localStorage.getItem('authToken');
-      const response = await fetch(apiUrl('/crm/deals/pipeline-stats'), {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      
-      if (!response.ok) {
-        console.error('Failed to fetch stats:', response.statusText);
-        return;
-      }
-      
-      const data = await response.json();
+      const response = await apiClient.get('/crm/deals/pipeline-stats');
+      const data = response.data;
       if (data && typeof data === 'object') {
         setStats(data);
       } else {
@@ -260,15 +230,7 @@ const Pipeline = () => {
 
     // Update backend
     try {
-      const token = localStorage.getItem('authToken');
-      await fetch(apiUrl(`/crm/deals/${draggableId}`), {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ stage: destStage, probability: movedDeal.probability }),
-      });
+      await apiClient.patch(`/crm/deals/${draggableId}`, { stage: destStage, probability: movedDeal.probability });
       fetchStats(); // Refresh stats
     } catch (error) {
       console.error('Error updating deal:', error);
@@ -499,12 +461,8 @@ const DealModal = ({ onClose, onSave, stages, toast }: { onClose: () => void; on
 
   const fetchCustomers = async () => {
     try {
-      const token = localStorage.getItem('authToken');
-      const response = await fetch(apiUrl('/customers?limit=100'), {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await response.json();
-      setCustomers(data);
+      const response = await apiClient.get('/customers?limit=100');
+      setCustomers(response.data);
     } catch (error) {
       console.error('Error fetching customers:', error);
     }
@@ -513,30 +471,16 @@ const DealModal = ({ onClose, onSave, stages, toast }: { onClose: () => void; on
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const token = localStorage.getItem('authToken');
-      const response = await fetch(apiUrl('/crm/deals'), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          ...formData,
-          value: parseFloat(formData.value),
-          customerId: parseInt(formData.customerId),
-          tags: formData.tags ? formData.tags.split(',').map(t => t.trim()) : [],
-        }),
+      await apiClient.post('/crm/deals', {
+        ...formData,
+        value: parseFloat(formData.value),
+        customerId: parseInt(formData.customerId),
+        tags: formData.tags ? formData.tags.split(',').map(t => t.trim()) : [],
       });
-      
-      if (response.ok) {
-        onSave(); // Only call onSave after successful creation
-      } else {
-        const errorData = await response.json();
-        toast.error(`Failed to create deal: ${errorData.message || 'Unknown error'}`);
-      }
-    } catch (error) {
+      onSave();
+    } catch (error: any) {
       console.error('Error creating deal:', error);
-      toast.error('Failed to create deal. Please try again.');
+      toast.error(`Failed to create deal: ${error?.response?.data?.message || 'Please try again.'}`);
     }
   };
 

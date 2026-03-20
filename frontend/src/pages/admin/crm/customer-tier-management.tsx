@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import AdminLayout from '@/layouts/AdminLayout';
-import { apiUrl, backendUrl } from '@/config/backend';
+import apiClient from '@/services/api';
 import { useToast } from '@/contexts/ToastContext';
 import PageSizeSelector from '@/components/admin/PageSizeSelector';
 import Pagination from '@/components/admin/Pagination';
@@ -77,14 +77,8 @@ export default function CustomerTierManagementPage() {
 
   const fetchAgents = async () => {
     try {
-      const token = localStorage.getItem('authToken');
-      const response = await fetch(apiUrl('/crm/team/available-agents'), {
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setAgents(data || []);
-      }
+      const response = await apiClient.get('/crm/team/available-agents');
+      setAgents(response.data || []);
     } catch (error) {
       console.error('Error fetching agents:', error);
     }
@@ -93,7 +87,6 @@ export default function CustomerTierManagementPage() {
   const fetchCustomers = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('authToken');
       
       // Build query params
       const params = new URLSearchParams();
@@ -104,20 +97,8 @@ export default function CustomerTierManagementPage() {
       params.append('limit', itemsPerPage.toString());
       
       // Use optimized endpoint that returns all customers with tiers in one call
-      const response = await fetch(apiUrl(`/lead-management/tiers/all?${params}`), {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-      
-      if (!response.ok) {
-        console.error('Failed to fetch tier data:', response.statusText);
-        setCustomers([]);
-        setLoading(false);
-        return;
-      }
-      
-      const data = await response.json();
+      const response = await apiClient.get(`/lead-management/tiers/all?${params}`);
+      const data = response.data;
       
       if (data && data.customers) {
         setCustomers(data.customers);
@@ -168,24 +149,13 @@ export default function CustomerTierManagementPage() {
     if (!selectedCustomer) return;
 
     try {
-      const token = localStorage.getItem('authToken');
-      const response = await fetch(apiUrl('/lead-management/tier'), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          customerId: selectedCustomer.id,
-          ...tierForm,
-        }),
+      await apiClient.post('/lead-management/tier', {
+        customerId: selectedCustomer.id,
+        ...tierForm,
       });
-
-      if (response.ok) {
-        toast.success('Tier updated successfully!');
-        setShowTierModal(false);
-        fetchCustomers();
-      }
+      toast.success('Tier updated successfully!');
+      setShowTierModal(false);
+      fetchCustomers();
     } catch (error) {
       console.error('Error updating tier:', error);
       toast.error('Failed to update tier');

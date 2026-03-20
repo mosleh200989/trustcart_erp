@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { TrendingUp, DollarSign, Users, Target, Calendar, Award, Activity, Filter } from 'lucide-react';
 import AdminLayout from '@/layouts/AdminLayout';
-import { apiUrl } from '@/config/backend';
+import apiClient from '@/services/api';
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
 
@@ -24,24 +24,17 @@ const Analytics = () => {
   const fetchAnalytics = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('authToken');
 
       // Fetch all analytics data
       const [summaryRes, tasksRes, recentRes] = await Promise.all([
-        fetch(apiUrl(`/crm/analytics/summary?rangeDays=${encodeURIComponent(timeRange)}`), {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-        fetch(apiUrl('/crm/tasks/stats'), {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-        fetch(apiUrl(`/crm/activities/recent?rangeDays=${encodeURIComponent(timeRange)}&limit=8`), {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
+        apiClient.get(`/crm/analytics/summary?rangeDays=${encodeURIComponent(timeRange)}`).catch(() => null),
+        apiClient.get('/crm/tasks/stats').catch(() => null),
+        apiClient.get(`/crm/activities/recent?rangeDays=${encodeURIComponent(timeRange)}&limit=8`).catch(() => null),
       ]);
 
-      const summaryData = summaryRes.ok ? await summaryRes.json() : null;
-      const tasks = tasksRes.ok ? await tasksRes.json() : null;
-      const recent = recentRes.ok ? await recentRes.json() : [];
+      const summaryData = summaryRes?.data || null;
+      const tasks = tasksRes?.data || null;
+      const recent = recentRes?.data || [];
 
       setSummary(summaryData);
       setTaskStats(tasks);

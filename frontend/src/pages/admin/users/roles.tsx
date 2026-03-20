@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
 import AdminLayout from '@/layouts/AdminLayout';
 import { rbac, users as usersAPI } from '@/services/api';
+import { useAuth } from '@/contexts/AuthContext';
 
 type Role = { id: number; name: string; slug: string };
 
@@ -15,6 +16,7 @@ type UserRow = {
 
 export default function AdminUserRolesPage() {
   const router = useRouter();
+  const { isAuthenticated } = useAuth();
 
   const [users, setUsers] = useState<UserRow[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
@@ -30,8 +32,7 @@ export default function AdminUserRolesPage() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    const token = localStorage.getItem('authToken');
-    if (!token) {
+    if (!isAuthenticated) {
       router.replace('/admin/login');
       return;
     }

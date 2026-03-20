@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Plus, Filter, Search, Calendar, User, CheckCircle, Circle, Clock, AlertCircle, X, ChevronDown, Edit2, Trash2, Users, MessageSquare } from 'lucide-react';
 import AdminLayout from '@/layouts/AdminLayout';
 import { format } from 'date-fns';
-import { apiUrl } from '@/config/backend';
+import apiClient from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/contexts/ToastContext';
 
@@ -91,33 +91,26 @@ const TaskManagement = () => {
     if (!authUser?.id) return;
     
     try {
-      const token = localStorage.getItem('authToken');
-      
       // Try multiple endpoints to get team members
       // 1. First try CRM available-agents (returns Sales Executives)
       let agents: any[] = [];
       
       try {
-        const agentsResponse = await fetch(apiUrl('/crm/team/available-agents'), {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        
-        if (agentsResponse.ok) {
-          const agentsData = await agentsResponse.json();
-          if (Array.isArray(agentsData) && agentsData.length > 0) {
-            agents = agentsData.map((agent: any) => ({
+        const agentsResponse = await apiClient.get('/crm/team/available-agents');
+        const agentsData = agentsResponse.data;
+        if (Array.isArray(agentsData) && agentsData.length > 0) {
+          agents = agentsData.map((agent: any) => ({
+            id: agent.id,
+            userId: agent.id,
+            teamLeaderId: agent.teamLeaderId || authUser.id,
+            teamType: 'Sales',
+            isActive: agent.status === 'active',
+            user: {
               id: agent.id,
-              userId: agent.id,
-              teamLeaderId: agent.teamLeaderId || authUser.id,
-              teamType: 'Sales',
-              isActive: agent.status === 'active',
-              user: {
-                id: agent.id,
-                name: `${agent.name || ''} ${agent.lastName || ''}`.trim() || `User #${agent.id}`,
-                email: agent.email,
-              },
-            }));
-          }
+              name: `${agent.name || ''} ${agent.lastName || ''}`.trim() || `User #${agent.id}`,
+              email: agent.email,
+            },
+          }));
         }
       } catch (e) {
         console.log('CRM agents endpoint not available, trying fallback');
@@ -126,32 +119,21 @@ const TaskManagement = () => {
       // 2. Fallback to lead-management team-members
       if (agents.length === 0) {
         try {
-          const response = await fetch(apiUrl(`/lead-management/team-member/list/${authUser.id}`), {
-            headers: { Authorization: `Bearer ${token}` },
-          });
-          
-          if (response.ok) {
-            const data = await response.json();
-            if (Array.isArray(data) && data.length > 0) {
-              // Also fetch user details for each team member
-              const membersWithUsers = await Promise.all(
-                data.map(async (member: TeamMember) => {
-                  try {
-                    const userResponse = await fetch(apiUrl(`/users/${member.userId}`), {
-                      headers: { Authorization: `Bearer ${token}` },
-                    });
-                    if (userResponse.ok) {
-                      const userData = await userResponse.json();
-                      return { ...member, user: userData };
-                    }
-                    return member;
-                  } catch {
-                    return member;
-                  }
-                })
-              );
-              agents = membersWithUsers;
-            }
+          const response = await apiClient.get(`/lead-management/team-member/list/${authUser.id}`);
+          const data = response.data;
+          if (Array.isArray(data) && data.length > 0) {
+            // Also fetch user details for each team member
+            const membersWithUsers = await Promise.all(
+              data.map(async (member: TeamMember) => {
+                try {
+                  const userResponse = await apiClient.get(`/users/${member.userId}`);
+                  return { ...member, user: userResponse.data };
+                } catch {
+                  return member;
+                }
+              })
+            );
+            agents = membersWithUsers;
           }
         } catch (e) {
           console.log('Lead management team members endpoint not available');
@@ -161,30 +143,25 @@ const TaskManagement = () => {
       // 3. Final fallback - get users who have this user as team leader
       if (agents.length === 0) {
         try {
-          const usersResponse = await fetch(apiUrl('/users'), {
-            headers: { Authorization: `Bearer ${token}` },
-          });
-          
-          if (usersResponse.ok) {
-            const allUsers = await usersResponse.json();
-            if (Array.isArray(allUsers)) {
-              const teamUsers = allUsers.filter((u: any) => 
-                u.teamLeaderId === authUser.id || 
-                (u.teamId && u.teamId === authUser.teamId)
-              );
-              agents = teamUsers.map((user: any) => ({
+          const usersResponse = await apiClient.get('/users');
+          const allUsers = usersResponse.data;
+          if (Array.isArray(allUsers)) {
+            const teamUsers = allUsers.filter((u: any) => 
+              u.teamLeaderId === authUser.id || 
+              (u.teamId && u.teamId === authUser.teamId)
+            );
+            agents = teamUsers.map((user: any) => ({
+              id: user.id,
+              userId: user.id,
+              teamLeaderId: authUser.id,
+              teamType: 'Team',
+              isActive: user.status === 'active',
+              user: {
                 id: user.id,
-                userId: user.id,
-                teamLeaderId: authUser.id,
-                teamType: 'Team',
-                isActive: user.status === 'active',
-                user: {
-                  id: user.id,
-                  name: `${user.name || ''} ${user.lastName || ''}`.trim() || `User #${user.id}`,
-                  email: user.email,
-                },
-              }));
-            }
+                name: `${user.name || ''} ${user.lastName || ''}`.trim() || `User #${user.id}`,
+                email: user.email,
+              },
+            }));
           }
         } catch (e) {
           console.log('Users endpoint fallback failed');
@@ -204,7 +181,6 @@ const TaskManagement = () => {
     
     try {
       setLoading(true);
-      const token = localStorage.getItem('authToken');
       const params = new URLSearchParams();
       
       const isLeader = isTeamLeaderOrAdmin();
@@ -225,17 +201,8 @@ const TaskManagement = () => {
 
       console.log('Fetching tasks with params:', params.toString());
       
-      const response = await fetch(apiUrl(`/crm/tasks?${params}`), {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      
-      if (!response.ok) {
-        console.error('Failed to fetch tasks:', response.statusText);
-        setTasks([]);
-        return;
-      }
-      
-      const data = await response.json();
+      const response = await apiClient.get(`/crm/tasks?${params}`);
+      const data = response.data;
       console.log('Tasks API response:', data);
       if (Array.isArray(data)) {
         setTasks(data);
@@ -255,7 +222,6 @@ const TaskManagement = () => {
     if (!authUser?.id) return;
     
     try {
-      const token = localStorage.getItem('authToken');
       const params = new URLSearchParams();
       if (isTeamLeaderOrAdmin()) {
         // Team leaders see stats for tasks they created
@@ -265,16 +231,8 @@ const TaskManagement = () => {
         params.append('userId', authUser.id.toString());
       }
       
-      const response = await fetch(apiUrl(`/crm/tasks/stats?${params}`), {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      
-      if (!response.ok) {
-        console.error('Failed to fetch stats:', response.statusText);
-        return;
-      }
-      
-      const data = await response.json();
+      const response = await apiClient.get(`/crm/tasks/stats?${params}`);
+      const data = response.data;
       if (data && typeof data === 'object') {
         setStats(data);
       } else {
@@ -287,15 +245,7 @@ const TaskManagement = () => {
 
   const updateTaskStatus = async (taskId: number, status: string) => {
     try {
-      const token = localStorage.getItem('authToken');
-      await fetch(apiUrl(`/crm/tasks/${taskId}`), {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ status }),
-      });
+      await apiClient.put(`/crm/tasks/${taskId}`, { status });
       fetchTasks();
       fetchStats();
     } catch (error) {
@@ -308,11 +258,7 @@ const TaskManagement = () => {
     if (!confirm('Are you sure you want to delete this task?')) return;
     
     try {
-      const token = localStorage.getItem('authToken');
-      await fetch(apiUrl(`/crm/tasks/${taskId}`), {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      await apiClient.delete(`/crm/tasks/${taskId}`);
       fetchTasks();
       fetchStats();
     } catch (error) {
@@ -339,15 +285,7 @@ const TaskManagement = () => {
     
     setSavingNotes(true);
     try {
-      const token = localStorage.getItem('authToken');
-      await fetch(apiUrl(`/crm/tasks/${notesTask.id}`), {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ notes: notesText }),
-      });
+      await apiClient.put(`/crm/tasks/${notesTask.id}`, { notes: notesText });
       toast.success('Notes saved successfully');
       setShowNotesModal(false);
       setNotesTask(null);
@@ -884,14 +822,9 @@ const TaskModal = ({ task, teamMembers, isTeamLeader, currentUserId, onClose, on
 
   const fetchCustomers = async () => {
     try {
-      const token = localStorage.getItem('authToken');
-      const response = await fetch(apiUrl('/customers?limit=100'), {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setCustomers(Array.isArray(data) ? data : []);
-      }
+      const response = await apiClient.get('/customers?limit=100');
+      const data = response.data;
+      setCustomers(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Error fetching customers:', error);
     }
@@ -899,14 +832,9 @@ const TaskModal = ({ task, teamMembers, isTeamLeader, currentUserId, onClose, on
 
   const fetchAllUsers = async () => {
     try {
-      const token = localStorage.getItem('authToken');
-      const response = await fetch(apiUrl('/users'), {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setAllUsers(Array.isArray(data) ? data : []);
-      }
+      const response = await apiClient.get('/users');
+      const data = response.data;
+      setAllUsers(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Error fetching users:', error);
     }
@@ -927,7 +855,6 @@ const TaskModal = ({ task, teamMembers, isTeamLeader, currentUserId, onClose, on
 
     setSubmitting(true);
     try {
-      const token = localStorage.getItem('authToken');
       const payload = {
         title: formData.title.trim(),
         description: formData.description.trim() || null,
@@ -941,24 +868,10 @@ const TaskModal = ({ task, teamMembers, isTeamLeader, currentUserId, onClose, on
 
       if (task) {
         // Update existing task
-        await fetch(apiUrl(`/crm/tasks/${task.id}`), {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify(payload),
-        });
+        await apiClient.put(`/crm/tasks/${task.id}`, payload);
       } else {
         // Create new task
-        await fetch(apiUrl('/crm/tasks'), {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify(payload),
-        });
+        await apiClient.post('/crm/tasks', payload);
       }
       
       onSave();

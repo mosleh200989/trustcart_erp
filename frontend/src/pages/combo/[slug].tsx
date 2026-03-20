@@ -8,7 +8,9 @@ import ElectroNavbar from '@/components/ElectroNavbar';
 import ElectroFooter from '@/components/ElectroFooter';
 import ElectroProductCard from '@/components/ElectroProductCard';
 import AddToCartPopup from '@/components/AddToCartPopup';
+import { SITE_NAME, DEFAULT_OG_IMAGE, canonicalUrl, productImageUrl } from '@/config/seo';
 import { useCart } from '@/contexts/CartContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { 
   FaShoppingCart, 
   FaTag, 
@@ -51,6 +53,7 @@ export default function ComboDetailPage() {
   const router = useRouter();
   const { slug } = router.query;
   const { addItem } = useCart();
+  const { isAuthenticated } = useAuth();
 
   const [combo, setCombo] = useState<ComboDeal | null>(null);
   const [loading, setLoading] = useState(true);
@@ -216,8 +219,7 @@ export default function ComboDetailPage() {
   // Handle add to wishlist
   const handleAddToWishlist = () => {
     if (!combo) return;
-    const token = localStorage.getItem('authToken');
-    if (!token) {
+    if (!isAuthenticated) {
       router.push('/customer/login');
       return;
     }
@@ -357,8 +359,36 @@ export default function ComboDetailPage() {
       <ElectroNavbar />
       
       <Head>
-        <title>{combo.name} - Combo Deal | TrustCart</title>
-        <meta name="description" content={combo.description || `${combo.name} combo deal - Save ৳${savings.toFixed(0)}`} />
+        <title>{combo.name} — Combo Deal | {SITE_NAME}</title>
+        <meta name="description" content={combo.description || `${combo.name} combo deal — Save ৳${savings.toFixed(0)} at ${SITE_NAME}`} />
+        <link rel="canonical" href={canonicalUrl(`/combo/${combo.slug}`)} />
+        <meta property="og:type" content="product" />
+        <meta property="og:title" content={`${combo.name} — Combo Deal | ${SITE_NAME}`} />
+        <meta property="og:description" content={combo.description || `Save ৳${savings.toFixed(0)} with this combo deal`} />
+        <meta property="og:url" content={canonicalUrl(`/combo/${combo.slug}`)} />
+        <meta property="og:image" content={combo.image_url ? productImageUrl(combo.image_url) : DEFAULT_OG_IMAGE} />
+        <meta property="og:site_name" content={SITE_NAME} />
+        <meta property="product:price:amount" content={String(comboPrice)} />
+        <meta property="product:price:currency" content="BDT" />
+        <meta name="twitter:card" content="summary_large_image" />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify({
+            '@context': 'https://schema.org',
+            '@type': 'Product',
+            name: combo.name,
+            description: combo.description || `${combo.name} combo deal`,
+            image: combo.image_url ? productImageUrl(combo.image_url) : DEFAULT_OG_IMAGE,
+            offers: {
+              '@type': 'Offer',
+              url: canonicalUrl(`/combo/${combo.slug}`),
+              priceCurrency: 'BDT',
+              price: comboPrice,
+              availability: 'https://schema.org/InStock',
+              seller: { '@type': 'Organization', name: SITE_NAME },
+            },
+          }) }}
+        />
       </Head>
 
       <div className="max-w-7xl mx-auto">

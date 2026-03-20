@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import CustomerLayout from '@/layouts/CustomerLayout';
-import apiClient, { auth, sales } from '@/services/api';
+import apiClient, { sales } from '@/services/api';
 import { FaEye, FaTimes, FaTruck } from 'react-icons/fa';
 import { useToast } from '@/contexts/ToastContext';
 import { getOrderStatusLabel, getOrderStatusColor } from '@/utils/orderStatus';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface OrderItem {
   id: number;
@@ -29,6 +30,7 @@ interface OrderProduct {
 
 export default function CustomerOrdersPage() {
   const toast = useToast();
+  const { user } = useAuth();
   const [orders, setOrders] = useState<OrderItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -52,7 +54,6 @@ export default function CustomerOrdersPage() {
       setLoading(true);
       setError(null);
       try {
-        const user = await auth.getCurrentUser();
         if (!user) {
           setError('Unable to load orders. Please login again.');
           setLoading(false);

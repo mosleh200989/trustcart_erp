@@ -3,6 +3,7 @@ import { useRouter } from 'next/router';
 import AdminLayout from '@/layouts/AdminLayout';
 import { useToast } from '@/contexts/ToastContext';
 import apiClient from '@/services/api';
+import { useAuth } from '@/contexts/AuthContext';
 
 type AdminMenuItem = {
   id: number;
@@ -27,6 +28,7 @@ function flattenTree(nodes: AdminMenuNode[], out: AdminMenuNode[] = []): AdminMe
 
 export default function ManageModulesPage() {
   const router = useRouter();
+  const { isAuthenticated } = useAuth();
   const toast = useToast();
 
   const [tree, setTree] = useState<AdminMenuNode[]>([]);
@@ -65,8 +67,7 @@ export default function ManageModulesPage() {
   };
 
   useEffect(() => {
-    const token = localStorage.getItem('authToken');
-    if (!token) {
+    if (!isAuthenticated) {
       router.replace('/admin/login');
       return;
     }

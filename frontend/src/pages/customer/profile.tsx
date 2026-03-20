@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import CustomerLayout from '@/layouts/CustomerLayout';
-import { auth, customers, cdm } from '@/services/api';
+import { customers, cdm } from '@/services/api';
 import { useToast } from '@/contexts/ToastContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { FaUser, FaEnvelope, FaPhone, FaMapMarkerAlt, FaUsers, FaEdit, FaTrash, FaSave, FaTimes, FaUserPlus } from 'react-icons/fa';
 import PhoneInput, { validateBDPhone } from '@/components/PhoneInput';
 
@@ -47,6 +48,7 @@ const normalizeOptionalIsoDate = (label: string, value: string): string | undefi
 
 export default function CustomerProfilePage() {
   const toast = useToast();
+  const { user: authUser } = useAuth();
   const [profile, setProfile] = useState<CustomerProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -78,8 +80,7 @@ export default function CustomerProfilePage() {
       setLoading(true);
       setError(null);
       try {
-        const user = await auth.getCurrentUser();
-        if (!user) {
+        if (!authUser) {
           setError('Unable to load profile. Please login again.');
           setLoading(false);
           return;

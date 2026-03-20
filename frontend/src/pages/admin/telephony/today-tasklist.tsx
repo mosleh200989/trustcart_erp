@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useToast } from '@/contexts/ToastContext';
 import AdminLayout from '@/layouts/AdminLayout';
-import { apiUrl } from '@/config/backend';
 import { useAuth } from '@/contexts/AuthContext';
 import { 
   FaPhone, FaFire, FaCheckCircle, FaClock, FaList, FaCalendarDay, 
@@ -144,35 +143,28 @@ export default function TodayTasklistPage() {
     
     try {
       setLoading(true);
-      const token = localStorage.getItem('authToken');
       const today = new Date().toISOString().split('T')[0];
       
       // Fetch all tasks and leads in parallel
       const [todayTasksRes, allTasksRes, leadsRes] = await Promise.all([
         // Tasks assigned to me, due today
-        fetch(apiUrl(`/crm/tasks?assignedTo=${authUser.id}&dueToday=true`), {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
+        apiClient.get(`/crm/tasks?assignedTo=${authUser.id}&dueToday=true`).catch(() => null),
         // All tasks assigned to me
-        fetch(apiUrl(`/crm/tasks?assignedTo=${authUser.id}`), {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
+        apiClient.get(`/crm/tasks?assignedTo=${authUser.id}`).catch(() => null),
         // Leads/customers assigned to me
-        fetch(apiUrl(`/customers?assigned_to=${authUser.id}&limit=100`), {
-          headers: { Authorization: `Bearer ${token}` },
-        }).catch(() => null),
+        apiClient.get(`/customers?assigned_to=${authUser.id}&limit=100`).catch(() => null),
       ]);
 
       // Process today's CRM Tasks
-      if (todayTasksRes.ok) {
-        const tasksData = await todayTasksRes.json();
+      if (todayTasksRes?.data) {
+        const tasksData = todayTasksRes.data;
         setCrmTasks(Array.isArray(tasksData) ? tasksData : []);
       }
 
       // Process all tasks for overdue calculation
       let allTasksList: CrmTask[] = [];
-      if (allTasksRes.ok) {
-        const allData = await allTasksRes.json();
+      if (allTasksRes?.data) {
+        const allData = allTasksRes.data;
         allTasksList = Array.isArray(allData) ? allData : [];
         setAllTasks(allTasksList);
         
@@ -196,8 +188,8 @@ export default function TodayTasklistPage() {
       }
 
       // Process Leads assigned today
-      if (leadsRes?.ok) {
-        const leadsData = await leadsRes.json();
+      if (leadsRes?.data) {
+        const leadsData = leadsRes.data;
         const allLeads: Lead[] = Array.isArray(leadsData) ? leadsData : (leadsData.data || leadsData.customers || []);
         
         // Filter leads assigned today
@@ -223,15 +215,7 @@ export default function TodayTasklistPage() {
 
   const handleUpdateTaskStatus = async (taskId: number, status: string) => {
     try {
-      const token = localStorage.getItem('authToken');
-      await fetch(apiUrl(`/crm/tasks/${taskId}`), {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ status }),
-      });
+      await apiClient.put(`/crm/tasks/${taskId}`, { status });
       await loadTodayData();
     } catch (error) {
       console.error('Failed to update task status:', error);

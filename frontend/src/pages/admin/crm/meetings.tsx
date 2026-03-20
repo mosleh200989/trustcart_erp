@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Plus, Calendar as CalendarIcon, Search, Clock, Users, Video, MapPin, CheckCircle, X } from 'lucide-react';
 import AdminLayout from '@/layouts/AdminLayout';
 import { format, addDays, startOfWeek, addWeeks } from 'date-fns';
-import { apiUrl } from '@/config/backend';
+import apiClient from '@/services/api';
 
 interface Meeting {
   id: number;
@@ -35,18 +35,8 @@ const MeetingScheduler = () => {
   const fetchMeetings = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('authToken');
-      const response = await fetch(apiUrl('/crm/meetings'), {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      
-      if (!response.ok) {
-        console.error('Failed to fetch meetings:', response.statusText);
-        setMeetings([]);
-        return;
-      }
-      
-      const data = await response.json();
+      const response = await apiClient.get('/crm/meetings');
+      const data = response.data;
       if (Array.isArray(data)) {
         setMeetings(data);
       } else {
@@ -306,12 +296,8 @@ const MeetingModal = ({ selectedDate, onClose, onSave }: { selectedDate: Date | 
 
   const fetchCustomers = async () => {
     try {
-      const token = localStorage.getItem('authToken');
-      const response = await fetch(apiUrl('/customers?limit=100'), {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await response.json();
-      setCustomers(data);
+      const response = await apiClient.get('/customers?limit=100');
+      setCustomers(response.data);
     } catch (error) {
       console.error('Error fetching customers:', error);
     }
@@ -320,27 +306,19 @@ const MeetingModal = ({ selectedDate, onClose, onSave }: { selectedDate: Date | 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const token = localStorage.getItem('authToken');
       const startDateTime = new Date(`${formData.startDate}T${formData.startTime}`);
       const endDateTime = new Date(`${formData.startDate}T${formData.endTime}`);
 
-      await fetch(apiUrl('/crm/meetings'), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          title: formData.title,
-          customerId: formData.customerId ? parseInt(formData.customerId) : undefined,
-          dealId: formData.dealId ? parseInt(formData.dealId) : undefined,
-          startTime: startDateTime.toISOString(),
-          endTime: endDateTime.toISOString(),
-          timezone: formData.timezone,
-          location: formData.location,
-          meetingLink: formData.meetingLink,
-          agenda: formData.agenda,
-        }),
+      await apiClient.post('/crm/meetings', {
+        title: formData.title,
+        customerId: formData.customerId ? parseInt(formData.customerId) : undefined,
+        dealId: formData.dealId ? parseInt(formData.dealId) : undefined,
+        startTime: startDateTime.toISOString(),
+        endTime: endDateTime.toISOString(),
+        timezone: formData.timezone,
+        location: formData.location,
+        meetingLink: formData.meetingLink,
+        agenda: formData.agenda,
       });
       onSave();
     } catch (error) {

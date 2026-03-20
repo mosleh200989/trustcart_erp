@@ -3,7 +3,6 @@ import { useToast } from '@/contexts/ToastContext';
 import AdminLayout from '@/layouts/AdminLayout';
 import PageSizeSelector from '@/components/admin/PageSizeSelector';
 import Pagination from '@/components/admin/Pagination';
-import { apiUrl } from '@/config/backend';
 import { useAuth } from '@/contexts/AuthContext';
 import { 
   FaPhone, FaFire, FaCheckCircle, FaClock, FaList, FaCalendarDay, 
@@ -104,36 +103,29 @@ export default function AllTasksPage() {
     
     try {
       setLoading(true);
-      const token = localStorage.getItem('authToken');
       
       // Fetch all tasks assigned to current user
-      const response = await fetch(apiUrl(`/crm/tasks?assignedTo=${authUser.id}`), {
-        headers: { Authorization: `Bearer ${token}` },
+      const response = await apiClient.get(`/crm/tasks?assignedTo=${authUser.id}`);
+      const taskList = Array.isArray(response.data) ? response.data : [];
+      setTasks(taskList);
+      
+      // Calculate stats
+      const now = new Date();
+      const overdueCount = taskList.filter((t: CrmTask) => {
+        if (!t.dueDate || t.status === 'completed' || t.status === 'cancelled') return false;
+        const dueDate = new Date(t.dueDate);
+        dueDate.setHours(23, 59, 59, 999);
+        return dueDate < now;
+      }).length;
+      
+      setStats({
+        total: taskList.length,
+        pending: taskList.filter((t: CrmTask) => t.status === 'pending').length,
+        inProgress: taskList.filter((t: CrmTask) => t.status === 'in_progress').length,
+        completed: taskList.filter((t: CrmTask) => t.status === 'completed').length,
+        cancelled: taskList.filter((t: CrmTask) => t.status === 'cancelled').length,
+        overdue: overdueCount,
       });
-
-      if (response.ok) {
-        const data = await response.json();
-        const taskList = Array.isArray(data) ? data : [];
-        setTasks(taskList);
-        
-        // Calculate stats
-        const now = new Date();
-        const overdueCount = taskList.filter((t: CrmTask) => {
-          if (!t.dueDate || t.status === 'completed' || t.status === 'cancelled') return false;
-          const dueDate = new Date(t.dueDate);
-          dueDate.setHours(23, 59, 59, 999);
-          return dueDate < now;
-        }).length;
-        
-        setStats({
-          total: taskList.length,
-          pending: taskList.filter((t: CrmTask) => t.status === 'pending').length,
-          inProgress: taskList.filter((t: CrmTask) => t.status === 'in_progress').length,
-          completed: taskList.filter((t: CrmTask) => t.status === 'completed').length,
-          cancelled: taskList.filter((t: CrmTask) => t.status === 'cancelled').length,
-          overdue: overdueCount,
-        });
-      }
     } catch (error) {
       console.error('Failed to load tasks:', error);
     } finally {
@@ -143,15 +135,7 @@ export default function AllTasksPage() {
 
   const handleUpdateTaskStatus = async (taskId: number, status: string) => {
     try {
-      const token = localStorage.getItem('authToken');
-      await fetch(apiUrl(`/crm/tasks/${taskId}`), {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ status }),
-      });
+      await apiClient.put(`/crm/tasks/${taskId}`, { status });
       await loadTasks();
     } catch (error) {
       console.error('Failed to update task status:', error);

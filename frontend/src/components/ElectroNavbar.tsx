@@ -2,8 +2,9 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useState, useEffect } from 'react';
 import { FaPhone, FaEnvelope, FaUser, FaShoppingCart, FaHeart, FaBars, FaSearch, FaTimes } from 'react-icons/fa';
-import apiClient, { auth, categories as categoriesAPI } from '@/services/api';
+import apiClient, { categories as categoriesAPI } from '@/services/api';
 import { useCart } from '@/contexts/CartContext';
+import { useAuth } from '@/contexts/AuthContext';
 
 type NavbarCategory = {
   id: number;
@@ -17,7 +18,9 @@ export default function ElectroNavbar() {
   const router = useRouter();
   const { items: cartItems } = useCart();
   const cartCount = cartItems.length;
-  const [user, setUser] = useState<any>(null);
+  const { user: authUser } = useAuth();
+  // Only show user in navbar if they're a customer account
+  const user = authUser && authUser.roleSlug === 'customer-account' ? authUser : null;
   const [showCategories, setShowCategories] = useState(false);
   const [navbarCategories, setNavbarCategories] = useState<NavbarCategory[]>([]);
   const [navbarCategoriesLoading, setNavbarCategoriesLoading] = useState(false);
@@ -28,21 +31,6 @@ export default function ElectroNavbar() {
   const [showMobileMenu, setShowMobileMenu] = useState(false);
 
   useEffect(() => {
-    const initUser = async () => {
-      try {
-        const current = await auth.getCurrentUser();
-        if (current && (current as any).roleSlug === 'customer-account') {
-          setUser(current);
-        } else {
-          setUser(null);
-        }
-      } catch {
-        setUser(null);
-      }
-    };
-
-    initUser();
-
     const loadNavbarCategories = async () => {
       setNavbarCategoriesLoading(true);
       setNavbarCategoriesError(false);

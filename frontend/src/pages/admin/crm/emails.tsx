@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Plus, Send, Mail, Eye, MousePointerClick, Reply, X, Search, Filter } from 'lucide-react';
 import AdminLayout from '@/layouts/AdminLayout';
 import { format } from 'date-fns';
-import { apiUrl } from '@/config/backend';
+import apiClient from '@/services/api';
 
 interface Email {
   id: number;
@@ -39,18 +39,8 @@ const EmailCampaigns = () => {
   const fetchEmails = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('authToken');
-      const response = await fetch(apiUrl('/crm/emails'), {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      
-      if (!response.ok) {
-        console.error('Failed to fetch emails:', response.statusText);
-        setEmails([]);
-        return;
-      }
-      
-      const data = await response.json();
+      const response = await apiClient.get('/crm/emails');
+      const data = response.data;
       if (Array.isArray(data)) {
         setEmails(data);
       } else {
@@ -67,17 +57,8 @@ const EmailCampaigns = () => {
 
   const fetchStats = async () => {
     try {
-      const token = localStorage.getItem('authToken');
-      const response = await fetch(apiUrl('/crm/emails/stats'), {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      
-      if (!response.ok) {
-        console.error('Failed to fetch stats:', response.statusText);
-        return;
-      }
-      
-      const data = await response.json();
+      const response = await apiClient.get('/crm/emails/stats');
+      const data = response.data;
       if (data && typeof data === 'object') {
         setStats(data);
       } else {
@@ -315,12 +296,8 @@ const EmailModal = ({ onClose, onSave }: { onClose: () => void; onSave: () => vo
 
   const fetchCustomers = async () => {
     try {
-      const token = localStorage.getItem('authToken');
-      const response = await fetch(apiUrl('/customers?limit=100'), {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await response.json();
-      setCustomers(data);
+      const response = await apiClient.get('/customers?limit=100');
+      setCustomers(response.data);
     } catch (error) {
       console.error('Error fetching customers:', error);
     }
@@ -344,21 +321,13 @@ const EmailModal = ({ onClose, onSave }: { onClose: () => void; onSave: () => vo
     const customer = customers.find(c => c.id === parseInt(formData.customerId));
     
     try {
-      const token = localStorage.getItem('authToken');
-      await fetch(apiUrl('/crm/emails'), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          customerId: parseInt(formData.customerId),
-          subject: formData.subject,
-          body: formData.body,
-          toAddress: customer?.email || '',
-          templateUsed: formData.templateUsed,
-          sentAt: new Date().toISOString(),
-        }),
+      await apiClient.post('/crm/emails', {
+        customerId: parseInt(formData.customerId),
+        subject: formData.subject,
+        body: formData.body,
+        toAddress: customer?.email || '',
+        templateUsed: formData.templateUsed,
+        sentAt: new Date().toISOString(),
       });
       onSave();
     } catch (error) {

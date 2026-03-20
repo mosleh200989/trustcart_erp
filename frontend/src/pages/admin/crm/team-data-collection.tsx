@@ -2,12 +2,14 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import AdminLayout from '@/layouts/AdminLayout';
 import apiClient from '@/services/api';
+import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/contexts/ToastContext';
 
 type TeamTab = { id: number; name: string; code: string };
 
 export default function TeamDataCollectionPage() {
   const router = useRouter();
+  const { isAuthenticated } = useAuth();
   const toast = useToast();
   const [activeTeam, setActiveTeam] = useState('A');
   const [teamTabs, setTeamTabs] = useState<TeamTab[]>([]);
@@ -76,8 +78,7 @@ export default function TeamDataCollectionPage() {
 
   const loadTeams = async () => {
     try {
-      const token = localStorage.getItem('authToken');
-      if (!token) {
+      if (!isAuthenticated) {
         router.replace('/admin/login');
         return;
       }
@@ -115,8 +116,7 @@ export default function TeamDataCollectionPage() {
 
   const fetchMyAssignments = async () => {
     try {
-      const token = localStorage.getItem('authToken');
-      if (!token) {
+      if (!isAuthenticated) {
         router.replace('/admin/login');
         return;
       }

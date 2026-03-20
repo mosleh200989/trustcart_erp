@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { FaBell, FaTimes, FaFileInvoice, FaCheckCircle, FaTimesCircle } from 'react-icons/fa';
 import { BACKEND_ORIGIN } from '@/config/backend';
+import apiClient from '@/services/api';
 
 interface Notification {
   id: number;
@@ -70,16 +71,10 @@ export default function QuoteNotifications() {
       const lastCheck = localStorage.getItem('lastNotificationCheck');
       const timestamp = lastCheck || new Date(Date.now() - 3600000).toISOString();
 
-      // This would be an API call to get new notifications
-      // For now, we'll simulate with localStorage
-      const response = await fetch(`/api/crm/quotes/notifications?since=${timestamp}`, {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('authToken')}`,
-        },
-      }).catch(() => null);
+      const response = await apiClient.get(`/crm/quotes/notifications?since=${timestamp}`).catch(() => null);
 
-      if (response && response.ok) {
-        const newNotifications = await response.json();
+      if (response?.data) {
+        const newNotifications = response.data;
         newNotifications.forEach((n: Notification) => addNotification(n));
       }
 
