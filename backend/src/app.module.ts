@@ -164,6 +164,10 @@ import { LandingPage } from './modules/landing-pages/landing-page.entity';
 import { LandingPageOrder } from './modules/landing-pages/landing-page-order.entity';
 import { PaymentModule } from './modules/payment/payment.module';
 
+// Cart Module
+import { CartItem } from './modules/cart/cart-item.entity';
+import { CartModule } from './modules/cart/cart.module';
+
 // Sitemap & Feed Module
 import { SitemapFeedModule } from './modules/sitemap-feed/sitemap-feed.module';
 
@@ -225,7 +229,9 @@ import { SitemapFeedModule } from './modules/sitemap-feed/sitemap-feed.module';
             // Payment Entities
             PaymentTransaction,
             // HRM Entities
-            HrmBranches, HrmDepartments, HrmDesignations, HrmEmployees, HrmAwardTypes, HrmAwards, HrmPromotions, HrmResignations, HrmTerminations, HrmWarnings, HrmTrips, HrmComplaints, HrmTransfers, HrmHolidays, HrmAnnouncements, HrmTrainingTypes, HrmTrainingPrograms, HrmTrainingSessions, HrmEmployeeTrainings, HrmPerformanceIndicatorCategories, HrmPerformanceIndicators, HrmEmployeePerformance, HrmDocumentTypes, HrmEmployeeDocuments
+            HrmBranches, HrmDepartments, HrmDesignations, HrmEmployees, HrmAwardTypes, HrmAwards, HrmPromotions, HrmResignations, HrmTerminations, HrmWarnings, HrmTrips, HrmComplaints, HrmTransfers, HrmHolidays, HrmAnnouncements, HrmTrainingTypes, HrmTrainingPrograms, HrmTrainingSessions, HrmEmployeeTrainings, HrmPerformanceIndicatorCategories, HrmPerformanceIndicators, HrmEmployeePerformance, HrmDocumentTypes, HrmEmployeeDocuments,
+            // Cart
+            CartItem,
           ],
           synchronize: false,
           logging: true,
@@ -278,6 +284,7 @@ import { SitemapFeedModule } from './modules/sitemap-feed/sitemap-feed.module';
     LandingPagesModule,
     SitemapFeedModule,
     PaymentModule,
+    CartModule,
   ],
   controllers: [],
   providers: [],

@@ -5,6 +5,7 @@ import { FaStar, FaShoppingCart, FaHeart, FaEye, FaTag } from "react-icons/fa";
 import AddToCartPopup from "./AddToCartPopup";
 import { BACKEND_ORIGIN } from "@/config/backend";
 import { useToast } from "@/contexts/ToastContext";
+import { useCart } from "@/contexts/CartContext";
 import { trackAddToCart } from "@/utils/gtm";
 
 interface ProductCardProps {
@@ -56,6 +57,7 @@ export default function ElectroProductCard({
   discount,
 }: ProductCardProps) {
   const toast = useToast();
+  const { addItem } = useCart();
   const [showPopup, setShowPopup] = useState(false);
   const [imageError, setImageError] = useState(false);
   const router = useRouter();
@@ -86,25 +88,15 @@ export default function ElectroProductCard({
 
   const handleAddToCart = (e: React.MouseEvent) => {
     e.preventDefault();
-    const cart = JSON.parse(localStorage.getItem("cart") || "[]");
-    const existingItem = cart.find((item: any) => item.id === id);
-
-    if (existingItem) {
-      existingItem.quantity += 1;
-    } else {
-      cart.push({
-        id,
-        name: displayName,
-        name_en: displayName,
-        price: priceNum,
-        quantity: 1,
-        image,
-        category: displayCategory || undefined,
-      });
-    }
-
-    localStorage.setItem("cart", JSON.stringify(cart));
-    window.dispatchEvent(new Event("cartUpdated"));
+    addItem({
+      id,
+      name: displayName,
+      name_en: displayName,
+      price: priceNum,
+      quantity: 1,
+      image,
+      category: displayCategory || undefined,
+    });
     
     // Track add to cart event for GTM/Analytics
     trackAddToCart({
