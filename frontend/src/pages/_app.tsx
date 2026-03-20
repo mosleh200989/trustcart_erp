@@ -4,6 +4,7 @@ import { useRouter } from 'next/router';
 import '@/styles/globals.css';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { ToastProvider } from '@/contexts/ToastContext';
+import { CartProvider } from '@/contexts/CartContext';
 import AdminRouteGuard from '@/components/auth/AdminRouteGuard';
 import { isAuthPath, setAuthReturnPath } from '@/utils/authReturnPath';
 import { initDataLayer, trackPageView } from '@/utils/gtm';
@@ -74,12 +75,14 @@ export default function App({ Component, pageProps }: AppProps) {
 
   return (
     <AuthProvider>
-      <ToastProvider>
-        <FacebookAdvancedMatching />
-        <AdminRouteGuard>
-          <Component {...pageProps} />
-        </AdminRouteGuard>
-      </ToastProvider>
+      <CartProvider>
+        <ToastProvider>
+          <FacebookAdvancedMatching />
+          <AdminRouteGuard>
+            <Component {...pageProps} />
+          </AdminRouteGuard>
+        </ToastProvider>
+      </CartProvider>
     </AuthProvider>
   );
 }

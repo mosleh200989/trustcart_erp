@@ -8,6 +8,7 @@ import ElectroNavbar from '@/components/ElectroNavbar';
 import ElectroFooter from '@/components/ElectroFooter';
 import ElectroProductCard from '@/components/ElectroProductCard';
 import AddToCartPopup from '@/components/AddToCartPopup';
+import { useCart } from '@/contexts/CartContext';
 import { 
   FaShoppingCart, 
   FaTag, 
@@ -46,28 +47,10 @@ interface ComboDeal {
   expires_at?: string;
 }
 
-// Helper function to add item to localStorage cart
-const addToLocalCart = (item: { id: number; name: string; price: number; quantity: number; image: string; slug: string }) => {
-  const stored = localStorage.getItem('cart');
-  const cart = stored ? JSON.parse(stored) : [];
-  
-  // Check if item already exists
-  const existingIndex = cart.findIndex((cartItem: any) => cartItem.id === item.id);
-  if (existingIndex >= 0) {
-    cart[existingIndex].quantity += item.quantity;
-  } else {
-    cart.push(item);
-  }
-  
-  localStorage.setItem('cart', JSON.stringify(cart));
-  
-  // Dispatch custom event for cart update
-  window.dispatchEvent(new Event('cartUpdated'));
-};
-
 export default function ComboDetailPage() {
   const router = useRouter();
   const { slug } = router.query;
+  const { addItem } = useCart();
 
   const [combo, setCombo] = useState<ComboDeal | null>(null);
   const [loading, setLoading] = useState(true);
@@ -204,13 +187,12 @@ export default function ComboDetailPage() {
     if (!combo?.products) return;
     
     combo.products.forEach(product => {
-      addToLocalCart({
+      addItem({
         id: product.id,
         name: product.name_en,
         price: Number(product.base_price),
         quantity: quantity,
         image: product.image_url || '',
-        slug: product.slug || ''
       });
     });
     
@@ -255,13 +237,12 @@ export default function ComboDetailPage() {
 
   // Handle add single product to cart
   const handleAddProductToCart = (product: Product) => {
-    addToLocalCart({
+    addItem({
       id: product.id,
       name: product.name_en,
       price: Number(product.base_price),
       quantity: 1,
       image: product.image_url || '',
-      slug: product.slug || ''
     });
     setCartProduct({
       id: product.id,

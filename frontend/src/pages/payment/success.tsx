@@ -5,12 +5,19 @@ import ElectroNavbar from "@/components/ElectroNavbar";
 import ElectroFooter from "@/components/ElectroFooter";
 import { FaCheckCircle, FaShoppingCart, FaReceipt } from "react-icons/fa";
 import { getPaymentStatus, PaymentStatusResponse } from "@/services/payment";
+import { useCart } from "@/contexts/CartContext";
 
 export default function PaymentSuccess() {
   const router = useRouter();
   const { orderId, transactionId, status } = router.query;
+  const { clearCart } = useCart();
   const [paymentInfo, setPaymentInfo] = useState<PaymentStatusResponse | null>(null);
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    // Clear cart on successful payment — order is confirmed
+    clearCart();
+  }, []);
 
   useEffect(() => {
     if (!orderId) return;

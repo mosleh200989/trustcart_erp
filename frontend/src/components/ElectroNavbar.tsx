@@ -3,6 +3,7 @@ import { useRouter } from 'next/router';
 import { useState, useEffect } from 'react';
 import { FaPhone, FaEnvelope, FaUser, FaShoppingCart, FaHeart, FaBars, FaSearch, FaTimes } from 'react-icons/fa';
 import apiClient, { auth, categories as categoriesAPI } from '@/services/api';
+import { useCart } from '@/contexts/CartContext';
 
 type NavbarCategory = {
   id: number;
@@ -14,7 +15,8 @@ type NavbarCategory = {
 
 export default function ElectroNavbar() {
   const router = useRouter();
-  const [cartCount, setCartCount] = useState(0);
+  const { items: cartItems } = useCart();
+  const cartCount = cartItems.length;
   const [user, setUser] = useState<any>(null);
   const [showCategories, setShowCategories] = useState(false);
   const [navbarCategories, setNavbarCategories] = useState<NavbarCategory[]>([]);
@@ -26,9 +28,6 @@ export default function ElectroNavbar() {
   const [showMobileMenu, setShowMobileMenu] = useState(false);
 
   useEffect(() => {
-    const cart = JSON.parse(localStorage.getItem('cart') || '[]');
-    setCartCount(cart.length);
-
     const initUser = async () => {
       try {
         const current = await auth.getCurrentUser();
@@ -60,14 +59,6 @@ export default function ElectroNavbar() {
     };
 
     loadNavbarCategories();
-
-    const handleCartUpdate = () => {
-      const updatedCart = JSON.parse(localStorage.getItem('cart') || '[]');
-      setCartCount(updatedCart.length);
-    };
-
-    window.addEventListener('cartUpdated', handleCartUpdate);
-    return () => window.removeEventListener('cartUpdated', handleCartUpdate);
   }, []);
 
   const handleSearch = async (query: string) => {

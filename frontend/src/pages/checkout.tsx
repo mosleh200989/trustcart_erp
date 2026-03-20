@@ -21,13 +21,13 @@ import { TrackingService } from "@/utils/tracking";
 import PhoneInput, { validateBDPhone } from "@/components/PhoneInput";
 import { trackBeginCheckout, trackAddPaymentInfo, trackPurchaseWithUser, extractLocationFromAddress } from "@/utils/gtm";
 import { initiatePayment, redirectToPaymentGateway } from "@/services/payment";
+import { useCart } from "@/contexts/CartContext";
 
 export default function Checkout() {
   const router = useRouter();
   const toast = useToast();
+  const { items: cart, addItem, removeItem: removeCartItem, updateQuantity: updateCartQuantity, clearCart: clearAllCart, setItems: setCartItems } = useCart();
   const touchedRef = useRef<Record<string, boolean>>({});
-  const [cart, setCart] = useState<any[]>([]);
-  const [subtotal, setSubtotal] = useState(0);
   const [suggestedProducts, setSuggestedProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [currentUser, setCurrentUser] = useState<any | null>(null);
@@ -44,22 +44,10 @@ export default function Checkout() {
     paymentMethod: "cash",
   });
 
-  const calculateSubtotal = (cartData: any[]) =>
-    (cartData || []).reduce(
-      (sum: number, item: any) => sum + item.price * (item.quantity || 1),
-      0
-    );
-
-  const applyCart = (cartData: any[]) => {
-    setCart(cartData);
-    setSubtotal(calculateSubtotal(cartData));
-  };
-
-  const persistCart = (cartData: any[]) => {
-    localStorage.setItem("cart", JSON.stringify(cartData));
-    applyCart(cartData);
-    window.dispatchEvent(new Event("cartUpdated"));
-  };
+  const subtotal = cart.reduce(
+    (sum: number, item: any) => sum + item.price * (item.quantity || 1),
+    0
+  );
 
   const getProductDisplayName = (product: any) =>
     product?.name_en || product?.name_bn || product?.name || "Product";
@@ -99,18 +87,14 @@ export default function Checkout() {
   };
 
   useEffect(() => {
-    const stored = localStorage.getItem("cart");
-    const cartData = stored ? JSON.parse(stored) : [];
-    applyCart(cartData);
-    
     // Track begin checkout event for GTM/Analytics
-    if (cartData.length > 0) {
-      const cartTotal = cartData.reduce(
+    if (cart.length > 0) {
+      const cartTotal = cart.reduce(
         (sum: number, item: any) => sum + item.price * (item.quantity || 1),
         0
       );
       trackBeginCheckout(
-        cartData.map((item: any) => ({
+        cart.map((item: any) => ({
           id: item.id,
           name: item.name || item.name_en,
           price: item.price,
@@ -119,13 +103,6 @@ export default function Checkout() {
         cartTotal
       );
     }
-
-    const handleCartUpdate = () => {
-      const updated = localStorage.getItem("cart");
-      applyCart(updated ? JSON.parse(updated) : []);
-    };
-
-    window.addEventListener("cartUpdated", handleCartUpdate);
 
     const initCustomer = async () => {
       try {
@@ -247,54 +224,35 @@ export default function Checkout() {
 
     initCustomer();
     loadSuggestedProducts();
-
-    return () => {
-      window.removeEventListener("cartUpdated", handleCartUpdate);
-    };
   }, []);
 
   function addSuggestedToCart(product: any) {
     const price = getProductPrice(product);
     if (!product?.id || !price) return;
 
-    const existingIndex = cart.findIndex((item) => item.id === product.id);
-    if (existingIndex >= 0) {
-      updateQuantity(existingIndex, (cart[existingIndex]?.quantity || 1) + 1);
-      return;
-    }
-
-    const newItem = {
+    addItem({
       id: product.id,
       name: getProductDisplayName(product),
       name_en: product.name_en,
-      nameEn: product.name_en,
-      sku: product.sku,
       price,
       image: getProductImageUrl(product),
       quantity: 1,
-    };
+    });
 
-    persistCart([...cart, newItem]);
     setSuggestedProducts((prev) => prev.filter((p) => p.id !== product.id));
   }
 
   function clearCart() {
-    localStorage.removeItem("cart");
-    applyCart([]);
-    window.dispatchEvent(new Event("cartUpdated"));
+    clearAllCart();
   }
 
   function removeItem(index: number) {
-    const newCart = cart.filter((_, i) => i !== index);
-    persistCart(newCart);
+    removeCartItem(index);
   }
 
   function updateQuantity(index: number, newQuantity: number) {
     if (newQuantity < 1) return;
-
-    const newCart = [...cart];
-    newCart[index] = { ...newCart[index], quantity: newQuantity };
-    persistCart(newCart);
+    updateCartQuantity(index, newQuantity);
   }
 
   const handleChange = (
@@ -424,10 +382,10 @@ export default function Checkout() {
           coupon: formData.offerCode || undefined,
           items: cart.map((item) => ({
             id: item.id,
-            name: item.name || item.name_en,
+            name: item.name || item.name_en || 'Product',
             price: item.price,
             quantity: item.quantity || 1,
-            category: item.category || item.categoryName || undefined,
+            category: item.category || undefined,
           })),
           user: {
             name: formData.fullName,
@@ -444,7 +402,7 @@ export default function Checkout() {
         trackAddPaymentInfo(
           cart.map((item) => ({
             id: item.id,
-            name: item.name || item.name_en,
+            name: item.name || item.name_en || 'Product',
             price: item.price,
             quantity: item.quantity || 1,
           })),
@@ -464,30 +422,24 @@ export default function Checkout() {
             });
 
             if (paymentResult.success && paymentResult.gatewayUrl) {
-              // Clear cart before redirecting to payment gateway
-              localStorage.removeItem("cart");
-              window.dispatchEvent(new Event("cartUpdated"));
-              // Redirect to SSLCommerz payment gateway
+              // Cart will be cleared on payment success page — keep it until order is confirmed
               redirectToPaymentGateway(paymentResult.gatewayUrl);
               return; // Don't proceed further — browser will navigate away
             } else {
               // Payment initiation failed, redirect to thank-you with pending status
               toast.warning("Payment gateway could not be initialized. Your order has been placed — you can pay later.");
-              localStorage.removeItem("cart");
-              window.dispatchEvent(new Event("cartUpdated"));
+              clearAllCart();
               router.push(`/thank-you?orderId=${response.data.id}`);
             }
           } catch (paymentError: any) {
             console.error("Payment initiation error:", paymentError);
             toast.warning("Payment gateway is temporarily unavailable. Your order has been saved — please try paying again from your order page or contact support.");
-            localStorage.removeItem("cart");
-            window.dispatchEvent(new Event("cartUpdated"));
+            clearAllCart();
             router.push(`/thank-you?orderId=${response.data.id}`);
           }
         } else {
           // Cash on Delivery — go to thank-you page
-          localStorage.removeItem("cart");
-          window.dispatchEvent(new Event("cartUpdated"));
+          clearAllCart();
           router.push(`/thank-you?orderId=${response.data.id}`);
         }
       }

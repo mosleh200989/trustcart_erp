@@ -5,6 +5,7 @@ import ElectroFooter from "@/components/ElectroFooter";
 import ElectroProductCard from "@/components/ElectroProductCard";
 import apiClient from "@/services/api";
 import { trackViewCart, trackRemoveFromCart } from "@/utils/gtm";
+import { useCart } from "@/contexts/CartContext";
 import {
   FaTrash,
   FaMinus,
@@ -14,32 +15,25 @@ import {
 } from "react-icons/fa";
 
 export default function CartPage() {
-  const [cart, setCart] = useState<any[]>([]);
+  const { items: cart, removeItem: removeCartItem, updateQuantity: updateCartQuantity, clearCart: clearAllCart } = useCart();
   const [suggestedProducts, setSuggestedProducts] = useState<any[]>([]);
-  const [subtotal, setSubtotal] = useState(0);
+
+  const subtotal = cart.reduce(
+    (sum: number, item: any) => sum + item.price * (item.quantity || 1),
+    0
+  );
 
   useEffect(() => {
-    const stored = localStorage.getItem("cart");
-    const cartData = stored ? JSON.parse(stored) : [];
-    setCart(cartData);
-
-    // Calculate subtotal
-    const total = cartData.reduce(
-      (sum: number, item: any) => sum + item.price * (item.quantity || 1),
-      0
-    );
-    setSubtotal(total);
-
     // Track view cart event for GTM/Analytics
-    if (cartData.length > 0) {
+    if (cart.length > 0) {
       trackViewCart(
-        cartData.map((item: any) => ({
+        cart.map((item: any) => ({
           id: item.id,
           name: item.name || item.name_en,
           price: item.price,
           quantity: item.quantity || 1,
         })),
-        total
+        subtotal
       );
     }
 
@@ -57,10 +51,7 @@ export default function CartPage() {
   };
 
   function clearCart() {
-    localStorage.removeItem("cart");
-    setCart([]);
-    setSubtotal(0);
-    window.dispatchEvent(new Event('cartUpdated'));
+    clearAllCart();
   }
 
   function removeItem(index: number) {
@@ -69,38 +60,18 @@ export default function CartPage() {
     if (removedItem) {
       trackRemoveFromCart({
         id: removedItem.id,
-        name: removedItem.name || removedItem.name_en,
+        name: removedItem.name || removedItem.name_en || 'Product',
         price: removedItem.price,
         quantity: removedItem.quantity || 1,
       });
     }
     
-    const newCart = cart.filter((_, i) => i !== index);
-    localStorage.setItem("cart", JSON.stringify(newCart));
-    setCart(newCart);
-    window.dispatchEvent(new Event('cartUpdated'));
-
-    const total = newCart.reduce(
-      (sum: number, item: any) => sum + item.price * (item.quantity || 1),
-      0
-    );
-    setSubtotal(total);
+    removeCartItem(index);
   }
 
   function updateQuantity(index: number, newQuantity: number) {
     if (newQuantity < 1) return;
-
-    const newCart = [...cart];
-    newCart[index] = { ...newCart[index], quantity: newQuantity };
-    localStorage.setItem("cart", JSON.stringify(newCart));
-    setCart(newCart);
-    window.dispatchEvent(new Event('cartUpdated'));
-
-    const total = newCart.reduce(
-      (sum: number, item: any) => sum + item.price * (item.quantity || 1),
-      0
-    );
-    setSubtotal(total);
+    updateCartQuantity(index, newQuantity);
   }
 
   const deliveryChargeMin = 60;

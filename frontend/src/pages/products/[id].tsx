@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/router";
 import { useToast } from '@/contexts/ToastContext';
+import { useCart } from '@/contexts/CartContext';
 import { motion } from "framer-motion";
 import ElectroNavbar from "@/components/ElectroNavbar";
 import ElectroFooter from "@/components/ElectroFooter";
@@ -31,6 +32,7 @@ interface SizeVariant {
 export default function ProductDetailsPage() {
   const router = useRouter();
   const toast = useToast();
+  const { addItem } = useCart();
   const { id } = router.query;
   const [product, setProduct] = useState<any>(null);
   const [productImages, setProductImages] = useState<any[]>([]);
@@ -216,13 +218,9 @@ export default function ProductDetailsPage() {
   };
 
   const handleAddToCart = () => {
-    const cart = JSON.parse(localStorage.getItem("cart") || "[]");
-    // Create a unique ID that includes variant info
     const cartItemId = selectedVariant 
       ? `${product.id}-${selectedVariant.name}` 
       : product.id.toString();
-    
-    const existingItem = cart.find((item: any) => item.cartItemId === cartItemId || (item.id === product.id && !item.variant && !selectedVariant));
 
     const bp = Number(product.base_price || product.price || 0);
     const sp = product.sale_price ? Number(product.sale_price) : null;
@@ -230,27 +228,20 @@ export default function ProductDetailsPage() {
       ? selectedVariant.price
       : (sp != null && sp > 0 && sp < bp ? sp : bp);
 
-    if (existingItem && existingItem.cartItemId === cartItemId) {
-      existingItem.quantity += quantity;
-    } else {
-      cart.push({
-        id: product.id,
-        cartItemId: cartItemId,
-        name: selectedVariant 
-          ? `${product.name_en} (${selectedVariant.name})` 
-          : product.name_en,
-        name_en: product.name_en,
-        price: itemPrice,
-        quantity: quantity,
-        image: product.image_url,
-        variant: selectedVariant ? selectedVariant.name : null,
-        variantDetails: selectedVariant || null,
-        category: product.category?.name || product.category?.name_en || undefined,
-      });
-    }
-
-    localStorage.setItem("cart", JSON.stringify(cart));
-    window.dispatchEvent(new Event("cartUpdated"));
+    addItem({
+      id: product.id,
+      cartItemId,
+      name: selectedVariant 
+        ? `${product.name_en} (${selectedVariant.name})` 
+        : product.name_en,
+      name_en: product.name_en,
+      price: itemPrice,
+      quantity,
+      image: product.image_url,
+      variant: selectedVariant ? selectedVariant.name : null,
+      variantDetails: selectedVariant || null,
+      category: product.category?.name || product.category?.name_en || undefined,
+    });
     
     // Track add to cart event for GTM/Analytics
     trackAddToCart({
@@ -259,7 +250,7 @@ export default function ProductDetailsPage() {
         ? `${product.name_en} (${selectedVariant.name})` 
         : product.name_en,
       price: itemPrice,
-      quantity: quantity,
+      quantity,
       category: product.category?.name || product.category?.name_en || undefined,
       variant: selectedVariant?.name,
     });
@@ -268,13 +259,9 @@ export default function ProductDetailsPage() {
   };
 
   const handleBuyNow = () => {
-    const cart = JSON.parse(localStorage.getItem("cart") || "[]");
-    // Create a unique ID that includes variant info
     const cartItemId = selectedVariant 
       ? `${product.id}-${selectedVariant.name}` 
       : product.id.toString();
-    
-    const existingItem = cart.find((item: any) => item.cartItemId === cartItemId || (item.id === product.id && !item.variant && !selectedVariant));
 
     const bp = Number(product.base_price || product.price || 0);
     const sp = product.sale_price ? Number(product.sale_price) : null;
@@ -282,27 +269,21 @@ export default function ProductDetailsPage() {
       ? selectedVariant.price
       : (sp != null && sp > 0 && sp < bp ? sp : bp);
 
-    if (existingItem && existingItem.cartItemId === cartItemId) {
-      existingItem.quantity += quantity;
-    } else {
-      cart.push({
-        id: product.id,
-        cartItemId: cartItemId,
-        name: selectedVariant 
-          ? `${product.name_en} (${selectedVariant.name})` 
-          : product.name_en,
-        name_en: product.name_en,
-        price: itemPrice,
-        quantity: quantity,
-        image: product.image_url,
-        variant: selectedVariant ? selectedVariant.name : null,
-        variantDetails: selectedVariant || null,
-        category: product.category?.name || product.category?.name_en || undefined,
-      });
-    }
+    addItem({
+      id: product.id,
+      cartItemId,
+      name: selectedVariant 
+        ? `${product.name_en} (${selectedVariant.name})` 
+        : product.name_en,
+      name_en: product.name_en,
+      price: itemPrice,
+      quantity,
+      image: product.image_url,
+      variant: selectedVariant ? selectedVariant.name : null,
+      variantDetails: selectedVariant || null,
+      category: product.category?.name || product.category?.name_en || undefined,
+    });
 
-    localStorage.setItem("cart", JSON.stringify(cart));
-    window.dispatchEvent(new Event("cartUpdated"));
     router.push("/checkout");
   };
 

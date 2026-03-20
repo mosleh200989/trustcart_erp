@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { blog, products } from '../../services/api';
-import ProductCard from '../../components/ProductCard';
+import ElectroProductCard from '../../components/ElectroProductCard';
 
 export default function BlogPostPage() {
   const router = useRouter();
@@ -346,7 +346,17 @@ export default function BlogPostPage() {
             <div className="row g-3">
               {relatedProducts.map((product) => (
                 <div key={product.id} className="col-12">
-                  <ProductCard {...product} />
+                  <ElectroProductCard
+                    id={product.id}
+                    slug={product.slug}
+                    nameEn={product.name_en || product.name}
+                    nameBn={product.name_bn}
+                    categoryName={product.category_name || product.category?.name_en || product.category?.name}
+                    price={Number(product.sale_price || product.base_price || product.price || 0)}
+                    originalPrice={product.sale_price ? Number(product.base_price || product.price || 0) : undefined}
+                    stock={product.stock_quantity}
+                    image={product.image_url || product.image}
+                  />
                 </div>
               ))}
             </div>
