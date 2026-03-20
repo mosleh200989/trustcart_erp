@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import Router from 'next/router';
 import Link from 'next/link';
-import apiClient, { auth } from '../../services/api';
+import { useAuth } from '@/contexts/AuthContext';
 import { getAuthReturnPath } from '@/utils/authReturnPath';
 import { FaArrowLeft } from 'react-icons/fa';
 import PasswordInput from '@/components/common/PasswordInput';
 
 export default function AdminLogin() {
+  const { login } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -17,7 +18,7 @@ export default function AdminLogin() {
     setLoading(true);
     setError(null);
     try {
-      const data = await auth.login(email, password);
+      const data = await login(email, password);
       if (data && data.accessToken) {
         const roleSlug = data?.user?.roleSlug as string | undefined;
 
@@ -27,7 +28,6 @@ export default function AdminLogin() {
           return;
         }
 
-        localStorage.setItem('authToken', data.accessToken);
         Router.push('/admin/dashboard');
       } else {
         setError('Invalid response from server');

@@ -34,7 +34,7 @@ type Profile = {
 
 export default function AdminProfilePage() {
   const router = useRouter();
-  const { user, roles, refresh } = useAuth();
+  const { user, roles, refresh, isAuthenticated } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [loading, setLoading] = useState(true);
@@ -62,8 +62,7 @@ export default function AdminProfilePage() {
   });
 
   useEffect(() => {
-    const token = localStorage.getItem('authToken');
-    if (!token) {
+    if (!isAuthenticated) {
       router.replace('/admin/login');
       return;
     }

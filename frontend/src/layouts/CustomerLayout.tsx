@@ -1,6 +1,7 @@
 import { ReactNode, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
+import { useAuth } from '@/contexts/AuthContext';
 import {
   FaBars,
   FaHome,
@@ -32,6 +33,7 @@ const menuItems: MenuItem[] = [
 
 export default function CustomerLayout({ children }: { children: ReactNode }) {
   const router = useRouter();
+  const { logout } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
@@ -39,10 +41,7 @@ export default function CustomerLayout({ children }: { children: ReactNode }) {
   }, [router.pathname]);
 
   const handleLogout = () => {
-    // Clear shared auth token used by API client
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem('authToken');
-    }
+    logout();
     setSidebarOpen(false);
     router.push('/customer/login');
   };

@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
+import Head from 'next/head';
 import ElectroNavbar from '@/components/ElectroNavbar';
 import ElectroFooter from '@/components/ElectroFooter';
 import apiClient from '@/services/api';
+import { SITE_NAME, DEFAULT_OG_IMAGE, canonicalUrl } from '@/config/seo';
 
 const CareersPage = () => {
   const router = useRouter();
@@ -37,6 +39,15 @@ const CareersPage = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <Head>
+        <title>Careers | {SITE_NAME}</title>
+        <meta name="description" content={`Join the ${SITE_NAME} team. Browse open positions and build your career with us.`} />
+        <link rel="canonical" href={canonicalUrl('/careers')} />
+        <meta property="og:title" content={`Careers | ${SITE_NAME}`} />
+        <meta property="og:url" content={canonicalUrl('/careers')} />
+        <meta property="og:image" content={DEFAULT_OG_IMAGE} />
+        <meta property="og:site_name" content={SITE_NAME} />
+      </Head>
       <ElectroNavbar />
       
       {/* Hero Section */}

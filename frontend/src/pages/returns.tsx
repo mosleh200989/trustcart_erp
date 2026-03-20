@@ -1,9 +1,19 @@
+import Head from 'next/head';
 import ElectroNavbar from '@/components/ElectroNavbar';
 import ElectroFooter from '@/components/ElectroFooter';
+import { SITE_NAME, canonicalUrl } from '@/config/seo';
 
 export default function Returns() {
   return (
     <div className="min-h-screen bg-gray-50">
+      <Head>
+        <title>Returns & Refunds Policy | {SITE_NAME}</title>
+        <meta name="description" content={`Learn about the ${SITE_NAME} returns and refunds policy. Easy returns within the return window.`} />
+        <link rel="canonical" href={canonicalUrl('/returns')} />
+        <meta property="og:title" content={`Returns & Refunds | ${SITE_NAME}`} />
+        <meta property="og:url" content={canonicalUrl('/returns')} />
+        <meta property="og:site_name" content={SITE_NAME} />
+      </Head>
       <ElectroNavbar />
 
       <div className="bg-gray-100 border-b">

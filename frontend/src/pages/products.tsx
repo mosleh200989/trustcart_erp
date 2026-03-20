@@ -1,10 +1,12 @@
 import { useEffect, useState, useRef, useCallback } from "react";
+import Head from "next/head";
 import { useRouter } from "next/router";
 import ElectroNavbar from "@/components/ElectroNavbar";
 import ElectroFooter from "@/components/ElectroFooter";
 import ElectroProductCard from "@/components/ElectroProductCard";
 import { FaThLarge, FaThList, FaFilter } from "react-icons/fa";
 import apiClient from "@/services/api";
+import { SITE_NAME, SITE_URL, DEFAULT_OG_IMAGE, canonicalUrl } from '@/config/seo';
 
 interface Category {
   id: number;
@@ -395,6 +397,18 @@ export default function Products() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <Head>
+        <title>Shop All Products | {SITE_NAME}</title>
+        <meta name="description" content={`Browse our collection of premium organic groceries, spices, ghee, honey & healthy food at ${SITE_NAME}. Best prices with home delivery in Bangladesh.`} />
+        <link rel="canonical" href={canonicalUrl('/products')} />
+        <meta property="og:type" content="website" />
+        <meta property="og:title" content={`Shop All Products | ${SITE_NAME}`} />
+        <meta property="og:description" content={`Browse our collection of premium organic groceries, spices, ghee, honey & healthy food at ${SITE_NAME}.`} />
+        <meta property="og:url" content={canonicalUrl('/products')} />
+        <meta property="og:image" content={DEFAULT_OG_IMAGE} />
+        <meta property="og:site_name" content={SITE_NAME} />
+        <meta name="twitter:card" content="summary_large_image" />
+      </Head>
       <ElectroNavbar />
       <div className="max-w-7xl mx-auto">
         {/* Breadcrumb */}

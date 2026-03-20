@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useState } from 'react';
 import Router from 'next/router';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
-import { auth } from '@/services/api';
 import apiClient from '@/services/api';
 import {
   clearPendingReferralAttribution,

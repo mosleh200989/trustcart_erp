@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
+import Head from 'next/head';
 import Link from 'next/link';
 import { blog, products } from '../../services/api';
 import ElectroProductCard from '../../components/ElectroProductCard';
+import { SITE_NAME, DEFAULT_OG_IMAGE, canonicalUrl, productImageUrl } from '@/config/seo';
 
 export default function BlogPostPage() {
   const router = useRouter();
@@ -72,6 +74,32 @@ export default function BlogPostPage() {
 
   return (
     <div className="container py-5">
+      <Head>
+        <title>{post.title} | {SITE_NAME} Blog</title>
+        <meta name="description" content={post.excerpt || post.content?.replace(/<[^>]*>/g, '').slice(0, 160) || `Read ${post.title} on the ${SITE_NAME} blog.`} />
+        <link rel="canonical" href={canonicalUrl(`/blog/${post.slug}`)} />
+        <meta property="og:type" content="article" />
+        <meta property="og:title" content={`${post.title} | ${SITE_NAME}`} />
+        <meta property="og:description" content={post.excerpt || post.content?.replace(/<[^>]*>/g, '').slice(0, 160) || ''} />
+        <meta property="og:url" content={canonicalUrl(`/blog/${post.slug}`)} />
+        <meta property="og:image" content={post.featured_image ? productImageUrl(post.featured_image) : DEFAULT_OG_IMAGE} />
+        <meta property="og:site_name" content={SITE_NAME} />
+        {post.published_at && <meta property="article:published_time" content={new Date(post.published_at).toISOString()} />}
+        <meta name="twitter:card" content="summary_large_image" />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify({
+            '@context': 'https://schema.org',
+            '@type': 'BlogPosting',
+            headline: post.title,
+            image: post.featured_image ? productImageUrl(post.featured_image) : DEFAULT_OG_IMAGE,
+            datePublished: post.published_at || post.created_at,
+            author: { '@type': 'Organization', name: SITE_NAME },
+            publisher: { '@type': 'Organization', name: SITE_NAME, logo: { '@type': 'ImageObject', url: DEFAULT_OG_IMAGE } },
+            mainEntityOfPage: canonicalUrl(`/blog/${post.slug}`),
+          }) }}
+        />
+      </Head>
       <div className="row">
         {/* Main Content */}
         <div className="col-lg-8">

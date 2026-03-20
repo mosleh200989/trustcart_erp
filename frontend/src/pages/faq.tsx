@@ -1,9 +1,19 @@
+import Head from 'next/head';
 import ElectroNavbar from '@/components/ElectroNavbar';
 import ElectroFooter from '@/components/ElectroFooter';
+import { SITE_NAME, canonicalUrl } from '@/config/seo';
 
 export default function FAQ() {
   return (
     <div className="min-h-screen bg-gray-50">
+      <Head>
+        <title>Frequently Asked Questions | {SITE_NAME}</title>
+        <meta name="description" content={`Find answers to common questions about ordering, shipping, returns, payments and more at ${SITE_NAME}.`} />
+        <link rel="canonical" href={canonicalUrl('/faq')} />
+        <meta property="og:title" content={`FAQ | ${SITE_NAME}`} />
+        <meta property="og:url" content={canonicalUrl('/faq')} />
+        <meta property="og:site_name" content={SITE_NAME} />
+      </Head>
       <ElectroNavbar />
 
       <div className="bg-gray-100 border-b">

@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import CustomerLayout from '@/layouts/CustomerLayout';
-import apiClient, { auth, sales, customers } from '@/services/api';
+import apiClient, { sales, customers } from '@/services/api';
 import { FaShoppingCart, FaBox, FaClock, FaCheckCircle, FaTimesCircle, FaArrowRight, FaStore } from 'react-icons/fa';
 import { getOrderStatusColor, getOrderStatusLabel } from '@/utils/orderStatus';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface DashboardStats {
   totalOrders: number;
@@ -23,6 +24,7 @@ interface RecentOrder {
 
 export default function CustomerAccountDashboard() {
   const router = useRouter();
+  const { user } = useAuth();
   const [stats, setStats] = useState<DashboardStats>({
     totalOrders: 0,
     pendingOrders: 0,
@@ -47,7 +49,6 @@ export default function CustomerAccountDashboard() {
   const loadDashboardData = async () => {
     try {
       setLoading(true);
-      const user = await auth.getCurrentUser();
       if (!user) {
         setLoading(false);
         return;

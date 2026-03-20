@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
 import AdminLayout from '@/layouts/AdminLayout';
 import { rbac } from '@/services/api';
+import { useAuth } from '@/contexts/AuthContext';
 
 type Role = {
   id: number;
@@ -33,6 +34,7 @@ function normalizeRole(r: any): Role {
 
 export default function AdminManageRolesPage() {
   const router = useRouter();
+  const { isAuthenticated } = useAuth();
 
   const [roles, setRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(true);
@@ -65,8 +67,7 @@ export default function AdminManageRolesPage() {
   };
 
   useEffect(() => {
-    const token = localStorage.getItem('authToken');
-    if (!token) {
+    if (!isAuthenticated) {
       router.replace('/admin/login');
       return;
     }

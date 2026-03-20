@@ -34,10 +34,7 @@ export default function CustomerAddressesPage() {
 
   const fetchAddresses = async () => {
     try {
-      const token = localStorage.getItem('authToken');
-      const response = await apiClient.get('/customer-addresses', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const response = await apiClient.get('/customer-addresses');
       // console.log('=== Fetched addresses ===');
       // console.log('Response data:', JSON.stringify(response.data, null, 2));
       setAddresses(response.data);
@@ -51,7 +48,6 @@ export default function CustomerAddressesPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const token = localStorage.getItem('authToken');
       // console.log('=== handleSubmit START ===');
       // console.log('Editing ID:', editingId);
       // console.log('Editing ID type:', typeof editingId);
@@ -59,14 +55,10 @@ export default function CustomerAddressesPage() {
       
       if (editingId) {
         console.log('Updating address with ID:', editingId);
-        await apiClient.put(`/customer-addresses/${editingId}`, formData, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
+        await apiClient.put(`/customer-addresses/${editingId}`, formData);
       } else {
         console.log('Creating new address');
-        await apiClient.post('/customer-addresses', formData, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
+        await apiClient.post('/customer-addresses', formData);
       }
       setShowForm(false);
       setEditingId(null);
@@ -102,10 +94,7 @@ export default function CustomerAddressesPage() {
   const handleDelete = async (id: number) => {
     if (!confirm('Are you sure you want to delete this address?')) return;
     try {
-      const token = localStorage.getItem('authToken');
-      await apiClient.delete(`/customer-addresses/${id}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      await apiClient.delete(`/customer-addresses/${id}`);
       fetchAddresses();
     } catch (error) {
       console.error('Failed to delete address:', error);
@@ -115,10 +104,7 @@ export default function CustomerAddressesPage() {
 
   const handleSetDefault = async (id: number) => {
     try {
-      const token = localStorage.getItem('authToken');
-      await apiClient.put(`/customer-addresses/${id}/set-default`, {}, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      await apiClient.put(`/customer-addresses/${id}/set-default`, {});
       fetchAddresses();
     } catch (error) {
       console.error('Failed to set default:', error);

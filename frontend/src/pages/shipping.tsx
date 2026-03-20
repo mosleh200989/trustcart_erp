@@ -1,9 +1,19 @@
+import Head from 'next/head';
 import ElectroNavbar from '@/components/ElectroNavbar';
 import ElectroFooter from '@/components/ElectroFooter';
+import { SITE_NAME, canonicalUrl } from '@/config/seo';
 
 export default function Shipping() {
   return (
     <div className="min-h-screen bg-gray-50">
+      <Head>
+        <title>Shipping Policy | {SITE_NAME}</title>
+        <meta name="description" content={`Learn about ${SITE_NAME} shipping options, delivery areas, and estimated delivery times across Bangladesh.`} />
+        <link rel="canonical" href={canonicalUrl('/shipping')} />
+        <meta property="og:title" content={`Shipping Policy | ${SITE_NAME}`} />
+        <meta property="og:url" content={canonicalUrl('/shipping')} />
+        <meta property="og:site_name" content={SITE_NAME} />
+      </Head>
       <ElectroNavbar />
 
       <div className="bg-gray-100 border-b">

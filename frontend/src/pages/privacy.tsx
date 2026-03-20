@@ -1,9 +1,19 @@
+import Head from 'next/head';
 import ElectroNavbar from '@/components/ElectroNavbar';
 import ElectroFooter from '@/components/ElectroFooter';
+import { SITE_NAME, canonicalUrl } from '@/config/seo';
 
 export default function Privacy() {
   return (
     <div className="min-h-screen bg-gray-50">
+      <Head>
+        <title>Privacy Policy | {SITE_NAME}</title>
+        <meta name="description" content={`Read the ${SITE_NAME} privacy policy. Learn how we collect, use, and protect your personal information.`} />
+        <link rel="canonical" href={canonicalUrl('/privacy')} />
+        <meta property="og:title" content={`Privacy Policy | ${SITE_NAME}`} />
+        <meta property="og:url" content={canonicalUrl('/privacy')} />
+        <meta property="og:site_name" content={SITE_NAME} />
+      </Head>
       <ElectroNavbar />
 
       <div className="bg-gray-100 border-b">

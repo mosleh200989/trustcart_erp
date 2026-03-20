@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef } from "react";
+import Head from "next/head";
 import { useRouter } from "next/router";
 import { useToast } from '@/contexts/ToastContext';
 import { useCart } from '@/contexts/CartContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { motion } from "framer-motion";
 import ElectroNavbar from "@/components/ElectroNavbar";
 import ElectroFooter from "@/components/ElectroFooter";
@@ -9,6 +11,7 @@ import ElectroProductCard from "@/components/ElectroProductCard";
 import AddToCartPopup from "@/components/AddToCartPopup";
 import apiClient from "@/services/api";
 import { trackViewItem, trackAddToCart } from "@/utils/gtm";
+import { SITE_NAME, SITE_URL, DEFAULT_OG_IMAGE, canonicalUrl, productImageUrl } from '@/config/seo';
 import {
   FaStar,
   FaShoppingCart,
@@ -33,6 +36,7 @@ export default function ProductDetailsPage() {
   const router = useRouter();
   const toast = useToast();
   const { addItem } = useCart();
+  const { isAuthenticated } = useAuth();
   const { id } = router.query;
   const [product, setProduct] = useState<any>(null);
   const [productImages, setProductImages] = useState<any[]>([]);
@@ -289,8 +293,7 @@ export default function ProductDetailsPage() {
 
   const handleAddToWishlist = () => {
     if (!product) return;
-    const token = localStorage.getItem("authToken");
-    if (!token) {
+    if (!isAuthenticated) {
       toast.warning("Please login to add items to your wishlist.");
       router.push("/customer/login");
       return;
@@ -407,6 +410,48 @@ export default function ProductDetailsPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <Head>
+        <title>{displayName} | {SITE_NAME}</title>
+        <meta name="description" content={product.short_description || product.description_en?.replace(/<[^>]*>/g, '').slice(0, 160) || `Buy ${displayName} online at ${SITE_NAME}. Premium quality, best price with home delivery in Bangladesh.`} />
+        <link rel="canonical" href={canonicalUrl(`/products/${product.slug || product.id}`)} />
+        <meta property="og:type" content="product" />
+        <meta property="og:title" content={`${displayName} | ${SITE_NAME}`} />
+        <meta property="og:description" content={product.short_description || `Buy ${displayName} at ${SITE_NAME}. ৳${price}`} />
+        <meta property="og:url" content={canonicalUrl(`/products/${product.slug || product.id}`)} />
+        <meta property="og:image" content={productImageUrl(product.image_url)} />
+        <meta property="og:site_name" content={SITE_NAME} />
+        <meta property="product:price:amount" content={String(price)} />
+        <meta property="product:price:currency" content="BDT" />
+        {product.stock_quantity != null && product.stock_quantity > 0 && (
+          <meta property="product:availability" content="in stock" />
+        )}
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content={`${displayName} | ${SITE_NAME}`} />
+        <meta name="twitter:image" content={productImageUrl(product.image_url)} />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify({
+            '@context': 'https://schema.org',
+            '@type': 'Product',
+            name: displayName,
+            image: productImageUrl(product.image_url),
+            description: product.short_description || product.description_en?.replace(/<[^>]*>/g, '').slice(0, 300) || displayName,
+            sku: product.sku || String(product.id),
+            brand: product.brand ? { '@type': 'Brand', name: product.brand } : undefined,
+            category: product.category?.name_en || product.category?.name || product.category_name || undefined,
+            offers: {
+              '@type': 'Offer',
+              url: canonicalUrl(`/products/${product.slug || product.id}`),
+              priceCurrency: 'BDT',
+              price: price,
+              availability: product.stock_quantity != null && product.stock_quantity > 0
+                ? 'https://schema.org/InStock'
+                : 'https://schema.org/OutOfStock',
+              seller: { '@type': 'Organization', name: SITE_NAME },
+            },
+          }) }}
+        />
+      </Head>
       <ElectroNavbar />
       <div className="max-w-7xl mx-auto">
         <motion.div

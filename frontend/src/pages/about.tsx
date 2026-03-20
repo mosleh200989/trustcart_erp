@@ -1,10 +1,23 @@
+import Head from 'next/head';
 import ElectroNavbar from '@/components/ElectroNavbar';
 import ElectroFooter from '@/components/ElectroFooter';
 import { FaShoppingCart, FaBullseye, FaBoxOpen, FaLeaf, FaHeart, FaTruck, FaShieldAlt, FaUsers } from 'react-icons/fa';
+import { SITE_NAME, SITE_DESCRIPTION, DEFAULT_OG_IMAGE, canonicalUrl } from '@/config/seo';
 
 export default function About() {
   return (
     <div className="min-h-screen bg-gray-50">
+      <Head>
+        <title>About Us | {SITE_NAME}</title>
+        <meta name="description" content={`Learn about ${SITE_NAME} — our mission to bring pure, organic & healthy food to every home in Bangladesh.`} />
+        <link rel="canonical" href={canonicalUrl('/about')} />
+        <meta property="og:type" content="website" />
+        <meta property="og:title" content={`About Us | ${SITE_NAME}`} />
+        <meta property="og:description" content={`Learn about ${SITE_NAME} — our mission to bring pure, organic & healthy food to Bangladesh.`} />
+        <meta property="og:url" content={canonicalUrl('/about')} />
+        <meta property="og:image" content={DEFAULT_OG_IMAGE} />
+        <meta property="og:site_name" content={SITE_NAME} />
+      </Head>
       <ElectroNavbar />
       
       {/* Hero Section */}

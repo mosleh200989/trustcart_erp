@@ -8,10 +8,12 @@ import Modal from '@/components/admin/Modal';
 import FormInput from '@/components/admin/FormInput';
 import { FaPlus, FaSearch } from 'react-icons/fa';
 import apiClient, { users as usersAPI } from '@/services/api';
+import { useAuth } from '@/contexts/AuthContext';
 import PhoneInput, { validateBDPhone } from '@/components/PhoneInput';
 
 export default function AdminUsers() {
   const router = useRouter();
+  const { isAuthenticated } = useAuth();
   const toast = useToast();
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -44,8 +46,7 @@ export default function AdminUsers() {
   });
 
   useEffect(() => {
-    const token = localStorage.getItem('authToken');
-    if (!token) {
+    if (!isAuthenticated) {
       router.push('/admin/login');
       return;
     }

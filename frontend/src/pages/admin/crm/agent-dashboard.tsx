@@ -5,13 +5,14 @@ import {
   FaMoneyBillWave, FaDollarSign, FaStickyNote, FaCalendarAlt, FaCheckDouble, FaThumbsUp, FaThumbsDown,
   FaChevronLeft, FaChevronRight, FaShoppingCart, FaCrown
 } from 'react-icons/fa';
-import apiClient, { auth, users as usersApi } from '@/services/api';
+import apiClient, { users as usersApi } from '@/services/api';
 import AdminOrderDetailsModal from '@/components/AdminOrderDetailsModal';
 import PageSizeSelector from '@/components/admin/PageSizeSelector';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { getTelephonySocket, type IncomingCallPayload } from '@/services/telephonySocket';
 import { useToast } from '@/contexts/ToastContext';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface CallTask {
   id: number;
@@ -130,6 +131,7 @@ const formatLastCalled = (dateStr?: string | null): { text: string; color: strin
 export default function AgentDashboard() {
   const router = useRouter();
   const toast = useToast();
+  const { user: authUser, roles: authRoles } = useAuth();
   const [loading, setLoading] = useState(true);
   const [agentId, setAgentId] = useState<number | null>(null);
   const [meRoles, setMeRoles] = useState<any[]>([]);
@@ -221,18 +223,14 @@ export default function AgentDashboard() {
   const [savingLeadAction, setSavingLeadAction] = useState(false);
 
   useEffect(() => {
-    (async () => {
-      try {
-        const me = await auth.getCurrentUser();
-        const id = Number((me as any)?.id);
-        if (!id) throw new Error('Unable to resolve agent id');
+    if (authUser?.id) {
+      const id = Number(authUser.id);
+      if (id) {
         setAgentId(id);
-        setMeRoles(Array.isArray((me as any)?.roles) ? (me as any).roles : []);
-      } catch (err) {
-        console.error('Failed to load current user', err);
+        setMeRoles(Array.isArray(authRoles) ? authRoles : []);
       }
-    })();
-  }, []);
+    }
+  }, [authUser, authRoles]);
 
   const canSelectAgent = useMemo(() => {
     const slugs = new Set(

@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
 import CustomerLayout from '@/layouts/CustomerLayout';
-import { auth, loyalty, customers } from '@/services/api';
+import { loyalty, customers } from '@/services/api';
 import { FaShareAlt, FaCopy, FaGift, FaUsers, FaCheckCircle, FaClock, FaWhatsapp, FaFacebook, FaEnvelope } from 'react-icons/fa';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function CustomerReferralsPage() {
+  const { user } = useAuth();
   const [stats, setStats] = useState<any | null>(null);
   const [referrals, setReferrals] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -18,7 +20,6 @@ export default function CustomerReferralsPage() {
       setLoading(true);
       setError(null);
       try {
-        const user = await auth.getCurrentUser();
         if (!user) {
           setError('Unable to load referrals. Please login again.');
           setLoading(false);

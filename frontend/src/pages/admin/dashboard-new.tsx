@@ -4,9 +4,11 @@ import AdminLayout from '@/layouts/AdminLayout';
 import StatCard from '@/components/admin/StatCard';
 import { FaBoxes, FaShoppingCart, FaUsers, FaDollarSign, FaTruck, FaChartLine } from 'react-icons/fa';
 import apiClient from '@/services/api';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function AdminDashboard() {
   const router = useRouter();
+  const { isAuthenticated } = useAuth();
   const [stats, setStats] = useState({
     totalProducts: 0,
     totalOrders: 0,
@@ -17,13 +19,12 @@ export default function AdminDashboard() {
   });
 
   useEffect(() => {
-    const token = localStorage.getItem('authToken');
-    if (!token) {
+    if (!isAuthenticated) {
       router.push('/admin/login');
       return;
     }
     loadStats();
-  }, [router]);
+  }, [router, isAuthenticated]);
 
   const loadStats = async () => {
     try {

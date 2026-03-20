@@ -1,7 +1,9 @@
 import { useState } from 'react';
+import Head from 'next/head';
 import { useToast } from '@/contexts/ToastContext';
 import ElectroNavbar from '@/components/ElectroNavbar';
 import ElectroFooter from '@/components/ElectroFooter';
+import { SITE_NAME, DEFAULT_OG_IMAGE, canonicalUrl } from '@/config/seo';
 
 export default function Contact() {
   const toast = useToast();
@@ -34,9 +36,17 @@ export default function Contact() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <Head>
+        <title>Contact Us | {SITE_NAME}</title>
+        <meta name="description" content={`Get in touch with ${SITE_NAME}. We'd love to hear from you — questions, feedback, or business inquiries.`} />
+        <link rel="canonical" href={canonicalUrl('/contact')} />
+        <meta property="og:type" content="website" />
+        <meta property="og:title" content={`Contact Us | ${SITE_NAME}`} />
+        <meta property="og:url" content={canonicalUrl('/contact')} />
+        <meta property="og:image" content={DEFAULT_OG_IMAGE} />
+        <meta property="og:site_name" content={SITE_NAME} />
+      </Head>
       <ElectroNavbar />
-      
-      {/* Breadcrumb */}
       <div className="bg-gray-100 border-b">
         <div className="container mx-auto px-4 py-4">
           <div className="text-sm text-gray-600">

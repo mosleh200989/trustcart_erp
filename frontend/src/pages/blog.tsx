@@ -1,8 +1,10 @@
 ﻿import { useState, useEffect } from 'react';
+import Head from 'next/head';
 import ElectroNavbar from '@/components/ElectroNavbar';
 import ElectroFooter from '@/components/ElectroFooter';
 import ElectroProductCard from '@/components/ElectroProductCard';
 import apiClient from '@/services/api';
+import { SITE_NAME, DEFAULT_OG_IMAGE, canonicalUrl } from '@/config/seo';
 
 export default function Blog() {
   const [posts, setPosts] = useState<any[]>([]);
@@ -63,6 +65,17 @@ export default function Blog() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <Head>
+        <title>Blog — Health, Nutrition & Organic Living | {SITE_NAME}</title>
+        <meta name="description" content={`Read the latest articles on healthy eating, organic food, nutrition tips and recipes from ${SITE_NAME}.`} />
+        <link rel="canonical" href={canonicalUrl('/blog')} />
+        <meta property="og:type" content="blog" />
+        <meta property="og:title" content={`Blog | ${SITE_NAME}`} />
+        <meta property="og:description" content={`Read the latest articles on healthy eating, organic food & nutrition tips from ${SITE_NAME}.`} />
+        <meta property="og:url" content={canonicalUrl('/blog')} />
+        <meta property="og:image" content={DEFAULT_OG_IMAGE} />
+        <meta property="og:site_name" content={SITE_NAME} />
+      </Head>
       <ElectroNavbar />
       
       {/* Breadcrumb */}
