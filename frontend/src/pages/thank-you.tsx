@@ -672,7 +672,6 @@ export default function ThankYouPage() {
                         stock={product.stock_quantity}
                         image_url={product.image_url}
                         rating={5}
-                        reviews={Math.floor(Math.random() * 200)}
                         discount={discountPercent > 0 ? discountPercent : undefined}
                       />
                     );

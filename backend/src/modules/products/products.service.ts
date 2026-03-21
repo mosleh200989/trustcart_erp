@@ -76,6 +76,141 @@ export class ProductsService {
     }
   }
 
+  async findAllPaginated(params: {
+    page: number;
+    limit: number;
+    search?: string;
+    category?: string;
+    sort: string;
+    minPrice?: number;
+    maxPrice?: number;
+    inStock: boolean;
+  }) {
+    try {
+      const { page, limit, search, category, sort, minPrice, maxPrice, inStock } = params;
+      const offset = (page - 1) * limit;
+
+      const conditions: string[] = [`p.status = 'active'`];
+      const queryParams: any[] = [];
+      let paramIndex = 1;
+
+      if (search) {
+        conditions.push(`(
+          LOWER(p.name_en) LIKE $${paramIndex}
+          OR LOWER(p.name_bn) LIKE $${paramIndex}
+          OR LOWER(p.description_en) LIKE $${paramIndex}
+          OR LOWER(p.sku) LIKE $${paramIndex}
+          OR LOWER(c.name_en) LIKE $${paramIndex}
+        )`);
+        queryParams.push(`%${search.toLowerCase()}%`);
+        paramIndex++;
+      }
+
+      if (category) {
+        conditions.push(`c.slug = $${paramIndex}`);
+        queryParams.push(category);
+        paramIndex++;
+      }
+
+      if (minPrice !== undefined && !isNaN(minPrice)) {
+        conditions.push(`COALESCE(p.sale_price, p.base_price) >= $${paramIndex}`);
+        queryParams.push(minPrice);
+        paramIndex++;
+      }
+
+      if (maxPrice !== undefined && !isNaN(maxPrice)) {
+        conditions.push(`COALESCE(p.sale_price, p.base_price) <= $${paramIndex}`);
+        queryParams.push(maxPrice);
+        paramIndex++;
+      }
+
+      if (inStock) {
+        conditions.push(`p.stock_quantity > 0`);
+      }
+
+      const whereClause = conditions.join(' AND ');
+
+      let orderClause: string;
+      switch (sort) {
+        case 'price-low':
+          orderClause = 'COALESCE(p.sale_price, p.base_price) ASC';
+          break;
+        case 'price-high':
+          orderClause = 'COALESCE(p.sale_price, p.base_price) DESC';
+          break;
+        case 'discount':
+          orderClause = `CASE WHEN p.sale_price IS NOT NULL AND p.sale_price < p.base_price
+            THEN ((p.base_price - p.sale_price) / NULLIF(p.base_price, 0)) ELSE 0 END DESC`;
+          break;
+        case 'name':
+          orderClause = 'p.name_en ASC';
+          break;
+        default:
+          orderClause = `CASE WHEN p.display_position IS NOT NULL THEN 0 ELSE 1 END,
+            p.display_position ASC, p.created_at DESC`;
+      }
+
+      // Count total matching rows
+      const countResult = await this.productsRepository.query(
+        `SELECT COUNT(*)::int as total
+         FROM products p
+         LEFT JOIN categories c ON p.category_id = c.id
+         WHERE ${whereClause}`,
+        queryParams,
+      );
+      const total = countResult[0]?.total || 0;
+
+      // Fetch paginated data
+      const data = await this.productsRepository.query(
+        `SELECT 
+          p.id, p.slug, p.sku, p.product_code,
+          p.name_en, p.name_bn, p.description_en, p.short_description,
+          p.category_id,
+          c.name_en as category_name,
+          p.base_price,
+          p.base_price as price,
+          p.base_price as selling_price,
+          p.wholesale_price,
+          p.stock_quantity,
+          p.display_position,
+          p.additional_info,
+          p.status,
+          COALESCE(p.image_url, pi.image_url) as image_url,
+          p.discount_type,
+          p.discount_value,
+          p.sale_price,
+          p.brand,
+          p.unit_of_measure,
+          p.size_variants,
+          p.created_at
+        FROM products p
+        LEFT JOIN LATERAL (
+          SELECT image_url
+          FROM product_images
+          WHERE product_id = p.id
+          ORDER BY is_primary DESC, display_order ASC
+          LIMIT 1
+        ) pi ON TRUE
+        LEFT JOIN categories c ON p.category_id = c.id
+        WHERE ${whereClause}
+        ORDER BY ${orderClause}
+        LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
+        [...queryParams, limit, offset],
+      );
+
+      return {
+        data,
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      };
+    } catch (error) {
+      console.error('Error in findAllPaginated:', error);
+      return { data: [], total: 0, page: params.page, limit: params.limit, totalPages: 0 };
+    }
+  }
+
   async findAllAdmin() {
     try {
       console.log('Starting findAllAdmin query (includes inactive products)...');

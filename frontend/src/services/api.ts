@@ -2,8 +2,6 @@ import axios from 'axios';
 
 import { BACKEND_API_BASE_URL } from '@/config/backend';
 
-console.log('API Base URL:', BACKEND_API_BASE_URL);
-
 const apiClient = axios.create({
   baseURL: BACKEND_API_BASE_URL,
   headers: {
@@ -25,8 +23,6 @@ export default apiClient;
 
 // Transform snake_case API response to camelCase for frontend
 const transformProduct = (p: any) => {
-  console.log('Transforming product:', p);
-  
   // Generate image paths
   const imageName = p.image_url || null;
   let largeImage = '/images/default-product.png';
@@ -72,16 +68,10 @@ const transformProduct = (p: any) => {
 export const products = {
   async list() {
     try {
-      console.log('Calling API:', `${BACKEND_API_BASE_URL}/products`);
       const res = await apiClient.get('/products');
-      console.log('Raw API response:', res);
-      console.log('Response data:', res.data);
       const data = Array.isArray(res.data) ? res.data : [];
-      console.log('Products array length:', data.length);
       if (data.length > 0) {
-        console.log('First product before transform:', data[0]);
         const transformed = data.map(transformProduct);
-        console.log('First product after transform:', transformed[0]);
         return transformed;
       }
       return data.map(transformProduct);
@@ -96,9 +86,7 @@ export const products = {
   },
   async getBySlug(slug: string) {
     try {
-      console.log('Fetching product by slug:', slug);
       const res = await apiClient.get(`/products/by-slug/${slug}`);
-      console.log('Product data received:', res.data);
       return transformProduct(res.data);
     } catch (err) {
       console.error('Error fetching product by slug:', err);

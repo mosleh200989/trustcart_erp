@@ -329,7 +329,6 @@ export default function CartPage() {
                       stock={product.stock_quantity}
                       image={product.image_url || product.image}
                       rating={5}
-                      reviews={Math.floor(Math.random() * 200)}
                       discount={discountPercent > 0 ? discountPercent : undefined}
                     />
                   );
