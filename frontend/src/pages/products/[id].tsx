@@ -23,6 +23,10 @@ import {
   FaWhatsapp,
   FaPhone,
   FaFacebookMessenger,
+  FaCopy,
+  FaFacebook,
+  FaTwitter,
+  FaTimes,
 } from "react-icons/fa";
 
 interface SizeVariant {
@@ -54,6 +58,8 @@ export default function ProductDetailsPage() {
   const [showZoom, setShowZoom] = useState(false);
   const [zoomPosition, setZoomPosition] = useState({ x: 0, y: 0 });
   const [selectedVariant, setSelectedVariant] = useState<SizeVariant | null>(null);
+  const [showShareMenu, setShowShareMenu] = useState(false);
+  const shareMenuRef = useRef<HTMLDivElement>(null);
   const isHoveringGallery = useRef(false);
 
   const getSlidesPerView = () => {
@@ -221,7 +227,18 @@ export default function ProductDetailsPage() {
     }
   };
 
+  // Derived stock values
+  const maxStock = selectedVariant?.stock !== undefined
+    ? selectedVariant.stock
+    : (product?.stock_quantity ?? Infinity);
+  const isOutOfStock = maxStock <= 0;
+  const isLowStock = maxStock > 0 && maxStock <= 10;
+
   const handleAddToCart = () => {
+    if (isOutOfStock) {
+      toast.warning('This item is currently out of stock.');
+      return;
+    }
     const cartItemId = selectedVariant 
       ? `${product.id}-${selectedVariant.name}` 
       : product.id.toString();
@@ -263,6 +280,10 @@ export default function ProductDetailsPage() {
   };
 
   const handleBuyNow = () => {
+    if (isOutOfStock) {
+      toast.warning('This item is currently out of stock.');
+      return;
+    }
     const cartItemId = selectedVariant 
       ? `${product.id}-${selectedVariant.name}` 
       : product.id.toString();
@@ -319,6 +340,69 @@ export default function ProductDetailsPage() {
     const y = ((e.clientY - rect.top) / rect.height) * 100;
     setZoomPosition({ x, y });
   };
+
+  const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setShowZoom((prev) => !prev);
+    if (!showZoom && e.touches.length > 0) {
+      const rect = e.currentTarget.getBoundingClientRect();
+      const touch = e.touches[0];
+      const x = ((touch.clientX - rect.left) / rect.width) * 100;
+      const y = ((touch.clientY - rect.top) / rect.height) * 100;
+      setZoomPosition({ x, y });
+    }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (!showZoom || e.touches.length === 0) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const touch = e.touches[0];
+    const x = Math.min(100, Math.max(0, ((touch.clientX - rect.left) / rect.width) * 100));
+    const y = Math.min(100, Math.max(0, ((touch.clientY - rect.top) / rect.height) * 100));
+    setZoomPosition({ x, y });
+  };
+
+  const handleShare = async () => {
+    const shareUrl = window.location.href;
+    const shareTitle = product?.name_en || 'Check out this product';
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: shareTitle, url: shareUrl });
+      } catch {
+        // User cancelled or share failed — ignore
+      }
+    } else {
+      setShowShareMenu((prev) => !prev);
+    }
+  };
+
+  const copyToClipboard = async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      toast.success('Link copied to clipboard!');
+    } catch {
+      toast.error('Failed to copy link.');
+    }
+    setShowShareMenu(false);
+  };
+
+  // Close share menu on outside click
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (shareMenuRef.current && !shareMenuRef.current.contains(e.target as Node)) {
+        setShowShareMenu(false);
+      }
+    };
+    if (showShareMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showShareMenu]);
+
+  // Reset quantity when variant changes
+  useEffect(() => {
+    setQuantity(1);
+  }, [selectedVariant]);
 
   if (loading) {
     return (
@@ -611,12 +695,12 @@ export default function ProductDetailsPage() {
 
                 {/* Mobile: Main Image + Horizontal Thumbnails Below */}
                 <div className="md:hidden">
-                  {/* Main Image with Zoom */}
+                  {/* Main Image with Zoom (touch support for mobile) */}
                   <div
                     className="relative bg-gray-100 rounded-lg overflow-hidden aspect-square mb-4 cursor-zoom-in"
-                    onMouseEnter={() => setShowZoom(true)}
-                    onMouseLeave={() => setShowZoom(false)}
-                    onMouseMove={handleMouseMove}
+                    onTouchStart={handleTouchStart}
+                    onTouchMove={handleTouchMove}
+                    onTouchEnd={(e) => e.preventDefault()}
                   >
                     {selectedImage ? (
                       <>
@@ -814,9 +898,19 @@ export default function ProductDetailsPage() {
 
                 {/* Stock Status */}
                 <div className="mb-6">
-                  <span className="inline-block px-4 py-2 bg-green-100 text-green-800 rounded-full text-sm font-semibold">
-                    In Stock
-                  </span>
+                  {isOutOfStock ? (
+                    <span className="inline-block px-4 py-2 bg-red-100 text-red-800 rounded-full text-sm font-semibold">
+                      Out of Stock
+                    </span>
+                  ) : isLowStock ? (
+                    <span className="inline-block px-4 py-2 bg-yellow-100 text-yellow-800 rounded-full text-sm font-semibold">
+                      Only {maxStock} left in stock
+                    </span>
+                  ) : (
+                    <span className="inline-block px-4 py-2 bg-green-100 text-green-800 rounded-full text-sm font-semibold">
+                      In Stock
+                    </span>
+                  )}
                 </div>
 
                 {/* Quantity Selector */}
@@ -827,22 +921,27 @@ export default function ProductDetailsPage() {
                   <div className="flex items-center space-x-3">
                     <button
                       onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                      className="w-10 h-10 border border-gray-300 rounded-lg hover:bg-gray-100"
+                      className="w-10 h-10 border border-gray-300 rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                      disabled={isOutOfStock || quantity <= 1}
                     >
                       -
                     </button>
                     <input
                       type="number"
                       min="1"
+                      max={maxStock !== Infinity ? maxStock : undefined}
                       value={quantity}
-                      onChange={(e) =>
-                        setQuantity(Math.max(1, parseInt(e.target.value) || 1))
-                      }
-                      className="w-12 h-10 border border-gray-300 rounded-lg text-center"
+                      onChange={(e) => {
+                        const val = Math.max(1, parseInt(e.target.value) || 1);
+                        setQuantity(maxStock !== Infinity ? Math.min(val, maxStock) : val);
+                      }}
+                      className="w-16 h-10 border border-gray-300 rounded-lg text-center"
+                      disabled={isOutOfStock}
                     />
                     <button
-                      onClick={() => setQuantity(quantity + 1)}
-                      className="w-10 h-10 border border-gray-300 rounded-lg hover:bg-gray-100"
+                      onClick={() => setQuantity(maxStock !== Infinity ? Math.min(quantity + 1, maxStock) : quantity + 1)}
+                      className="w-10 h-10 border border-gray-300 rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                      disabled={isOutOfStock || (maxStock !== Infinity && quantity >= maxStock)}
                     >
                       +
                     </button>
@@ -853,14 +952,24 @@ export default function ProductDetailsPage() {
                 <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-4 mb-6">
                   <button
                     onClick={handleAddToCart}
-                    className="flex-1 border-2 border-orange-500 bg-white text-orange-500 py-2.5 rounded-lg hover:!bg-orange-500 hover:text-white flex items-center justify-center space-x-2 font-semibold transition-all duration-300"
+                    disabled={isOutOfStock}
+                    className={`flex-1 border-2 py-2.5 rounded-lg flex items-center justify-center space-x-2 font-semibold transition-all duration-300 ${
+                      isOutOfStock
+                        ? 'border-gray-300 bg-gray-100 text-gray-400 cursor-not-allowed'
+                        : 'border-orange-500 bg-white text-orange-500 hover:!bg-orange-500 hover:text-white'
+                    }`}
                   >
                     <FaShoppingCart />
-                    <span>Add to Cart</span>
+                    <span>{isOutOfStock ? 'Out of Stock' : 'Add to Cart'}</span>
                   </button>
                   <button
                     onClick={handleBuyNow}
-                    className="flex-1 bg-orange-500 text-white py-2.5 rounded-lg hover:bg-orange-600 flex items-center justify-center space-x-2 font-semibold transition-all duration-300"
+                    disabled={isOutOfStock}
+                    className={`flex-1 py-2.5 rounded-lg flex items-center justify-center space-x-2 font-semibold transition-all duration-300 ${
+                      isOutOfStock
+                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                        : 'bg-orange-500 text-white hover:bg-orange-600'
+                    }`}
                   >
                     <FaShoppingCart />
                     <span>Buy Now</span>
@@ -872,10 +981,60 @@ export default function ProductDetailsPage() {
                     <FaHeart />
                     <span className="sm:hidden">Add to Wishlist</span>
                   </button>
-                  <button className="w-full sm:w-12 h-12 border-2 border-orange-500 text-orange-500 rounded-lg hover:!bg-orange-500 hover:text-white flex items-center justify-center sm:justify-center space-x-2 sm:space-x-0 transition-all duration-300">
-                    <FaShareAlt />
-                    <span className="sm:hidden">Share Product</span>
-                  </button>
+                  <div className="relative" ref={shareMenuRef}>
+                    <button
+                      onClick={handleShare}
+                      className="w-full sm:w-12 h-12 border-2 border-orange-500 text-orange-500 rounded-lg hover:!bg-orange-500 hover:text-white flex items-center justify-center sm:justify-center space-x-2 sm:space-x-0 transition-all duration-300"
+                    >
+                      <FaShareAlt />
+                      <span className="sm:hidden">Share Product</span>
+                    </button>
+                    {showShareMenu && (
+                      <div className="absolute bottom-full mb-2 right-0 sm:left-1/2 sm:-translate-x-1/2 bg-white border border-gray-200 rounded-lg shadow-xl p-3 z-50 min-w-[200px]">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm font-semibold text-gray-700">Share</span>
+                          <button onClick={() => setShowShareMenu(false)} className="text-gray-400 hover:text-gray-600">
+                            <FaTimes size={12} />
+                          </button>
+                        </div>
+                        <div className="space-y-1">
+                          <button
+                            onClick={copyToClipboard}
+                            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
+                          >
+                            <FaCopy className="text-gray-500" /> Copy Link
+                          </button>
+                          <a
+                            href={`https://wa.me/?text=${encodeURIComponent(window.location.href)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
+                            onClick={() => setShowShareMenu(false)}
+                          >
+                            <FaWhatsapp className="text-green-500" /> WhatsApp
+                          </a>
+                          <a
+                            href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(window.location.href)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
+                            onClick={() => setShowShareMenu(false)}
+                          >
+                            <FaFacebook className="text-blue-600" /> Facebook
+                          </a>
+                          <a
+                            href={`https://twitter.com/intent/tweet?url=${encodeURIComponent(window.location.href)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
+                            onClick={() => setShowShareMenu(false)}
+                          >
+                            <FaTwitter className="text-sky-500" /> Twitter / X
+                          </a>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {/* Contact / Social Buttons */}

@@ -6,17 +6,24 @@ import ElectroProductCard from "@/components/ElectroProductCard";
 import apiClient from "@/services/api";
 import { trackViewCart, trackRemoveFromCart } from "@/utils/gtm";
 import { useCart } from "@/contexts/CartContext";
+import { useToast } from "@/contexts/ToastContext";
 import {
   FaTrash,
   FaMinus,
   FaPlus,
   FaShoppingCart,
   FaArrowLeft,
+  FaExclamationTriangle,
+  FaTag,
 } from "react-icons/fa";
 
 export default function CartPage() {
   const { items: cart, removeItem: removeCartItem, updateQuantity: updateCartQuantity, clearCart: clearAllCart } = useCart();
+  const toast = useToast();
   const [suggestedProducts, setSuggestedProducts] = useState<any[]>([]);
+  const [stockInfo, setStockInfo] = useState<Record<number, number>>({});
+  const [couponCode, setCouponCode] = useState('');
+  const [deliveryZone, setDeliveryZone] = useState<'inside_dhaka' | 'outside_dhaka'>('inside_dhaka');
 
   const subtotal = cart.reduce(
     (sum: number, item: any) => sum + item.price * (item.quantity || 1),
@@ -40,6 +47,26 @@ export default function CartPage() {
     // Load suggested products
     loadSuggestedProducts();
   }, []);
+
+  // Fetch stock info for cart items
+  useEffect(() => {
+    const fetchStock = async () => {
+      const uniqueIds = [...new Set(cart.map((item: any) => item.id))];
+      const stockMap: Record<number, number> = {};
+      await Promise.all(
+        uniqueIds.map(async (id) => {
+          try {
+            const res = await apiClient.get(`/products/${id}`);
+            stockMap[id] = res.data?.stock_quantity ?? Infinity;
+          } catch {
+            stockMap[id] = Infinity;
+          }
+        })
+      );
+      setStockInfo(stockMap);
+    };
+    if (cart.length > 0) fetchStock();
+  }, [cart.length]);
 
   const loadSuggestedProducts = async () => {
     try {
@@ -71,12 +98,18 @@ export default function CartPage() {
 
   function updateQuantity(index: number, newQuantity: number) {
     if (newQuantity < 1) return;
+    const item = cart[index];
+    const stock = item ? stockInfo[item.id] : Infinity;
+    if (stock !== undefined && stock !== Infinity && newQuantity > stock) {
+      toast.warning(`Only ${stock} items available in stock`);
+      updateCartQuantity(index, stock);
+      return;
+    }
     updateCartQuantity(index, newQuantity);
   }
 
-  const deliveryChargeMin = 60;
-  const deliveryChargeMax = 110;
-  const total = subtotal + deliveryChargeMin;
+  const deliveryCharge = deliveryZone === 'inside_dhaka' ? 60 : 110;
+  const total = subtotal + deliveryCharge;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -86,7 +119,7 @@ export default function CartPage() {
       <div className="bg-gray-100 border-b">
         <div className="container mx-auto px-4 py-4">
           <div className="text-sm text-gray-600 max-w-7xl mx-auto px-4">
-            Home /{" "}
+            <Link href="/" className="hover:text-orange-500">Home</Link> /{" "}
             <span className="text-gray-900 font-semibold">Shopping Cart</span>
           </div>
         </div>
@@ -153,10 +186,11 @@ export default function CartPage() {
                             <div className="flex items-center justify-between mt-2">
                               <div className="flex items-center gap-2">
                                 <button
-                                  className="w-7 h-7 flex items-center justify-center bg-gray-200 hover:bg-gray-300 rounded"
+                                  className="w-7 h-7 flex items-center justify-center bg-gray-200 hover:bg-gray-300 rounded disabled:opacity-50 disabled:cursor-not-allowed"
                                   onClick={() =>
                                     updateQuantity(index, (item.quantity || 1) - 1)
                                   }
+                                  disabled={(item.quantity || 1) <= 1}
                                 >
                                   <FaMinus size={10} />
                                 </button>
@@ -164,18 +198,30 @@ export default function CartPage() {
                                   {item.quantity || 1}
                                 </span>
                                 <button
-                                  className="w-7 h-7 flex items-center justify-center bg-gray-200 hover:bg-gray-300 rounded"
+                                  className="w-7 h-7 flex items-center justify-center bg-gray-200 hover:bg-gray-300 rounded disabled:opacity-50 disabled:cursor-not-allowed"
                                   onClick={() =>
                                     updateQuantity(index, (item.quantity || 1) + 1)
                                   }
+                                  disabled={stockInfo[item.id] !== undefined && stockInfo[item.id] !== Infinity && (item.quantity || 1) >= stockInfo[item.id]}
                                 >
                                   <FaPlus size={10} />
                                 </button>
                               </div>
-                              <div className="font-bold text-orange-500">
-                                ৳{item.price}
+                              <div className="text-right">
+                                <div className="font-bold text-orange-500">
+                                  ৳{(item.price * (item.quantity || 1)).toFixed(2)}
+                                </div>
+                                {(item.quantity || 1) > 1 && (
+                                  <div className="text-xs text-gray-400">৳{item.price} each</div>
+                                )}
                               </div>
                             </div>
+                            {stockInfo[item.id] !== undefined && stockInfo[item.id] !== Infinity && (item.quantity || 1) >= stockInfo[item.id] && (
+                              <div className="flex items-center gap-1 mt-1 text-xs text-amber-600">
+                                <FaExclamationTriangle size={10} />
+                                <span>Only {stockInfo[item.id]} available</span>
+                              </div>
+                            )}
                           </div>
                         </div>
                         {/* Desktop layout: single row */}
@@ -195,10 +241,11 @@ export default function CartPage() {
                           </div>
                           <div className="flex items-center gap-2">
                             <button
-                              className="w-8 h-8 flex items-center justify-center bg-gray-200 hover:bg-gray-300 rounded"
+                              className="w-8 h-8 flex items-center justify-center bg-gray-200 hover:bg-gray-300 rounded disabled:opacity-50 disabled:cursor-not-allowed"
                               onClick={() =>
                                 updateQuantity(index, (item.quantity || 1) - 1)
                               }
+                              disabled={(item.quantity || 1) <= 1}
                             >
                               <FaMinus size={12} />
                             </button>
@@ -206,19 +253,29 @@ export default function CartPage() {
                               {item.quantity || 1}
                             </span>
                             <button
-                              className="w-8 h-8 flex items-center justify-center bg-gray-200 hover:bg-gray-300 rounded"
+                              className="w-8 h-8 flex items-center justify-center bg-gray-200 hover:bg-gray-300 rounded disabled:opacity-50 disabled:cursor-not-allowed"
                               onClick={() =>
                                 updateQuantity(index, (item.quantity || 1) + 1)
                               }
+                              disabled={stockInfo[item.id] !== undefined && stockInfo[item.id] !== Infinity && (item.quantity || 1) >= stockInfo[item.id]}
                             >
                               <FaPlus size={12} />
                             </button>
+                            {stockInfo[item.id] !== undefined && stockInfo[item.id] !== Infinity && (item.quantity || 1) >= stockInfo[item.id] && (
+                              <span className="text-xs text-amber-600 flex items-center gap-1">
+                                <FaExclamationTriangle size={10} />
+                                Max
+                              </span>
+                            )}
                           </div>
-                          <div className="text-right">
-                            <div className="text-sm text-gray-500">Price</div>
+                          <div className="text-right min-w-[80px]">
+                            <div className="text-sm text-gray-500">Total</div>
                             <div className="font-bold text-orange-500">
-                              ৳{item.price}
+                              ৳{(item.price * (item.quantity || 1)).toFixed(2)}
                             </div>
+                            {(item.quantity || 1) > 1 && (
+                              <div className="text-xs text-gray-400">৳{item.price} each</div>
+                            )}
                           </div>
                           <button
                             className="text-red-500 hover:text-red-600 p-2"
@@ -249,22 +306,112 @@ export default function CartPage() {
                   </h5>
 
                   <div className="space-y-3 mb-4">
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Subtotal</span>
-                      <span className="font-semibold">
-                        ৳{subtotal.toFixed(2)}
-                      </span>
+                    {/* Line items summary */}
+                    <div className="space-y-2 mb-3 max-h-48 overflow-y-auto">
+                      {cart.map((item, index) => (
+                        <div key={index} className="flex justify-between text-sm">
+                          <span className="text-gray-600 truncate mr-2">
+                            {item.name || item.nameEn} × {item.quantity || 1}
+                          </span>
+                          <span className="font-semibold whitespace-nowrap">
+                            ৳{(item.price * (item.quantity || 1)).toFixed(2)}
+                          </span>
+                        </div>
+                      ))}
                     </div>
 
-                    <div className="flex justify-between">
+                    <div className="border-t pt-3">
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Subtotal</span>
+                        <span className="font-semibold">
+                          ৳{subtotal.toFixed(2)}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Delivery Zone Selector */}
+                    <div className="pt-2">
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">
+                        Delivery Zone
+                      </label>
+                      <div className="grid grid-cols-2 gap-2">
+                        <label
+                          className={`flex items-center gap-2 p-2.5 border-2 rounded-lg cursor-pointer transition-all text-sm ${
+                            deliveryZone === 'inside_dhaka'
+                              ? 'border-orange-500 bg-orange-50'
+                              : 'border-gray-300 hover:border-orange-300'
+                          }`}
+                        >
+                          <input
+                            type="radio"
+                            name="cartDeliveryZone"
+                            value="inside_dhaka"
+                            checked={deliveryZone === 'inside_dhaka'}
+                            onChange={() => setDeliveryZone('inside_dhaka')}
+                            className="text-orange-500"
+                          />
+                          <div>
+                            <span className="font-semibold">Inside Dhaka</span>
+                            <span className="block text-xs text-gray-500">৳60</span>
+                          </div>
+                        </label>
+                        <label
+                          className={`flex items-center gap-2 p-2.5 border-2 rounded-lg cursor-pointer transition-all text-sm ${
+                            deliveryZone === 'outside_dhaka'
+                              ? 'border-orange-500 bg-orange-50'
+                              : 'border-gray-300 hover:border-orange-300'
+                          }`}
+                        >
+                          <input
+                            type="radio"
+                            name="cartDeliveryZone"
+                            value="outside_dhaka"
+                            checked={deliveryZone === 'outside_dhaka'}
+                            onChange={() => setDeliveryZone('outside_dhaka')}
+                            className="text-orange-500"
+                          />
+                          <div>
+                            <span className="font-semibold">Outside Dhaka</span>
+                            <span className="block text-xs text-gray-500">৳110</span>
+                          </div>
+                        </label>
+                      </div>
+                    </div>
+
+                    <div className="flex justify-between pt-1">
                       <span className="text-gray-600">Delivery Charge</span>
-                      <span className="font-semibold text-gray-800">
-                        ৳60 – ৳110
+                      <span className="font-semibold">
+                        ৳{deliveryCharge}
                       </span>
                     </div>
-                    <p className="text-xs text-gray-500 mt-1">
-                      Inside Dhaka ৳60 | Outside Dhaka ৳110
-                    </p>
+                  </div>
+
+                  {/* Coupon Code */}
+                  <div className="border-t pt-4 mb-4">
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      <FaTag className="inline mr-1 text-orange-500" size={12} />
+                      Coupon / Offer Code
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={couponCode}
+                        onChange={(e) => setCouponCode(e.target.value)}
+                        className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-orange-500"
+                        placeholder="Enter code"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (couponCode.trim()) {
+                            toast.info('Coupon will be applied at checkout');
+                          }
+                        }}
+                        className="px-4 py-2 bg-orange-500 text-white rounded-lg text-sm font-semibold hover:bg-orange-600 transition"
+                      >
+                        Apply
+                      </button>
+                    </div>
                   </div>
 
                   <div className="border-t pt-4 mb-6">
@@ -277,7 +424,7 @@ export default function CartPage() {
                   </div>
 
                   <Link
-                    href="/checkout"
+                    href={`/checkout${couponCode.trim() ? `?coupon=${encodeURIComponent(couponCode.trim())}` : ''}`}
                     className="block w-full bg-orange-500 hover:bg-orange-600 text-white text-center py-3 rounded-lg font-bold mb-3 transition"
                   >
                     Proceed to Checkout
