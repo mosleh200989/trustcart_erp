@@ -8,6 +8,7 @@ import { useToast } from '@/contexts/ToastContext';
 import { FaPhone, FaWhatsapp, FaShoppingCart, FaMinus, FaPlus, FaCheckCircle, FaTruck } from 'react-icons/fa';
 import ElegantTemplate from '@/components/landing-pages/ElegantTemplate';
 import GheeTemplate from '@/components/landing-pages/GheeTemplate';
+import PickleTemplate from '@/components/landing-pages/PickleTemplate';
 
 interface LandingPageSection {
   id: string;
@@ -374,6 +375,11 @@ export default function LandingPageInternational() {
   // ─── Template Routing: Render Ghee template if selected ───
   if (page.template === 'ghee') {
     return <GheeTemplate page={page} trafficSource="landing_page_intl" isInternational={true} />;
+  }
+
+  // ─── Template Routing: Render Pickle template if selected ───
+  if (page.template === 'pickle') {
+    return <PickleTemplate page={page} trafficSource="landing_page_intl" isInternational={true} />;
   }
 
   const visibleSections = (page.sections || [])

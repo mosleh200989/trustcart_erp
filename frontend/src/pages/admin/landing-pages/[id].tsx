@@ -634,7 +634,7 @@ export default function LandingPageEditor() {
       {/* Template Selector */}
       <div className="bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-xl p-4">
         <label className="block text-sm font-semibold text-gray-800 mb-2">Page Template</label>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
           <div
             onClick={() => setForm((prev) => ({ ...prev, template: 'classic' }))}
             className={`cursor-pointer border-2 rounded-xl p-4 transition-all ${
@@ -696,6 +696,27 @@ export default function LandingPageEditor() {
               <div className="h-1 flex-1 rounded bg-gradient-to-r from-amber-400 to-yellow-400"></div>
               <div className="h-1 flex-1 rounded bg-gradient-to-r from-amber-300 to-yellow-300"></div>
               <div className="h-1 flex-1 rounded bg-gradient-to-r from-amber-200 to-yellow-200"></div>
+            </div>
+          </div>
+          <div
+            onClick={() => setForm((prev) => ({ ...prev, template: 'pickle' }))}
+            className={`cursor-pointer border-2 rounded-xl p-4 transition-all ${
+              form.template === 'pickle'
+                ? 'border-red-500 bg-white shadow-md ring-2 ring-red-200'
+                : 'border-gray-200 bg-white hover:border-gray-300'
+            }`}
+          >
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-10 h-10 bg-gradient-to-br from-red-600 to-orange-500 rounded-lg flex items-center justify-center text-white font-bold text-lg">P</div>
+              <div>
+                <div className="font-semibold text-gray-800">Pickle</div>
+                <div className="text-xs text-gray-500">Achar/Pickle — spicy warm theme</div>
+              </div>
+            </div>
+            <div className="flex gap-1">
+              <div className="h-1 flex-1 rounded bg-gradient-to-r from-red-400 to-orange-400"></div>
+              <div className="h-1 flex-1 rounded bg-gradient-to-r from-red-300 to-orange-300"></div>
+              <div className="h-1 flex-1 rounded bg-gradient-to-r from-red-200 to-orange-200"></div>
             </div>
           </div>
         </div>
