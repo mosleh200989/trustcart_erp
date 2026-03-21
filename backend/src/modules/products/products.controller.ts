@@ -19,9 +19,31 @@ export class ProductsController {
 
   @Get()
   @Public()
-  async findAll() {
+  async findAll(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('search') search?: string,
+    @Query('category') category?: string,
+    @Query('sort') sort?: string,
+    @Query('minPrice') minPrice?: string,
+    @Query('maxPrice') maxPrice?: string,
+    @Query('inStock') inStock?: string,
+  ) {
+    // If page param is provided, use paginated server-side query
+    if (page) {
+      return this.productsService.findAllPaginated({
+        page: Math.max(1, parseInt(page, 10) || 1),
+        limit: Math.min(50, Math.max(1, parseInt(limit || '12', 10))),
+        search: search?.trim(),
+        category: category?.trim(),
+        sort: sort || 'featured',
+        minPrice: minPrice ? parseFloat(minPrice) : undefined,
+        maxPrice: maxPrice ? parseFloat(maxPrice) : undefined,
+        inStock: inStock === 'true',
+      });
+    }
+    // No page param — return flat array (backward compatible for homepage)
     const products = await this.productsService.findAll();
-    console.log(`Controller returning ${products.length} products`);
     return products;
   }
 

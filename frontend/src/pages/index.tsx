@@ -64,6 +64,11 @@ export default function Home() {
   const [specialOffers, setSpecialOffers] = useState<SpecialOffer[]>([]);
   const [dealOfTheDay, setDealOfTheDay] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [bannersLoading, setBannersLoading] = useState(true);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
+  const [hotDealsLoading, setHotDealsLoading] = useState(true);
+  const [combosLoading, setCombosLoading] = useState(true);
+  const [dealLoading, setDealLoading] = useState(true);
 
   useEffect(() => {
     loadProducts();
@@ -79,7 +84,6 @@ export default function Home() {
     try {
       const response = await apiClient.get("/banners/public");
       const banners = response.data || [];
-      console.log("Banners loaded:", banners);
 
       setCarouselBanners(
         banners.filter((b: Banner) => b.banner_type === "carousel")
@@ -87,23 +91,25 @@ export default function Home() {
       setSideBanners(banners.filter((b: Banner) => b.banner_type === "side"));
     } catch (error) {
       console.error("Failed to load banners:", error);
+    } finally {
+      setBannersLoading(false);
     }
   };
 
   const loadCategories = async () => {
     try {
       const response = await apiClient.get("/categories?active=true");
-      console.log("Categories loaded:", response.data);
       setCategories(response.data || []);
     } catch (error) {
       console.error("Failed to load categories:", error);
+    } finally {
+      setCategoriesLoading(false);
     }
   };
 
   const loadSpecialOffers = async () => {
     try {
       const response = await apiClient.get("/special-offers/public");
-      console.log("Special offers loaded:", response.data);
       setSpecialOffers(response.data || []);
     } catch (error) {
       console.error("Failed to load special offers:", error);
@@ -113,30 +119,33 @@ export default function Home() {
   const loadDealOfTheDay = async () => {
     try {
       const response = await apiClient.get("/products/deal-of-the-day");
-      console.log("Deal of the Day loaded:", response.data);
       setDealOfTheDay(response.data);
     } catch (error) {
       console.error("Failed to load deal of the day:", error);
+    } finally {
+      setDealLoading(false);
     }
   };
 
   const loadHotDeals = async () => {
     try {
       const response = await apiClient.get("/products/hot-deals");
-      console.log("Hot Deals loaded:", response.data);
       setHotDeals(response.data || []);
     } catch (error) {
       console.error("Failed to load hot deals:", error);
+    } finally {
+      setHotDealsLoading(false);
     }
   };
 
   const loadCombos = async () => {
     try {
       const response = await apiClient.get("/combos");
-      console.log("Combos loaded:", response.data);
       setCombosDeals(Array.isArray(response.data) ? response.data : []);
     } catch (error) {
       console.error("Failed to load combos:", error);
+    } finally {
+      setCombosLoading(false);
     }
   };
 
@@ -144,12 +153,6 @@ export default function Home() {
     try {
       const response = await apiClient.get("/products");
       const products = response.data || [];
-      console.log(
-        "Products loaded:",
-        products.length,
-        "First product:",
-        products[0]
-      );
 
       // Calculate sale price and discount percentage for products
       const productsWithSalePrice = products.map((p: any) => {
@@ -195,7 +198,87 @@ export default function Home() {
     }
   };
 
-  // console.log("Featrued Products", featuredProducts[0].image_url)
+  // Skeleton building blocks
+  const Pulse = ({ className = "" }: { className?: string }) => (
+    <div className={`animate-pulse bg-gray-200 rounded ${className}`} />
+  );
+
+  const BannerSkeleton = () => (
+    <div className="bg-white border-b">
+      <div className="container mx-auto px-4 lg:px-8 xl:px-12 py-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2"><Pulse className="w-full h-48 sm:h-64 lg:h-72 rounded-lg" /></div>
+          <div className="hidden lg:block"><Pulse className="w-full h-72 rounded-lg" /></div>
+        </div>
+      </div>
+    </div>
+  );
+
+  const CategorySkeleton = () => (
+    <div className="container mx-auto px-4 lg:px-8 xl:px-12 py-12">
+      <Pulse className="h-8 w-56 mx-auto mb-8 rounded-lg" />
+      <div className="flex gap-4 overflow-hidden">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <div key={i} className="flex-shrink-0 w-28 flex flex-col items-center gap-2">
+            <Pulse className="w-20 h-20 rounded-full" />
+            <Pulse className="h-4 w-20 rounded" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  const ProductGridSkeleton = ({ count = 4 }: { count?: number }) => (
+    <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4 lg:gap-6">
+      {Array.from({ length: count }).map((_, i) => (
+        <div key={i} className="bg-white rounded-lg overflow-hidden border border-gray-100">
+          <Pulse className="w-full h-36 sm:h-44 lg:h-52 rounded-none" />
+          <div className="p-3 space-y-2">
+            <Pulse className="h-4 w-3/4 rounded" />
+            <Pulse className="h-4 w-1/2 rounded" />
+            <Pulse className="h-8 w-full rounded-lg" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+
+  const SectionSkeleton = ({ title }: { title: string }) => (
+    <div className="container mx-auto px-4 lg:px-8 xl:px-12 py-12">
+      <div className="flex items-center justify-between mb-8">
+        <div>
+          <h2 className="text-2xl xl:text-3xl font-bold">{title}</h2>
+          <Pulse className="h-4 w-48 mt-2 rounded" />
+        </div>
+        <Pulse className="h-5 w-24 rounded" />
+      </div>
+      <ProductGridSkeleton />
+    </div>
+  );
+
+  const DealSkeleton = () => (
+    <div className="container mx-auto px-4 lg:px-8 xl:px-12 py-4 lg:py-6">
+      {/* Mobile */}
+      <div className="lg:hidden bg-gray-100 rounded-xl p-4 flex items-center gap-4">
+        <Pulse className="w-16 h-16 sm:w-20 sm:h-20 rounded-lg flex-shrink-0" />
+        <div className="flex-1 space-y-2">
+          <Pulse className="h-3 w-24 rounded" />
+          <Pulse className="h-5 w-40 rounded" />
+        </div>
+        <Pulse className="h-7 w-16 rounded flex-shrink-0" />
+      </div>
+      {/* Desktop */}
+      <div className="hidden lg:flex bg-gray-100 rounded-2xl items-center p-4">
+        <Pulse className="w-40 h-40 xl:w-48 xl:h-48 rounded-xl flex-shrink-0" />
+        <div className="flex-1 px-6 space-y-3">
+          <Pulse className="h-6 w-48 rounded" />
+          <Pulse className="h-8 w-64 rounded" />
+          <Pulse className="h-10 w-36 rounded" />
+        </div>
+        <Pulse className="h-14 w-36 rounded-full mr-6" />
+      </div>
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -248,13 +331,16 @@ export default function Home() {
       <ElectroNavbar />
       <div className="max-w-7xl mx-auto">
         {/* Hero Carousel with Side Banner */}
+        {bannersLoading ? (
+          <BannerSkeleton />
+        ) : (
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
           className="bg-white border-b"
         >
-          <div className="container mx-auto px-4 lg:px-48 xl:px-56 py-6">
+          <div className="container mx-auto px-4 lg:px-8 xl:px-12 py-6">
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* Main Carousel - 2/3 width */}
               <div className="lg:col-span-2">
@@ -268,6 +354,7 @@ export default function Home() {
             </div>
           </div>
         </motion.div>
+        )}
 
         {/* Features */}
         <motion.div
@@ -277,7 +364,7 @@ export default function Home() {
           transition={{ duration: 0.5, delay: 0.2 }}
           className="bg-white border-b"
         >
-          <div className="container mx-auto px-4 lg:px-48 xl:px-56 py-4 sm:py-6 md:py-8">
+          <div className="container mx-auto px-4 lg:px-8 xl:px-12 py-4 sm:py-6 md:py-8">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-6">
               <motion.div
                 whileHover={{ scale: 1.05 }}
@@ -348,13 +435,15 @@ export default function Home() {
         </motion.div>
 
         {/* Deal of the Day - Responsive Design: Compact on Mobile, Larger on Desktop */}
-        {dealOfTheDay && (
+        {dealLoading ? (
+          <DealSkeleton />
+        ) : dealOfTheDay && (
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.3 }}
-            className="container mx-auto px-4 lg:px-48 xl:px-56 py-4 lg:py-6"
+            className="container mx-auto px-4 lg:px-8 xl:px-12 py-4 lg:py-6"
           >
             {/* Mobile View - Compact Banner */}
             <a
@@ -468,27 +557,33 @@ export default function Home() {
         )}
 
         {/* Categories Slider */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          whileInView={{ opacity: 1 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.5 }}
-          className="container mx-auto px-4 lg:px-48 xl:px-56 py-12"
-        >
-          <h2 className="text-2xl sm:text-3xl font-bold text-center mb-6 sm:mb-8">
-            Shop by Categories
-          </h2>
-          <CategorySlider categories={categories} />
-        </motion.div>
-
-        {/* Hot Deals Section */}
-        {(hotDeals.length > 0 || featuredProducts.filter(p => p.hasDiscount).length > 0) && (
+        {categoriesLoading ? (
+          <CategorySkeleton />
+        ) : (
           <motion.div
             initial={{ opacity: 0 }}
             whileInView={{ opacity: 1 }}
             viewport={{ once: true }}
             transition={{ duration: 0.5 }}
-            className="container mx-auto px-4 lg:px-48 xl:px-56 py-12"
+            className="container mx-auto px-4 lg:px-8 xl:px-12 py-12"
+          >
+            <h2 className="text-2xl sm:text-3xl font-bold text-center mb-6 sm:mb-8">
+              Shop by Categories
+            </h2>
+            <CategorySlider categories={categories} />
+          </motion.div>
+        )}
+
+        {/* Hot Deals Section */}
+        {hotDealsLoading ? (
+          <SectionSkeleton title="Hot Deals" />
+        ) : (hotDeals.length > 0 || featuredProducts.filter(p => p.hasDiscount).length > 0) && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            whileInView={{ opacity: 1 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.5 }}
+            className="container mx-auto px-4 lg:px-8 xl:px-12 py-12"
           >
             <div className="flex items-center justify-between mb-8">
               <div>
@@ -541,7 +636,6 @@ export default function Home() {
                       stock={product.stock_quantity}
                       image={product.image_url}
                       rating={5}
-                      reviews={Math.floor(Math.random() * 200)}
                       discount={discountPercent > 0 ? discountPercent : undefined}
                     />
                   );
@@ -551,13 +645,15 @@ export default function Home() {
         )}
 
         {/* Combo Deals Section */}
-        {combosDeals.length > 0 && (
+        {combosLoading ? (
+          <SectionSkeleton title="Combo Deals" />
+        ) : combosDeals.length > 0 && (
           <motion.div
             initial={{ opacity: 0 }}
             whileInView={{ opacity: 1 }}
             viewport={{ once: true }}
             transition={{ duration: 0.5 }}
-            className="container mx-auto px-4 lg:px-48 xl:px-56 py-12"
+            className="container mx-auto px-4 lg:px-8 xl:px-12 py-12"
           >
             <div className="flex items-center justify-between mb-8">
               <div>
@@ -634,7 +730,7 @@ export default function Home() {
           whileInView={{ opacity: 1 }}
           viewport={{ once: true }}
           transition={{ duration: 0.5 }}
-          className="container mx-auto px-4 lg:px-48 xl:px-56 py-12"
+          className="container mx-auto px-4 lg:px-8 xl:px-12 py-12"
         >
           <div className="flex items-center justify-between mb-8">
             <div>
@@ -653,9 +749,7 @@ export default function Home() {
           </div>
 
           {loading ? (
-            <div className="text-center py-12">
-              <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500"></div>
-            </div>
+            <ProductGridSkeleton count={8} />
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4 lg:gap-6">
               {featuredProducts.slice(0, 8).map((product) => (
@@ -684,7 +778,6 @@ export default function Home() {
                   stock={product.stock_quantity}
                   image={product?.image_url}
                   rating={5}
-                  reviews={Math.floor(Math.random() * 200)}
                   discount={
                     product.hasDiscount ? product.discountPercent : undefined
                   }
@@ -703,24 +796,6 @@ export default function Home() {
             </Link>
           </div>
         </motion.div>
-
-        {/* Newsletter Banner */}
-        {/* <div className="bg-gradient-to-r from-blue-600 to-blue-700 py-16">
-          <div className="container mx-auto px-4 text-center text-white">
-            <h2 className="text-4xl font-bold mb-4">Get Special Offers & Discounts</h2>
-            <p className="text-xl mb-8">Subscribe to our newsletter and never miss a deal!</p>
-            <div className="max-w-xl mx-auto flex gap-2">
-              <input
-                type="email"
-                placeholder="Enter your email address"
-                className="flex-1 px-6 py-4 rounded-full text-gray-900 focus:outline-none"
-              />
-              <button className="bg-orange-500 hover:bg-orange-600 px-8 py-4 rounded-full font-bold transition">
-                Subscribe
-              </button>
-            </div>
-          </div>
-        </div> */}
       </div>
       <ElectroFooter />
     </div>

@@ -147,16 +147,17 @@ export default function ElectroNavbar() {
                         }}
                         className="flex items-center gap-4 p-4 hover:bg-orange-50 border-b last:border-b-0 transition"
                       >
-                        {product.image_url && (
-                          <img
-                            src={product.image_url}
-                            alt={product.name_en}
-                            className="w-16 h-16 object-cover rounded"
-                            onError={(e) => {
-                              (e.target as HTMLImageElement).src = 'https://via.placeholder.com/64?text=No+Image';
-                            }}
-                          />
-                        )}
+                        <div className="w-16 h-16 flex-shrink-0 rounded bg-gray-100 overflow-hidden flex items-center justify-center">
+                          {product.image_url ? (
+                            <img
+                              src={product.image_url}
+                              alt={product.name_en}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <span className="text-2xl">📦</span>
+                          )}
+                        </div>
                         <div className="flex-1">
                           <h4 className="font-semibold text-gray-800">{product.name_en}</h4>
                           {product.category_name && (
@@ -237,16 +238,17 @@ export default function ElectroNavbar() {
                       }}
                       className="flex items-center gap-3 p-3 hover:bg-orange-50 border-b last:border-b-0 transition"
                     >
-                      {product.image_url && (
-                        <img
-                          src={product.image_url}
-                          alt={product.name_en}
-                          className="w-12 h-12 object-cover rounded"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).src = 'https://via.placeholder.com/64?text=No+Image';
-                          }}
-                        />
-                      )}
+                      <div className="w-12 h-12 flex-shrink-0 rounded bg-gray-100 overflow-hidden flex items-center justify-center">
+                        {product.image_url ? (
+                          <img
+                            src={product.image_url}
+                            alt={product.name_en}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <span className="text-xl">📦</span>
+                        )}
+                      </div>
                       <div className="flex-1 min-w-0">
                         <h4 className="font-semibold text-gray-800 text-sm truncate">{product.name_en}</h4>
                         <p className="text-orange-600 font-bold text-sm">৳{parseFloat(product.base_price || product.price).toFixed(2)}</p>

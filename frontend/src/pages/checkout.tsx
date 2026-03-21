@@ -15,6 +15,8 @@ import {
   FaShoppingBag,
   FaShoppingCart,
   FaTrash,
+  FaExclamationTriangle,
+  FaInfoCircle,
 } from "react-icons/fa";
 import apiClient, { customers } from "@/services/api";
 import { TrackingService } from "@/utils/tracking";
@@ -30,12 +32,16 @@ export default function Checkout() {
   const { user: authUser } = useAuth();
   const { items: cart, addItem, removeItem: removeCartItem, updateQuantity: updateCartQuantity, clearCart: clearAllCart, setItems: setCartItems } = useCart();
   const touchedRef = useRef<Record<string, boolean>>({});
+  const formRef = useRef<HTMLFormElement>(null);
   const [suggestedProducts, setSuggestedProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [currentUser, setCurrentUser] = useState<any | null>(null);
   const [customerProfile, setCustomerProfile] = useState<any | null>(null);
   const [defaultAddress, setDefaultAddress] = useState<any | null>(null);
   const [deliveryZone, setDeliveryZone] = useState<'inside_dhaka' | 'outside_dhaka'>('inside_dhaka');
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+  const [formSubmitted, setFormSubmitted] = useState(false);
+  const [guestAccountCreated, setGuestAccountCreated] = useState(false);
   const [formData, setFormData] = useState({
     fullName: "",
     email: "",
@@ -264,18 +270,58 @@ export default function Checkout() {
       ...formData,
       [e.target.name]: e.target.value,
     });
+    // Clear error on change
+    if (formErrors[e.target.name]) {
+      setFormErrors((prev) => {
+        const next = { ...prev };
+        delete next[e.target.name];
+        return next;
+      });
+    }
+  };
+
+  // Auto-detect Dhaka in address and set delivery zone
+  useEffect(() => {
+    const addr = formData.address.toLowerCase();
+    if (addr.includes('dhaka') || addr.includes('ঢাকা')) {
+      setDeliveryZone('inside_dhaka');
+    } else if (addr.length > 10 && !addr.includes('dhaka') && !addr.includes('ঢাকা')) {
+      setDeliveryZone('outside_dhaka');
+    }
+  }, [formData.address]);
+
+  // Read coupon from URL query params (passed from cart page)
+  useEffect(() => {
+    if (router.isReady && router.query.coupon && !formData.offerCode) {
+      setFormData((prev) => ({ ...prev, offerCode: String(router.query.coupon) }));
+    }
+  }, [router.isReady, router.query.coupon]);
+
+  const validateForm = (): boolean => {
+    const errors: Record<string, string> = {};
+    if (!formData.fullName.trim()) errors.fullName = 'Full name is required';
+    if (!formData.phone.trim()) {
+      errors.phone = 'Phone number is required';
+    } else if (!validateBDPhone(formData.phone)) {
+      errors.phone = 'Enter a valid Bangladesh phone number (e.g. 01712345678)';
+    }
+    if (!formData.address.trim()) errors.address = 'Shipping address is required';
+    if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      errors.email = 'Enter a valid email address';
+    }
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setFormSubmitted(true);
 
-    if (!formData.fullName || !formData.phone || !formData.address) {
-      toast.warning("Please fill in all required fields");
-      return;
-    }
-
-    if (!validateBDPhone(formData.phone)) {
-      toast.warning("Please enter a valid 10-digit phone number");
+    if (!validateForm()) {
+      toast.warning('Please fix the errors in the form');
+      // Scroll to first error
+      const firstErrorField = document.querySelector('[data-error="true"]');
+      firstErrorField?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       return;
     }
 
@@ -319,6 +365,7 @@ export default function Checkout() {
                 : null),
             });
             customerId = newCustomer.data.id;
+            setGuestAccountCreated(true);
           }
         } catch (error) {
           console.error("Error checking/creating customer:", error);
@@ -464,19 +511,19 @@ export default function Checkout() {
       <div className="bg-gray-100 border-b">
         <div className="container mx-auto px-4 py-4">
           <div className="text-sm text-gray-600 max-w-7xl mx-auto">
-            Home / Cart /{" "}
+            <Link href="/" className="hover:text-orange-500">Home</Link> / <Link href="/cart" className="hover:text-orange-500">Cart</Link> /{" "}
             <span className="text-gray-900 font-semibold">Checkout</span>
           </div>
         </div>
       </div>
       <div className="max-w-7xl mx-auto">
-        <div className="container mx-auto px-4 py-12">
+        <div className="container mx-auto px-4 py-12 pb-24 lg:pb-12">
           <h2 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-6 sm:mb-8 flex items-center gap-3">
             <FaShoppingCart className="text-orange-500" />
             Cart
           </h2>
 
-          <form onSubmit={handleSubmit}>
+          <form ref={formRef} onSubmit={handleSubmit}>
             {/* Cart Items (same features as Cart page) */}
             {cart.length === 0 ? (
               <div className="bg-white rounded-lg shadow-md p-6 mb-6">
@@ -555,8 +602,13 @@ export default function Checkout() {
                                 <FaPlus size={10} />
                               </button>
                             </div>
-                            <div className="font-bold text-orange-500">
-                              ৳{item.price}
+                            <div className="text-right">
+                              <div className="font-bold text-orange-500">
+                                ৳{(item.price * (item.quantity || 1)).toFixed(2)}
+                              </div>
+                              {(item.quantity || 1) > 1 && (
+                                <div className="text-xs text-gray-400">৳{item.price} each</div>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -601,11 +653,14 @@ export default function Checkout() {
                             <FaPlus size={12} />
                           </button>
                         </div>
-                        <div className="text-right">
-                          <div className="text-sm text-gray-500">Price</div>
+                        <div className="text-right min-w-[80px]">
+                          <div className="text-sm text-gray-500">Total</div>
                           <div className="font-bold text-orange-500">
-                            ৳{item.price}
+                            ৳{(item.price * (item.quantity || 1)).toFixed(2)}
                           </div>
+                          {(item.quantity || 1) > 1 && (
+                            <div className="text-xs text-gray-400">৳{item.price} each</div>
+                          )}
                         </div>
                         <button
                           type="button"
@@ -633,6 +688,17 @@ export default function Checkout() {
               <FaCreditCard className="text-orange-500" />
               Checkout
             </h2>
+
+            {/* Guest account notice */}
+            {!authUser && (
+              <div className="mb-6 p-4 border border-blue-200 bg-blue-50 rounded-lg flex items-start gap-3">
+                <FaInfoCircle className="text-blue-500 mt-0.5 flex-shrink-0" />
+                <div className="text-sm text-blue-800">
+                  <p className="font-semibold">Ordering as a guest</p>
+                  <p className="mt-1">You can checkout without an account. An account will be created for you automatically so you can track your order. <Link href="/customer/login" className="underline font-semibold hover:text-blue-900">Log in</Link> if you already have an account.</p>
+                </div>
+              </div>
+            )}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               {/* Billing Details */}
               <div className="lg:col-span-2">
@@ -674,7 +740,7 @@ export default function Checkout() {
                   )}
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
+                    <div data-error={!!formErrors.fullName || undefined}>
                       <label className="block text-sm font-semibold mb-2">
                         Full Name *
                       </label>
@@ -684,9 +750,19 @@ export default function Checkout() {
                         value={formData.fullName}
                         onChange={handleChange}
                         required
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-500"
+                        className={`w-full px-4 py-2 border rounded-lg focus:outline-none transition-colors ${
+                          formErrors.fullName
+                            ? 'border-red-400 bg-red-50 focus:border-red-500'
+                            : 'border-gray-300 focus:border-orange-500'
+                        }`}
                         placeholder="Enter Your Full Name"
                       />
+                      {formErrors.fullName && (
+                        <p className="mt-1 text-sm text-red-500 flex items-center gap-1">
+                          <FaExclamationTriangle size={12} />
+                          {formErrors.fullName}
+                        </p>
+                      )}
                     </div>
 
                     <div>
@@ -698,12 +774,22 @@ export default function Checkout() {
                         name="email"
                         value={formData.email}
                         onChange={handleChange}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-500"
+                        className={`w-full px-4 py-2 border rounded-lg focus:outline-none transition-colors ${
+                          formErrors.email
+                            ? 'border-red-400 bg-red-50 focus:border-red-500'
+                            : 'border-gray-300 focus:border-orange-500'
+                        }`}
                         placeholder="Enter Your Email (Optional)"
                       />
+                      {formErrors.email && (
+                        <p className="mt-1 text-sm text-red-500 flex items-center gap-1">
+                          <FaExclamationTriangle size={12} />
+                          {formErrors.email}
+                        </p>
+                      )}
                     </div>
 
-                    <div>
+                    <div data-error={!!formErrors.phone || undefined}>
                       <label className="block text-sm font-semibold mb-2">
                         Phone *
                       </label>
@@ -713,13 +799,26 @@ export default function Checkout() {
                         onChange={(value) => {
                           touchedRef.current['phone'] = true;
                           setFormData({ ...formData, phone: value });
+                          if (formErrors.phone) {
+                            setFormErrors((prev) => {
+                              const next = { ...prev };
+                              delete next.phone;
+                              return next;
+                            });
+                          }
                         }}
                         required
                         placeholder="01712345678"
                       />
+                      {formErrors.phone && (
+                        <p className="mt-1 text-sm text-red-500 flex items-center gap-1">
+                          <FaExclamationTriangle size={12} />
+                          {formErrors.phone}
+                        </p>
+                      )}
                     </div>
 
-                    <div className="md:col-span-2">
+                    <div className="md:col-span-2" data-error={!!formErrors.address || undefined}>
                       <label className="block text-sm font-semibold mb-2">
                         Address *
                       </label>
@@ -729,9 +828,19 @@ export default function Checkout() {
                         onChange={handleChange}
                         required
                         rows={3}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-500"
+                        className={`w-full px-4 py-2 border rounded-lg focus:outline-none transition-colors ${
+                          formErrors.address
+                            ? 'border-red-400 bg-red-50 focus:border-red-500'
+                            : 'border-gray-300 focus:border-orange-500'
+                        }`}
                         placeholder="Enter Your Detailed Shipping Address"
                       />
+                      {formErrors.address && (
+                        <p className="mt-1 text-sm text-red-500 flex items-center gap-1">
+                          <FaExclamationTriangle size={12} />
+                          {formErrors.address}
+                        </p>
+                      )}
                     </div>
 
                     <div className="md:col-span-2">
@@ -994,6 +1103,35 @@ export default function Checkout() {
           </form>
         </div>
       </div>
+
+      {/* Sticky Mobile Order Summary Bar */}
+      {cart.length > 0 && (
+        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-[0_-4px_12px_rgba(0,0,0,0.1)] p-3 lg:hidden z-50">
+          <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
+            <div>
+              <div className="text-xs text-gray-500">{cart.length} item{cart.length > 1 ? 's' : ''} · {deliveryZone === 'inside_dhaka' ? 'Inside Dhaka' : 'Outside Dhaka'}</div>
+              <div className="text-lg font-bold text-orange-500">৳{total.toFixed(2)}</div>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                if (formRef.current) {
+                  if (typeof formRef.current.requestSubmit === 'function') {
+                    formRef.current.requestSubmit();
+                  } else {
+                    formRef.current.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+                  }
+                }
+              }}
+              disabled={loading || cart.length === 0}
+              className="flex-1 max-w-[200px] bg-orange-500 hover:bg-orange-600 text-white py-3 rounded-lg font-bold transition disabled:bg-gray-400 disabled:cursor-not-allowed text-sm"
+            >
+              {loading ? 'Placing...' : 'Place Order'}
+            </button>
+          </div>
+        </div>
+      )}
+
       <ElectroFooter />
     </div>
   );

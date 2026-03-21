@@ -306,8 +306,12 @@ export default function ThankYouPage() {
 
   const customerNote = useMemo(() => {
     const raw = order?.note ?? order?.notes ?? order?.customer_note ?? "";
-    // Strip any "[Landing Page: ...]" prefix from notes
-    return String(raw).replace(/^\[Landing Page:[^\]]*\]\s*/i, '').trim();
+    // Strip any "[Landing Page: ...]" prefix and "Shipping Address: ..." from notes
+    const cleaned = String(raw)
+      .replace(/^\[Landing Page:[^\]]*\]\s*/i, '')
+      .replace(/Shipping Address\s*:\s*.*/i, '')
+      .trim();
+    return cleaned;
   }, [order]);
 
   const paymentMethod = useMemo(() => {
@@ -351,6 +355,9 @@ export default function ThankYouPage() {
               <h1 className="text-2xl sm:text-3xl md:text-4xl font-serif italic text-gray-700">
                 Thank you for your order.
               </h1>
+              <p className="mt-3 text-sm text-gray-500 max-w-md mx-auto px-4">
+                Our team will call you shortly to confirm your order before processing. Please keep your phone available.
+              </p>
             </div>
 
             {/* Order Status Progress */}
@@ -672,7 +679,6 @@ export default function ThankYouPage() {
                         stock={product.stock_quantity}
                         image_url={product.image_url}
                         rating={5}
-                        reviews={Math.floor(Math.random() * 200)}
                         discount={discountPercent > 0 ? discountPercent : undefined}
                       />
                     );
