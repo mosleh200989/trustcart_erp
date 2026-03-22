@@ -189,7 +189,8 @@ const transformCategory = (c: any) => ({
   nameEn: c.name_en || c.name || '',
   nameBn: c.name_bn || '',
   slug: c.slug || '',
-  icon: '🗂'
+  icon: '🗂',
+  parent_id: c.parent_id || null,
 });
 
 export const categories = {

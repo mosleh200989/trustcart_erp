@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 interface PhoneInputProps {
   value: string;
   onChange: (value: string) => void;
+  id?: string;
   name?: string;
   required?: boolean;
   className?: string;
@@ -18,6 +19,7 @@ interface PhoneInputProps {
 export default function PhoneInput({
   value,
   onChange,
+  id,
   name = 'phone',
   required = false,
   className = '',
@@ -73,6 +75,7 @@ export default function PhoneInput({
         {/* Input field */}
         <input
           type="tel"
+          id={id}
           name={name}
           value={localValue}
           onChange={handleChange}

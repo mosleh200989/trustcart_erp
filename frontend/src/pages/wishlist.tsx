@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import ElectroNavbar from '@/components/ElectroNavbar';
 import ElectroFooter from '@/components/ElectroFooter';
 import Link from 'next/link';
+import Image from 'next/image';
 
 interface WishlistItem {
   id: number;
@@ -58,10 +59,12 @@ export default function WishlistPage() {
                   {/* 1:1 Aspect Ratio for Professional E-commerce Look */}
                   <div className="relative w-full pt-[100%] bg-gray-50 mb-3 overflow-hidden rounded-lg">
                     {item.image ? (
-                      <img
+                      <Image
                         src={item.image}
                         alt={item.name}
-                        className="absolute inset-0 w-full h-full object-contain"
+                        fill
+                        sizes="(max-width: 640px) 50vw, 25vw"
+                        className="object-contain"
                       />
                     ) : (
                       <div className="absolute inset-0 flex items-center justify-center">

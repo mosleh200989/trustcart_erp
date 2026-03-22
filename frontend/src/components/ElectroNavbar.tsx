@@ -1,7 +1,8 @@
 import Link from 'next/link';
+import Image from 'next/image';
 import { useRouter } from 'next/router';
-import { useState, useEffect } from 'react';
-import { FaPhone, FaEnvelope, FaUser, FaShoppingCart, FaHeart, FaBars, FaSearch, FaTimes } from 'react-icons/fa';
+import { useState, useEffect, useMemo } from 'react';
+import { FaPhone, FaEnvelope, FaUser, FaShoppingCart, FaHeart, FaBars, FaSearch, FaTimes, FaChevronRight, FaChevronDown } from 'react-icons/fa';
 import apiClient, { categories as categoriesAPI } from '@/services/api';
 import { useCart } from '@/contexts/CartContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -12,6 +13,7 @@ type NavbarCategory = {
   nameEn?: string;
   slug?: string;
   icon?: string;
+  parent_id?: number | null;
 };
 
 export default function ElectroNavbar() {
@@ -29,6 +31,24 @@ export default function ElectroNavbar() {
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [showSearchResults, setShowSearchResults] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
+  const [hoveredCategoryId, setHoveredCategoryId] = useState<number | null>(null);
+  const [expandedMobileCategory, setExpandedMobileCategory] = useState<number | null>(null);
+
+  const { parentCategories, childrenMap, hasSubcategories } = useMemo(() => {
+    const parents = navbarCategories.filter(c => !c.parent_id);
+    const children: Record<number, NavbarCategory[]> = {};
+    navbarCategories.forEach(c => {
+      if (c.parent_id) {
+        if (!children[c.parent_id]) children[c.parent_id] = [];
+        children[c.parent_id].push(c);
+      }
+    });
+    return {
+      parentCategories: parents,
+      childrenMap: children,
+      hasSubcategories: Object.keys(children).length > 0,
+    };
+  }, [navbarCategories]);
 
   useEffect(() => {
     const loadNavbarCategories = async () => {
@@ -115,7 +135,7 @@ export default function ElectroNavbar() {
 
             {/* Logo */}
             <Link href="/" className="flex items-center -my-2">
-              <img src="/trust-cart-logo-main.png" alt="TrustCart" className="h-14 lg:h-20 object-contain" />
+              <Image src="/trust-cart-logo-main.png" alt="TrustCart" width={160} height={80} className="h-14 lg:h-20 w-auto object-contain" priority />
             </Link>
 
             {/* Search Bar - Desktop */}
@@ -125,7 +145,7 @@ export default function ElectroNavbar() {
                   type="text"
                   value={searchQuery}
                   onChange={(e) => handleSearch(e.target.value)}
-                  onBlur={() => setTimeout(() => setShowSearchResults(false), 200)}
+                  onBlur={() => setTimeout(() => setShowSearchResults(false), 300)}
                   onFocus={() => searchResults.length > 0 && setShowSearchResults(true)}
                   placeholder="Search for products..."
                   className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-full focus:outline-none focus:border-orange-500"
@@ -136,8 +156,10 @@ export default function ElectroNavbar() {
                 
                 {/* Search Results Dropdown */}
                 {showSearchResults && searchResults.length > 0 && (
-                  <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-xl max-h-96 overflow-y-auto z-50">
-                    {searchResults.map((product) => (
+                  <div
+                    className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-xl max-h-96 overflow-y-auto z-50"
+                    onMouseDown={(e) => e.preventDefault()}
+                  >                    {searchResults.map((product) => (
                       <Link
                         key={product.id}
                         href={product.slug ? `/products/${product.slug}` : `/products/${product.id}`}
@@ -147,12 +169,14 @@ export default function ElectroNavbar() {
                         }}
                         className="flex items-center gap-4 p-4 hover:bg-orange-50 border-b last:border-b-0 transition"
                       >
-                        <div className="w-16 h-16 flex-shrink-0 rounded bg-gray-100 overflow-hidden flex items-center justify-center">
+                        <div className="w-16 h-16 flex-shrink-0 rounded bg-gray-100 overflow-hidden flex items-center justify-center relative">
                           {product.image_url ? (
-                            <img
+                            <Image
                               src={product.image_url}
                               alt={product.name_en}
-                              className="w-full h-full object-cover"
+                              fill
+                              sizes="64px"
+                              className="object-cover"
                             />
                           ) : (
                             <span className="text-2xl">📦</span>
@@ -215,7 +239,7 @@ export default function ElectroNavbar() {
                 type="text"
                 value={searchQuery}
                 onChange={(e) => handleSearch(e.target.value)}
-                onBlur={() => setTimeout(() => setShowSearchResults(false), 200)}
+                onBlur={() => setTimeout(() => setShowSearchResults(false), 300)}
                 onFocus={() => searchResults.length > 0 && setShowSearchResults(true)}
                 placeholder="Search for products..."
                 className="w-full px-4 py-2 pr-12 border border-gray-300 rounded-full focus:outline-none focus:border-orange-500"
@@ -226,7 +250,10 @@ export default function ElectroNavbar() {
               
               {/* Mobile Search Results */}
               {showSearchResults && searchResults.length > 0 && (
-                <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-xl max-h-96 overflow-y-auto z-50">
+                <div
+                  className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-xl max-h-96 overflow-y-auto z-50"
+                  onMouseDown={(e) => e.preventDefault()}
+                >
                   {searchResults.map((product) => (
                     <Link
                       key={product.id}
@@ -238,12 +265,14 @@ export default function ElectroNavbar() {
                       }}
                       className="flex items-center gap-3 p-3 hover:bg-orange-50 border-b last:border-b-0 transition"
                     >
-                      <div className="w-12 h-12 flex-shrink-0 rounded bg-gray-100 overflow-hidden flex items-center justify-center">
+                      <div className="w-12 h-12 flex-shrink-0 rounded bg-gray-100 overflow-hidden flex items-center justify-center relative">
                         {product.image_url ? (
-                          <img
+                          <Image
                             src={product.image_url}
                             alt={product.name_en}
-                            className="w-full h-full object-cover"
+                            fill
+                            sizes="48px"
+                            className="object-cover"
                           />
                         ) : (
                           <span className="text-xl">📦</span>
@@ -280,45 +309,83 @@ export default function ElectroNavbar() {
               {showCategories && (
                 <div
                   onMouseEnter={() => setShowCategories(true)}
-                  onMouseLeave={() => setShowCategories(false)}
-                  className="absolute top-full left-0 w-72 bg-white shadow-xl z-50 max-h-96 overflow-y-auto"
+                  onMouseLeave={() => { setShowCategories(false); setHoveredCategoryId(null); }}
+                  className={`absolute top-full left-0 bg-white shadow-xl rounded-b-lg z-50 ${hasSubcategories ? 'flex min-w-[520px]' : 'w-72 max-h-96 overflow-y-auto'}`}
                 >
-                  <Link
-                    href="/products"
-                    className="block px-6 py-3 hover:bg-orange-50 hover:text-orange-500 transition border-b font-medium"
-                    onClick={() => setShowCategories(false)}
-                  >
-                    All Products
-                  </Link>
+                  {/* Parent categories list */}
+                  <div className={hasSubcategories ? 'w-60 border-r max-h-[420px] overflow-y-auto' : ''}>
+                    <Link
+                      href="/products"
+                      className="block px-6 py-3 hover:bg-orange-50 hover:text-orange-500 transition border-b font-medium"
+                      onClick={() => setShowCategories(false)}
+                    >
+                      All Products
+                    </Link>
 
-                  {navbarCategoriesLoading && (
-                    <div className="px-6 py-3 text-sm text-gray-600 border-b">Loading categories…</div>
-                  )}
+                    {navbarCategoriesLoading && (
+                      <div className="px-6 py-3 text-sm text-gray-600 border-b">Loading categories…</div>
+                    )}
 
-                  {!navbarCategoriesLoading && navbarCategoriesError && (
-                    <div className="px-6 py-3 text-sm text-red-600 border-b">Failed to load categories</div>
-                  )}
+                    {!navbarCategoriesLoading && navbarCategoriesError && (
+                      <div className="px-6 py-3 text-sm text-red-600 border-b">Failed to load categories</div>
+                    )}
 
-                  {!navbarCategoriesLoading && !navbarCategoriesError && navbarCategories.length === 0 && (
-                    <div className="px-6 py-3 text-sm text-gray-600 border-b">No categories found</div>
-                  )}
+                    {!navbarCategoriesLoading && !navbarCategoriesError && parentCategories.length === 0 && (
+                      <div className="px-6 py-3 text-sm text-gray-600 border-b">No categories found</div>
+                    )}
 
-                  {navbarCategories.map((cat) => {
-                    const label = cat.nameEn || cat.name || 'Category';
-                    const slug = cat.slug;
-                    const href = slug ? `/products?category=${encodeURIComponent(slug)}` : '/products';
+                    {parentCategories.map((cat) => {
+                      const label = cat.nameEn || cat.name || 'Category';
+                      const slug = cat.slug;
+                      const href = slug ? `/products?category=${encodeURIComponent(slug)}` : '/products';
+                      const hasChildren = (childrenMap[cat.id]?.length ?? 0) > 0;
 
-                    return (
+                      return (
+                        <Link
+                          key={cat.id}
+                          href={href}
+                          className={`flex items-center justify-between px-6 py-2.5 hover:bg-orange-50 hover:text-orange-500 transition border-b last:border-b-0 ${hoveredCategoryId === cat.id ? 'bg-orange-50 text-orange-500' : ''}`}
+                          onClick={() => setShowCategories(false)}
+                          onMouseEnter={() => setHoveredCategoryId(cat.id)}
+                        >
+                          <span>{label}</span>
+                          {hasChildren && <FaChevronRight size={10} className="text-gray-400" />}
+                        </Link>
+                      );
+                    })}
+                  </div>
+
+                  {/* Subcategories panel */}
+                  {hasSubcategories && hoveredCategoryId && childrenMap[hoveredCategoryId] && (
+                    <div className="flex-1 p-4 max-h-[420px] overflow-y-auto bg-gray-50 min-w-[260px]">
+                      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3 px-2">
+                        {parentCategories.find(c => c.id === hoveredCategoryId)?.nameEn || 'Subcategories'}
+                      </p>
+                      <div className="space-y-1">
+                        {childrenMap[hoveredCategoryId].map((sub) => {
+                          const subLabel = sub.nameEn || sub.name || 'Subcategory';
+                          const subHref = sub.slug ? `/products?category=${encodeURIComponent(sub.slug)}` : '/products';
+                          return (
+                            <Link
+                              key={sub.id}
+                              href={subHref}
+                              className="block px-3 py-2 rounded hover:bg-orange-100 hover:text-orange-600 transition text-sm text-gray-700"
+                              onClick={() => setShowCategories(false)}
+                            >
+                              {subLabel}
+                            </Link>
+                          );
+                        })}
+                      </div>
                       <Link
-                        key={cat.id}
-                        href={href}
-                        className="block px-6 py-2 hover:bg-orange-50 hover:text-orange-500 transition border-b last:border-b-0"
+                        href={`/products?category=${encodeURIComponent(parentCategories.find(c => c.id === hoveredCategoryId)?.slug || '')}`}
+                        className="block mt-3 px-3 py-2 text-sm text-orange-500 font-medium hover:text-orange-600 transition"
                         onClick={() => setShowCategories(false)}
                       >
-                        {label}
+                        Browse all →
                       </Link>
-                    );
-                  })}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -378,15 +445,15 @@ export default function ElectroNavbar() {
               {/* <Link href="/blog" onClick={() => setShowMobileMenu(false)} className="py-2 px-4 hover:bg-orange-500 rounded transition">
                 Blog
               </Link> */}
-              <Link href="/wishlist" onClick={() => setShowMobileMenu(false)} className="py-2 px-4 hover:bg-orange-500 rounded transition sm:hidden">
+              <Link href="/wishlist" onClick={() => setShowMobileMenu(false)} className="py-2 px-4 hover:bg-orange-500 rounded transition">
                 Wishlist
               </Link>
               {user ? (
-                <Link href="/customer/dashboard" onClick={() => setShowMobileMenu(false)} className="py-2 px-4 hover:bg-orange-500 rounded transition sm:hidden">
+                <Link href="/customer/dashboard" onClick={() => setShowMobileMenu(false)} className="py-2 px-4 hover:bg-orange-500 rounded transition">
                   My Account
                 </Link>
               ) : (
-                <Link href="/customer/login" onClick={() => setShowMobileMenu(false)} className="py-2 px-4 hover:bg-orange-500 rounded transition sm:hidden">
+                <Link href="/customer/login" onClick={() => setShowMobileMenu(false)} className="py-2 px-4 hover:bg-orange-500 rounded transition">
                   Sign In
                 </Link>
               )}
@@ -406,24 +473,53 @@ export default function ElectroNavbar() {
                   <div className="py-2 px-4 text-sm text-red-300">Failed to load categories</div>
                 )}
 
-                {!navbarCategoriesLoading && !navbarCategoriesError && navbarCategories.length === 0 && (
+                {!navbarCategoriesLoading && !navbarCategoriesError && parentCategories.length === 0 && (
                   <div className="py-2 px-4 text-sm text-gray-300">No categories found</div>
                 )}
 
-                {navbarCategories.map((cat) => {
+                {parentCategories.map((cat) => {
                   const label = cat.nameEn || cat.name || 'Category';
                   const slug = cat.slug;
                   const href = slug ? `/products?category=${encodeURIComponent(slug)}` : '/products';
+                  const children = childrenMap[cat.id] || [];
+                  const isExpanded = expandedMobileCategory === cat.id;
+
+                  if (children.length === 0) {
+                    return (
+                      <Link key={cat.id} href={href} onClick={() => setShowMobileMenu(false)} className="py-2 px-4 hover:bg-orange-500 rounded transition block">
+                        {label}
+                      </Link>
+                    );
+                  }
 
                   return (
-                    <Link
-                      key={cat.id}
-                      href={href}
-                      onClick={() => setShowMobileMenu(false)}
-                      className="py-2 px-4 hover:bg-orange-500 rounded transition block"
-                    >
-                      {label}
-                    </Link>
+                    <div key={cat.id}>
+                      <div className="flex items-center">
+                        <Link href={href} onClick={() => setShowMobileMenu(false)} className="flex-1 py-2 px-4 hover:bg-orange-500 rounded-l transition">
+                          {label}
+                        </Link>
+                        <button
+                          onClick={() => setExpandedMobileCategory(isExpanded ? null : cat.id)}
+                          className="py-2 px-3 hover:bg-orange-500 rounded-r transition"
+                          aria-label={isExpanded ? `Collapse ${label}` : `Expand ${label}`}
+                        >
+                          {isExpanded ? <FaChevronDown size={12} /> : <FaChevronRight size={12} />}
+                        </button>
+                      </div>
+                      {isExpanded && (
+                        <div className="pl-6">
+                          {children.map((sub) => {
+                            const subLabel = sub.nameEn || sub.name || 'Subcategory';
+                            const subHref = sub.slug ? `/products?category=${encodeURIComponent(sub.slug)}` : '/products';
+                            return (
+                              <Link key={sub.id} href={subHref} onClick={() => setShowMobileMenu(false)} className="py-1.5 px-4 hover:bg-orange-500/80 rounded transition block text-sm text-gray-300">
+                                {subLabel}
+                              </Link>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
                   );
                 })}
               </div>

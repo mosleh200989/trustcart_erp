@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import Head from "next/head";
+import Link from "next/link";
 import { useRouter } from "next/router";
 import ElectroNavbar from "@/components/ElectroNavbar";
 import ElectroFooter from "@/components/ElectroFooter";
@@ -399,7 +400,7 @@ export default function Products() {
         <div className="bg-gray-100 border-b">
           <div className="container mx-auto px-4 py-4">
             <div className="text-sm text-gray-600">
-              Home /{" "}
+              <Link href="/" className="hover:text-orange-500">Home</Link> /{" "}
               <span className="text-gray-900 font-semibold">Products</span>
             </div>
           </div>

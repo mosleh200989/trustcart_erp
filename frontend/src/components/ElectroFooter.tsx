@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import Image from 'next/image';
 import { FaFacebook, FaTwitter, FaInstagram, FaYoutube, FaPhone, FaEnvelope, FaMapMarkerAlt } from 'react-icons/fa';
 
 export default function ElectroFooter() {
@@ -33,7 +34,7 @@ export default function ElectroFooter() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 lg:gap-8">
           {/* About */}
           <div>
-            <img src="/trust-cart-logo-main.png" alt="TrustCart" className="h-16 object-contain mb-4 brightness-0 invert" />
+            <Image src="/trust-cart-logo-main.png" alt="TrustCart" width={160} height={64} className="h-16 w-auto object-contain mb-4 brightness-0 invert" />
             <p className="text-sm mb-4">
               TrustCart - Pure Products. Honest Promise. Trusted Service.
             </p>

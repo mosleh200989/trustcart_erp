@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/router";
 import { FaStar, FaShoppingCart, FaHeart, FaEye, FaTag } from "react-icons/fa";
 import AddToCartPopup from "./AddToCartPopup";
@@ -152,12 +153,14 @@ export default function ElectroProductCard({
           onClick={handleAddToWishlist}
           className="bg-white hover:bg-orange-500 hover:text-white p-2.5 rounded-full shadow-lg transition-all hover:scale-110"
           title="Add to Wishlist"
+          aria-label="Add to Wishlist"
         >
           <FaHeart size={16} />
         </button>
         <button
           className="bg-white hover:bg-orange-500 hover:text-white p-2.5 rounded-full shadow-lg transition-all hover:scale-110"
           title="Quick View"
+          aria-label="Quick View"
         >
           <FaEye size={16} />
         </button>
@@ -167,12 +170,13 @@ export default function ElectroProductCard({
         {/* Image - 1:1 Aspect Ratio for Professional E-commerce Look */}
         <div className="relative w-full pt-[100%] bg-gray-50 overflow-hidden">
           {resolvedImageUrl && !imageError ? (
-            <img
+            <Image
               src={resolvedImageUrl}
               alt={displayName}
-              className="absolute inset-0 w-full h-full object-contain group-hover:scale-110 transition-transform duration-500"
-              onError={(e) => {
-                console.error("Image failed to load:", resolvedImageUrl);
+              fill
+              sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+              className="object-contain group-hover:scale-110 transition-transform duration-500"
+              onError={() => {
                 setImageError(true);
               }}
             />
@@ -248,24 +252,7 @@ export default function ElectroProductCard({
         <button
           onClick={handleAddToCart}
           disabled={stock === 0}
-          className="add-to-cart-btn w-full py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all duration-300 flex items-center justify-center gap-1 sm:gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-          style={{
-            backgroundColor: stock === 0 ? '#d1d5db' : 'white',
-            border: '2px solid #f97316',
-            color: '#f97316',
-          }}
-          onMouseEnter={(e) => {
-            if (stock !== 0) {
-              e.currentTarget.style.backgroundColor = '#f97316';
-              e.currentTarget.style.color = 'white';
-            }
-          }}
-          onMouseLeave={(e) => {
-            if (stock !== 0) {
-              e.currentTarget.style.backgroundColor = 'white';
-              e.currentTarget.style.color = '#f97316';
-            }
-          }}
+          className="add-to-cart-btn w-full py-2.5 sm:py-2 rounded-lg text-sm font-semibold transition-all duration-300 flex items-center justify-center gap-1.5 sm:gap-2 disabled:opacity-50 disabled:cursor-not-allowed border-2 border-orange-500 bg-white text-orange-500 hover:!bg-orange-500 hover:!text-white hover:border-orange-500 active:bg-orange-600 active:text-white disabled:bg-gray-300 disabled:border-gray-300 disabled:text-gray-500"
         >
           <FaShoppingCart size={18} />
           <span>Add to Cart</span>

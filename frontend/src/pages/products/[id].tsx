@@ -923,6 +923,7 @@ export default function ProductDetailsPage() {
                       onClick={() => setQuantity(Math.max(1, quantity - 1))}
                       className="w-10 h-10 border border-gray-300 rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
                       disabled={isOutOfStock || quantity <= 1}
+                      aria-label="Decrease quantity"
                     >
                       -
                     </button>
@@ -942,6 +943,7 @@ export default function ProductDetailsPage() {
                       onClick={() => setQuantity(maxStock !== Infinity ? Math.min(quantity + 1, maxStock) : quantity + 1)}
                       className="w-10 h-10 border border-gray-300 rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
                       disabled={isOutOfStock || (maxStock !== Infinity && quantity >= maxStock)}
+                      aria-label="Increase quantity"
                     >
                       +
                     </button>
@@ -977,6 +979,7 @@ export default function ProductDetailsPage() {
                   <button
                     onClick={handleAddToWishlist}
                     className="w-full sm:w-12 h-12 border-2 border-orange-500 text-orange-500 rounded-lg hover:!bg-orange-500 hover:text-white flex items-center justify-center sm:justify-center space-x-2 sm:space-x-0 transition-all duration-300"
+                    aria-label="Add to Wishlist"
                   >
                     <FaHeart />
                     <span className="sm:hidden">Add to Wishlist</span>
@@ -985,6 +988,7 @@ export default function ProductDetailsPage() {
                     <button
                       onClick={handleShare}
                       className="w-full sm:w-12 h-12 border-2 border-orange-500 text-orange-500 rounded-lg hover:!bg-orange-500 hover:text-white flex items-center justify-center sm:justify-center space-x-2 sm:space-x-0 transition-all duration-300"
+                      aria-label="Share Product"
                     >
                       <FaShareAlt />
                       <span className="sm:hidden">Share Product</span>
@@ -993,7 +997,7 @@ export default function ProductDetailsPage() {
                       <div className="absolute bottom-full mb-2 right-0 sm:left-1/2 sm:-translate-x-1/2 bg-white border border-gray-200 rounded-lg shadow-xl p-3 z-50 min-w-[200px]">
                         <div className="flex items-center justify-between mb-2">
                           <span className="text-sm font-semibold text-gray-700">Share</span>
-                          <button onClick={() => setShowShareMenu(false)} className="text-gray-400 hover:text-gray-600">
+                          <button onClick={() => setShowShareMenu(false)} className="text-gray-400 hover:text-gray-600" aria-label="Close share menu">
                             <FaTimes size={12} />
                           </button>
                         </div>

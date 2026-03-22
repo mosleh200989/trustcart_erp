@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import Head from 'next/head';
+import Link from 'next/link';
 import { useToast } from '@/contexts/ToastContext';
 import ElectroNavbar from '@/components/ElectroNavbar';
 import ElectroFooter from '@/components/ElectroFooter';
@@ -50,7 +51,7 @@ export default function Contact() {
       <div className="bg-gray-100 border-b">
         <div className="container mx-auto px-4 py-4">
           <div className="text-sm text-gray-600">
-            Home / <span className="text-gray-900 font-semibold">Contact</span>
+            <Link href="/" className="hover:text-orange-500">Home</Link> / <span className="text-gray-900 font-semibold">Contact</span>
           </div>
         </div>
       </div>
