@@ -1,5 +1,6 @@
 ﻿import { useState, useEffect } from 'react';
 import Head from 'next/head';
+import Link from 'next/link';
 import ElectroNavbar from '@/components/ElectroNavbar';
 import ElectroFooter from '@/components/ElectroFooter';
 import ElectroProductCard from '@/components/ElectroProductCard';
@@ -82,7 +83,7 @@ export default function Blog() {
       <div className="bg-gray-100 border-b">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center gap-2 text-sm">
-            <a href="/" className="text-gray-600 hover:text-orange-500">Home</a>
+            <Link href="/" className="text-gray-600 hover:text-orange-500">Home</Link>
             <span className="text-gray-400">/</span>
             <span className="text-gray-900 font-semibold">Blog</span>
           </div>

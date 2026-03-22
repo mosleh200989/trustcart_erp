@@ -1,4 +1,5 @@
 import Head from 'next/head';
+import Link from 'next/link';
 import ElectroNavbar from '@/components/ElectroNavbar';
 import ElectroFooter from '@/components/ElectroFooter';
 import { SITE_NAME, canonicalUrl } from '@/config/seo';
@@ -19,7 +20,7 @@ export default function Privacy() {
       <div className="bg-gray-100 border-b">
         <div className="container mx-auto px-4 py-4">
           <div className="text-sm text-gray-600">
-            Home / <span className="text-gray-900 font-semibold">Privacy Policy</span>
+            <Link href="/" className="hover:text-orange-500">Home</Link> / <span className="text-gray-900 font-semibold">Privacy Policy</span>
           </div>
         </div>
       </div>
