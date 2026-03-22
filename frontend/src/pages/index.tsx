@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
 import Head from "next/head";
 import Link from "next/link";
+import Image from "next/image";
 import { motion } from "framer-motion";
+import { useQuery } from "@tanstack/react-query";
 import ElectroNavbar from "@/components/ElectroNavbar";
 import ElectroFooter from "@/components/ElectroFooter";
 import ElectroProductCard from "@/components/ElectroProductCard";
@@ -13,7 +14,6 @@ import {
   FaTruck,
   FaUndo,
   FaHeadset,
-  FaLock,
   FaArrowRight,
   FaShieldAlt,
 } from "react-icons/fa";
@@ -55,119 +55,74 @@ interface SpecialOffer {
 }
 
 export default function Home() {
-  const [featuredProducts, setFeaturedProducts] = useState<any[]>([]);
-  const [hotDeals, setHotDeals] = useState<any[]>([]);
-  const [combosDeals, setCombosDeals] = useState<any[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [carouselBanners, setCarouselBanners] = useState<Banner[]>([]);
-  const [sideBanners, setSideBanners] = useState<Banner[]>([]);
-  const [specialOffers, setSpecialOffers] = useState<SpecialOffer[]>([]);
-  const [dealOfTheDay, setDealOfTheDay] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [bannersLoading, setBannersLoading] = useState(true);
-  const [categoriesLoading, setCategoriesLoading] = useState(true);
-  const [hotDealsLoading, setHotDealsLoading] = useState(true);
-  const [combosLoading, setCombosLoading] = useState(true);
-  const [dealLoading, setDealLoading] = useState(true);
-
-  useEffect(() => {
-    loadProducts();
-    loadCategories();
-    loadBanners();
-    loadSpecialOffers();
-    loadDealOfTheDay();
-    loadHotDeals();
-    loadCombos();
-  }, []);
-
-  const loadBanners = async () => {
-    try {
+  // --- React Query data fetching with caching ---
+  const { data: bannersData, isLoading: bannersLoading } = useQuery({
+    queryKey: ['banners-public'],
+    queryFn: async () => {
       const response = await apiClient.get("/banners/public");
-      const banners = response.data || [];
+      return response.data || [];
+    },
+  });
+  const carouselBanners = (bannersData || []).filter((b: Banner) => b.banner_type === "carousel");
+  const sideBanners = (bannersData || []).filter((b: Banner) => b.banner_type === "side");
 
-      setCarouselBanners(
-        banners.filter((b: Banner) => b.banner_type === "carousel")
-      );
-      setSideBanners(banners.filter((b: Banner) => b.banner_type === "side"));
-    } catch (error) {
-      console.error("Failed to load banners:", error);
-    } finally {
-      setBannersLoading(false);
-    }
-  };
-
-  const loadCategories = async () => {
-    try {
+  const { data: categories = [], isLoading: categoriesLoading } = useQuery({
+    queryKey: ['categories-active'],
+    queryFn: async () => {
       const response = await apiClient.get("/categories?active=true");
-      setCategories(response.data || []);
-    } catch (error) {
-      console.error("Failed to load categories:", error);
-    } finally {
-      setCategoriesLoading(false);
-    }
-  };
+      return response.data || [];
+    },
+  });
 
-  const loadSpecialOffers = async () => {
-    try {
+  const { data: specialOffers = [] } = useQuery({
+    queryKey: ['special-offers-public'],
+    queryFn: async () => {
       const response = await apiClient.get("/special-offers/public");
-      setSpecialOffers(response.data || []);
-    } catch (error) {
-      console.error("Failed to load special offers:", error);
-    }
-  };
+      return response.data || [];
+    },
+  });
 
-  const loadDealOfTheDay = async () => {
-    try {
+  const { data: dealOfTheDay, isLoading: dealLoading } = useQuery({
+    queryKey: ['deal-of-the-day'],
+    queryFn: async () => {
       const response = await apiClient.get("/products/deal-of-the-day");
-      setDealOfTheDay(response.data);
-    } catch (error) {
-      console.error("Failed to load deal of the day:", error);
-    } finally {
-      setDealLoading(false);
-    }
-  };
+      return response.data || null;
+    },
+  });
 
-  const loadHotDeals = async () => {
-    try {
+  const { data: hotDeals = [], isLoading: hotDealsLoading } = useQuery({
+    queryKey: ['hot-deals'],
+    queryFn: async () => {
       const response = await apiClient.get("/products/hot-deals");
-      setHotDeals(response.data || []);
-    } catch (error) {
-      console.error("Failed to load hot deals:", error);
-    } finally {
-      setHotDealsLoading(false);
-    }
-  };
+      return response.data || [];
+    },
+  });
 
-  const loadCombos = async () => {
-    try {
+  const { data: combosDeals = [], isLoading: combosLoading } = useQuery({
+    queryKey: ['combos'],
+    queryFn: async () => {
       const response = await apiClient.get("/combos");
-      setCombosDeals(Array.isArray(response.data) ? response.data : []);
-    } catch (error) {
-      console.error("Failed to load combos:", error);
-    } finally {
-      setCombosLoading(false);
-    }
-  };
+      return Array.isArray(response.data) ? response.data : [];
+    },
+  });
 
-  const loadProducts = async () => {
-    try {
-      const response = await apiClient.get("/products");
-      const products = response.data || [];
+  const { data: featuredProducts = [], isLoading: loading } = useQuery({
+    queryKey: ['featured-products'],
+    queryFn: async () => {
+      const response = await apiClient.get("/products?page=1&limit=12");
+      const result = response.data;
+      const products = result.data || result || [];
 
-      // Calculate sale price and discount percentage for products
-      const productsWithSalePrice = products.map((p: any) => {
+      return products.map((p: any) => {
         const basePrice = parseFloat(p.base_price) || 0;
         let salePrice = p.sale_price ? parseFloat(p.sale_price) : null;
         let discountPercent = 0;
 
-        // If sale_price exists, calculate discount percentage
         if (salePrice && salePrice < basePrice) {
           discountPercent = Math.round(
             ((basePrice - salePrice) / basePrice) * 100
           );
-        }
-        // Otherwise calculate from discount fields
-        else if (p.discount_value && p.discount_type) {
+        } else if (p.discount_value && p.discount_type) {
           const discountValue = parseFloat(p.discount_value) || 0;
           if (p.discount_type === "percentage") {
             salePrice = basePrice - (basePrice * discountValue) / 100;
@@ -188,15 +143,8 @@ export default function Home() {
           hasDiscount: !!salePrice && salePrice < basePrice,
         };
       });
-
-      // Show all products for now
-      setFeaturedProducts(productsWithSalePrice.slice(0, 12));
-    } catch (error) {
-      console.error("Failed to load products:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
+    },
+  });
 
   // Skeleton building blocks
   const Pulse = ({ className = "" }: { className?: string }) => (
@@ -357,17 +305,12 @@ export default function Home() {
         )}
 
         {/* Features */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.5, delay: 0.2 }}
+        <div
           className="bg-white border-b"
         >
           <div className="container mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 py-4 sm:py-6 md:py-8">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-6">
-              <motion.div
-                whileHover={{ scale: 1.05 }}
+              <div
                 className="flex items-center gap-3 sm:gap-4"
               >
                 <div className="bg-orange-100 p-2.5 sm:p-4 rounded-full flex-shrink-0">
@@ -381,9 +324,8 @@ export default function Home() {
                     Dhaka ৳60 | Outside ৳110
                   </p>
                 </div>
-              </motion.div>
-              <motion.div
-                whileHover={{ scale: 1.05 }}
+              </div>
+              <div
                 className="flex items-center gap-3 sm:gap-4"
               >
                 <div className="bg-orange-100 p-2.5 sm:p-4 rounded-full flex-shrink-0">
@@ -397,9 +339,8 @@ export default function Home() {
                     30 days return policy
                   </p>
                 </div>
-              </motion.div>
-              <motion.div
-                whileHover={{ scale: 1.05 }}
+              </div>
+              <div
                 className="flex items-center gap-3 sm:gap-4"
               >
                 <div className="bg-orange-100 p-2.5 sm:p-4 rounded-full flex-shrink-0">
@@ -413,9 +354,8 @@ export default function Home() {
                     Dedicated support team
                   </p>
                 </div>
-              </motion.div>
-              <motion.div
-                whileHover={{ scale: 1.05 }}
+              </div>
+              <div
                 className="flex items-center gap-3 sm:gap-4"
               >
                 <div className="bg-orange-100 p-2.5 sm:p-4 rounded-full flex-shrink-0">
@@ -429,20 +369,16 @@ export default function Home() {
                     100% secure transactions
                   </p>
                 </div>
-              </motion.div>
+              </div>
             </div>
           </div>
-        </motion.div>
+        </div>
 
         {/* Deal of the Day - Responsive Design: Compact on Mobile, Larger on Desktop */}
         {dealLoading ? (
           <DealSkeleton />
         ) : dealOfTheDay && (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.3 }}
+          <div
             className="container mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 py-4 lg:py-6"
           >
             {/* Mobile View - Compact Banner */}
@@ -451,13 +387,14 @@ export default function Home() {
               className="lg:hidden block bg-gradient-to-r from-amber-50 via-orange-50 to-amber-100 border border-orange-200 rounded-xl shadow-sm hover:shadow-md transition-all hover:scale-[1.01] overflow-hidden"
             >
               <div className="flex items-center gap-4 p-3 sm:p-4">
-                <div className="w-16 h-16 sm:w-20 sm:h-20 flex-shrink-0 bg-white rounded-lg overflow-hidden border border-orange-100">
+                <div className="w-16 h-16 sm:w-20 sm:h-20 flex-shrink-0 bg-white rounded-lg overflow-hidden border border-orange-100 relative">
                   {dealOfTheDay.image_url ? (
-                    <img
+                    <Image
                       src={dealOfTheDay.image_url}
                       alt={dealOfTheDay.name_en}
-                      crossOrigin="anonymous"
-                      className="w-full h-full object-contain"
+                      fill
+                      sizes="80px"
+                      className="object-contain"
                     />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-3xl">🏷️</div>
@@ -493,13 +430,14 @@ export default function Home() {
             <div className="hidden lg:block bg-gradient-to-r from-amber-50 via-orange-50 to-amber-100 border border-orange-200 rounded-2xl shadow-sm overflow-hidden">
               <div className="flex items-center">
                 {/* Left - Product Image */}
-                <div className="w-40 h-40 xl:w-48 xl:h-48 flex-shrink-0 bg-white m-4 rounded-xl overflow-hidden shadow-sm border border-orange-100">
+                <div className="w-40 h-40 xl:w-48 xl:h-48 flex-shrink-0 bg-white m-4 rounded-xl overflow-hidden shadow-sm border border-orange-100 relative">
                   {dealOfTheDay.image_url ? (
-                    <img
+                    <Image
                       src={dealOfTheDay.image_url}
                       alt={dealOfTheDay.name_en}
-                      crossOrigin="anonymous"
-                      className="w-full h-full object-contain p-2"
+                      fill
+                      sizes="192px"
+                      className="object-contain p-2"
                     />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-6xl">🏷️</div>
@@ -553,36 +491,28 @@ export default function Home() {
                 </div>
               </div>
             </div>
-          </motion.div>
+          </div>
         )}
 
         {/* Categories Slider */}
         {categoriesLoading ? (
           <CategorySkeleton />
         ) : (
-          <motion.div
-            initial={{ opacity: 0 }}
-            whileInView={{ opacity: 1 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.5 }}
+          <div
             className="container mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 py-12"
           >
             <h2 className="text-2xl sm:text-3xl font-bold text-center mb-6 sm:mb-8">
               Shop by Categories
             </h2>
             <CategorySlider categories={categories} />
-          </motion.div>
+          </div>
         )}
 
         {/* Hot Deals Section */}
         {hotDealsLoading ? (
           <SectionSkeleton title="Hot Deals" />
-        ) : (hotDeals.length > 0 || featuredProducts.filter(p => p.hasDiscount).length > 0) && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            whileInView={{ opacity: 1 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.5 }}
+        ) : (hotDeals.length > 0 || featuredProducts.filter((p: any) => p.hasDiscount).length > 0) && (
+          <div
             className="container mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 py-12"
           >
             <div className="flex items-center justify-between mb-8">
@@ -605,9 +535,9 @@ export default function Home() {
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4 lg:gap-6">
               {/* Use hot deals from API if available, otherwise fallback to discounted products */}
-              {(hotDeals.length > 0 ? hotDeals : featuredProducts.filter(p => p.hasDiscount))
+              {(hotDeals.length > 0 ? hotDeals : featuredProducts.filter((p: any) => p.hasDiscount))
                 .slice(0, 4)
-                .map((product) => {
+                .map((product: any) => {
                   // Calculate price - for hot deals, use special_price if set
                   const basePrice = Number(product.base_price || product.price || 0);
                   const salePrice = product.special_price 
@@ -641,18 +571,14 @@ export default function Home() {
                   );
                 })}
             </div>
-          </motion.div>
+          </div>
         )}
 
         {/* Combo Deals Section */}
         {combosLoading ? (
           <SectionSkeleton title="Combo Deals" />
         ) : combosDeals.length > 0 && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            whileInView={{ opacity: 1 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.5 }}
+          <div
             className="container mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 py-12"
           >
             <div className="flex items-center justify-between mb-8">
@@ -689,11 +615,13 @@ export default function Home() {
                     href={`/combo/${combo.slug}`}
                     className="group bg-white rounded-lg shadow-sm overflow-hidden border border-gray-100 hover:shadow-md transition-all"
                   >
-                    <div className="relative">
-                      <img
+                    <div className="relative h-32 sm:h-40 lg:h-48 overflow-hidden">
+                      <Image
                         src={combo.image_url || combo.products?.[0]?.image_url || 'https://via.placeholder.com/300x200?text=Combo'}
                         alt={combo.name}
-                        className="w-full h-32 sm:h-40 lg:h-48 object-cover group-hover:scale-105 transition-transform duration-300"
+                        fill
+                        sizes="(max-width: 640px) 50vw, 25vw"
+                        className="object-cover group-hover:scale-105 transition-transform duration-300"
                       />
                       {discountPercent > 0 && (
                         <div className="absolute top-2 left-2 bg-orange-500 text-white px-2 py-0.5 rounded text-xs font-semibold">
@@ -721,15 +649,11 @@ export default function Home() {
                 );
               })}
             </div>
-          </motion.div>
+          </div>
         )}
 
         {/* Featured Products */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          whileInView={{ opacity: 1 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.5 }}
+        <div
           className="container mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 py-12"
         >
           <div className="flex items-center justify-between mb-8">
@@ -752,7 +676,7 @@ export default function Home() {
             <ProductGridSkeleton count={8} />
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4 lg:gap-6">
-              {featuredProducts.slice(0, 8).map((product) => (
+              {featuredProducts.slice(0, 8).map((product: any) => (
                 <ElectroProductCard
                   key={product.id}
                   id={product.id}
@@ -795,7 +719,7 @@ export default function Home() {
               View All Products
             </Link>
           </div>
-        </motion.div>
+        </div>
       </div>
       <ElectroFooter />
     </div>

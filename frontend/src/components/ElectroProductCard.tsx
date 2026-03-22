@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/router";
 import { FaStar, FaShoppingCart, FaHeart, FaEye, FaTag } from "react-icons/fa";
 import AddToCartPopup from "./AddToCartPopup";
@@ -167,12 +168,13 @@ export default function ElectroProductCard({
         {/* Image - 1:1 Aspect Ratio for Professional E-commerce Look */}
         <div className="relative w-full pt-[100%] bg-gray-50 overflow-hidden">
           {resolvedImageUrl && !imageError ? (
-            <img
+            <Image
               src={resolvedImageUrl}
               alt={displayName}
-              className="absolute inset-0 w-full h-full object-contain group-hover:scale-110 transition-transform duration-500"
-              onError={(e) => {
-                console.error("Image failed to load:", resolvedImageUrl);
+              fill
+              sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+              className="object-contain group-hover:scale-110 transition-transform duration-500"
+              onError={() => {
                 setImageError(true);
               }}
             />

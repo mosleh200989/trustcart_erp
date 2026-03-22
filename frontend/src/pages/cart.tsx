@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import ElectroNavbar from "@/components/ElectroNavbar";
 import ElectroFooter from "@/components/ElectroFooter";
 import ElectroProductCard from "@/components/ElectroProductCard";
@@ -163,11 +164,15 @@ export default function CartPage() {
                       >
                         {/* Mobile layout: stacked */}
                         <div className="flex items-start gap-3 sm:hidden">
-                          <img
-                            src={item.image || "/default-product.png"}
-                            alt={item.name}
-                            className="w-16 h-16 object-cover rounded flex-shrink-0"
-                          />
+                          <div className="w-16 h-16 relative flex-shrink-0 rounded overflow-hidden">
+                            <Image
+                              src={item.image || "/default-product.png"}
+                              alt={item.name}
+                              fill
+                              sizes="64px"
+                              className="object-cover"
+                            />
+                          </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-start justify-between gap-2">
                               <h6 className="font-bold text-gray-800 text-sm line-clamp-2">
@@ -226,11 +231,15 @@ export default function CartPage() {
                         </div>
                         {/* Desktop layout: single row */}
                         <div className="hidden sm:flex items-center gap-4">
-                          <img
-                            src={item.image || "/default-product.png"}
-                            alt={item.name}
-                            className="w-20 h-20 object-cover rounded"
-                          />
+                          <div className="w-20 h-20 relative flex-shrink-0 rounded overflow-hidden">
+                            <Image
+                              src={item.image || "/default-product.png"}
+                              alt={item.name}
+                              fill
+                              sizes="80px"
+                              className="object-cover"
+                            />
+                          </div>
                           <div className="flex-1">
                             <h6 className="font-bold text-gray-800">
                               {item.name || item.nameEn}

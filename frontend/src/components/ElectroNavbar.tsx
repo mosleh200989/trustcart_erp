@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import Image from 'next/image';
 import { useRouter } from 'next/router';
 import { useState, useEffect, useMemo } from 'react';
 import { FaPhone, FaEnvelope, FaUser, FaShoppingCart, FaHeart, FaBars, FaSearch, FaTimes, FaChevronRight, FaChevronDown } from 'react-icons/fa';
@@ -134,7 +135,7 @@ export default function ElectroNavbar() {
 
             {/* Logo */}
             <Link href="/" className="flex items-center -my-2">
-              <img src="/trust-cart-logo-main.png" alt="TrustCart" className="h-14 lg:h-20 object-contain" />
+              <Image src="/trust-cart-logo-main.png" alt="TrustCart" width={160} height={80} className="h-14 lg:h-20 w-auto object-contain" priority />
             </Link>
 
             {/* Search Bar - Desktop */}
@@ -168,12 +169,14 @@ export default function ElectroNavbar() {
                         }}
                         className="flex items-center gap-4 p-4 hover:bg-orange-50 border-b last:border-b-0 transition"
                       >
-                        <div className="w-16 h-16 flex-shrink-0 rounded bg-gray-100 overflow-hidden flex items-center justify-center">
+                        <div className="w-16 h-16 flex-shrink-0 rounded bg-gray-100 overflow-hidden flex items-center justify-center relative">
                           {product.image_url ? (
-                            <img
+                            <Image
                               src={product.image_url}
                               alt={product.name_en}
-                              className="w-full h-full object-cover"
+                              fill
+                              sizes="64px"
+                              className="object-cover"
                             />
                           ) : (
                             <span className="text-2xl">📦</span>
@@ -262,12 +265,14 @@ export default function ElectroNavbar() {
                       }}
                       className="flex items-center gap-3 p-3 hover:bg-orange-50 border-b last:border-b-0 transition"
                     >
-                      <div className="w-12 h-12 flex-shrink-0 rounded bg-gray-100 overflow-hidden flex items-center justify-center">
+                      <div className="w-12 h-12 flex-shrink-0 rounded bg-gray-100 overflow-hidden flex items-center justify-center relative">
                         {product.image_url ? (
-                          <img
+                          <Image
                             src={product.image_url}
                             alt={product.name_en}
-                            className="w-full h-full object-cover"
+                            fill
+                            sizes="48px"
+                            className="object-cover"
                           />
                         ) : (
                           <span className="text-xl">📦</span>

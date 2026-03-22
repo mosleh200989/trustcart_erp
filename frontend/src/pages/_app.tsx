@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import type { AppProps } from 'next/app';
 import { useRouter } from 'next/router';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import '@/styles/globals.css';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { ToastProvider } from '@/contexts/ToastContext';
@@ -9,6 +10,17 @@ import AdminRouteGuard from '@/components/auth/AdminRouteGuard';
 import MobileBottomNav from '@/components/MobileBottomNav';
 import { isAuthPath, setAuthReturnPath } from '@/utils/authReturnPath';
 import { initDataLayer, trackPageView } from '@/utils/gtm';
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 5 * 60 * 1000,     // 5 minutes
+      gcTime: 10 * 60 * 1000,        // 10 minutes (formerly cacheTime)
+      refetchOnWindowFocus: false,
+      retry: 1,
+    },
+  },
+});
 
 /** Re-init FB Pixel with Advanced Matching when user logs in */
 function FacebookAdvancedMatching() {
@@ -75,16 +87,18 @@ export default function App({ Component, pageProps }: AppProps) {
   }, [router]);
 
   return (
-    <AuthProvider>
-      <CartProvider>
-        <ToastProvider>
-          <FacebookAdvancedMatching />
-          <AdminRouteGuard>
-            <Component {...pageProps} />
-            <MobileBottomNav />
-          </AdminRouteGuard>
-        </ToastProvider>
-      </CartProvider>
-    </AuthProvider>
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <CartProvider>
+          <ToastProvider>
+            <FacebookAdvancedMatching />
+            <AdminRouteGuard>
+              <Component {...pageProps} />
+              <MobileBottomNav />
+            </AdminRouteGuard>
+          </ToastProvider>
+        </CartProvider>
+      </AuthProvider>
+    </QueryClientProvider>
   );
 }

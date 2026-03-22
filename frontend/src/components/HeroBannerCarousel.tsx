@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import Image from 'next/image';
 import { FaChevronLeft, FaChevronRight } from 'react-icons/fa';
 
 interface Banner {
@@ -120,11 +121,13 @@ export default function HeroBannerCarousel({ banners }: Props) {
               }
             }}
           >
-            <img
+            <Image
               src={banner.image_url}
               alt={banner.title}
-              crossOrigin="anonymous"
-              className="absolute inset-0 w-full h-full object-cover object-center"
+              fill
+              sizes="(max-width: 1024px) 100vw, 66vw"
+              priority={true}
+              className="object-cover object-center"
               onError={() => {
                 console.error('Banner image failed to load:', banner.image_url);
               }}

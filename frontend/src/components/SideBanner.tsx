@@ -10,6 +10,8 @@ interface Banner {
   text_color: string;
 }
 
+import Image from 'next/image';
+
 interface Props {
   banners: Banner[];
 }
@@ -26,12 +28,13 @@ export default function SideBanner({ banners }: Props) {
       className="block rounded-lg overflow-hidden shadow-lg h-96 relative cursor-pointer group"
     >
       {/* Full Banner Image */}
-      <img
+      <Image
         src={banner.image_url}
         alt={banner.title}
-        crossOrigin="anonymous"
-        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
-        onError={(e) => {
+        fill
+        sizes="33vw"
+        className="object-cover group-hover:scale-105 transition-transform duration-700"
+        onError={() => {
           console.error('Side banner image failed to load:', banner.image_url);
         }}
       />

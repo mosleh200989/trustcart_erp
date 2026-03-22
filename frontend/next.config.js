@@ -20,8 +20,20 @@ const nextConfig = {
         protocol: 'https',
         hostname: '**.cloudinary.com',
       },
+      {
+        protocol: 'https',
+        hostname: 'api.trustkert.com',
+      },
+      {
+        protocol: 'http',
+        hostname: 'localhost',
+      },
+      {
+        protocol: 'https',
+        hostname: 'via.placeholder.com',
+      },
     ],
-    domains: ['images.unsplash.com', 'res.cloudinary.com'],
+    domains: ['images.unsplash.com', 'res.cloudinary.com', 'api.trustkert.com', 'localhost', 'via.placeholder.com'],
   },
   // Rewrites for landing pages:
   // 1. trustcart.com.bd/products/seed-mix/?landing_page=seed-mix  →  /lp/seed-mix

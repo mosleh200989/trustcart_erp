@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { FaChevronLeft, FaChevronRight } from 'react-icons/fa';
 
 interface Category {
@@ -153,15 +154,15 @@ export default function CategorySlider({ categories }: CategorySliderProps) {
               className="block pb-4 group bg-white hover:bg-gradient-to-br hover:from-orange-50 hover:to-orange-100 rounded-lg text-center transition-all duration-300 hover:shadow-lg border border-gray-200 h-full"
             >
               {cat.image_url && (
-                <div className="mb-3 overflow-hidden rounded-lg">
-                  <img
+                <div className="mb-3 overflow-hidden rounded-lg relative h-44">
+                  <Image
                     src={cat.image_url}
                     alt={cat.name_en}
-                    crossOrigin="anonymous"
-                    className="w-full h-44 object-cover group-hover:scale-110 transition-transform duration-500"
+                    fill
+                    sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 16vw"
+                    className="object-cover group-hover:scale-110 transition-transform duration-500"
                     onError={(e) => {
-                      console.error('Category image failed to load:', cat.image_url);
-                      e.currentTarget.style.display = 'none';
+                      (e.target as HTMLImageElement).style.display = 'none';
                     }}
                   />
                 </div>
