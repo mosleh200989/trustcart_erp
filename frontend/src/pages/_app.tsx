@@ -6,6 +6,7 @@ import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { ToastProvider } from '@/contexts/ToastContext';
 import { CartProvider } from '@/contexts/CartContext';
 import AdminRouteGuard from '@/components/auth/AdminRouteGuard';
+import MobileBottomNav from '@/components/MobileBottomNav';
 import { isAuthPath, setAuthReturnPath } from '@/utils/authReturnPath';
 import { initDataLayer, trackPageView } from '@/utils/gtm';
 
@@ -80,6 +81,7 @@ export default function App({ Component, pageProps }: AppProps) {
           <FacebookAdvancedMatching />
           <AdminRouteGuard>
             <Component {...pageProps} />
+            <MobileBottomNav />
           </AdminRouteGuard>
         </ToastProvider>
       </CartProvider>

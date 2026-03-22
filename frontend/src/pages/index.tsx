@@ -205,7 +205,7 @@ export default function Home() {
 
   const BannerSkeleton = () => (
     <div className="bg-white border-b">
-      <div className="container mx-auto px-4 lg:px-8 xl:px-12 py-6">
+      <div className="container mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 py-6">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2"><Pulse className="w-full h-48 sm:h-64 lg:h-72 rounded-lg" /></div>
           <div className="hidden lg:block"><Pulse className="w-full h-72 rounded-lg" /></div>
@@ -215,7 +215,7 @@ export default function Home() {
   );
 
   const CategorySkeleton = () => (
-    <div className="container mx-auto px-4 lg:px-8 xl:px-12 py-12">
+    <div className="container mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 py-12">
       <Pulse className="h-8 w-56 mx-auto mb-8 rounded-lg" />
       <div className="flex gap-4 overflow-hidden">
         {Array.from({ length: 6 }).map((_, i) => (
@@ -244,7 +244,7 @@ export default function Home() {
   );
 
   const SectionSkeleton = ({ title }: { title: string }) => (
-    <div className="container mx-auto px-4 lg:px-8 xl:px-12 py-12">
+    <div className="container mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 py-12">
       <div className="flex items-center justify-between mb-8">
         <div>
           <h2 className="text-2xl xl:text-3xl font-bold">{title}</h2>
@@ -257,7 +257,7 @@ export default function Home() {
   );
 
   const DealSkeleton = () => (
-    <div className="container mx-auto px-4 lg:px-8 xl:px-12 py-4 lg:py-6">
+    <div className="container mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 py-4 lg:py-6">
       {/* Mobile */}
       <div className="lg:hidden bg-gray-100 rounded-xl p-4 flex items-center gap-4">
         <Pulse className="w-16 h-16 sm:w-20 sm:h-20 rounded-lg flex-shrink-0" />
@@ -340,7 +340,7 @@ export default function Home() {
           transition={{ duration: 0.5 }}
           className="bg-white border-b"
         >
-          <div className="container mx-auto px-4 lg:px-8 xl:px-12 py-6">
+          <div className="container mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 py-6">
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* Main Carousel - 2/3 width */}
               <div className="lg:col-span-2">
@@ -364,7 +364,7 @@ export default function Home() {
           transition={{ duration: 0.5, delay: 0.2 }}
           className="bg-white border-b"
         >
-          <div className="container mx-auto px-4 lg:px-8 xl:px-12 py-4 sm:py-6 md:py-8">
+          <div className="container mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 py-4 sm:py-6 md:py-8">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-6">
               <motion.div
                 whileHover={{ scale: 1.05 }}
@@ -443,7 +443,7 @@ export default function Home() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.3 }}
-            className="container mx-auto px-4 lg:px-8 xl:px-12 py-4 lg:py-6"
+            className="container mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 py-4 lg:py-6"
           >
             {/* Mobile View - Compact Banner */}
             <a
@@ -565,7 +565,7 @@ export default function Home() {
             whileInView={{ opacity: 1 }}
             viewport={{ once: true }}
             transition={{ duration: 0.5 }}
-            className="container mx-auto px-4 lg:px-8 xl:px-12 py-12"
+            className="container mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 py-12"
           >
             <h2 className="text-2xl sm:text-3xl font-bold text-center mb-6 sm:mb-8">
               Shop by Categories
@@ -583,7 +583,7 @@ export default function Home() {
             whileInView={{ opacity: 1 }}
             viewport={{ once: true }}
             transition={{ duration: 0.5 }}
-            className="container mx-auto px-4 lg:px-8 xl:px-12 py-12"
+            className="container mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 py-12"
           >
             <div className="flex items-center justify-between mb-8">
               <div>
@@ -653,7 +653,7 @@ export default function Home() {
             whileInView={{ opacity: 1 }}
             viewport={{ once: true }}
             transition={{ duration: 0.5 }}
-            className="container mx-auto px-4 lg:px-8 xl:px-12 py-12"
+            className="container mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 py-12"
           >
             <div className="flex items-center justify-between mb-8">
               <div>
@@ -730,7 +730,7 @@ export default function Home() {
           whileInView={{ opacity: 1 }}
           viewport={{ once: true }}
           transition={{ duration: 0.5 }}
-          className="container mx-auto px-4 lg:px-8 xl:px-12 py-12"
+          className="container mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 py-12"
         >
           <div className="flex items-center justify-between mb-8">
             <div>

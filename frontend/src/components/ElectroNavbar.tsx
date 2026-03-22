@@ -144,7 +144,7 @@ export default function ElectroNavbar() {
                   type="text"
                   value={searchQuery}
                   onChange={(e) => handleSearch(e.target.value)}
-                  onBlur={() => setTimeout(() => setShowSearchResults(false), 200)}
+                  onBlur={() => setTimeout(() => setShowSearchResults(false), 300)}
                   onFocus={() => searchResults.length > 0 && setShowSearchResults(true)}
                   placeholder="Search for products..."
                   className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-full focus:outline-none focus:border-orange-500"
@@ -155,8 +155,10 @@ export default function ElectroNavbar() {
                 
                 {/* Search Results Dropdown */}
                 {showSearchResults && searchResults.length > 0 && (
-                  <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-xl max-h-96 overflow-y-auto z-50">
-                    {searchResults.map((product) => (
+                  <div
+                    className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-xl max-h-96 overflow-y-auto z-50"
+                    onMouseDown={(e) => e.preventDefault()}
+                  >                    {searchResults.map((product) => (
                       <Link
                         key={product.id}
                         href={product.slug ? `/products/${product.slug}` : `/products/${product.id}`}
@@ -234,7 +236,7 @@ export default function ElectroNavbar() {
                 type="text"
                 value={searchQuery}
                 onChange={(e) => handleSearch(e.target.value)}
-                onBlur={() => setTimeout(() => setShowSearchResults(false), 200)}
+                onBlur={() => setTimeout(() => setShowSearchResults(false), 300)}
                 onFocus={() => searchResults.length > 0 && setShowSearchResults(true)}
                 placeholder="Search for products..."
                 className="w-full px-4 py-2 pr-12 border border-gray-300 rounded-full focus:outline-none focus:border-orange-500"
@@ -245,7 +247,10 @@ export default function ElectroNavbar() {
               
               {/* Mobile Search Results */}
               {showSearchResults && searchResults.length > 0 && (
-                <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-xl max-h-96 overflow-y-auto z-50">
+                <div
+                  className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-xl max-h-96 overflow-y-auto z-50"
+                  onMouseDown={(e) => e.preventDefault()}
+                >
                   {searchResults.map((product) => (
                     <Link
                       key={product.id}
