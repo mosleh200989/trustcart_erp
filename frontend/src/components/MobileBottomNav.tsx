@@ -1,57 +1,139 @@
+import { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
-import { FaHome, FaThLarge, FaShoppingCart, FaUser } from 'react-icons/fa';
+import { FaBars, FaSearch, FaShoppingCart, FaHeart, FaUser } from 'react-icons/fa';
 import { useCart } from '@/contexts/CartContext';
 import { useAuth } from '@/contexts/AuthContext';
-
-const NAV_ITEMS = [
-  { href: '/', label: 'Home', icon: FaHome },
-  { href: '/products', label: 'Categories', icon: FaThLarge },
-  { href: '/cart', label: 'Cart', icon: FaShoppingCart, showBadge: true },
-  { href: '/customer/account', label: 'Account', icon: FaUser, authAware: true },
-];
 
 export default function MobileBottomNav() {
   const router = useRouter();
   const { items: cartItems } = useCart();
   const { user } = useAuth();
+  const [wishlistCount, setWishlistCount] = useState(0);
 
   const cartCount = cartItems.reduce((sum, item) => sum + item.quantity, 0);
+
+  // Track wishlist count from localStorage
+  useEffect(() => {
+    const updateWishlistCount = () => {
+      try {
+        const stored = JSON.parse(localStorage.getItem('wishlist') || '[]');
+        setWishlistCount(stored.length);
+      } catch { setWishlistCount(0); }
+    };
+    updateWishlistCount();
+    window.addEventListener('wishlistUpdated', updateWishlistCount);
+    window.addEventListener('storage', updateWishlistCount);
+    return () => {
+      window.removeEventListener('wishlistUpdated', updateWishlistCount);
+      window.removeEventListener('storage', updateWishlistCount);
+    };
+  }, []);
+
+  // Scroll direction detection: hide on scroll down, show on scroll up
+  const [visible, setVisible] = useState(true);
+  const lastScrollY = useRef(0);
+  const ticking = useRef(false);
+
+  const handleScroll = useCallback(() => {
+    if (ticking.current) return;
+    ticking.current = true;
+    requestAnimationFrame(() => {
+      const y = window.scrollY;
+      if (y < 80) {
+        setVisible(true);
+      } else if (y > lastScrollY.current + 5) {
+        setVisible(false);
+      } else if (y < lastScrollY.current - 5) {
+        setVisible(true);
+      }
+      lastScrollY.current = y;
+      ticking.current = false;
+    });
+  }, []);
+
+  useEffect(() => {
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [handleScroll]);
 
   // Hide on admin pages, checkout, and auth pages
   const hiddenPaths = ['/admin', '/checkout', '/customer/login', '/customer/register'];
   if (hiddenPaths.some(p => router.pathname.startsWith(p))) return null;
 
+  const accountHref = user ? '/customer/dashboard' : '/customer/login';
+
   return (
-    <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-50 safe-area-bottom">
+    <nav className={`lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-50 safe-area-bottom transition-transform duration-300 ${
+      visible ? 'translate-y-0' : 'translate-y-full'
+    }`}>
       <div className="flex items-center justify-around h-14">
-        {NAV_ITEMS.map((item) => {
-          const isActive = item.href === '/'
-            ? router.pathname === '/'
-            : router.pathname.startsWith(item.href);
+        {/* Menu — dispatches event to toggle ElectroNavbar mobile menu */}
+        <button
+          onClick={() => window.dispatchEvent(new Event('toggleMobileMenu'))}
+          className="flex flex-col items-center justify-center flex-1 h-full text-gray-500 transition-colors"
+          aria-label="Open menu"
+        >
+          <FaBars size={20} />
+          <span className="text-[10px] mt-0.5 font-medium">Menu</span>
+        </button>
 
-          const href = item.authAware && !user ? '/customer/login' : item.href;
+        {/* Search — dispatches event to open search drawer */}
+        <button
+          onClick={() => window.dispatchEvent(new Event('toggleMobileSearch'))}
+          className="flex flex-col items-center justify-center flex-1 h-full text-gray-500 transition-colors"
+          aria-label="Open search"
+        >
+          <FaSearch size={20} />
+          <span className="text-[10px] mt-0.5 font-medium">Search</span>
+        </button>
 
-          return (
-            <Link
-              key={item.href}
-              href={href}
-              className={`flex flex-col items-center justify-center flex-1 h-full relative transition-colors ${
-                isActive ? 'text-orange-500' : 'text-gray-500'
-              }`}
-            >
-              <span className="relative">
-                <item.icon size={20} />
-                {item.showBadge && cartCount > 0 && (
-                  <span className="absolute -top-1.5 -right-2.5 bg-orange-500 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center leading-none px-1">
-                    {cartCount > 99 ? '99+' : cartCount}
-                  </span>
-                )}
+        {/* Cart */}
+        <Link
+          href="/cart"
+          className={`flex flex-col items-center justify-center flex-1 h-full relative transition-colors ${
+            router.pathname.startsWith('/cart') ? 'text-orange-500' : 'text-gray-500'
+          }`}
+        >
+          <span className="relative">
+            <FaShoppingCart size={20} />
+            {cartCount > 0 && (
+              <span className="absolute -top-1.5 -right-2.5 bg-orange-500 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center leading-none px-1">
+                {cartCount > 99 ? '99+' : cartCount}
               </span>
-              <span className="text-[10px] mt-0.5 font-medium">{item.label}</span>
-            </Link>
-          );
-        })}
+            )}
+          </span>
+          <span className="text-[10px] mt-0.5 font-medium">Cart</span>
+        </Link>
+
+        {/* Wishlist */}
+        <Link
+          href="/wishlist"
+          className={`flex flex-col items-center justify-center flex-1 h-full relative transition-colors ${
+            router.pathname.startsWith('/wishlist') ? 'text-orange-500' : 'text-gray-500'
+          }`}
+        >
+          <span className="relative">
+            <FaHeart size={20} />
+            {wishlistCount > 0 && (
+              <span className="absolute -top-1.5 -right-2.5 bg-orange-500 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center leading-none px-1">
+                {wishlistCount > 99 ? '99+' : wishlistCount}
+              </span>
+            )}
+          </span>
+          <span className="text-[10px] mt-0.5 font-medium">Wishlist</span>
+        </Link>
+
+        {/* Account */}
+        <Link
+          href={accountHref}
+          className={`flex flex-col items-center justify-center flex-1 h-full transition-colors ${
+            router.pathname.startsWith('/customer') ? 'text-orange-500' : 'text-gray-500'
+          }`}
+        >
+          <FaUser size={20} />
+          <span className="text-[10px] mt-0.5 font-medium">Account</span>
+        </Link>
       </div>
     </nav>
   );

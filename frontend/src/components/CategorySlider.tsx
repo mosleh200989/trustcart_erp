@@ -95,20 +95,7 @@ export default function CategorySlider({ categories }: CategorySliderProps) {
         <>
           <button
             onClick={() => scrollByPage(-1)}
-            className="hidden sm:flex absolute left-0 top-1/2 -translate-y-1/2 z-10 p-3 rounded-full shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-            style={{ backgroundColor: 'white', color: '#374151' }}
-            onMouseEnter={(e) => {
-              if (canScrollPrev) {
-                e.currentTarget.style.backgroundColor = '#f97316';
-                e.currentTarget.style.color = 'white';
-                e.currentTarget.style.transform = 'translateY(-50%) scale(1.1)';
-              }
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = 'white';
-              e.currentTarget.style.color = '#374151';
-              e.currentTarget.style.transform = 'translateY(-50%) scale(1)';
-            }}
+            className="hidden sm:flex absolute left-0 top-1/2 -translate-y-1/2 z-10 p-3 rounded-full shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed bg-white text-gray-700 hover:bg-orange-500 hover:text-white hover:scale-110"
             aria-label="Previous category"
             disabled={!canScrollPrev}
           >
@@ -116,20 +103,7 @@ export default function CategorySlider({ categories }: CategorySliderProps) {
           </button>
           <button
             onClick={() => scrollByPage(1)}
-            className="hidden sm:flex absolute right-0 top-1/2 -translate-y-1/2 z-10 p-3 rounded-full shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-            style={{ backgroundColor: 'white', color: '#374151' }}
-            onMouseEnter={(e) => {
-              if (canScrollNext) {
-                e.currentTarget.style.backgroundColor = '#f97316';
-                e.currentTarget.style.color = 'white';
-                e.currentTarget.style.transform = 'translateY(-50%) scale(1.1)';
-              }
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = 'white';
-              e.currentTarget.style.color = '#374151';
-              e.currentTarget.style.transform = 'translateY(-50%) scale(1)';
-            }}
+            className="hidden sm:flex absolute right-0 top-1/2 -translate-y-1/2 z-10 p-3 rounded-full shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed bg-white text-gray-700 hover:bg-orange-500 hover:text-white hover:scale-110"
             aria-label="Next category"
             disabled={!canScrollNext}
           >
@@ -141,8 +115,7 @@ export default function CategorySlider({ categories }: CategorySliderProps) {
       {/* Scrollable container: touch swipe left/right + snap */}
       <div
         ref={scrollerRef}
-        className="flex gap-2 overflow-x-auto scroll-smooth snap-x snap-mandatory touch-pan-x overscroll-x-contain px-4 sm:px-0 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
-        style={{ WebkitOverflowScrolling: 'touch' }}
+        className="flex gap-2 overflow-x-auto scroll-smooth snap-x snap-mandatory touch-pan-x overscroll-x-contain px-4 sm:px-0 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden [-webkit-overflow-scrolling:touch]"
       >
         {categories.map((cat) => (
           <div

@@ -55,79 +55,39 @@ export default function DealTimer({ endTime, onExpire }: DealTimerProps) {
   }
 
   return (
-    <div className="d-flex gap-2 justify-content-center align-items-center">
+    <div className="flex gap-2 justify-center items-center">
       <div className="text-center">
-        <div
-          style={{
-            backgroundColor: '#d32f2f',
-            color: 'white',
-            padding: '8px 12px',
-            borderRadius: '4px',
-            minWidth: '50px',
-            fontSize: '1.2rem',
-            fontWeight: '700'
-          }}
-        >
+        <div className="bg-red-700 text-white px-3 py-2 rounded min-w-[50px] text-xl font-bold">
           {String(time.days).padStart(2, '0')}
         </div>
-        <small style={{ fontSize: '0.7rem', color: '#666', marginTop: '4px', display: 'block' }}>
+        <small className="text-[0.7rem] text-gray-500 mt-1 block">
           DAYS
         </small>
       </div>
-      <span style={{ fontSize: '1.5rem', color: '#d32f2f', fontWeight: 'bold' }}>:</span>
+      <span className="text-2xl text-red-700 font-bold">:</span>
       <div className="text-center">
-        <div
-          style={{
-            backgroundColor: '#d32f2f',
-            color: 'white',
-            padding: '8px 12px',
-            borderRadius: '4px',
-            minWidth: '50px',
-            fontSize: '1.2rem',
-            fontWeight: '700'
-          }}
-        >
+        <div className="bg-red-700 text-white px-3 py-2 rounded min-w-[50px] text-xl font-bold">
           {String(time.hours).padStart(2, '0')}
         </div>
-        <small style={{ fontSize: '0.7rem', color: '#666', marginTop: '4px', display: 'block' }}>
+        <small className="text-[0.7rem] text-gray-500 mt-1 block">
           HOURS
         </small>
       </div>
-      <span style={{ fontSize: '1.5rem', color: '#d32f2f', fontWeight: 'bold' }}>:</span>
+      <span className="text-2xl text-red-700 font-bold">:</span>
       <div className="text-center">
-        <div
-          style={{
-            backgroundColor: '#d32f2f',
-            color: 'white',
-            padding: '8px 12px',
-            borderRadius: '4px',
-            minWidth: '50px',
-            fontSize: '1.2rem',
-            fontWeight: '700'
-          }}
-        >
+        <div className="bg-red-700 text-white px-3 py-2 rounded min-w-[50px] text-xl font-bold">
           {String(time.minutes).padStart(2, '0')}
         </div>
-        <small style={{ fontSize: '0.7rem', color: '#666', marginTop: '4px', display: 'block' }}>
+        <small className="text-[0.7rem] text-gray-500 mt-1 block">
           MINS
         </small>
       </div>
-      <span style={{ fontSize: '1.5rem', color: '#d32f2f', fontWeight: 'bold' }}>:</span>
+      <span className="text-2xl text-red-700 font-bold">:</span>
       <div className="text-center">
-        <div
-          style={{
-            backgroundColor: '#d32f2f',
-            color: 'white',
-            padding: '8px 12px',
-            borderRadius: '4px',
-            minWidth: '50px',
-            fontSize: '1.2rem',
-            fontWeight: '700'
-          }}
-        >
+        <div className="bg-red-700 text-white px-3 py-2 rounded min-w-[50px] text-xl font-bold">
           {String(time.seconds).padStart(2, '0')}
         </div>
-        <small style={{ fontSize: '0.7rem', color: '#666', marginTop: '4px', display: 'block' }}>
+        <small className="text-[0.7rem] text-gray-500 mt-1 block">
           SECS
         </small>
       </div>

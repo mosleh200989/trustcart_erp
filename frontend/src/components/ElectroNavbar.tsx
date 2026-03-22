@@ -28,11 +28,42 @@ export default function ElectroNavbar() {
   const [navbarCategoriesLoading, setNavbarCategoriesLoading] = useState(false);
   const [navbarCategoriesError, setNavbarCategoriesError] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [wishlistCount, setWishlistCount] = useState(0);
+
+  // Track wishlist count from localStorage
+  useEffect(() => {
+    const updateWishlistCount = () => {
+      try {
+        const stored = JSON.parse(localStorage.getItem('wishlist') || '[]');
+        setWishlistCount(stored.length);
+      } catch { setWishlistCount(0); }
+    };
+    updateWishlistCount();
+    window.addEventListener('wishlistUpdated', updateWishlistCount);
+    window.addEventListener('storage', updateWishlistCount);
+    return () => {
+      window.removeEventListener('wishlistUpdated', updateWishlistCount);
+      window.removeEventListener('storage', updateWishlistCount);
+    };
+  }, []);
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [showSearchResults, setShowSearchResults] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
+  const [showMobileSearch, setShowMobileSearch] = useState(false);
   const [hoveredCategoryId, setHoveredCategoryId] = useState<number | null>(null);
   const [expandedMobileCategory, setExpandedMobileCategory] = useState<number | null>(null);
+
+  // Listen for toggle events from MobileBottomNav
+  useEffect(() => {
+    const handleToggleMenu = () => setShowMobileMenu(prev => !prev);
+    const handleToggleSearch = () => setShowMobileSearch(prev => !prev);
+    window.addEventListener('toggleMobileMenu', handleToggleMenu);
+    window.addEventListener('toggleMobileSearch', handleToggleSearch);
+    return () => {
+      window.removeEventListener('toggleMobileMenu', handleToggleMenu);
+      window.removeEventListener('toggleMobileSearch', handleToggleSearch);
+    };
+  }, []);
 
   const { parentCategories, childrenMap, hasSubcategories } = useMemo(() => {
     const parents = navbarCategories.filter(c => !c.parent_id);
@@ -97,7 +128,7 @@ export default function ElectroNavbar() {
   };
 
   return (
-    <>
+    <div className="z-40">
       {/* Top Bar */}
       <div className="bg-gray-800 text-white text-sm hidden md:block">
         <div className="container mx-auto px-4">
@@ -203,9 +234,14 @@ export default function ElectroNavbar() {
 
             {/* Actions */}
             <div className="flex items-center gap-3 lg:gap-6">
-              <Link href="/wishlist" className="hidden sm:flex flex-col items-center text-gray-700 hover:text-orange-500 transition">
+              <Link href="/wishlist" className="hidden sm:flex flex-col items-center text-gray-700 hover:text-orange-500 transition relative">
                 <FaHeart size={20} className="lg:w-6 lg:h-6" />
                 <span className="text-xs mt-1 hidden lg:block">Wishlist</span>
+                {wishlistCount > 0 && (
+                  <span className="absolute -top-2 -right-2 bg-orange-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                    {wishlistCount}
+                  </span>
+                )}
               </Link>
               
               {user ? (
@@ -422,6 +458,75 @@ export default function ElectroNavbar() {
         </div>
       </div>
 
+      {/* Mobile Search Drawer */}
+      {showMobileSearch && (
+        <div className="lg:hidden fixed inset-0 z-50">
+          <div
+            className="absolute inset-0 bg-black/40"
+            onClick={() => setShowMobileSearch(false)}
+          />
+          <div className="absolute top-0 left-0 right-0 bg-white shadow-xl p-4 animate-slide-down">
+            <div className="flex items-center gap-3">
+              <form onSubmit={(e) => { handleSearchSubmit(e); setShowMobileSearch(false); }} className="relative flex-1">
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => handleSearch(e.target.value)}
+                  placeholder="Search for products..."
+                  className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-full focus:outline-none focus:border-orange-500"
+                  autoFocus
+                />
+                <button type="submit" className="absolute right-0 top-0 h-full px-5 bg-orange-500 hover:bg-orange-600 text-white rounded-r-full transition">
+                  <FaSearch size={16} />
+                </button>
+              </form>
+              <button
+                onClick={() => setShowMobileSearch(false)}
+                className="p-2 text-gray-600 hover:text-gray-800"
+                aria-label="Close search"
+              >
+                <FaTimes size={20} />
+              </button>
+            </div>
+            {/* Search Results inside drawer */}
+            {showSearchResults && searchResults.length > 0 && (
+              <div className="mt-3 max-h-80 overflow-y-auto border-t pt-2">
+                {searchResults.map((product) => (
+                  <Link
+                    key={product.id}
+                    href={product.slug ? `/products/${product.slug}` : `/products/${product.id}`}
+                    onClick={() => {
+                      setShowSearchResults(false);
+                      setSearchQuery('');
+                      setShowMobileSearch(false);
+                    }}
+                    className="flex items-center gap-3 p-3 hover:bg-orange-50 border-b last:border-b-0 transition"
+                  >
+                    <div className="w-12 h-12 flex-shrink-0 rounded bg-gray-100 overflow-hidden flex items-center justify-center relative">
+                      {product.image_url ? (
+                        <Image
+                          src={product.image_url}
+                          alt={product.name_en}
+                          fill
+                          sizes="48px"
+                          className="object-cover"
+                        />
+                      ) : (
+                        <span className="text-xl">📦</span>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-semibold text-gray-800 text-sm truncate">{product.name_en}</h4>
+                      <p className="text-orange-600 font-bold text-sm">৳{parseFloat(product.base_price || product.price).toFixed(2)}</p>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Mobile Menu */}
       {showMobileMenu && (
         <div className="lg:hidden bg-gray-900 text-white">
@@ -527,6 +632,6 @@ export default function ElectroNavbar() {
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 }

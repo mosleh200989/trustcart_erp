@@ -137,10 +137,10 @@ const AddToCartPopup: React.FC<AddToCartPopupProps> = ({ isOpen, onClose, produc
           aria-label="Product added to cart"
           tabIndex={-1}
           onKeyDown={handleKeyDown}
-          className="bg-white rounded-lg shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto focus:outline-none"
+          className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto focus:outline-none"
         >
           {/* Header */}
-          <div className="bg-green-500 text-white p-6 rounded-t-lg flex items-center justify-between">
+          <div className="bg-green-500 text-white p-6 rounded-t-xl flex items-center justify-between">
             <div className="flex items-center gap-3">
               <FaCheckCircle className="text-3xl" />
               <div>
