@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useAuth } from '@/contexts/AuthContext';
 import {
+  FaArrowLeft,
   FaBars,
   FaHome,
   FaLink,
@@ -53,6 +54,25 @@ export default function CustomerLayout({ children }: { children: ReactNode }) {
         <p className="text-xs text-gray-500">Customer Portal</p>
       </div>
 
+      {/* Home & Go Back */}
+      <div className="flex items-center gap-2 px-4 py-3 border-b">
+        <Link
+          href="/"
+          onClick={onNavigate}
+          className="flex-1 flex items-center justify-center gap-1.5 text-sm text-gray-600 hover:text-orange-500 hover:bg-orange-50 py-2 rounded-lg transition-colors"
+        >
+          <FaHome size={14} />
+          Home
+        </Link>
+        <button
+          onClick={() => { onNavigate?.(); router.back(); }}
+          className="flex-1 flex items-center justify-center gap-1.5 text-sm text-gray-600 hover:text-orange-500 hover:bg-orange-50 py-2 rounded-lg transition-colors"
+        >
+          <FaArrowLeft size={14} />
+          Go Back
+        </button>
+      </div>
+
       <nav className="flex-1 overflow-y-auto py-4">
         {menuItems.map((item) => {
           const Icon = item.icon;
@@ -88,7 +108,7 @@ export default function CustomerLayout({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-screen bg-gray-100">
       {/* Desktop Sidebar */}
-      <aside className="hidden lg:flex lg:w-64 bg-white shadow-md flex-col">
+      <aside className="hidden lg:flex lg:w-64 lg:sticky lg:top-0 lg:h-screen bg-white shadow-md flex-col">
         <SidebarContent />
       </aside>
 

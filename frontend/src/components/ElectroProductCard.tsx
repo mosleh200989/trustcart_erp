@@ -115,15 +115,10 @@ export default function ElectroProductCard({
 
   const handleAddToWishlist = (e: React.MouseEvent) => {
     e.preventDefault();
-    if (!isAuthenticated) {
-      toast.warning("Please login to add items to your wishlist.");
-      router.push("/customer/login");
-      return;
-    }
 
     const wishlist = JSON.parse(localStorage.getItem("wishlist") || "[]");
     if (!wishlist.find((item: any) => item.id === id)) {
-      wishlist.push({ id, name: displayName, price: priceNum, image });
+      wishlist.push({ id, name: displayName, price: priceNum, originalPrice: originalPriceNum, image });
       localStorage.setItem("wishlist", JSON.stringify(wishlist));
       window.dispatchEvent(new Event("wishlistUpdated"));
       toast.success("Added to your wishlist.");
