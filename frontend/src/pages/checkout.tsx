@@ -741,11 +741,12 @@ export default function Checkout() {
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div data-error={!!formErrors.fullName || undefined}>
-                      <label className="block text-sm font-semibold mb-2">
+                      <label htmlFor="fullName" className="block text-sm font-semibold mb-2">
                         Full Name *
                       </label>
                       <input
                         type="text"
+                        id="fullName"
                         name="fullName"
                         value={formData.fullName}
                         onChange={handleChange}
@@ -766,11 +767,12 @@ export default function Checkout() {
                     </div>
 
                     <div>
-                      <label className="block text-sm font-semibold mb-2">
+                      <label htmlFor="email" className="block text-sm font-semibold mb-2">
                         Email (Optional)
                       </label>
                       <input
                         type="email"
+                        id="email"
                         name="email"
                         value={formData.email}
                         onChange={handleChange}
@@ -790,10 +792,11 @@ export default function Checkout() {
                     </div>
 
                     <div data-error={!!formErrors.phone || undefined}>
-                      <label className="block text-sm font-semibold mb-2">
+                      <label htmlFor="phone" className="block text-sm font-semibold mb-2">
                         Phone *
                       </label>
                       <PhoneInput
+                        id="phone"
                         name="phone"
                         value={formData.phone}
                         onChange={(value) => {
@@ -819,10 +822,11 @@ export default function Checkout() {
                     </div>
 
                     <div className="md:col-span-2" data-error={!!formErrors.address || undefined}>
-                      <label className="block text-sm font-semibold mb-2">
+                      <label htmlFor="address" className="block text-sm font-semibold mb-2">
                         Address *
                       </label>
                       <textarea
+                        id="address"
                         name="address"
                         value={formData.address}
                         onChange={handleChange}
@@ -844,7 +848,7 @@ export default function Checkout() {
                     </div>
 
                     <div className="md:col-span-2">
-                      <label className="block text-sm font-semibold mb-2">
+                      <label htmlFor="deliveryZone" className="block text-sm font-semibold mb-2">
                         Delivery Zone *
                       </label>
                       <div className="grid grid-cols-2 gap-3">
@@ -892,10 +896,11 @@ export default function Checkout() {
                     </div>
 
                     <div className="md:col-span-2">
-                      <label className="block text-sm font-semibold mb-2">
+                      <label htmlFor="notes" className="block text-sm font-semibold mb-2">
                         Order Notes (Optional)
                       </label>
                       <textarea
+                        id="notes"
                         name="notes"
                         value={formData.notes}
                         onChange={handleChange}
@@ -1030,11 +1035,12 @@ export default function Checkout() {
                   </div>
 
                   <div className="border-t pt-4 mb-6">
-                    <label className="block text-sm font-semibold text-gray-800 mb-2">
+                    <label htmlFor="offerCode" className="block text-sm font-semibold text-gray-800 mb-2">
                       Offer / Coupon Code (Optional)
                     </label>
                     <input
                       type="text"
+                      id="offerCode"
                       name="offerCode"
                       value={formData.offerCode}
                       onChange={handleChange}

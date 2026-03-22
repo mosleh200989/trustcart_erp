@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { FaCheckCircle, FaShoppingCart, FaTimes, FaArrowLeft, FaCreditCard } from 'react-icons/fa';
 import apiClient from '@/services/api';
@@ -12,6 +12,8 @@ interface AddToCartPopupProps {
 
 const AddToCartPopup: React.FC<AddToCartPopupProps> = ({ isOpen, onClose, product }) => {
   const [suggestedProducts, setSuggestedProducts] = useState<any[]>([]);
+  const modalRef = useRef<HTMLDivElement>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
 
   const normalizeProductForCard = (item: any) => {
     const resolvedPrice = Number(
@@ -53,6 +55,57 @@ const AddToCartPopup: React.FC<AddToCartPopupProps> = ({ isOpen, onClose, produc
     }
   }, [isOpen]);
 
+  // Focus management: save previous focus, move focus into modal, restore on close
+  useEffect(() => {
+    if (isOpen) {
+      previousFocusRef.current = document.activeElement as HTMLElement;
+      // Focus the modal container after render
+      requestAnimationFrame(() => {
+        modalRef.current?.focus();
+      });
+    } else if (previousFocusRef.current) {
+      previousFocusRef.current.focus();
+      previousFocusRef.current = null;
+    }
+  }, [isOpen]);
+
+  // Escape key handler
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
+  // Focus trap: keep Tab cycling within the modal
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key !== 'Tab' || !modalRef.current) return;
+
+    const focusableElements = modalRef.current.querySelectorAll<HTMLElement>(
+      'a[href], button:not([disabled]), textarea, input:not([disabled]), select, [tabindex]:not([tabindex="-1"])'
+    );
+    if (focusableElements.length === 0) return;
+
+    const first = focusableElements[0];
+    const last = focusableElements[focusableElements.length - 1];
+
+    if (e.shiftKey) {
+      if (document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      }
+    } else {
+      if (document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
+  }, []);
+
   const loadSuggestedProducts = async () => {
     try {
       const response = await apiClient.get('/products');
@@ -72,11 +125,20 @@ const AddToCartPopup: React.FC<AddToCartPopupProps> = ({ isOpen, onClose, produc
       <div 
         className="fixed inset-0 bg-black bg-opacity-50 z-50"
         onClick={onClose}
+        aria-hidden="true"
       />
 
       {/* Modal */}
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div className="bg-white rounded-lg shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+        <div
+          ref={modalRef}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Product added to cart"
+          tabIndex={-1}
+          onKeyDown={handleKeyDown}
+          className="bg-white rounded-lg shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto focus:outline-none"
+        >
           {/* Header */}
           <div className="bg-green-500 text-white p-6 rounded-t-lg flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -91,6 +153,7 @@ const AddToCartPopup: React.FC<AddToCartPopupProps> = ({ isOpen, onClose, produc
             <button 
               onClick={onClose}
               className="text-white hover:text-green-100 transition-colors"
+              aria-label="Close dialog"
             >
               <FaTimes className="text-2xl" />
             </button>

@@ -196,6 +196,7 @@ export default function CartPage() {
                                     updateQuantity(index, (item.quantity || 1) - 1)
                                   }
                                   disabled={(item.quantity || 1) <= 1}
+                                  aria-label="Decrease quantity"
                                 >
                                   <FaMinus size={10} />
                                 </button>
@@ -208,6 +209,7 @@ export default function CartPage() {
                                     updateQuantity(index, (item.quantity || 1) + 1)
                                   }
                                   disabled={stockInfo[item.id] !== undefined && stockInfo[item.id] !== Infinity && (item.quantity || 1) >= stockInfo[item.id]}
+                                  aria-label="Increase quantity"
                                 >
                                   <FaPlus size={10} />
                                 </button>
@@ -255,6 +257,7 @@ export default function CartPage() {
                                 updateQuantity(index, (item.quantity || 1) - 1)
                               }
                               disabled={(item.quantity || 1) <= 1}
+                              aria-label="Decrease quantity"
                             >
                               <FaMinus size={12} />
                             </button>
@@ -267,6 +270,7 @@ export default function CartPage() {
                                 updateQuantity(index, (item.quantity || 1) + 1)
                               }
                               disabled={stockInfo[item.id] !== undefined && stockInfo[item.id] !== Infinity && (item.quantity || 1) >= stockInfo[item.id]}
+                              aria-label="Increase quantity"
                             >
                               <FaPlus size={12} />
                             </button>

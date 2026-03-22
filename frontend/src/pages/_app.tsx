@@ -92,8 +92,16 @@ export default function App({ Component, pageProps }: AppProps) {
         <CartProvider>
           <ToastProvider>
             <FacebookAdvancedMatching />
+            <a
+              href="#main-content"
+              className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[9999] focus:bg-white focus:text-orange-600 focus:px-4 focus:py-2 focus:rounded focus:shadow-lg focus:font-semibold"
+            >
+              Skip to main content
+            </a>
             <AdminRouteGuard>
-              <Component {...pageProps} />
+              <main id="main-content">
+                <Component {...pageProps} />
+              </main>
               <MobileBottomNav />
             </AdminRouteGuard>
           </ToastProvider>

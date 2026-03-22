@@ -153,12 +153,14 @@ export default function ElectroProductCard({
           onClick={handleAddToWishlist}
           className="bg-white hover:bg-orange-500 hover:text-white p-2.5 rounded-full shadow-lg transition-all hover:scale-110"
           title="Add to Wishlist"
+          aria-label="Add to Wishlist"
         >
           <FaHeart size={16} />
         </button>
         <button
           className="bg-white hover:bg-orange-500 hover:text-white p-2.5 rounded-full shadow-lg transition-all hover:scale-110"
           title="Quick View"
+          aria-label="Quick View"
         >
           <FaEye size={16} />
         </button>
@@ -250,7 +252,7 @@ export default function ElectroProductCard({
         <button
           onClick={handleAddToCart}
           disabled={stock === 0}
-          className="add-to-cart-btn w-full py-2.5 sm:py-2 rounded-lg text-sm font-semibold transition-all duration-300 flex items-center justify-center gap-1.5 sm:gap-2 disabled:opacity-50 disabled:cursor-not-allowed border-2 border-orange-500 bg-white text-orange-500 hover:bg-orange-500 hover:text-white active:bg-orange-600 active:text-white disabled:bg-gray-300 disabled:border-gray-300 disabled:text-gray-500"
+          className="add-to-cart-btn w-full py-2.5 sm:py-2 rounded-lg text-sm font-semibold transition-all duration-300 flex items-center justify-center gap-1.5 sm:gap-2 disabled:opacity-50 disabled:cursor-not-allowed border-2 border-orange-500 bg-white text-orange-500 hover:!bg-orange-500 hover:!text-white hover:border-orange-500 active:bg-orange-600 active:text-white disabled:bg-gray-300 disabled:border-gray-300 disabled:text-gray-500"
         >
           <FaShoppingCart size={18} />
           <span>Add to Cart</span>
