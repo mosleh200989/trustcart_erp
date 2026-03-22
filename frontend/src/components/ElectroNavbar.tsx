@@ -465,27 +465,27 @@ export default function ElectroNavbar() {
             className="absolute inset-0 bg-black/40"
             onClick={() => setShowMobileSearch(false)}
           />
-          <div className="absolute top-0 left-0 right-0 bg-white shadow-xl p-4 animate-slide-down">
-            <div className="flex items-center gap-3">
+          <div className="absolute top-0 left-0 right-0 bg-white shadow-xl px-4 py-3 animate-slide-down">
+            <div className="flex items-center gap-2">
               <form onSubmit={(e) => { handleSearchSubmit(e); setShowMobileSearch(false); }} className="relative flex-1">
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={(e) => handleSearch(e.target.value)}
                   placeholder="Search for products..."
-                  className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-full focus:outline-none focus:border-orange-500"
+                  className="w-full px-4 py-2 pr-12 border border-gray-300 rounded-full text-sm focus:outline-none focus:border-orange-500"
                   autoFocus
                 />
-                <button type="submit" className="absolute right-0 top-0 h-full px-5 bg-orange-500 hover:bg-orange-600 text-white rounded-r-full transition">
-                  <FaSearch size={16} />
+                <button type="submit" className="absolute right-0 top-0 h-full px-4 bg-orange-500 hover:bg-orange-600 text-white rounded-r-full transition">
+                  <FaSearch size={14} />
                 </button>
               </form>
               <button
                 onClick={() => setShowMobileSearch(false)}
-                className="p-2 text-gray-600 hover:text-gray-800"
+                className="p-1.5 text-gray-500 hover:text-gray-800"
                 aria-label="Close search"
               >
-                <FaTimes size={20} />
+                <FaTimes size={18} />
               </button>
             </div>
             {/* Search Results inside drawer */}

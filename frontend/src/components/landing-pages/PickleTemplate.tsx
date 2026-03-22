@@ -478,27 +478,7 @@ export default function PickleTemplate({
           opacity: 1;
         }
 
-        /* ── Diagonal strikethrough ── */
-        .pickle-strike {
-          position: relative;
-          display: inline-block;
-          color: #9ca3af;
-        }
-        .pickle-strike::after {
-          content: '';
-          position: absolute;
-          left: -4px;
-          right: -4px;
-          top: 0;
-          bottom: 0;
-          background: linear-gradient(
-            to left bottom,
-            transparent 42%,
-            #dc2626 42%,
-            #dc2626 58%,
-            transparent 58%
-          );
-        }
+        /* ── Strikethrough handled via Tailwind utilities on the element ── */
 
         /* ── Spicy hero pattern ── */
         .pickle-hero-pattern {
@@ -523,6 +503,16 @@ export default function PickleTemplate({
         }
         .pickle-input:focus {
           outline: none;
+        }
+
+        /* ── Featured Glow Animation ── */
+        @keyframes pulseGlow {
+          0%, 100% {
+            box-shadow: 0 0 15px rgba(251, 146, 60, 0.4);
+          }
+          50% {
+            box-shadow: 0 0 35px rgba(251, 146, 60, 0.7);
+          }
         }
       `}</style>
 
@@ -598,8 +588,9 @@ export default function PickleTemplate({
                 {page.products?.[0] && (
                   <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 mb-8">
                     {page.products[0].compare_price && page.products[0].compare_price > page.products[0].price && (
-                      <span className="pickle-strike pickle-num text-xl sm:text-2xl">
+                      <span className="pickle-num text-xl sm:text-2xl text-gray-400 relative inline-block">
                         ৳{page.products[0].compare_price.toLocaleString()}
+                        <span className="absolute left-[-4px] right-[-4px] top-1/2 h-[3px] bg-red-600 rounded-sm pointer-events-none" style={{ transform: 'translateY(-50%) rotate(-12deg)' }} />
                       </span>
                     )}
                     <div
@@ -956,16 +947,16 @@ export default function PickleTemplate({
                   </p>
                 </div>
               ) : (
-                <div className="bg-white rounded-3xl shadow-[0_8px_40px_-8px_rgba(100,40,15,0.12)] overflow-hidden border border-red-100/60">
+                <div className="bg-white rounded-[2rem] shadow-[0_30px_80px_-20px_rgba(100,40,15,0.2),0_0_0_1px_rgba(100,40,15,0.05)] overflow-hidden border-[4px] border-white relative z-10 transition-all duration-500 hover:shadow-[0_40px_100px_-20px_rgba(100,40,15,0.25)]">
                   {/* Header */}
                   <div
-                    className="px-6 py-5 text-center pickle-grain relative overflow-hidden"
+                    className="px-6 py-6 text-center pickle-grain relative overflow-hidden"
                     style={{
                       background: `linear-gradient(135deg, ${page.primary_color}, ${primaryDark})`,
                     }}
                   >
                     <h2
-                      className="pickle-heading text-xl sm:text-2xl font-bold relative z-10"
+                      className="pickle-heading text-2xl sm:text-3xl font-extrabold relative z-10 drop-shadow-md"
                       style={{ color: page.secondary_color }}
                     >
                       অর্ডার করুন
@@ -995,54 +986,70 @@ export default function PickleTemplate({
                           const isSelected = !!orderItem;
                           const isFeatured = !!product.is_featured;
                           const featuredLabel = product.featured_label || '🔥 বিশেষ অফার';
+
+                          // The Featured offer style:
+                          const featuredCardStyle = isFeatured && !isSelected ? `
+                            bg-gradient-to-r from-amber-50 to-orange-50 
+                            border-2 border-dashed border-orange-400
+                            shadow-[0_0_25px_rgba(251,146,60,0.3)]
+                            hover:scale-[1.01] hover:shadow-[0_0_35px_rgba(251,146,60,0.4)]
+                            animate-[pulseGlow_3s_ease-in-out_infinite]
+                          ` : '';
+
                           return (
                             <div
                               key={product.id}
-                              className={`pickle-product-card relative rounded-2xl p-3 sm:p-4 cursor-pointer ${
-                                isFeatured && !isSelected
-                                  ? 'bg-gradient-to-r from-red-50/50 to-orange-50/50 ring-1 ring-red-100 border border-red-100'
-                                  : isSelected
-                                    ? 'ring-2 border-[3px] shadow-lg shadow-red-200/40'
-                                    : 'border border-gray-100 hover:border-red-200/60 bg-gray-50/30'
-                              }`}
-                              style={
+                              className={`pickle-product-card relative rounded-[1.25rem] p-4 sm:p-5 cursor-pointer transition-all duration-400 ${
                                 isSelected
-                                  ? {
-                                      borderColor: page.primary_color,
-                                      backgroundColor: `${page.primary_color}15`,
-                                    }
-                                  : {}
-                              }
+                                  ? 'z-10 transform scale-[1.02]'
+                                  : isFeatured
+                                    ? featuredCardStyle
+                                    : 'bg-gray-50/40 hover:bg-white border-gray-100 hover:border-gray-200 shadow-sm hover:shadow-md'
+                              }`}
+                              style={{
+                                backgroundColor: isSelected ? `${page.primary_color}0F` : undefined,
+                                border: isSelected ? `2.5px solid ${page.primary_color}` : isFeatured && !isSelected ? undefined : '1px solid #f3f4f6',
+                                boxShadow: isSelected ? `0 20px 40px -10px ${page.primary_color}40, inset 0 0 20px ${page.primary_color}10` : undefined,
+                              }}
                               onClick={() => toggleProduct(product)}
                             >
                               {isSelected && (
                                 <div
-                                  className="absolute left-0 top-2 bottom-2 w-1.5 rounded-r-full"
-                                  style={{ backgroundColor: page.primary_color }}
+                                  className="absolute left-[-2px] bottom-[-2px] top-[-2px] w-2 rounded-l-[1.2rem]"
+                                  style={{ background: `linear-gradient(to bottom, ${page.primary_color}, ${primaryDark})` }}
                                 />
                               )}
-                              {isFeatured && (
-                                <div className="absolute -top-2.5 left-4 bg-gradient-to-r from-red-500 to-orange-500 text-white text-[10px] font-bold px-3 py-0.5 rounded-full shadow">
+                              {isSelected && (
+                                <div 
+                                  className="absolute top-[-2px] right-[-2px] rounded-tr-[1.2rem] rounded-bl-2xl flex items-center gap-1.5 text-white text-[10px] sm:text-[11px] font-bold px-3 sm:px-4 py-1.5 shadow-sm z-10"
+                                  style={{ background: `linear-gradient(135deg, ${page.primary_color}, ${primaryDark})` }}
+                                >
+                                  <FaCheckCircle className="text-[10px]" /> নির্বাচিত
+                                </div>
+                              )}
+                              {isFeatured && !isSelected && (
+                                <div className="absolute -top-3 left-6 animate-bounce text-white text-[11px] font-extrabold px-5 py-1.5 rounded-full shadow-[0_4px_15px_rgba(234,88,12,0.5)] border-2 border-white/60 z-20"
+                                  style={{ background: 'linear-gradient(135deg, #FF6B35, #ff9b26)' }}>
                                   {featuredLabel}
                                 </div>
                               )}
-                              <div className={`flex items-center gap-3 sm:gap-4 ${isFeatured ? 'mt-1' : ''}`}>
+                              <div className={`flex items-center gap-4 sm:gap-5 ${isFeatured && !isSelected ? 'mt-3 mb-1' : ''}`}>
                                 <div
-                                  className={`flex-shrink-0 w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all duration-300 ${
-                                    isSelected ? 'border-transparent scale-110' : 'border-gray-300'
+                                  className={`flex-shrink-0 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all duration-300 ${
+                                    isSelected ? 'border-transparent scale-110 shadow-sm' : 'border-gray-300 bg-white'
                                   }`}
                                   style={isSelected ? { backgroundColor: page.primary_color } : {}}
                                 >
-                                  {isSelected && <FaCheckCircle className="text-white text-[10px]" />}
+                                  {isSelected && <FaCheckCircle className="text-white text-xs" />}
                                 </div>
                                 {product.image_url && (
                                   <img
                                     src={product.image_url}
                                     alt={product.name}
-                                    className={`object-cover rounded-xl flex-shrink-0 transition-shadow duration-300 ${
+                                    className={`object-cover rounded-[0.85rem] flex-shrink-0 transition-all duration-400 ${
                                       isSelected
-                                        ? 'w-16 h-16 sm:w-18 sm:h-18 shadow-md'
-                                        : 'w-14 h-14 sm:w-16 sm:h-16'
+                                        ? 'w-16 h-16 sm:w-20 sm:h-20 shadow-md ring-2 ring-white'
+                                        : 'w-14 h-14 sm:w-16 sm:h-16 border border-gray-100'
                                     }`}
                                   />
                                 )}
@@ -1057,8 +1064,9 @@ export default function PickleTemplate({
                                   )}
                                   <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mt-1.5">
                                     {product.compare_price && product.compare_price > product.price && (
-                                      <span className="pickle-strike text-xs text-gray-400 font-medium">
+                                      <span className="text-xs text-gray-400 font-medium relative inline-block">
                                         {product.compare_price.toLocaleString()} ৳
+                                        <span className="absolute left-[-3px] right-[-3px] top-1/2 h-[2.5px] bg-red-600 rounded-sm pointer-events-none" style={{ transform: 'translateY(-50%) rotate(-12deg)' }} />
                                       </span>
                                     )}
                                     <span
