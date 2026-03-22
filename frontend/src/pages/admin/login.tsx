@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Router from 'next/router';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
@@ -7,11 +7,18 @@ import { FaArrowLeft } from 'react-icons/fa';
 import PasswordInput from '@/components/common/PasswordInput';
 
 export default function AdminLogin() {
-  const { login } = useAuth();
+  const { login, isLoading, user, isAdminUser } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Redirect to dashboard if already authenticated as admin
+  useEffect(() => {
+    if (!isLoading && user && isAdminUser) {
+      Router.replace('/admin/dashboard');
+    }
+  }, [isLoading, user, isAdminUser]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();

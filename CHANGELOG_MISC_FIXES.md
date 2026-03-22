@@ -42,3 +42,23 @@
 - Scroll threshold of 5px prevents jitter from micro-scrolls or touch bouncing.
 - Wishlist localStorage format now: `{ id, name, price, originalPrice?, image }`.
 - No backend changes required — all modifications are frontend-only.
+
+---
+
+### 7. Footer Professional Redesign
+- **File:** `frontend/src/components/ElectroFooter.tsx`
+- **Changes:**
+  - Unified container padding across main footer and bottom bar (`px-6 sm:px-8 lg:px-12`).
+  - Increased grid gap for better spacing (`gap-8 lg:gap-10`).
+  - Made section headings consistent: `text-base font-semibold uppercase tracking-wide`.
+  - Set link text to explicit `text-gray-400` with `transition-colors`.
+  - Replaced bright white payment badges with dark-themed `bg-gray-800 border border-gray-700` badges; added Nagad.
+  - Social icons use fixed `w-9 h-9` with flexbox centering and ARIA labels.
+  - Bottom bar uses `border-t` separator instead of `bg-gray-950`; copyright year is now dynamic.
+  - Removed commented-out newsletter block.
+  - Logo enlarged from `h-14` / `width={160}` to `h-20` / `width={200}` for better visibility.
+  - Tagline expanded to a longer, descriptive paragraph about TrustCart's mission.
+
+### 8. Pickle Template — Thick Red Strikethrough on Regular Price
+- **File:** `frontend/src/components/landing-pages/PickleTemplate.tsx`
+- **Change:** Replaced the thin diagonal gradient strikethrough on the regular/compare price (`.pickle-strike::after`) with a thick, prominent horizontal red line (`3px` solid red bar at vertical center). This makes the "price cut" visually obvious to customers, reinforcing the discount impression. Applies to both the hero pricing section and individual product cards within the template.

@@ -5,7 +5,9 @@ import { useAuth } from '@/contexts/AuthContext';
 export default function AdminRouteGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { isLoading, user, isAdminUser, refresh } = useAuth();
-  const lastTokenRef = useRef<string | null>(null);
+  const lastTokenRef = useRef<string | null>(
+    typeof window !== 'undefined' ? localStorage.getItem('authToken') : null
+  );
   const isRefreshingRef = useRef(false);
 
   useEffect(() => {
