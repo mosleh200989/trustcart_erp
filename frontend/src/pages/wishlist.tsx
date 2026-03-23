@@ -6,6 +6,8 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { FaShoppingCart, FaBolt } from 'react-icons/fa';
 import { useCart } from '@/contexts/CartContext';
+import { useToast } from '@/contexts/ToastContext';
+import { useFlyToCart } from '@/hooks/useFlyToCart';
 
 interface WishlistItem {
   id: number;
@@ -19,6 +21,8 @@ export default function WishlistPage() {
   const [items, setItems] = useState<WishlistItem[]>([]);
   const { addItem } = useCart();
   const router = useRouter();
+  const toast = useToast();
+  const { fly } = useFlyToCart();
 
   useEffect(() => {
     const stored = JSON.parse(localStorage.getItem('wishlist') || '[]');
@@ -40,7 +44,11 @@ export default function WishlistPage() {
     window.dispatchEvent(new Event('wishlistUpdated'));
   };
 
-  const handleAddToCart = (item: WishlistItem) => {
+  const handleAddToCart = (item: WishlistItem, e: React.MouseEvent) => {
+    // Fly-to-cart animation
+    const card = (e.currentTarget as HTMLElement).closest('.wishlist-product-card');
+    if (card) fly(card as HTMLElement);
+
     addItem({
       id: item.id,
       name: item.name,
@@ -49,6 +57,8 @@ export default function WishlistPage() {
       quantity: 1,
       image: item.image,
     });
+    
+    toast.success("Added to cart successfully!");
   };
 
   const handleBuyNow = (item: WishlistItem) => {
@@ -85,7 +95,7 @@ export default function WishlistPage() {
             {items.map((item) => {
               const hasDiscount = item.originalPrice && item.originalPrice > item.price;
               return (
-                <div key={item.id} className="bg-white rounded-lg shadow border p-4 flex flex-col">
+                <div key={item.id} className="wishlist-product-card bg-white rounded-lg shadow border p-4 flex flex-col">
                   <Link href={`/products/${item.id}`} className="flex-1">
                     {/* 1:1 Aspect Ratio for Professional E-commerce Look */}
                     <div className="relative w-full pt-[100%] bg-gray-50 mb-3 overflow-hidden rounded-lg">
@@ -113,7 +123,7 @@ export default function WishlistPage() {
                   </Link>
                   <div className="flex items-center gap-2 mt-2">
                     <button
-                      onClick={() => handleAddToCart(item)}
+                      onClick={(e) => handleAddToCart(item, e)}
                       className="flex-1 flex items-center justify-center gap-1.5 bg-orange-500 text-white text-sm py-2 rounded-lg hover:bg-orange-600 transition-colors"
                       aria-label={`Add ${item.name} to cart`}
                     >

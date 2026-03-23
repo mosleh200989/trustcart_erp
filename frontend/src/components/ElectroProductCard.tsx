@@ -3,12 +3,12 @@ import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/router";
 import { FaStar, FaShoppingCart, FaHeart, FaEye, FaTag } from "react-icons/fa";
-import AddToCartPopup from "./AddToCartPopup";
 import { BACKEND_ORIGIN } from "@/config/backend";
 import { useToast } from "@/contexts/ToastContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCart } from "@/contexts/CartContext";
 import { trackAddToCart } from "@/utils/gtm";
+import { useFlyToCart } from "@/hooks/useFlyToCart";
 
 interface ProductCardProps {
   id: number;
@@ -61,7 +61,7 @@ export default function ElectroProductCard({
   const toast = useToast();
   const { isAuthenticated } = useAuth();
   const { addItem } = useCart();
-  const [showPopup, setShowPopup] = useState(false);
+  const { fly } = useFlyToCart();
   const [imageError, setImageError] = useState(false);
   const router = useRouter();
   const displayName = nameEn || name || nameBn || "Product";
@@ -91,6 +91,11 @@ export default function ElectroProductCard({
 
   const handleAddToCart = (e: React.MouseEvent) => {
     e.preventDefault();
+
+    // Fly-to-cart animation
+    const card = (e.currentTarget as HTMLElement).closest('.electro-product-card');
+    if (card) fly(card as HTMLElement);
+
     addItem({
       id,
       name: displayName,
@@ -110,7 +115,7 @@ export default function ElectroProductCard({
       category: displayCategory || undefined,
     });
     
-    setShowPopup(true);
+    toast.success("Added to cart successfully!");
   };
 
   const handleAddToWishlist = (e: React.MouseEvent) => {
@@ -126,7 +131,7 @@ export default function ElectroProductCard({
   };
 
   return (
-    <div className="bg-white border border-gray-200 rounded-lg overflow-hidden hover:shadow-xl transition-all duration-300 group relative">
+    <div className="electro-product-card bg-white border border-gray-200 rounded-lg overflow-hidden hover:shadow-xl transition-all duration-300 group relative">
       {/* Discount Badge */}
       {discountPercent && discountPercent > 0 && (
         <div className="absolute top-2 right-2 z-10">
@@ -253,19 +258,6 @@ export default function ElectroProductCard({
           <span>Add to Cart</span>
         </button>
       </div>
-
-      {/* Add to Cart Popup */}
-      <AddToCartPopup
-        isOpen={showPopup}
-        onClose={() => setShowPopup(false)}
-        product={{
-          id,
-          name_en: displayName,
-          name: displayName,
-          price,
-          image: resolvedImageUrl || image,
-        }}
-      />
     </div>
   );
 }

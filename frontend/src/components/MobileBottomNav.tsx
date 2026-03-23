@@ -91,6 +91,7 @@ export default function MobileBottomNav() {
         {/* Cart */}
         <Link
           href="/cart"
+          id="mobile-cart-icon"
           className={`flex flex-col items-center justify-center flex-1 h-full relative transition-colors ${
             router.pathname.startsWith('/cart') ? 'text-orange-500' : 'text-gray-500'
           }`}

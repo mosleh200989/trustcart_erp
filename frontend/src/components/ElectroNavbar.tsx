@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/router';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { FaPhone, FaEnvelope, FaUser, FaShoppingCart, FaHeart, FaBars, FaSearch, FaTimes, FaChevronRight, FaChevronDown } from 'react-icons/fa';
 import apiClient, { categories as categoriesAPI } from '@/services/api';
 import { useCart } from '@/contexts/CartContext';
@@ -127,34 +127,39 @@ export default function ElectroNavbar() {
     }
   };
 
+  // Desktop: hide navbar on scroll-down, show on scroll-up
+  const [navHidden, setNavHidden] = useState(false);
+  const lastScrollY = useRef(0);
+
+  useEffect(() => {
+    const onScroll = () => {
+      if (window.innerWidth < 1024) return; // skip on mobile/tablet
+      const y = window.scrollY;
+      setNavHidden(y > 80 && y > lastScrollY.current);
+      lastScrollY.current = y;
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+
+    const onFlyStart = () => setNavHidden(false);
+    window.addEventListener('fly-to-cart-start', onFlyStart);
+
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+      window.removeEventListener('fly-to-cart-start', onFlyStart);
+    };
+  }, []);
+
   return (
-    <div className="z-40">
-      {/* Top Bar */}
-      <div className="bg-gray-800 text-white text-sm hidden md:block">
-        <div className="container mx-auto px-4">
-          <div className="flex justify-between items-center py-2">
-            <div className="flex items-center gap-6">
-              <span className="flex items-center gap-2">
-                <FaPhone size={12} />
-                09647248283
-              </span>
-              <span className="flex items-center gap-2">
-                <FaEnvelope size={12} />
-                support@trustcart.com
-              </span>
-            </div>
-            <div className="flex items-center gap-4">
-              <Link href="/about" className="hover:text-orange-400 transition">About</Link>
-              <Link href="/contact" className="hover:text-orange-400 transition">Contact</Link>
-              <Link href="/careers" className="hover:text-orange-400 transition">Careers</Link>
-            </div>
-          </div>
-        </div>
-      </div>
+    <div
+      className={`z-40 lg:sticky lg:top-0 lg:transition-transform lg:duration-300 ${
+        navHidden ? 'lg:-translate-y-full' : 'lg:translate-y-0'
+      }`}
+    >
+
 
       {/* Main Header */}
       <div className="bg-white border-b">
-        <div className="container mx-auto px-4 py-3">
+        <div className="container mx-auto px-4 py-1.5">
           <div className="flex items-center justify-between gap-4">
             {/* Mobile Menu Toggle */}
             <button
@@ -166,7 +171,7 @@ export default function ElectroNavbar() {
 
             {/* Logo */}
             <Link href="/" className="flex items-center -my-2">
-              <Image src="/trust-cart-logo-main.png" alt="TrustCart" width={160} height={80} className="h-14 lg:h-20 w-auto object-contain" priority />
+              <Image src="/trust-cart-logo-main.png" alt="TrustCart" width={160} height={80} className="h-14 lg:h-16 w-auto object-contain" priority />
             </Link>
 
             {/* Search Bar - Desktop */}
@@ -256,7 +261,7 @@ export default function ElectroNavbar() {
                 </Link>
               )}
 
-              <Link href="/cart" className="flex flex-col items-center text-gray-700 hover:text-orange-500 transition relative">
+              <Link href="/cart" id="desktop-cart-icon" className="flex flex-col items-center text-gray-700 hover:text-orange-500 transition relative">
                 <FaShoppingCart size={20} className="lg:w-6 lg:h-6" />
                 <span className="text-xs mt-1 hidden lg:block">Cart</span>
                 {cartCount > 0 && (
@@ -330,13 +335,13 @@ export default function ElectroNavbar() {
       {/* Navigation Bar */}
       <div className="bg-gray-900 hidden lg:block">
         <div className="container mx-auto px-4">
-          <div className="flex items-center">
+          <div className="flex items-stretch">
             {/* Categories Dropdown */}
-            <div className="relative">
+            <div className="relative flex">
               <button
                 onMouseEnter={() => setShowCategories(true)}
                 onMouseLeave={() => setShowCategories(false)}
-                className="bg-orange-500 hover:bg-orange-600 text-white px-6 py-4 flex items-center gap-2 font-semibold transition"
+                className="bg-orange-500 hover:bg-orange-600 text-white px-5 flex items-center gap-2 font-semibold text-sm transition"
               >
                 <FaBars />
                 ALL CATEGORIES
@@ -428,19 +433,19 @@ export default function ElectroNavbar() {
 
             {/* Menu Links */}
             <nav className="flex items-center gap-8 ml-8 text-white">
-              <Link href="/" className="py-4 hover:text-orange-400 transition font-medium">
+              <Link href="/" className="py-2.5 hover:text-orange-400 transition font-medium">
                 Home
               </Link>
-              <Link href="/products" className="py-4 hover:text-orange-400 transition font-medium">
+              <Link href="/products" className="py-2.5 hover:text-orange-400 transition font-medium">
                 Products
               </Link>
-              <Link href="/about" className="py-4 hover:text-orange-400 transition font-medium">
-                About Us
+              <Link href="/about" className="py-2.5 hover:text-orange-400 transition font-medium">
+                About
               </Link>
-              <Link href="/contact" className="py-4 hover:text-orange-400 transition font-medium">
+              <Link href="/contact" className="py-2.5 hover:text-orange-400 transition font-medium">
                 Contact
               </Link>
-              <Link href="/track-order" className="py-4 hover:text-orange-400 transition font-medium">
+              <Link href="/track-order" className="py-2.5 hover:text-orange-400 transition font-medium">
                 Track Order
               </Link>
               {/* <Link href="/blog" className="py-4 hover:text-orange-400 transition font-medium">
@@ -448,12 +453,7 @@ export default function ElectroNavbar() {
               </Link> */}
             </nav>
 
-            {/* Special Offer Badge */}
-            <div className="ml-auto">
-              <span className="bg-red-600 text-white px-4 py-2 rounded-full text-sm font-semibold animate-pulse">
-                🔥 Special Offers
-              </span>
-            </div>
+
           </div>
         </div>
       </div>
