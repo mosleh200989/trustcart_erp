@@ -140,12 +140,15 @@ export default function ElectroNavbar() {
     };
     window.addEventListener('scroll', onScroll, { passive: true });
 
+    // Expose a global function so the fly hook can reveal the navbar reliably
+    (window as any).__showNavbar = () => setNavHidden(false);
     const onFlyStart = () => setNavHidden(false);
     window.addEventListener('fly-to-cart-start', onFlyStart);
 
     return () => {
       window.removeEventListener('scroll', onScroll);
       window.removeEventListener('fly-to-cart-start', onFlyStart);
+      delete (window as any).__showNavbar;
     };
   }, []);
 
