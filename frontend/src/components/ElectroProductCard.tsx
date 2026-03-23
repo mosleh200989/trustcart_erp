@@ -92,9 +92,10 @@ export default function ElectroProductCard({
   const handleAddToCart = (e: React.MouseEvent) => {
     e.preventDefault();
 
-    // Fly-to-cart animation
-    const card = (e.currentTarget as HTMLElement).closest('.electro-product-card');
-    if (card) fly(card as HTMLElement);
+    // Fly-to-cart animation — starts from the button, grabs image from card
+    const btn = e.currentTarget as HTMLElement;
+    const card = btn.closest('.electro-product-card') as HTMLElement | null;
+    fly(btn, card);
 
     addItem({
       id,

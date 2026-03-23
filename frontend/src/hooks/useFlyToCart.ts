@@ -1,7 +1,11 @@
 import { useCallback } from 'react';
 
 export function useFlyToCart() {
-  const fly = useCallback((sourceEl: HTMLElement) => {
+  /**
+   * @param buttonEl  — the Add-to-Cart button (animation starts here)
+   * @param cardEl    — the product card (we grab its image for the flying clone)
+   */
+  const fly = useCallback((buttonEl: HTMLElement, cardEl?: HTMLElement | null) => {
     const isMobile = window.innerWidth < 1024;
     const targetEl =
       document.getElementById(isMobile ? 'mobile-cart-icon' : 'desktop-cart-icon') ??
@@ -9,17 +13,19 @@ export function useFlyToCart() {
 
     if (!targetEl) return;
 
-    const imgEl = sourceEl.querySelector('img');
-    const src = (imgEl ?? sourceEl).getBoundingClientRect();
-
+    // Start position = center of the button that was clicked
+    const src = buttonEl.getBoundingClientRect();
     const startX = src.left + src.width / 2;
     const startY = src.top + src.height / 2;
+
+    // Try to grab the product image from the card for the flying clone
+    const imgEl = cardEl?.querySelector('img') ?? buttonEl.closest('[class*="product"]')?.querySelector('img');
 
     const bird = document.createElement('div');
 
     if (imgEl) {
       const clone = document.createElement('img');
-      clone.src = imgEl.src;
+      clone.src = (imgEl as HTMLImageElement).src;
       clone.style.cssText = 'width:48px;height:48px;border-radius:50%;object-fit:cover;';
       bird.appendChild(clone);
     } else {
@@ -35,6 +41,9 @@ export function useFlyToCart() {
     document.body.appendChild(bird);
 
     // Reveal the navbar so the cart icon target is visible during flight
+    if (typeof (window as any).__showNavbar === 'function') {
+      (window as any).__showNavbar();
+    }
     window.dispatchEvent(new CustomEvent('fly-to-cart-start'));
 
     const duration = 1800;

@@ -45,9 +45,10 @@ export default function WishlistPage() {
   };
 
   const handleAddToCart = (item: WishlistItem, e: React.MouseEvent) => {
-    // Fly-to-cart animation
-    const card = (e.currentTarget as HTMLElement).closest('.wishlist-product-card');
-    if (card) fly(card as HTMLElement);
+    // Fly-to-cart animation — starts from the button, grabs image from card
+    const btn = e.currentTarget as HTMLElement;
+    const card = btn.closest('.wishlist-product-card') as HTMLElement | null;
+    fly(btn, card);
 
     addItem({
       id: item.id,
