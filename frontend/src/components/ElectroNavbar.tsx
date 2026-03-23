@@ -130,24 +130,29 @@ export default function ElectroNavbar() {
   // Desktop: hide navbar on scroll-down, show on scroll-up
   const [navHidden, setNavHidden] = useState(false);
   const lastScrollY = useRef(0);
+  const flyLockUntil = useRef(0); // prevents scroll-hide while fly animation plays
 
   useEffect(() => {
     const onScroll = () => {
       if (window.innerWidth < 1024) return; // skip on mobile/tablet
+      if (Date.now() < flyLockUntil.current) return; // locked during fly animation
       const y = window.scrollY;
       setNavHidden(y > 80 && y > lastScrollY.current);
       lastScrollY.current = y;
     };
     window.addEventListener('scroll', onScroll, { passive: true });
 
-    // Expose a global function so the fly hook can reveal the navbar reliably
-    (window as any).__showNavbar = () => setNavHidden(false);
-    const onFlyStart = () => setNavHidden(false);
-    window.addEventListener('fly-to-cart-start', onFlyStart);
+    // Reveal navbar and lock scroll-hide for the duration of the fly animation
+    const revealNavbar = () => {
+      flyLockUntil.current = Date.now() + 2000;
+      setNavHidden(false);
+    };
+    (window as any).__showNavbar = revealNavbar;
+    window.addEventListener('fly-to-cart-start', revealNavbar);
 
     return () => {
       window.removeEventListener('scroll', onScroll);
-      window.removeEventListener('fly-to-cart-start', onFlyStart);
+      window.removeEventListener('fly-to-cart-start', revealNavbar);
       delete (window as any).__showNavbar;
     };
   }, []);
