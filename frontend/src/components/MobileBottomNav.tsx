@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { FaBars, FaSearch, FaShoppingCart, FaHeart, FaUser } from 'react-icons/fa';
@@ -30,43 +30,14 @@ export default function MobileBottomNav() {
     };
   }, []);
 
-  // Scroll direction detection: hide on scroll down, show on scroll up
-  const [visible, setVisible] = useState(true);
-  const lastScrollY = useRef(0);
-  const ticking = useRef(false);
-
-  const handleScroll = useCallback(() => {
-    if (ticking.current) return;
-    ticking.current = true;
-    requestAnimationFrame(() => {
-      const y = window.scrollY;
-      if (y < 80) {
-        setVisible(true);
-      } else if (y > lastScrollY.current + 5) {
-        setVisible(false);
-      } else if (y < lastScrollY.current - 5) {
-        setVisible(true);
-      }
-      lastScrollY.current = y;
-      ticking.current = false;
-    });
-  }, []);
-
-  useEffect(() => {
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, [handleScroll]);
-
-  // Hide on admin pages, checkout, and auth pages
-  const hiddenPaths = ['/admin', '/checkout', '/customer/login', '/customer/register'];
-  if (hiddenPaths.some(p => router.pathname.startsWith(p))) return null;
+  // Hide on admin pages, checkout, auth pages, and landing pages
+  const hiddenPaths = ['/admin', '/checkout', '/customer/login', '/customer/register', '/lp/'];
+  if (hiddenPaths.some(p => router.pathname.startsWith(p) || router.asPath.startsWith(p))) return null;
 
   const accountHref = user ? '/customer/dashboard' : '/customer/login';
 
   return (
-    <nav className={`lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-50 safe-area-bottom transition-transform duration-300 ${
-      visible ? 'translate-y-0' : 'translate-y-full'
-    }`}>
+    <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-50 safe-area-bottom">
       <div className="flex items-center justify-around h-14">
         {/* Menu — dispatches event to toggle ElectroNavbar mobile menu */}
         <button
