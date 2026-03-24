@@ -44,31 +44,31 @@ export class LandingPagesController {
   // ─── Admin endpoints ───
 
   @Get()
-  @RequirePermissions('manage-system-settings')
+  @RequirePermissions('view-landing-pages')
   async findAll(): Promise<LandingPage[]> {
     return this.landingPagesService.findAll();
   }
 
   @Get('stats')
-  @RequirePermissions('manage-system-settings')
+  @RequirePermissions('view-landing-pages')
   async getStats() {
     return this.landingPagesService.getStats();
   }
 
   @Get(':id')
-  @RequirePermissions('manage-system-settings')
+  @RequirePermissions('view-landing-pages')
   async findOne(@Param('id') id: number): Promise<LandingPage | null> {
     return this.landingPagesService.findOne(id);
   }
 
   @Post()
-  @RequirePermissions('manage-system-settings')
+  @RequirePermissions('manage-landing-pages')
   async create(@Body() data: Partial<LandingPage>): Promise<LandingPage> {
     return this.landingPagesService.create(data);
   }
 
   @Put(':id')
-  @RequirePermissions('manage-system-settings')
+  @RequirePermissions('manage-landing-pages')
   async update(
     @Param('id') id: number,
     @Body() data: Partial<LandingPage>,
@@ -77,19 +77,19 @@ export class LandingPagesController {
   }
 
   @Delete(':id')
-  @RequirePermissions('manage-system-settings')
+  @RequirePermissions('delete-landing-pages')
   async remove(@Param('id') id: number): Promise<void> {
     return this.landingPagesService.remove(id);
   }
 
   @Put(':id/toggle')
-  @RequirePermissions('manage-system-settings')
+  @RequirePermissions('manage-landing-pages')
   async toggleActive(@Param('id') id: number): Promise<LandingPage> {
     return this.landingPagesService.toggleActive(id);
   }
 
   @Post(':id/duplicate')
-  @RequirePermissions('manage-system-settings')
+  @RequirePermissions('manage-landing-pages')
   async duplicate(@Param('id') id: number): Promise<LandingPage> {
     return this.landingPagesService.duplicate(id);
   }
