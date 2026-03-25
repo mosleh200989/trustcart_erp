@@ -630,7 +630,10 @@ export default function PickleTemplate({
                       </span>
                     </div>
                     {page.products[0].compare_price && page.products[0].compare_price > page.products[0].price && (
-                      <span className="text-lg sm:text-sm font-bold text-white px-3 py-1.5 rounded-full bg-gradient-to-r from-green-500 to-green-600 shadow-md">
+                      <span
+                        className="text-lg sm:text-xl font-bold text-white px-3 sm:px-4 py-1.5 sm:py-2 rounded-full bg-gradient-to-r from-green-500 to-green-600 shadow-md"
+                        style={{ animation: 'discountBounce 1.8s ease-in-out infinite', display: 'inline-block', willChange: 'transform' }}
+                      >
                         {Math.round(
                           ((page.products[0].compare_price - page.products[0].price) /
                             page.products[0].compare_price) *
@@ -1081,7 +1084,7 @@ export default function PickleTemplate({
                                     )}
                                     <div className="flex flex-wrap items-center gap-2 sm:gap-2.5 mt-2">
                                       {product.compare_price && product.compare_price > product.price && (
-                                        <span className="text-[17px] sm:text-sm text-gray-800 font-semibold relative inline-block">
+                                        <span className="text-[17px] sm:text-lg text-gray-800 font-semibold relative inline-block">
                                           {product.compare_price.toLocaleString()} ৳
                                           <span className="absolute left-[-3px] right-[-3px] top-1/2 h-[2.5px] bg-red-600 rounded-sm pointer-events-none" style={{ transform: 'translateY(-50%) rotate(-12deg)' }} />
                                         </span>
@@ -1094,7 +1097,7 @@ export default function PickleTemplate({
                                       </span>
                                       {product.compare_price && product.compare_price > product.price && (
                                         <span
-                                          className="text-[17px] sm:text-xs font-bold text-green-600 bg-green-50 px-2 py-0.5 rounded-full"
+                                          className="text-[17px] sm:text-lg font-bold text-green-600 bg-green-50 px-2.5 sm:px-3 py-0.5 sm:py-1 rounded-full"
                                           style={{ animation: 'discountBounce 1.8s ease-in-out infinite', display: 'inline-block', willChange: 'transform' }}
                                         >
                                           {Math.round(
