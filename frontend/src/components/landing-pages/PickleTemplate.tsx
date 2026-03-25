@@ -446,20 +446,21 @@ export default function PickleTemplate({
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link
-          href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@300;400;500;600;700&display=swap"
+          href="https://fonts.googleapis.com/css2?family=Tiro+Bangla:ital@0;1&display=swap"
           rel="stylesheet"
         />
       </Head>
 
       <style jsx global>{`
         .pickle-page {
-          font-family: 'Hind Siliguri', sans-serif;
+          font-family: 'Tiro Bangla', serif;
         }
         .pickle-page * {
-          font-family: 'Hind Siliguri', sans-serif;
+          font-family: 'Tiro Bangla', serif;
         }
         .pickle-heading {
-          font-family: 'Hind Siliguri', sans-serif;
+          font-family: 'Tiro Bangla', serif;
+          font-weight: 600;
         }
         .pickle-num {
           font-family: 'Arial', 'Helvetica Neue', sans-serif;
