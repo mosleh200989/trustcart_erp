@@ -50,6 +50,7 @@ interface LandingPageProduct {
   image_url?: string;
   price: number;
   compare_price?: number;
+  qty?: number;
   product_id?: number;
   is_default: boolean;
   is_featured?: boolean;
@@ -266,6 +267,16 @@ export default function PickleTemplate({
     trackIncompleteOrder(stage);
   }, [orderForm.name, orderForm.phone, orderForm.address, orderForm.note, deliveryZone, trackIncompleteOrder]);
 
+  // Auto-detect Dhaka in address and set delivery zone
+  useEffect(() => {
+    const addr = orderForm.address.toLowerCase();
+    if (addr.includes('dhaka') || addr.includes('ঢাকা')) {
+      setDeliveryZone('inside');
+    } else if (addr.length > 10 && !addr.includes('dhaka') && !addr.includes('ঢাকা')) {
+      setDeliveryZone('outside');
+    }
+  }, [orderForm.address]);
+
   useEffect(() => {
     if (!page || submitted || !hasTrackedRef.current) return;
     trackIncompleteOrder('product_changed');
@@ -348,14 +359,18 @@ export default function PickleTemplate({
         shipping_address: orderForm.address,
         notes: orderForm.note || '',
         payment_method: 'cash',
-        items: orderItems.map((item) => ({
-          product_id: item.product.product_id || null,
-          product_name: item.product.name,
-          product_image: item.product.image_url || null,
-          quantity: item.quantity,
-          unit_price: item.product.price,
-          total_price: item.product.price * item.quantity,
-        })),
+        items: orderItems.map((item) => {
+          const productQty = item.product.qty || 1;
+          const effectiveQty = item.quantity * productQty;
+          return {
+            product_id: item.product.product_id || null,
+            product_name: item.product.name,
+            product_image: item.product.image_url || null,
+            quantity: effectiveQty,
+            unit_price: item.product.price,
+            total_price: item.product.price * item.quantity,
+          };
+        }),
         subtotal,
         delivery_charge: deliveryCharge,
         total_amount: total,

@@ -365,6 +365,7 @@ interface LandingPageProduct {
   image_url?: string;
   price: number;
   compare_price?: number;
+  qty?: number;
   sku?: string;
   product_id?: number;
   variant_name?: string;
@@ -597,6 +598,7 @@ export default function LandingPageEditor() {
           image_url: '',
           price: 0,
           compare_price: 0,
+          qty: 1,
           is_default: prev.products.length === 0,
         },
       ],
@@ -1147,6 +1149,18 @@ export default function LandingPageEditor() {
                   onChange={(e) => updateProduct(product.id, { compare_price: parseFloat(e.target.value) || 0 })}
                   className="w-full border rounded px-3 py-2 text-sm"
                 />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Qty (per order)</label>
+                <input
+                  type="number"
+                  min="1"
+                  value={product.qty || 1}
+                  onChange={(e) => updateProduct(product.id, { qty: parseInt(e.target.value) || 1 })}
+                  className="w-full border rounded px-3 py-2 text-sm"
+                  placeholder="1"
+                />
+                <p className="text-xs text-gray-400 mt-0.5">How many units per selection (e.g. 2 for double pack)</p>
               </div>
               <ImageUploadField
                 label="Image URL"
