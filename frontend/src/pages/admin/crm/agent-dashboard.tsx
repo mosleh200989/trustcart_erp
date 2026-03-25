@@ -64,6 +64,7 @@ interface AssignedCustomer {
   customerType?: string;
   createdAt?: string;
   last_contact_date?: string;
+  lastProductSuggestion?: string;
 }
 
 interface PaginatedCustomers {
@@ -203,6 +204,7 @@ export default function AgentDashboard() {
   const [callActionFollowUpDate, setCallActionFollowUpDate] = useState('');
   const [callActionFollowUpTime, setCallActionFollowUpTime] = useState('');
   const [callActionNotes, setCallActionNotes] = useState('');
+  const [callActionProductSuggestion, setCallActionProductSuggestion] = useState('');
   const [callActionOutcome, setCallActionOutcome] = useState<'connected' | 'no_answer' | 'busy' | 'callback_requested' | 'not_interested' | 'order_placed' | ''>('');
   const [savingCallAction, setSavingCallAction] = useState(false);
   const [markingLeadAsCalled, setMarkingLeadAsCalled] = useState<number | null>(null);
@@ -570,6 +572,7 @@ export default function AgentDashboard() {
     setCallActionFollowUpDate('');
     setCallActionFollowUpTime('');
     setCallActionNotes('');
+    setCallActionProductSuggestion('');
     setCallActionOutcome('');
     setShowCallActionModal(true);
   };
@@ -610,6 +613,7 @@ export default function AgentDashboard() {
         metadata: { 
           outcome: callActionOutcome, 
           notes: callActionNotes,
+          product_suggestion: callActionProductSuggestion || undefined,
           follow_up_scheduled: !!callActionFollowUpDate
         }
       });
@@ -1098,7 +1102,7 @@ export default function AgentDashboard() {
                   type="text"
                   value={leadsSearchTerm}
                   onChange={(e) => setLeadsSearchTerm(e.target.value)}
-                  placeholder="Name, phone..."
+                  placeholder="Name, phone, product suggestion..."
                   className="w-full border rounded-lg px-3 py-2 text-sm"
                 />
               </div>
@@ -1341,6 +1345,13 @@ export default function AgentDashboard() {
                               >
                                 <FaEnvelope size={12} />
                               </a>
+
+                              {/* Product Suggestion Box */}
+                              {c.lastProductSuggestion && (
+                                <div className="w-full mt-1 px-2 py-1 bg-amber-50 border border-amber-200 rounded text-xs text-amber-800 truncate" title={c.lastProductSuggestion}>
+                                  <strong>Suggestion:</strong> {c.lastProductSuggestion}
+                                </div>
+                              )}
 
                               {/* Log Call Button - Opens unified modal */}
                               <button
@@ -2199,6 +2210,26 @@ export default function AgentDashboard() {
                     className="w-full px-3 py-2 border rounded-lg"
                     placeholder="Describe the conversation, customer feedback, interests, concerns..."
                     required
+                  />
+                </div>
+
+                {/* Product Suggestion */}
+                <div>
+                  {selectedLeadForAction?.lastProductSuggestion && (
+                    <div className="mb-2 p-2 bg-amber-50 border border-amber-200 rounded-lg">
+                      <span className="text-xs font-medium text-amber-700">Previous Product Suggestion:</span>
+                      <p className="text-sm text-amber-900 mt-0.5">{selectedLeadForAction.lastProductSuggestion}</p>
+                    </div>
+                  )}
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Product Suggestion <span className="text-gray-400 text-xs font-normal">(Optional)</span>
+                  </label>
+                  <textarea
+                    value={callActionProductSuggestion}
+                    onChange={(e) => setCallActionProductSuggestion(e.target.value)}
+                    rows={3}
+                    className="w-full px-3 py-2 border rounded-lg"
+                    placeholder="Suggest products for this customer..."
                   />
                 </div>
 
