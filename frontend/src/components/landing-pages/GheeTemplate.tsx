@@ -405,13 +405,14 @@ export default function GheeTemplate({
         items: orderItems.map((item) => {
           const productQty = item.product.qty || 1;
           const effectiveQty = item.quantity * productQty;
+          const perUnitPrice = item.product.price / productQty;
           return {
             product_id: item.product.product_id || null,
             product_name: item.product.name,
             product_image: item.product.image_url || null,
             quantity: effectiveQty,
-            unit_price: item.product.price,
-            total_price: item.product.price * item.quantity,
+            unit_price: perUnitPrice,
+            total_price: perUnitPrice * effectiveQty,
           };
         }),
         subtotal,
