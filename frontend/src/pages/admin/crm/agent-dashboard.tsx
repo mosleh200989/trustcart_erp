@@ -65,6 +65,7 @@ interface AssignedCustomer {
   createdAt?: string;
   last_contact_date?: string;
   lastProductSuggestion?: string;
+  lastNotes?: string;
 }
 
 interface PaginatedCustomers {
@@ -1346,13 +1347,6 @@ export default function AgentDashboard() {
                                 <FaEnvelope size={12} />
                               </a>
 
-                              {/* Product Suggestion Box */}
-                              {c.lastProductSuggestion && (
-                                <div className="w-full mt-1 px-2 py-1 bg-amber-50 border border-amber-200 rounded text-xs text-amber-800 truncate" title={c.lastProductSuggestion}>
-                                  <strong>Suggestion:</strong> {c.lastProductSuggestion}
-                                </div>
-                              )}
-
                               {/* Log Call Button - Opens unified modal */}
                               <button
                                 type="button"
@@ -2200,6 +2194,12 @@ export default function AgentDashboard() {
 
                 {/* Call Notes - Required */}
                 <div>
+                  {selectedLeadForAction?.lastNotes && (
+                    <div className="mb-2 p-2 bg-blue-50 border border-blue-200 rounded-lg">
+                      <span className="text-xs font-medium text-blue-700">Previous Call Note:</span>
+                      <p className="text-sm text-blue-900 mt-0.5">{selectedLeadForAction.lastNotes}</p>
+                    </div>
+                  )}
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Call Notes <span className="text-red-500">*</span>
                   </label>

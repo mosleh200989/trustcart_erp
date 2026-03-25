@@ -1004,11 +1004,11 @@ export default function PickleTemplate({
                     >
                       অর্ডার করুন
                     </h2>
-                    {page.delivery_note && (
+                    {/* {page.delivery_note && (
                       <p className="mt-1 text-sm opacity-80 relative z-10" style={{ color: page.secondary_color }}>
                         {page.delivery_note}
                       </p>
-                    )}
+                    )} */}
                   </div>
 
                   <div className="p-6 sm:p-8">

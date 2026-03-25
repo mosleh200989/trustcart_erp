@@ -2,6 +2,8 @@ import { NestFactory } from '@nestjs/core';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
+import { AuditInterceptor } from './modules/audit-log/audit.interceptor';
+import { AuditLogService } from './modules/audit-log/audit-log.service';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -9,6 +11,10 @@ async function bootstrap() {
 
   // Set global API prefix
   app.setGlobalPrefix('api');
+
+  // Register global audit interceptor
+  const auditLogService = app.get(AuditLogService);
+  app.useGlobalInterceptors(new AuditInterceptor(auditLogService));
 
   // CORS is handled by nginx reverse proxy - do not enable here to avoid duplicate headers
   // If running without nginx (local dev), uncomment the enableCors block below
