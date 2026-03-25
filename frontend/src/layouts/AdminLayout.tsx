@@ -359,6 +359,12 @@ const menuItems: MenuItem[] = [
   },
   { title: 'Profile', icon: FaUser, path: '/admin/profile' },
   {
+    title: 'Activity History',
+    icon: FaHistory,
+    path: '/admin/activity-history',
+    requiredPermissions: ['manage-system-settings'],
+  },
+  {
     title: 'Settings',
     icon: FaCog,
     requiredPermissions: ['manage-system-settings', 'view-system-settings'],
