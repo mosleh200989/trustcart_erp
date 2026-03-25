@@ -505,6 +505,30 @@ export default function PickleTemplate({
           outline: none;
         }
 
+        /* ── Discount Badge Bounce Animation ── */
+        @keyframes discountBounce {
+          0%, 100% {
+            transform: translateY(0) scale(1);
+            box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.3);
+          }
+          25% {
+            transform: translateY(-4px) scale(1.05);
+            box-shadow: 0 2px 8px rgba(22, 163, 74, 0.35);
+          }
+          50% {
+            transform: translateY(0) scale(1);
+          }
+          75% {
+            transform: translateY(-2px) scale(1.03);
+            box-shadow: 0 1px 6px rgba(22, 163, 74, 0.25);
+          }
+        }
+        .pickle-discount-badge {
+          animation: discountBounce 1.8s ease-in-out infinite !important;
+          display: inline-block !important;
+          will-change: transform;
+        }
+
         /* ── Featured Glow Animation ── */
         @keyframes pulseGlow {
           0%, 100% {
@@ -588,7 +612,7 @@ export default function PickleTemplate({
                 {page.products?.[0] && (
                   <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 mb-8">
                     {page.products[0].compare_price && page.products[0].compare_price > page.products[0].price && (
-                      <span className="pickle-num text-xl sm:text-2xl text-gray-400 relative inline-block">
+                      <span className="pickle-num text-2xl sm:text-2xl text-gray-800 relative inline-block">
                         ৳{page.products[0].compare_price.toLocaleString()}
                         <span className="absolute left-[-4px] right-[-4px] top-1/2 h-[3px] bg-red-600 rounded-sm pointer-events-none" style={{ transform: 'translateY(-50%) rotate(-12deg)' }} />
                       </span>
@@ -606,7 +630,7 @@ export default function PickleTemplate({
                       </span>
                     </div>
                     {page.products[0].compare_price && page.products[0].compare_price > page.products[0].price && (
-                      <span className="text-xs sm:text-sm font-bold text-white px-3 py-1.5 rounded-full bg-gradient-to-r from-red-500 to-orange-600 shadow-md">
+                      <span className="text-lg sm:text-sm font-bold text-white px-3 py-1.5 rounded-full bg-gradient-to-r from-green-500 to-green-600 shadow-md">
                         {Math.round(
                           ((page.products[0].compare_price - page.products[0].price) /
                             page.products[0].compare_price) *
@@ -1033,81 +1057,78 @@ export default function PickleTemplate({
                                   {featuredLabel}
                                 </div>
                               )}
-                              <div className={`flex items-center gap-4 sm:gap-5 ${isFeatured && !isSelected ? 'mt-3 mb-1' : ''}`}>
-                                <div
-                                  className={`flex-shrink-0 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all duration-300 ${
-                                    isSelected ? 'border-transparent scale-110 shadow-sm' : 'border-gray-300 bg-white'
-                                  }`}
-                                  style={isSelected ? { backgroundColor: page.primary_color } : {}}
-                                >
-                                  {isSelected && <FaCheckCircle className="text-white text-xs" />}
-                                </div>
-                                {product.image_url && (
-                                  <img
-                                    src={product.image_url}
-                                    alt={product.name}
-                                    className={`object-cover rounded-[0.85rem] flex-shrink-0 transition-all duration-400 ${
-                                      isSelected
-                                        ? 'w-16 h-16 sm:w-20 sm:h-20 shadow-md ring-2 ring-white'
-                                        : 'w-14 h-14 sm:w-16 sm:h-16 border border-gray-100'
-                                    }`}
-                                  />
-                                )}
-                                <div className="flex-1 min-w-0">
-                                  <div className="font-semibold text-sm sm:text-base text-[#3D1308] leading-tight">
-                                    {product.name}
-                                  </div>
-                                  {product.description && (
-                                    <div className="text-xs text-[#8B5E3C] mt-0.5 leading-tight">
-                                      {product.description}
-                                    </div>
+                              <div className={`${isFeatured && !isSelected ? 'mt-3 mb-1' : ''}`}>
+                                <div className="flex items-start gap-3 sm:gap-4">
+                                  {product.image_url && (
+                                    <img
+                                      src={product.image_url}
+                                      alt={product.name}
+                                      className={`object-cover rounded-xl flex-shrink-0 transition-all duration-400 ${
+                                        isSelected
+                                          ? 'w-[72px] h-[72px] sm:w-[88px] sm:h-[88px] shadow-md ring-2 ring-white'
+                                          : 'w-16 h-16 sm:w-[76px] sm:h-[76px] border border-gray-100'
+                                      }`}
+                                    />
                                   )}
-                                  <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mt-1.5">
-                                    {product.compare_price && product.compare_price > product.price && (
-                                      <span className="text-xs text-gray-400 font-medium relative inline-block">
-                                        {product.compare_price.toLocaleString()} ৳
-                                        <span className="absolute left-[-3px] right-[-3px] top-1/2 h-[2.5px] bg-red-600 rounded-sm pointer-events-none" style={{ transform: 'translateY(-50%) rotate(-12deg)' }} />
-                                      </span>
+                                  <div className="flex-1 min-w-0">
+                                    <div className="font-bold text-[15px] sm:text-base text-[#3D1308] leading-snug">
+                                      {product.name}
+                                    </div>
+                                    {product.description && (
+                                      <div className="text-xs sm:text-[13px] text-[#8B5E3C]/80 mt-1 leading-snug">
+                                        {product.description}
+                                      </div>
                                     )}
-                                    <span
-                                      className="pickle-num text-base sm:text-lg font-bold"
-                                      style={{ color: page.primary_color }}
-                                    >
-                                      {product.price.toLocaleString()} ৳
-                                    </span>
-                                    {product.compare_price && product.compare_price > product.price && (
-                                      <span className="text-[10px] font-bold text-green-600 bg-green-50 px-1.5 py-0.5 rounded-full">
-                                        {Math.round(
-                                          ((product.compare_price - product.price) / product.compare_price) * 100,
-                                        )}
-                                        % OFF
-                                      </span>
-                                    )}
-                                  </div>
-                                  {isSelected && (
-                                    <div
-                                      className="flex items-center gap-3 mt-2.5"
-                                      onClick={(e) => e.stopPropagation()}
-                                    >
-                                      <button
-                                        onClick={() => updateQuantity(product.id, -1)}
-                                        className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition-colors active:scale-95"
-                                      >
-                                        <FaMinus className="text-xs text-gray-600" />
-                                      </button>
-                                      <span className="w-6 text-center font-bold text-base pickle-num">
-                                        {orderItem!.quantity}
-                                      </span>
-                                      <button
-                                        onClick={() => updateQuantity(product.id, 1)}
-                                        className="w-8 h-8 rounded-lg flex items-center justify-center text-white hover:opacity-90 transition-all active:scale-95"
+                                    <div className="flex flex-wrap items-center gap-2 sm:gap-2.5 mt-2">
+                                      {product.compare_price && product.compare_price > product.price && (
+                                        <span className="text-[17px] sm:text-sm text-gray-800 font-semibold relative inline-block">
+                                          {product.compare_price.toLocaleString()} ৳
+                                          <span className="absolute left-[-3px] right-[-3px] top-1/2 h-[2.5px] bg-red-600 rounded-sm pointer-events-none" style={{ transform: 'translateY(-50%) rotate(-12deg)' }} />
+                                        </span>
+                                      )}
+                                      <span
+                                        className="pickle-num text-lg sm:text-xl font-extrabold px-2.5 py-0.5 rounded-full text-white"
                                         style={{ backgroundColor: page.primary_color }}
                                       >
-                                        <FaPlus className="text-xs" />
-                                      </button>
+                                        ৳{product.price.toLocaleString()}
+                                      </span>
+                                      {product.compare_price && product.compare_price > product.price && (
+                                        <span
+                                          className="text-[17px] sm:text-xs font-bold text-green-600 bg-green-50 px-2 py-0.5 rounded-full"
+                                          style={{ animation: 'discountBounce 1.8s ease-in-out infinite', display: 'inline-block', willChange: 'transform' }}
+                                        >
+                                          {Math.round(
+                                            ((product.compare_price - product.price) / product.compare_price) * 100,
+                                          )}
+                                          % OFF
+                                        </span>
+                                      )}
                                     </div>
-                                  )}
+                                  </div>
                                 </div>
+                                {isSelected && (
+                                  <div
+                                    className="flex items-center justify-center gap-4 mt-3 pt-3 border-t border-gray-100"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <button
+                                      onClick={() => updateQuantity(product.id, -1)}
+                                      className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition-colors active:scale-95"
+                                    >
+                                      <FaMinus className="text-xs text-gray-600" />
+                                    </button>
+                                    <span className="w-8 text-center font-bold text-lg pickle-num">
+                                      {orderItem!.quantity}
+                                    </span>
+                                    <button
+                                      onClick={() => updateQuantity(product.id, 1)}
+                                      className="w-9 h-9 rounded-full flex items-center justify-center text-white hover:opacity-90 transition-all active:scale-95"
+                                      style={{ backgroundColor: page.primary_color }}
+                                    >
+                                      <FaPlus className="text-xs" />
+                                    </button>
+                                  </div>
+                                )}
                               </div>
                             </div>
                           );
