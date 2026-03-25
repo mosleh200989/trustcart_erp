@@ -198,6 +198,7 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
         createdAt: e.created_at || e.createdAt,
         notes: e.message_content || e.messageContent || e.metadata?.notes || '',
         outcome: e.metadata?.outcome || e.call_outcome || e.outcome || '',
+        productSuggestion: e.metadata?.product_suggestion || '',
         agentName: e.agent_name || e.agentName || '',
         duration: e.metadata?.duration || e.duration || '',
         callType: e.metadata?.type || e.callType || '',
@@ -2495,6 +2496,13 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                         
                         {call.notes && (
                           <p className="text-gray-700 mt-2">{call.notes}</p>
+                        )}
+
+                        {call.productSuggestion && (
+                          <div className="mt-2 p-2 bg-amber-50 border border-amber-200 rounded">
+                            <span className="text-xs font-medium text-amber-700">Product Suggestion:</span>
+                            <p className="text-sm text-amber-900 mt-0.5">{call.productSuggestion}</p>
+                          </div>
                         )}
                         
                         <div className="flex items-center gap-4 text-sm text-gray-600 mt-2">

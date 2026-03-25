@@ -871,11 +871,16 @@ export class CrmTeamService {
     // Exclude rejected customers
     qb.andWhere(`NOT EXISTS (SELECT 1 FROM customer_tiers ct WHERE ct.customer_id = c.id AND ct.tier = 'rejected')`);
 
-    // Search filter (name, email, phone)
+    // Search filter (name, email, phone, product_suggestion)
     if (search && search.trim()) {
       const normalizedPhone = `%${search.trim().replace(/^\+88/, '')}%`;
       qb.andWhere(
-        `(LOWER(c.name) LIKE LOWER(:search) OR LOWER(c.last_name) LIKE LOWER(:search) OR LOWER(c.email) LIKE LOWER(:search) OR c.phone LIKE :search OR REPLACE(c.phone, '+88', '') LIKE :normalizedPhone)`,
+        `(LOWER(c.name) LIKE LOWER(:search) OR LOWER(c.last_name) LIKE LOWER(:search) OR LOWER(c.email) LIKE LOWER(:search) OR c.phone LIKE :search OR REPLACE(c.phone, '+88', '') LIKE :normalizedPhone OR EXISTS (
+          SELECT 1 FROM customer_engagement_history seh
+          WHERE seh.customer_id = CAST(c.id AS TEXT)
+          AND seh.engagement_type = 'call'
+          AND LOWER(seh.metadata->>'product_suggestion') LIKE LOWER(:search)
+        ))`,
         { search: `%${search.trim()}%`, normalizedPhone }
       );
     }
@@ -982,12 +987,13 @@ export class CrmTeamService {
         }
       }
 
-      // Attach lastOutcome and lastNotes to each customer
+      // Attach lastOutcome, lastNotes, and lastProductSuggestion to each customer
       for (const customer of data) {
         const eng = engagementMap.get(String(customer.id));
         if (eng) {
           (customer as any).lastOutcome = eng.metadata?.outcome || null;
           (customer as any).lastNotes = eng.message_content || null;
+          (customer as any).lastProductSuggestion = eng.metadata?.product_suggestion || null;
         }
       }
     }
