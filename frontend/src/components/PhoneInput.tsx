@@ -66,10 +66,10 @@ export default function PhoneInput({
   const hasError = touched && showError && localValue.length > 0 && !isValid;
 
   return (
-    <div className="w-full">
-      <div className="flex">
+    <div className="w-full max-w-full overflow-hidden">
+      <div className="flex w-full max-w-full">
         {/* Fixed +88 prefix */}
-        <div className="flex items-center justify-center px-3 bg-gray-100 border border-r-0 border-gray-300 rounded-l-lg text-gray-600 font-medium select-none">
+        <div className="flex-shrink-0 flex items-center justify-center px-3 bg-gray-100 border border-r-0 border-gray-300 rounded-l-lg text-gray-600 font-medium select-none">
           +88
         </div>
         {/* Input field */}
@@ -85,7 +85,7 @@ export default function PhoneInput({
           maxLength={11}
           pattern="[0-9]{11}"
           inputMode="numeric"
-          className={`flex-1 px-4 py-2 border border-gray-300 rounded-r-lg focus:outline-none focus:border-orange-500 ${
+          className={`flex-1 min-w-0 px-4 py-2 border border-gray-300 rounded-r-lg focus:outline-none focus:border-orange-500 ${
             hasError ? 'border-red-500 focus:border-red-500' : ''
           } ${className}`}
           placeholder={placeholder}
