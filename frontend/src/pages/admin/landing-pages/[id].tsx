@@ -801,6 +801,7 @@ export default function LandingPageEditor() {
             rows={2}
             className="w-full border rounded-lg px-3 py-2"
           />
+          <p className="text-xs text-gray-400 mt-1">Supports HTML: use <code className="bg-gray-100 px-1 rounded">&lt;small&gt;text&lt;/small&gt;</code> for smaller text, <code className="bg-gray-100 px-1 rounded">&lt;b&gt;text&lt;/b&gt;</code> for bold</p>
         </div>
       </div>
 

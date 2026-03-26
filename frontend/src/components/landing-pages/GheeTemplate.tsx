@@ -656,9 +656,9 @@ export default function GheeTemplate({
                 </h1>
 
                 {page.hero_subtitle && (
-                  <p className="text-base sm:text-lg md:text-xl mb-8 leading-relaxed text-[#5D4E37] whitespace-pre-line max-w-lg mx-auto md:mx-0">
-                    {page.hero_subtitle}
-                  </p>
+                  <p className="text-base sm:text-lg md:text-xl mb-8 leading-relaxed text-[#5D4E37] whitespace-pre-line max-w-lg mx-auto md:mx-0"
+                    dangerouslySetInnerHTML={{ __html: page.hero_subtitle }}
+                  />
                 )}
 
                 {/* Price badge */}

@@ -533,9 +533,8 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
                   <p
                     className="text-base sm:text-lg md:text-xl mb-8 leading-relaxed opacity-85 whitespace-pre-line"
                     style={{ color: page.secondary_color }}
-                  >
-                    {renderBengaliText(page.hero_subtitle)}
-                  </p>
+                    dangerouslySetInnerHTML={{ __html: page.hero_subtitle }}
+                  />
                 )}
 
                 {/* Price preview */}

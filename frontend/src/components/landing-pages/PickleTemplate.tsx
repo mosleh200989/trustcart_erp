@@ -620,9 +620,9 @@ export default function PickleTemplate({
                 </h1>
 
                 {page.hero_subtitle && (
-                  <p className="text-base sm:text-lg md:text-xl mb-8 leading-relaxed text-[#6B3A2A] whitespace-pre-line max-w-lg mx-auto md:mx-0">
-                    {page.hero_subtitle}
-                  </p>
+                  <p className="text-base sm:text-lg md:text-xl mb-8 leading-relaxed text-[#6B3A2A] whitespace-pre-line max-w-lg mx-auto md:mx-0"
+                    dangerouslySetInnerHTML={{ __html: page.hero_subtitle }}
+                  />
                 )}
 
                 {/* Price badge */}

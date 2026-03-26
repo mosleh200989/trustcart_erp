@@ -407,9 +407,8 @@ export default function LandingPagePublic() {
                   <p
                     className="text-lg mb-6 opacity-90"
                     style={{ color: page.secondary_color }}
-                  >
-                    {page.hero_subtitle}
-                  </p>
+                    dangerouslySetInnerHTML={{ __html: page.hero_subtitle }}
+                  />
                 )}
 
                 {page.free_delivery && (
