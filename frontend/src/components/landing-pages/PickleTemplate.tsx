@@ -1012,7 +1012,7 @@ export default function PickleTemplate({
                     )} */}
                   </div>
 
-                  <div className="p-6 sm:p-8">
+                  <div className="p-4 sm:p-6 md:p-8">
                     {/* ── Step 1: Products ── */}
                     <div className="mb-8">
                       <h3 className="font-bold text-[#3D1308] mb-4 text-base flex items-center gap-2.5">
@@ -1252,14 +1252,14 @@ export default function PickleTemplate({
                         </span>
                         অর্ডার সামারি
                       </h3>
-                      <div className="rounded-2xl border border-red-100/60 bg-gradient-to-b from-red-50/40 to-white p-5">
-                        <div className="space-y-2 border-b border-red-100 pb-3 mb-3">
+                      <div className="rounded-2xl border border-red-100/60 bg-gradient-to-b from-red-50/40 to-white p-3 sm:p-5">
+                        <div className="space-y-1.5 sm:space-y-2 border-b border-red-100 pb-3 mb-3">
                           {orderItems.map((item) => (
-                            <div key={item.product.id} className="flex justify-between text-sm">
-                              <span className="text-[#6B3A2A]">
+                            <div key={item.product.id} className="flex justify-between items-start gap-3 text-xs sm:text-sm">
+                              <span className="text-[#6B3A2A] flex-1 min-w-0">
                                 {item.product.name} × {item.quantity}
                               </span>
-                              <span className="font-semibold text-[#3D1308] pickle-num">
+                              <span className="font-semibold text-[#3D1308] pickle-num whitespace-nowrap">
                                 {(item.product.price * item.quantity).toLocaleString()} ৳
                               </span>
                             </div>
@@ -1278,7 +1278,7 @@ export default function PickleTemplate({
                                     key={zone}
                                     type="button"
                                     onClick={() => setDeliveryZone(zone)}
-                                    className={`py-3 px-3 rounded-xl text-sm font-medium border transition-all duration-300 ${
+                                    className={`py-2 sm:py-3 px-3 rounded-xl text-xs sm:text-sm font-medium border transition-all duration-300 ${
                                       deliveryZone === zone
                                         ? 'text-white shadow-sm border-transparent'
                                         : 'border-red-200/60 bg-white text-[#6B3A2A] hover:border-red-300'
@@ -1305,7 +1305,7 @@ export default function PickleTemplate({
                             </div>
                           )}
 
-                        <div className="space-y-2 text-sm">
+                        <div className="space-y-1.5 sm:space-y-2 text-xs sm:text-sm">
                           <div className="flex justify-between">
                             <span className="text-[#8B5E3C]">সাবটোটাল</span>
                             <span className="font-medium text-[#6B3A2A] pickle-num">
@@ -1328,8 +1328,8 @@ export default function PickleTemplate({
                           className="flex justify-between items-center mt-4 pt-4 border-t-2 border-dashed"
                           style={{ borderColor: `${page.primary_color}25` }}
                         >
-                          <span className="text-base font-bold text-[#3D1308]">সর্বমোট</span>
-                          <span className="pickle-num text-2xl font-bold" style={{ color: page.primary_color }}>
+                          <span className="text-sm sm:text-base font-bold text-[#3D1308]">সর্বমোট</span>
+                          <span className="pickle-num text-xl sm:text-2xl font-bold" style={{ color: page.primary_color }}>
                             {getTotal().toLocaleString()} ৳
                           </span>
                         </div>
@@ -1373,7 +1373,7 @@ export default function PickleTemplate({
                               `${((e.clientY - rect.top) / rect.height) * 100}%`,
                             );
                           }}
-                          className="pickle-btn-ripple w-full mt-5 py-4 rounded-2xl text-sm sm:text-base font-bold text-white shadow-lg hover:shadow-xl transform hover:scale-[1.02] transition-all duration-300 disabled:opacity-50 disabled:transform-none disabled:hover:shadow-lg flex items-center justify-center gap-2"
+                          className="pickle-btn-ripple w-full mt-4 sm:mt-5 py-3 sm:py-4 rounded-2xl text-sm sm:text-base font-bold text-white shadow-lg hover:shadow-xl transform hover:scale-[1.02] transition-all duration-300 disabled:opacity-50 disabled:transform-none disabled:hover:shadow-lg flex items-center justify-center gap-2"
                           style={{
                             background: `linear-gradient(135deg, ${page.primary_color} 0%, ${primaryDark} 100%)`,
                           }}
