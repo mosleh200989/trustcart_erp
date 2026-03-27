@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 import { StockLevel } from './entities/stock-level.entity';
@@ -17,9 +17,11 @@ import { CreateStockAdjustmentDto } from './dto/create-stock-adjustment.dto';
 import { CreateStockTransferDto } from './dto/create-stock-transfer.dto';
 import { CreateInventoryCountDto, RecordCountItemDto } from './dto/create-inventory-count.dto';
 import { StockMovementService } from './stock-movement.service';
+import { StockReservation } from './entities/stock-reservation.entity';
 
 @Injectable()
 export class InventoryService {
+  private readonly logger = new Logger('InventoryService');
   constructor(
     @InjectRepository(StockLevel)
     private stockLevelRepo: Repository<StockLevel>,
@@ -41,6 +43,8 @@ export class InventoryService {
     private countRepo: Repository<InventoryCount>,
     @InjectRepository(InventoryCountItem)
     private countItemRepo: Repository<InventoryCountItem>,
+    @InjectRepository(StockReservation)
+    private reservationRepo: Repository<StockReservation>,
     private dataSource: DataSource,
     private stockMovementService: StockMovementService,
   ) {}
@@ -739,5 +743,1109 @@ export class InventoryService {
       seq = parseInt(parts[parts.length - 1], 10) + 1;
     }
     return `${prefix}${seq.toString().padStart(3, '0')}`;
+  }
+
+  // ── Phase 4: Sales Integration & Real-Time Stock ────────────────
+
+  /**
+   * 4.5 Public availability check for a product (storefront).
+   * Returns total available across warehouses, per-variant breakdown, and earliest expiry.
+   */
+  async checkAvailability(productId: number): Promise<any> {
+    // Aggregate stock across warehouses
+    const levels = await this.stockLevelRepo.find({ where: { product_id: productId } });
+    const warehouseMap: Record<number, { warehouse_id: number; available: number }> = {};
+    const variantMap: Record<string, number> = {};
+    let totalAvailable = 0;
+
+    for (const sl of levels) {
+      const avail = Math.max(0, (sl.quantity || 0) - (sl.reserved_quantity || 0));
+      totalAvailable += avail;
+
+      // Per-warehouse
+      if (!warehouseMap[sl.warehouse_id]) {
+        warehouseMap[sl.warehouse_id] = { warehouse_id: sl.warehouse_id, available: 0 };
+      }
+      warehouseMap[sl.warehouse_id].available += avail;
+
+      // Per-variant
+      const vk = sl.variant_key || '__base__';
+      variantMap[vk] = (variantMap[vk] || 0) + avail;
+    }
+
+    // Earliest expiring available batch
+    const earliestBatch = await this.batchRepo
+      .createQueryBuilder('b')
+      .where('b.product_id = :pid', { pid: productId })
+      .andWhere('b.status = :s', { s: 'available' })
+      .andWhere('b.remaining_quantity > 0')
+      .andWhere('b.expiry_date IS NOT NULL')
+      .orderBy('b.expiry_date', 'ASC')
+      .getOne();
+
+    const variants = Object.entries(variantMap)
+      .filter(([k]) => k !== '__base__')
+      .map(([variant_key, available]) => ({
+        variant_key,
+        available,
+        is_in_stock: available > 0,
+      }));
+
+    return {
+      product_id: productId,
+      total_available: totalAvailable,
+      is_in_stock: totalAvailable > 0,
+      variants: variants.length > 0 ? variants : undefined,
+      warehouses: Object.values(warehouseMap),
+      earliest_expiry: earliestBatch?.expiry_date || null,
+    };
+  }
+
+  /**
+   * 4.5 Bulk availability check for multiple products (storefront cart validation).
+   */
+  async checkBulkAvailability(productIds: number[]): Promise<any[]> {
+    if (!productIds.length) return [];
+    const levels = await this.stockLevelRepo
+      .createQueryBuilder('sl')
+      .where('sl.product_id IN (:...ids)', { ids: productIds })
+      .getMany();
+
+    const map: Record<number, number> = {};
+    for (const sl of levels) {
+      const avail = Math.max(0, (sl.quantity || 0) - (sl.reserved_quantity || 0));
+      map[sl.product_id] = (map[sl.product_id] || 0) + avail;
+    }
+
+    return productIds.map(pid => ({
+      product_id: pid,
+      available: map[pid] || 0,
+      is_in_stock: (map[pid] || 0) > 0,
+    }));
+  }
+
+  /**
+   * 4.1 + 4.7 Reserve stock for a sales order (with overselling prevention).
+   * Uses advisory lock per product for concurrency safety.
+   */
+  async reserveStock(params: {
+    salesOrderId: number;
+    items: Array<{ product_id: number; variant_key?: string; quantity: number }>;
+  }): Promise<StockReservation[]> {
+    return this.dataSource.transaction(async (manager) => {
+      const reservations: StockReservation[] = [];
+
+      for (const item of params.items) {
+        // Advisory lock on product to prevent race conditions
+        await manager.query('SELECT pg_advisory_xact_lock($1)', [item.product_id]);
+
+        // Sum available stock (quantity - reserved_quantity) across all warehouses
+        const result = await manager
+          .createQueryBuilder(StockLevel, 'sl')
+          .select('SUM(sl.quantity - sl.reserved_quantity)', 'available')
+          .where('sl.product_id = :pid', { pid: item.product_id })
+          .andWhere(item.variant_key ? 'sl.variant_key = :vk' : 'sl.variant_key IS NULL', { vk: item.variant_key })
+          .getRawOne();
+
+        const available = parseInt(result?.available || '0', 10);
+        if (available < item.quantity) {
+          throw new BadRequestException(
+            `Insufficient stock for product #${item.product_id}. Available: ${available}, requested: ${item.quantity}`,
+          );
+        }
+
+        // Find the warehouse(s) with stock, largest stock first
+        const levels = await manager.find(StockLevel, {
+          where: {
+            product_id: item.product_id,
+            ...(item.variant_key ? { variant_key: item.variant_key } : {}),
+          },
+          order: { quantity: 'DESC' },
+        });
+
+        let remaining = item.quantity;
+        for (const level of levels) {
+          if (remaining <= 0) break;
+          const avail = (level.quantity || 0) - (level.reserved_quantity || 0);
+          if (avail <= 0) continue;
+
+          const reserveQty = Math.min(remaining, avail);
+
+          // Increment reserved_quantity on stock level (optimistic check)
+          const updateResult = await manager
+            .createQueryBuilder()
+            .update(StockLevel)
+            .set({ reserved_quantity: () => `reserved_quantity + ${reserveQty}` })
+            .where('id = :id', { id: level.id })
+            .andWhere('(quantity - reserved_quantity) >= :qty', { qty: reserveQty })
+            .execute();
+
+          if (updateResult.affected === 0) {
+            throw new BadRequestException(
+              `Concurrent stock conflict for product #${item.product_id}. Please retry.`,
+            );
+          }
+
+          // Create reservation record
+          const reservation = manager.create(StockReservation, {
+            product_id: item.product_id,
+            variant_key: item.variant_key || undefined,
+            warehouse_id: level.warehouse_id,
+            sales_order_id: params.salesOrderId,
+            quantity: reserveQty,
+            status: 'active',
+            reserved_at: new Date(),
+            expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours for placed orders
+          } as any);
+          reservations.push(await manager.save(StockReservation, reservation));
+          remaining -= reserveQty;
+        }
+      }
+
+      return reservations;
+    });
+  }
+
+  /**
+   * 4.3 Release reservation on order cancellation.
+   * Decrements reserved_quantity on stock levels and marks reservations as released.
+   */
+  async releaseReservation(salesOrderId: number): Promise<void> {
+    await this.dataSource.transaction(async (manager) => {
+      const reservations = await manager.find(StockReservation, {
+        where: { sales_order_id: salesOrderId, status: 'active' },
+      });
+
+      for (const res of reservations) {
+        // Decrement reserved_quantity
+        await manager
+          .createQueryBuilder()
+          .update(StockLevel)
+          .set({ reserved_quantity: () => `GREATEST(reserved_quantity - ${res.quantity}, 0)` })
+          .where('product_id = :pid AND warehouse_id = :wid', {
+            pid: res.product_id,
+            wid: res.warehouse_id,
+          })
+          .execute();
+
+        // Mark reservation as released
+        res.status = 'released';
+        res.released_at = new Date();
+        await manager.save(StockReservation, res);
+      }
+
+      // Sync product.stock_quantity for each affected product
+      const productIds = [...new Set(reservations.map(r => r.product_id))];
+      for (const pid of productIds) {
+        await this.syncProductStockQuantity(manager, pid);
+      }
+    });
+  }
+
+  /**
+   * 4.2 Dispatch stock on order shipment (FEFO logic).
+   * Deducts stock from earliest-expiring batches first, releases reservations,
+   * records sales_dispatch movements, updates product.stock_quantity.
+   */
+  async dispatchStock(params: {
+    salesOrderId: number;
+    items: Array<{ product_id: number; variant_key?: string; quantity: number }>;
+    performedBy: number;
+  }): Promise<void> {
+    await this.dataSource.transaction(async (manager) => {
+      for (const item of params.items) {
+        await manager.query('SELECT pg_advisory_xact_lock($1)', [item.product_id]);
+
+        // Release active reservations for this order + product
+        const reservations = await manager.find(StockReservation, {
+          where: {
+            sales_order_id: params.salesOrderId,
+            product_id: item.product_id,
+            status: 'active',
+          },
+        });
+
+        let totalReserved = 0;
+        for (const res of reservations) {
+          totalReserved += res.quantity;
+          // Decrement reserved_quantity
+          await manager
+            .createQueryBuilder()
+            .update(StockLevel)
+            .set({ reserved_quantity: () => `GREATEST(reserved_quantity - ${res.quantity}, 0)` })
+            .where('product_id = :pid AND warehouse_id = :wid', {
+              pid: res.product_id,
+              wid: res.warehouse_id,
+            })
+            .execute();
+          // Mark as fulfilled
+          res.status = 'fulfilled';
+          res.fulfilled_at = new Date();
+          await manager.save(StockReservation, res);
+        }
+
+        // FEFO: deduct from earliest-expiring batches first
+        let remainingToDeduct = item.quantity;
+        const batches = await manager.find(StockBatch, {
+          where: { product_id: item.product_id, status: 'available' },
+          order: { expiry_date: { direction: 'ASC', nulls: 'LAST' }, received_date: 'ASC' },
+        });
+
+        for (const batch of batches) {
+          if (remainingToDeduct <= 0) break;
+          if (batch.remaining_quantity <= 0) continue;
+
+          const deductQty = Math.min(remainingToDeduct, batch.remaining_quantity);
+          batch.remaining_quantity -= deductQty;
+          if (batch.remaining_quantity <= 0) batch.status = 'consumed';
+          await manager.save(StockBatch, batch);
+          remainingToDeduct -= deductQty;
+
+          // Record stock movement for this batch deduction
+          await this.stockMovementService.recordMovement({
+            movement_type: 'sales_dispatch',
+            product_id: item.product_id,
+            variant_key: item.variant_key,
+            batch_id: batch.id,
+            source_warehouse_id: batch.warehouse_id,
+            quantity: deductQty,
+            unit_cost: batch.cost_price ? Number(batch.cost_price) : undefined,
+            reason: 'Sales order dispatch (FEFO)',
+            related_document_type: 'sales_order',
+            related_document_id: params.salesOrderId,
+            performed_by: params.performedBy,
+          });
+        }
+
+        // If no batches available or not enough to cover, deduct directly from stock levels
+        if (remainingToDeduct > 0) {
+          const levels = await manager.find(StockLevel, {
+            where: { product_id: item.product_id },
+            order: { quantity: 'DESC' },
+          });
+          for (const level of levels) {
+            if (remainingToDeduct <= 0) break;
+            const canDeduct = Math.min(remainingToDeduct, level.quantity);
+            if (canDeduct <= 0) continue;
+
+            // Deduct quantity with optimistic check
+            const upd = await manager
+              .createQueryBuilder()
+              .update(StockLevel)
+              .set({ quantity: () => `quantity - ${canDeduct}` })
+              .where('id = :id AND quantity >= :qty', { id: level.id, qty: canDeduct })
+              .execute();
+            if (upd.affected === 0) continue;
+            remainingToDeduct -= canDeduct;
+
+            // Record movement if not already recorded via batch path
+            if (batches.length === 0) {
+              await this.stockMovementService.recordMovement({
+                movement_type: 'sales_dispatch',
+                product_id: item.product_id,
+                variant_key: item.variant_key,
+                source_warehouse_id: level.warehouse_id,
+                quantity: canDeduct,
+                reason: 'Sales order dispatch',
+                related_document_type: 'sales_order',
+                related_document_id: params.salesOrderId,
+                performed_by: params.performedBy,
+              });
+            }
+          }
+        }
+
+        // Sync product.stock_quantity
+        await this.syncProductStockQuantity(manager, item.product_id);
+      }
+    });
+  }
+
+  /**
+   * 4.4 Return/restock integration.
+   * Adds stock back for returned items (Grade A restock).
+   */
+  async restockReturn(params: {
+    salesOrderId: number;
+    items: Array<{ product_id: number; variant_key?: string; quantity: number; condition: 'restock' | 'damaged' | 'dispose' }>;
+    warehouseId: number;
+    performedBy: number;
+  }): Promise<void> {
+    await this.dataSource.transaction(async (manager) => {
+      for (const item of params.items) {
+        if (item.condition === 'dispose') continue; // Write-off, no stock change
+
+        if (item.condition === 'restock') {
+          // Grade A: add back to stock
+          await this.stockMovementService.recordMovement({
+            movement_type: 'sales_return',
+            product_id: item.product_id,
+            variant_key: item.variant_key,
+            destination_warehouse_id: params.warehouseId,
+            quantity: item.quantity,
+            reason: 'Customer return — restocked',
+            related_document_type: 'sales_order',
+            related_document_id: params.salesOrderId,
+            performed_by: params.performedBy,
+          });
+        } else if (item.condition === 'damaged') {
+          // Grade B: add to stock as damaged adjustment
+          await this.stockMovementService.recordMovement({
+            movement_type: 'adjustment_increase',
+            product_id: item.product_id,
+            variant_key: item.variant_key,
+            destination_warehouse_id: params.warehouseId,
+            quantity: item.quantity,
+            reason: 'Customer return — damaged stock',
+            related_document_type: 'sales_order',
+            related_document_id: params.salesOrderId,
+            performed_by: params.performedBy,
+          });
+          // Mark damaged quantity on stock level
+          await manager
+            .createQueryBuilder()
+            .update(StockLevel)
+            .set({ damaged_quantity: () => `damaged_quantity + ${item.quantity}` })
+            .where('product_id = :pid AND warehouse_id = :wid', {
+              pid: item.product_id,
+              wid: params.warehouseId,
+            })
+            .execute();
+        }
+
+        // Sync product.stock_quantity
+        await this.syncProductStockQuantity(manager, item.product_id);
+      }
+    });
+  }
+
+  /**
+   * Release expired reservations (called periodically).
+   * Returns the number of reservations released.
+   */
+  async releaseExpiredReservations(): Promise<number> {
+    return this.dataSource.transaction(async (manager) => {
+      const expired = await manager.find(StockReservation, {
+        where: {
+          status: 'active',
+        },
+      });
+
+      // Filter to only truly expired ones (expires_at < now)
+      const now = new Date();
+      const toRelease = expired.filter(r => r.expires_at && r.expires_at < now);
+      if (toRelease.length === 0) return 0;
+
+      for (const res of toRelease) {
+        await manager
+          .createQueryBuilder()
+          .update(StockLevel)
+          .set({ reserved_quantity: () => `GREATEST(reserved_quantity - ${res.quantity}, 0)` })
+          .where('product_id = :pid AND warehouse_id = :wid', {
+            pid: res.product_id,
+            wid: res.warehouse_id,
+          })
+          .execute();
+
+        res.status = 'expired';
+        res.released_at = now;
+        await manager.save(StockReservation, res);
+      }
+
+      // Sync product quantities
+      const productIds = [...new Set(toRelease.map(r => r.product_id))];
+      for (const pid of productIds) {
+        await this.syncProductStockQuantity(manager, pid);
+      }
+
+      return toRelease.length;
+    });
+  }
+
+  /**
+   * Get reservations for a sales order.
+   */
+  async getReservationsForOrder(salesOrderId: number): Promise<StockReservation[]> {
+    return this.reservationRepo.find({
+      where: { sales_order_id: salesOrderId },
+      order: { created_at: 'DESC' },
+    });
+  }
+
+  /**
+   * Sync product.stock_quantity from stock_levels.
+   * Updates the product's stock_quantity = SUM(quantity - reserved_quantity) across all warehouses.
+   */
+  private async syncProductStockQuantity(manager: any, productId: number): Promise<void> {
+    await manager.query(
+      `UPDATE products SET stock_quantity = (
+        SELECT COALESCE(SUM(sl.quantity - sl.reserved_quantity), 0)
+        FROM stock_levels sl
+        WHERE sl.product_id = $1
+      ) WHERE id = $1`,
+      [productId],
+    );
+  }
+
+  // ══════════════════════════════════════════════════════
+  // ── Phase 5: Alerts, Reorder & Reports ──────────────
+  // ══════════════════════════════════════════════════════
+
+  // ── Alert Creation ──────────────────────────────────
+
+  async createAlert(params: {
+    alert_type: string;
+    product_id?: number;
+    variant_key?: string;
+    warehouse_id?: number;
+    batch_id?: number;
+    message: string;
+    severity: string;
+    metadata?: any;
+  }): Promise<StockAlert> {
+    const alert = this.alertRepo.create(params as any);
+    const saved = await this.alertRepo.save(alert as any);
+    return saved as unknown as StockAlert;
+  }
+
+  async getAlertUnreadCount(): Promise<number> {
+    return this.alertRepo.count({ where: { is_read: false, is_resolved: false } });
+  }
+
+  async markAllAlertsRead(): Promise<{ updated: number }> {
+    const result = await this.alertRepo
+      .createQueryBuilder()
+      .update(StockAlert)
+      .set({ is_read: true })
+      .where('is_read = false')
+      .execute();
+    return { updated: result.affected || 0 };
+  }
+
+  // ── 5.3 Low Stock Detection ─────────────────────────
+
+  async evaluateReorderPoints(): Promise<{ alertsCreated: number; posCreated: number }> {
+    const rules = await this.reorderRepo.find({ where: { is_active: true } });
+    let alertsCreated = 0;
+    let posCreated = 0;
+
+    for (const rule of rules) {
+      try {
+        // Get available quantity for this product/warehouse
+        const qb = this.stockLevelRepo
+          .createQueryBuilder('sl')
+          .select('COALESCE(SUM(sl.quantity - sl.reserved_quantity), 0)', 'available')
+          .where('sl.product_id = :pid', { pid: rule.product_id });
+
+        if (rule.warehouse_id) {
+          qb.andWhere('sl.warehouse_id = :wid', { wid: rule.warehouse_id });
+        }
+        if (rule.variant_key) {
+          qb.andWhere('sl.variant_key = :vk', { vk: rule.variant_key });
+        }
+
+        const result = await qb.getRawOne();
+        const available = parseInt(result?.available || '0', 10);
+
+        // Get product name for alert messages
+        const product = await this.dataSource.query(
+          'SELECT name_en, sku FROM products WHERE id = $1',
+          [rule.product_id],
+        );
+        const productName = product?.[0]?.name_en || `Product #${rule.product_id}`;
+
+        // Check overstock
+        if (rule.max_stock_level && available > rule.max_stock_level) {
+          const existing = await this.alertRepo.findOne({
+            where: { alert_type: 'overstock', product_id: rule.product_id, is_resolved: false },
+          });
+          if (!existing) {
+            await this.createAlert({
+              alert_type: 'overstock',
+              product_id: rule.product_id,
+              variant_key: rule.variant_key || undefined,
+              warehouse_id: rule.warehouse_id || undefined,
+              message: `${productName} exceeds max stock: ${available} (max: ${rule.max_stock_level})`,
+              severity: 'info',
+              metadata: { available, max_stock_level: rule.max_stock_level },
+            });
+            alertsCreated++;
+          }
+        }
+
+        // Check if below reorder point
+        if (available <= rule.reorder_point) {
+          const isOutOfStock = available === 0;
+          const alertType = isOutOfStock ? 'out_of_stock' : 'low_stock';
+          const severity = isOutOfStock ? 'critical' : 'warning';
+
+          // Don't duplicate unresolved alerts for same product
+          const existing = await this.alertRepo.findOne({
+            where: { alert_type: alertType, product_id: rule.product_id, is_resolved: false },
+          });
+
+          if (!existing) {
+            const message = isOutOfStock
+              ? `${productName} is OUT OF STOCK${rule.warehouse_id ? ` at warehouse #${rule.warehouse_id}` : ''}`
+              : `${productName} stock low: ${available} remaining (reorder point: ${rule.reorder_point})${rule.warehouse_id ? ` at warehouse #${rule.warehouse_id}` : ''}`;
+
+            await this.createAlert({
+              alert_type: alertType,
+              product_id: rule.product_id,
+              variant_key: rule.variant_key || undefined,
+              warehouse_id: rule.warehouse_id || undefined,
+              message,
+              severity,
+              metadata: { available, reorder_point: rule.reorder_point },
+            });
+            alertsCreated++;
+          }
+
+          // 5.5 Auto-reorder PO creation
+          if (rule.auto_reorder && rule.preferred_supplier_id) {
+            try {
+              const po = await this.createAutoReorderPO(rule, productName);
+              if (po) {
+                posCreated++;
+                await this.createAlert({
+                  alert_type: 'reorder_triggered',
+                  product_id: rule.product_id,
+                  message: `Auto-reorder PO ${po.po_number} created for ${productName}: ${rule.reorder_quantity} units`,
+                  severity: 'info',
+                  metadata: { po_id: po.id, po_number: po.po_number, quantity: rule.reorder_quantity },
+                });
+                alertsCreated++;
+              }
+            } catch (poErr: any) {
+              this.logger.warn(`Auto-reorder PO failed for product #${rule.product_id}: ${poErr?.message}`);
+            }
+          }
+        }
+
+        // Update last_triggered_at
+        rule.last_triggered_at = new Date();
+        await this.reorderRepo.save(rule);
+      } catch (ruleErr: any) {
+        this.logger.warn(`Reorder eval failed for rule #${rule.id}: ${ruleErr?.message}`);
+      }
+    }
+
+    return { alertsCreated, posCreated };
+  }
+
+  // ── 5.5 Auto-Reorder PO Creation ───────────────────
+
+  private async createAutoReorderPO(rule: ReorderRule, productName: string): Promise<any> {
+    // Use DataSource directly to avoid circular dependency with PurchaseModule
+    return this.dataSource.transaction(async (manager) => {
+      // Generate PO number
+      const lastPo = await manager.query(
+        `SELECT po_number FROM purchase_orders ORDER BY id DESC LIMIT 1`,
+      );
+      const lastNum = lastPo?.[0]?.po_number
+        ? parseInt(lastPo[0].po_number.replace(/\D/g, '') || '0', 10)
+        : 0;
+      const poNumber = `PO-${String(lastNum + 1).padStart(6, '0')}`;
+
+      // Get unit price from supplier_products
+      const supplierProduct = await manager.query(
+        `SELECT unit_price FROM supplier_products WHERE supplier_id = $1 AND product_id = $2 AND is_active = true LIMIT 1`,
+        [rule.preferred_supplier_id, rule.product_id],
+      );
+      const unitPrice = supplierProduct?.[0]?.unit_price || 0;
+      const lineTotal = unitPrice * rule.reorder_quantity;
+
+      // Create PO header
+      const [po] = await manager.query(
+        `INSERT INTO purchase_orders (po_number, supplier_id, warehouse_id, status, order_date, subtotal, total_amount, created_by, notes)
+         VALUES ($1, $2, $3, 'draft', NOW(), $4, $4, 0, $5)
+         RETURNING id, po_number`,
+        [
+          poNumber,
+          rule.preferred_supplier_id,
+          rule.warehouse_id || 1,
+          lineTotal,
+          `Auto-generated from reorder rule #${rule.id} for ${productName}`,
+        ],
+      );
+
+      // Create PO item
+      await manager.query(
+        `INSERT INTO purchase_order_items (purchase_order_id, product_id, variant_key, quantity_ordered, unit_price, line_total)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [po.id, rule.product_id, rule.variant_key || null, rule.reorder_quantity, unitPrice, lineTotal],
+      );
+
+      return po;
+    });
+  }
+
+  // ── 5.4 Batch Expiry Monitoring ─────────────────────
+
+  async checkExpiryAlerts(): Promise<number> {
+    const now = new Date();
+    const sevenDays = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const thirtyDays = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+    let alertsCreated = 0;
+
+    // Find batches that are available and have expiry dates
+    const batches = await this.batchRepo
+      .createQueryBuilder('b')
+      .where('b.expiry_date IS NOT NULL')
+      .andWhere('b.status = :status', { status: 'available' })
+      .andWhere('b.remaining_quantity > 0')
+      .andWhere('b.expiry_date <= :thirtyDays', { thirtyDays })
+      .orderBy('b.expiry_date', 'ASC')
+      .getMany();
+
+    for (const batch of batches) {
+      const expiryDate = new Date(batch.expiry_date);
+      const productRows = await this.dataSource.query(
+        'SELECT name_en FROM products WHERE id = $1',
+        [batch.product_id],
+      );
+      const productName = productRows?.[0]?.name_en || `Product #${batch.product_id}`;
+      const dateStr = expiryDate.toISOString().split('T')[0];
+
+      if (expiryDate <= now) {
+        // EXPIRED — mark batch as expired, create critical alert
+        const existing = await this.alertRepo.findOne({
+          where: { alert_type: 'expiry_critical', batch_id: batch.id, is_resolved: false },
+        });
+        if (!existing) {
+          await this.batchRepo.update(batch.id, { status: 'expired' });
+          await this.createAlert({
+            alert_type: 'expiry_critical',
+            product_id: batch.product_id,
+            warehouse_id: batch.warehouse_id || undefined,
+            batch_id: batch.id,
+            message: `Batch ${batch.batch_number} of ${productName} has EXPIRED (${batch.remaining_quantity} units, expiry: ${dateStr})`,
+            severity: 'critical',
+            metadata: { batch_number: batch.batch_number, expiry_date: dateStr, remaining: batch.remaining_quantity },
+          });
+          alertsCreated++;
+        }
+      } else if (expiryDate <= sevenDays) {
+        // Expiring within 7 days — warning
+        const existing = await this.alertRepo.findOne({
+          where: { alert_type: 'expiry_warning', batch_id: batch.id, severity: 'warning', is_resolved: false },
+        });
+        if (!existing) {
+          await this.createAlert({
+            alert_type: 'expiry_warning',
+            product_id: batch.product_id,
+            warehouse_id: batch.warehouse_id || undefined,
+            batch_id: batch.id,
+            message: `Batch ${batch.batch_number} of ${productName} expires on ${dateStr} (${batch.remaining_quantity} units)`,
+            severity: 'warning',
+            metadata: { batch_number: batch.batch_number, expiry_date: dateStr, remaining: batch.remaining_quantity },
+          });
+          alertsCreated++;
+        }
+      } else if (expiryDate <= thirtyDays) {
+        // Expiring within 30 days — info
+        const existing = await this.alertRepo.findOne({
+          where: { alert_type: 'expiry_warning', batch_id: batch.id, severity: 'info', is_resolved: false },
+        });
+        if (!existing) {
+          await this.createAlert({
+            alert_type: 'expiry_warning',
+            product_id: batch.product_id,
+            warehouse_id: batch.warehouse_id || undefined,
+            batch_id: batch.id,
+            message: `Batch ${batch.batch_number} of ${productName} expires on ${dateStr} (${batch.remaining_quantity} units) — 30 day warning`,
+            severity: 'info',
+            metadata: { batch_number: batch.batch_number, expiry_date: dateStr, remaining: batch.remaining_quantity },
+          });
+          alertsCreated++;
+        }
+      }
+    }
+
+    return alertsCreated;
+  }
+
+  // ── 5.7 Dashboard KPIs ─────────────────────────────
+
+  async getDashboardKpis(): Promise<any> {
+    const [
+      totalProducts,
+      stockValue,
+      lowStockItems,
+      outOfStock,
+      expiringSoon,
+      pendingPOs,
+      recentMovements,
+      movementChart,
+      topLowStock,
+      expiringBatches,
+    ] = await Promise.all([
+      // Total active products with stock tracking
+      this.dataSource.query(`SELECT COUNT(DISTINCT product_id) as count FROM stock_levels`),
+      // Total stock value
+      this.dataSource.query(`SELECT COALESCE(SUM(sl.quantity * sl.cost_price), 0) as total FROM stock_levels sl WHERE sl.quantity > 0`),
+      // Low stock items count (where reorder rules exist and qty <= reorder_point)
+      this.dataSource.query(`
+        SELECT COUNT(*) as count FROM reorder_rules rr
+        WHERE rr.is_active = true AND EXISTS (
+          SELECT 1 FROM stock_levels sl
+          WHERE sl.product_id = rr.product_id
+          AND (rr.warehouse_id IS NULL OR sl.warehouse_id = rr.warehouse_id)
+          GROUP BY sl.product_id
+          HAVING COALESCE(SUM(sl.quantity - sl.reserved_quantity), 0) <= rr.reorder_point
+          AND COALESCE(SUM(sl.quantity - sl.reserved_quantity), 0) > 0
+        )
+      `),
+      // Out of stock count
+      this.dataSource.query(`
+        SELECT COUNT(*) as count FROM reorder_rules rr
+        WHERE rr.is_active = true AND EXISTS (
+          SELECT 1 FROM stock_levels sl
+          WHERE sl.product_id = rr.product_id
+          AND (rr.warehouse_id IS NULL OR sl.warehouse_id = rr.warehouse_id)
+          GROUP BY sl.product_id
+          HAVING COALESCE(SUM(sl.quantity - sl.reserved_quantity), 0) = 0
+        )
+      `),
+      // Expiring within 7 days
+      this.dataSource.query(`
+        SELECT COUNT(*) as count FROM stock_batches
+        WHERE status = 'available' AND remaining_quantity > 0
+        AND expiry_date IS NOT NULL AND expiry_date <= NOW() + INTERVAL '7 days'
+        AND expiry_date > NOW()
+      `),
+      // Pending purchase orders
+      this.dataSource.query(`SELECT COUNT(*) as count FROM purchase_orders WHERE status IN ('draft', 'pending_approval', 'approved')`),
+      // Recent 20 movements
+      this.dataSource.query(`
+        SELECT sm.id, sm.reference_number, sm.movement_type, sm.product_id, sm.quantity,
+               sm.created_at, p.name_en as product_name
+        FROM stock_movements sm
+        LEFT JOIN products p ON p.id = sm.product_id
+        ORDER BY sm.created_at DESC LIMIT 20
+      `),
+      // Movement chart: receipts vs dispatches last 30 days
+      this.dataSource.query(`
+        SELECT
+          TO_CHAR(sm.created_at, 'YYYY-MM-DD') as date,
+          SUM(CASE WHEN sm.movement_type IN ('receipt', 'sales_return', 'transfer_in', 'adjustment_increase') THEN sm.quantity ELSE 0 END) as inbound,
+          SUM(CASE WHEN sm.movement_type IN ('sales_dispatch', 'transfer_out', 'adjustment_decrease') THEN sm.quantity ELSE 0 END) as outbound
+        FROM stock_movements sm
+        WHERE sm.created_at >= NOW() - INTERVAL '30 days'
+        GROUP BY TO_CHAR(sm.created_at, 'YYYY-MM-DD')
+        ORDER BY date ASC
+      `),
+      // Top 10 low stock items
+      this.dataSource.query(`
+        SELECT rr.product_id, rr.reorder_point, rr.reorder_quantity,
+               p.name_en as product_name, p.sku,
+               COALESCE(sub.available, 0) as available
+        FROM reorder_rules rr
+        LEFT JOIN products p ON p.id = rr.product_id
+        LEFT JOIN LATERAL (
+          SELECT SUM(sl.quantity - sl.reserved_quantity) as available
+          FROM stock_levels sl WHERE sl.product_id = rr.product_id
+        ) sub ON true
+        WHERE rr.is_active = true AND COALESCE(sub.available, 0) <= rr.reorder_point
+        ORDER BY COALESCE(sub.available, 0) ASC
+        LIMIT 10
+      `),
+      // Expiring batches this month
+      this.dataSource.query(`
+        SELECT b.id, b.batch_number, b.product_id, b.expiry_date, b.remaining_quantity,
+               p.name_en as product_name
+        FROM stock_batches b
+        LEFT JOIN products p ON p.id = b.product_id
+        WHERE b.status = 'available' AND b.remaining_quantity > 0
+        AND b.expiry_date IS NOT NULL AND b.expiry_date <= NOW() + INTERVAL '30 days'
+        ORDER BY b.expiry_date ASC LIMIT 20
+      `),
+    ]);
+
+    return {
+      kpis: {
+        totalProducts: parseInt(totalProducts?.[0]?.count || '0', 10),
+        stockValue: parseFloat(stockValue?.[0]?.total || '0'),
+        lowStockItems: parseInt(lowStockItems?.[0]?.count || '0', 10),
+        outOfStock: parseInt(outOfStock?.[0]?.count || '0', 10),
+        expiringSoon: parseInt(expiringSoon?.[0]?.count || '0', 10),
+        pendingPOs: parseInt(pendingPOs?.[0]?.count || '0', 10),
+      },
+      recentMovements,
+      movementChart,
+      topLowStock,
+      expiringBatches,
+    };
+  }
+
+  // ── 5.8 Stock Valuation ─────────────────────────────
+
+  async getStockValuation(warehouseId?: number): Promise<any[]> {
+    let query = `
+      SELECT sl.product_id, sl.warehouse_id, sl.variant_key,
+             p.name_en as product_name, p.sku, p.category,
+             w.name as warehouse_name,
+             SUM(sl.quantity) as total_quantity,
+             SUM(sl.reserved_quantity) as total_reserved,
+             SUM(sl.quantity - sl.reserved_quantity) as total_available,
+             AVG(sl.cost_price) as avg_cost,
+             SUM(sl.quantity * sl.cost_price) as total_value
+      FROM stock_levels sl
+      LEFT JOIN products p ON p.id = sl.product_id
+      LEFT JOIN warehouses w ON w.id = sl.warehouse_id
+    `;
+    const params: any[] = [];
+    if (warehouseId) {
+      query += ` WHERE sl.warehouse_id = $1`;
+      params.push(warehouseId);
+    }
+    query += `
+      GROUP BY sl.product_id, sl.warehouse_id, sl.variant_key, p.name_en, p.sku, p.category, w.name
+      ORDER BY total_value DESC
+    `;
+    return this.dataSource.query(query, params);
+  }
+
+  // ── 5.9 Movement Log Report ─────────────────────────
+
+  async getMovementReport(filters: {
+    dateFrom?: string;
+    dateTo?: string;
+    product_id?: number;
+    movement_type?: string;
+    warehouse_id?: number;
+    limit?: number;
+  }): Promise<any[]> {
+    let query = `
+      SELECT sm.*, p.name_en as product_name, p.sku
+      FROM stock_movements sm
+      LEFT JOIN products p ON p.id = sm.product_id
+      WHERE 1=1
+    `;
+    const params: any[] = [];
+    let paramIdx = 1;
+
+    if (filters.dateFrom) {
+      query += ` AND sm.created_at >= $${paramIdx++}`;
+      params.push(filters.dateFrom);
+    }
+    if (filters.dateTo) {
+      query += ` AND sm.created_at <= $${paramIdx++}`;
+      params.push(filters.dateTo);
+    }
+    if (filters.product_id) {
+      query += ` AND sm.product_id = $${paramIdx++}`;
+      params.push(filters.product_id);
+    }
+    if (filters.movement_type) {
+      query += ` AND sm.movement_type = $${paramIdx++}`;
+      params.push(filters.movement_type);
+    }
+    if (filters.warehouse_id) {
+      query += ` AND (sm.source_warehouse_id = $${paramIdx} OR sm.dest_warehouse_id = $${paramIdx++})`;
+      params.push(filters.warehouse_id);
+    }
+
+    query += ` ORDER BY sm.created_at DESC LIMIT $${paramIdx}`;
+    params.push(filters.limit || 500);
+
+    return this.dataSource.query(query, params);
+  }
+
+  // ── 5.10 Supplier Performance ───────────────────────
+
+  async getSupplierPerformance(supplierId?: number): Promise<any[]> {
+    let query = `
+      SELECT
+        po.supplier_id,
+        s.company_name as supplier_name,
+        COUNT(po.id) as total_orders,
+        SUM(CASE WHEN po.status IN ('received', 'closed') THEN 1 ELSE 0 END) as completed_orders,
+        ROUND(AVG(CASE
+          WHEN po.actual_delivery_date IS NOT NULL AND po.expected_delivery_date IS NOT NULL
+          THEN EXTRACT(EPOCH FROM (po.actual_delivery_date - po.expected_delivery_date)) / 86400
+        END)::numeric, 1) as avg_delivery_variance_days,
+        ROUND(
+          (SUM(CASE WHEN po.actual_delivery_date <= po.expected_delivery_date THEN 1 ELSE 0 END)::numeric /
+          NULLIF(SUM(CASE WHEN po.actual_delivery_date IS NOT NULL AND po.expected_delivery_date IS NOT NULL THEN 1 ELSE 0 END), 0) * 100)::numeric
+        , 1) as on_time_rate,
+        COALESCE(grn_stats.acceptance_rate, 0) as quality_acceptance_rate,
+        ROUND(AVG(CASE
+          WHEN po.actual_delivery_date IS NOT NULL
+          THEN EXTRACT(EPOCH FROM (po.actual_delivery_date - po.order_date)) / 86400
+        END)::numeric, 1) as avg_lead_time_days,
+        SUM(po.total_amount) as total_spend,
+        COALESCE(fill_stats.fill_rate, 0) as fill_rate
+      FROM purchase_orders po
+      LEFT JOIN suppliers s ON s.id = po.supplier_id
+      LEFT JOIN LATERAL (
+        SELECT ROUND(
+          (SUM(CASE WHEN gi.quality_status = 'accepted' THEN 1 ELSE 0 END)::numeric /
+          NULLIF(COUNT(gi.id), 0) * 100)::numeric, 1) as acceptance_rate
+        FROM goods_received_notes grn
+        LEFT JOIN grn_items gi ON gi.grn_id = grn.id
+        WHERE grn.supplier_id = po.supplier_id
+      ) grn_stats ON true
+      LEFT JOIN LATERAL (
+        SELECT ROUND(
+          (SUM(poi.quantity_received)::numeric / NULLIF(SUM(poi.quantity_ordered), 0) * 100)::numeric, 1) as fill_rate
+        FROM purchase_order_items poi
+        WHERE poi.purchase_order_id IN (SELECT id FROM purchase_orders WHERE supplier_id = po.supplier_id AND status IN ('received', 'closed'))
+      ) fill_stats ON true
+    `;
+    const params: any[] = [];
+    if (supplierId) {
+      query += ` WHERE po.supplier_id = $1`;
+      params.push(supplierId);
+    }
+    query += ` GROUP BY po.supplier_id, s.company_name, grn_stats.acceptance_rate, fill_stats.fill_rate ORDER BY total_orders DESC`;
+
+    return this.dataSource.query(query, params);
+  }
+
+  // ── 5.11 ABC Analysis ──────────────────────────────
+
+  async getAbcAnalysis(): Promise<any[]> {
+    // ABC classification by total stock value
+    const items = await this.dataSource.query(`
+      SELECT sl.product_id, p.name_en as product_name, p.sku, p.category,
+             SUM(sl.quantity) as total_quantity,
+             SUM(sl.quantity * sl.cost_price) as total_value
+      FROM stock_levels sl
+      LEFT JOIN products p ON p.id = sl.product_id
+      WHERE sl.quantity > 0
+      GROUP BY sl.product_id, p.name_en, p.sku, p.category
+      ORDER BY total_value DESC
+    `);
+
+    let cumulativeValue = 0;
+    const grandTotal = items.reduce((sum: number, i: any) => sum + parseFloat(i.total_value || '0'), 0);
+
+    return items.map((item: any) => {
+      cumulativeValue += parseFloat(item.total_value || '0');
+      const cumulativePercent = grandTotal > 0 ? (cumulativeValue / grandTotal) * 100 : 0;
+      let classification = 'C';
+      if (cumulativePercent <= 80) classification = 'A';
+      else if (cumulativePercent <= 95) classification = 'B';
+
+      return {
+        ...item,
+        total_value: parseFloat(item.total_value || '0'),
+        cumulative_percent: Math.round(cumulativePercent * 100) / 100,
+        classification,
+      };
+    });
+  }
+
+  // ── 5.12 Dead Stock / Fast-Slow Movers ──────────────
+
+  async getDeadStock(daysSinceMovement: number = 90): Promise<any[]> {
+    return this.dataSource.query(`
+      SELECT sl.product_id, p.name_en as product_name, p.sku, p.category,
+             SUM(sl.quantity) as total_quantity,
+             SUM(sl.quantity * sl.cost_price) as total_value,
+             MAX(sm.created_at) as last_movement_date,
+             EXTRACT(DAY FROM NOW() - MAX(sm.created_at))::int as days_since_movement
+      FROM stock_levels sl
+      LEFT JOIN products p ON p.id = sl.product_id
+      LEFT JOIN stock_movements sm ON sm.product_id = sl.product_id
+      WHERE sl.quantity > 0
+      GROUP BY sl.product_id, p.name_en, p.sku, p.category
+      HAVING MAX(sm.created_at) IS NULL OR MAX(sm.created_at) < NOW() - INTERVAL '1 day' * $1
+      ORDER BY days_since_movement DESC NULLS FIRST
+    `, [daysSinceMovement]);
+  }
+
+  async getFastSlowMovers(dateFrom?: string, dateTo?: string): Promise<any[]> {
+    const fromDate = dateFrom || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const toDate = dateTo || new Date().toISOString().split('T')[0];
+
+    const items = await this.dataSource.query(`
+      SELECT sm.product_id, p.name_en as product_name, p.sku, p.category,
+             SUM(CASE WHEN sm.movement_type = 'sales_dispatch' THEN sm.quantity ELSE 0 END) as units_sold,
+             COUNT(CASE WHEN sm.movement_type = 'sales_dispatch' THEN 1 END) as dispatch_count,
+             SUM(sm.quantity) as total_movement
+      FROM stock_movements sm
+      LEFT JOIN products p ON p.id = sm.product_id
+      WHERE sm.created_at BETWEEN $1 AND $2
+      GROUP BY sm.product_id, p.name_en, p.sku, p.category
+      ORDER BY units_sold DESC
+    `, [fromDate, toDate]);
+
+    // Classify: top 20% = fast, middle 60% = normal, bottom 20% = slow
+    const total = items.length;
+    return items.map((item: any, idx: number) => {
+      const percentile = total > 0 ? ((idx + 1) / total) * 100 : 100;
+      let velocity = 'normal';
+      if (percentile <= 20) velocity = 'fast';
+      else if (percentile > 80) velocity = 'slow';
+
+      return { ...item, units_sold: parseInt(item.units_sold || '0', 10), velocity };
+    });
+  }
+
+  // ── 5.13 Inventory Count Variance Report ────────────
+
+  async getCountVarianceReport(countId?: number): Promise<any> {
+    let whereClause = '';
+    const params: any[] = [];
+    if (countId) {
+      whereClause = 'WHERE ic.id = $1';
+      params.push(countId);
+    }
+
+    const counts = await this.dataSource.query(`
+      SELECT ic.id, ic.count_number, ic.warehouse_id, ic.count_type, ic.status,
+             ic.started_at, ic.completed_at,
+             w.name as warehouse_name,
+             COUNT(ici.id) as total_items,
+             SUM(CASE WHEN ici.variance = 0 THEN 1 ELSE 0 END) as matched_items,
+             SUM(CASE WHEN ici.variance != 0 THEN 1 ELSE 0 END) as variance_items,
+             ROUND(
+               (SUM(CASE WHEN ici.variance = 0 THEN 1 ELSE 0 END)::numeric /
+               NULLIF(COUNT(ici.id), 0) * 100)::numeric
+             , 1) as accuracy_percent,
+             SUM(ABS(ici.variance)) as total_absolute_variance
+      FROM inventory_counts ic
+      LEFT JOIN warehouses w ON w.id = ic.warehouse_id
+      LEFT JOIN inventory_count_items ici ON ici.count_id = ic.id
+      ${whereClause}
+      GROUP BY ic.id, ic.count_number, ic.warehouse_id, ic.count_type, ic.status,
+               ic.started_at, ic.completed_at, w.name
+      ORDER BY ic.created_at DESC
+    `, params);
+
+    // If specific count, also get item-level details
+    if (countId && counts.length > 0) {
+      const items = await this.dataSource.query(`
+        SELECT ici.*, p.name_en as product_name, p.sku
+        FROM inventory_count_items ici
+        LEFT JOIN products p ON p.id = ici.product_id
+        WHERE ici.count_id = $1
+        ORDER BY ABS(ici.variance) DESC
+      `, [countId]);
+      return { summary: counts[0], items };
+    }
+
+    return counts;
+  }
+
+  // ── 5.14 CSV Export ─────────────────────────────────
+
+  generateCsv(data: any[], columns: { key: string; header: string }[]): string {
+    const headers = columns.map((c) => c.header);
+    const rows = data.map((row) =>
+      columns.map((c) => {
+        const val = row[c.key];
+        if (val === null || val === undefined) return '';
+        const str = String(val);
+        // Escape CSV: wrap in quotes if contains comma, quote, or newline
+        if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+          return `"${str.replace(/"/g, '""')}"`;
+        }
+        return str;
+      }).join(','),
+    );
+    return [headers.join(','), ...rows].join('\n');
   }
 }

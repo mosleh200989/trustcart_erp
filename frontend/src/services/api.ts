@@ -51,7 +51,7 @@ const transformProduct = (p: any) => {
     basePrice: parseFloat(p.base_price) || 0,
     wholesalePrice: parseFloat(p.wholesale_price) || 0,
     originalPrice: p.wholesale_price ? parseFloat(p.base_price) : (parseFloat(p.base_price) * 1.2) || 0,
-    stock: 0, // No stock field in database
+    stock: p.stock_quantity != null ? Number(p.stock_quantity) : 0,
     sold: 0,
     rating: 5,
     reviews: 0,
@@ -892,5 +892,123 @@ export const inventoryCounts = {
   async approve(id: number) {
     const res = await apiClient.post(`/inventory/counts/${id}/approve`);
     return res.data;
+  },
+};
+
+export const stockAvailability = {
+  async check(productId: number) {
+    const res = await apiClient.get(`/inventory/availability/${productId}`);
+    return res.data;
+  },
+  async bulkCheck(productIds: number[]) {
+    const res = await apiClient.post('/inventory/availability/bulk', { product_ids: productIds });
+    return Array.isArray(res.data) ? res.data : [];
+  },
+};
+
+export const stockAlerts = {
+  async list(unreadOnly?: boolean) {
+    const res = await apiClient.get('/inventory/alerts', { params: { unread: unreadOnly ? 'true' : undefined } });
+    return Array.isArray(res.data) ? res.data : [];
+  },
+  async unreadCount() {
+    const res = await apiClient.get('/inventory/alerts/unread-count');
+    return typeof res.data === 'number' ? res.data : 0;
+  },
+  async markRead(id: number) {
+    const res = await apiClient.put(`/inventory/alerts/${id}/read`);
+    return res.data;
+  },
+  async markAllRead() {
+    const res = await apiClient.post('/inventory/alerts/read-all');
+    return res.data;
+  },
+  async resolve(id: number, notes?: string) {
+    const res = await apiClient.put(`/inventory/alerts/${id}/resolve`, { notes });
+    return res.data;
+  },
+};
+
+export const reorderRules = {
+  async list(productId?: number) {
+    const res = await apiClient.get('/inventory/reorder-rules', { params: { product_id: productId } });
+    return Array.isArray(res.data) ? res.data : [];
+  },
+  async create(data: any) {
+    const res = await apiClient.post('/inventory/reorder-rules', data);
+    return res.data;
+  },
+  async update(id: number, data: any) {
+    const res = await apiClient.put(`/inventory/reorder-rules/${id}`, data);
+    return res.data;
+  },
+  async remove(id: number) {
+    const res = await apiClient.delete(`/inventory/reorder-rules/${id}`);
+    return res.data;
+  },
+  async evaluate() {
+    const res = await apiClient.post('/inventory/reorder-rules/evaluate');
+    return res.data;
+  },
+};
+
+export const inventoryDashboard = {
+  async getKpis() {
+    const res = await apiClient.get('/inventory/dashboard');
+    return res.data;
+  },
+};
+
+export const inventoryReports = {
+  async valuation(warehouseId?: number) {
+    const res = await apiClient.get('/inventory/reports/valuation', { params: { warehouse_id: warehouseId } });
+    return Array.isArray(res.data) ? res.data : [];
+  },
+  async movementLog(filters?: { date_from?: string; date_to?: string; product_id?: number; movement_type?: string; warehouse_id?: number }) {
+    const res = await apiClient.get('/inventory/reports/movement-log', { params: filters });
+    return Array.isArray(res.data) ? res.data : [];
+  },
+  async supplierPerformance(supplierId?: number) {
+    const res = await apiClient.get('/inventory/reports/supplier-performance', { params: { supplier_id: supplierId } });
+    return Array.isArray(res.data) ? res.data : [];
+  },
+  async abcAnalysis() {
+    const res = await apiClient.get('/inventory/reports/abc-analysis');
+    return Array.isArray(res.data) ? res.data : [];
+  },
+  async deadStock(days?: number) {
+    const res = await apiClient.get('/inventory/reports/dead-stock', { params: { days } });
+    return Array.isArray(res.data) ? res.data : [];
+  },
+  async fastSlowMovers(dateFrom?: string, dateTo?: string) {
+    const res = await apiClient.get('/inventory/reports/fast-slow-movers', { params: { date_from: dateFrom, date_to: dateTo } });
+    return Array.isArray(res.data) ? res.data : [];
+  },
+  async countVariance(countId?: number) {
+    const res = await apiClient.get('/inventory/reports/count-variance', { params: { count_id: countId } });
+    return res.data;
+  },
+  exportUrl(type: string, params?: Record<string, string>) {
+    const searchParams = new URLSearchParams({ type, ...params });
+    return `/inventory/reports/export?${searchParams.toString()}`;
+  },
+};
+
+export const stockLevels = {
+  async list(query?: { product_id?: number; warehouse_id?: number }) {
+    const res = await apiClient.get('/inventory/stock-levels', { params: query });
+    return Array.isArray(res.data) ? res.data : [];
+  },
+  async summary() {
+    const res = await apiClient.get('/inventory/stock-levels/summary');
+    return Array.isArray(res.data) ? res.data : [];
+  },
+  async byProduct(productId: number) {
+    const res = await apiClient.get(`/inventory/stock-levels/product/${productId}`);
+    return Array.isArray(res.data) ? res.data : [];
+  },
+  async byWarehouse(warehouseId: number) {
+    const res = await apiClient.get(`/inventory/stock-levels/warehouse/${warehouseId}`);
+    return Array.isArray(res.data) ? res.data : [];
   },
 };

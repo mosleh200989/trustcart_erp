@@ -10,6 +10,7 @@ import { OffersService } from '../offers/offers.service';
 import { WhatsAppService } from '../messaging/whatsapp.service';
 import { CommissionService } from '../crm/commission.service';
 import { CustomersService } from '../customers/customers.service';
+import { InventoryService } from '../inventory/inventory.service';
 
 @Injectable()
 export class SalesService {
@@ -26,6 +27,7 @@ export class SalesService {
     @Inject(forwardRef(() => CommissionService))
     private commissionService: CommissionService,
     private customersService: CustomersService,
+    private inventoryService: InventoryService,
   ) {}
 
   private normalizeOfferCode(value: any): string {
@@ -982,6 +984,21 @@ export class SalesService {
       }
     }
 
+    // Reserve stock for order items (best-effort — don't block checkout if stock data is incomplete)
+    if (cartForOffers.length > 0) {
+      try {
+        await this.inventoryService.reserveStock({
+          salesOrderId: savedOrder.id,
+          items: cartForOffers
+            .filter(item => item.product_id > 0 && item.quantity > 0)
+            .map(item => ({ product_id: item.product_id, quantity: item.quantity })),
+        });
+      } catch (stockErr) {
+        // Log but don't fail the order — stock may not be tracked for all products yet
+        console.warn(`Stock reservation failed for order #${savedOrder.id}:`, (stockErr as any)?.message || stockErr);
+      }
+    }
+
     return savedOrder;
   }
 
@@ -1081,7 +1098,16 @@ export class SalesService {
     order.cancelReason = cancelReason ? String(cancelReason).trim() : order.cancelReason;
     order.cancelledBy = Number(customerId);
     order.cancelledAt = new Date();
-    return await this.salesRepository.save(order);
+    const savedOrder = await this.salesRepository.save(order);
+
+    // Release stock reservations
+    try {
+      await this.inventoryService.releaseReservation(orderId);
+    } catch (err) {
+      console.warn(`Failed to release stock reservation for order #${orderId}:`, (err as any)?.message || err);
+    }
+
+    return savedOrder;
   }
 
   private normalizeOrderStatus(status: unknown): string {
