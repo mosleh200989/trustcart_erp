@@ -78,4 +78,36 @@ export class PurchaseController {
   findOneGrn(@Param('id', ParseIntPipe) id: number) {
     return this.purchaseService.findOneGrn(id);
   }
+
+  @Post('grns')
+  @RequirePermissions('create-purchase-orders')
+  createGrn(@Body() dto: any, @Req() req: any) {
+    return this.purchaseService.createGrn(dto, req.user?.id);
+  }
+
+  @Put('grns/:id')
+  @RequirePermissions('edit-purchase-orders')
+  updateGrn(@Param('id', ParseIntPipe) id: number, @Body() dto: any) {
+    return this.purchaseService.updateGrn(id, dto);
+  }
+
+  @Post('grns/:id/accept')
+  @RequirePermissions('edit-purchase-orders')
+  acceptGrn(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
+    return this.purchaseService.acceptGrn(id, req.user?.id);
+  }
+
+  @Post('grns/:id/reject')
+  @RequirePermissions('edit-purchase-orders')
+  rejectGrn(@Param('id', ParseIntPipe) id: number, @Req() req: any, @Body('reason') reason?: string) {
+    return this.purchaseService.rejectGrn(id, req.user?.id, reason);
+  }
+
+  // ── PO Utilities ────────────────────────────────────
+
+  @Post('orders/:id/duplicate')
+  @RequirePermissions('create-purchase-orders')
+  duplicatePo(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
+    return this.purchaseService.duplicatePo(id, req.user?.id);
+  }
 }

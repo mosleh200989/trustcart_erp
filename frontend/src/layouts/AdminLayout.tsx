@@ -114,8 +114,11 @@ const menuItems: MenuItem[] = [
   {
     title: 'Purchase',
     icon: FaShoppingBag,
-    path: '/admin/purchase',
-    requiredPermissions: ['view-purchase-orders']
+    requiredPermissions: ['view-purchase-orders'],
+    children: [
+      { title: 'Purchase Orders', icon: FaShoppingBag, path: '/admin/purchase/orders', requiredPermissions: ['view-purchase-orders'] },
+      { title: 'Goods Receiving', icon: FaTruck, path: '/admin/purchase/grns', requiredPermissions: ['view-purchase-orders'] },
+    ],
   },
   {
     title: 'HR Management',

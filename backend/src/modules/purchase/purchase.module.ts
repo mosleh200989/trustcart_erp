@@ -6,10 +6,12 @@ import { PurchaseOrder } from './entities/purchase-order.entity';
 import { PurchaseOrderItem } from './entities/purchase-order-item.entity';
 import { GoodsReceivedNote } from './entities/goods-received-note.entity';
 import { GrnItem } from './entities/grn-item.entity';
+import { InventoryModule } from '../inventory/inventory.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([PurchaseOrder, PurchaseOrderItem, GoodsReceivedNote, GrnItem]),
+    InventoryModule,
   ],
   controllers: [PurchaseController],
   providers: [PurchaseService],

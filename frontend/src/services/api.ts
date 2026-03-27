@@ -717,3 +717,77 @@ export const suppliers = {
     return res.data;
   },
 };
+
+// ── Purchase Orders ──────────────────────────────────
+export const purchaseOrders = {
+  async list(status?: string) {
+    const params = status ? { status } : {};
+    const res = await apiClient.get('/purchase/orders', { params });
+    return Array.isArray(res.data) ? res.data : [];
+  },
+  async get(id: number) {
+    const res = await apiClient.get(`/purchase/orders/${id}`);
+    return res.data;
+  },
+  async create(data: any) {
+    const res = await apiClient.post('/purchase/orders', data);
+    return res.data;
+  },
+  async update(id: number, data: any) {
+    const res = await apiClient.put(`/purchase/orders/${id}`, data);
+    return res.data;
+  },
+  async remove(id: number) {
+    const res = await apiClient.delete(`/purchase/orders/${id}`);
+    return res.data;
+  },
+  async submit(id: number) {
+    const res = await apiClient.post(`/purchase/orders/${id}/submit`);
+    return res.data;
+  },
+  async approve(id: number) {
+    const res = await apiClient.post(`/purchase/orders/${id}/approve`);
+    return res.data;
+  },
+  async reject(id: number, reason?: string) {
+    const res = await apiClient.post(`/purchase/orders/${id}/reject`, { reason });
+    return res.data;
+  },
+  async cancel(id: number, reason: string) {
+    const res = await apiClient.post(`/purchase/orders/${id}/cancel`, { reason });
+    return res.data;
+  },
+  async duplicate(id: number) {
+    const res = await apiClient.post(`/purchase/orders/${id}/duplicate`);
+    return res.data;
+  },
+};
+
+// ── Goods Received Notes ─────────────────────────────
+export const grns = {
+  async list(poId?: number) {
+    const params = poId ? { po_id: poId } : {};
+    const res = await apiClient.get('/purchase/grns', { params });
+    return Array.isArray(res.data) ? res.data : [];
+  },
+  async get(id: number) {
+    const res = await apiClient.get(`/purchase/grns/${id}`);
+    return res.data;
+  },
+  async create(data: any) {
+    const res = await apiClient.post('/purchase/grns', data);
+    return res.data;
+  },
+  async update(id: number, data: any) {
+    const res = await apiClient.put(`/purchase/grns/${id}`, data);
+    return res.data;
+  },
+  async accept(id: number) {
+    const res = await apiClient.post(`/purchase/grns/${id}/accept`);
+    return res.data;
+  },
+  async reject(id: number, reason?: string) {
+    const res = await apiClient.post(`/purchase/grns/${id}/reject`, { reason });
+    return res.data;
+  },
+};
