@@ -7,7 +7,7 @@ import apiClient from '@/services/api';
 import { 
   FaTachometerAlt, FaBoxes, FaShoppingCart, FaUsers, FaWarehouse, 
   FaShoppingBag, FaUserTie, FaBook, FaBullseye, FaHandshake, 
-  FaHeadset, FaUser, FaCog, FaBars, FaTimes, FaBell, FaChevronDown, FaChartBar, FaTags, FaGift, FaPhone, FaMoneyBillWave, FaImage, FaList, FaRocket, FaPrint, FaBan, FaHistory
+  FaHeadset, FaUser, FaCog, FaBars, FaTimes, FaBell, FaChevronDown, FaChartBar, FaTags, FaGift, FaPhone, FaMoneyBillWave, FaImage, FaList, FaRocket, FaPrint, FaBan, FaHistory, FaTruck, FaClipboardList
 } from 'react-icons/fa';
 
 interface MenuItem {
@@ -104,8 +104,12 @@ const menuItems: MenuItem[] = [
   {
     title: 'Inventory',
     icon: FaWarehouse,
-    path: '/admin/inventory',
-    requiredPermissions: ['view-inventory']
+    requiredPermissions: ['view-inventory', 'view-warehouses', 'view-suppliers', 'view-stock-levels'],
+    children: [
+      { title: 'Stock Levels', icon: FaClipboardList, path: '/admin/inventory', requiredPermissions: ['view-inventory'] },
+      { title: 'Warehouses', icon: FaWarehouse, path: '/admin/inventory/warehouses', requiredPermissions: ['view-warehouses'] },
+      { title: 'Suppliers', icon: FaTruck, path: '/admin/inventory/suppliers', requiredPermissions: ['view-suppliers'] },
+    ],
   },
   {
     title: 'Purchase',

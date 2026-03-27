@@ -618,3 +618,102 @@ export const productViews = {
     }
   },
 };
+
+// Warehouse API
+export const warehouses = {
+  async list() {
+    const res = await apiClient.get('/warehouses');
+    return Array.isArray(res.data) ? res.data : [];
+  },
+  async get(id: number) {
+    const res = await apiClient.get(`/warehouses/${id}`);
+    return res.data;
+  },
+  async create(data: any) {
+    const res = await apiClient.post('/warehouses', data);
+    return res.data;
+  },
+  async update(id: number, data: any) {
+    const res = await apiClient.put(`/warehouses/${id}`, data);
+    return res.data;
+  },
+  async remove(id: number) {
+    const res = await apiClient.delete(`/warehouses/${id}`);
+    return res.data;
+  },
+  // Zones
+  async listZones(warehouseId: number) {
+    const res = await apiClient.get(`/warehouses/${warehouseId}/zones`);
+    return Array.isArray(res.data) ? res.data : [];
+  },
+  async createZone(warehouseId: number, data: any) {
+    const res = await apiClient.post(`/warehouses/${warehouseId}/zones`, data);
+    return res.data;
+  },
+  async updateZone(warehouseId: number, zoneId: number, data: any) {
+    const res = await apiClient.put(`/warehouses/${warehouseId}/zones/${zoneId}`, data);
+    return res.data;
+  },
+  async removeZone(warehouseId: number, zoneId: number) {
+    const res = await apiClient.delete(`/warehouses/${warehouseId}/zones/${zoneId}`);
+    return res.data;
+  },
+  // Locations
+  async listLocations(warehouseId: number) {
+    const res = await apiClient.get(`/warehouses/${warehouseId}/locations`);
+    return Array.isArray(res.data) ? res.data : [];
+  },
+  async createLocation(warehouseId: number, data: any) {
+    const res = await apiClient.post(`/warehouses/${warehouseId}/locations`, data);
+    return res.data;
+  },
+  async updateLocation(warehouseId: number, locationId: number, data: any) {
+    const res = await apiClient.put(`/warehouses/${warehouseId}/locations/${locationId}`, data);
+    return res.data;
+  },
+  async removeLocation(warehouseId: number, locationId: number) {
+    const res = await apiClient.delete(`/warehouses/${warehouseId}/locations/${locationId}`);
+    return res.data;
+  },
+};
+
+// Supplier API
+export const suppliers = {
+  async list() {
+    const res = await apiClient.get('/suppliers');
+    return Array.isArray(res.data) ? res.data : [];
+  },
+  async get(id: number) {
+    const res = await apiClient.get(`/suppliers/${id}`);
+    return res.data;
+  },
+  async create(data: any) {
+    const res = await apiClient.post('/suppliers', data);
+    return res.data;
+  },
+  async update(id: number, data: any) {
+    const res = await apiClient.put(`/suppliers/${id}`, data);
+    return res.data;
+  },
+  async remove(id: number) {
+    const res = await apiClient.delete(`/suppliers/${id}`);
+    return res.data;
+  },
+  // Supplier Products
+  async listProducts(supplierId: number) {
+    const res = await apiClient.get(`/suppliers/${supplierId}/products`);
+    return Array.isArray(res.data) ? res.data : [];
+  },
+  async addProduct(supplierId: number, data: any) {
+    const res = await apiClient.post(`/suppliers/${supplierId}/products`, data);
+    return res.data;
+  },
+  async updateProduct(supplierId: number, productId: number, data: any) {
+    const res = await apiClient.put(`/suppliers/${supplierId}/products/${productId}`, data);
+    return res.data;
+  },
+  async removeProduct(supplierId: number, productId: number) {
+    const res = await apiClient.delete(`/suppliers/${supplierId}/products/${productId}`);
+    return res.data;
+  },
+};
