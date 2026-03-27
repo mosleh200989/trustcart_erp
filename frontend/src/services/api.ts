@@ -791,3 +791,106 @@ export const grns = {
     return res.data;
   },
 };
+
+// ── Stock Adjustments ─────────────────────────────────
+
+export const stockAdjustments = {
+  async list(params?: { status?: string; warehouse_id?: number; adjustment_type?: string }) {
+    const res = await apiClient.get('/inventory/adjustments', { params });
+    return Array.isArray(res.data) ? res.data : [];
+  },
+  async get(id: number) {
+    const res = await apiClient.get(`/inventory/adjustments/${id}`);
+    return res.data;
+  },
+  async create(data: any) {
+    const res = await apiClient.post('/inventory/adjustments', data);
+    return res.data;
+  },
+  async update(id: number, data: any) {
+    const res = await apiClient.put(`/inventory/adjustments/${id}`, data);
+    return res.data;
+  },
+  async submit(id: number) {
+    const res = await apiClient.post(`/inventory/adjustments/${id}/submit`);
+    return res.data;
+  },
+  async approve(id: number) {
+    const res = await apiClient.post(`/inventory/adjustments/${id}/approve`);
+    return res.data;
+  },
+  async reject(id: number, reason?: string) {
+    const res = await apiClient.post(`/inventory/adjustments/${id}/reject`, { reason });
+    return res.data;
+  },
+};
+
+// ── Stock Transfers ───────────────────────────────────
+
+export const stockTransfers = {
+  async list(params?: { status?: string; warehouse_id?: number }) {
+    const res = await apiClient.get('/inventory/transfers', { params });
+    return Array.isArray(res.data) ? res.data : [];
+  },
+  async get(id: number) {
+    const res = await apiClient.get(`/inventory/transfers/${id}`);
+    return res.data;
+  },
+  async create(data: any) {
+    const res = await apiClient.post('/inventory/transfers', data);
+    return res.data;
+  },
+  async update(id: number, data: any) {
+    const res = await apiClient.put(`/inventory/transfers/${id}`, data);
+    return res.data;
+  },
+  async approve(id: number) {
+    const res = await apiClient.post(`/inventory/transfers/${id}/approve`);
+    return res.data;
+  },
+  async ship(id: number, data?: any) {
+    const res = await apiClient.post(`/inventory/transfers/${id}/ship`, data);
+    return res.data;
+  },
+  async receive(id: number, data?: any) {
+    const res = await apiClient.post(`/inventory/transfers/${id}/receive`, data);
+    return res.data;
+  },
+  async cancel(id: number) {
+    const res = await apiClient.post(`/inventory/transfers/${id}/cancel`);
+    return res.data;
+  },
+};
+
+// ── Inventory Counts ──────────────────────────────────
+
+export const inventoryCounts = {
+  async list(params?: { status?: string; warehouse_id?: number; count_type?: string }) {
+    const res = await apiClient.get('/inventory/counts', { params });
+    return Array.isArray(res.data) ? res.data : [];
+  },
+  async get(id: number) {
+    const res = await apiClient.get(`/inventory/counts/${id}`);
+    return res.data;
+  },
+  async create(data: any) {
+    const res = await apiClient.post('/inventory/counts', data);
+    return res.data;
+  },
+  async start(id: number) {
+    const res = await apiClient.post(`/inventory/counts/${id}/start`);
+    return res.data;
+  },
+  async recordItems(id: number, items: any[]) {
+    const res = await apiClient.post(`/inventory/counts/${id}/items`, { items });
+    return res.data;
+  },
+  async complete(id: number) {
+    const res = await apiClient.post(`/inventory/counts/${id}/complete`);
+    return res.data;
+  },
+  async approve(id: number) {
+    const res = await apiClient.post(`/inventory/counts/${id}/approve`);
+    return res.data;
+  },
+};

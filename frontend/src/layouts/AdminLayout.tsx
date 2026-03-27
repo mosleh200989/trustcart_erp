@@ -7,7 +7,7 @@ import apiClient from '@/services/api';
 import { 
   FaTachometerAlt, FaBoxes, FaShoppingCart, FaUsers, FaWarehouse, 
   FaShoppingBag, FaUserTie, FaBook, FaBullseye, FaHandshake, 
-  FaHeadset, FaUser, FaCog, FaBars, FaTimes, FaBell, FaChevronDown, FaChartBar, FaTags, FaGift, FaPhone, FaMoneyBillWave, FaImage, FaList, FaRocket, FaPrint, FaBan, FaHistory, FaTruck, FaClipboardList
+  FaHeadset, FaUser, FaCog, FaBars, FaTimes, FaBell, FaChevronDown, FaChartBar, FaTags, FaGift, FaPhone, FaMoneyBillWave, FaImage, FaList, FaRocket, FaPrint, FaBan, FaHistory, FaTruck, FaClipboardList, FaExchangeAlt, FaSlidersH, FaClipboardCheck
 } from 'react-icons/fa';
 
 interface MenuItem {
@@ -107,6 +107,9 @@ const menuItems: MenuItem[] = [
     requiredPermissions: ['view-inventory', 'view-warehouses', 'view-suppliers', 'view-stock-levels'],
     children: [
       { title: 'Stock Levels', icon: FaClipboardList, path: '/admin/inventory', requiredPermissions: ['view-inventory'] },
+      { title: 'Adjustments', icon: FaSlidersH, path: '/admin/inventory/adjustments', requiredPermissions: ['view-inventory'] },
+      { title: 'Transfers', icon: FaExchangeAlt, path: '/admin/inventory/transfers', requiredPermissions: ['view-inventory'] },
+      { title: 'Inventory Counts', icon: FaClipboardCheck, path: '/admin/inventory/counts', requiredPermissions: ['view-inventory'] },
       { title: 'Warehouses', icon: FaWarehouse, path: '/admin/inventory/warehouses', requiredPermissions: ['view-warehouses'] },
       { title: 'Suppliers', icon: FaTruck, path: '/admin/inventory/suppliers', requiredPermissions: ['view-suppliers'] },
     ],
