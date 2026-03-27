@@ -18,6 +18,8 @@ import { CreateStockTransferDto } from './dto/create-stock-transfer.dto';
 import { CreateInventoryCountDto, RecordCountItemDto } from './dto/create-inventory-count.dto';
 import { StockMovementService } from './stock-movement.service';
 import { StockReservation } from './entities/stock-reservation.entity';
+import { DemandForecast } from './entities/demand-forecast.entity';
+import * as bwipjs from 'bwip-js';
 
 @Injectable()
 export class InventoryService {
@@ -45,6 +47,8 @@ export class InventoryService {
     private countItemRepo: Repository<InventoryCountItem>,
     @InjectRepository(StockReservation)
     private reservationRepo: Repository<StockReservation>,
+    @InjectRepository(DemandForecast)
+    private forecastRepo: Repository<DemandForecast>,
     private dataSource: DataSource,
     private stockMovementService: StockMovementService,
   ) {}
@@ -1847,5 +1851,447 @@ export class InventoryService {
       }).join(','),
     );
     return [headers.join(','), ...rows].join('\n');
+  }
+
+  // ── 6.2 Barcode Generation ─────────────────────────
+
+  async generateBarcode(text: string, type: string = 'code128'): Promise<Buffer> {
+    const bcidMap: Record<string, string> = {
+      code128: 'code128',
+      ean13: 'ean13',
+      qrcode: 'qrcode',
+      datamatrix: 'datamatrix',
+    };
+    const bcid = bcidMap[type.toLowerCase()] || 'code128';
+    const png = await (bwipjs as any).toBuffer({
+      bcid,
+      text,
+      scale: 3,
+      height: 10,
+      includetext: true,
+      textxalign: 'center',
+    });
+    return png;
+  }
+
+  async getBatchLabelData(batchId: number): Promise<any> {
+    const rows = await this.dataSource.query(
+      `SELECT sb.*, p.name as product_name, p.sku as product_sku
+       FROM stock_batches sb
+       LEFT JOIN products p ON p.id = sb.product_id
+       WHERE sb.id = $1`, [batchId],
+    );
+    if (!rows.length) throw new NotFoundException('Batch not found');
+    const batch = rows[0];
+    return {
+      batch,
+      barcode_text: batch.batch_number,
+      label_fields: {
+        product: batch.product_name,
+        sku: batch.product_sku,
+        batch: batch.batch_number,
+        expiry: batch.expiry_date,
+        quantity: batch.current_quantity,
+      },
+    };
+  }
+
+  async getLocationLabelData(locationId: number): Promise<any> {
+    const rows = await this.dataSource.query(
+      `SELECT wl.*, wz.name as zone_name, w.name as warehouse_name
+       FROM warehouse_locations wl
+       LEFT JOIN warehouse_zones wz ON wz.id = wl.zone_id
+       LEFT JOIN warehouses w ON w.id = wz.warehouse_id
+       WHERE wl.id = $1`, [locationId],
+    );
+    if (!rows.length) throw new NotFoundException('Location not found');
+    const loc = rows[0];
+    return {
+      location: loc,
+      barcode_text: loc.barcode || loc.code,
+      label_fields: {
+        warehouse: loc.warehouse_name,
+        zone: loc.zone_name,
+        location: loc.code,
+        type: loc.type,
+      },
+    };
+  }
+
+  async getPoLabelData(poId: number): Promise<any> {
+    const rows = await this.dataSource.query(
+      `SELECT po.*, s.company_name as supplier_name
+       FROM purchase_orders po
+       LEFT JOIN suppliers s ON s.id = po.supplier_id
+       WHERE po.id = $1`, [poId],
+    );
+    if (!rows.length) throw new NotFoundException('Purchase order not found');
+    const po = rows[0];
+    const items = await this.dataSource.query(
+      `SELECT poi.*, p.name as product_name, p.sku
+       FROM purchase_order_items poi
+       LEFT JOIN products p ON p.id = poi.product_id
+       WHERE poi.purchase_order_id = $1`, [poId],
+    );
+    return {
+      po,
+      items,
+      barcode_text: po.po_number,
+      label_fields: {
+        po_number: po.po_number,
+        supplier: po.supplier_name,
+        date: po.order_date,
+        items_count: items.length,
+      },
+    };
+  }
+
+  async barcodeLookup(code: string): Promise<any> {
+    // Search products by SKU/barcode
+    const products = await this.dataSource.query(
+      `SELECT id, name, sku FROM products WHERE sku = $1 OR barcode = $1 LIMIT 5`, [code],
+    );
+    if (products.length) {
+      return { found: true, type: 'product', data: products[0] };
+    }
+    // Search batches by batch number
+    const batches = await this.dataSource.query(
+      `SELECT sb.id, sb.batch_number, sb.product_id, p.name as product_name
+       FROM stock_batches sb LEFT JOIN products p ON p.id = sb.product_id
+       WHERE sb.batch_number = $1 LIMIT 5`, [code],
+    );
+    if (batches.length) {
+      return { found: true, type: 'batch', data: batches[0] };
+    }
+    // Search locations by code/barcode
+    const locations = await this.dataSource.query(
+      `SELECT wl.id, wl.code, wl.barcode, wz.name as zone_name
+       FROM warehouse_locations wl
+       LEFT JOIN warehouse_zones wz ON wz.id = wl.zone_id
+       WHERE wl.code = $1 OR wl.barcode = $1 LIMIT 5`, [code],
+    );
+    if (locations.length) {
+      return { found: true, type: 'location', data: locations[0] };
+    }
+    // Search POs by number
+    const pos = await this.dataSource.query(
+      `SELECT id, po_number, status FROM purchase_orders WHERE po_number = $1 LIMIT 5`, [code],
+    );
+    if (pos.length) {
+      return { found: true, type: 'purchase_order', data: pos[0] };
+    }
+    return { found: false };
+  }
+
+  // ── 6.6 Demand Forecasting ────────────────────────
+
+  async getForecasts(warehouseId?: number): Promise<DemandForecast[]> {
+    const where: any = {};
+    if (warehouseId) where.warehouse_id = warehouseId;
+    return this.forecastRepo.find({ where, order: { created_at: 'DESC' }, take: 500 });
+  }
+
+  async generateForecasts(): Promise<{ generated: number }> {
+    // Get products with sales movements in last 12 months
+    const cutoff = new Date();
+    cutoff.setMonth(cutoff.getMonth() - 12);
+
+    const salesData = await this.dataSource.query(
+      `SELECT sm.product_id, sm.source_warehouse_id as warehouse_id,
+              DATE_TRUNC('month', sm.created_at) as month,
+              SUM(sm.quantity) as total_qty
+       FROM stock_movements sm
+       WHERE sm.movement_type = 'sales_dispatch'
+         AND sm.created_at >= $1
+       GROUP BY sm.product_id, sm.source_warehouse_id, DATE_TRUNC('month', sm.created_at)
+       ORDER BY sm.product_id, sm.source_warehouse_id, month`, [cutoff],
+    );
+
+    // Group by product+warehouse
+    const groups: Record<string, { product_id: number; warehouse_id: number; monthly: number[] }> = {};
+    for (const row of salesData) {
+      const key = `${row.product_id}-${row.warehouse_id}`;
+      if (!groups[key]) {
+        groups[key] = { product_id: row.product_id, warehouse_id: row.warehouse_id, monthly: [] };
+      }
+      groups[key].monthly.push(Number(row.total_qty));
+    }
+
+    let generated = 0;
+    const now = new Date();
+    const effectiveFrom = now.toISOString().split('T')[0];
+
+    for (const g of Object.values(groups)) {
+      for (const period of [3, 6, 12]) {
+        const slice = g.monthly.slice(-period);
+        if (slice.length === 0) continue;
+
+        const avg = Math.round(slice.reduce((s, v) => s + v, 0) / slice.length);
+        const stdDev = Math.round(
+          Math.sqrt(slice.reduce((s, v) => s + Math.pow(v - avg, 2), 0) / slice.length),
+        );
+        const reorderQty = Math.round(avg + stdDev * 1.5); // safety stock
+
+        // Velocity classification
+        let velocity = 'normal';
+        if (avg > 100) velocity = 'fast';
+        else if (avg < 10) velocity = 'slow';
+        else if (avg === 0) velocity = 'dead';
+
+        const forecastDate = new Date(now);
+        forecastDate.setMonth(forecastDate.getMonth() + period);
+
+        // Upsert: delete old forecast with same key, insert new
+        await this.forecastRepo.delete({
+          product_id: g.product_id,
+          warehouse_id: g.warehouse_id,
+          forecast_period: period,
+        });
+
+        await this.forecastRepo.save({
+          product_id: g.product_id,
+          warehouse_id: g.warehouse_id,
+          forecast_period: period,
+          moving_average_qty: avg,
+          historical_std_dev: stdDev,
+          suggested_reorder_qty: reorderQty,
+          velocity,
+          forecasted_date: forecastDate.toISOString().split('T')[0],
+          effective_from: effectiveFrom,
+        });
+        generated++;
+      }
+    }
+
+    return { generated };
+  }
+
+  async getForecastAccuracy(): Promise<any> {
+    // Compare forecast vs actual for last period
+    const rows = await this.dataSource.query(
+      `SELECT df.product_id, df.warehouse_id, df.forecast_period,
+              df.moving_average_qty as forecast_qty,
+              COALESCE(actual.total_qty, 0) as actual_qty,
+              p.name as product_name
+       FROM demand_forecasts df
+       LEFT JOIN products p ON p.id = df.product_id
+       LEFT JOIN LATERAL (
+         SELECT SUM(sm.quantity) as total_qty
+         FROM stock_movements sm
+         WHERE sm.product_id = df.product_id
+           AND sm.source_warehouse_id = df.warehouse_id
+           AND sm.movement_type = 'sales_dispatch'
+           AND sm.created_at >= df.effective_from::timestamp
+       ) actual ON true
+       WHERE df.forecast_period = 3
+       ORDER BY df.product_id
+       LIMIT 100`,
+    );
+
+    const items = rows.map((r: any) => {
+      const forecast = Number(r.forecast_qty);
+      const actual = Number(r.actual_qty);
+      const error = forecast > 0 ? Math.abs(forecast - actual) / forecast * 100 : 0;
+      return { ...r, accuracy_pct: Math.max(0, Math.round(100 - error)) };
+    });
+
+    const avgAccuracy = items.length > 0
+      ? Math.round(items.reduce((s: number, i: any) => s + i.accuracy_pct, 0) / items.length)
+      : 0;
+
+    return { items, average_accuracy_pct: avgAccuracy };
+  }
+
+  // ── 6.9 Bulk Import ───────────────────────────────
+
+  async validateImport(importType: string, rows: any[]): Promise<{ valid: boolean; errors: any[] }> {
+    const errors: any[] = [];
+    const validTypes = ['products', 'stock_levels', 'suppliers'];
+    if (!validTypes.includes(importType)) {
+      return { valid: false, errors: [{ row: 0, message: `Invalid import type. Must be one of: ${validTypes.join(', ')}` }] };
+    }
+
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      switch (importType) {
+        case 'products':
+          if (!row.name) errors.push({ row: i + 1, field: 'name', message: 'Name is required' });
+          if (!row.sku) errors.push({ row: i + 1, field: 'sku', message: 'SKU is required' });
+          if (row.price !== undefined && isNaN(Number(row.price))) errors.push({ row: i + 1, field: 'price', message: 'Price must be a number' });
+          break;
+        case 'stock_levels':
+          if (!row.product_id && !row.sku) errors.push({ row: i + 1, field: 'product_id', message: 'Product ID or SKU is required' });
+          if (!row.warehouse_id) errors.push({ row: i + 1, field: 'warehouse_id', message: 'Warehouse ID is required' });
+          if (row.quantity === undefined) errors.push({ row: i + 1, field: 'quantity', message: 'Quantity is required' });
+          break;
+        case 'suppliers':
+          if (!row.company_name) errors.push({ row: i + 1, field: 'company_name', message: 'Company name is required' });
+          break;
+      }
+    }
+
+    return { valid: errors.length === 0, errors };
+  }
+
+  async executeImport(importType: string, rows: any[], userId?: number): Promise<{ imported: number; errors: any[] }> {
+    const validation = await this.validateImport(importType, rows);
+    if (!validation.valid) {
+      return { imported: 0, errors: validation.errors };
+    }
+
+    let imported = 0;
+    const errors: any[] = [];
+
+    for (let i = 0; i < rows.length; i++) {
+      try {
+        switch (importType) {
+          case 'products':
+            await this.dataSource.query(
+              `INSERT INTO products (name, sku, description, price, category_id, is_active, created_at, updated_at)
+               VALUES ($1, $2, $3, $4, $5, true, NOW(), NOW())
+               ON CONFLICT (sku) DO UPDATE SET name = $1, description = $3, price = $4, updated_at = NOW()`,
+              [rows[i].name, rows[i].sku, rows[i].description || '', Number(rows[i].price) || 0, rows[i].category_id || null],
+            );
+            imported++;
+            break;
+          case 'stock_levels': {
+            let productId = rows[i].product_id;
+            if (!productId && rows[i].sku) {
+              const found = await this.dataSource.query(`SELECT id FROM products WHERE sku = $1`, [rows[i].sku]);
+              if (found.length) productId = found[0].id;
+              else { errors.push({ row: i + 1, message: `SKU "${rows[i].sku}" not found` }); continue; }
+            }
+            await this.dataSource.query(
+              `INSERT INTO stock_levels (product_id, warehouse_id, quantity, reserved_quantity, available_quantity, updated_at)
+               VALUES ($1, $2, $3, 0, $3, NOW())
+               ON CONFLICT (product_id, warehouse_id) DO UPDATE
+               SET quantity = $3, available_quantity = $3 - stock_levels.reserved_quantity, updated_at = NOW()`,
+              [productId, rows[i].warehouse_id, Number(rows[i].quantity)],
+            );
+            imported++;
+            break;
+          }
+          case 'suppliers':
+            await this.dataSource.query(
+              `INSERT INTO suppliers (company_name, contact_person, email, phone, address, is_active, created_at, updated_at)
+               VALUES ($1, $2, $3, $4, $5, true, NOW(), NOW())
+               ON CONFLICT DO NOTHING`,
+              [rows[i].company_name, rows[i].contact_person || '', rows[i].email || '', rows[i].phone || '', rows[i].address || ''],
+            );
+            imported++;
+            break;
+        }
+      } catch (err: any) {
+        errors.push({ row: i + 1, message: err?.message || 'Import error' });
+      }
+    }
+
+    return { imported, errors };
+  }
+
+  // ── 6.5 Inventory Audit Trail ─────────────────────
+
+  async getAuditTrail(filters: {
+    productId?: number;
+    warehouseId?: number;
+    dateFrom?: string;
+    dateTo?: string;
+    limit?: number;
+  }): Promise<any[]> {
+    const conditions: string[] = [];
+    const params: any[] = [];
+    let paramIdx = 1;
+
+    if (filters.productId) {
+      conditions.push(`sm.product_id = $${paramIdx++}`);
+      params.push(filters.productId);
+    }
+    if (filters.warehouseId) {
+      conditions.push(`(sm.source_warehouse_id = $${paramIdx} OR sm.dest_warehouse_id = $${paramIdx++})`);
+      params.push(filters.warehouseId);
+    }
+    if (filters.dateFrom) {
+      conditions.push(`sm.created_at >= $${paramIdx++}`);
+      params.push(filters.dateFrom);
+    }
+    if (filters.dateTo) {
+      conditions.push(`sm.created_at <= $${paramIdx++}`);
+      params.push(filters.dateTo);
+    }
+
+    const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+    const limit = filters.limit || 100;
+
+    return this.dataSource.query(
+      `SELECT sm.*, p.name as product_name, p.sku as product_sku,
+              sw.name as source_warehouse_name, dw.name as dest_warehouse_name,
+              u.first_name || ' ' || u.last_name as performed_by_name
+       FROM stock_movements sm
+       LEFT JOIN products p ON p.id = sm.product_id
+       LEFT JOIN warehouses sw ON sw.id = sm.source_warehouse_id
+       LEFT JOIN warehouses dw ON dw.id = sm.dest_warehouse_id
+       LEFT JOIN users u ON u.id = sm.performed_by
+       ${where}
+       ORDER BY sm.created_at DESC
+       LIMIT ${limit}`,
+      params,
+    );
+  }
+
+  // ── 6.7 Warehouse Visual Map ──────────────────────
+
+  async getWarehouseMap(warehouseId: number): Promise<any> {
+    const warehouses = await this.dataSource.query(
+      `SELECT * FROM warehouses WHERE id = $1`, [warehouseId],
+    );
+    if (!warehouses.length) throw new NotFoundException('Warehouse not found');
+
+    const zones = await this.dataSource.query(
+      `SELECT * FROM warehouse_zones WHERE warehouse_id = $1 ORDER BY name`, [warehouseId],
+    );
+
+    const locations = await this.dataSource.query(
+      `SELECT wl.*, wz.name as zone_name
+       FROM warehouse_locations wl
+       JOIN warehouse_zones wz ON wz.id = wl.zone_id
+       WHERE wz.warehouse_id = $1
+       ORDER BY wz.name, wl.code`, [warehouseId],
+    );
+
+    // Get stock per location
+    const stockByLocation = await this.dataSource.query(
+      `SELECT sl.warehouse_id, wl.id as location_id, wl.code as location_code,
+              COUNT(DISTINCT sl.product_id) as product_count,
+              SUM(sl.quantity) as total_quantity
+       FROM stock_levels sl
+       JOIN warehouse_locations wl ON wl.id = sl.warehouse_id
+       WHERE sl.warehouse_id = $1
+       GROUP BY sl.warehouse_id, wl.id, wl.code`, [warehouseId],
+    );
+
+    const stockMap: Record<number, any> = {};
+    for (const s of stockByLocation) {
+      stockMap[s.location_id] = { product_count: s.product_count, total_quantity: s.total_quantity };
+    }
+
+    const zonesWithLocations = zones.map((z: any) => ({
+      ...z,
+      locations: locations
+        .filter((l: any) => l.zone_id === z.id)
+        .map((l: any) => ({
+          ...l,
+          stock: stockMap[l.id] || { product_count: 0, total_quantity: 0 },
+        })),
+    }));
+
+    return {
+      warehouse: warehouses[0],
+      zones: zonesWithLocations,
+      summary: {
+        total_zones: zones.length,
+        total_locations: locations.length,
+        occupied_locations: stockByLocation.length,
+      },
+    };
   }
 }

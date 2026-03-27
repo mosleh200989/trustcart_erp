@@ -104,6 +104,13 @@ import { PaymentTransaction } from './modules/payment/payment-transaction.entity
 // Audit Log Entity
 import { AuditLog } from './modules/audit-log/audit-log.entity';
 
+// Accounting Entities
+import { JournalEntry } from './modules/accounting/entities/journal-entry.entity';
+import { JournalLine } from './modules/accounting/entities/journal-line.entity';
+
+// Demand Forecast Entity
+import { DemandForecast } from './modules/inventory/entities/demand-forecast.entity';
+
 // Modules
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
@@ -281,6 +288,10 @@ import { GrnItem } from './modules/purchase/entities/grn-item.entity';
             InventoryCount, InventoryCountItem, ReorderRule,
             // Purchase entities
             PurchaseOrder, PurchaseOrderItem, GoodsReceivedNote, GrnItem,
+            // Accounting entities
+            JournalEntry, JournalLine,
+            // Demand Forecast
+            DemandForecast,
           ],
           synchronize: false,
           logging: true,

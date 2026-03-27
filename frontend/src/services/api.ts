@@ -1012,3 +1012,125 @@ export const stockLevels = {
     return Array.isArray(res.data) ? res.data : [];
   },
 };
+
+// ── Phase 6: Supplier Portal ──────────────────────
+
+export const supplierPortal = {
+  async getProfile() {
+    const res = await apiClient.get('/supplier-portal/profile');
+    return res.data;
+  },
+  async updateProfile(data: any) {
+    const res = await apiClient.put('/supplier-portal/profile', data);
+    return res.data;
+  },
+  async getPurchaseOrders(params?: { status?: string; page?: number; limit?: number }) {
+    const res = await apiClient.get('/supplier-portal/purchase-orders', { params });
+    return res.data;
+  },
+  async getPurchaseOrder(id: number) {
+    const res = await apiClient.get(`/supplier-portal/purchase-orders/${id}`);
+    return res.data;
+  },
+  async confirmPurchaseOrder(id: number, data?: { expected_delivery_date?: string; notes?: string }) {
+    const res = await apiClient.post(`/supplier-portal/purchase-orders/${id}/confirm`, data);
+    return res.data;
+  },
+  async getCatalog() {
+    const res = await apiClient.get('/supplier-portal/catalog');
+    return Array.isArray(res.data) ? res.data : [];
+  },
+  async updateCatalogItem(id: number, data: any) {
+    const res = await apiClient.put(`/supplier-portal/catalog/${id}`, data);
+    return res.data;
+  },
+};
+
+// ── Phase 6: Barcode ──────────────────────────────
+
+export const inventoryBarcode = {
+  generateUrl(text: string, type: string = 'code128') {
+    return `${BACKEND_API_BASE_URL}/inventory/barcode/generate?text=${encodeURIComponent(text)}&type=${type}`;
+  },
+  async getBatchLabel(batchId: number) {
+    const res = await apiClient.get(`/inventory/barcode/label/batch/${batchId}`);
+    return res.data;
+  },
+  async getLocationLabel(locationId: number) {
+    const res = await apiClient.get(`/inventory/barcode/label/location/${locationId}`);
+    return res.data;
+  },
+  async getPoLabel(poId: number) {
+    const res = await apiClient.get(`/inventory/barcode/label/po/${poId}`);
+    return res.data;
+  },
+  async lookup(code: string) {
+    const res = await apiClient.get('/inventory/barcode/lookup', { params: { code } });
+    return res.data;
+  },
+};
+
+// ── Phase 6: Demand Forecasting ───────────────────
+
+export const inventoryForecasts = {
+  async list(warehouseId?: number) {
+    const res = await apiClient.get('/inventory/forecasts', { params: { warehouse_id: warehouseId } });
+    return Array.isArray(res.data) ? res.data : [];
+  },
+  async generate() {
+    const res = await apiClient.post('/inventory/forecasts/generate');
+    return res.data;
+  },
+  async accuracy() {
+    const res = await apiClient.get('/inventory/forecasts/accuracy');
+    return res.data;
+  },
+};
+
+// ── Phase 6: Bulk Import ──────────────────────────
+
+export const inventoryImport = {
+  async validate(importType: string, rows: any[]) {
+    const res = await apiClient.post('/inventory/import/validate', { import_type: importType, rows });
+    return res.data;
+  },
+  async execute(importType: string, rows: any[]) {
+    const res = await apiClient.post('/inventory/import/execute', { import_type: importType, rows });
+    return res.data;
+  },
+};
+
+// ── Phase 6: Audit Trail ──────────────────────────
+
+export const inventoryAuditTrail = {
+  async list(filters?: { product_id?: number; warehouse_id?: number; date_from?: string; date_to?: string; limit?: number }) {
+    const res = await apiClient.get('/inventory/audit-trail', { params: filters });
+    return Array.isArray(res.data) ? res.data : [];
+  },
+};
+
+// ── Phase 6: Warehouse Map ────────────────────────
+
+export const warehouseMap = {
+  async get(warehouseId: number) {
+    const res = await apiClient.get(`/inventory/warehouse-map/${warehouseId}`);
+    return res.data;
+  },
+};
+
+// ── Phase 6: Accounting Journals ──────────────────
+
+export const accountingJournals = {
+  async list(params?: { entry_type?: string; reference_type?: string; date_from?: string; date_to?: string; page?: number; limit?: number }) {
+    const res = await apiClient.get('/accounting/journals', { params });
+    return res.data;
+  },
+  async get(id: number) {
+    const res = await apiClient.get(`/accounting/journals/${id}`);
+    return res.data;
+  },
+  async summary() {
+    const res = await apiClient.get('/accounting/journals/summary');
+    return res.data;
+  },
+};

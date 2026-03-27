@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import AdminLayout from '@/layouts/AdminLayout';
 import { useToast } from '@/contexts/ToastContext';
-import { inventoryCounts, warehouses, products as productsApi } from '@/services/api';
-import { FaClipboardList, FaArrowLeft, FaPlus, FaTrash, FaSave, FaPlay, FaCheckDouble, FaCheck } from 'react-icons/fa';
+import { inventoryCounts, warehouses, products as productsApi, inventoryBarcode } from '@/services/api';
+import { FaClipboardList, FaArrowLeft, FaPlus, FaTrash, FaSave, FaPlay, FaCheckDouble, FaCheck, FaBarcode } from 'react-icons/fa';
 
 const STATUS_COLORS: Record<string, string> = {
   planned: 'bg-gray-100 text-gray-800',
@@ -115,6 +115,32 @@ export default function InventoryCountDetailPage() {
     setCountItems(updated);
   };
 
+  const [scanInput, setScanInput] = useState('');
+  const handleCountScan = async (code: string) => {
+    if (!code.trim()) return;
+    try {
+      const result = await inventoryBarcode.lookup(code.trim());
+      if (result.found && result.type === 'product') {
+        const existingIdx = countItems.findIndex((i: any) => i.product_id === result.data.id);
+        if (existingIdx >= 0) {
+          // Focus on existing item - increment counted qty
+          const updated = [...countItems];
+          const current = Number(updated[existingIdx].counted_quantity) || 0;
+          updated[existingIdx] = { ...updated[existingIdx], counted_quantity: current + 1, _dirty: true };
+          setCountItems(updated);
+          toast.success(`Scanned: ${result.data.name} (qty +1)`);
+        } else {
+          toast.error('Product not in count items. Start count to populate items first.');
+        }
+      } else {
+        toast.error('No product found for this barcode');
+      }
+    } catch {
+      toast.error('Barcode lookup failed');
+    }
+    setScanInput('');
+  };
+
   if (loading) return <AdminLayout><div className="p-6 text-center text-gray-500">Loading...</div></AdminLayout>;
 
   // ─── Detail View ────────────────────────────────────
@@ -153,7 +179,21 @@ export default function InventoryCountDetailPage() {
           {count.notes && <div className="bg-white rounded-lg shadow p-4 mb-6 text-sm"><span className="text-gray-500">Notes:</span> {count.notes}</div>}
 
           <div className="bg-white rounded-lg shadow overflow-x-auto">
-            <div className="p-4 border-b"><h2 className="font-semibold text-gray-800">Count Items</h2></div>
+            <div className="p-4 border-b flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+              <h2 className="font-semibold text-gray-800">Count Items</h2>
+              {isInProgress && (
+                <div className="relative">
+                  <FaBarcode className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input
+                    value={scanInput}
+                    onChange={(e) => setScanInput(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') handleCountScan(scanInput); }}
+                    placeholder="Scan barcode to count..."
+                    className="pl-9 pr-3 py-1.5 border rounded text-sm w-full sm:w-56"
+                  />
+                </div>
+              )}
+            </div>
             {countItems.length === 0 ? (
               <div className="p-8 text-center text-gray-400">No items yet. Press &quot;Start Count&quot; to populate items from current stock levels.</div>
             ) : (

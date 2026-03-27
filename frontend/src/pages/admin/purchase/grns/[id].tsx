@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import AdminLayout from '@/layouts/AdminLayout';
 import { useToast } from '@/contexts/ToastContext';
-import { grns, purchaseOrders, suppliers, warehouses, products as productsApi } from '@/services/api';
-import { FaTruck, FaArrowLeft, FaCheck, FaTimes, FaPlus, FaTrash, FaSave } from 'react-icons/fa';
+import { grns, purchaseOrders, suppliers, warehouses, products as productsApi, inventoryBarcode } from '@/services/api';
+import { FaTruck, FaArrowLeft, FaCheck, FaTimes, FaPlus, FaTrash, FaSave, FaBarcode } from 'react-icons/fa';
 
 const STATUS_COLORS: Record<string, string> = {
   draft: 'bg-gray-100 text-gray-800',
@@ -147,6 +147,25 @@ export default function GrnDetailPage() {
     const updated = [...items];
     (updated[idx] as any)[field] = value;
     setItems(updated);
+  };
+
+  const [scannerInput, setScannerInput] = useState('');
+  const handleBarcodeScan = async (code: string) => {
+    if (!code.trim()) return;
+    try {
+      const result = await inventoryBarcode.lookup(code.trim());
+      if (result.found && result.type === 'product') {
+        const newItem = emptyItem();
+        newItem.product_id = result.data.id;
+        setItems([...items, newItem]);
+        toast.success(`Added product: ${result.data.name}`);
+      } else {
+        toast.error('No product found for this barcode');
+      }
+    } catch {
+      toast.error('Barcode lookup failed');
+    }
+    setScannerInput('');
   };
 
   const productName = (pid: number) => {
@@ -356,9 +375,21 @@ export default function GrnDetailPage() {
 
         {/* Items */}
         <div className="bg-white rounded-lg shadow overflow-x-auto mb-6">
-          <div className="p-4 border-b flex justify-between items-center">
+          <div className="p-4 border-b flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
             <h2 className="font-semibold text-gray-800">Received Items</h2>
-            <button onClick={addItem} className="text-indigo-600 hover:text-indigo-800 text-sm flex items-center gap-1"><FaPlus size={12} /> Add Item</button>
+            <div className="flex items-center gap-3 w-full sm:w-auto">
+              <div className="relative flex-1 sm:flex-none">
+                <FaBarcode className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  value={scannerInput}
+                  onChange={(e) => setScannerInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleBarcodeScan(scannerInput); }}
+                  placeholder="Scan barcode..."
+                  className="pl-9 pr-3 py-1.5 border rounded text-sm w-full sm:w-48"
+                />
+              </div>
+              <button onClick={addItem} className="text-indigo-600 hover:text-indigo-800 text-sm flex items-center gap-1 whitespace-nowrap"><FaPlus size={12} /> Add Item</button>
+            </div>
           </div>
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b">

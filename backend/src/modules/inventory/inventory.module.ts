@@ -15,6 +15,7 @@ import { StockAdjustmentItem } from './entities/stock-adjustment-item.entity';
 import { InventoryCount } from './entities/inventory-count.entity';
 import { InventoryCountItem } from './entities/inventory-count-item.entity';
 import { ReorderRule } from './entities/reorder-rule.entity';
+import { DemandForecast } from './entities/demand-forecast.entity';
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { ReorderRule } from './entities/reorder-rule.entity';
       InventoryCount,
       InventoryCountItem,
       ReorderRule,
+      DemandForecast,
     ]),
   ],
   controllers: [InventoryController],
