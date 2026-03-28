@@ -167,9 +167,16 @@ export class CrmAutomationService {
     
     if (status === TaskStatus.COMPLETED || status === TaskStatus.FAILED) {
       task.completed_at = new Date();
+      // Remove customer data from the task upon completion
+      task.customer_id = 'REMOVED';
     }
     
     return await this.callTaskRepo.save(task);
+  }
+
+  async bulkDeleteTasks(taskIds: number[]) {
+    await this.callTaskRepo.delete(taskIds);
+    return { success: true, count: taskIds.length };
   }
   
   async assignCallTask(taskId: number, agentId: number) {
