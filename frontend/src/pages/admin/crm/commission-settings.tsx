@@ -38,6 +38,7 @@ export default function CommissionSettingsPage() {
   const [activeTab, setActiveTab] = useState<'agent' | 'team_leader'>('agent');
   const [agentSlabs, setAgentSlabs] = useState<SlabRow[]>([]);
   const [teamLeaderSlabs, setTeamLeaderSlabs] = useState<SlabRow[]>([]);
+  const [teamLeaderAmount, setTeamLeaderAmount] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -57,11 +58,18 @@ export default function CommissionSettingsPage() {
         return slabs.map((s: any) => ({
           agentTier: s.agentTier,
           slabType: s.slabType || 'order',
-          minOrderCount: String(Number(s.minOrderCount)),
-          maxOrderCount: s.maxOrderCount ? String(Number(s.maxOrderCount)) : '',
-          commissionAmount: String(Number(s.commissionAmount)),
+          minOrderCount: s.minOrderCount !== undefined && s.minOrderCount !== null ? String(Number(s.minOrderCount)) : '0',
+          maxOrderCount: s.maxOrderCount !== null && s.maxOrderCount !== undefined ? String(Number(s.maxOrderCount)) : '',
+          commissionAmount: s.commissionAmount !== undefined && s.commissionAmount !== null ? String(Number(s.commissionAmount)) : '0',
         }));
       };
+
+      const tlSlabsRaw = data.teamLeader || [];
+      if (tlSlabsRaw.length === 0) {
+        setTeamLeaderAmount('');
+      } else {
+        setTeamLeaderAmount(String(Number(tlSlabsRaw[0].commissionAmount)));
+      }
 
       setAgentSlabs(mapSlabs(data.agent));
       setTeamLeaderSlabs(mapSlabs(data.teamLeader));
@@ -110,7 +118,35 @@ export default function CommissionSettingsPage() {
   };
 
   const handleSave = async () => {
-    const slabs = getCurrentSlabs();
+    if (activeTab === 'team_leader') {
+      const comm = Number(teamLeaderAmount);
+      if (isNaN(comm) || comm < 0) {
+        toast.error('Commission must be a valid non-negative number');
+        return;
+      }
+      
+      try {
+        setSaving(true);
+        await apiClient.post(`/crm/commissions/slabs/${activeTab}`, {
+          slabs: [{
+            agentTier: 'silver', // Default dummy tier since they don't use it
+            slabType: 'order',
+            minOrderCount: 0,
+            maxOrderCount: null,
+            commissionAmount: comm,
+          }],
+        });
+        toast.success(`Team Leader commission saved successfully`);
+        loadSlabs();
+      } catch (error: any) {
+        toast.error(error?.response?.data?.message || 'Failed to save team leader commission');
+      } finally {
+        setSaving(false);
+      }
+      return;
+    }
+
+    const slabs = agentSlabs;
     const validSlabs = slabs.filter(s => s.minOrderCount !== '' && s.commissionAmount !== '');
     if (validSlabs.length === 0) {
       toast.error('Please add at least one valid slab');
@@ -128,7 +164,7 @@ export default function CommissionSettingsPage() {
 
     try {
       setSaving(true);
-      await apiClient.post(`/crm/commissions/slabs/${activeTab}`, {
+      await apiClient.post(`/crm/commissions/slabs/agent`, {
         slabs: validSlabs.map(s => ({
           agentTier: s.agentTier,
           slabType: s.slabType,
@@ -137,7 +173,7 @@ export default function CommissionSettingsPage() {
           commissionAmount: Number(s.commissionAmount),
         })),
       });
-      toast.success(`${activeTab === 'agent' ? 'Sales Executive' : 'Team Leader'} commission slabs saved successfully`);
+      toast.success(`Sales Executive commission slabs saved successfully`);
       loadSlabs();
     } catch (error: any) {
       toast.error(error?.response?.data?.message || 'Failed to save slabs');
@@ -239,7 +275,7 @@ export default function CommissionSettingsPage() {
             <h1 className="text-2xl font-bold text-blue-700">Commission Settings</h1>
           </div>
           <p className="text-gray-500 text-sm">
-            Configure tier-based commission slabs for Sales Executives and Team Leaders. Separate slabs for Orders, Upsells, and Cross-sells.
+            Configure tier-based commission slabs for Sales Executives and a fixed global commission per sale for Team Leaders.
           </p>
         </div>
 
@@ -282,7 +318,7 @@ export default function CommissionSettingsPage() {
         <div className="bg-white rounded-lg shadow p-6">
           <div className="flex items-center justify-between mb-5">
             <h2 className="text-lg font-bold text-gray-800">
-              {activeTab === 'agent' ? 'Sales Executive' : 'Team Leader'} Commission Slabs
+              {activeTab === 'agent' ? 'Sales Executive Commission Slabs' : 'Team Leader Global Commission'}
             </h2>
             <button
               onClick={handleSave}
@@ -298,16 +334,43 @@ export default function CommissionSettingsPage() {
             <div className="py-12 text-center text-gray-400">Loading commission settings...</div>
           ) : (
             <>
-              {TIERS.map(tier => renderTierSection(tier))}
+              {activeTab === 'agent' ? (
+                <>
+                  {TIERS.map(tier => renderTierSection(tier))}
 
-              <div className="mt-4 bg-gray-50 rounded-lg p-4 text-sm text-gray-600">
-                <p className="font-semibold text-gray-700 mb-2">Example:</p>
-                <div className="space-y-1">
-                  <p>• Silver agent takes 300+ orders → Matches Order slab min=300, max=400 → ৳10 per order</p>
-                  <p>• Same agent has 50 upsells → Matches Upsell slab min=50, max=100 → ৳20 per upsell</p>
-                  <p>• Leave &quot;Max Count&quot; empty for the last slab to handle all counts above that minimum.</p>
+                  <div className="mt-4 bg-gray-50 rounded-lg p-4 text-sm text-gray-600">
+                    <p className="font-semibold text-gray-700 mb-2">Example:</p>
+                    <div className="space-y-1">
+                      <p>• Silver agent takes 300+ orders → Matches Order slab min=300, max=400 → ৳10 per order</p>
+                      <p>• Same agent has 50 upsells → Matches Upsell slab min=50, max=100 → ৳20 per upsell</p>
+                      <p>• Leave &quot;Max Count&quot; empty for the last slab to handle all counts above that minimum.</p>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="max-w-md">
+                  <div className="mb-6 p-4 bg-gray-50 border border-gray-200 rounded-lg">
+                    <h3 className="text-lg font-semibold text-gray-800 mb-2">Team Leader Global Commission</h3>
+                    <p className="text-sm text-gray-600 mb-4">
+                      Set the fixed amount a Team Leader earns for <strong>every sale</strong> made by an agent assigned under them.
+                    </p>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Commission per sale (৳)
+                      </label>
+                      <input 
+                        type="number" 
+                        min="0"
+                        step="1"
+                        value={teamLeaderAmount}
+                        onChange={(e) => setTeamLeaderAmount(e.target.value)}
+                        placeholder="e.g. 50"
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                  </div>
                 </div>
-              </div>
+              )}
             </>
           )}
         </div>
