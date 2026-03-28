@@ -23,12 +23,17 @@ export default function BarcodeToolsPage() {
   const [labelId, setLabelId] = useState('');
   const [labelData, setLabelData] = useState<any>(null);
 
-  const handleGenerate = () => {
+  const handleGenerate = async () => {
     if (!barcodeText.trim()) {
       toast.error('Enter text to encode');
       return;
     }
-    setBarcodeUrl(inventoryBarcode.generateUrl(barcodeText, barcodeType));
+    try {
+      const url = await inventoryBarcode.generateBlobUrl(barcodeText, barcodeType);
+      setBarcodeUrl(url);
+    } catch {
+      toast.error('Failed to generate barcode');
+    }
   };
 
   const handleLookup = async () => {
@@ -47,6 +52,9 @@ export default function BarcodeToolsPage() {
     }
   };
 
+  // Label barcode URL (fetched with auth)
+  const [labelBarcodeUrl, setLabelBarcodeUrl] = useState('');
+
   const handleFetchLabel = async () => {
     const id = parseInt(labelId);
     if (isNaN(id)) { toast.error('Enter a valid ID'); return; }
@@ -56,6 +64,10 @@ export default function BarcodeToolsPage() {
       else if (labelType === 'location') data = await inventoryBarcode.getLocationLabel(id);
       else data = await inventoryBarcode.getPoLabel(id);
       setLabelData(data);
+      if (data?.barcode_text) {
+        const url = await inventoryBarcode.generateBlobUrl(data.barcode_text);
+        setLabelBarcodeUrl(url);
+      }
     } catch {
       toast.error('Failed to load label data');
     }
@@ -217,7 +229,7 @@ export default function BarcodeToolsPage() {
               <div className="border-2 border-dashed rounded-lg p-6 max-w-md mx-auto print:border-solid" id="printable-label">
                 <div className="text-center mb-3">
                   <img
-                    src={inventoryBarcode.generateUrl(labelData.barcode_text)}
+                    src={labelBarcodeUrl}
                     alt="Barcode"
                     className="mx-auto max-w-full"
                   />

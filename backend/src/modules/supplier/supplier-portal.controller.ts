@@ -75,7 +75,7 @@ export class SupplierPortalController {
     );
     if (!order) throw new NotFoundException('Purchase order not found');
     const items = await this.dataSource.query(
-      `SELECT poi.*, p.name as product_name FROM purchase_order_items poi LEFT JOIN products p ON p.id = poi.product_id WHERE poi.purchase_order_id = $1`,
+      `SELECT poi.*, p.name_en as product_name FROM purchase_order_items poi LEFT JOIN products p ON p.id = poi.product_id WHERE poi.purchase_order_id = $1`,
       [id],
     );
     return { ...order, items };
@@ -107,11 +107,11 @@ export class SupplierPortalController {
   async getCatalog(@Req() req: any) {
     const supplier = await this.getSupplierForUser(req.user.id);
     const products = await this.dataSource.query(
-      `SELECT sp.*, p.name as product_name, p.sku as product_sku
+      `SELECT sp.*, p.name_en as product_name, p.sku as product_sku
        FROM supplier_products sp
        LEFT JOIN products p ON p.id = sp.product_id
        WHERE sp.supplier_id = $1 AND sp.is_active = true
-       ORDER BY p.name ASC`,
+       ORDER BY p.name_en ASC`,
       [supplier.id],
     );
     return products;

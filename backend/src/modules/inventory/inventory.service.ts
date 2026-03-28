@@ -226,7 +226,7 @@ export class InventoryService {
 
       savedAdj.total_value_impact = totalValueImpact;
       await manager.save(StockAdjustment, savedAdj);
-      return this.getAdjustment(savedAdj.id);
+      return (await manager.findOne(StockAdjustment, { where: { id: savedAdj.id }, relations: ['items'] }))!;
     });
   }
 
@@ -310,7 +310,7 @@ export class InventoryService {
       adj.approved_by = userId;
       adj.approved_at = new Date();
       await manager.save(StockAdjustment, adj);
-      return this.getAdjustment(adj.id);
+      return (await manager.findOne(StockAdjustment, { where: { id: adj.id }, relations: ['items'] }))!;
     });
   }
 
@@ -384,7 +384,7 @@ export class InventoryService {
         });
         await manager.save(StockTransferItem, txItem);
       }
-      return this.getTransfer(saved.id);
+      return (await manager.findOne(StockTransfer, { where: { id: saved.id }, relations: ['items'] }))!;
     });
   }
 
@@ -450,7 +450,7 @@ export class InventoryService {
       t.shipped_by = userId;
       t.shipped_at = new Date();
       await manager.save(StockTransfer, t);
-      return this.getTransfer(id);
+      return (await manager.findOne(StockTransfer, { where: { id }, relations: ['items'] }))!;
     });
   }
 
@@ -491,7 +491,7 @@ export class InventoryService {
       t.received_by = userId;
       t.received_at = new Date();
       await manager.save(StockTransfer, t);
-      return this.getTransfer(id);
+      return (await manager.findOne(StockTransfer, { where: { id }, relations: ['items'] }))!;
     });
   }
 
@@ -578,7 +578,7 @@ export class InventoryService {
         }
       }
 
-      return this.getCount(saved.id);
+      return (await manager.findOne(InventoryCount, { where: { id: saved.id }, relations: ['items'] }))!;
     });
   }
 
@@ -728,7 +728,7 @@ export class InventoryService {
       c.approved_by = userId;
       c.approved_at = new Date();
       await manager.save(InventoryCount, c);
-      return this.getCount(id);
+      return (await manager.findOne(InventoryCount, { where: { id }, relations: ['items'] }))!;
     });
   }
 
@@ -1863,20 +1863,24 @@ export class InventoryService {
       datamatrix: 'datamatrix',
     };
     const bcid = bcidMap[type.toLowerCase()] || 'code128';
-    const png = await (bwipjs as any).toBuffer({
+    const isQR = bcid === 'qrcode' || bcid === 'datamatrix';
+    const opts: Record<string, any> = {
       bcid,
       text,
-      scale: 3,
-      height: 10,
-      includetext: true,
+      scale: 4,
+      height: isQR ? 40 : 15,
+      includetext: !isQR,
       textxalign: 'center',
-    });
+      padding: 4,
+    };
+    if (isQR) opts.width = 40;
+    const png = await (bwipjs as any).toBuffer(opts);
     return png;
   }
 
   async getBatchLabelData(batchId: number): Promise<any> {
     const rows = await this.dataSource.query(
-      `SELECT sb.*, p.name as product_name, p.sku as product_sku
+      `SELECT sb.*, p.name_en as product_name, p.sku as product_sku
        FROM stock_batches sb
        LEFT JOIN products p ON p.id = sb.product_id
        WHERE sb.id = $1`, [batchId],
@@ -1928,7 +1932,7 @@ export class InventoryService {
     if (!rows.length) throw new NotFoundException('Purchase order not found');
     const po = rows[0];
     const items = await this.dataSource.query(
-      `SELECT poi.*, p.name as product_name, p.sku
+      `SELECT poi.*, p.name_en as product_name, p.sku
        FROM purchase_order_items poi
        LEFT JOIN products p ON p.id = poi.product_id
        WHERE poi.purchase_order_id = $1`, [poId],
@@ -2072,7 +2076,7 @@ export class InventoryService {
       `SELECT df.product_id, df.warehouse_id, df.forecast_period,
               df.moving_average_qty as forecast_qty,
               COALESCE(actual.total_qty, 0) as actual_qty,
-              p.name as product_name
+              p.name_en as product_name
        FROM demand_forecasts df
        LEFT JOIN products p ON p.id = df.product_id
        LEFT JOIN LATERAL (
@@ -2223,7 +2227,7 @@ export class InventoryService {
     const limit = filters.limit || 100;
 
     return this.dataSource.query(
-      `SELECT sm.*, p.name as product_name, p.sku as product_sku,
+      `SELECT sm.*, p.name_en as product_name, p.sku as product_sku,
               sw.name as source_warehouse_name, dw.name as dest_warehouse_name,
               u.first_name || ' ' || u.last_name as performed_by_name
        FROM stock_movements sm
