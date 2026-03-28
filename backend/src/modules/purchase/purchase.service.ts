@@ -76,7 +76,7 @@ export class PurchaseService {
         await manager.save(PurchaseOrder, savedPo);
       }
 
-      return this.findOne(savedPo.id);
+      return (await manager.findOne(PurchaseOrder, { where: { id: savedPo.id }, relations: ['items'] }))!;
     });
   }
 
@@ -186,7 +186,7 @@ export class PurchaseService {
         }
       }
 
-      return this.findOneGrn(savedGrn.id);
+      return (await manager.findOne(GoodsReceivedNote, { where: { id: savedGrn.id }, relations: ['items'] }))!;
     });
   }
 
@@ -287,7 +287,7 @@ export class PurchaseService {
         await this.updatePoStatusAfterGrn(manager, grn.purchase_order_id);
       }
 
-      return this.findOneGrn(id);
+      return (await manager.findOne(GoodsReceivedNote, { where: { id }, relations: ['items'] }))!;
     });
   }
 

@@ -104,7 +104,7 @@ const menuItems: MenuItem[] = [
   {
     title: 'Inventory',
     icon: FaWarehouse,
-    requiredPermissions: ['view-inventory', 'view-warehouses', 'view-suppliers', 'view-stock-levels'],
+    requiredPermissions: ['view-inventory', 'view-stock-levels'],
     children: [
       { title: 'Dashboard', icon: FaTachometerAlt, path: '/admin/inventory', requiredPermissions: ['view-inventory'] },
       { title: 'Alerts', icon: FaBell, path: '/admin/inventory/alerts', requiredPermissions: ['view-inventory'] },
@@ -113,9 +113,9 @@ const menuItems: MenuItem[] = [
       { title: 'Transfers', icon: FaExchangeAlt, path: '/admin/inventory/transfers', requiredPermissions: ['view-inventory'] },
       { title: 'Inventory Counts', icon: FaClipboardCheck, path: '/admin/inventory/counts', requiredPermissions: ['view-inventory'] },
       { title: 'Reports', icon: FaChartBar, path: '/admin/inventory/reports', requiredPermissions: ['view-inventory'] },
-      { title: 'Warehouses', icon: FaWarehouse, path: '/admin/inventory/warehouses', requiredPermissions: ['view-warehouses'] },
-      { title: 'Warehouse Map', icon: FaMap, path: '/admin/inventory/warehouse-map', requiredPermissions: ['view-warehouses'] },
-      { title: 'Suppliers', icon: FaTruck, path: '/admin/inventory/suppliers', requiredPermissions: ['view-suppliers'] },
+      { title: 'Warehouses', icon: FaWarehouse, path: '/admin/inventory/warehouses', requiredPermissions: ['view-inventory'] },
+      { title: 'Warehouse Map', icon: FaMap, path: '/admin/inventory/warehouse-map', requiredPermissions: ['view-inventory'] },
+      { title: 'Suppliers', icon: FaTruck, path: '/admin/inventory/suppliers', requiredPermissions: ['view-inventory'] },
       { title: 'Forecasts', icon: FaChartLine, path: '/admin/inventory/forecasts', requiredPermissions: ['view-inventory'] },
       { title: 'Barcode Tools', icon: FaBarcode, path: '/admin/inventory/barcode', requiredPermissions: ['view-inventory'] },
       { title: 'Bulk Import', icon: FaFileImport, path: '/admin/inventory/import', requiredPermissions: ['manage-stock'] },

@@ -21,13 +21,6 @@
 11. [Testing Checklist](#11-testing-checklist)
 12. [File Reference](#12-file-reference)
 13. [User Guide — How to Use Each Feature](#13-user-guide--how-to-use-each-feature)
-6. [Barcode Integration](#6-barcode-integration)
-7. [Accounting / COGS](#7-accounting--cogs)
-8. [Supplier Portal Auth Flow](#8-supplier-portal-auth-flow)
-9. [Bulk Import](#9-bulk-import)
-10. [Demand Forecasting](#10-demand-forecasting)
-11. [Testing Checklist](#11-testing-checklist)
-12. [File Reference](#12-file-reference)
 
 ---
 
@@ -404,17 +397,31 @@ This section is written for all team members. No coding knowledge is needed.
 ### 13.2 How to Add Zones and Locations Inside a Warehouse
 
 1. Go to **Inventory** → **Warehouses**.
-2. Click on the warehouse you want to configure.
-3. In the warehouse detail view, scroll to the **Zones** section.
-4. Click **"+ Add Zone"** and enter:
+2. In the warehouse table, find the warehouse you want to configure.
+3. Click the **purple map marker icon** (📍) in the **Actions** column — this opens the Zones & Locations view.
+4. You will see two sections: **Zones** and **Locations**.
+
+**To add a zone:**
+1. Click the **"+ Add Zone"** button (top-right of the Zones section).
+2. Fill in:
    - **Name** (e.g., "Cold Zone", "Dry Storage", "Receiving Area")
-   - **Temperature Type** (ambient, chilled, frozen)
-5. Inside each zone, click **"+ Add Location"** and enter:
+   - **Type** (ambient, cold, frozen, dry, hazardous)
+   - **Temperature Min / Max** (optional — in °C)
+   - **Humidity Min / Max** (optional — in %)
+   - **Active** — keep checked
+3. Click **Create Zone**.
+
+**To add a location:**
+1. Click the **"+ Add Location"** button (top-right of the Locations section).
+2. Fill in:
    - **Code** (e.g., "A-01-01" for Aisle A, Rack 01, Shelf 01)
-   - **Type** (shelf, bin, floor, pallet)
-   - **Barcode** (optional — can be auto-generated later)
-   - **Capacity** (optional — maximum items this location can hold)
-6. Click **Save** after each addition.
+   - **Zone** (optional — select which zone this location belongs to)
+   - **Aisle, Rack, Shelf, Bin** (optional — helps identify the physical position)
+   - **Location Type** (storage, receiving, shipping, returns, quarantine)
+   - **Barcode** (optional — can be auto-generated later using Barcode Tools)
+3. Click **Create Location**.
+
+**To edit or delete** a zone or location, use the **edit** (pencil) and **delete** (trash) icons in each row.
 
 **Tip:** Use the **Warehouse Map** page (Inventory → Warehouse Map) to see a visual layout of all your zones and locations.
 

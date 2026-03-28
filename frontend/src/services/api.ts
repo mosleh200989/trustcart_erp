@@ -647,15 +647,15 @@ export const warehouses = {
     return Array.isArray(res.data) ? res.data : [];
   },
   async createZone(warehouseId: number, data: any) {
-    const res = await apiClient.post(`/warehouses/${warehouseId}/zones`, data);
+    const res = await apiClient.post(`/warehouses/zones`, data);
     return res.data;
   },
   async updateZone(warehouseId: number, zoneId: number, data: any) {
-    const res = await apiClient.put(`/warehouses/${warehouseId}/zones/${zoneId}`, data);
+    const res = await apiClient.put(`/warehouses/zones/${zoneId}`, data);
     return res.data;
   },
   async removeZone(warehouseId: number, zoneId: number) {
-    const res = await apiClient.delete(`/warehouses/${warehouseId}/zones/${zoneId}`);
+    const res = await apiClient.delete(`/warehouses/zones/${zoneId}`);
     return res.data;
   },
   // Locations
@@ -664,15 +664,15 @@ export const warehouses = {
     return Array.isArray(res.data) ? res.data : [];
   },
   async createLocation(warehouseId: number, data: any) {
-    const res = await apiClient.post(`/warehouses/${warehouseId}/locations`, data);
+    const res = await apiClient.post(`/warehouses/locations`, data);
     return res.data;
   },
   async updateLocation(warehouseId: number, locationId: number, data: any) {
-    const res = await apiClient.put(`/warehouses/${warehouseId}/locations/${locationId}`, data);
+    const res = await apiClient.put(`/warehouses/locations/${locationId}`, data);
     return res.data;
   },
   async removeLocation(warehouseId: number, locationId: number) {
-    const res = await apiClient.delete(`/warehouses/${warehouseId}/locations/${locationId}`);
+    const res = await apiClient.delete(`/warehouses/locations/${locationId}`);
     return res.data;
   },
 };
@@ -1049,8 +1049,12 @@ export const supplierPortal = {
 // ── Phase 6: Barcode ──────────────────────────────
 
 export const inventoryBarcode = {
-  generateUrl(text: string, type: string = 'code128') {
-    return `${BACKEND_API_BASE_URL}/inventory/barcode/generate?text=${encodeURIComponent(text)}&type=${type}`;
+  async generateBlobUrl(text: string, type: string = 'code128'): Promise<string> {
+    const res = await apiClient.get('/inventory/barcode/generate', {
+      params: { text, type },
+      responseType: 'blob',
+    });
+    return URL.createObjectURL(res.data);
   },
   async getBatchLabel(batchId: number) {
     const res = await apiClient.get(`/inventory/barcode/label/batch/${batchId}`);
