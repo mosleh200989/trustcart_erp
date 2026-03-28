@@ -255,6 +255,7 @@ export class CrmTeamService {
       sortBy = 'created_at',
       sortOrder = 'DESC',
       productName,
+      filterTeamLeaderId, // admin-only: filter leads by a specific team leader
     } = query;
     
     const pageNum = Number(page) || 1;
@@ -284,10 +285,32 @@ export class CrmTeamService {
     // Scope: Check if user is actually a team leader (has teams assigned)
     const isTeamLeader = await this.salesTeamRepository.count({ where: { teamLeaderId } });
     if (isTeamLeader > 0) {
-      // TL can see customers they supervise, plus globally-unclaimed customers.
-      qb.andWhere('(c.assigned_supervisor_id IS NULL OR c.assigned_supervisor_id = :tl)', { tl: teamLeaderId });
+      // TL scope: unclaimed customers + customers supervised by this TL + customers assigned to TL's agents
+      const tlAgents = await this.usersRepository.find({ where: { teamLeaderId }, select: ['id'] });
+      const tlAgentIds = tlAgents.map(a => a.id);
+      if (tlAgentIds.length > 0) {
+        qb.andWhere(
+          '(c.assigned_supervisor_id IS NULL OR c.assigned_supervisor_id = :tl OR c.assigned_to IN (:...scopeAgentIds))',
+          { tl: teamLeaderId, scopeAgentIds: tlAgentIds },
+        );
+      } else {
+        qb.andWhere('(c.assigned_supervisor_id IS NULL OR c.assigned_supervisor_id = :tl)', { tl: teamLeaderId });
+      }
+    } else if (filterTeamLeaderId) {
+      // Admin filtering by a specific team leader
+      const filterTlId = Number(filterTeamLeaderId);
+      const filterTlAgents = await this.usersRepository.find({ where: { teamLeaderId: filterTlId }, select: ['id'] });
+      const filterTlAgentIds = filterTlAgents.map(a => a.id);
+      if (filterTlAgentIds.length > 0) {
+        qb.andWhere(
+          '(c.assigned_supervisor_id = :filterTl OR c.assigned_to IN (:...filterTlAgentIds))',
+          { filterTl: filterTlId, filterTlAgentIds },
+        );
+      } else {
+        qb.andWhere('c.assigned_supervisor_id = :filterTl', { filterTl: filterTlId });
+      }
     }
-    // Non-TL users with assign-leads-to-team permission see all leads (no supervisor filter)
+    // Non-TL, non-filtered admin: see all leads (no supervisor filter)
 
     // Assignment status filter
     if (assignmentStatus === 'assigned') {
@@ -409,7 +432,26 @@ export class CrmTeamService {
     countQb.andWhere(`NOT EXISTS (SELECT 1 FROM customer_tiers ct WHERE ct.customer_id = c.id AND ct.tier = 'rejected')`);
     // Apply same conditional TL filter as data query
     if (isTeamLeader > 0) {
-      countQb.andWhere('(c.assigned_supervisor_id IS NULL OR c.assigned_supervisor_id = :tl)', { tl: teamLeaderId });
+      const tlAgentIds = (await this.usersRepository.find({ where: { teamLeaderId }, select: ['id'] })).map(a => a.id);
+      if (tlAgentIds.length > 0) {
+        countQb.andWhere(
+          '(c.assigned_supervisor_id IS NULL OR c.assigned_supervisor_id = :tl OR c.assigned_to IN (:...scopeAgentIds))',
+          { tl: teamLeaderId, scopeAgentIds: tlAgentIds },
+        );
+      } else {
+        countQb.andWhere('(c.assigned_supervisor_id IS NULL OR c.assigned_supervisor_id = :tl)', { tl: teamLeaderId });
+      }
+    } else if (filterTeamLeaderId) {
+      const filterTlId = Number(filterTeamLeaderId);
+      const filterTlAgentIds = (await this.usersRepository.find({ where: { teamLeaderId: filterTlId }, select: ['id'] })).map(a => a.id);
+      if (filterTlAgentIds.length > 0) {
+        countQb.andWhere(
+          '(c.assigned_supervisor_id = :filterTl OR c.assigned_to IN (:...filterTlAgentIds))',
+          { filterTl: filterTlId, filterTlAgentIds },
+        );
+      } else {
+        countQb.andWhere('c.assigned_supervisor_id = :filterTl', { filterTl: filterTlId });
+      }
     }
     
     if (assignmentStatus === 'assigned') {
@@ -1765,8 +1807,29 @@ export class CrmTeamService {
     return this.usersRepository.save(agent);
   }
 
-  async getAvailableAgentsForTeamLeader(teamLeaderId: number): Promise<User[]> {
-    // Get users with Sales Executive role that can be assigned to teams
+  async getTeamLeadersList(): Promise<User[]> {
+    // Get all users with Sales Team Leader role
+    const tlRole = await this.usersRepository.manager
+      .createQueryBuilder()
+      .select('r.id', 'id')
+      .from('roles', 'r')
+      .where("r.slug = :slug OR LOWER(r.name) LIKE :pattern", {
+        slug: 'sales-team-leader',
+        pattern: '%team leader%',
+      })
+      .getRawOne();
+
+    if (!tlRole) {
+      return [];
+    }
+
+    return await this.usersRepository.find({
+      where: { roleId: tlRole.id },
+      select: ['id', 'name', 'lastName', 'email'],
+    });
+  }
+
+  async getAvailableAgentsForTeamLeader(teamLeaderId: number): Promise<User[]> {    // Get users with Sales Executive role that can be assigned to teams
     const salesExecRole = await this.usersRepository.manager
       .createQueryBuilder()
       .select('r.id', 'id')

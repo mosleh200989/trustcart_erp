@@ -186,6 +186,12 @@ export class CrmTeamController {
     return await this.crmTeamService.getAvailableAgentsForTeamLeader(req.user.id);
   }
 
+  @Get('team-leaders')
+  @RequirePermissions('assign-leads-to-team')
+  async getTeamLeaders() {
+    return await this.crmTeamService.getTeamLeadersList();
+  }
+
   // ==================== TEAM AGENT REPORTS ====================
 
   @Get('agent-tiers')
