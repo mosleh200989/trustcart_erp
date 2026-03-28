@@ -931,6 +931,181 @@ export class CommissionService {
     };
   }
 
+  // ==================== TEAM LEADER REPORT ====================
+
+  async getTeamLeaderCommissionReport(query: {
+    search?: string;
+    month?: string;
+    page?: number;
+    limit?: number;
+  } = {}): Promise<{ data: any[]; total: number }> {
+    const { search, page = 1, limit = 50 } = query;
+    const pageNum = Number(page) || 1;
+    const limitNum = Number(limit) || 50;
+    const offset = (pageNum - 1) * limitNum;
+
+    let monthStart: string;
+    let monthEnd: string;
+    const monthMatch = (query.month || '').match(/^(\d{4})-(\d{2})$/);
+    if (monthMatch) {
+      const y = Number(monthMatch[1]);
+      const m = Number(monthMatch[2]);
+      monthStart = `${y}-${String(m).padStart(2, '0')}-01`;
+      const lastDay = new Date(y, m, 0).getDate();
+      monthEnd = `${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+    } else {
+      const now = new Date();
+      const y = now.getFullYear();
+      const m = now.getMonth() + 1;
+      monthStart = `${y}-${String(m).padStart(2, '0')}-01`;
+      const lastDay = new Date(y, m, 0).getDate();
+      monthEnd = `${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+    }
+
+    const searchCondition = search && search.trim()
+      ? `AND (u.name ILIKE $1 OR u.last_name ILIKE $1 OR u.phone ILIKE $1)`
+      : '';
+    const searchParam = search && search.trim() ? [`%${search.trim()}%`] : [];
+
+    const countSql = `
+      SELECT COUNT(DISTINCT u.id) as total
+      FROM users u
+      INNER JOIN roles r ON r.id = u.role_id
+      WHERE (LOWER(r.name) LIKE '%sales team leader%' OR r.slug = 'sales-team-leader')
+      ${searchCondition}
+    `;
+    const countResult = await this.dataSource.query(countSql, searchParam);
+    const total = parseInt(countResult[0]?.total || '0', 10);
+
+    const pIdx = searchParam.length + 1;
+    const dataSql = `
+      SELECT
+        u.id as tl_id,
+        CONCAT(COALESCE(u.name, ''), ' ', COALESCE(u.last_name, '')) as tl_name,
+        u.phone,
+        COALESCE(order_stats.total_orders, 0) as total_orders,
+        COALESCE(paid_stats.paid_commission, 0) as paid_commission
+      FROM users u
+      INNER JOIN roles r ON r.id = u.role_id
+      LEFT JOIN (
+        SELECT
+          au.team_leader_id as tl_id,
+          COUNT(so.id) as total_orders
+        FROM sales_orders so
+        INNER JOIN users au ON au.id = so.created_by
+        WHERE au.team_leader_id IS NOT NULL
+          AND so.order_source IN ('admin_panel', 'agent_dashboard')
+          AND so.status != 'cancelled'
+          AND DATE(so.created_at AT TIME ZONE 'Asia/Dhaka') BETWEEN '${monthStart}' AND '${monthEnd}'
+        GROUP BY au.team_leader_id
+      ) order_stats ON order_stats.tl_id = u.id
+      LEFT JOIN (
+        SELECT
+          pr.agent_id,
+          COALESCE(SUM(COALESCE(pr.approved_amount, pr.requested_amount)), 0) as paid_commission
+        FROM commission_payment_requests pr
+        WHERE pr.status = 'paid'
+        GROUP BY pr.agent_id
+      ) paid_stats ON paid_stats.agent_id = u.id
+      WHERE (LOWER(r.name) LIKE '%sales team leader%' OR r.slug = 'sales-team-leader')
+      ${searchCondition}
+      ORDER BY tl_name ASC
+      LIMIT $${pIdx} OFFSET $${pIdx + 1}
+    `;
+    const dataParams = [...searchParam, limitNum, offset];
+    const rows = await this.dataSource.query(dataSql, dataParams);
+
+    const tlSlabs = await this.slabRepository.find({
+      where: { roleType: 'team_leader', isActive: true },
+      order: { minOrderCount: 'ASC' },
+    });
+    const tlRate = tlSlabs.length > 0 ? Number(tlSlabs[0].commissionAmount) : 0;
+
+    return {
+      data: rows.map((r: any) => {
+        const totalOrders = parseInt(r.total_orders || '0', 10);
+        const paidCommission = parseFloat(r.paid_commission || '0');
+        const totalCommission = totalOrders * tlRate;
+        return {
+          tlId: r.tl_id,
+          tlName: (r.tl_name || '').trim(),
+          phone: r.phone || '',
+          totalOrders,
+          commissionRate: tlRate,
+          totalCommission,
+          paidCommission,
+          balance: totalCommission - paidCommission,
+        };
+      }),
+      total,
+    };
+  }
+
+  async getTLPaymentBreakdown(query: { teamLeaderId: string; month: string }): Promise<any> {
+    const teamLeaderId = Number(query.teamLeaderId);
+    if (!teamLeaderId) throw new BadRequestException('Team Leader ID is required');
+
+    const monthStr = query.month || '';
+    const match = monthStr.match(/^(\d{4})-(\d{2})$/);
+    if (!match) throw new BadRequestException('Month must be in YYYY-MM format');
+    const year = Number(match[1]);
+    const monthNum = Number(match[2]);
+    const startDate = `${year}-${String(monthNum).padStart(2, '0')}-01`;
+    const lastDay = new Date(year, monthNum, 0).getDate();
+    const endDate = `${year}-${String(monthNum).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+
+    const tlRows = await this.dataSource.query(
+      `SELECT u.id, CONCAT(COALESCE(u.name,''),' ',COALESCE(u.last_name,'')) as name, u.phone
+       FROM users u WHERE u.id = $1`, [teamLeaderId],
+    );
+    if (!tlRows.length) throw new NotFoundException('Team Leader not found');
+    const tl = tlRows[0];
+
+    const tlSlabs = await this.slabRepository.find({
+      where: { roleType: 'team_leader', isActive: true },
+      order: { minOrderCount: 'ASC' },
+    });
+    const tlRate = tlSlabs.length > 0 ? Number(tlSlabs[0].commissionAmount) : 0;
+
+    const dailyOrdersSql = `
+      SELECT
+        DATE(so.created_at AT TIME ZONE 'Asia/Dhaka') as order_date,
+        COUNT(so.id) as order_count,
+        COUNT(DISTINCT so.created_by) as agent_count
+      FROM sales_orders so
+      INNER JOIN users au ON au.id = so.created_by
+      WHERE au.team_leader_id = $1
+        AND so.order_source IN ('admin_panel', 'agent_dashboard')
+        AND so.status != 'cancelled'
+        AND DATE(so.created_at AT TIME ZONE 'Asia/Dhaka') BETWEEN $2 AND $3
+      GROUP BY DATE(so.created_at AT TIME ZONE 'Asia/Dhaka')
+      ORDER BY order_date ASC
+    `;
+    const dailyRows = await this.dataSource.query(dailyOrdersSql, [teamLeaderId, startDate, endDate]);
+
+    let totalOrders = 0;
+    const breakdown = dailyRows.map((row: any) => {
+      const orderCount = parseInt(row.order_count || '0', 10);
+      const agentCount = parseInt(row.agent_count || '0', 10);
+      totalOrders += orderCount;
+      return {
+        date: row.order_date,
+        orderCount,
+        agentCount,
+        commissionRate: tlRate,
+        dailyCommission: orderCount * tlRate,
+      };
+    });
+
+    return {
+      teamLeader: { id: tl.id, name: (tl.name || '').trim(), phone: tl.phone },
+      month: monthStr,
+      commissionRate: tlRate,
+      summary: { totalOrders, totalCommission: totalOrders * tlRate },
+      breakdown,
+    };
+  }
+
   // ==================== EXTRA PARTIAL ====================
 
   async saveExtraPartial(agentId: number, month: string, amount: number, updatedBy: number, notes?: string): Promise<any> {
@@ -973,7 +1148,7 @@ export class CommissionService {
     endDate?: string;
     page?: number;
     limit?: number;
-  } = {}): Promise<{ data: any[]; total: number; agents: any[] }> {
+  } = {}): Promise<{ data: any[]; total: number; agents: any[]; teamLeaders: any[] }> {
     const { status, agentId, search, startDate, endDate, page = 1, limit = 50 } = query;
     const pageNum = Number(page) || 1;
     const limitNum = Number(limit) || 50;
@@ -1055,6 +1230,17 @@ export class CommissionService {
     `;
     const agents = await this.dataSource.query(agentsSql);
 
+    // Get all Team Leaders for filter
+    const tlSql = `
+      SELECT u.id, CONCAT(COALESCE(u.name, ''), ' ', COALESCE(u.last_name, '')) as name,
+             u.payment_method as preferred_method
+      FROM users u
+      INNER JOIN roles r ON r.id = u.role_id
+      WHERE LOWER(r.name) LIKE '%sales team leader%' OR r.slug = 'sales-team-leader'
+      ORDER BY u.name ASC
+    `;
+    const teamLeaders = await this.dataSource.query(tlSql);
+
     return {
       data: rows.map((r: any) => ({
         id: r.id,
@@ -1086,6 +1272,7 @@ export class CommissionService {
       })),
       total,
       agents: agents.map((a: any) => ({ id: a.id, name: (a.name || '').trim(), preferredMethod: a.preferred_method || null })),
+      teamLeaders: teamLeaders.map((a: any) => ({ id: a.id, name: (a.name || '').trim(), preferredMethod: a.preferred_method || null })),
     };
   }
 
@@ -1134,7 +1321,7 @@ export class CommissionService {
     endDate?: string;
     page?: number;
     limit?: number;
-  } = {}): Promise<{ data: any[]; total: number; agents: any[]; summary: any }> {
+  } = {}): Promise<{ data: any[]; total: number; agents: any[]; teamLeaders: any[]; summary: any }> {
     const { agentId, paymentMethod, search, startDate, endDate, page = 1, limit = 50 } = query;
     const pageNum = Number(page) || 1;
     const limitNum = Number(limit) || 50;
@@ -1215,6 +1402,15 @@ export class CommissionService {
     `;
     const agents = await this.dataSource.query(agentsSql);
 
+    const tlSqlHistory = `
+      SELECT u.id, CONCAT(COALESCE(u.name, ''), ' ', COALESCE(u.last_name, '')) as name
+      FROM users u
+      INNER JOIN roles r ON r.id = u.role_id
+      WHERE LOWER(r.name) LIKE '%sales team leader%' OR r.slug = 'sales-team-leader'
+      ORDER BY u.name ASC
+    `;
+    const teamLeaders = await this.dataSource.query(tlSqlHistory);
+
     return {
       data: rows.map((r: any) => ({
         id: r.id,
@@ -1235,6 +1431,7 @@ export class CommissionService {
       })),
       total,
       agents: agents.map((a: any) => ({ id: a.id, name: (a.name || '').trim() })),
+      teamLeaders: teamLeaders.map((a: any) => ({ id: a.id, name: (a.name || '').trim() })),
       summary: {
         totalPayments: parseInt(summaryResult[0]?.total_payments || '0', 10),
         totalPaidAmount: parseFloat(summaryResult[0]?.total_paid_amount || '0'),

@@ -9,6 +9,12 @@ interface Agent {
   phone: string;
 }
 
+interface TL {
+  tlId: number;
+  tlName: string;
+  phone: string;
+}
+
 interface BreakdownRow {
   date: string;
   orderCount: number;
@@ -43,6 +49,22 @@ interface BreakdownData {
   breakdown: BreakdownRow[];
 }
 
+interface TLBreakdownRow {
+  date: string;
+  orderCount: number;
+  agentCount: number;
+  commissionRate: number;
+  dailyCommission: number;
+}
+
+interface TLBreakdownData {
+  teamLeader: { id: number; name: string; phone: string };
+  month: string;
+  commissionRate: number;
+  summary: { totalOrders: number; totalCommission: number };
+  breakdown: TLBreakdownRow[];
+}
+
 function getCurrentMonth() {
   const now = new Date();
   const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Dhaka', year: 'numeric', month: '2-digit' }).formatToParts(now);
@@ -54,11 +76,21 @@ function getCurrentMonth() {
 export default function CommissionPaymentBreakdownPage() {
   const toast = useToast();
 
+  const [activeTab, setActiveTab] = useState<'agent' | 'team_leader'>('agent');
+
+  // Agent state
   const [agents, setAgents] = useState<Agent[]>([]);
   const [selectedAgent, setSelectedAgent] = useState('');
   const [selectedMonth, setSelectedMonth] = useState(getCurrentMonth());
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<BreakdownData | null>(null);
+
+  // Team Leader state
+  const [teamLeaders, setTeamLeaders] = useState<TL[]>([]);
+  const [selectedTL, setSelectedTL] = useState('');
+  const [selectedTLMonth, setSelectedTLMonth] = useState(getCurrentMonth());
+  const [tlLoading, setTLLoading] = useState(false);
+  const [tlData, setTLData] = useState<TLBreakdownData | null>(null);
 
   // Load agents list
   useEffect(() => {
@@ -68,6 +100,18 @@ export default function CommissionPaymentBreakdownPage() {
         setAgents(res.data.data || []);
       } catch {
         toast.error('Failed to load agents');
+      }
+    })();
+  }, []);
+
+  // Load team leaders list
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await apiClient.get('/crm/commissions/team-leaders', { params: { limit: 500 } });
+        setTeamLeaders(res.data.data || []);
+      } catch {
+        toast.error('Failed to load team leaders');
       }
     })();
   }, []);
@@ -89,6 +133,23 @@ export default function CommissionPaymentBreakdownPage() {
     }
   }, [selectedAgent, selectedMonth]);
 
+  const loadTLBreakdown = useCallback(async () => {
+    if (!selectedTL || !selectedTLMonth) return;
+    try {
+      setTLLoading(true);
+      const res = await apiClient.get('/crm/commissions/tl-payment-breakdown', {
+        params: { teamLeaderId: selectedTL, month: selectedTLMonth },
+      });
+      setTLData(res.data);
+    } catch (error: any) {
+      console.error('Failed to load TL breakdown:', error);
+      toast.error(error?.response?.data?.message || 'Failed to load team leader breakdown');
+      setTLData(null);
+    } finally {
+      setTLLoading(false);
+    }
+  }, [selectedTL, selectedTLMonth]);
+
   const formatDate = (dateStr: string) => {
     const d = new Date(dateStr);
     return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
@@ -99,8 +160,35 @@ export default function CommissionPaymentBreakdownPage() {
   return (
     <AdminLayout>
       <div className="p-4 md:p-6">
-        <h1 className="text-2xl font-bold mb-6">Payment Breakdown</h1>
+        <h1 className="text-2xl font-bold mb-4">Payment Breakdown</h1>
 
+        {/* Tabs */}
+        <div className="flex gap-0 mb-6 border-b border-gray-200">
+          <button
+            onClick={() => setActiveTab('agent')}
+            className={`px-6 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
+              activeTab === 'agent'
+                ? 'border-blue-600 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            👥 Agents
+          </button>
+          <button
+            onClick={() => setActiveTab('team_leader')}
+            className={`px-6 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
+              activeTab === 'team_leader'
+                ? 'border-purple-600 text-purple-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            👔 Team Leaders
+          </button>
+        </div>
+
+        {/* ===== AGENT TAB ===== */}
+        {activeTab === 'agent' && (
+          <>
         {/* Filters */}
         <div className="bg-white rounded-lg shadow p-4 mb-6">
           <div className="flex flex-wrap items-end gap-4">
@@ -301,6 +389,130 @@ export default function CommissionPaymentBreakdownPage() {
           <div className="bg-white rounded-lg shadow p-12 text-center text-gray-400">
             Select an agent and month, then click Generate to view the payment breakdown.
           </div>
+        )}
+          </>
+        )}
+
+        {/* ===== TEAM LEADER TAB ===== */}
+        {activeTab === 'team_leader' && (
+          <>
+            {/* TL Filters */}
+            <div className="bg-white rounded-lg shadow p-4 mb-6">
+              <div className="flex flex-wrap items-end gap-4">
+                <div className="flex-1 min-w-[200px]">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Team Leader</label>
+                  <select
+                    value={selectedTL}
+                    onChange={(e) => setSelectedTL(e.target.value)}
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-purple-500 focus:border-purple-500"
+                  >
+                    <option value="">Select Team Leader</option>
+                    {teamLeaders.map((tl) => (
+                      <option key={tl.tlId} value={tl.tlId}>
+                        {(tl.tlName || '').trim() || 'Unknown'}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="min-w-[160px]">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Month</label>
+                  <input
+                    type="month"
+                    value={selectedTLMonth}
+                    onChange={(e) => setSelectedTLMonth(e.target.value)}
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-purple-500 focus:border-purple-500"
+                  />
+                </div>
+                <button
+                  onClick={loadTLBreakdown}
+                  disabled={!selectedTL || !selectedTLMonth || tlLoading}
+                  className="bg-purple-600 text-white px-6 py-2 rounded-md text-sm font-medium hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {tlLoading ? 'Loading...' : 'Generate'}
+                </button>
+              </div>
+            </div>
+
+            {/* TL Results */}
+            {tlData && (
+              <>
+                {/* TL Info + Summary */}
+                <div className="bg-white rounded-lg shadow p-4 mb-6">
+                  <div className="flex flex-wrap items-center gap-4 mb-4">
+                    <h2 className="text-lg font-semibold">{tlData.teamLeader.name}</h2>
+                    <span className="text-sm text-gray-500">{tlData.teamLeader.phone}</span>
+                    <span className="text-xs font-medium px-2 py-1 rounded-full bg-purple-100 text-purple-800">Team Leader</span>
+                    <span className="text-sm text-gray-600">Rate: <strong className="text-purple-700">{formatCurrency(tlData.commissionRate)}</strong> per order</span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="bg-purple-50 rounded-lg p-4">
+                      <div className="text-sm text-purple-600 font-medium">Total Orders (by agents)</div>
+                      <div className="text-2xl font-bold text-purple-800">{tlData.summary.totalOrders}</div>
+                      <div className="text-sm text-purple-500 mt-1">
+                        {tlData.summary.totalOrders} &times; {formatCurrency(tlData.commissionRate)} = {formatCurrency(tlData.summary.totalCommission)}
+                      </div>
+                    </div>
+                    <div className="bg-orange-50 rounded-lg p-4">
+                      <div className="text-sm text-orange-600 font-medium">Total Commission</div>
+                      <div className="text-2xl font-bold text-orange-800">{formatCurrency(tlData.summary.totalCommission)}</div>
+                      <div className="text-sm text-orange-500 mt-1">For {tlData.month}</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Daily Breakdown Table */}
+                <div className="bg-white rounded-lg shadow overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200 text-sm">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-3 py-3 text-left font-semibold text-gray-600">Date</th>
+                          <th className="px-3 py-3 text-center font-semibold text-purple-600">Orders by Agents</th>
+                          <th className="px-3 py-3 text-center font-semibold text-gray-500">Active Agents</th>
+                          <th className="px-3 py-3 text-center font-semibold text-purple-600">Rate</th>
+                          <th className="px-3 py-3 text-right font-semibold text-purple-600">Daily Commission</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {tlData.breakdown.length === 0 ? (
+                          <tr>
+                            <td colSpan={5} className="px-3 py-8 text-center text-gray-400">No orders found for this month</td>
+                          </tr>
+                        ) : (
+                          <>
+                            {tlData.breakdown.map((row, idx) => (
+                              <tr key={idx} className="hover:bg-gray-50">
+                                <td className="px-3 py-2 whitespace-nowrap font-medium">{formatDate(row.date)}</td>
+                                <td className="px-3 py-2 text-center font-medium">{row.orderCount}</td>
+                                <td className="px-3 py-2 text-center text-gray-500">{row.agentCount}</td>
+                                <td className="px-3 py-2 text-center">{formatCurrency(row.commissionRate)}</td>
+                                <td className="px-3 py-2 text-right font-medium text-purple-700">
+                                  {row.orderCount} &times; {row.commissionRate} = {formatCurrency(row.dailyCommission)}
+                                </td>
+                              </tr>
+                            ))}
+                            <tr className="bg-gray-100 font-bold">
+                              <td className="px-3 py-3">Total</td>
+                              <td className="px-3 py-3 text-center">{tlData.summary.totalOrders}</td>
+                              <td className="px-3 py-3 text-center">-</td>
+                              <td className="px-3 py-3 text-center">{formatCurrency(tlData.commissionRate)}</td>
+                              <td className="px-3 py-3 text-right text-orange-700">{formatCurrency(tlData.summary.totalCommission)}</td>
+                            </tr>
+                          </>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {!tlData && !tlLoading && (
+              <div className="bg-white rounded-lg shadow p-12 text-center text-gray-400">
+                Select a team leader and month, then click Generate to view the breakdown.
+              </div>
+            )}
+          </>
         )}
       </div>
     </AdminLayout>
