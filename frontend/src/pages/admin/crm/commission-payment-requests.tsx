@@ -63,6 +63,7 @@ export default function CommissionPaymentRequestsPage() {
 
   const [requests, setRequests] = useState<PaymentRequest[]>([]);
   const [agents, setAgents] = useState<Agent[]>([]);
+  const [teamLeaders, setTeamLeaders] = useState<Agent[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -102,6 +103,7 @@ export default function CommissionPaymentRequestsPage() {
       setRequests(data.data || []);
       setTotalPages(Math.ceil((data.total || 0) / ps));
       if (data.agents) setAgents(data.agents);
+      if (data.teamLeaders) setTeamLeaders(data.teamLeaders);
     } catch (error) {
       console.error('Failed to load payment requests:', error);
       toast.error('Failed to load payment requests');
@@ -361,16 +363,27 @@ export default function CommissionPaymentRequestsPage() {
               </select>
             </div>
             <div>
-              <label className="block text-xs text-gray-500 mb-1">Agent</label>
+              <label className="block text-xs text-gray-500 mb-1">Agent / Team Leader</label>
               <select
                 value={agentFilter}
                 onChange={(e) => { setAgentFilter(e.target.value); setCurrentPage(1); }}
                 className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                <option value="">All Agents</option>
-                {agents.map(a => (
-                  <option key={a.id} value={a.id}>{a.name}</option>
-                ))}
+                <option value="">All</option>
+                {agents.length > 0 && (
+                  <optgroup label="Agents">
+                    {agents.map(a => (
+                      <option key={a.id} value={a.id}>{a.name}</option>
+                    ))}
+                  </optgroup>
+                )}
+                {teamLeaders.length > 0 && (
+                  <optgroup label="Team Leaders">
+                    {teamLeaders.map(tl => (
+                      <option key={tl.id} value={tl.id}>{tl.name}</option>
+                    ))}
+                  </optgroup>
+                )}
               </select>
             </div>
             <div>
@@ -422,18 +435,28 @@ export default function CommissionPaymentRequestsPage() {
               <h2 className="text-lg font-bold text-gray-800 mb-4">New Payment Request</h2>
               <div className="space-y-3">
                 <div>
-                  <label className="block text-sm text-gray-600 mb-1">Agent *</label>
+                  <label className="block text-sm text-gray-600 mb-1">Agent / Team Leader *</label>
                   <select
                     value={createForm.agentId}
                     onChange={(e) => {
                       const agentId = e.target.value;
-                      const agent = agents.find(a => String(a.id) === agentId);
-                      setCreateForm(f => ({ ...f, agentId, paymentMethod: agent?.preferredMethod || f.paymentMethod }));
+                      const allPeople = [...agents, ...teamLeaders];
+                      const person = allPeople.find(a => String(a.id) === agentId);
+                      setCreateForm(f => ({ ...f, agentId, paymentMethod: person?.preferredMethod || f.paymentMethod }));
                     }}
                     className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
-                    <option value="">Select Agent</option>
-                    {agents.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                    <option value="">Select Agent or Team Leader</option>
+                    {agents.length > 0 && (
+                      <optgroup label="Agents">
+                        {agents.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                      </optgroup>
+                    )}
+                    {teamLeaders.length > 0 && (
+                      <optgroup label="Team Leaders">
+                        {teamLeaders.map(tl => <option key={tl.id} value={tl.id}>{tl.name}</option>)}
+                      </optgroup>
+                    )}
                   </select>
                 </div>
                 <div>

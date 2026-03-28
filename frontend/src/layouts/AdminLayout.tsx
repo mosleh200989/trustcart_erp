@@ -298,6 +298,7 @@ const menuItems: MenuItem[] = [
     children: [
       { title: 'Commission Sales', icon: FaMoneyBillWave, path: '/admin/crm/commission-sales', requiredPermissions: ['view-commission-reports'] },
       { title: 'Agents', icon: FaUsers, path: '/admin/crm/commission-agents', requiredPermissions: ['view-commission-reports'] },
+      { title: 'Team Leaders', icon: FaUsers, path: '/admin/crm/commission-team-leaders', requiredPermissions: ['view-commission-reports'] },
       { title: 'Payment Requests', icon: FaMoneyBillWave, path: '/admin/crm/commission-payment-requests', requiredPermissions: ['approve-commissions'] },
       { title: 'Payment History', icon: FaHistory, path: '/admin/crm/commission-payment-history', requiredPermissions: ['view-commission-reports'] },
       { title: 'Payment Breakdown', icon: FaChartBar, path: '/admin/crm/commission-payment-breakdown', requiredPermissions: ['view-commission-reports'] },

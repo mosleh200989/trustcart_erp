@@ -94,6 +94,24 @@ export class CommissionController {
   }
 
   /**
+   * Get team-leader-wise commission summary report
+   */
+  @Get('team-leaders')
+  @RequirePermissions('view-commission-reports')
+  async getTeamLeaderCommissionReport(@Query() query: any) {
+    return await this.commissionService.getTeamLeaderCommissionReport(query);
+  }
+
+  /**
+   * Get payment breakdown for a team leader (daily order counts by agents under them)
+   */
+  @Get('tl-payment-breakdown')
+  @RequirePermissions('view-commission-reports')
+  async getTLPaymentBreakdown(@Query() query: any) {
+    return await this.commissionService.getTLPaymentBreakdown(query);
+  }
+
+  /**
    * Get payment breakdown for an agent (daily order/upsell/cross-sell counts with slab rates)
    */
   @Get('payment-breakdown')
