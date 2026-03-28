@@ -47,7 +47,11 @@ export default function CrmLeadsPage() {
   const [purchaseStage, setPurchaseStage] = useState<string>('');
   const [assignmentStatus, setAssignmentStatus] = useState<string>('');
   const [selectedAgentFilter, setSelectedAgentFilter] = useState<string>('');
+  const [teamLeaderFilter, setTeamLeaderFilter] = useState<string>('');
   const [searchTerm, setSearchTerm] = useState<string>('');
+  
+  // Team leaders list for filter
+  const [teamLeaders, setTeamLeaders] = useState<User[]>([]);
   
   // Order Details Modal
   const [showOrderModal, setShowOrderModal] = useState(false);
@@ -73,13 +77,14 @@ export default function CrmLeadsPage() {
 
   useEffect(() => {
     loadAgents();
+    loadTeamLeaders();
   }, []);
 
   useEffect(() => {
     setSelectedLeads(new Set());
     loadLeads();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, priority, status, customerType, purchaseStage, assignmentStatus, selectedAgentFilter, pageSize]);
+  }, [page, priority, status, customerType, purchaseStage, assignmentStatus, selectedAgentFilter, teamLeaderFilter, pageSize]);
 
   // Debounced search
   useEffect(() => {
@@ -138,6 +143,15 @@ export default function CrmLeadsPage() {
     }
   };
 
+  const loadTeamLeaders = async () => {
+    try {
+      const res = await apiClient.get('/crm/team/team-leaders');
+      setTeamLeaders(Array.isArray((res as any)?.data) ? (res as any).data : []);
+    } catch {
+      setTeamLeaders([]);
+    }
+  };
+
   const loadLeads = async () => {
     try {
       setLoading(true);
@@ -148,6 +162,7 @@ export default function CrmLeadsPage() {
       if (purchaseStage) params.purchaseStage = purchaseStage;
       if (assignmentStatus) params.assignmentStatus = assignmentStatus;
       if (selectedAgentFilter) params.assignedTo = selectedAgentFilter;
+      if (teamLeaderFilter) params.filterTeamLeaderId = teamLeaderFilter;
       if (searchTerm.trim()) params.search = searchTerm.trim();
 
       const res = await apiClient.get<PaginatedResponse>('/crm/team/leads', { params });
@@ -262,6 +277,7 @@ export default function CrmLeadsPage() {
     setPurchaseStage('');
     setAssignmentStatus('');
     setSelectedAgentFilter('');
+    setTeamLeaderFilter('');
     setSearchTerm('');
     setPage(1);
   };
@@ -301,7 +317,7 @@ export default function CrmLeadsPage() {
 
         {/* Filters Section */}
         <div className="bg-white rounded-lg shadow p-4">
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
             {/* Search */}
             <div>
               <label className="text-xs text-gray-500 block mb-1">Search</label>
@@ -329,6 +345,26 @@ export default function CrmLeadsPage() {
                 {allAgents.map((agent) => (
                   <option key={agent.id} value={agent.id}>
                     {agent.name} {agent.lastName || ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Team Leader Filter */}
+            <div>
+              <label className="text-xs text-gray-500 block mb-1">Team Leader</label>
+              <select
+                className="w-full border rounded-lg px-3 py-1.5 text-sm"
+                value={teamLeaderFilter}
+                onChange={(e) => {
+                  setPage(1);
+                  setTeamLeaderFilter(e.target.value);
+                }}
+              >
+                <option value="">All TLs</option>
+                {teamLeaders.map((tl) => (
+                  <option key={tl.id} value={tl.id}>
+                    {tl.name} {tl.lastName || ''}
                   </option>
                 ))}
               </select>

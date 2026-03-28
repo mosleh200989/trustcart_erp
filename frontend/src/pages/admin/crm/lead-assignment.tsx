@@ -73,6 +73,7 @@ export default function LeadAssignmentPage() {
   // Filters
   const [assignmentStatus, setAssignmentStatus] = useState<'all' | 'assigned' | 'unassigned'>('unassigned');
   const [searchTerm, setSearchTerm] = useState('');
+  const [agentFilter, setAgentFilter] = useState<string>('');
   const [customerTypeFilter, setCustomerTypeFilter] = useState('');
   const [purchaseStageFilter, setPurchaseStageFilter] = useState('');
   const [productNameFilter, setProductNameFilter] = useState('');
@@ -134,7 +135,7 @@ export default function LeadAssignmentPage() {
     setSelectedLeadIds(new Set());
     loadLeads();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [assignmentStatus, debouncedSearchTerm, customerTypeFilter, purchaseStageFilter, productNameFilter, dateFrom, dateTo, page, limit]);
+  }, [assignmentStatus, debouncedSearchTerm, agentFilter, customerTypeFilter, purchaseStageFilter, productNameFilter, dateFrom, dateTo, page, limit]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -182,6 +183,7 @@ export default function LeadAssignmentPage() {
         assignmentStatus,
       };
       if (debouncedSearchTerm.trim()) params.search = debouncedSearchTerm.trim();
+      if (agentFilter) params.assignedTo = agentFilter;
       if (customerTypeFilter) params.customerType = customerTypeFilter;
       if (purchaseStageFilter) params.purchaseStage = purchaseStageFilter;
       if (productNameFilter) params.productName = productNameFilter;
@@ -337,6 +339,7 @@ export default function LeadAssignmentPage() {
   const clearFilters = () => {
     setSearchTerm('');
     setDebouncedSearchTerm('');
+    setAgentFilter('');
     setCustomerTypeFilter('');
     setPurchaseStageFilter('');
     setProductNameFilter('');
@@ -486,6 +489,26 @@ export default function LeadAssignmentPage() {
                 <option value="all">All Leads</option>
                 <option value="unassigned">Unassigned Only</option>
                 <option value="assigned">Assigned Only</option>
+              </select>
+            </div>
+
+            {/* Agent Filter */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Agent</label>
+              <select
+                value={agentFilter}
+                onChange={(e) => {
+                  setAgentFilter(e.target.value);
+                  setPage(1);
+                }}
+                className="w-full border rounded-lg px-3 py-2"
+              >
+                <option value="">All Agents</option>
+                {users.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.name} {u.lastName || ''}
+                  </option>
+                ))}
               </select>
             </div>
 
