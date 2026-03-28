@@ -200,7 +200,7 @@ export default function DataTable({
             Page <span className="font-semibold">{currentPage}</span> of{' '}
             <span className="font-semibold">{totalPages}</span>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 items-center">
             <button
               onClick={() => onPageChange && onPageChange(currentPage - 1)}
               disabled={currentPage === 1}
@@ -217,6 +217,24 @@ export default function DataTable({
               Next
               <FaChevronRight className="inline ml-1" />
             </button>
+            <span className="mx-2 text-gray-300">|</span>
+            <span className="text-xs text-gray-500">Go to</span>
+            <input
+              type="number"
+              min={1}
+              max={totalPages}
+              placeholder="#"
+              className="w-16 px-2 py-1.5 border rounded text-sm text-center focus:outline-none focus:ring-2 focus:ring-blue-400"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  const val = parseInt((e.target as HTMLInputElement).value, 10);
+                  if (!isNaN(val) && onPageChange) {
+                    onPageChange(Math.max(1, Math.min(totalPages, val)));
+                    (e.target as HTMLInputElement).value = '';
+                  }
+                }
+              }}
+            />
           </div>
         </div>
       )}

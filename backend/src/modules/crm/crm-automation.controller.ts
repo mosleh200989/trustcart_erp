@@ -40,6 +40,14 @@ export class CrmAutomationController {
       body.notes
     );
   }
+
+  @Delete('tasks/bulk-clear')
+  async bulkClearTasks(@Query('ids') ids: string) {
+    if (!ids) return { success: false, message: 'No IDs provided' };
+    const idArray = ids.split(',').map(id => parseInt(id, 10)).filter(id => !isNaN(id));
+    if (idArray.length === 0) return { success: false, message: 'No valid IDs provided' };
+    return await this.automationService.bulkDeleteTasks(idArray);
+  }
   
   @Put('tasks/:id/assign')
   async assignTask(@Param('id') id: number, @Body() body: { agentId: number }) {

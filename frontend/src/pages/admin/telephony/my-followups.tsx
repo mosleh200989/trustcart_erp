@@ -61,6 +61,9 @@ export default function MyFollowupsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(50);
   
+  // Selection
+  const [selectedTaskIds, setSelectedTaskIds] = useState<number[]>([]);
+  
   // Modal states
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -366,6 +369,20 @@ export default function MyFollowupsPage() {
     setCurrentPage(1);
   };
 
+  const handleBulkClear = async () => {
+    if (selectedTaskIds.length === 0) return;
+    if (!confirm(`Are you sure you want to delete ${selectedTaskIds.length} selected follow-up(s)?`)) return;
+    try {
+      await apiClient.delete(`/crm/automation/tasks/bulk-clear?ids=${selectedTaskIds.join(',')}`);
+      toast.success(`${selectedTaskIds.length} follow-ups cleared.`);
+      setSelectedTaskIds([]);
+      await loadFollowUps();
+    } catch (error) {
+      console.error('Failed to bulk clear:', error);
+      toast.error('Failed to clear follow-ups');
+    }
+  };
+
   const hasActiveFilters = searchTerm || priorityFilter || statusFilter || dateRangeFilter || specificDate;
 
   // Pagination
@@ -529,16 +546,27 @@ export default function MyFollowupsPage() {
             <h1 className="text-3xl font-bold text-gray-800">My Follow-ups</h1>
             <p className="text-gray-600 mt-1">Manage your customer follow-up calls and reminders</p>
           </div>
-          <button
-            onClick={() => {
-              resetForm();
-              setShowAddModal(true);
-            }}
-            className="flex items-center gap-2 bg-gradient-to-r from-green-500 to-green-600 text-white px-6 py-3 rounded-lg hover:from-green-600 hover:to-green-700 transition-all shadow-lg"
-          >
-            <FaPlus />
-            Add Follow-up
-          </button>
+          <div className="flex items-center gap-3">
+            {selectedTaskIds.length > 0 && (
+              <button
+                onClick={handleBulkClear}
+                className="flex items-center gap-2 bg-red-500 text-white px-4 py-3 rounded-lg hover:bg-red-600 transition-all shadow"
+              >
+                <FaTrash />
+                Bulk Clear ({selectedTaskIds.length})
+              </button>
+            )}
+            <button
+              onClick={() => {
+                resetForm();
+                setShowAddModal(true);
+              }}
+              className="flex items-center gap-2 bg-gradient-to-r from-green-500 to-green-600 text-white px-6 py-3 rounded-lg hover:from-green-600 hover:to-green-700 transition-all shadow-lg"
+            >
+              <FaPlus />
+              Add Follow-up
+            </button>
+          </div>
         </div>
 
         {/* Filters */}
@@ -744,6 +772,20 @@ export default function MyFollowupsPage() {
                 <table className="w-full">
                 <thead className="bg-gray-50">
                   <tr>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                      <input
+                        type="checkbox"
+                        className="rounded border-gray-300"
+                        checked={paginatedFollowUps.length > 0 && selectedTaskIds.length === paginatedFollowUps.length}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedTaskIds(paginatedFollowUps.map(f => f.id));
+                          } else {
+                            setSelectedTaskIds([]);
+                          }
+                        }}
+                      />
+                    </th>
                     <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
                     <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Phone</th>
                     <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Priority</th>
@@ -760,7 +802,21 @@ export default function MyFollowupsPage() {
                     const email = String(followUp.customer_email || '').trim();
 
                     return (
-                      <tr key={followUp.id} className="hover:bg-gray-50">
+                      <tr key={followUp.id} className={`hover:bg-gray-50 ${selectedTaskIds.includes(followUp.id) ? 'bg-blue-50' : ''}`}>
+                        <td className="px-4 py-3">
+                          <input
+                            type="checkbox"
+                            checked={selectedTaskIds.includes(followUp.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedTaskIds([...selectedTaskIds, followUp.id]);
+                              } else {
+                                setSelectedTaskIds(selectedTaskIds.filter(id => id !== followUp.id));
+                              }
+                            }}
+                            className="rounded border-gray-300"
+                          />
+                        </td>
                         <td className="px-4 py-3">
                           <div className="font-medium text-gray-900">{wrapCustomerName(followUp.customer_name || 'Unknown')}</div>
                           <div className="text-xs text-gray-500">ID: {followUp.customer_id}</div>
