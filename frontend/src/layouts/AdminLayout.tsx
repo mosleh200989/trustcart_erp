@@ -1,13 +1,13 @@
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 // import QuoteNotifications from '@/components/QuoteNotifications'; // DISABLED
 import { useAuth } from '@/contexts/AuthContext';
-import apiClient from '@/services/api';
+import apiClient, { stockAlerts } from '@/services/api';
 import { 
   FaTachometerAlt, FaBoxes, FaShoppingCart, FaUsers, FaWarehouse, 
   FaShoppingBag, FaUserTie, FaBook, FaBullseye, FaHandshake, 
-  FaHeadset, FaUser, FaCog, FaBars, FaTimes, FaBell, FaChevronDown, FaChartBar, FaTags, FaGift, FaPhone, FaMoneyBillWave, FaImage, FaList, FaRocket, FaPrint, FaBan, FaHistory
+  FaHeadset, FaUser, FaCog, FaBars, FaTimes, FaBell, FaChevronDown, FaChartBar, FaTags, FaGift, FaPhone, FaMoneyBillWave, FaImage, FaList, FaRocket, FaPrint, FaBan, FaHistory, FaTruck, FaClipboardList, FaExchangeAlt, FaSlidersH, FaClipboardCheck, FaBarcode, FaChartLine, FaFileImport, FaMap, FaSearch
 } from 'react-icons/fa';
 
 interface MenuItem {
@@ -104,14 +104,32 @@ const menuItems: MenuItem[] = [
   {
     title: 'Inventory',
     icon: FaWarehouse,
-    path: '/admin/inventory',
-    requiredPermissions: ['view-inventory']
+    requiredPermissions: ['view-inventory', 'view-warehouses', 'view-suppliers', 'view-stock-levels'],
+    children: [
+      { title: 'Dashboard', icon: FaTachometerAlt, path: '/admin/inventory', requiredPermissions: ['view-inventory'] },
+      { title: 'Alerts', icon: FaBell, path: '/admin/inventory/alerts', requiredPermissions: ['view-inventory'] },
+      { title: 'Reorder Rules', icon: FaClipboardList, path: '/admin/inventory/reorder-rules', requiredPermissions: ['view-inventory'] },
+      { title: 'Adjustments', icon: FaSlidersH, path: '/admin/inventory/adjustments', requiredPermissions: ['view-inventory'] },
+      { title: 'Transfers', icon: FaExchangeAlt, path: '/admin/inventory/transfers', requiredPermissions: ['view-inventory'] },
+      { title: 'Inventory Counts', icon: FaClipboardCheck, path: '/admin/inventory/counts', requiredPermissions: ['view-inventory'] },
+      { title: 'Reports', icon: FaChartBar, path: '/admin/inventory/reports', requiredPermissions: ['view-inventory'] },
+      { title: 'Warehouses', icon: FaWarehouse, path: '/admin/inventory/warehouses', requiredPermissions: ['view-warehouses'] },
+      { title: 'Warehouse Map', icon: FaMap, path: '/admin/inventory/warehouse-map', requiredPermissions: ['view-warehouses'] },
+      { title: 'Suppliers', icon: FaTruck, path: '/admin/inventory/suppliers', requiredPermissions: ['view-suppliers'] },
+      { title: 'Forecasts', icon: FaChartLine, path: '/admin/inventory/forecasts', requiredPermissions: ['view-inventory'] },
+      { title: 'Barcode Tools', icon: FaBarcode, path: '/admin/inventory/barcode', requiredPermissions: ['view-inventory'] },
+      { title: 'Bulk Import', icon: FaFileImport, path: '/admin/inventory/import', requiredPermissions: ['manage-stock'] },
+      { title: 'Audit Trail', icon: FaSearch, path: '/admin/inventory/audit-trail', requiredPermissions: ['view-inventory'] },
+    ],
   },
   {
     title: 'Purchase',
     icon: FaShoppingBag,
-    path: '/admin/purchase',
-    requiredPermissions: ['view-purchase-orders']
+    requiredPermissions: ['view-purchase-orders'],
+    children: [
+      { title: 'Purchase Orders', icon: FaShoppingBag, path: '/admin/purchase/orders', requiredPermissions: ['view-purchase-orders'] },
+      { title: 'Goods Receiving', icon: FaTruck, path: '/admin/purchase/grns', requiredPermissions: ['view-purchase-orders'] },
+    ],
   },
   {
     title: 'HR Management',
@@ -522,8 +540,46 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [expandedMenus, setExpandedMenus] = useState<string[]>([]);
   const [dbMenuItems, setDbMenuItems] = useState<MenuItem[] | null>(null);
+  const [alertCount, setAlertCount] = useState(0);
+  const [showAlertDropdown, setShowAlertDropdown] = useState(false);
+  const [recentAlerts, setRecentAlerts] = useState<any[]>([]);
+  const alertRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const { user, roles, isLoading, hasAnyPermission, logout } = useAuth();
+
+  // Poll unread alert count
+  useEffect(() => {
+    let cancelled = false;
+    const fetchCount = async () => {
+      try {
+        const data = await stockAlerts.unreadCount();
+        if (!cancelled) setAlertCount(data || 0);
+      } catch {}
+    };
+    fetchCount();
+    const iv = setInterval(fetchCount, 60000);
+    return () => { cancelled = true; clearInterval(iv); };
+  }, []);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (alertRef.current && !alertRef.current.contains(e.target as Node)) setShowAlertDropdown(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const toggleAlertDropdown = useCallback(async () => {
+    const next = !showAlertDropdown;
+    setShowAlertDropdown(next);
+    if (next) {
+      try {
+        const alerts = await stockAlerts.list(true);
+        setRecentAlerts((Array.isArray(alerts) ? alerts : []).slice(0, 5));
+      } catch {}
+    }
+  }, [showAlertDropdown]);
 
   useEffect(() => {
     let cancelled = false;
@@ -670,7 +726,43 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               <h2 className="text-2xl font-bold text-gray-800">{panelTitle}</h2>
             </div>
             <div className="flex items-center space-x-4">
-              {/* <QuoteNotifications /> */} {/* DISABLED */}
+              {/* Inventory Alert Bell */}
+              <div ref={alertRef} className="relative">
+                <button onClick={toggleAlertDropdown} className="relative p-2 text-gray-600 hover:text-blue-600 transition-colors">
+                  <FaBell className="text-lg" />
+                  {alertCount > 0 && (
+                    <span className="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-[10px] font-bold rounded-full w-4.5 h-4.5 flex items-center justify-center min-w-[18px] px-1">
+                      {alertCount > 99 ? '99+' : alertCount}
+                    </span>
+                  )}
+                </button>
+                {showAlertDropdown && (
+                  <div className="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-xl border z-50">
+                    <div className="p-3 border-b flex justify-between items-center">
+                      <span className="font-semibold text-sm text-gray-700">Inventory Alerts</span>
+                      {alertCount > 0 && (
+                        <button onClick={async () => { try { await stockAlerts.markAllRead(); setAlertCount(0); } catch {} }}
+                          className="text-xs text-blue-600 hover:underline">Mark all read</button>
+                      )}
+                    </div>
+                    <div className="max-h-64 overflow-y-auto">
+                      {recentAlerts.length === 0 ? (
+                        <div className="p-4 text-center text-sm text-gray-400">No unread alerts</div>
+                      ) : recentAlerts.map((a: any) => (
+                        <div key={a.id} className={`px-3 py-2 border-b last:border-0 hover:bg-gray-50 cursor-pointer ${a.severity === 'critical' ? 'border-l-4 border-l-red-500' : a.severity === 'warning' ? 'border-l-4 border-l-orange-400' : 'border-l-4 border-l-blue-400'}`}
+                          onClick={() => { setShowAlertDropdown(false); router.push('/admin/inventory/alerts'); }}>
+                          <p className="text-sm text-gray-700 line-clamp-2">{a.message}</p>
+                          <p className="text-xs text-gray-400 mt-0.5">{new Date(a.created_at).toLocaleString()}</p>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="p-2 border-t">
+                      <button onClick={() => { setShowAlertDropdown(false); router.push('/admin/inventory/alerts'); }}
+                        className="w-full text-center text-sm text-blue-600 hover:text-blue-800 py-1">View all alerts</button>
+                    </div>
+                  </div>
+                )}
+              </div>
               <span className="text-sm text-gray-700 font-medium">
                 {isLoading ? 'Loading…' : (user?.email || user?.phone || 'User')}
               </span>

@@ -104,6 +104,13 @@ import { PaymentTransaction } from './modules/payment/payment-transaction.entity
 // Audit Log Entity
 import { AuditLog } from './modules/audit-log/audit-log.entity';
 
+// Accounting Entities
+import { JournalEntry } from './modules/accounting/entities/journal-entry.entity';
+import { JournalLine } from './modules/accounting/entities/journal-line.entity';
+
+// Demand Forecast Entity
+import { DemandForecast } from './modules/inventory/entities/demand-forecast.entity';
+
 // Modules
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
@@ -177,6 +184,37 @@ import { CartModule } from './modules/cart/cart.module';
 // Sitemap & Feed Module
 import { SitemapFeedModule } from './modules/sitemap-feed/sitemap-feed.module';
 
+// Warehouse Module
+import { WarehouseModule } from './modules/warehouse/warehouse.module';
+import { Warehouse } from './modules/warehouse/entities/warehouse.entity';
+import { WarehouseZone } from './modules/warehouse/entities/warehouse-zone.entity';
+import { WarehouseLocation } from './modules/warehouse/entities/warehouse-location.entity';
+
+// Supplier Module
+import { SupplierModule } from './modules/supplier/supplier.module';
+import { Supplier } from './modules/supplier/entities/supplier.entity';
+import { SupplierProduct } from './modules/supplier/entities/supplier-product.entity';
+
+// Inventory Entities
+import { StockLevel } from './modules/inventory/entities/stock-level.entity';
+import { StockMovement } from './modules/inventory/entities/stock-movement.entity';
+import { StockBatch } from './modules/inventory/entities/stock-batch.entity';
+import { StockReservation } from './modules/inventory/entities/stock-reservation.entity';
+import { StockAlert } from './modules/inventory/entities/stock-alert.entity';
+import { StockTransfer } from './modules/inventory/entities/stock-transfer.entity';
+import { StockTransferItem } from './modules/inventory/entities/stock-transfer-item.entity';
+import { StockAdjustment } from './modules/inventory/entities/stock-adjustment.entity';
+import { StockAdjustmentItem } from './modules/inventory/entities/stock-adjustment-item.entity';
+import { InventoryCount } from './modules/inventory/entities/inventory-count.entity';
+import { InventoryCountItem } from './modules/inventory/entities/inventory-count-item.entity';
+import { ReorderRule } from './modules/inventory/entities/reorder-rule.entity';
+
+// Purchase Entities
+import { PurchaseOrder } from './modules/purchase/entities/purchase-order.entity';
+import { PurchaseOrderItem } from './modules/purchase/entities/purchase-order-item.entity';
+import { GoodsReceivedNote } from './modules/purchase/entities/goods-received-note.entity';
+import { GrnItem } from './modules/purchase/entities/grn-item.entity';
+
 @Module({
   imports: [
     // Config Module - must be first
@@ -240,6 +278,20 @@ import { SitemapFeedModule } from './modules/sitemap-feed/sitemap-feed.module';
             CartItem,
             // Audit Log
             AuditLog,
+            // Warehouse entities
+            Warehouse, WarehouseZone, WarehouseLocation,
+            // Supplier entities
+            Supplier, SupplierProduct,
+            // Inventory entities
+            StockLevel, StockMovement, StockBatch, StockReservation, StockAlert,
+            StockTransfer, StockTransferItem, StockAdjustment, StockAdjustmentItem,
+            InventoryCount, InventoryCountItem, ReorderRule,
+            // Purchase entities
+            PurchaseOrder, PurchaseOrderItem, GoodsReceivedNote, GrnItem,
+            // Accounting entities
+            JournalEntry, JournalLine,
+            // Demand Forecast
+            DemandForecast,
           ],
           synchronize: false,
           logging: true,
@@ -271,6 +323,8 @@ import { SitemapFeedModule } from './modules/sitemap-feed/sitemap-feed.module';
     SalesModule,
     PurchaseModule,
     InventoryModule,
+    WarehouseModule,
+    SupplierModule,
     HrmModule,
     PayrollModule,
     AccountingModule,

@@ -51,7 +51,7 @@ const transformProduct = (p: any) => {
     basePrice: parseFloat(p.base_price) || 0,
     wholesalePrice: parseFloat(p.wholesale_price) || 0,
     originalPrice: p.wholesale_price ? parseFloat(p.base_price) : (parseFloat(p.base_price) * 1.2) || 0,
-    stock: 0, // No stock field in database
+    stock: p.stock_quantity != null ? Number(p.stock_quantity) : 0,
     sold: 0,
     rating: 5,
     reviews: 0,
@@ -616,5 +616,521 @@ export const productViews = {
       console.error('Error fetching recently viewed:', err);
       return [];
     }
+  },
+};
+
+// Warehouse API
+export const warehouses = {
+  async list() {
+    const res = await apiClient.get('/warehouses');
+    return Array.isArray(res.data) ? res.data : [];
+  },
+  async get(id: number) {
+    const res = await apiClient.get(`/warehouses/${id}`);
+    return res.data;
+  },
+  async create(data: any) {
+    const res = await apiClient.post('/warehouses', data);
+    return res.data;
+  },
+  async update(id: number, data: any) {
+    const res = await apiClient.put(`/warehouses/${id}`, data);
+    return res.data;
+  },
+  async remove(id: number) {
+    const res = await apiClient.delete(`/warehouses/${id}`);
+    return res.data;
+  },
+  // Zones
+  async listZones(warehouseId: number) {
+    const res = await apiClient.get(`/warehouses/${warehouseId}/zones`);
+    return Array.isArray(res.data) ? res.data : [];
+  },
+  async createZone(warehouseId: number, data: any) {
+    const res = await apiClient.post(`/warehouses/${warehouseId}/zones`, data);
+    return res.data;
+  },
+  async updateZone(warehouseId: number, zoneId: number, data: any) {
+    const res = await apiClient.put(`/warehouses/${warehouseId}/zones/${zoneId}`, data);
+    return res.data;
+  },
+  async removeZone(warehouseId: number, zoneId: number) {
+    const res = await apiClient.delete(`/warehouses/${warehouseId}/zones/${zoneId}`);
+    return res.data;
+  },
+  // Locations
+  async listLocations(warehouseId: number) {
+    const res = await apiClient.get(`/warehouses/${warehouseId}/locations`);
+    return Array.isArray(res.data) ? res.data : [];
+  },
+  async createLocation(warehouseId: number, data: any) {
+    const res = await apiClient.post(`/warehouses/${warehouseId}/locations`, data);
+    return res.data;
+  },
+  async updateLocation(warehouseId: number, locationId: number, data: any) {
+    const res = await apiClient.put(`/warehouses/${warehouseId}/locations/${locationId}`, data);
+    return res.data;
+  },
+  async removeLocation(warehouseId: number, locationId: number) {
+    const res = await apiClient.delete(`/warehouses/${warehouseId}/locations/${locationId}`);
+    return res.data;
+  },
+};
+
+// Supplier API
+export const suppliers = {
+  async list() {
+    const res = await apiClient.get('/suppliers');
+    return Array.isArray(res.data) ? res.data : [];
+  },
+  async get(id: number) {
+    const res = await apiClient.get(`/suppliers/${id}`);
+    return res.data;
+  },
+  async create(data: any) {
+    const res = await apiClient.post('/suppliers', data);
+    return res.data;
+  },
+  async update(id: number, data: any) {
+    const res = await apiClient.put(`/suppliers/${id}`, data);
+    return res.data;
+  },
+  async remove(id: number) {
+    const res = await apiClient.delete(`/suppliers/${id}`);
+    return res.data;
+  },
+  // Supplier Products
+  async listProducts(supplierId: number) {
+    const res = await apiClient.get(`/suppliers/${supplierId}/products`);
+    return Array.isArray(res.data) ? res.data : [];
+  },
+  async addProduct(supplierId: number, data: any) {
+    const res = await apiClient.post(`/suppliers/${supplierId}/products`, data);
+    return res.data;
+  },
+  async updateProduct(supplierId: number, productId: number, data: any) {
+    const res = await apiClient.put(`/suppliers/${supplierId}/products/${productId}`, data);
+    return res.data;
+  },
+  async removeProduct(supplierId: number, productId: number) {
+    const res = await apiClient.delete(`/suppliers/${supplierId}/products/${productId}`);
+    return res.data;
+  },
+};
+
+// ── Purchase Orders ──────────────────────────────────
+export const purchaseOrders = {
+  async list(status?: string) {
+    const params = status ? { status } : {};
+    const res = await apiClient.get('/purchase/orders', { params });
+    return Array.isArray(res.data) ? res.data : [];
+  },
+  async get(id: number) {
+    const res = await apiClient.get(`/purchase/orders/${id}`);
+    return res.data;
+  },
+  async create(data: any) {
+    const res = await apiClient.post('/purchase/orders', data);
+    return res.data;
+  },
+  async update(id: number, data: any) {
+    const res = await apiClient.put(`/purchase/orders/${id}`, data);
+    return res.data;
+  },
+  async remove(id: number) {
+    const res = await apiClient.delete(`/purchase/orders/${id}`);
+    return res.data;
+  },
+  async submit(id: number) {
+    const res = await apiClient.post(`/purchase/orders/${id}/submit`);
+    return res.data;
+  },
+  async approve(id: number) {
+    const res = await apiClient.post(`/purchase/orders/${id}/approve`);
+    return res.data;
+  },
+  async reject(id: number, reason?: string) {
+    const res = await apiClient.post(`/purchase/orders/${id}/reject`, { reason });
+    return res.data;
+  },
+  async cancel(id: number, reason: string) {
+    const res = await apiClient.post(`/purchase/orders/${id}/cancel`, { reason });
+    return res.data;
+  },
+  async duplicate(id: number) {
+    const res = await apiClient.post(`/purchase/orders/${id}/duplicate`);
+    return res.data;
+  },
+};
+
+// ── Goods Received Notes ─────────────────────────────
+export const grns = {
+  async list(poId?: number) {
+    const params = poId ? { po_id: poId } : {};
+    const res = await apiClient.get('/purchase/grns', { params });
+    return Array.isArray(res.data) ? res.data : [];
+  },
+  async get(id: number) {
+    const res = await apiClient.get(`/purchase/grns/${id}`);
+    return res.data;
+  },
+  async create(data: any) {
+    const res = await apiClient.post('/purchase/grns', data);
+    return res.data;
+  },
+  async update(id: number, data: any) {
+    const res = await apiClient.put(`/purchase/grns/${id}`, data);
+    return res.data;
+  },
+  async accept(id: number) {
+    const res = await apiClient.post(`/purchase/grns/${id}/accept`);
+    return res.data;
+  },
+  async reject(id: number, reason?: string) {
+    const res = await apiClient.post(`/purchase/grns/${id}/reject`, { reason });
+    return res.data;
+  },
+};
+
+// ── Stock Adjustments ─────────────────────────────────
+
+export const stockAdjustments = {
+  async list(params?: { status?: string; warehouse_id?: number; adjustment_type?: string }) {
+    const res = await apiClient.get('/inventory/adjustments', { params });
+    return Array.isArray(res.data) ? res.data : [];
+  },
+  async get(id: number) {
+    const res = await apiClient.get(`/inventory/adjustments/${id}`);
+    return res.data;
+  },
+  async create(data: any) {
+    const res = await apiClient.post('/inventory/adjustments', data);
+    return res.data;
+  },
+  async update(id: number, data: any) {
+    const res = await apiClient.put(`/inventory/adjustments/${id}`, data);
+    return res.data;
+  },
+  async submit(id: number) {
+    const res = await apiClient.post(`/inventory/adjustments/${id}/submit`);
+    return res.data;
+  },
+  async approve(id: number) {
+    const res = await apiClient.post(`/inventory/adjustments/${id}/approve`);
+    return res.data;
+  },
+  async reject(id: number, reason?: string) {
+    const res = await apiClient.post(`/inventory/adjustments/${id}/reject`, { reason });
+    return res.data;
+  },
+};
+
+// ── Stock Transfers ───────────────────────────────────
+
+export const stockTransfers = {
+  async list(params?: { status?: string; warehouse_id?: number }) {
+    const res = await apiClient.get('/inventory/transfers', { params });
+    return Array.isArray(res.data) ? res.data : [];
+  },
+  async get(id: number) {
+    const res = await apiClient.get(`/inventory/transfers/${id}`);
+    return res.data;
+  },
+  async create(data: any) {
+    const res = await apiClient.post('/inventory/transfers', data);
+    return res.data;
+  },
+  async update(id: number, data: any) {
+    const res = await apiClient.put(`/inventory/transfers/${id}`, data);
+    return res.data;
+  },
+  async approve(id: number) {
+    const res = await apiClient.post(`/inventory/transfers/${id}/approve`);
+    return res.data;
+  },
+  async ship(id: number, data?: any) {
+    const res = await apiClient.post(`/inventory/transfers/${id}/ship`, data);
+    return res.data;
+  },
+  async receive(id: number, data?: any) {
+    const res = await apiClient.post(`/inventory/transfers/${id}/receive`, data);
+    return res.data;
+  },
+  async cancel(id: number) {
+    const res = await apiClient.post(`/inventory/transfers/${id}/cancel`);
+    return res.data;
+  },
+};
+
+// ── Inventory Counts ──────────────────────────────────
+
+export const inventoryCounts = {
+  async list(params?: { status?: string; warehouse_id?: number; count_type?: string }) {
+    const res = await apiClient.get('/inventory/counts', { params });
+    return Array.isArray(res.data) ? res.data : [];
+  },
+  async get(id: number) {
+    const res = await apiClient.get(`/inventory/counts/${id}`);
+    return res.data;
+  },
+  async create(data: any) {
+    const res = await apiClient.post('/inventory/counts', data);
+    return res.data;
+  },
+  async start(id: number) {
+    const res = await apiClient.post(`/inventory/counts/${id}/start`);
+    return res.data;
+  },
+  async recordItems(id: number, items: any[]) {
+    const res = await apiClient.post(`/inventory/counts/${id}/items`, { items });
+    return res.data;
+  },
+  async complete(id: number) {
+    const res = await apiClient.post(`/inventory/counts/${id}/complete`);
+    return res.data;
+  },
+  async approve(id: number) {
+    const res = await apiClient.post(`/inventory/counts/${id}/approve`);
+    return res.data;
+  },
+};
+
+export const stockAvailability = {
+  async check(productId: number) {
+    const res = await apiClient.get(`/inventory/availability/${productId}`);
+    return res.data;
+  },
+  async bulkCheck(productIds: number[]) {
+    const res = await apiClient.post('/inventory/availability/bulk', { product_ids: productIds });
+    return Array.isArray(res.data) ? res.data : [];
+  },
+};
+
+export const stockAlerts = {
+  async list(unreadOnly?: boolean) {
+    const res = await apiClient.get('/inventory/alerts', { params: { unread: unreadOnly ? 'true' : undefined } });
+    return Array.isArray(res.data) ? res.data : [];
+  },
+  async unreadCount() {
+    const res = await apiClient.get('/inventory/alerts/unread-count');
+    return typeof res.data === 'number' ? res.data : 0;
+  },
+  async markRead(id: number) {
+    const res = await apiClient.put(`/inventory/alerts/${id}/read`);
+    return res.data;
+  },
+  async markAllRead() {
+    const res = await apiClient.post('/inventory/alerts/read-all');
+    return res.data;
+  },
+  async resolve(id: number, notes?: string) {
+    const res = await apiClient.put(`/inventory/alerts/${id}/resolve`, { notes });
+    return res.data;
+  },
+};
+
+export const reorderRules = {
+  async list(productId?: number) {
+    const res = await apiClient.get('/inventory/reorder-rules', { params: { product_id: productId } });
+    return Array.isArray(res.data) ? res.data : [];
+  },
+  async create(data: any) {
+    const res = await apiClient.post('/inventory/reorder-rules', data);
+    return res.data;
+  },
+  async update(id: number, data: any) {
+    const res = await apiClient.put(`/inventory/reorder-rules/${id}`, data);
+    return res.data;
+  },
+  async remove(id: number) {
+    const res = await apiClient.delete(`/inventory/reorder-rules/${id}`);
+    return res.data;
+  },
+  async evaluate() {
+    const res = await apiClient.post('/inventory/reorder-rules/evaluate');
+    return res.data;
+  },
+};
+
+export const inventoryDashboard = {
+  async getKpis() {
+    const res = await apiClient.get('/inventory/dashboard');
+    return res.data;
+  },
+};
+
+export const inventoryReports = {
+  async valuation(warehouseId?: number) {
+    const res = await apiClient.get('/inventory/reports/valuation', { params: { warehouse_id: warehouseId } });
+    return Array.isArray(res.data) ? res.data : [];
+  },
+  async movementLog(filters?: { date_from?: string; date_to?: string; product_id?: number; movement_type?: string; warehouse_id?: number }) {
+    const res = await apiClient.get('/inventory/reports/movement-log', { params: filters });
+    return Array.isArray(res.data) ? res.data : [];
+  },
+  async supplierPerformance(supplierId?: number) {
+    const res = await apiClient.get('/inventory/reports/supplier-performance', { params: { supplier_id: supplierId } });
+    return Array.isArray(res.data) ? res.data : [];
+  },
+  async abcAnalysis() {
+    const res = await apiClient.get('/inventory/reports/abc-analysis');
+    return Array.isArray(res.data) ? res.data : [];
+  },
+  async deadStock(days?: number) {
+    const res = await apiClient.get('/inventory/reports/dead-stock', { params: { days } });
+    return Array.isArray(res.data) ? res.data : [];
+  },
+  async fastSlowMovers(dateFrom?: string, dateTo?: string) {
+    const res = await apiClient.get('/inventory/reports/fast-slow-movers', { params: { date_from: dateFrom, date_to: dateTo } });
+    return Array.isArray(res.data) ? res.data : [];
+  },
+  async countVariance(countId?: number) {
+    const res = await apiClient.get('/inventory/reports/count-variance', { params: { count_id: countId } });
+    return res.data;
+  },
+  exportUrl(type: string, params?: Record<string, string>) {
+    const searchParams = new URLSearchParams({ type, ...params });
+    return `/inventory/reports/export?${searchParams.toString()}`;
+  },
+};
+
+export const stockLevels = {
+  async list(query?: { product_id?: number; warehouse_id?: number }) {
+    const res = await apiClient.get('/inventory/stock-levels', { params: query });
+    return Array.isArray(res.data) ? res.data : [];
+  },
+  async summary() {
+    const res = await apiClient.get('/inventory/stock-levels/summary');
+    return Array.isArray(res.data) ? res.data : [];
+  },
+  async byProduct(productId: number) {
+    const res = await apiClient.get(`/inventory/stock-levels/product/${productId}`);
+    return Array.isArray(res.data) ? res.data : [];
+  },
+  async byWarehouse(warehouseId: number) {
+    const res = await apiClient.get(`/inventory/stock-levels/warehouse/${warehouseId}`);
+    return Array.isArray(res.data) ? res.data : [];
+  },
+};
+
+// ── Phase 6: Supplier Portal ──────────────────────
+
+export const supplierPortal = {
+  async getProfile() {
+    const res = await apiClient.get('/supplier-portal/profile');
+    return res.data;
+  },
+  async updateProfile(data: any) {
+    const res = await apiClient.put('/supplier-portal/profile', data);
+    return res.data;
+  },
+  async getPurchaseOrders(params?: { status?: string; page?: number; limit?: number }) {
+    const res = await apiClient.get('/supplier-portal/purchase-orders', { params });
+    return res.data;
+  },
+  async getPurchaseOrder(id: number) {
+    const res = await apiClient.get(`/supplier-portal/purchase-orders/${id}`);
+    return res.data;
+  },
+  async confirmPurchaseOrder(id: number, data?: { expected_delivery_date?: string; notes?: string }) {
+    const res = await apiClient.post(`/supplier-portal/purchase-orders/${id}/confirm`, data);
+    return res.data;
+  },
+  async getCatalog() {
+    const res = await apiClient.get('/supplier-portal/catalog');
+    return Array.isArray(res.data) ? res.data : [];
+  },
+  async updateCatalogItem(id: number, data: any) {
+    const res = await apiClient.put(`/supplier-portal/catalog/${id}`, data);
+    return res.data;
+  },
+};
+
+// ── Phase 6: Barcode ──────────────────────────────
+
+export const inventoryBarcode = {
+  generateUrl(text: string, type: string = 'code128') {
+    return `${BACKEND_API_BASE_URL}/inventory/barcode/generate?text=${encodeURIComponent(text)}&type=${type}`;
+  },
+  async getBatchLabel(batchId: number) {
+    const res = await apiClient.get(`/inventory/barcode/label/batch/${batchId}`);
+    return res.data;
+  },
+  async getLocationLabel(locationId: number) {
+    const res = await apiClient.get(`/inventory/barcode/label/location/${locationId}`);
+    return res.data;
+  },
+  async getPoLabel(poId: number) {
+    const res = await apiClient.get(`/inventory/barcode/label/po/${poId}`);
+    return res.data;
+  },
+  async lookup(code: string) {
+    const res = await apiClient.get('/inventory/barcode/lookup', { params: { code } });
+    return res.data;
+  },
+};
+
+// ── Phase 6: Demand Forecasting ───────────────────
+
+export const inventoryForecasts = {
+  async list(warehouseId?: number) {
+    const res = await apiClient.get('/inventory/forecasts', { params: { warehouse_id: warehouseId } });
+    return Array.isArray(res.data) ? res.data : [];
+  },
+  async generate() {
+    const res = await apiClient.post('/inventory/forecasts/generate');
+    return res.data;
+  },
+  async accuracy() {
+    const res = await apiClient.get('/inventory/forecasts/accuracy');
+    return res.data;
+  },
+};
+
+// ── Phase 6: Bulk Import ──────────────────────────
+
+export const inventoryImport = {
+  async validate(importType: string, rows: any[]) {
+    const res = await apiClient.post('/inventory/import/validate', { import_type: importType, rows });
+    return res.data;
+  },
+  async execute(importType: string, rows: any[]) {
+    const res = await apiClient.post('/inventory/import/execute', { import_type: importType, rows });
+    return res.data;
+  },
+};
+
+// ── Phase 6: Audit Trail ──────────────────────────
+
+export const inventoryAuditTrail = {
+  async list(filters?: { product_id?: number; warehouse_id?: number; date_from?: string; date_to?: string; limit?: number }) {
+    const res = await apiClient.get('/inventory/audit-trail', { params: filters });
+    return Array.isArray(res.data) ? res.data : [];
+  },
+};
+
+// ── Phase 6: Warehouse Map ────────────────────────
+
+export const warehouseMap = {
+  async get(warehouseId: number) {
+    const res = await apiClient.get(`/inventory/warehouse-map/${warehouseId}`);
+    return res.data;
+  },
+};
+
+// ── Phase 6: Accounting Journals ──────────────────
+
+export const accountingJournals = {
+  async list(params?: { entry_type?: string; reference_type?: string; date_from?: string; date_to?: string; page?: number; limit?: number }) {
+    const res = await apiClient.get('/accounting/journals', { params });
+    return res.data;
+  },
+  async get(id: number) {
+    const res = await apiClient.get(`/accounting/journals/${id}`);
+    return res.data;
+  },
+  async summary() {
+    const res = await apiClient.get('/accounting/journals/summary');
+    return res.data;
   },
 };

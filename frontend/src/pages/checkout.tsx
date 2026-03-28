@@ -18,7 +18,7 @@ import {
   FaExclamationTriangle,
   FaInfoCircle,
 } from "react-icons/fa";
-import apiClient, { customers } from "@/services/api";
+import apiClient, { customers, stockAvailability } from "@/services/api";
 import { TrackingService } from "@/utils/tracking";
 import PhoneInput, { validateBDPhone } from "@/components/PhoneInput";
 import { trackBeginCheckout, trackAddPaymentInfo, trackPurchaseWithUser, extractLocationFromAddress } from "@/utils/gtm";
@@ -328,6 +328,31 @@ export default function Checkout() {
     if (cart.length === 0) {
       toast.warning("Your cart is empty");
       return;
+    }
+
+    // Check stock availability before placing order
+    try {
+      const productIds = cart.map((item) => item.id);
+      const availability = await stockAvailability.bulkCheck(productIds);
+      if (availability && availability.length > 0) {
+        const outOfStock: string[] = [];
+        for (const item of cart) {
+          const stock = availability.find((s: any) => s.product_id === item.id);
+          if (stock && stock.total_available < (item.quantity || 1)) {
+            outOfStock.push(
+              `${item.name || item.name_en}: only ${stock.total_available} available`
+            );
+          }
+        }
+        if (outOfStock.length > 0) {
+          toast.error(`Insufficient stock: ${outOfStock.join(', ')}`);
+          setLoading(false);
+          return;
+        }
+      }
+    } catch (err) {
+      // Best-effort: allow checkout to proceed if stock check fails
+      console.warn('Stock availability check failed, proceeding with order:', err);
     }
 
     setLoading(true);

@@ -12,6 +12,7 @@ import axios from 'axios';
 import { User } from '../users/user.entity';
 import { LoyaltyService } from '../loyalty/loyalty.service';
 import { WhatsAppService } from '../messaging/whatsapp.service';
+import { InventoryService } from '../inventory/inventory.service';
 
 @Injectable()
 export class OrderManagementService {
@@ -36,6 +37,7 @@ export class OrderManagementService {
 
     @InjectRepository(User)
     private usersRepository: Repository<User>,
+    private inventoryService: InventoryService,
   ) {}
 
   private formatUserName(u?: Partial<User> | null): string | null {
@@ -958,6 +960,13 @@ export class OrderManagementService {
       ipAddress,
     });
 
+    // Release stock reservations
+    try {
+      await this.inventoryService.releaseReservation(orderId);
+    } catch (err) {
+      this.logger.warn(`Failed to release stock for cancelled order #${orderId}: ${(err as any)?.message}`);
+    }
+
     return updatedOrder;
   }
 
@@ -994,6 +1003,31 @@ export class OrderManagementService {
       performedByName: userName,
       ipAddress,
     });
+
+    // Handle inventory side-effects of status changes
+    try {
+      if (['cancelled', 'admin_cancelled'].includes(newStatus) && !['cancelled', 'admin_cancelled'].includes(oldStatus)) {
+        // Release stock reservations on cancel
+        await this.inventoryService.releaseReservation(orderId);
+      }
+      if (newStatus === 'returned' && oldStatus !== 'returned') {
+        // Restock returned items (default: Grade A restock to warehouse 1)
+        const orderItems = await this.salesOrderItemRepository.find({ where: { salesOrderId: orderId } });
+        const restockItems = orderItems
+          .filter(oi => oi.productId && oi.quantity > 0)
+          .map(oi => ({ product_id: oi.productId!, quantity: oi.quantity, condition: 'restock' as const }));
+        if (restockItems.length > 0) {
+          await this.inventoryService.restockReturn({
+            salesOrderId: orderId,
+            items: restockItems,
+            warehouseId: 1, // Default warehouse
+            performedBy: userId,
+          });
+        }
+      }
+    } catch (err) {
+      this.logger.warn(`Inventory side-effect failed for order #${orderId} status→${newStatus}: ${(err as any)?.message}`);
+    }
 
     return updatedOrder;
   }
@@ -1038,6 +1072,25 @@ export class OrderManagementService {
       performedByName: data.userName,
       ipAddress: data.ipAddress,
     });
+
+    // Dispatch stock: deduct via FEFO, release reservations, record movements
+    try {
+      const orderItems = await this.salesOrderItemRepository.find({
+        where: { salesOrderId: data.orderId },
+      });
+      const dispatchItems = orderItems
+        .filter(oi => oi.productId && oi.quantity > 0)
+        .map(oi => ({ product_id: oi.productId!, quantity: oi.quantity }));
+      if (dispatchItems.length > 0) {
+        await this.inventoryService.dispatchStock({
+          salesOrderId: data.orderId,
+          items: dispatchItems,
+          performedBy: data.userId,
+        });
+      }
+    } catch (err: any) {
+      this.logger.warn(`Stock dispatch failed for order #${data.orderId}: ${err?.message}`);
+    }
 
     return updatedOrder;
   }

@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Put, Delete, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Put, Delete, UseGuards, ParseIntPipe, Query, Req } from '@nestjs/common';
 import { PurchaseService } from './purchase.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
@@ -9,33 +9,105 @@ import { RequirePermissions } from '../../common/decorators/permissions.decorato
 export class PurchaseController {
   constructor(private readonly purchaseService: PurchaseService) {}
 
-  @Get()
+  // ── Purchase Orders ─────────────────────────────────
+
+  @Get('orders')
   @RequirePermissions('view-purchase-orders')
-  async findAll() {
-    return this.purchaseService.findAll();
+  findAll(@Query('status') status?: string) {
+    return this.purchaseService.findAll(status);
   }
 
-  @Get(':id')
+  @Get('orders/:id')
   @RequirePermissions('view-purchase-orders')
-  async findOne(@Param('id') id: string) {
+  findOne(@Param('id', ParseIntPipe) id: number) {
     return this.purchaseService.findOne(id);
   }
 
-  @Post()
+  @Post('orders')
   @RequirePermissions('create-purchase-orders')
-  async create(@Body() dto: any) {
-    return this.purchaseService.create(dto);
+  create(@Body() dto: any, @Req() req: any) {
+    return this.purchaseService.create(dto, req.user?.id);
   }
 
-  @Put(':id')
+  @Put('orders/:id')
   @RequirePermissions('edit-purchase-orders')
-  async update(@Param('id') id: string, @Body() dto: any) {
+  update(@Param('id', ParseIntPipe) id: number, @Body() dto: any) {
     return this.purchaseService.update(id, dto);
   }
 
-  @Delete(':id')
+  @Post('orders/:id/submit')
+  @RequirePermissions('create-purchase-orders')
+  submit(@Param('id', ParseIntPipe) id: number) {
+    return this.purchaseService.submitForApproval(id);
+  }
+
+  @Post('orders/:id/approve')
+  @RequirePermissions('edit-purchase-orders')
+  approve(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
+    return this.purchaseService.approve(id, req.user?.id);
+  }
+
+  @Post('orders/:id/reject')
+  @RequirePermissions('edit-purchase-orders')
+  reject(@Param('id', ParseIntPipe) id: number, @Req() req: any, @Body('reason') reason?: string) {
+    return this.purchaseService.reject(id, req.user?.id, reason);
+  }
+
+  @Post('orders/:id/cancel')
   @RequirePermissions('delete-purchase-orders')
-  async remove(@Param('id') id: string) {
+  cancel(@Param('id', ParseIntPipe) id: number, @Req() req: any, @Body('reason') reason: string) {
+    return this.purchaseService.cancel(id, req.user?.id, reason);
+  }
+
+  @Delete('orders/:id')
+  @RequirePermissions('delete-purchase-orders')
+  remove(@Param('id', ParseIntPipe) id: number) {
     return this.purchaseService.remove(id);
+  }
+
+  // ── GRNs ────────────────────────────────────────────
+
+  @Get('grns')
+  @RequirePermissions('view-purchase-orders')
+  findAllGrns(@Query('po_id') poId?: string) {
+    return this.purchaseService.findAllGrns(poId ? parseInt(poId, 10) : undefined);
+  }
+
+  @Get('grns/:id')
+  @RequirePermissions('view-purchase-orders')
+  findOneGrn(@Param('id', ParseIntPipe) id: number) {
+    return this.purchaseService.findOneGrn(id);
+  }
+
+  @Post('grns')
+  @RequirePermissions('create-purchase-orders')
+  createGrn(@Body() dto: any, @Req() req: any) {
+    return this.purchaseService.createGrn(dto, req.user?.id);
+  }
+
+  @Put('grns/:id')
+  @RequirePermissions('edit-purchase-orders')
+  updateGrn(@Param('id', ParseIntPipe) id: number, @Body() dto: any) {
+    return this.purchaseService.updateGrn(id, dto);
+  }
+
+  @Post('grns/:id/accept')
+  @RequirePermissions('edit-purchase-orders')
+  acceptGrn(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
+    return this.purchaseService.acceptGrn(id, req.user?.id);
+  }
+
+  @Post('grns/:id/reject')
+  @RequirePermissions('edit-purchase-orders')
+  rejectGrn(@Param('id', ParseIntPipe) id: number, @Req() req: any, @Body('reason') reason?: string) {
+    return this.purchaseService.rejectGrn(id, req.user?.id, reason);
+  }
+
+  // ── PO Utilities ────────────────────────────────────
+
+  @Post('orders/:id/duplicate')
+  @RequirePermissions('create-purchase-orders')
+  duplicatePo(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
+    return this.purchaseService.duplicatePo(id, req.user?.id);
   }
 }
