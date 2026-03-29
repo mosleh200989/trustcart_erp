@@ -374,6 +374,7 @@ export default function Products() {
             maxPrice: "",
             sortBy: "featured",
             inStock: false,
+            isCombo: false,
           })
         }
         className="w-full bg-gray-200 hover:bg-gray-300 text-gray-800 py-2 rounded-lg font-semibold transition"

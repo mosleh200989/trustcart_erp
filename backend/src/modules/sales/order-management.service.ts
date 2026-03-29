@@ -2039,30 +2039,35 @@ export class OrderManagementService {
 
   // ==================== PRODUCT NAMES (for filter dropdowns) ====================
 
-  async getDistinctProductNames(): Promise<string[]> {
-    // Fetch distinct product names from both item tables
+  async getDistinctProductNames(): Promise<{ name_en: string; name_bn: string | null }[]> {
+    // Fetch distinct product names (with Bengali) from both item tables via products join
     const [oiRows, soiRows] = await Promise.all([
-      this.orderItemRepository
-        .createQueryBuilder('oi')
-        .select('DISTINCT oi.product_name', 'name')
-        .where('oi.product_name IS NOT NULL')
-        .andWhere("oi.product_name != ''")
-        .getRawMany(),
-      this.salesOrderItemRepository
-        .createQueryBuilder('soi')
-        .select('DISTINCT soi.product_name', 'name')
-        .where('soi.product_name IS NOT NULL')
-        .andWhere("soi.product_name != ''")
-        .getRawMany(),
+      this.orderItemRepository.query(`
+        SELECT DISTINCT oi.product_name AS name_en, p.name_bn AS name_bn
+        FROM order_items oi
+        LEFT JOIN products p ON p.id = oi.product_id
+        WHERE oi.product_name IS NOT NULL AND oi.product_name != ''
+      `),
+      this.salesOrderItemRepository.query(`
+        SELECT DISTINCT soi.product_name AS name_en, p.name_bn AS name_bn
+        FROM sales_order_items soi
+        LEFT JOIN products p ON p.id = soi.product_id
+        WHERE soi.product_name IS NOT NULL AND soi.product_name != ''
+      `),
     ]);
 
-    const nameSet = new Set<string>();
+    const seen = new Map<string, string | null>();
     for (const row of [...oiRows, ...soiRows]) {
-      const n = (row.name || '').trim();
-      if (n) nameSet.add(n);
+      const en = (row.name_en || '').trim();
+      if (!en) continue;
+      if (!seen.has(en)) {
+        seen.set(en, row.name_bn ? row.name_bn.trim() : null);
+      }
     }
 
-    return Array.from(nameSet).sort((a, b) => a.localeCompare(b));
+    return Array.from(seen.entries())
+      .map(([name_en, name_bn]) => ({ name_en, name_bn }))
+      .sort((a, b) => a.name_en.localeCompare(b.name_en));
   }
 
   // ==================== PRINTING MODULE ====================

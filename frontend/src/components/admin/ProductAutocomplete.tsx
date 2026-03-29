@@ -1,6 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import apiClient from '@/services/api';
 
+interface ProductOption {
+  name_en: string;
+  name_bn: string | null;
+}
+
 interface ProductAutocompleteProps {
   value: string;
   onChange: (value: string) => void;
@@ -8,10 +13,10 @@ interface ProductAutocompleteProps {
 }
 
 export default function ProductAutocomplete({ value, onChange, className }: ProductAutocompleteProps) {
-  const [allProducts, setAllProducts] = useState<string[]>([]);
+  const [allProducts, setAllProducts] = useState<ProductOption[]>([]);
   const [inputValue, setInputValue] = useState(value);
   const [showDropdown, setShowDropdown] = useState(false);
-  const [filteredProducts, setFilteredProducts] = useState<string[]>([]);
+  const [filteredProducts, setFilteredProducts] = useState<ProductOption[]>([]);
   const [highlightIndex, setHighlightIndex] = useState(-1);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
@@ -30,7 +35,7 @@ export default function ProductAutocomplete({ value, onChange, className }: Prod
     setInputValue(value);
   }, [value]);
 
-  // Filter products as user types
+  // Filter products as user types — match against both English and Bengali names
   useEffect(() => {
     if (!inputValue.trim()) {
       setFilteredProducts([]);
@@ -38,7 +43,11 @@ export default function ProductAutocomplete({ value, onChange, className }: Prod
       return;
     }
     const query = inputValue.toLowerCase();
-    const matches = allProducts.filter((p) => p.toLowerCase().includes(query));
+    const matches = allProducts.filter(
+      (p) =>
+        p.name_en.toLowerCase().includes(query) ||
+        (p.name_bn && p.name_bn.includes(query))
+    );
     setFilteredProducts(matches);
     setShowDropdown(matches.length > 0);
     setHighlightIndex(-1);
@@ -65,9 +74,9 @@ export default function ProductAutocomplete({ value, onChange, className }: Prod
     }
   }, [highlightIndex]);
 
-  const selectProduct = (product: string) => {
-    setInputValue(product);
-    onChange(product);
+  const selectProduct = (product: ProductOption) => {
+    setInputValue(product.name_en);
+    onChange(product.name_en);
     setShowDropdown(false);
   };
 
@@ -147,14 +156,19 @@ export default function ProductAutocomplete({ value, onChange, className }: Prod
         >
           {filteredProducts.map((product, idx) => (
             <li
-              key={product}
+              key={product.name_en}
               onClick={() => selectProduct(product)}
               onMouseEnter={() => setHighlightIndex(idx)}
               className={`px-3 py-2 text-sm cursor-pointer ${
                 idx === highlightIndex ? 'bg-blue-50 text-blue-700' : 'hover:bg-gray-50'
               }`}
             >
-              {highlightMatch(product, inputValue)}
+              <div>{highlightMatch(product.name_en, inputValue)}</div>
+              {product.name_bn && (
+                <div className="text-xs text-gray-500 mt-0.5">
+                  {highlightMatch(product.name_bn, inputValue)}
+                </div>
+              )}
             </li>
           ))}
         </ul>
