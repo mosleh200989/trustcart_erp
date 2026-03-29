@@ -9,6 +9,7 @@ import ElectroNavbar from "@/components/ElectroNavbar";
 import ElectroFooter from "@/components/ElectroFooter";
 import ElectroProductCard from "@/components/ElectroProductCard";
 import AddToCartPopup from "@/components/AddToCartPopup";
+import ProductLandingView from "@/components/ProductLandingView";
 import apiClient from "@/services/api";
 import { trackViewItem, trackAddToCart } from "@/utils/gtm";
 import { SITE_NAME, SITE_URL, DEFAULT_OG_IMAGE, canonicalUrl, productImageUrl } from '@/config/seo';
@@ -435,6 +436,12 @@ export default function ProductDetailsPage() {
         <ElectroFooter />
       </div>
     );
+  }
+
+  // Landing page mode: when ?lp=1 is present, render minimalistic order page
+  const isLandingMode = router.query.lp === '1' || router.query.lp === 'true';
+  if (isLandingMode) {
+    return <ProductLandingView product={product} productImages={productImages} />;
   }
 
   const displayName = product.name_en || product.name_bn || "Product";

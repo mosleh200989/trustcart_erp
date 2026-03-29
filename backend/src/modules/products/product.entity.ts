@@ -87,6 +87,9 @@ export class Product {
   @Column({ type: 'timestamp', nullable: true, name: 'discount_end_date' })
   discount_end_date!: Date;
 
+  @Column({ type: 'boolean', default: false, name: 'is_combo' })
+  is_combo!: boolean;
+
   @CreateDateColumn({ name: 'created_at' })
   created_at!: Date;
 

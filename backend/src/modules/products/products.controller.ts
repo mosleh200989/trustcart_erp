@@ -28,6 +28,7 @@ export class ProductsController {
     @Query('minPrice') minPrice?: string,
     @Query('maxPrice') maxPrice?: string,
     @Query('inStock') inStock?: string,
+    @Query('is_combo') isCombo?: string,
   ) {
     // If page param is provided, use paginated server-side query
     if (page) {
@@ -40,6 +41,7 @@ export class ProductsController {
         minPrice: minPrice ? parseFloat(minPrice) : undefined,
         maxPrice: maxPrice ? parseFloat(maxPrice) : undefined,
         inStock: inStock === 'true',
+        isCombo: isCombo === 'true',
       });
     }
     // No page param — return flat array (backward compatible for homepage)
@@ -189,6 +191,12 @@ export class ProductsController {
   @Public()
   async getFeatured() {
     return this.productsService.findFeatured();
+  }
+
+  @Get('featured/combo')
+  @Public()
+  async getComboProducts() {
+    return this.productsService.findComboProducts();
   }
 
   @Get('related/:productId')

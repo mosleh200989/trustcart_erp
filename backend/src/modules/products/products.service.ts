@@ -85,9 +85,10 @@ export class ProductsService {
     minPrice?: number;
     maxPrice?: number;
     inStock: boolean;
+    isCombo?: boolean;
   }) {
     try {
-      const { page, limit, search, category, sort, minPrice, maxPrice, inStock } = params;
+      const { page, limit, search, category, sort, minPrice, maxPrice, inStock, isCombo } = params;
       const offset = (page - 1) * limit;
 
       const conditions: string[] = [`p.status = 'active'`];
@@ -126,6 +127,10 @@ export class ProductsService {
 
       if (inStock) {
         conditions.push(`p.stock_quantity > 0`);
+      }
+
+      if (isCombo) {
+        conditions.push(`p.is_combo = TRUE`);
       }
 
       const whereClause = conditions.join(' AND ');
@@ -572,6 +577,33 @@ export class ProductsService {
       return results;
     } catch (error) {
       console.error('Error fetching featured products:', error);
+      return [];
+    }
+  }
+
+  async findComboProducts() {
+    try {
+      const results = await this.productsRepository.query(`
+        SELECT p.id, p.slug, p.sku, p.name_en, p.name_bn, p.description_en,
+               p.base_price, p.sale_price, p.stock_quantity, p.size_variants,
+               COALESCE(p.image_url, pi.image_url) as image_url,
+               p.status, c.name_en as category_name
+        FROM products p
+        LEFT JOIN LATERAL (
+          SELECT image_url
+          FROM product_images
+          WHERE product_id = p.id
+          ORDER BY is_primary DESC, display_order ASC
+          LIMIT 1
+        ) pi ON TRUE
+        LEFT JOIN categories c ON p.category_id = c.id
+        WHERE p.is_combo = TRUE AND p.status = 'active'
+        ORDER BY p.display_position ASC NULLS LAST, p.created_at DESC
+        LIMIT 8
+      `);
+      return results;
+    } catch (error) {
+      console.error('Error fetching combo products:', error);
       return [];
     }
   }

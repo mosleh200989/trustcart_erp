@@ -57,6 +57,7 @@ export default function Products() {
     maxPrice: "",
     sortBy: "featured",
     inStock: false,
+    isCombo: false,
   });
 
   const isUpdatingFromUrl = useRef(false);
@@ -81,6 +82,7 @@ export default function Products() {
     if (f.minPrice) params.minPrice = f.minPrice;
     if (f.maxPrice) params.maxPrice = f.maxPrice;
     if (f.inStock) params.inStock = "true";
+    if (f.isCombo) params.is_combo = "true";
     return params;
   }, [filters, categories, itemsPerPage]);
 
@@ -167,6 +169,7 @@ export default function Products() {
     if (router.query.minPrice) updates.minPrice = router.query.minPrice as string;
     if (router.query.maxPrice) updates.maxPrice = router.query.maxPrice as string;
     if (router.query.inStock === "true") updates.inStock = true;
+    if (router.query.is_combo === "true") updates.isCombo = true;
 
     const initialFilters = { ...filters, ...updates };
     setFilters(initialFilters);
@@ -371,6 +374,7 @@ export default function Products() {
             maxPrice: "",
             sortBy: "featured",
             inStock: false,
+            isCombo: false,
           })
         }
         className="w-full bg-gray-200 hover:bg-gray-300 text-gray-800 py-2 rounded-lg font-semibold transition"
