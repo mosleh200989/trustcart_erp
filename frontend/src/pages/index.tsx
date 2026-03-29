@@ -106,6 +106,14 @@ export default function Home() {
     },
   });
 
+  const { data: comboProducts = [], isLoading: comboProductsLoading } = useQuery({
+    queryKey: ['combo-products'],
+    queryFn: async () => {
+      const response = await apiClient.get("/products/featured/combo");
+      return Array.isArray(response.data) ? response.data : [];
+    },
+  });
+
   const { data: featuredProducts = [], isLoading: loading } = useQuery({
     queryKey: ['featured-products'],
     queryFn: async () => {
@@ -646,6 +654,58 @@ export default function Home() {
                       </div>
                     </div>
                   </Link>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Combo Products Section */}
+        {comboProductsLoading ? (
+          <SectionSkeleton title="Combo Products" />
+        ) : comboProducts.length > 0 && (
+          <div className="container mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 py-12">
+            <div className="flex items-center justify-between mb-8">
+              <div>
+                <h2 className="text-2xl xl:text-3xl font-bold flex items-center gap-3">
+                  Combo Products
+                </h2>
+                <p className="text-gray-600 mt-1">
+                  Special single products with combo-style deals
+                </p>
+              </div>
+              <Link
+                href="/products?is_combo=true&page=1"
+                className="text-orange-500 hover:text-orange-600 font-semibold flex items-center gap-2"
+              >
+                View All
+                <FaArrowRight />
+              </Link>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4 lg:gap-6">
+              {comboProducts.slice(0, 4).map((product: any) => {
+                const basePrice = Number(product.base_price) || 0;
+                const salePrice = product.sale_price ? Number(product.sale_price) : null;
+                const discountPercent = salePrice && salePrice < basePrice
+                  ? Math.round(((basePrice - salePrice) / basePrice) * 100)
+                  : 0;
+
+                return (
+                  <ElectroProductCard
+                    key={product.id}
+                    id={product.id}
+                    slug={product.slug}
+                    name={product.name_en || product.name_bn}
+                    nameBn={product.name_bn}
+                    nameEn={product.name_en}
+                    categoryName={product.category_name}
+                    price={salePrice && salePrice < basePrice ? salePrice : basePrice}
+                    originalPrice={basePrice}
+                    stock={product.stock_quantity}
+                    image={product.image_url}
+                    rating={5}
+                    discount={discountPercent > 0 ? discountPercent : undefined}
+                  />
                 );
               })}
             </div>
