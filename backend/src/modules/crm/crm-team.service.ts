@@ -317,6 +317,10 @@ export class CrmTeamService {
       qb.andWhere('c.assigned_to IS NOT NULL');
     } else if (assignmentStatus === 'unassigned') {
       qb.andWhere('c.assigned_to IS NULL');
+      // Only show unassigned customers who have at least one delivered order
+      qb.andWhere(
+        `EXISTS (SELECT 1 FROM sales_orders so WHERE so.customer_id = c.id AND LOWER(so.status::text) = 'delivered')`
+      );
     }
     // 'all' or undefined = no assignment filter
 
@@ -458,6 +462,9 @@ export class CrmTeamService {
       countQb.andWhere('c.assigned_to IS NOT NULL');
     } else if (assignmentStatus === 'unassigned') {
       countQb.andWhere('c.assigned_to IS NULL');
+      countQb.andWhere(
+        `EXISTS (SELECT 1 FROM sales_orders so WHERE so.customer_id = c.id AND LOWER(so.status::text) = 'delivered')`
+      );
     }
     if (assignedTo) {
       countQb.andWhere('c.assigned_to = :assignedTo', { assignedTo: Number(assignedTo) });
