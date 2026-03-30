@@ -367,8 +367,8 @@ export default function LeadAssignmentPage() {
     return `৳${amount.toLocaleString('en-BD', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
   };
 
-  // Agent autocomplete component
-  const AgentAutocomplete = ({ onSelect }: { onSelect: (agent: User) => void }) => (
+  // Agent autocomplete inline JSX
+  const agentAutocompleteJSX = (
     <div className="relative" ref={dropdownRef}>
       <input
         ref={agentInputRef}
@@ -414,7 +414,6 @@ export default function LeadAssignmentPage() {
                 onClick={() => {
                   setSelectedAgent(agent);
                   setShowAgentDropdown(false);
-                  onSelect(agent);
                 }}
                 className="w-full text-left px-3 py-2 hover:bg-blue-50 flex items-center justify-between border-b last:border-b-0"
               >
@@ -894,7 +893,7 @@ export default function LeadAssignmentPage() {
 
               <div className="mb-6">
                 <label className="block text-sm font-medium mb-2">Select Agent (Sales Executive)</label>
-                <AgentAutocomplete onSelect={(agent) => setSelectedAgent(agent)} />
+                {agentAutocompleteJSX}
                 <p className="text-xs text-gray-500 mt-1">Type to search by name or ID</p>
               </div>
 
@@ -941,7 +940,7 @@ export default function LeadAssignmentPage() {
 
               <div className="mb-6">
                 <label className="block text-sm font-medium mb-2">Select Agent (Sales Executive)</label>
-                <AgentAutocomplete onSelect={(agent) => setSelectedAgent(agent)} />
+                {agentAutocompleteJSX}
                 <p className="text-xs text-gray-500 mt-1">Type to search by name or ID</p>
               </div>
 
