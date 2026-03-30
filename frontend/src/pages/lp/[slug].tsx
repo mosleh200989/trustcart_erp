@@ -161,6 +161,16 @@ export default function LandingPagePublic() {
     trackIncompleteOrder(stage);
   }, [orderForm.name, orderForm.phone, orderForm.address, orderForm.note, deliveryZone, trackIncompleteOrder]);
 
+  // Auto-detect Dhaka in address and set delivery zone
+  useEffect(() => {
+    const addr = orderForm.address.toLowerCase();
+    if (addr.includes('dhaka') || addr.includes('ঢাকা')) {
+      setDeliveryZone('inside');
+    } else if (addr.length > 10 && !addr.includes('dhaka') && !addr.includes('ঢাকা')) {
+      setDeliveryZone('outside');
+    }
+  }, [orderForm.address]);
+
   // Track when products change
   useEffect(() => {
     if (!page || submitted || !hasTrackedRef.current) return;

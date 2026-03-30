@@ -24,7 +24,7 @@ export default function CartPage() {
   const [suggestedProducts, setSuggestedProducts] = useState<any[]>([]);
   const [stockInfo, setStockInfo] = useState<Record<number, number>>({});
   const [couponCode, setCouponCode] = useState('');
-  const [deliveryZone, setDeliveryZone] = useState<'inside_dhaka' | 'outside_dhaka'>('inside_dhaka');
+  const [deliveryZone, setDeliveryZone] = useState<'inside_dhaka' | 'outside_dhaka'>('outside_dhaka');
 
   const subtotal = cart.reduce(
     (sum: number, item: any) => sum + item.price * (item.quantity || 1),

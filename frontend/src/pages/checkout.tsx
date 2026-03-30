@@ -38,7 +38,7 @@ export default function Checkout() {
   const [currentUser, setCurrentUser] = useState<any | null>(null);
   const [customerProfile, setCustomerProfile] = useState<any | null>(null);
   const [defaultAddress, setDefaultAddress] = useState<any | null>(null);
-  const [deliveryZone, setDeliveryZone] = useState<'inside_dhaka' | 'outside_dhaka'>('inside_dhaka');
+  const [deliveryZone, setDeliveryZone] = useState<'inside_dhaka' | 'outside_dhaka'>('outside_dhaka');
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [formSubmitted, setFormSubmitted] = useState(false);
   const [guestAccountCreated, setGuestAccountCreated] = useState(false);
