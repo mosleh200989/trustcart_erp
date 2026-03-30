@@ -1,13 +1,25 @@
-import { useState, useRef, useEffect } from 'react';
-import Head from 'next/head';
-import Image from 'next/image';
-import Link from 'next/link';
-import { useRouter } from 'next/router';
-import { FaMinus, FaPlus, FaPhone, FaWhatsapp, FaTruck, FaCheckCircle, FaShieldAlt, FaUndo, FaMapMarkerAlt, FaEnvelope } from 'react-icons/fa';
-import apiClient from '@/services/api';
-import PhoneInput from '@/components/PhoneInput';
-import { useToast } from '@/contexts/ToastContext';
-import { SITE_NAME, canonicalUrl, productImageUrl } from '@/config/seo';
+import { useState, useRef, useEffect } from "react";
+import Head from "next/head";
+import Image from "next/image";
+import Link from "next/link";
+import { useRouter } from "next/router";
+import {
+  FaMinus,
+  FaPlus,
+  FaPhone,
+  FaWhatsapp,
+  FaTruck,
+  FaCheckCircle,
+  FaShieldAlt,
+  FaUndo,
+  FaMapMarkerAlt,
+  FaEnvelope,
+  FaShoppingCart,
+} from "react-icons/fa";
+import apiClient from "@/services/api";
+import PhoneInput from "@/components/PhoneInput";
+import { useToast } from "@/contexts/ToastContext";
+import { SITE_NAME, canonicalUrl, productImageUrl } from "@/config/seo";
 
 interface SizeVariant {
   name: string;
@@ -22,48 +34,89 @@ interface ProductLandingViewProps {
 }
 
 const DELIVERY_INSIDE = 60;
-const DELIVERY_OUTSIDE = 120;
+const DELIVERY_OUTSIDE = 110;
 
-export default function ProductLandingView({ product, productImages }: ProductLandingViewProps) {
+export default function ProductLandingView({
+  product,
+  productImages,
+}: ProductLandingViewProps) {
   const router = useRouter();
   const toast = useToast();
   const orderFormRef = useRef<HTMLDivElement>(null);
 
-  const sizeVariants: SizeVariant[] = Array.isArray(product.size_variants) ? product.size_variants : [];
+  const sizeVariants: SizeVariant[] = Array.isArray(product.size_variants)
+    ? product.size_variants
+    : [];
   const [selectedVariant, setSelectedVariant] = useState<SizeVariant | null>(
-    sizeVariants.length > 0 ? sizeVariants[0] : null
+    sizeVariants.length > 0 ? sizeVariants[0] : null,
   );
-  const [quantity, setQuantity] = useState(1);
-  const [deliveryZone, setDeliveryZone] = useState<'inside' | 'outside'>('inside');
-  const [orderForm, setOrderForm] = useState({ name: '', phone: '', address: '', note: '' });
+  const [variantQuantities, setVariantQuantities] = useState<
+    Record<string, number>
+  >(() => Object.fromEntries(sizeVariants.map((v) => [v.name, 1])));
+  const quantity = selectedVariant
+    ? variantQuantities[selectedVariant.name] || 1
+    : 1;
+  const setQuantity = (updater: number | ((prev: number) => number)) => {
+    if (!selectedVariant) return;
+    setVariantQuantities((prev) => {
+      const cur = prev[selectedVariant.name] || 1;
+      const next = typeof updater === "function" ? updater(cur) : updater;
+      return { ...prev, [selectedVariant.name]: Math.max(1, next) };
+    });
+  };
+  const [deliveryZone, setDeliveryZone] = useState<"inside" | "outside">(
+    "outside",
+  );
+  const [orderForm, setOrderForm] = useState({
+    name: "",
+    phone: "",
+    address: "",
+    note: "",
+  });
   const [formTouched, setFormTouched] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
-  const supportPhone = (process.env.NEXT_PUBLIC_SUPPORT_PHONE || '').trim();
-  const supportWhatsApp = (process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP || '').trim();
+  const supportPhone = (process.env.NEXT_PUBLIC_SUPPORT_PHONE || "").trim();
+  const supportWhatsApp = (
+    process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP || ""
+  ).trim();
 
   // Price calculation
   const basePrice = Number(product.base_price || product.price || 0);
   const salePrice = product.sale_price ? Number(product.sale_price) : null;
   const unitPrice = selectedVariant
     ? selectedVariant.price
-    : (salePrice != null && salePrice > 0 && salePrice < basePrice ? salePrice : basePrice);
+    : salePrice != null && salePrice > 0 && salePrice < basePrice
+      ? salePrice
+      : basePrice;
   const originalPrice = selectedVariant ? basePrice : basePrice;
   const hasDiscount = selectedVariant
     ? selectedVariant.price < basePrice
-    : (salePrice != null && salePrice > 0 && salePrice < basePrice);
+    : salePrice != null && salePrice > 0 && salePrice < basePrice;
   const discountPercent = hasDiscount
     ? Math.round(((originalPrice - unitPrice) / originalPrice) * 100)
     : 0;
 
   const subtotal = unitPrice * quantity;
-  const deliveryCharge = deliveryZone === 'inside' ? DELIVERY_INSIDE : DELIVERY_OUTSIDE;
+  const deliveryCharge =
+    deliveryZone === "inside" ? DELIVERY_INSIDE : DELIVERY_OUTSIDE;
   const total = subtotal + deliveryCharge;
 
-  const displayName = product.name_bn || product.name_en || 'Product';
-  const displayNameEn = product.name_en || '';
-  const mainImage = productImages.length > 0 ? productImages[0]?.image_url : product.image_url;
+  const displayName = product.name_bn || product.name_en || "Product";
+  const displayNameEn = product.name_en || "";
+  const mainImage =
+    productImages.length > 0 ? productImages[0]?.image_url : product.image_url;
+
+  // Auto-detect Dhaka in address and set delivery zone
+  useEffect(() => {
+    const addr = orderForm.address.toLowerCase();
+    if (addr.includes('dhaka') || addr.includes('ঢাকা')) {
+      setDeliveryZone('inside');
+    } else if (addr.length > 10 && !addr.includes('dhaka') && !addr.includes('ঢাকা')) {
+      setDeliveryZone('outside');
+    }
+  }, [orderForm.address]);
 
   // Auto-rotate images
   useEffect(() => {
@@ -76,22 +129,25 @@ export default function ProductLandingView({ product, productImages }: ProductLa
 
   const isBdPhoneValid = () => {
     if (!orderForm.phone) return false;
-    const digits = orderForm.phone.replace(/^\+?88/, '').replace(/\D/g, '');
-    return digits.length === 11 && digits.startsWith('0');
+    const digits = orderForm.phone.replace(/^\+?88/, "").replace(/\D/g, "");
+    return digits.length === 11 && digits.startsWith("0");
   };
 
   const scrollToOrder = () => {
-    orderFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    orderFormRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
   };
 
   const handleSubmitOrder = async () => {
     setFormTouched(true);
     if (!orderForm.name || !orderForm.phone || !orderForm.address) {
-      toast.warning('Please fill in all required fields');
+      toast.warning("Please fill in all required fields");
       return;
     }
     if (!isBdPhoneValid()) {
-      toast.warning('Phone number must start with 0 and be 11 digits');
+      toast.warning("Phone number must start with 0 and be 11 digits");
       return;
     }
 
@@ -105,35 +161,37 @@ export default function ProductLandingView({ product, productImages }: ProductLa
         customer_name: orderForm.name,
         customer_phone: orderForm.phone,
         shipping_address: orderForm.address,
-        notes: orderForm.note || '',
-        payment_method: 'cash',
-        items: [{
-          product_id: product.id,
-          product_name: productName,
-          product_image: product.image_url || null,
-          quantity,
-          unit_price: unitPrice,
-          total_price: subtotal,
-        }],
+        notes: orderForm.note || "",
+        payment_method: "cash",
+        items: [
+          {
+            product_id: product.id,
+            product_name: productName,
+            product_image: product.image_url || null,
+            quantity,
+            unit_price: unitPrice,
+            total_price: subtotal,
+          },
+        ],
         subtotal,
         delivery_charge: deliveryCharge,
         total_amount: total,
-        status: 'processing',
-        order_source: 'landing_page',
-        traffic_source: 'landing_page',
-        referrer_url: typeof window !== 'undefined' ? window.location.href : '',
+        status: "processing",
+        order_source: "landing_page",
+        traffic_source: "landing_page",
+        referrer_url: typeof window !== "undefined" ? window.location.href : "",
         utm_source: product.slug || `product-${product.id}`,
-        utm_medium: 'product_landing',
+        utm_medium: "product_landing",
         utm_campaign: product.name_en,
       };
 
-      const res = await apiClient.post('/sales', orderPayload);
+      const res = await apiClient.post("/sales", orderPayload);
       const savedOrderId = res.data?.id || res.data?.data?.id;
 
       if (savedOrderId) {
         window.location.href = `/thank-you?orderId=${savedOrderId}`;
       } else {
-        toast.success('Your order has been placed successfully!');
+        toast.success("Your order has been placed successfully!");
       }
     } catch (err: any) {
       const savedId = err?.response?.data?.id || err?.response?.data?.data?.id;
@@ -143,9 +201,11 @@ export default function ProductLandingView({ product, productImages }: ProductLa
       }
       const status = err?.response?.status;
       if (status && status >= 500) {
-        toast.success('Your order has been received! We will contact you shortly.');
+        toast.success(
+          "Your order has been received! We will contact you shortly.",
+        );
       } else {
-        toast.error('Failed to place order. Please try again.');
+        toast.error("Failed to place order. Please try again.");
       }
     } finally {
       setSubmitting(false);
@@ -155,11 +215,25 @@ export default function ProductLandingView({ product, productImages }: ProductLa
   return (
     <div className="min-h-screen bg-white">
       <Head>
-        <title>{displayName} | {SITE_NAME}</title>
-        <meta name="description" content={product.short_description || `Buy ${displayNameEn} online at ${SITE_NAME}`} />
-        <link rel="canonical" href={canonicalUrl(`/products/${product.slug || product.id}`)} />
+        <title>
+          {displayName} | {SITE_NAME}
+        </title>
+        <meta
+          name="description"
+          content={
+            product.short_description ||
+            `Buy ${displayNameEn} online at ${SITE_NAME}`
+          }
+        />
+        <link
+          rel="canonical"
+          href={canonicalUrl(`/products/${product.slug || product.id}`)}
+        />
         <meta property="og:title" content={`${displayName} | ${SITE_NAME}`} />
-        <meta property="og:image" content={productImageUrl(product.image_url)} />
+        <meta
+          property="og:image"
+          content={productImageUrl(product.image_url)}
+        />
         <meta name="robots" content="noindex, nofollow" />
       </Head>
 
@@ -167,52 +241,79 @@ export default function ProductLandingView({ product, productImages }: ProductLa
       <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
         <div className="max-w-5xl mx-auto px-4 py-2 flex items-center justify-center">
           <Link href="/">
-            <Image src="/trust-cart-logo-main.png" alt={SITE_NAME} width={160} height={60} className="h-12 sm:h-14 w-auto object-contain" priority />
+            <Image
+              src="/trust-cart-logo-main.png"
+              alt={SITE_NAME}
+              width={160}
+              height={60}
+              className="h-12 sm:h-14 w-auto object-contain"
+              priority
+            />
           </Link>
         </div>
       </header>
 
       {/* Hero Section */}
       <section className="bg-gradient-to-b from-orange-50 to-white">
-        <div className="max-w-5xl mx-auto px-4 py-6 sm:py-10">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-10 items-start">
+        <div className="max-w-3xl mx-auto px-4 py-6 sm:py-10">
+          <div className="flex flex-col items-center">
             {/* Product Image */}
-            <div className="relative">
+            <div className="relative w-full max-w-md">
               <div className="relative aspect-square rounded-xl overflow-hidden bg-white border border-gray-100 shadow-sm">
                 <Image
-                  src={productImages[currentImageIndex]?.image_url || mainImage || '/placeholder.png'}
+                  src={
+                    productImages[currentImageIndex]?.image_url ||
+                    mainImage ||
+                    "/placeholder.png"
+                  }
                   alt={displayName}
                   fill
-                  sizes="(max-width: 768px) 100vw, 50vw"
+                  sizes="(max-width: 768px) 100vw, 480px"
                   className="object-contain"
                   priority
                 />
                 {hasDiscount && discountPercent > 0 && (
-                  <div className="absolute top-3 left-3 bg-red-500 text-white px-3 py-1 rounded-full text-sm font-bold shadow">
-                    {discountPercent}% OFF
+                  <div className="absolute top-2 right-2 z-10">
+                    <div
+                      className="inline-flex items-center gap-1.5 bg-gradient-to-r from-green-500 via-green-400 to-green-600 text-white px-3 py-3 text-xs font-extrabold shadow-xl border border-white/60"
+                      style={{
+                        clipPath:
+                          'polygon(50% 0%, 60% 12%, 76% 6%, 72% 22%, 88% 24%, 78% 36%, 100% 50%, 78% 64%, 88% 76%, 72% 78%, 76% 94%, 60% 88%, 50% 100%, 40% 88%, 24% 94%, 28% 78%, 12% 76%, 22% 64%, 0% 50%, 22% 36%, 12% 24%, 28% 22%, 24% 6%, 40% 12%)',
+                      }}
+                    >
+                      <span>-{discountPercent}%</span>
+                    </div>
                   </div>
                 )}
               </div>
               {/* Thumbnail strip */}
               {productImages.length > 1 && (
-                <div className="flex gap-2 mt-3 overflow-x-auto pb-1">
+                <div className="flex gap-2 mt-3 justify-center overflow-x-auto pb-1">
                   {productImages.map((img, idx) => (
                     <button
                       key={idx}
                       onClick={() => setCurrentImageIndex(idx)}
                       className={`relative w-16 h-16 flex-shrink-0 rounded-lg overflow-hidden border-2 transition-all ${
-                        idx === currentImageIndex ? 'border-orange-500 ring-1 ring-orange-300' : 'border-gray-200 hover:border-gray-300'
+                        idx === currentImageIndex
+                          ? "border-orange-500 ring-1 ring-orange-300"
+                          : "border-gray-200 hover:border-gray-300"
                       }`}
                     >
-                      <Image src={img.image_url} alt="" fill className="object-cover" sizes="64px" />
+                      <Image
+                        src={img.image_url}
+                        alt=""
+                        fill
+                        className="object-cover"
+                        sizes="64px"
+                      />
                     </button>
                   ))}
                 </div>
               )}
             </div>
 
-            {/* Product Info & Quick Order */}
-            <div>
+            {/* Product Info */}
+            <div className="text-center mt-6 w-full">
               <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 leading-tight">
                 {displayName}
               </h1>
@@ -221,11 +322,15 @@ export default function ProductLandingView({ product, productImages }: ProductLa
               )}
 
               {/* Price */}
-              <div className="flex items-baseline gap-3 mt-4">
-                <span className="text-3xl font-bold text-orange-600">৳{unitPrice}</span>
+              <div className="flex items-baseline justify-center gap-3 mt-4">
+                <span className="text-3xl font-bold text-orange-600">
+                  ৳{unitPrice}
+                </span>
                 {hasDiscount && (
                   <>
-                    <span className="text-lg text-gray-400 line-through">৳{originalPrice}</span>
+                    <span className="text-lg text-gray-400 line-through">
+                      ৳{originalPrice}
+                    </span>
                     <span className="bg-red-100 text-red-600 text-sm font-semibold px-2 py-0.5 rounded-full">
                       Save {discountPercent}%
                     </span>
@@ -235,246 +340,353 @@ export default function ProductLandingView({ product, productImages }: ProductLa
 
               {/* Short description */}
               {product.short_description && (
-                <p className="text-gray-600 mt-3 text-sm leading-relaxed">{product.short_description}</p>
+                <p className="text-gray-600 mt-3 text-sm leading-relaxed max-w-lg mx-auto">
+                  {product.short_description}
+                </p>
               )}
-
-              {/* Size Variants */}
-              {sizeVariants.length > 0 && (
-                <div className="mt-5">
-                  <p className="text-sm font-semibold text-gray-700 mb-2">Select Option:</p>
-                  <div className="flex flex-wrap gap-2">
-                    {sizeVariants.map((v) => {
-                      const isSelected = selectedVariant?.name === v.name;
-                      const isOOS = v.stock !== undefined && v.stock <= 0;
-                      const vDiscount = v.price < basePrice
-                        ? Math.round(((basePrice - v.price) / basePrice) * 100)
-                        : 0;
-                      return (
-                        <button
-                          key={v.name}
-                          disabled={isOOS}
-                          onClick={() => { setSelectedVariant(v); setQuantity(1); }}
-                          className={`relative px-4 py-2.5 rounded-lg border-2 text-sm font-medium transition-all ${
-                            isOOS
-                              ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed'
-                              : isSelected
-                                ? 'border-orange-500 bg-orange-50 text-orange-700 shadow-sm'
-                                : 'border-gray-200 bg-white text-gray-700 hover:border-orange-300'
-                          }`}
-                        >
-                          <span>{v.name}</span>
-                          <span className="block text-xs mt-0.5">
-                            ৳{v.price}
-                            {vDiscount > 0 && (
-                              <span className="text-red-500 ml-1">-{vDiscount}%</span>
-                            )}
-                          </span>
-                          {isOOS && (
-                            <span className="block text-[10px] text-red-400 mt-0.5">Out of Stock</span>
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {/* Quantity */}
-              <div className="mt-5">
-                <p className="text-sm font-semibold text-gray-700 mb-2">Quantity:</p>
-                <div className="inline-flex items-center border border-gray-300 rounded-lg overflow-hidden">
-                  <button
-                    onClick={() => setQuantity((q) => Math.max(1, q - 1))}
-                    className="px-4 py-2.5 text-gray-600 hover:bg-gray-100 transition-colors"
-                  >
-                    <FaMinus className="text-xs" />
-                  </button>
-                  <span className="px-5 py-2.5 text-center font-semibold min-w-[50px] border-x border-gray-300">
-                    {quantity}
-                  </span>
-                  <button
-                    onClick={() => setQuantity((q) => q + 1)}
-                    className="px-4 py-2.5 text-gray-600 hover:bg-gray-100 transition-colors"
-                  >
-                    <FaPlus className="text-xs" />
-                  </button>
-                </div>
-              </div>
-
-              {/* Delivery Area */}
-              <div className="mt-5">
-                <p className="text-sm font-semibold text-gray-700 mb-2">Delivery Area:</p>
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    onClick={() => setDeliveryZone('inside')}
-                    className={`py-2.5 px-3 rounded-lg border-2 text-sm font-medium transition-all ${
-                      deliveryZone === 'inside'
-                        ? 'border-orange-500 bg-orange-50 text-orange-700'
-                        : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
-                    }`}
-                  >
-                    Inside Dhaka
-                    <span className="block text-xs text-gray-500 mt-0.5">৳{DELIVERY_INSIDE}</span>
-                  </button>
-                  <button
-                    onClick={() => setDeliveryZone('outside')}
-                    className={`py-2.5 px-3 rounded-lg border-2 text-sm font-medium transition-all ${
-                      deliveryZone === 'outside'
-                        ? 'border-orange-500 bg-orange-50 text-orange-700'
-                        : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
-                    }`}
-                  >
-                    Outside Dhaka
-                    <span className="block text-xs text-gray-500 mt-0.5">৳{DELIVERY_OUTSIDE}</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Trust badges */}
-              <div className="grid grid-cols-3 gap-3 mt-5">
-                <div className="flex flex-col items-center text-center p-2">
-                  <FaTruck className="text-orange-500 text-lg mb-1" />
-                  <span className="text-[11px] text-gray-600 font-medium">Fast Delivery</span>
-                </div>
-                <div className="flex flex-col items-center text-center p-2">
-                  <FaShieldAlt className="text-orange-500 text-lg mb-1" />
-                  <span className="text-[11px] text-gray-600 font-medium">Secure Payment</span>
-                </div>
-                <div className="flex flex-col items-center text-center p-2">
-                  <FaUndo className="text-orange-500 text-lg mb-1" />
-                  <span className="text-[11px] text-gray-600 font-medium">Easy Returns</span>
-                </div>
-              </div>
             </div>
           </div>
         </div>
       </section>
 
       {/* Order Form Section */}
-      <section ref={orderFormRef} className="bg-gray-50 border-t border-gray-200">
-        <div className="max-w-2xl mx-auto px-4 py-8 sm:py-12">
-          <h2 className="text-xl sm:text-2xl font-bold text-gray-900 text-center mb-6">
-            Place Your Order
+      <section ref={orderFormRef} className="py-12 px-4 bg-white">
+        <div className="max-w-2xl mx-auto">
+          <h2 className="text-2xl font-bold text-center mb-2 text-orange-600">
+            অর্ডার করতে নিচের ফর্মটি পূরণ করুন 👇
           </h2>
 
-          {/* Order Summary */}
-          <div className="bg-white rounded-xl border border-gray-200 p-4 mb-6">
-            <div className="flex items-center gap-3">
-              <div className="relative w-16 h-16 rounded-lg overflow-hidden border border-gray-100 flex-shrink-0">
-                <Image
-                  src={mainImage || '/placeholder.png'}
-                  alt={displayName}
-                  fill
-                  className="object-cover"
-                  sizes="64px"
-                />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-semibold text-gray-900 text-sm truncate">{displayName}</p>
-                {selectedVariant && (
-                  <p className="text-xs text-gray-500">{selectedVariant.name}</p>
-                )}
-                <p className="text-sm text-orange-600 font-bold mt-0.5">
-                  ৳{unitPrice} × {quantity} = ৳{subtotal}
-                </p>
-              </div>
-            </div>
-          </div>
+          {/* Product / Variant Selection */}
+          <div className="mb-6">
+            <h3 className="font-semibold text-gray-700 mb-3">
+              প্রোডাক্ট নির্বাচন করুন
+            </h3>
+            {sizeVariants.length > 0 ? (
+              <div className="space-y-3">
+                {sizeVariants.map((v) => {
+                  const isSelected = selectedVariant?.name === v.name;
+                  const isOOS = v.stock !== undefined && v.stock <= 0;
+                  const vDiscount =
+                    v.price < basePrice
+                      ? Math.round(((basePrice - v.price) / basePrice) * 100)
+                      : 0;
+                  const vQty = variantQuantities[v.name] || 1;
+                  return (
+                    <div
+                      key={v.name}
+                      onClick={() => !isOOS && setSelectedVariant(v)}
+                      className={`relative border-2 rounded-xl p-3 sm:p-4 cursor-pointer transition-all ${
+                        isOOS
+                          ? "border-gray-200 bg-gray-50 opacity-60 cursor-not-allowed"
+                          : isSelected
+                            ? "border-green-500 bg-green-50"
+                            : "border-gray-200 hover:border-gray-300"
+                      }`}
+                    >
+                      <div className="flex items-start gap-3 sm:gap-4">
+                        {/* Product Image */}
+                        <div className="relative w-14 h-14 sm:w-16 sm:h-16 flex-shrink-0 rounded-lg overflow-hidden bg-white">
+                          <Image
+                            src={mainImage || "/placeholder.png"}
+                            alt={v.name}
+                            fill
+                            className="object-contain"
+                            sizes="64px"
+                          />
+                        </div>
 
-          {/* Total */}
-          <div className="bg-orange-50 rounded-xl p-4 mb-6 border border-orange-100">
-            <div className="flex justify-between text-sm text-gray-600 mb-1">
-              <span>Subtotal</span>
-              <span>৳{subtotal}</span>
-            </div>
-            <div className="flex justify-between text-sm text-gray-600 mb-2">
-              <span>Delivery Charge</span>
-              <span>৳{deliveryCharge}</span>
-            </div>
-            <div className="flex justify-between text-lg font-bold text-gray-900 pt-2 border-t border-orange-200">
-              <span>Total</span>
-              <span className="text-orange-600">৳{total}</span>
-            </div>
+                        {/* Variant Info */}
+                        <div className="flex-1 min-w-0">
+                          <div className="font-semibold text-sm sm:text-base leading-tight text-gray-800">
+                            {product.name_bn
+                              ? `${product.name_bn} - ${v.name}`
+                              : `${product.name_en} - ${v.name}`}
+                          </div>
+                          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mt-1">
+                            {vDiscount > 0 && (
+                              <span className="text-xs sm:text-sm line-through font-medium text-red-500">
+                                ৳{basePrice}
+                              </span>
+                            )}
+                            <span className="text-base sm:text-xl font-extrabold text-white px-2 py-0.5 rounded bg-orange-500">
+                              ৳{v.price}
+                            </span>
+                            {vDiscount > 0 && (
+                              <span className="text-[10px] sm:text-xs font-bold text-green-600 bg-green-100 px-1.5 sm:px-2 py-0.5 rounded-full">
+                                {vDiscount}% OFF
+                              </span>
+                            )}
+                          </div>
+                          {isOOS && (
+                            <p className="text-xs text-red-500 font-medium mt-1">
+                              Out of Stock
+                            </p>
+                          )}
+
+                          {/* Per-variant Quantity */}
+                          {isSelected && !isOOS && (
+                            <div
+                              className="flex items-center gap-3 mt-2"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <button
+                                onClick={() =>
+                                  setVariantQuantities((prev) => ({
+                                    ...prev,
+                                    [v.name]: Math.max(1, vQty - 1),
+                                  }))
+                                }
+                                className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center hover:bg-gray-300"
+                              >
+                                <FaMinus className="text-xs" />
+                              </button>
+                              <span className="w-8 text-center font-semibold">
+                                {vQty}
+                              </span>
+                              <button
+                                onClick={() =>
+                                  setVariantQuantities((prev) => ({
+                                    ...prev,
+                                    [v.name]: vQty + 1,
+                                  }))
+                                }
+                                className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center hover:bg-gray-300"
+                              >
+                                <FaPlus className="text-xs" />
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              /* Single product (no variants) */
+              <div className="border-2 border-green-500 bg-green-50 rounded-xl p-3 sm:p-4">
+                <div className="flex items-start gap-3 sm:gap-4">
+                  <div className="relative w-14 h-14 sm:w-16 sm:h-16 flex-shrink-0 rounded-lg overflow-hidden bg-white">
+                    <Image
+                      src={mainImage || "/placeholder.png"}
+                      alt={displayName}
+                      fill
+                      className="object-contain"
+                      sizes="64px"
+                    />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-semibold text-sm sm:text-base leading-tight text-gray-800">
+                      {displayName}
+                    </div>
+                    <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mt-1">
+                      {hasDiscount && (
+                        <span className="text-xs sm:text-sm line-through font-medium text-red-500">
+                          ৳{originalPrice}
+                        </span>
+                      )}
+                      <span className="text-base sm:text-xl font-extrabold text-white px-2 py-0.5 rounded bg-orange-500">
+                        ৳{unitPrice}
+                      </span>
+                      {hasDiscount && discountPercent > 0 && (
+                        <span className="text-[10px] sm:text-xs font-bold text-green-600 bg-green-100 px-1.5 sm:px-2 py-0.5 rounded-full">
+                          {discountPercent}% OFF
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-3 mt-2">
+                      <button
+                        onClick={() => setQuantity((q) => Math.max(1, q - 1))}
+                        className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center hover:bg-gray-300"
+                      >
+                        <FaMinus className="text-xs" />
+                      </button>
+                      <span className="w-8 text-center font-semibold">
+                        {quantity}
+                      </span>
+                      <button
+                        onClick={() => setQuantity((q) => q + 1)}
+                        className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center hover:bg-gray-300"
+                      >
+                        <FaPlus className="text-xs" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Customer Details Form */}
-          <div className="space-y-4">
+          <div className="space-y-4 mb-6">
+            <h3 className="font-semibold text-gray-700">Billing & Shipping</h3>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Name <span className="text-red-500">*</span>
+              <label
+                className={`block text-sm font-medium mb-1 ${formTouched && !orderForm.name ? "text-red-600" : "text-gray-600"}`}
+              >
+                নাম *
               </label>
               <input
                 type="text"
                 value={orderForm.name}
-                onChange={(e) => setOrderForm((f) => ({ ...f, name: e.target.value }))}
-                placeholder="Your full name"
-                className={`w-full px-4 py-3 rounded-lg border ${
-                  formTouched && !orderForm.name ? 'border-red-400' : 'border-gray-300'
-                } focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-orange-400 text-sm`}
+                onChange={(e) =>
+                  setOrderForm((f) => ({ ...f, name: e.target.value }))
+                }
+                placeholder="আপনার নাম"
+                className={`w-full border rounded-lg px-4 py-3 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 ${formTouched && !orderForm.name ? "border-red-500 bg-red-50" : ""}`}
               />
-              {formTouched && !orderForm.name && (
-                <p className="text-xs text-red-500 mt-1">Name is required</p>
-              )}
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Phone Number <span className="text-red-500">*</span>
+              <label
+                className={`block text-sm font-medium mb-1 ${formTouched && !orderForm.address ? "text-red-600" : "text-gray-600"}`}
+              >
+                আপনার ঠিকানা লিখুন *
+              </label>
+              <textarea
+                value={orderForm.address}
+                onChange={(e) =>
+                  setOrderForm((f) => ({ ...f, address: e.target.value }))
+                }
+                placeholder="সম্পূর্ণ ঠিকানা"
+                rows={2}
+                className={`w-full border rounded-lg px-4 py-3 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 ${formTouched && !orderForm.address ? "border-red-500 bg-red-50" : ""}`}
+              />
+            </div>
+            <div>
+              <label
+                className={`block text-sm font-medium mb-1 ${formTouched && (!orderForm.phone || !isBdPhoneValid()) ? "text-red-600" : "text-gray-600"}`}
+              >
+                মোবাইল *
               </label>
               <PhoneInput
                 value={orderForm.phone}
                 onChange={(val) => setOrderForm((f) => ({ ...f, phone: val }))}
                 required
                 showError={formTouched}
-                className={`w-full px-4 py-3 rounded-lg border ${
-                  formTouched && !isBdPhoneValid() && orderForm.phone ? 'border-red-400' : 'border-gray-300'
-                } focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-orange-400 text-sm`}
+                placeholder="01XXXXXXXXX"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Delivery Address <span className="text-red-500">*</span>
+              <label className="block text-sm font-medium text-gray-600 mb-1">
+                অতিরিক্ত নোট (ঐচ্ছিক)
               </label>
               <textarea
-                value={orderForm.address}
-                onChange={(e) => setOrderForm((f) => ({ ...f, address: e.target.value }))}
-                placeholder="Full delivery address"
-                rows={2}
-                className={`w-full px-4 py-3 rounded-lg border ${
-                  formTouched && !orderForm.address ? 'border-red-400' : 'border-gray-300'
-                } focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-orange-400 text-sm resize-none`}
-              />
-              {formTouched && !orderForm.address && (
-                <p className="text-xs text-red-500 mt-1">Address is required</p>
-              )}
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Order Note (Optional)</label>
-              <input
-                type="text"
                 value={orderForm.note}
-                onChange={(e) => setOrderForm((f) => ({ ...f, note: e.target.value }))}
-                placeholder="Any special instructions"
-                className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-orange-400 text-sm"
+                onChange={(e) =>
+                  setOrderForm((f) => ({ ...f, note: e.target.value }))
+                }
+                className="w-full border rounded-lg px-4 py-3"
+                rows={2}
               />
             </div>
           </div>
 
-          {/* Submit Button */}
-          <button
-            onClick={handleSubmitOrder}
-            disabled={submitting}
-            className={`mt-6 w-full py-4 rounded-xl text-lg font-bold transition-all shadow-lg ${
-              submitting
-                ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
-                : 'bg-orange-500 hover:bg-orange-600 text-white shadow-orange-200 active:scale-[0.98]'
-            }`}
-          >
-            {submitting ? 'Placing Order...' : `Confirm Order — ৳${total}`}
-          </button>
+          {/* Order Summary */}
+          <div className="border rounded-xl p-4 mb-6 bg-gray-50">
+            <h3 className="font-semibold text-gray-700 mb-3">Your Order</h3>
 
-          <p className="text-center text-xs text-gray-500 mt-3">
-            Cash on Delivery • Our representative will call to confirm
-          </p>
+            {/* Order Items */}
+            <div className="space-y-2 border-b pb-3 mb-3">
+              <div className="flex justify-between text-sm">
+                <span>
+                  {selectedVariant
+                    ? `${product.name_bn || product.name_en} (${selectedVariant.name}) × ${quantity}`
+                    : `${displayName} × ${quantity}`}
+                </span>
+                <span className="font-medium">
+                  {subtotal.toLocaleString()} ৳
+                </span>
+              </div>
+            </div>
+
+            {/* Delivery Zone Selector */}
+            <div className="mb-3">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                ডেলিভারি এলাকা নির্বাচন করুন
+              </label>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setDeliveryZone("inside")}
+                  className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium border-2 transition-all ${
+                    deliveryZone === "inside"
+                      ? "border-green-500 bg-green-50 text-green-700"
+                      : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"
+                  }`}
+                >
+                  ঢাকার ভিতরে
+                  <div className="text-xs mt-0.5">
+                    {DELIVERY_INSIDE.toLocaleString()} ৳
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDeliveryZone("outside")}
+                  className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium border-2 transition-all ${
+                    deliveryZone === "outside"
+                      ? "border-green-500 bg-green-50 text-green-700"
+                      : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"
+                  }`}
+                >
+                  ঢাকার বাইরে
+                  <div className="text-xs mt-0.5">
+                    {DELIVERY_OUTSIDE.toLocaleString()} ৳
+                  </div>
+                </button>
+              </div>
+            </div>
+
+            {/* Delivery Charge Line */}
+            <div className="flex justify-between text-sm mb-2">
+              <span className="text-gray-600">ডেলিভারি চার্জ</span>
+              <span className="font-medium">
+                {deliveryCharge.toLocaleString()} ৳
+              </span>
+            </div>
+
+            {/* Subtotal */}
+            <div className="flex justify-between text-sm border-t pt-2 mb-2">
+              <span className="text-gray-600">সাবটোটাল</span>
+              <span className="font-medium">{subtotal.toLocaleString()} ৳</span>
+            </div>
+
+            {/* Total */}
+            <div className="flex justify-between text-base font-bold border-t pt-2 mb-3">
+              <span>সর্বমোট</span>
+              <span className="text-orange-600">
+                {total.toLocaleString()} ৳
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2 text-sm text-gray-600 mb-3">
+              <input
+                type="radio"
+                checked
+                readOnly
+                className="accent-orange-500"
+              />
+              <span>Cash on Delivery</span>
+            </div>
+            <div className="text-xs text-gray-400 mb-4">
+              Your personal data will be used to process your order.
+            </div>
+
+            {/* Confirm Order Button */}
+            <button
+              onClick={handleSubmitOrder}
+              disabled={submitting}
+              className={`w-full py-3.5 rounded-lg text-base font-bold text-white shadow-md hover:shadow-lg transition-all duration-200 ${
+                submitting
+                  ? "bg-gray-400 cursor-not-allowed"
+                  : "bg-orange-500 hover:brightness-110 active:scale-[0.98]"
+              }`}
+            >
+              <FaShoppingCart className="inline mr-2 text-lg align-middle" />
+              {submitting
+                ? "Processing..."
+                : `অর্ডার কনফার্ম করুন — ${total.toLocaleString()} ৳`}
+            </button>
+          </div>
         </div>
       </section>
 
@@ -482,7 +694,9 @@ export default function ProductLandingView({ product, productImages }: ProductLa
       {product.description_en && (
         <section className="border-t border-gray-200">
           <div className="max-w-3xl mx-auto px-4 py-8 sm:py-12">
-            <h2 className="text-xl font-bold text-gray-900 mb-4">Product Details</h2>
+            <h2 className="text-xl font-bold text-gray-900 mb-4">
+              Product Details
+            </h2>
             <div
               className="prose prose-sm max-w-none text-gray-700 prose-headings:text-gray-900"
               dangerouslySetInnerHTML={{ __html: product.description_en }}
@@ -497,52 +711,133 @@ export default function ProductLandingView({ product, productImages }: ProductLa
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
             {/* Brand */}
             <div>
-              <Image src="/trust-cart-logo-main.png" alt={SITE_NAME} width={160} height={60} className="h-14 w-auto object-contain mb-4 brightness-0 invert" />
+              <Image
+                src="/trust-cart-logo-main.png"
+                alt={SITE_NAME}
+                width={160}
+                height={60}
+                className="h-14 w-auto object-contain mb-4 brightness-0 invert"
+              />
               <p className="text-sm text-gray-400 leading-relaxed">
-                Your trusted source for premium organic groceries, delivered fresh to your doorstep.
+                Your trusted source for premium organic groceries, delivered
+                fresh to your doorstep.
               </p>
             </div>
 
             {/* Quick Links */}
             <div>
-              <h4 className="text-sm font-semibold text-white mb-4 uppercase tracking-wider">Quick Links</h4>
+              <h4 className="text-sm font-semibold text-white mb-4 uppercase tracking-wider">
+                Quick Links
+              </h4>
               <ul className="space-y-2 text-sm">
-                <li><Link href="/products" className="text-gray-400 hover:text-orange-400 transition-colors">Shop</Link></li>
-                <li><Link href="/about" className="text-gray-400 hover:text-orange-400 transition-colors">About Us</Link></li>
-                <li><Link href="/contact" className="text-gray-400 hover:text-orange-400 transition-colors">Contact</Link></li>
-                <li><Link href="/shipping" className="text-gray-400 hover:text-orange-400 transition-colors">Shipping Policy</Link></li>
-                <li><Link href="/returns" className="text-gray-400 hover:text-orange-400 transition-colors">Returns & Refunds</Link></li>
-                <li><Link href="/privacy" className="text-gray-400 hover:text-orange-400 transition-colors">Privacy Policy</Link></li>
+                <li>
+                  <Link
+                    href="/products"
+                    className="text-gray-400 hover:text-orange-400 transition-colors"
+                  >
+                    Shop
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    href="/about"
+                    className="text-gray-400 hover:text-orange-400 transition-colors"
+                  >
+                    About Us
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    href="/contact"
+                    className="text-gray-400 hover:text-orange-400 transition-colors"
+                  >
+                    Contact
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    href="/shipping"
+                    className="text-gray-400 hover:text-orange-400 transition-colors"
+                  >
+                    Shipping Policy
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    href="/returns"
+                    className="text-gray-400 hover:text-orange-400 transition-colors"
+                  >
+                    Returns & Refunds
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    href="/privacy"
+                    className="text-gray-400 hover:text-orange-400 transition-colors"
+                  >
+                    Privacy Policy
+                  </Link>
+                </li>
               </ul>
             </div>
 
             {/* Contact Info */}
             <div>
-              <h4 className="text-sm font-semibold text-white mb-4 uppercase tracking-wider">Contact Info</h4>
+              <h4 className="text-sm font-semibold text-white mb-4 uppercase tracking-wider">
+                Contact Info
+              </h4>
               <ul className="space-y-3 text-sm">
                 <li className="flex items-start gap-3">
-                  <FaMapMarkerAlt className="text-orange-500 mt-0.5 flex-shrink-0" size={14} />
-                  <span className="text-gray-400">Basabo, Dhaka, Bangladesh</span>
+                  <FaMapMarkerAlt
+                    className="text-orange-500 mt-0.5 flex-shrink-0"
+                    size={14}
+                  />
+                  <span className="text-gray-400">
+                    Basabo, Dhaka, Bangladesh
+                  </span>
                 </li>
                 {supportPhone && (
                   <li className="flex items-center gap-3">
-                    <FaPhone className="text-orange-500 flex-shrink-0" size={14} />
-                    <a href={`tel:${supportPhone}`} className="text-gray-400 hover:text-orange-400 transition-colors">{supportPhone}</a>
+                    <FaPhone
+                      className="text-orange-500 flex-shrink-0"
+                      size={14}
+                    />
+                    <a
+                      href={`tel:${supportPhone}`}
+                      className="text-gray-400 hover:text-orange-400 transition-colors"
+                    >
+                      {supportPhone}
+                    </a>
                   </li>
                 )}
                 <li className="flex items-center gap-3">
-                  <FaEnvelope className="text-orange-500 flex-shrink-0" size={14} />
+                  <FaEnvelope
+                    className="text-orange-500 flex-shrink-0"
+                    size={14}
+                  />
                   <span className="text-gray-400">support@trustcart.com</span>
                 </li>
               </ul>
               <div className="mt-5 pt-4 border-t border-gray-800">
-                <p className="text-xs text-gray-500 mb-2 uppercase tracking-wider font-medium">We Accept</p>
+                <p className="text-xs text-gray-500 mb-2 uppercase tracking-wider font-medium">
+                  We Accept
+                </p>
                 <div className="flex gap-2 flex-wrap">
-                  <span className="bg-gray-800 text-gray-300 border border-gray-700 px-2.5 py-0.5 rounded text-xs font-bold">VISA</span>
-                  <span className="bg-gray-800 text-gray-300 border border-gray-700 px-2.5 py-0.5 rounded text-xs font-bold">MASTER</span>
-                  <span className="bg-gray-800 text-orange-400 border border-gray-700 px-2.5 py-0.5 rounded text-xs font-bold">bKash</span>
-                  <span className="bg-gray-800 text-pink-400 border border-gray-700 px-2.5 py-0.5 rounded text-xs font-bold">Nagad</span>
-                  <span className="bg-gray-800 text-gray-300 border border-gray-700 px-2.5 py-0.5 rounded text-xs font-bold">COD</span>
+                  <span className="bg-gray-800 text-gray-300 border border-gray-700 px-2.5 py-0.5 rounded text-xs font-bold">
+                    VISA
+                  </span>
+                  <span className="bg-gray-800 text-gray-300 border border-gray-700 px-2.5 py-0.5 rounded text-xs font-bold">
+                    MASTER
+                  </span>
+                  <span className="bg-gray-800 text-orange-400 border border-gray-700 px-2.5 py-0.5 rounded text-xs font-bold">
+                    bKash
+                  </span>
+                  <span className="bg-gray-800 text-pink-400 border border-gray-700 px-2.5 py-0.5 rounded text-xs font-bold">
+                    Nagad
+                  </span>
+                  <span className="bg-gray-800 text-gray-300 border border-gray-700 px-2.5 py-0.5 rounded text-xs font-bold">
+                    COD
+                  </span>
                 </div>
               </div>
             </div>
@@ -551,8 +846,16 @@ export default function ProductLandingView({ product, productImages }: ProductLa
         {/* Bottom Bar */}
         <div className="border-t border-gray-800">
           <div className="max-w-5xl mx-auto px-6 py-4 flex flex-col sm:flex-row justify-between items-center text-xs text-gray-500 gap-2">
-            <p>&copy; {new Date().getFullYear()} {SITE_NAME}. All Rights Reserved.</p>
-            <p>Designed by <span className="text-orange-500 font-medium">TrustCart Team</span></p>
+            <p>
+              &copy; {new Date().getFullYear()} {SITE_NAME}. All Rights
+              Reserved.
+            </p>
+            <p>
+              Designed by{" "}
+              <span className="text-orange-500 font-medium">
+                TrustCart Team
+              </span>
+            </p>
           </div>
         </div>
       </footer>
@@ -561,7 +864,7 @@ export default function ProductLandingView({ product, productImages }: ProductLa
       <div className="fixed bottom-24 right-6 flex flex-col gap-3 z-50">
         {supportWhatsApp && (
           <a
-            href={`https://wa.me/${supportWhatsApp.replace(/\D/g, '')}`}
+            href={`https://wa.me/${supportWhatsApp.replace(/\D/g, "")}`}
             target="_blank"
             rel="noopener noreferrer"
             className="w-14 h-14 bg-green-500 text-white rounded-full flex items-center justify-center shadow-lg hover:bg-green-600 transition-colors"
