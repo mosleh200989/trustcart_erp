@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { TypeOrmModule } from '@nestjs/typeorm';
+import { TenantTypeOrmModule } from '../tenant/tenant-typeorm.module';
 import { CallTask } from '../crm/entities/call-task.entity';
 import { User } from '../users/user.entity';
 import { BracknetCallContractController, BracknetWebhookContractController } from './bracknet-contract.controller';
@@ -14,7 +14,7 @@ import { Activity } from '../crm/entities/activity.entity';
 import { TelephonyReportsService } from './telephony-reports.service';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([TelephonyCall, TelephonyAgentPresenceEvent, CallTask, User, Activity]), CustomersModule],
+  imports: [TenantTypeOrmModule.forFeature([TelephonyCall, TelephonyAgentPresenceEvent, CallTask, User, Activity]), CustomersModule],
   controllers: [TelephonyController, BracknetCallContractController, BracknetWebhookContractController],
   providers: [TelephonyService, TelephonyReportsService, TelephonyGateway, TelephonyPresenceService],
   exports: [TelephonyService, TelephonyPresenceService],

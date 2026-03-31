@@ -1,0 +1,646 @@
+import Link from 'next/link';
+import Image from 'next/image';
+import { useRouter } from 'next/router';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { FaPhone, FaEnvelope, FaUser, FaShoppingCart, FaHeart, FaBars, FaSearch, FaTimes, FaChevronRight, FaChevronDown } from 'react-icons/fa';
+import apiClient, { categories as categoriesAPI } from '@/services/api';
+import { useCart } from '@/contexts/CartContext';
+import { useAuth } from '@/contexts/AuthContext';
+import { safeGetItem } from '@/utils/safeStorage';
+
+type NavbarCategory = {
+  id: number;
+  name?: string;
+  nameEn?: string;
+  slug?: string;
+  icon?: string;
+  parent_id?: number | null;
+};
+
+export default function ElectroNavbar() {
+  const router = useRouter();
+  const { items: cartItems } = useCart();
+  const cartCount = cartItems.length;
+  const { user: authUser } = useAuth();
+  // Only show user in navbar if they're a customer account
+  const user = authUser && authUser.roleSlug === 'customer-account' ? authUser : null;
+  const [showCategories, setShowCategories] = useState(false);
+  const [navbarCategories, setNavbarCategories] = useState<NavbarCategory[]>([]);
+  const [navbarCategoriesLoading, setNavbarCategoriesLoading] = useState(false);
+  const [navbarCategoriesError, setNavbarCategoriesError] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [wishlistCount, setWishlistCount] = useState(0);
+
+  // Track wishlist count from localStorage
+  useEffect(() => {
+    const updateWishlistCount = () => {
+      try {
+        const stored = JSON.parse(safeGetItem('wishlist') || '[]');
+        setWishlistCount(stored.length);
+      } catch { setWishlistCount(0); }
+    };
+    updateWishlistCount();
+    window.addEventListener('wishlistUpdated', updateWishlistCount);
+    window.addEventListener('storage', updateWishlistCount);
+    return () => {
+      window.removeEventListener('wishlistUpdated', updateWishlistCount);
+      window.removeEventListener('storage', updateWishlistCount);
+    };
+  }, []);
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [showSearchResults, setShowSearchResults] = useState(false);
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
+  const [showMobileSearch, setShowMobileSearch] = useState(false);
+  const [hoveredCategoryId, setHoveredCategoryId] = useState<number | null>(null);
+  const [expandedMobileCategory, setExpandedMobileCategory] = useState<number | null>(null);
+
+  // Listen for toggle events from MobileBottomNav
+  useEffect(() => {
+    const handleToggleMenu = () => setShowMobileMenu(prev => !prev);
+    const handleToggleSearch = () => setShowMobileSearch(prev => !prev);
+    window.addEventListener('toggleMobileMenu', handleToggleMenu);
+    window.addEventListener('toggleMobileSearch', handleToggleSearch);
+    return () => {
+      window.removeEventListener('toggleMobileMenu', handleToggleMenu);
+      window.removeEventListener('toggleMobileSearch', handleToggleSearch);
+    };
+  }, []);
+
+  const { parentCategories, childrenMap, hasSubcategories } = useMemo(() => {
+    const parents = navbarCategories.filter(c => !c.parent_id);
+    const children: Record<number, NavbarCategory[]> = {};
+    navbarCategories.forEach(c => {
+      if (c.parent_id) {
+        if (!children[c.parent_id]) children[c.parent_id] = [];
+        children[c.parent_id].push(c);
+      }
+    });
+    return {
+      parentCategories: parents,
+      childrenMap: children,
+      hasSubcategories: Object.keys(children).length > 0,
+    };
+  }, [navbarCategories]);
+
+  useEffect(() => {
+    const loadNavbarCategories = async () => {
+      setNavbarCategoriesLoading(true);
+      setNavbarCategoriesError(false);
+      try {
+        const cats = await categoriesAPI.list({ active: true });
+        setNavbarCategories(Array.isArray(cats) ? cats : []);
+      } catch (err) {
+        console.error('Failed to load navbar categories:', err);
+        setNavbarCategories([]);
+        setNavbarCategoriesError(true);
+      } finally {
+        setNavbarCategoriesLoading(false);
+      }
+    };
+
+    loadNavbarCategories();
+  }, []);
+
+  const handleSearch = async (query: string) => {
+    setSearchQuery(query);
+    if (query.trim().length < 2) {
+      setSearchResults([]);
+      setShowSearchResults(false);
+      return;
+    }
+
+    try {
+      const response = await apiClient.get(`/products/search?q=${encodeURIComponent(query)}`);
+      setSearchResults(response.data || []);
+      setShowSearchResults(true);
+    } catch (error) {
+      console.error('Search error:', error);
+      setSearchResults([]);
+    }
+  };
+
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (searchQuery.trim()) {
+      router.push(`/products?search=${encodeURIComponent(searchQuery)}`);
+      setShowSearchResults(false);
+      setSearchQuery('');
+    }
+  };
+
+  // Desktop: hide navbar on scroll-down, show on scroll-up
+  const [navHidden, setNavHidden] = useState(false);
+  const lastScrollY = useRef(0);
+  const flyLockUntil = useRef(0); // prevents scroll-hide while fly animation plays
+
+  useEffect(() => {
+    const onScroll = () => {
+      if (window.innerWidth < 1024) return; // skip on mobile/tablet
+      if (Date.now() < flyLockUntil.current) return; // locked during fly animation
+      const y = window.scrollY;
+      setNavHidden(y > 80 && y > lastScrollY.current);
+      lastScrollY.current = y;
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+
+    // Reveal navbar and lock scroll-hide for the duration of the fly animation
+    const revealNavbar = () => {
+      flyLockUntil.current = Date.now() + 2000;
+      setNavHidden(false);
+    };
+    (window as any).__showNavbar = revealNavbar;
+    window.addEventListener('fly-to-cart-start', revealNavbar);
+
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+      window.removeEventListener('fly-to-cart-start', revealNavbar);
+      delete (window as any).__showNavbar;
+    };
+  }, []);
+
+  return (
+    <div
+      className={`z-40 lg:sticky lg:top-0 lg:transition-transform lg:duration-300 ${
+        navHidden ? 'lg:-translate-y-full' : 'lg:translate-y-0'
+      }`}
+    >
+
+
+      {/* Main Header */}
+      <div className="bg-white border-b">
+        <div className="container mx-auto px-4 py-1.5">
+          <div className="flex items-center justify-between gap-4">
+            {/* Mobile Menu Toggle */}
+            <button
+              onClick={() => setShowMobileMenu(!showMobileMenu)}
+              className="lg:hidden text-gray-700 hover:text-orange-500"
+            >
+              {showMobileMenu ? <FaTimes size={24} /> : <FaBars size={24} />}
+            </button>
+
+            {/* Logo */}
+            <Link href="/" className="flex items-center -my-2">
+              <Image src="/trust-cart-logo-main.png" alt="TrustCart" width={160} height={80} className="h-14 lg:h-16 w-auto object-contain" priority />
+            </Link>
+
+            {/* Search Bar - Desktop */}
+            <div className="hidden lg:flex flex-1 max-w-2xl mx-8">
+              <form onSubmit={handleSearchSubmit} className="relative w-full">
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => handleSearch(e.target.value)}
+                  onBlur={() => setTimeout(() => setShowSearchResults(false), 300)}
+                  onFocus={() => searchResults.length > 0 && setShowSearchResults(true)}
+                  placeholder="Search for products..."
+                  className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-full focus:outline-none focus:border-orange-500"
+                />
+                <button type="submit" className="absolute right-0 top-0 h-full px-6 bg-orange-500 hover:bg-orange-600 text-white rounded-r-full transition">
+                  <FaSearch />
+                </button>
+                
+                {/* Search Results Dropdown */}
+                {showSearchResults && searchResults.length > 0 && (
+                  <div
+                    className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-xl max-h-96 overflow-y-auto z-50"
+                    onMouseDown={(e) => e.preventDefault()}
+                  >                    {searchResults.map((product) => (
+                      <Link
+                        key={product.id}
+                        href={product.slug ? `/products/${product.slug}` : `/products/${product.id}`}
+                        onClick={() => {
+                          setShowSearchResults(false);
+                          setSearchQuery('');
+                        }}
+                        className="flex items-center gap-4 p-4 hover:bg-orange-50 border-b last:border-b-0 transition"
+                      >
+                        <div className="w-16 h-16 flex-shrink-0 rounded bg-gray-100 overflow-hidden flex items-center justify-center relative">
+                          {product.image_url ? (
+                            <Image
+                              src={product.image_url}
+                              alt={product.name_en}
+                              fill
+                              sizes="64px"
+                              className="object-cover"
+                            />
+                          ) : (
+                            <span className="text-2xl">📦</span>
+                          )}
+                        </div>
+                        <div className="flex-1">
+                          <h4 className="font-semibold text-gray-800">{product.name_en}</h4>
+                          {product.category_name && (
+                            <p className="text-xs text-gray-500">{product.category_name}</p>
+                          )}
+                          <p className="text-orange-600 font-bold mt-1">৳{parseFloat(product.base_price || product.price).toFixed(2)}</p>
+                        </div>
+                        {product.stock_quantity > 0 ? (
+                          <span className="text-green-600 text-sm font-semibold">In Stock</span>
+                        ) : (
+                          <span className="text-red-600 text-sm font-semibold">Out of Stock</span>
+                        )}
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </form>
+            </div>
+
+            {/* Actions */}
+            <div className="flex items-center gap-3 lg:gap-6">
+              <Link href="/wishlist" className="hidden sm:flex flex-col items-center text-gray-700 hover:text-orange-500 transition relative">
+                <FaHeart size={20} className="lg:w-6 lg:h-6" />
+                <span className="text-xs mt-1 hidden lg:block">Wishlist</span>
+                {wishlistCount > 0 && (
+                  <span className="absolute -top-2 -right-2 bg-orange-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                    {wishlistCount}
+                  </span>
+                )}
+              </Link>
+              
+              {user ? (
+                <Link href="/customer/dashboard" className="hidden sm:flex flex-col items-center text-gray-700 hover:text-orange-500 transition">
+                  <FaUser size={20} className="lg:w-6 lg:h-6" />
+                  <span className="text-xs mt-1 hidden lg:block">My Account</span>
+                </Link>
+              ) : (
+                <Link href="/customer/login" className="hidden sm:flex flex-col items-center text-gray-700 hover:text-orange-500 transition">
+                  <FaUser size={20} className="lg:w-6 lg:h-6" />
+                  <span className="text-xs mt-1 hidden lg:block">Sign In</span>
+                </Link>
+              )}
+
+              <Link href="/cart" id="desktop-cart-icon" className="flex flex-col items-center text-gray-700 hover:text-orange-500 transition relative">
+                <FaShoppingCart size={20} className="lg:w-6 lg:h-6" />
+                <span className="text-xs mt-1 hidden lg:block">Cart</span>
+                {cartCount > 0 && (
+                  <span className="absolute -top-2 -right-2 bg-orange-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                    {cartCount}
+                  </span>
+                )}
+              </Link>
+            </div>
+          </div>
+
+          {/* Search Bar - Mobile */}
+          <div className="lg:hidden mt-4">
+            <form onSubmit={handleSearchSubmit} className="relative">
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => handleSearch(e.target.value)}
+                onBlur={() => setTimeout(() => setShowSearchResults(false), 300)}
+                onFocus={() => searchResults.length > 0 && setShowSearchResults(true)}
+                placeholder="Search for products..."
+                className="w-full px-4 py-2 pr-12 border border-gray-300 rounded-full focus:outline-none focus:border-orange-500"
+              />
+              <button type="submit" className="absolute right-0 top-0 h-full px-4 bg-orange-500 hover:bg-orange-600 text-white rounded-r-full transition">
+                <FaSearch size={16} />
+              </button>
+              
+              {/* Mobile Search Results */}
+              {showSearchResults && searchResults.length > 0 && (
+                <div
+                  className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-xl max-h-96 overflow-y-auto z-50"
+                  onMouseDown={(e) => e.preventDefault()}
+                >
+                  {searchResults.map((product) => (
+                    <Link
+                      key={product.id}
+                      href={product.slug ? `/products/${product.slug}` : `/products/${product.id}`}
+                      onClick={() => {
+                        setShowSearchResults(false);
+                        setSearchQuery('');
+                        setShowMobileMenu(false);
+                      }}
+                      className="flex items-center gap-3 p-3 hover:bg-orange-50 border-b last:border-b-0 transition"
+                    >
+                      <div className="w-12 h-12 flex-shrink-0 rounded bg-gray-100 overflow-hidden flex items-center justify-center relative">
+                        {product.image_url ? (
+                          <Image
+                            src={product.image_url}
+                            alt={product.name_en}
+                            fill
+                            sizes="48px"
+                            className="object-cover"
+                          />
+                        ) : (
+                          <span className="text-xl">📦</span>
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-semibold text-gray-800 text-sm truncate">{product.name_en}</h4>
+                        <p className="text-orange-600 font-bold text-sm">৳{parseFloat(product.base_price || product.price).toFixed(2)}</p>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </form>
+          </div>
+        </div>
+      </div>
+
+      {/* Navigation Bar */}
+      <div className="bg-gray-900 hidden lg:block">
+        <div className="container mx-auto px-4">
+          <div className="flex items-stretch">
+            {/* Categories Dropdown */}
+            <div className="relative flex">
+              <button
+                onMouseEnter={() => setShowCategories(true)}
+                onMouseLeave={() => setShowCategories(false)}
+                className="bg-orange-500 hover:bg-orange-600 text-white px-5 flex items-center gap-2 font-semibold text-sm transition"
+              >
+                <FaBars />
+                ALL CATEGORIES
+              </button>
+              
+              {showCategories && (
+                <div
+                  onMouseEnter={() => setShowCategories(true)}
+                  onMouseLeave={() => { setShowCategories(false); setHoveredCategoryId(null); }}
+                  className={`absolute top-full left-0 bg-white shadow-xl rounded-b-lg z-50 ${hasSubcategories ? 'flex min-w-[520px]' : 'w-72 max-h-96 overflow-y-auto'}`}
+                >
+                  {/* Parent categories list */}
+                  <div className={hasSubcategories ? 'w-60 border-r max-h-[420px] overflow-y-auto' : ''}>
+                    <Link
+                      href="/products"
+                      className="block px-6 py-3 hover:bg-orange-50 hover:text-orange-500 transition border-b font-medium"
+                      onClick={() => setShowCategories(false)}
+                    >
+                      All Products
+                    </Link>
+
+                    {navbarCategoriesLoading && (
+                      <div className="px-6 py-3 text-sm text-gray-600 border-b">Loading categories…</div>
+                    )}
+
+                    {!navbarCategoriesLoading && navbarCategoriesError && (
+                      <div className="px-6 py-3 text-sm text-red-600 border-b">Failed to load categories</div>
+                    )}
+
+                    {!navbarCategoriesLoading && !navbarCategoriesError && parentCategories.length === 0 && (
+                      <div className="px-6 py-3 text-sm text-gray-600 border-b">No categories found</div>
+                    )}
+
+                    {parentCategories.map((cat) => {
+                      const label = cat.nameEn || cat.name || 'Category';
+                      const slug = cat.slug;
+                      const href = slug ? `/products?category=${encodeURIComponent(slug)}` : '/products';
+                      const hasChildren = (childrenMap[cat.id]?.length ?? 0) > 0;
+
+                      return (
+                        <Link
+                          key={cat.id}
+                          href={href}
+                          className={`flex items-center justify-between px-6 py-2.5 hover:bg-orange-50 hover:text-orange-500 transition border-b last:border-b-0 ${hoveredCategoryId === cat.id ? 'bg-orange-50 text-orange-500' : ''}`}
+                          onClick={() => setShowCategories(false)}
+                          onMouseEnter={() => setHoveredCategoryId(cat.id)}
+                        >
+                          <span>{label}</span>
+                          {hasChildren && <FaChevronRight size={10} className="text-gray-400" />}
+                        </Link>
+                      );
+                    })}
+                  </div>
+
+                  {/* Subcategories panel */}
+                  {hasSubcategories && hoveredCategoryId && childrenMap[hoveredCategoryId] && (
+                    <div className="flex-1 p-4 max-h-[420px] overflow-y-auto bg-gray-50 min-w-[260px]">
+                      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3 px-2">
+                        {parentCategories.find(c => c.id === hoveredCategoryId)?.nameEn || 'Subcategories'}
+                      </p>
+                      <div className="space-y-1">
+                        {childrenMap[hoveredCategoryId].map((sub) => {
+                          const subLabel = sub.nameEn || sub.name || 'Subcategory';
+                          const subHref = sub.slug ? `/products?category=${encodeURIComponent(sub.slug)}` : '/products';
+                          return (
+                            <Link
+                              key={sub.id}
+                              href={subHref}
+                              className="block px-3 py-2 rounded hover:bg-orange-100 hover:text-orange-600 transition text-sm text-gray-700"
+                              onClick={() => setShowCategories(false)}
+                            >
+                              {subLabel}
+                            </Link>
+                          );
+                        })}
+                      </div>
+                      <Link
+                        href={`/products?category=${encodeURIComponent(parentCategories.find(c => c.id === hoveredCategoryId)?.slug || '')}`}
+                        className="block mt-3 px-3 py-2 text-sm text-orange-500 font-medium hover:text-orange-600 transition"
+                        onClick={() => setShowCategories(false)}
+                      >
+                        Browse all →
+                      </Link>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Menu Links */}
+            <nav className="flex items-center gap-8 ml-8 text-white">
+              <Link href="/" className="py-2.5 hover:text-orange-400 transition font-medium">
+                Home
+              </Link>
+              <Link href="/products" className="py-2.5 hover:text-orange-400 transition font-medium">
+                Products
+              </Link>
+              <Link href="/about" className="py-2.5 hover:text-orange-400 transition font-medium">
+                About
+              </Link>
+              <Link href="/contact" className="py-2.5 hover:text-orange-400 transition font-medium">
+                Contact
+              </Link>
+              <Link href="/track-order" className="py-2.5 hover:text-orange-400 transition font-medium">
+                Track Order
+              </Link>
+              {/* <Link href="/blog" className="py-4 hover:text-orange-400 transition font-medium">
+                Blog
+              </Link> */}
+            </nav>
+
+
+          </div>
+        </div>
+      </div>
+
+      {/* Mobile Search Drawer */}
+      {showMobileSearch && (
+        <div className="lg:hidden fixed inset-0 z-50">
+          <div
+            className="absolute inset-0 bg-black/40"
+            onClick={() => setShowMobileSearch(false)}
+          />
+          <div className="absolute top-0 left-0 right-0 bg-white shadow-xl px-4 py-3 animate-slide-down">
+            <div className="flex items-center gap-2">
+              <form onSubmit={(e) => { handleSearchSubmit(e); setShowMobileSearch(false); }} className="relative flex-1">
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => handleSearch(e.target.value)}
+                  placeholder="Search for products..."
+                  className="w-full px-4 py-2 pr-12 border border-gray-300 rounded-full text-sm focus:outline-none focus:border-orange-500"
+                  autoFocus
+                />
+                <button type="submit" className="absolute right-0 top-0 h-full px-4 bg-orange-500 hover:bg-orange-600 text-white rounded-r-full transition">
+                  <FaSearch size={14} />
+                </button>
+              </form>
+              <button
+                onClick={() => setShowMobileSearch(false)}
+                className="p-1.5 text-gray-500 hover:text-gray-800"
+                aria-label="Close search"
+              >
+                <FaTimes size={18} />
+              </button>
+            </div>
+            {/* Search Results inside drawer */}
+            {showSearchResults && searchResults.length > 0 && (
+              <div className="mt-3 max-h-80 overflow-y-auto border-t pt-2">
+                {searchResults.map((product) => (
+                  <Link
+                    key={product.id}
+                    href={product.slug ? `/products/${product.slug}` : `/products/${product.id}`}
+                    onClick={() => {
+                      setShowSearchResults(false);
+                      setSearchQuery('');
+                      setShowMobileSearch(false);
+                    }}
+                    className="flex items-center gap-3 p-3 hover:bg-orange-50 border-b last:border-b-0 transition"
+                  >
+                    <div className="w-12 h-12 flex-shrink-0 rounded bg-gray-100 overflow-hidden flex items-center justify-center relative">
+                      {product.image_url ? (
+                        <Image
+                          src={product.image_url}
+                          alt={product.name_en}
+                          fill
+                          sizes="48px"
+                          className="object-cover"
+                        />
+                      ) : (
+                        <span className="text-xl">📦</span>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-semibold text-gray-800 text-sm truncate">{product.name_en}</h4>
+                      <p className="text-orange-600 font-bold text-sm">৳{parseFloat(product.base_price || product.price).toFixed(2)}</p>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Mobile Menu */}
+      {showMobileMenu && (
+        <div className="lg:hidden bg-gray-900 text-white">
+          <div className="container mx-auto px-4 py-4">
+            <nav className="flex flex-col space-y-2">
+              <Link href="/" onClick={() => setShowMobileMenu(false)} className="py-2 px-4 hover:bg-orange-500 rounded transition">
+                Home
+              </Link>
+              <Link href="/products" onClick={() => setShowMobileMenu(false)} className="py-2 px-4 hover:bg-orange-500 rounded transition">
+                Products
+              </Link>
+              <Link href="/about" onClick={() => setShowMobileMenu(false)} className="py-2 px-4 hover:bg-orange-500 rounded transition">
+                About Us
+              </Link>
+              <Link href="/contact" onClick={() => setShowMobileMenu(false)} className="py-2 px-4 hover:bg-orange-500 rounded transition">
+                Contact
+              </Link>
+              <Link href="/track-order" onClick={() => setShowMobileMenu(false)} className="py-2 px-4 hover:bg-orange-500 rounded transition">
+                Track Order
+              </Link>
+              {/* <Link href="/blog" onClick={() => setShowMobileMenu(false)} className="py-2 px-4 hover:bg-orange-500 rounded transition">
+                Blog
+              </Link> */}
+              <Link href="/wishlist" onClick={() => setShowMobileMenu(false)} className="py-2 px-4 hover:bg-orange-500 rounded transition">
+                Wishlist
+              </Link>
+              {user ? (
+                <Link href="/customer/dashboard" onClick={() => setShowMobileMenu(false)} className="py-2 px-4 hover:bg-orange-500 rounded transition">
+                  My Account
+                </Link>
+              ) : (
+                <Link href="/customer/login" onClick={() => setShowMobileMenu(false)} className="py-2 px-4 hover:bg-orange-500 rounded transition">
+                  Sign In
+                </Link>
+              )}
+              
+              {/* Mobile Categories */}
+              <div className="pt-4 border-t border-gray-700">
+                <p className="text-sm text-gray-400 mb-2 px-4">Categories</p>
+                <Link href="/products" onClick={() => setShowMobileMenu(false)} className="py-2 px-4 hover:bg-orange-500 rounded transition block">
+                  All Products
+                </Link>
+
+                {navbarCategoriesLoading && (
+                  <div className="py-2 px-4 text-sm text-gray-300">Loading categories…</div>
+                )}
+
+                {!navbarCategoriesLoading && navbarCategoriesError && (
+                  <div className="py-2 px-4 text-sm text-red-300">Failed to load categories</div>
+                )}
+
+                {!navbarCategoriesLoading && !navbarCategoriesError && parentCategories.length === 0 && (
+                  <div className="py-2 px-4 text-sm text-gray-300">No categories found</div>
+                )}
+
+                {parentCategories.map((cat) => {
+                  const label = cat.nameEn || cat.name || 'Category';
+                  const slug = cat.slug;
+                  const href = slug ? `/products?category=${encodeURIComponent(slug)}` : '/products';
+                  const children = childrenMap[cat.id] || [];
+                  const isExpanded = expandedMobileCategory === cat.id;
+
+                  if (children.length === 0) {
+                    return (
+                      <Link key={cat.id} href={href} onClick={() => setShowMobileMenu(false)} className="py-2 px-4 hover:bg-orange-500 rounded transition block">
+                        {label}
+                      </Link>
+                    );
+                  }
+
+                  return (
+                    <div key={cat.id}>
+                      <div className="flex items-center">
+                        <Link href={href} onClick={() => setShowMobileMenu(false)} className="flex-1 py-2 px-4 hover:bg-orange-500 rounded-l transition">
+                          {label}
+                        </Link>
+                        <button
+                          onClick={() => setExpandedMobileCategory(isExpanded ? null : cat.id)}
+                          className="py-2 px-3 hover:bg-orange-500 rounded-r transition"
+                          aria-label={isExpanded ? `Collapse ${label}` : `Expand ${label}`}
+                        >
+                          {isExpanded ? <FaChevronDown size={12} /> : <FaChevronRight size={12} />}
+                        </button>
+                      </div>
+                      {isExpanded && (
+                        <div className="pl-6">
+                          {children.map((sub) => {
+                            const subLabel = sub.nameEn || sub.name || 'Subcategory';
+                            const subHref = sub.slug ? `/products?category=${encodeURIComponent(sub.slug)}` : '/products';
+                            return (
+                              <Link key={sub.id} href={subHref} onClick={() => setShowMobileMenu(false)} className="py-1.5 px-4 hover:bg-orange-500/80 rounded transition block text-sm text-gray-300">
+                                {subLabel}
+                              </Link>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </nav>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

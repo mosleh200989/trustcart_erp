@@ -181,6 +181,9 @@ import { AuditLogModule } from './modules/audit-log/audit-log.module';
 import { CartItem } from './modules/cart/cart-item.entity';
 import { CartModule } from './modules/cart/cart.module';
 
+// Tenant Module (Multi-Tenancy)
+import { TenantModule } from './modules/tenant/tenant.module';
+
 // Sitemap & Feed Module
 import { SitemapFeedModule } from './modules/sitemap-feed/sitemap-feed.module';
 
@@ -222,6 +225,9 @@ import { GrnItem } from './modules/purchase/entities/grn-item.entity';
       isGlobal: true,
       envFilePath: '.env',
     }),
+
+    // Tenant Module - must be before TypeORM (provides multi-tenant context)
+    TenantModule,
 
     // Database Module
     TypeOrmModule.forRootAsync({

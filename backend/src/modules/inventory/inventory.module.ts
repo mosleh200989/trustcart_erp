@@ -1,5 +1,5 @@
 import { Module, OnModuleInit, Logger } from '@nestjs/common';
-import { TypeOrmModule } from '@nestjs/typeorm';
+import { TenantTypeOrmModule } from '../tenant/tenant-typeorm.module';
 import { InventoryService } from './inventory.service';
 import { StockMovementService } from './stock-movement.service';
 import { InventoryController } from './inventory.controller';
@@ -19,7 +19,7 @@ import { DemandForecast } from './entities/demand-forecast.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([
+    TenantTypeOrmModule.forFeature([
       StockLevel,
       StockMovement,
       StockBatch,

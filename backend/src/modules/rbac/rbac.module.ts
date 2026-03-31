@@ -1,12 +1,12 @@
 import { Module } from '@nestjs/common';
-import { TypeOrmModule } from '@nestjs/typeorm';
+import { TenantTypeOrmModule } from '../tenant/tenant-typeorm.module';
 import { Role } from './role.entity';
 import { Permission } from './permission.entity';
 import { RbacService } from './rbac.service';
 import { RbacController } from './rbac.controller';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Role, Permission])],
+  imports: [TenantTypeOrmModule.forFeature([Role, Permission])],
   controllers: [RbacController],
   providers: [RbacService],
   exports: [RbacService],
