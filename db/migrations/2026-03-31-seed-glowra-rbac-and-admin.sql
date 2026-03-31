@@ -840,6 +840,17 @@ VALUES (
 )
 ON CONFLICT (email) DO NOTHING;
 
+-- ── 6. LINK ADMIN USER TO SUPER ADMIN ROLE ────
+-- The RBAC system uses user_roles junction table (not users.role_id)
+INSERT INTO public.user_roles (user_id, role_id, assigned_at)
+SELECT u.id, 12, NOW()
+FROM public.users u
+WHERE u.email = 'admin@naturalglowra.com'
+  AND NOT EXISTS (
+    SELECT 1 FROM public.user_roles ur
+    WHERE ur.user_id = u.id AND ur.role_id = 12
+  );
+
 COMMIT;
 
 -- ── VERIFY ────────────────────────────────────
