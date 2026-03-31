@@ -34,6 +34,8 @@ import { OrderItem } from './modules/sales/entities/order-item.entity';
 import { OrderActivityLog } from './modules/sales/entities/order-activity-log.entity';
 import { CourierTrackingHistory } from './modules/sales/entities/courier-tracking-history.entity';
 import { FraudCheck } from './modules/sales/entities/fraud-check.entity';
+import { CouponCampaign } from './modules/sales/entities/coupon-campaign.entity';
+import { CampaignCustomer } from './modules/sales/entities/campaign-customer.entity';
 import { SupportTicket } from './modules/support/support-ticket.entity';
 import { Offer } from './modules/offers/entities/offer.entity';
 import { OfferCondition } from './modules/offers/entities/offer-condition.entity';
@@ -298,6 +300,9 @@ import { GrnItem } from './modules/purchase/entities/grn-item.entity';
             JournalEntry, JournalLine,
             // Demand Forecast
             DemandForecast,
+            // Coupon entities
+            CouponCampaign,
+            CampaignCustomer,
           ],
           synchronize: false,
           logging: true,

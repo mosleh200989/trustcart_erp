@@ -56,6 +56,7 @@ const menuItems: MenuItem[] = [
       { title: 'Late Delivery', icon: FaShoppingCart, path: '/admin/sales/late-delivery', requiredPermissions: ['view-late-delivery'] },
       { title: 'Sent Courier Orders', icon: FaShoppingCart, path: '/admin/sales/sent-courier-orders', requiredPermissions: ['view-sent-courier-orders'] },
       { title: 'Courier Returns', icon: FaShoppingCart, path: '/admin/sales/courier-returns', requiredPermissions: ['view-courier-returns', 'manage-courier-returns'] },
+      { title: 'Coupons', icon: FaTags, path: '/admin/sales/coupons', requiredPermissions: ['view-sales-orders'] },
     ],
   },
   {

@@ -23,6 +23,10 @@ import { MessagingModule } from '../messaging/messaging.module';
 import { CrmModule } from '../crm/crm.module';
 import { InventoryModule } from '../inventory/inventory.module';
 import { SteadfastWebhookGuard } from '../../common/guards/steadfast-webhook.guard';
+import { CouponCampaign } from './entities/coupon-campaign.entity';
+import { CampaignCustomer } from './entities/campaign-customer.entity';
+import { CouponService } from './coupon.service';
+import { CouponController } from './coupon.controller';
 
 @Module({
   imports: [
@@ -36,6 +40,8 @@ import { SteadfastWebhookGuard } from '../../common/guards/steadfast-webhook.gua
       FraudCheck,
       Product,
       User,
+      CouponCampaign,
+      CampaignCustomer,
     ]),
     CustomersModule,
     SpecialOffersModule,
@@ -45,8 +51,8 @@ import { SteadfastWebhookGuard } from '../../common/guards/steadfast-webhook.gua
     forwardRef(() => CrmModule),
     InventoryModule,
   ],
-  controllers: [SalesController, OrderManagementController, FraudCheckController],
-  providers: [SalesService, OrderManagementService, FraudCheckService, SteadfastWebhookGuard],
-  exports: [SalesService, OrderManagementService, FraudCheckService],
+  controllers: [SalesController, OrderManagementController, FraudCheckController, CouponController],
+  providers: [SalesService, OrderManagementService, FraudCheckService, CouponService, SteadfastWebhookGuard],
+  exports: [SalesService, OrderManagementService, FraudCheckService, CouponService],
 })
 export class SalesModule {}

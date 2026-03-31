@@ -1005,8 +1005,13 @@ export class CrmTeamService {
       )`, { outcome });
     }
 
-    // Order by created date desc
-    qb.orderBy('c.created_at', 'DESC');
+    // Order by assignment date desc, falling back to created_at.
+    // Use a correlated subquery so TypeORM doesn't try to resolve a raw-table alias.
+    qb.orderBy(
+      `(SELECT MAX(ta2.assigned_at) FROM team_assignments ta2 WHERE ta2.customer_id = c.id AND ta2.assigned_to_id = c.assigned_to)`,
+      'DESC',
+      'NULLS LAST',
+    ).addOrderBy('c.created_at', 'DESC');
 
     // Get total count before pagination
     const total = await qb.getCount();
