@@ -11,6 +11,7 @@ import { WhatsAppService } from '../messaging/whatsapp.service';
 import { CommissionService } from '../crm/commission.service';
 import { CustomersService } from '../customers/customers.service';
 import { InventoryService } from '../inventory/inventory.service';
+import { CouponService } from './coupon.service';
 
 @Injectable()
 export class SalesService {
@@ -28,6 +29,7 @@ export class SalesService {
     private commissionService: CommissionService,
     private customersService: CustomersService,
     private inventoryService: InventoryService,
+    private couponService: CouponService,
   ) {}
 
   private normalizeOfferCode(value: any): string {
@@ -792,7 +794,32 @@ export class SalesService {
         appliedOfferCode = offerCode;
         freeProducts = Array.isArray((evaluation as any).freeProducts) ? (evaluation as any).freeProducts : [];
       } catch {
-        // Ignore invalid codes to avoid blocking checkout.
+        // Offer code didn't match the offers system — will try coupon system below
+      }
+    }
+
+    // ---- Coupon code validation (if no offer discount was applied) ----
+    let couponCode: string | null = null;
+    let couponDiscount = 0;
+    const inputCode = offerCode || this.normalizeOfferCode(
+      createSalesDto.coupon_code ?? createSalesDto.couponCode,
+    );
+
+    if (inputCode && discountAmount === 0) {
+      try {
+        const couponResult = await this.couponService.validateCoupon({
+          code: inputCode,
+          customerId: sales.customerId,
+          customerPhone: sales.customerPhone,
+          cartTotal: computedSubtotal,
+        });
+        if (couponResult.valid) {
+          couponCode = couponResult.code;
+          couponDiscount = couponResult.discountAmount;
+          discountAmount = couponResult.discountAmount;
+        }
+      } catch {
+        // Coupon not valid — continue without discount
       }
     }
 
@@ -806,6 +833,8 @@ export class SalesService {
     sales.deliveryCharge = Number.isFinite(deliveryCharge) ? deliveryCharge : 0;
     sales.offerId = appliedOfferId;
     sales.offerCode = appliedOfferCode;
+    sales.couponCode = couponCode;
+    sales.couponDiscount = couponDiscount;
 
     // Status: use provided or default to 'processing'
     sales.status = createSalesDto.status || 'processing';
@@ -981,6 +1010,32 @@ export class SalesService {
         await this.offersService.recordUsage(savedOrder.offerId, savedOrder.customerId, savedOrder.id, savedOrder.discountAmount);
       } catch {
         // never block order creation
+      }
+    }
+
+    // Redeem coupon if one was applied (best-effort)
+    if (savedOrder.couponCode) {
+      try {
+        await this.couponService.redeemCoupon(savedOrder.couponCode, savedOrder.id, savedOrder.customerId, savedOrder.customerPhone);
+      } catch {
+        // never block order creation
+      }
+    }
+
+    // Auto-generate coupons for purchased products (best-effort)
+    {
+      const productIds = cartForOffers.map(item => item.product_id).filter(pid => pid > 0);
+      if (productIds.length > 0) {
+        try {
+          await this.couponService.generateCouponsForOrder({
+            orderId: savedOrder.id,
+            customerId: savedOrder.customerId,
+            customerPhone: savedOrder.customerPhone,
+            productIds,
+          });
+        } catch (err) {
+          console.warn(`Coupon generation failed for order #${savedOrder.id}:`, (err as any)?.message || err);
+        }
       }
     }
 

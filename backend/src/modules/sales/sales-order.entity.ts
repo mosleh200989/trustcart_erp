@@ -181,6 +181,12 @@ export class SalesOrder {
   @Column({ name: 'paid_at', type: 'timestamp', nullable: true })
   paidAt: Date;
 
+  @Column({ name: 'coupon_code', type: 'varchar', length: 50, nullable: true })
+  couponCode: string | null;
+
+  @Column({ name: 'coupon_discount', type: 'decimal', precision: 12, scale: 2, default: 0 })
+  couponDiscount: number;
+
   @OneToMany(() => SalesOrderItem, item => item.salesOrder, { eager: false })
   salesOrderItems: SalesOrderItem[];
 

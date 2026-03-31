@@ -42,6 +42,11 @@ export default function Checkout() {
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [formSubmitted, setFormSubmitted] = useState(false);
   const [guestAccountCreated, setGuestAccountCreated] = useState(false);
+  const [couponDiscount, setCouponDiscount] = useState(0);
+  const [couponMsg, setCouponMsg] = useState('');
+  const [couponError, setCouponError] = useState('');
+  const [couponLoading, setCouponLoading] = useState(false);
+  const [couponApplied, setCouponApplied] = useState(false);
   const [formData, setFormData] = useState({
     fullName: "",
     email: "",
@@ -297,6 +302,46 @@ export default function Checkout() {
     }
   }, [router.isReady, router.query.coupon]);
 
+  // Reset coupon when code changes
+  const handleCouponCodeChange = (value: string) => {
+    setFormData((prev) => ({ ...prev, offerCode: value }));
+    if (couponApplied) {
+      setCouponApplied(false);
+      setCouponDiscount(0);
+      setCouponMsg('');
+      setCouponError('');
+    }
+  };
+
+  const applyCoupon = async () => {
+    const code = formData.offerCode.trim();
+    if (!code) return;
+    setCouponLoading(true);
+    setCouponMsg('');
+    setCouponError('');
+    setCouponDiscount(0);
+    setCouponApplied(false);
+    try {
+      const res = await apiClient.post('/coupons/validate', {
+        code,
+        customerId: customerProfile?.id || currentUser?.id || null,
+        customerPhone: formData.phone || null,
+        cartTotal: subtotal,
+      });
+      const data = res.data;
+      if (data.valid) {
+        setCouponDiscount(data.discountAmount);
+        setCouponMsg(data.message);
+        setCouponApplied(true);
+      }
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || err?.message || 'Invalid coupon code';
+      setCouponError(msg);
+    } finally {
+      setCouponLoading(false);
+    }
+  };
+
   const validateForm = (): boolean => {
     const errors: Record<string, string> = {};
     if (!formData.fullName.trim()) errors.fullName = 'Full name is required';
@@ -526,7 +571,7 @@ export default function Checkout() {
   };
 
   const deliveryCharge = deliveryZone === 'inside_dhaka' ? 60 : 110;
-  const total = subtotal + deliveryCharge;
+  const total = subtotal + deliveryCharge - couponDiscount;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -1048,6 +1093,13 @@ export default function Checkout() {
                         ৳{deliveryCharge}
                       </span>
                     </div>
+
+                    {couponApplied && couponDiscount > 0 && (
+                      <div className="flex justify-between text-green-600">
+                        <span>Coupon Discount</span>
+                        <span className="font-semibold">-৳{couponDiscount.toFixed(2)}</span>
+                      </div>
+                    )}
                   </div>
 
                   <div className="border-t pt-4 mb-6">
@@ -1063,18 +1115,36 @@ export default function Checkout() {
                     <label htmlFor="offerCode" className="block text-sm font-semibold text-gray-800 mb-2">
                       Offer / Coupon Code (Optional)
                     </label>
-                    <input
-                      type="text"
-                      id="offerCode"
-                      name="offerCode"
-                      value={formData.offerCode}
-                      onChange={handleChange}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-500"
-                      placeholder="Enter offer/coupon code"
-                    />
-                    <div className="text-xs text-gray-600 mt-2">
-                      If you have a referral coupon/offer code, paste it here.
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        id="offerCode"
+                        name="offerCode"
+                        value={formData.offerCode}
+                        onChange={(e) => handleCouponCodeChange(e.target.value)}
+                        className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-500"
+                        placeholder="Enter offer/coupon code"
+                      />
+                      <button
+                        type="button"
+                        onClick={applyCoupon}
+                        disabled={couponLoading || !formData.offerCode.trim() || couponApplied}
+                        className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg font-semibold transition disabled:bg-gray-300 disabled:cursor-not-allowed whitespace-nowrap"
+                      >
+                        {couponLoading ? 'Checking...' : couponApplied ? 'Applied' : 'Apply'}
+                      </button>
                     </div>
+                    {couponMsg && (
+                      <div className="text-sm text-green-600 mt-2 font-medium">{couponMsg}</div>
+                    )}
+                    {couponError && (
+                      <div className="text-sm text-red-600 mt-2 font-medium">{couponError}</div>
+                    )}
+                    {!couponMsg && !couponError && (
+                      <div className="text-xs text-gray-600 mt-2">
+                        If you have a referral coupon/offer code, paste it here.
+                      </div>
+                    )}
                   </div>
 
                   <button
