@@ -1,5 +1,5 @@
 import { Module, forwardRef } from '@nestjs/common';
-import { TypeOrmModule } from '@nestjs/typeorm';
+import { TenantTypeOrmModule } from '../tenant/tenant-typeorm.module';
 import { LeadManagementService } from './lead-management.service';
 import { LeadManagementController } from './lead-management.controller';
 import { SalesModule } from '../sales/sales.module';
@@ -15,7 +15,7 @@ import { CustomerTier } from './entities/customer-tier.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([
+    TenantTypeOrmModule.forFeature([
       CustomerSession,
       IncompleteOrder,
       TeamAssignment,

@@ -7,14 +7,21 @@ const apiClient = axios.create({
   headers: {
     'Content-Type': 'application/json; charset=utf-8',
     'Accept': 'application/json; charset=utf-8',
+    'x-tenant-id': process.env.NEXT_PUBLIC_TENANT_ID || 'trustcart',
   },
 });
 
 // Add token to requests
 apiClient.interceptors.request.use((config) => {
-  const token = localStorage.getItem('authToken');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
+  if (typeof window !== 'undefined') {
+    try {
+      const token = localStorage.getItem('authToken');
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
+    } catch {
+      // localStorage may be blocked (e.g. sandboxed iframe)
+    }
   }
   return config;
 });

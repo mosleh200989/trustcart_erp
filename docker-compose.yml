@@ -1,7 +1,7 @@
 version: '3.8'
 
 services:
-  # PostgreSQL Database
+  # ─── PostgreSQL (TrustCart) ───────────────────────────────
   postgres:
     image: postgres:15-alpine
     container_name: trustcart_postgres
@@ -22,7 +22,27 @@ services:
       timeout: 5s
       retries: 5
 
-  # Redis Cache
+  # ─── PostgreSQL (Natural Glowra) ─────────────────────────
+  postgres_glowra:
+    image: postgres:15-alpine
+    container_name: glowra_postgres
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_DB: natural_glowra
+      POSTGRES_USER: trustcart_user
+      POSTGRES_PASSWORD: trustcart_secure_password
+    volumes:
+      - postgres_glowra_data:/var/lib/postgresql/data
+    networks:
+      - trustcart_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U trustcart_user -d natural_glowra"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─── Redis Cache (shared) ────────────────────────────────
   redis:
     image: redis:7-alpine
     container_name: trustcart_redis
@@ -39,27 +59,39 @@ services:
       timeout: 5s
       retries: 5
 
-  # NestJS Backend
+  # ─── NestJS Backend (shared, multi-tenant) ───────────────
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
     container_name: trustcart_backend
     ports:
-      - "3000:3000"
+      - "3001:3001"
     environment:
       NODE_ENV: development
+      PORT: 3001
+      # TrustCart DB
       DB_HOST: postgres
       DB_PORT: 5432
       DB_NAME: trustcart_erp
       DB_USER: trustcart_user
       DB_PASSWORD: trustcart_secure_password
+      # Natural Glowra DB
+      GLOWRA_DB_HOST: postgres_glowra
+      GLOWRA_DB_PORT: 5432
+      GLOWRA_DB_NAME: natural_glowra
+      GLOWRA_DB_USER: trustcart_user
+      GLOWRA_DB_PASSWORD: trustcart_secure_password
+      GLOWRA_FRONTEND_URL: http://localhost:3002
+      # Shared
       REDIS_HOST: redis
       REDIS_PORT: 6379
       JWT_SECRET: your_jwt_secret_key_here
       JWT_EXPIRATION: 24h
     depends_on:
       postgres:
+        condition: service_healthy
+      postgres_glowra:
         condition: service_healthy
       redis:
         condition: service_healthy
@@ -70,16 +102,17 @@ services:
       - /app/node_modules
     command: npm run start:dev
 
-  # React Frontend
+  # ─── TrustCart Frontend ──────────────────────────────────
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
     container_name: trustcart_frontend
     ports:
-      - "5173:5173"
+      - "3000:3000"
     environment:
-      VITE_API_URL: http://localhost:3000
+      NEXT_PUBLIC_API_URL: http://localhost:3001/api
+      NEXT_PUBLIC_TENANT_ID: trustcart
     depends_on:
       - backend
     networks:
@@ -89,8 +122,29 @@ services:
       - /app/node_modules
     command: npm run dev
 
+  # ─── Natural Glowra Frontend ─────────────────────────────
+  frontend_glowra:
+    build:
+      context: ./frontend-glowra
+      dockerfile: Dockerfile
+    container_name: glowra_frontend
+    ports:
+      - "3002:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:3001/api
+      NEXT_PUBLIC_TENANT_ID: glowra
+    depends_on:
+      - backend
+    networks:
+      - trustcart_network
+    volumes:
+      - ./frontend-glowra:/app
+      - /app/node_modules
+    command: npm run dev
+
 volumes:
   postgres_data:
+  postgres_glowra_data:
   redis_data:
 
 networks:

@@ -5,7 +5,7 @@ export class User {
   @PrimaryGeneratedColumn('increment')
   id!: number;
 
-  @Column('uuid', { default: 'uuid_generate_v4()' })
+  @Column('uuid', { default: () => 'uuid_generate_v4()' })
   uuid!: string;
 
   @Column({ name: 'name', type: 'varchar', length: 50 })

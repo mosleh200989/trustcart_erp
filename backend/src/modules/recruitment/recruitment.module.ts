@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { TypeOrmModule } from '@nestjs/typeorm';
+import { TenantTypeOrmModule } from '../tenant/tenant-typeorm.module';
 import { RecruitmentController } from './recruitment.controller';
 import { RecruitmentService } from './recruitment.service';
 import { JobPost } from './entities/job-post.entity';
@@ -9,7 +9,7 @@ import { RbacModule } from '../rbac/rbac.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([JobPost, JobApplication, Interview]),
+    TenantTypeOrmModule.forFeature([JobPost, JobApplication, Interview]),
     RbacModule
   ],
   controllers: [RecruitmentController],

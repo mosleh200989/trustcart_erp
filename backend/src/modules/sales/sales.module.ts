@@ -1,5 +1,5 @@
 import { Module, forwardRef } from '@nestjs/common';
-import { TypeOrmModule } from '@nestjs/typeorm';
+import { TenantTypeOrmModule } from '../tenant/tenant-typeorm.module';
 import { ConfigModule } from '@nestjs/config';
 import { SalesService } from './sales.service';
 import { SalesController } from './sales.controller';
@@ -27,7 +27,7 @@ import { SteadfastWebhookGuard } from '../../common/guards/steadfast-webhook.gua
 @Module({
   imports: [
     ConfigModule,
-    TypeOrmModule.forFeature([
+    TenantTypeOrmModule.forFeature([
       SalesOrder,
       SalesOrderItem,
       OrderItem,

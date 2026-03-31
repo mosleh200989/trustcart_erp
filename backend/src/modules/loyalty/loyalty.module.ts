@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { TypeOrmModule } from '@nestjs/typeorm';
+import { TenantTypeOrmModule } from '../tenant/tenant-typeorm.module';
 import { LoyaltyService } from './loyalty.service';
 import { LoyaltyController } from './loyalty.controller';
 import { CustomerMembership } from './entities/customer-membership.entity';
@@ -18,7 +18,7 @@ import { OffersModule } from '../offers/offers.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([
+    TenantTypeOrmModule.forFeature([
       CustomerMembership,
       CustomerWallet,
       WalletTransaction,

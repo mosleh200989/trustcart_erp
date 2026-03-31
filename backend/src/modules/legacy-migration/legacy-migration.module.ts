@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { TypeOrmModule } from '@nestjs/typeorm';
+import { TenantTypeOrmModule } from '../tenant/tenant-typeorm.module';
 import { LegacyMigrationService } from './legacy-migration.service';
 import { LegacyMigrationController } from './legacy-migration.controller';
 import { SalesOrder } from '../sales/sales-order.entity';
@@ -8,7 +8,7 @@ import { Customer } from '../customers/customer.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([
+    TenantTypeOrmModule.forFeature([
       SalesOrder,
       SalesOrderItem,
       Customer,
