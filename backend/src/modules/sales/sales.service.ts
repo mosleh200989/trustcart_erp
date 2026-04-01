@@ -389,6 +389,28 @@ export class SalesService {
       for (const r of countRows) phoneTotalMap.set(r.phone, parseInt(r.cnt, 10) || 0);
     }
 
+    // ──── Batch-fetch active unused coupon codes per phone ────
+    const couponCodesByPhone = new Map<string, string[]>();
+    if (phoneSet.size > 0) {
+      const couponRows: { phone: string; code: string }[] = await this.salesRepository.query(
+        `SELECT REPLACE(cc.customer_phone, '+88', '') AS phone, camp.code
+         FROM campaign_customers cc
+         INNER JOIN coupon_campaigns camp ON camp.id = cc.campaign_id
+         WHERE cc.is_active = true
+           AND camp.is_active = true
+           AND camp.code IS NOT NULL
+           AND cc.times_used < camp.per_customer_limit
+           AND (camp.valid_until IS NULL OR camp.valid_until > NOW())
+           AND (camp.valid_from IS NULL OR camp.valid_from <= NOW())
+           AND REPLACE(cc.customer_phone, '+88', '') = ANY($1)`,
+        [Array.from(phoneSet)],
+      );
+      for (const r of couponRows) {
+        if (!couponCodesByPhone.has(r.phone)) couponCodesByPhone.set(r.phone, []);
+        couponCodesByPhone.get(r.phone)!.push(r.code);
+      }
+    }
+
     return {
       data: orders.map((order) => {
         (order as any)._items = itemsByOrderId.get(order.id) || [];
@@ -396,6 +418,7 @@ export class SalesService {
         const norm = (order.customerPhone || '').replace(/^\+88/, '').trim();
         (dto as any).isRejectedCustomer = rejectedPhones.has(norm);
         (dto as any).customerTotalOrders = phoneTotalMap.get(norm) || 0;
+        (dto as any).activeCouponCodes = couponCodesByPhone.get(norm) || [];
         return dto;
       }),
       total,
@@ -1022,22 +1045,8 @@ export class SalesService {
       }
     }
 
-    // Auto-generate coupons for purchased products (best-effort)
-    {
-      const productIds = cartForOffers.map(item => item.product_id).filter(pid => pid > 0);
-      if (productIds.length > 0) {
-        try {
-          await this.couponService.generateCouponsForOrder({
-            orderId: savedOrder.id,
-            customerId: savedOrder.customerId,
-            customerPhone: savedOrder.customerPhone,
-            productIds,
-          });
-        } catch (err) {
-          console.warn(`Coupon generation failed for order #${savedOrder.id}:`, (err as any)?.message || err);
-        }
-      }
-    }
+    // NOTE: Trigger-based coupons are granted on delivery, not on order placement.
+    // See the becameDelivered block in update() where generateCouponsForOrder is called.
 
     // Reserve stock for order items (best-effort — don't block checkout if stock data is incomplete)
     if (cartForOffers.length > 0) {
@@ -1123,6 +1132,24 @@ export class SalesService {
         }
       } catch {
         // never block order updates
+      }
+
+      // Grant trigger-based coupons only after the order is delivered
+      try {
+        const deliveredItems = await this.orderItemsRepository.find({ where: { salesOrderId: updated.id } });
+        const deliveredProductIds = deliveredItems
+          .map(item => item.productId)
+          .filter((pid): pid is number => pid != null && pid > 0);
+        if (deliveredProductIds.length > 0) {
+          await this.couponService.generateCouponsForOrder({
+            orderId: updated.id,
+            customerId: updated.customerId,
+            customerPhone: updated.customerPhone,
+            productIds: deliveredProductIds,
+          });
+        }
+      } catch (err) {
+        console.warn(`Coupon generation on delivery failed for order #${updated.id}:`, (err as any)?.message || err);
       }
     }
 

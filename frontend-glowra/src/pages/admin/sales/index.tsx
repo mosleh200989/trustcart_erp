@@ -118,6 +118,7 @@ interface SalesOrder {
   order_source_display?: string | null;
 
   isRejectedCustomer?: boolean;
+  activeCouponCodes?: string[];
 
   items?: { productName: string; productNameBn?: string | null; variantName?: string | null; quantity: number; customProductName?: string | null; itemId?: number; source?: string }[];
 
@@ -820,6 +821,15 @@ export default function AdminSales() {
               <span className="inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 bg-red-100 text-red-700 text-[10px] font-bold rounded">
                 ⚠ Rejected
               </span>
+            )}
+            {(row.activeCouponCodes ?? []).length > 0 && (
+              <div className="flex flex-wrap gap-1 mt-1">
+                {(row.activeCouponCodes ?? []).map((code) => (
+                  <span key={code} className="inline-flex items-center px-1.5 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] font-bold rounded tracking-wide" title="Active unused coupon">
+                    🎟 {code}
+                  </span>
+                ))}
+              </div>
             )}
             {phone && (
               <div className="flex items-center gap-1 text-xs text-gray-600 mt-0.5">
