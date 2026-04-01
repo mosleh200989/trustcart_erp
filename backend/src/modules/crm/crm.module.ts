@@ -73,6 +73,8 @@ import { CrmAnalyticsService } from './crm-analytics.service';
 // Commission system
 import { CommissionController } from './commission.controller';
 import { CommissionService } from './commission.service';
+import { SalesManagerService } from './sales-manager.service';
+import { SalesManagerController } from './sales-manager.controller';
 import { AgentCommission } from './entities/agent-commission.entity';
 import { CommissionSettings } from './entities/commission-settings.entity';
 import { CommissionSlab } from './entities/commission-slab.entity';
@@ -144,7 +146,9 @@ import { DashboardConfig } from './entities/dashboard-config.entity';
     QuoteTemplateController,
     CrmAnalyticsController,
     // Commission controller
-    CommissionController
+    CommissionController,
+    // Sales Manager controller
+    SalesManagerController,
   ],
   providers: [
     // Existing providers
@@ -170,7 +174,9 @@ import { DashboardConfig } from './entities/dashboard-config.entity';
     QuoteTemplateService,
     CrmAnalyticsService,
     // Commission service
-    CommissionService
+    CommissionService,
+    // Sales Manager service
+    SalesManagerService,
   ],
   exports: [
     // Existing exports
@@ -195,7 +201,9 @@ import { DashboardConfig } from './entities/dashboard-config.entity';
     QuoteTemplateService,
     CrmAnalyticsService,
     // Commission service
-    CommissionService
+    CommissionService,
+    // Sales Manager service
+    SalesManagerService,
   ],
 })
 export class CrmModule {}
