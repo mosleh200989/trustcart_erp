@@ -316,6 +316,10 @@ export default function Checkout() {
   const applyCoupon = async () => {
     const code = formData.offerCode.trim();
     if (!code) return;
+    if (!formData.phone.trim()) {
+      setCouponError('Please enter your phone number first before applying a coupon');
+      return;
+    }
     setCouponLoading(true);
     setCouponMsg('');
     setCouponError('');
@@ -444,7 +448,7 @@ export default function Checkout() {
       }
 
       const deliveryCharge = deliveryZone === 'inside_dhaka' ? 60 : 110;
-      const total = subtotal + deliveryCharge;
+      const total = subtotal + deliveryCharge - couponDiscount;
 
       const orderData = {
         // Link to CRM/CDM customer if logged in or found/created
@@ -1115,21 +1119,21 @@ export default function Checkout() {
                     <label htmlFor="offerCode" className="block text-sm font-semibold text-gray-800 mb-2">
                       Offer / Coupon Code (Optional)
                     </label>
-                    <div className="flex gap-2">
+                    <div className="flex">
                       <input
                         type="text"
                         id="offerCode"
                         name="offerCode"
                         value={formData.offerCode}
                         onChange={(e) => handleCouponCodeChange(e.target.value)}
-                        className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-500"
+                        className="flex-1 min-w-0 px-4 py-2 border border-gray-300 rounded-l-lg focus:outline-none focus:border-orange-500"
                         placeholder="Enter offer/coupon code"
                       />
                       <button
                         type="button"
                         onClick={applyCoupon}
                         disabled={couponLoading || !formData.offerCode.trim() || couponApplied}
-                        className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg font-semibold transition disabled:bg-gray-300 disabled:cursor-not-allowed whitespace-nowrap"
+                        className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-r-lg font-semibold transition disabled:bg-gray-300 disabled:cursor-not-allowed whitespace-nowrap flex-shrink-0"
                       >
                         {couponLoading ? 'Checking...' : couponApplied ? 'Applied' : 'Apply'}
                       </button>

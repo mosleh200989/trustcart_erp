@@ -289,7 +289,7 @@ export class CouponService {
 
     const cartTotal = Number(params.cartTotal) || 0;
     if (campaign.minOrderAmount > 0 && cartTotal < Number(campaign.minOrderAmount)) {
-      throw new BadRequestException(`Minimum order amount of à§³${campaign.minOrderAmount} required to use this coupon`);
+      throw new BadRequestException(`Minimum order amount of BDT ${campaign.minOrderAmount} required to use this coupon`);
     }
 
     let discountAmount = 0;
@@ -312,8 +312,8 @@ export class CouponService {
       minOrderAmount: Number(campaign.minOrderAmount),
       code: campaign.code!,
       message: campaign.discountType === 'percentage'
-        ? `${campaign.discountValue}% off applied â€” you save à§³${discountAmount.toFixed(0)}`
-        : `à§³${discountAmount.toFixed(0)} discount applied`,
+? `${campaign.discountValue}% off applied - you save BDT ${discountAmount.toFixed(0)}`
+        : `BDT ${discountAmount.toFixed(0)} discount applied`,
     };
   }
 
