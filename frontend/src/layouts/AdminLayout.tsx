@@ -309,9 +309,11 @@ const menuItems: MenuItem[] = [
   {
     title: 'CRM',
     icon: FaHandshake,
-    requiredPermissions: ['view-leads', 'view-customers', 'view-crm-reports', 'manage-team-members'],
+    requiredPermissions: ['view-leads', 'view-customers', 'view-crm-reports', 'manage-team-members', 'view-sales-manager-dashboard'],
     children: [
       { title: 'Dashboard', icon: FaTachometerAlt, path: '/admin/crm' },
+      { title: 'Sales Manager', icon: FaChartBar, path: '/admin/crm/sales-manager-dashboard', requiredPermissions: ['view-sales-manager-dashboard'] },
+      { title: 'Assign Leads', icon: FaUsers, path: '/admin/crm/sales-manager-leads', requiredPermissions: ['view-sales-manager-dashboard'] },
       { title: 'Customers', icon: FaUsers, path: '/admin/crm/customers', requiredPermissions: ['view-customers'] },
       { title: 'Team Dashboard', icon: FaTachometerAlt, path: '/admin/crm/team-dashboard', requiredPermissions: ['view-team-performance', 'manage-team-members'] },
       { title: 'Lead Assignment', icon: FaUsers, path: '/admin/crm/lead-assignment', requiredPermissions: ['assign-leads-to-team'] },
