@@ -209,6 +209,10 @@ export class SalesManagerService {
       .addSelect(
         '(SELECT ct.tier FROM customer_tiers ct WHERE ct.customer_id = c.id LIMIT 1)',
         'tier',
+      )
+      // Only customers who have at least one delivered order
+      .andWhere(
+        `c.id IN (SELECT so.customer_id FROM sales_orders so WHERE LOWER(so.status::text) = 'delivered')`,
       );
 
     // Assignment status filter

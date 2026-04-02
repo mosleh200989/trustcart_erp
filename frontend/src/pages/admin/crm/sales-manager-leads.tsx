@@ -533,6 +533,23 @@ const SalesManagerLeadAssignment = () => {
                     >
                       Next →
                     </button>
+                    <span className="text-sm text-gray-500 ml-2 flex items-center gap-1">
+                      Go to
+                      <input
+                        type="number"
+                        min={1}
+                        max={totalPages}
+                        defaultValue={page}
+                        key={page}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            const val = Math.max(1, Math.min(totalPages, Number((e.target as HTMLInputElement).value) || 1));
+                            fetchLeads(val);
+                          }
+                        }}
+                        className="w-16 px-2 py-1 border rounded text-sm text-center"
+                      />
+                    </span>
                   </div>
                 </div>
               )}
