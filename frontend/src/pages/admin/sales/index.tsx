@@ -119,6 +119,7 @@ interface SalesOrder {
 
   isRejectedCustomer?: boolean;
   activeCouponCodes?: string[];
+  customerTags?: { name: string; color: string | null }[];
 
   items?: { productName: string; productNameBn?: string | null; variantName?: string | null; quantity: number; customProductName?: string | null; itemId?: number; source?: string }[];
 
@@ -827,6 +828,23 @@ export default function AdminSales() {
                 {(row.activeCouponCodes ?? []).map((code) => (
                   <span key={code} className="inline-flex items-center px-1.5 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] font-bold rounded tracking-wide" title="Active unused coupon">
                     🎟 {code}
+                  </span>
+                ))}
+              </div>
+            )}
+            {(row.customerTags ?? []).length > 0 && (
+              <div className="flex flex-wrap gap-1 mt-1">
+                {(row.customerTags ?? []).map((tag) => (
+                  <span
+                    key={tag.name}
+                    className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-bold rounded tracking-wide"
+                    style={{
+                      backgroundColor: tag.color ? `${tag.color}20` : '#e0e7ff',
+                      color: tag.color || '#4338ca',
+                    }}
+                    title="Customer tag"
+                  >
+                    🏷 {tag.name}
                   </span>
                 ))}
               </div>
