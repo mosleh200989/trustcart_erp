@@ -12,6 +12,7 @@ import { CommissionService } from '../crm/commission.service';
 import { CustomersService } from '../customers/customers.service';
 import { InventoryService } from '../inventory/inventory.service';
 import { CouponService } from './coupon.service';
+import { LeadManagementService } from '../lead-management/lead-management.service';
 
 @Injectable()
 export class SalesService {
@@ -30,6 +31,8 @@ export class SalesService {
     private customersService: CustomersService,
     private inventoryService: InventoryService,
     private couponService: CouponService,
+    @Inject(forwardRef(() => LeadManagementService))
+    private leadManagementService: LeadManagementService,
   ) {}
 
   private normalizeOfferCode(value: any): string {
@@ -1175,6 +1178,15 @@ export class SalesService {
         }
       } catch (err) {
         console.warn(`Coupon generation on delivery failed for order #${updated.id}:`, (err as any)?.message || err);
+      }
+
+      // Auto-assign customer tier based on delivered order count
+      if (updated.customerId) {
+        try {
+          await this.leadManagementService.autoAssignTierForCustomer(updated.customerId);
+        } catch (err) {
+          console.warn(`Auto-tier assignment failed for customer #${updated.customerId}:`, (err as any)?.message || err);
+        }
       }
     }
 

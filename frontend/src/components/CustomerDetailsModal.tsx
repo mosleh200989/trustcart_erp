@@ -40,6 +40,8 @@ export default function CustomerDetailsModal({ customerId, onClose }: CustomerDe
 
   const getTierBadgeColor = (tier?: string) => {
     switch (tier?.toLowerCase()) {
+      case 'new': return 'bg-blue-100 text-blue-800';
+      case 'repeat': return 'bg-teal-100 text-teal-800';
       case 'platinum': return 'bg-purple-100 text-purple-800';
       case 'gold': return 'bg-yellow-100 text-yellow-800';
       case 'silver': return 'bg-gray-200 text-gray-800';
