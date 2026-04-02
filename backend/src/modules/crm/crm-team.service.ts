@@ -169,10 +169,18 @@ export class CrmTeamService {
       );
     }
 
-    customer.assigned_to = agentId;
-    customer.updatedAt = new Date();
+    // Use raw SQL to set assigned_to without risking assigned_supervisor_id.
+    // Also re-confirm assigned_supervisor_id = TL so it can never drift.
+    await this.customerRepository.query(
+      `UPDATE customers
+         SET assigned_to = $2,
+             assigned_supervisor_id = $3,
+             updated_at = NOW()
+       WHERE id = $1`,
+      [customerIdNum, agentId, teamLeaderId],
+    );
 
-    return await this.customerRepository.save(customer);
+    return (await this.customerRepository.findOne({ where: { id: customerIdNum } })) as Customer;
   }
 
   async reassignCustomer(customerId: string, newAgentId: number, teamLeaderId: number): Promise<Customer> {
@@ -824,7 +832,7 @@ export class CrmTeamService {
     return { success, failed, results };
   }
 
-  // Unassign a single lead from its agent
+  // Unassign a single lead from its agent (NOT from the team leader)
   async unassignLead(customerId: string, teamLeaderId: number): Promise<Customer> {
     const customerIdNum = Number(customerId);
     const customer = await this.customerRepository.findOne({ where: { id: customerIdNum } });
@@ -836,7 +844,6 @@ export class CrmTeamService {
     // Allow unassign if:
     // 1. This TL was directly assigned the lead by the Sales Manager, OR
     // 2. The lead is currently assigned to an agent who belongs to this TL's team
-    //    (handles leads assigned directly to agents without going through a TL)
     const supervisorMatch = Number(customer.assigned_supervisor_id) === Number(teamLeaderId);
 
     let agentMatch = false;
@@ -854,20 +861,22 @@ export class CrmTeamService {
       );
     }
 
-    // Use raw SQL to guarantee ONLY assigned_to is cleared.
-    // assigned_supervisor_id is intentionally untouched — the lead stays
-    // under the TL; only the Sales Executive (agent) is removed.
-    // Log BEFORE state
     console.log(`[UNASSIGN] BEFORE — customer #${customerIdNum}: assigned_to=${customer.assigned_to}, assigned_supervisor_id=${customer.assigned_supervisor_id}`);
 
+    // Raw SQL: clear the agent AND guarantee assigned_supervisor_id = this TL.
+    // This covers the case where assigned_supervisor_id was never set (the lead
+    // was visible only because the agent was under this TL). After clearing
+    // assigned_to, the lead MUST remain visible to the TL.
     await this.customerRepository.query(
-      `UPDATE customers SET assigned_to = NULL, updated_at = NOW() WHERE id = $1`,
-      [customerIdNum],
+      `UPDATE customers
+         SET assigned_to = NULL,
+             assigned_supervisor_id = $2,
+             updated_at = NOW()
+       WHERE id = $1`,
+      [customerIdNum, teamLeaderId],
     );
 
     const updated = (await this.customerRepository.findOne({ where: { id: customerIdNum } })) as Customer;
-
-    // Log AFTER state to prove assigned_supervisor_id is intact
     console.log(`[UNASSIGN] AFTER  — customer #${customerIdNum}: assigned_to=${updated.assigned_to}, assigned_supervisor_id=${updated.assigned_supervisor_id}`);
 
     return updated;
