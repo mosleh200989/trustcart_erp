@@ -18,6 +18,7 @@ interface Customer {
   phone: string;
   company?: string;
   tier?: string;
+  agentName?: string | null;
   totalOrders?: number;
   totalSpent?: number;
   createdAt: string;
@@ -353,6 +354,7 @@ export default function CustomersPage() {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Customer</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Contact</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tier</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Agent</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Orders</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total Spent</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
@@ -361,13 +363,13 @@ export default function CustomersPage() {
               <tbody className="divide-y divide-gray-200">
                 {loading ? (
                   <tr>
-                    <td colSpan={7} className="px-6 py-4 text-center text-gray-500">
+                    <td colSpan={8} className="px-6 py-4 text-center text-gray-500">
                       Loading customers...
                     </td>
                   </tr>
                 ) : displayedCustomers.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-6 py-4 text-center text-gray-500">
+                    <td colSpan={8} className="px-6 py-4 text-center text-gray-500">
                       No customers found
                     </td>
                   </tr>
@@ -400,6 +402,13 @@ export default function CustomersPage() {
                         <span className={`px-2 py-1 text-xs rounded-full ${getTierBadgeColor(customer.tier)}`}>
                           {customer.tier ? customer.tier.charAt(0).toUpperCase() + customer.tier.slice(1) : 'No Tier'}
                         </span>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-700">
+                        {customer.agentName ? (
+                          <span className="font-medium text-indigo-700">{customer.agentName}</span>
+                        ) : (
+                          <span className="text-gray-400 text-xs">Unassigned</span>
+                        )}
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-700">
                         {customer.totalOrders || 0}

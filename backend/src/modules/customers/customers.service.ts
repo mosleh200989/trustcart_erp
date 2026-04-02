@@ -137,12 +137,15 @@ export class CustomersService {
     page: number;
     limit: number;
     search?: string;
+    tier?: string;
   }) {
-    const { page = 1, limit = 10, search } = options;
+    const { page = 1, limit = 10, search, tier } = options;
     const skip = (page - 1) * limit;
 
     const qb = this.customersRepository.createQueryBuilder('c')
       .leftJoin('sales_orders', 'so', 'so.customer_id = c.id')
+      .leftJoin('customer_tiers', 'ct', 'ct.customer_id = c.id')
+      .leftJoin('users', 'u', 'u.id = c.assigned_to')
       .select([
         'c.id as id',
         'c.uuid as uuid',
@@ -154,9 +157,11 @@ export class CustomersService {
         'c.created_at as "createdAt"',
         'COUNT(so.id) as "totalOrders"',
         'COALESCE(SUM(so.total_amount), 0) as "totalSpent"',
+        "TRIM(COALESCE(u.name, '') || ' ' || COALESCE(u.last_name, '')) as \"agentName\"",
       ])
+      .addSelect('(SELECT ct2.tier FROM customer_tiers ct2 WHERE ct2.customer_id = c.id LIMIT 1)', 'tier')
       .where('c.is_deleted = :deleted', { deleted: false })
-      .groupBy('c.id');
+      .groupBy('c.id, u.name, u.last_name');
 
     if (search) {
       const normalizedPhone = `%${search.replace(/^\+88/, '')}%`;
@@ -166,12 +171,20 @@ export class CustomersService {
       );
     }
 
+    if (tier) {
+      qb.andWhere('ct.tier = :tier', { tier });
+    }
+
     qb.orderBy('c.created_at', 'DESC');
 
-    // Get total count for pagination
+    // Count query
     const countQb = this.customersRepository.createQueryBuilder('c')
       .where('c.is_deleted = :deleted', { deleted: false });
-    
+
+    if (tier) {
+      countQb.innerJoin('customer_tiers', 'ct', 'ct.customer_id = c.id AND ct.tier = :tier', { tier });
+    }
+
     if (search) {
       const normalizedPhone = `%${search.replace(/^\+88/, '')}%`;
       countQb.andWhere(
@@ -186,11 +199,11 @@ export class CustomersService {
       .limit(limit)
       .getRawMany();
 
-    // Convert string numbers to actual numbers
     const formattedItems = items.map(item => ({
       ...item,
       totalOrders: parseInt(item.totalOrders, 10) || 0,
       totalSpent: parseFloat(item.totalSpent) || 0,
+      agentName: item.agentName?.trim() || null,
     }));
 
     return {

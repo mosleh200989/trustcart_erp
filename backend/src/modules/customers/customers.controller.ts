@@ -50,6 +50,7 @@ export class CustomersController {
     @Query('page') page?: string,
     @Query('limit') limit?: string,
     @Query('search') search?: string,
+    @Query('tier') tier?: string,
   ) {
     const pageNum = page ? parseInt(page, 10) : 1;
     const limitNum = limit ? parseInt(limit, 10) : 10;
@@ -57,6 +58,7 @@ export class CustomersController {
       page: pageNum,
       limit: limitNum,
       search,
+      tier,
     });
   }
 
