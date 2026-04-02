@@ -861,9 +861,15 @@ export class CrmTeamService {
       );
     }
 
-    customer.assigned_to = null as any;
-    customer.updatedAt = new Date();
-    return await this.customerRepository.save(customer);
+    // Use a targeted UPDATE so only assigned_to is cleared.
+    // assigned_supervisor_id is intentionally NOT touched — the lead remains
+    // assigned to the TL; only the Sales Executive assignment is removed.
+    await this.customerRepository.update(
+      { id: customerIdNum },
+      { assigned_to: null as any, updatedAt: new Date() },
+    );
+
+    return (await this.customerRepository.findOne({ where: { id: customerIdNum } })) as Customer;
   }
 
   // Bulk unassign leads from their agents
