@@ -160,9 +160,16 @@ export class CrmTeamService {
       throw new NotFoundException(`Customer with ID ${customerId} not found`);
     }
 
-    // Store assignment info in customer metadata or create separate table
+    // Enforce Sales Manager ownership: TL can only assign leads that have been
+    // explicitly assigned to them by a Sales Manager (assigned_supervisor_id = TL).
+    // Completely unassigned leads (no supervisor) are not accessible to TLs.
+    if (customer.assigned_supervisor_id !== teamLeaderId) {
+      throw new ForbiddenException(
+        `Lead #${customerId} has not been assigned to you by the Sales Manager.`,
+      );
+    }
+
     customer.assigned_to = agentId;
-    customer.assigned_supervisor_id = teamLeaderId;
     customer.updatedAt = new Date();
 
     return await this.customerRepository.save(customer);
