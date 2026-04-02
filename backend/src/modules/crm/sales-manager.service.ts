@@ -326,6 +326,22 @@ export class SalesManagerService {
     return { reassigned: updated.affected || 0, fromTeamLeaderId, toTeamLeaderId };
   }
 
+  // Unassign leads from their team leader (set assigned_supervisor_id AND assigned_to to null)
+  async unassignLeadsFromTeamLeader(customerIds: number[], managerId: number) {
+    if (!customerIds || customerIds.length === 0) {
+      return { unassigned: 0 };
+    }
+
+    const updated = await this.customerRepository
+      .createQueryBuilder()
+      .update(Customer)
+      .set({ assigned_supervisor_id: null, assigned_to: null } as any)
+      .where('id IN (:...ids)', { ids: customerIds })
+      .execute();
+
+    return { unassigned: updated.affected || 0 };
+  }
+
   /**
    * Get all team leaders list with summary info
    */

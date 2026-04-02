@@ -287,6 +287,37 @@ export default function LeadAssignmentPage() {
     }
   };
 
+  // Single unassign
+  const handleUnassign = async (lead: LeadCustomer) => {
+    if (!confirm(`Unassign lead "${lead.name || ''} ${lead.last_name || ''}" from their agent?`)) return;
+    try {
+      await apiClient.post(`/crm/team/leads/${lead.id}/unassign`);
+      toast.success('Lead unassigned successfully');
+      await loadLeads();
+    } catch (error) {
+      console.error('Failed to unassign lead', error);
+      toast.error('Failed to unassign lead');
+    }
+  };
+
+  // Bulk unassign
+  const handleBulkUnassign = async () => {
+    if (selectedLeadIds.size === 0) return;
+    if (!confirm(`Unassign ${selectedLeadIds.size} selected lead(s) from their agents?`)) return;
+    try {
+      const res = await apiClient.post('/crm/team/leads/bulk-unassign', {
+        customerIds: Array.from(selectedLeadIds),
+      });
+      const result = (res as any)?.data;
+      toast.success(`Bulk unassign completed! Success: ${result?.success || 0}, Failed: ${result?.failed || 0}`);
+      setSelectedLeadIds(new Set());
+      await loadLeads();
+    } catch (error) {
+      console.error('Failed to bulk unassign leads', error);
+      toast.error('Failed to bulk unassign leads');
+    }
+  };
+
   // Bulk selection
   const toggleSelectLead = (leadId: number | string) => {
     const newSet = new Set(selectedLeadIds);
@@ -648,12 +679,20 @@ export default function LeadAssignmentPage() {
           </div>
 
           {selectedLeadIds.size > 0 && (
-            <button
-              onClick={openBulkAssignModal}
-              className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
-            >
-              Bulk Assign ({selectedLeadIds.size} selected)
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={openBulkAssignModal}
+                className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+              >
+                Bulk Assign ({selectedLeadIds.size} selected)
+              </button>
+              <button
+                onClick={handleBulkUnassign}
+                className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700"
+              >
+                Bulk Unassign ({selectedLeadIds.size} selected)
+              </button>
+            </div>
           )}
         </div>
 
@@ -780,6 +819,14 @@ export default function LeadAssignmentPage() {
                                 >
                                   {lead.assigned_to ? 'Reassign' : 'Assign'}
                                 </button>
+                                {lead.assigned_to && (
+                                  <button
+                                    onClick={() => handleUnassign(lead)}
+                                    className="bg-red-600 text-white px-3 py-1.5 rounded text-sm hover:bg-red-700"
+                                  >
+                                    Unassign
+                                  </button>
+                                )}
                               </div>
                             </td>
                           </tr>

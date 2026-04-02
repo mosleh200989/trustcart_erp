@@ -21,6 +21,18 @@ export class CrmTeamController {
     return await this.crmTeamService.bulkAssignLeads(body.customerIds, body.agentId, req.user.id);
   }
 
+  @Post('leads/:customerId/unassign')
+  @RequirePermissions('assign-leads-to-team')
+  async unassignLead(@Param('customerId') customerId: string, @Request() req: any) {
+    return await this.crmTeamService.unassignLead(customerId, req.user.id);
+  }
+
+  @Post('leads/bulk-unassign')
+  @RequirePermissions('assign-leads-to-team')
+  async bulkUnassignLeads(@Body() body: { customerIds: (number | string)[] }, @Request() req: any) {
+    return await this.crmTeamService.bulkUnassignLeads(body.customerIds, req.user.id);
+  }
+
   @Get('agents/search')
   @RequirePermissions('assign-leads-to-team')
   async searchAgents(@Query('q') searchTerm: string, @Request() req: any) {
