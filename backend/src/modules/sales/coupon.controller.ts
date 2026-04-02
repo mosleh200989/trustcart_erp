@@ -76,4 +76,20 @@ export class CouponController {
       cartTotal: Number(body.cartTotal) || 0,
     });
   }
+
+  @Get('available')
+  async getAvailableCoupons(@Query('phone') phone: string) {
+    return this.couponService.getAvailableCoupons(phone);
+  }
+
+  @Post('redeem')
+  async redeemCoupon(@Body() body: any) {
+    await this.couponService.redeemCoupon(
+      body.code,
+      Number(body.orderId),
+      body.customerId != null ? Number(body.customerId) : null,
+      body.customerPhone || null,
+    );
+    return { success: true };
+  }
 }

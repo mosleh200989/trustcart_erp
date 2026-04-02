@@ -256,13 +256,25 @@ export default function Checkout() {
     clearAllCart();
   }
 
+  // Reset coupon whenever cart changes (item removed or quantity updated)
+  const resetCouponIfApplied = () => {
+    if (couponApplied) {
+      setCouponApplied(false);
+      setCouponDiscount(0);
+      setCouponMsg('');
+      setCouponError('Cart changed — please re-apply your coupon.');
+    }
+  };
+
   function removeItem(index: number) {
     removeCartItem(index);
+    resetCouponIfApplied();
   }
 
   function updateQuantity(index: number, newQuantity: number) {
     if (newQuantity < 1) return;
     updateCartQuantity(index, newQuantity);
+    resetCouponIfApplied();
   }
 
   const handleChange = (

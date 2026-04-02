@@ -110,6 +110,12 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
   const [activeCouponCodes, setActiveCouponCodes] = useState<string[]>([]);
   const [customerTags, setCustomerTags] = useState<{ name: string; color: string | null }[]>([]);
 
+  // Apply Coupon modal state
+  const [showCouponModal, setShowCouponModal] = useState(false);
+  const [availableCoupons, setAvailableCoupons] = useState<any[]>([]);
+  const [couponModalLoading, setCouponModalLoading] = useState(false);
+  const [applyingCouponCode, setApplyingCouponCode] = useState<string | null>(null);
+
   // Call Logs state
   const [callLogs, setCallLogs] = useState<any[]>([]);
   const [callLogsLoading, setCallLogsLoading] = useState(false);
@@ -548,6 +554,61 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
       onUpdate();
     } catch (error) {
       toast.error('Failed to update discount');
+    }
+  };
+
+  const openCouponModal = async () => {
+    const phone = customer?.phone || customerRecord?.phone || order?.customerPhone;
+    if (!phone) {
+      toast.warning('No phone number found for this customer');
+      return;
+    }
+    setShowCouponModal(true);
+    setCouponModalLoading(true);
+    try {
+      const resp = await apiClient.get('/coupons/available', { params: { phone } });
+      setAvailableCoupons(Array.isArray(resp.data) ? resp.data : []);
+    } catch {
+      toast.error('Failed to load available coupons');
+      setAvailableCoupons([]);
+    } finally {
+      setCouponModalLoading(false);
+    }
+  };
+
+  const applyCouponToOrder = async (coupon: any) => {
+    const phone = customer?.phone || customerRecord?.phone || order?.customerPhone;
+    const subtotal = items.reduce((sum: number, it: any) => sum + (Number(it.quantity) * Number(it.unitPrice || it.unit_price || 0)), 0);
+    setApplyingCouponCode(coupon.code);
+    try {
+      // 1. Validate coupon to get discount amount
+      const valResp = await apiClient.post('/coupons/validate', {
+        code: coupon.code,
+        customerId: customer?.id || customerRecord?.id || null,
+        customerPhone: phone,
+        cartTotal: subtotal,
+      });
+      const discountAmt = valResp.data.discountAmount;
+
+      // 2. Apply discount to order
+      await apiClient.put(`/order-management/${currentOrderId}/discount`, { discountAmount: discountAmt });
+
+      // 3. Redeem coupon
+      await apiClient.post('/coupons/redeem', {
+        code: coupon.code,
+        orderId: currentOrderId,
+        customerId: customer?.id || customerRecord?.id || null,
+        customerPhone: phone,
+      });
+
+      toast.success(`Coupon ${coupon.code} applied — ৳${discountAmt} discount`);
+      setShowCouponModal(false);
+      loadOrderDetails();
+      onUpdate();
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || 'Failed to apply coupon');
+    } finally {
+      setApplyingCouponCode(null);
     }
   };
 
@@ -1454,7 +1515,11 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                           </span>
                         )}
                       </td>
-                      <td className="border p-3"></td>
+                      <td className="border p-3 text-center">
+                        <button onClick={openCouponModal} className="text-emerald-600 hover:text-emerald-800 text-xs font-semibold flex items-center gap-1 mx-auto" title="Apply a coupon">
+                          🎟 Coupon
+                        </button>
+                      </td>
                     </tr>
                     <tr className="bg-gray-100 font-bold">
                       <td colSpan={3} className="border p-3 text-right">Total Amount:</td>
@@ -2554,6 +2619,49 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
             </div>
           )}
         </div>
+
+        {/* Coupon Modal */}
+        {showCouponModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg max-w-md w-full max-h-[80vh] overflow-y-auto">
+              <div className="p-4 border-b flex items-center justify-between">
+                <h3 className="text-lg font-bold text-emerald-700">🎟 Available Coupons</h3>
+                <button onClick={() => setShowCouponModal(false)} className="text-gray-400 hover:text-gray-600"><FaTimes size={18} /></button>
+              </div>
+              <div className="p-4">
+                {couponModalLoading ? (
+                  <p className="text-center text-gray-500 py-4">Loading coupons...</p>
+                ) : availableCoupons.length === 0 ? (
+                  <p className="text-center text-gray-500 py-4">No available coupons for this customer</p>
+                ) : (
+                  <div className="space-y-3">
+                    {availableCoupons.map((c: any) => (
+                      <div key={c.code} className="border rounded-lg p-3 flex items-center justify-between hover:bg-gray-50">
+                        <div>
+                          <p className="font-bold text-emerald-700">{c.code}</p>
+                          <p className="text-sm text-gray-600">{c.name}</p>
+                          <p className="text-xs text-gray-500">
+                            {c.discountType === 'percentage' ? `${c.discountValue}% off` : `৳${c.discountValue} off`}
+                            {c.minOrderAmount > 0 && ` · Min ৳${c.minOrderAmount}`}
+                            {c.maxDiscountAmount && ` · Max ৳${c.maxDiscountAmount}`}
+                          </p>
+                          <p className="text-xs text-gray-400">Used {c.timesUsed}/{c.perCustomerLimit}</p>
+                        </div>
+                        <button
+                          onClick={() => applyCouponToOrder(c)}
+                          disabled={applyingCouponCode === c.code}
+                          className="bg-emerald-600 text-white px-3 py-1.5 rounded text-sm font-semibold hover:bg-emerald-700 disabled:opacity-50"
+                        >
+                          {applyingCouponCode === c.code ? 'Applying...' : 'Apply'}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Ship Modal */}
         {showShipModal && (
