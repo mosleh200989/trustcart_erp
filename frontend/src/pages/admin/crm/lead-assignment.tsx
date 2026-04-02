@@ -34,6 +34,7 @@ interface LeadCustomer {
   email?: string;
   phone?: string;
   priority?: string;
+  tier?: string | null;
   assigned_to?: number | null;
   created_at?: string;
   first_order_date?: string;
@@ -570,13 +571,11 @@ export default function LeadAssignmentPage() {
               >
                 <option value="">All Tiers</option>
                 <option value="new">New</option>
-                <option value="normal">Normal</option>
                 <option value="silver">Silver</option>
                 <option value="gold">Gold</option>
                 <option value="platinum">Platinum</option>
                 <option value="vip">VIP</option>
                 <option value="repeat">Repeat</option>
-                <option value="inactive">Inactive</option>
                 <option value="blacklist">Blacklist</option>
                 <option value="rejected">Rejected</option>
               </select>
@@ -733,7 +732,7 @@ export default function LeadAssignmentPage() {
                       </th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Contact</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Priority</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tier</th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Orders</th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Order Date</th>
@@ -779,14 +778,21 @@ export default function LeadAssignmentPage() {
                               <div className="text-xs text-gray-500">{lead.phone || 'No phone'}</div>
                             </td>
                             <td className="px-4 py-4">
-                              <span className={`text-xs px-2 py-1 rounded-full capitalize ${
-                                lead.priority === 'hot' ? 'bg-red-100 text-red-700' :
-                                lead.priority === 'warm' ? 'bg-orange-100 text-orange-700' :
-                                lead.priority === 'cold' ? 'bg-blue-100 text-blue-700' :
-                                'bg-gray-100 text-gray-700'
-                              }`}>
-                                {lead.priority === 'cold' ? 'Sleep/Dead' : (lead.priority || 'new')}
-                              </span>
+                              {lead.tier ? (
+                                <span className={`text-xs px-2 py-1 rounded-full capitalize ${
+                                  lead.tier === 'silver' ? 'bg-gray-100 text-gray-700' :
+                                  lead.tier === 'gold' ? 'bg-amber-100 text-amber-700' :
+                                  lead.tier === 'platinum' ? 'bg-indigo-100 text-indigo-700' :
+                                  lead.tier === 'vip' ? 'bg-purple-100 text-purple-700' :
+                                  lead.tier === 'new' ? 'bg-green-100 text-green-700' :
+                                  lead.tier === 'repeat' ? 'bg-blue-100 text-blue-700' :
+                                  'bg-gray-100 text-gray-600'
+                                }`}>
+                                  {lead.tier}
+                                </span>
+                              ) : (
+                                <span className="text-xs text-gray-400">—</span>
+                              )}
                             </td>
                             <td className="px-4 py-4">
                               {lead.assigned_to ? (
