@@ -174,6 +174,8 @@ export default function CustomersPage() {
 
   const getTierBadgeColor = (tier?: string) => {
     const colors: Record<string, string> = {
+      new: 'bg-blue-100 text-blue-800',
+      repeat: 'bg-teal-100 text-teal-800',
       platinum: 'bg-purple-100 text-purple-800',
       gold: 'bg-yellow-100 text-yellow-800',
       silver: 'bg-gray-100 text-gray-800',
@@ -305,6 +307,8 @@ export default function CustomersPage() {
                 onChange={(e) => setTierFilter(e.target.value)}
               >
                 <option value="">All Tiers</option>
+                <option value="new">New</option>
+                <option value="repeat">Repeat</option>
                 <option value="silver">Silver</option>
                 <option value="gold">Gold</option>
                 <option value="platinum">Platinum</option>

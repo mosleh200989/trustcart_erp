@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject, forwardRef } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { SalesService } from '../sales/sales.service';
@@ -33,6 +33,7 @@ export class LeadManagementService {
     private readonly teamEDataRepo: Repository<TeamEData>,
     @InjectRepository(CustomerTier)
     private readonly customerTierRepo: Repository<CustomerTier>,
+    @Inject(forwardRef(() => SalesService))
     private readonly salesService: SalesService,
   ) {}
 
@@ -528,6 +529,63 @@ export class LeadManagementService {
     });
   }
 
+  /**
+   * Auto-assign tier based on delivered order count.
+   * 1 → new, 2 → repeat, 3 → silver, 4 → gold, 5 → platinum, 6+ → vip
+   * Only upgrades; never downgrades a manually set higher tier or blacklist/rejected.
+   */
+  async autoAssignTierForCustomer(customerId: number): Promise<void> {
+    // Count delivered orders for this customer
+    const rows: { cnt: string }[] = await this.sessionRepo.query(
+      `SELECT COUNT(*)::text AS cnt FROM sales_orders WHERE customer_id = $1 AND LOWER(status::text) = 'delivered'`,
+      [customerId],
+    );
+    const deliveredCount = parseInt(rows[0]?.cnt || '0', 10);
+    if (deliveredCount < 1) return;
+
+    const tierOrder = ['new', 'repeat', 'silver', 'gold', 'platinum', 'vip'];
+    const targetTier =
+      deliveredCount >= 6 ? 'vip' :
+      deliveredCount === 5 ? 'platinum' :
+      deliveredCount === 4 ? 'gold' :
+      deliveredCount === 3 ? 'silver' :
+      deliveredCount === 2 ? 'repeat' :
+      'new';
+
+    const existing = await this.customerTierRepo.findOne({ where: { customerId } });
+
+    // Never override blacklist/rejected
+    if (existing && (existing.tier === 'blacklist' || existing.tier === 'rejected')) return;
+
+    // Only upgrade, never downgrade
+    if (existing) {
+      const currentRank = tierOrder.indexOf(existing.tier);
+      const targetRank = tierOrder.indexOf(targetTier);
+      if (currentRank >= targetRank) return; // already at same or higher tier
+    }
+
+    if (existing) {
+      await this.customerTierRepo.update(existing.id, {
+        tier: targetTier,
+        autoAssigned: true,
+        tierAssignedAt: new Date(),
+        totalPurchases: deliveredCount,
+        lastActivityDate: new Date(),
+      });
+    } else {
+      const tier = this.customerTierRepo.create({
+        customerId,
+        tier: targetTier,
+        isActive: true,
+        autoAssigned: true,
+        tierAssignedAt: new Date(),
+        totalPurchases: deliveredCount,
+        lastActivityDate: new Date(),
+      });
+      await this.customerTierRepo.save(tier);
+    }
+  }
+
   async getInactiveCustomers(daysThreshold = 30) {
     return this.customerTierRepo.find({
       where: { isActive: false },
@@ -550,6 +608,8 @@ export class LeadManagementService {
       SELECT 
         COUNT(CASE WHEN ct.is_active = true THEN 1 END)::int as total_active,
         COUNT(CASE WHEN ct.is_active = false THEN 1 END)::int as total_inactive,
+        COUNT(CASE WHEN ct.tier = 'new' THEN 1 END)::int as new_tier,
+        COUNT(CASE WHEN ct.tier = 'repeat' THEN 1 END)::int as repeat_tier,
         COUNT(CASE WHEN ct.tier = 'silver' THEN 1 END)::int as silver,
         COUNT(CASE WHEN ct.tier = 'gold' THEN 1 END)::int as gold,
         COUNT(CASE WHEN ct.tier = 'platinum' THEN 1 END)::int as platinum,
@@ -659,6 +719,8 @@ export class LeadManagementService {
       stats: {
         totalActive: statsRow.total_active || 0,
         totalInactive: statsRow.total_inactive || 0,
+        new: statsRow.new_tier || 0,
+        repeat: statsRow.repeat_tier || 0,
         silver: statsRow.silver || 0,
         gold: statsRow.gold || 0,
         platinum: statsRow.platinum || 0,

@@ -270,6 +270,37 @@ export default function CrmLeadsPage() {
     }
   };
 
+  // Single unassign
+  const handleUnassign = async (lead: any) => {
+    if (!confirm(`Unassign lead "${lead.first_name || lead.name || ''} ${lead.last_name || ''}" from their agent?`)) return;
+    try {
+      await apiClient.post(`/crm/team/leads/${lead.id}/unassign`);
+      toast.success('Lead unassigned successfully');
+      await loadLeads();
+    } catch (error) {
+      console.error('Failed to unassign lead', error);
+      toast.error('Failed to unassign lead');
+    }
+  };
+
+  // Bulk unassign
+  const handleBulkUnassign = async () => {
+    if (selectedLeads.size === 0) return;
+    if (!confirm(`Unassign ${selectedLeads.size} selected lead(s) from their agents?`)) return;
+    try {
+      const res = await apiClient.post('/crm/team/leads/bulk-unassign', {
+        customerIds: Array.from(selectedLeads),
+      });
+      const result = (res as any)?.data;
+      toast.success(`Bulk unassign completed! Success: ${result?.success || 0}, Failed: ${result?.failed || 0}`);
+      setSelectedLeads(new Set());
+      await loadLeads();
+    } catch (error) {
+      console.error('Failed to bulk unassign leads', error);
+      toast.error('Failed to bulk unassign leads');
+    }
+  };
+
   const clearFilters = () => {
     setPriority('');
     setStatus('');
@@ -299,12 +330,20 @@ export default function CrmLeadsPage() {
           <h1 className="text-3xl font-bold text-gray-800">CRM Leads</h1>
           <div className="flex gap-2">
             {selectedLeads.size > 0 && (
-              <button
-                onClick={() => setShowAssignPanel(!showAssignPanel)}
-                className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2"
-              >
-                🎯 Assign Selected ({selectedLeads.size})
-              </button>
+              <>
+                <button
+                  onClick={() => setShowAssignPanel(!showAssignPanel)}
+                  className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2"
+                >
+                  🎯 Assign Selected ({selectedLeads.size})
+                </button>
+                <button
+                  onClick={handleBulkUnassign}
+                  className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 flex items-center gap-2"
+                >
+                  Bulk Unassign ({selectedLeads.size})
+                </button>
+              </>
             )}
             <button
               onClick={clearFilters}
@@ -637,6 +676,14 @@ export default function CrmLeadsPage() {
                           >
                             {convertingId === lead.id ? '...' : 'Convert'}
                           </button>
+                          {lead.assigned_to && (
+                            <button
+                              className="px-3 py-1 border rounded bg-red-600 text-white hover:bg-red-700 text-sm"
+                              onClick={() => handleUnassign(lead)}
+                            >
+                              Unassign
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>

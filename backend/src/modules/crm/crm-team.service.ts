@@ -820,6 +820,49 @@ export class CrmTeamService {
     return { success, failed, results };
   }
 
+  // Unassign a single lead from its agent
+  async unassignLead(customerId: string, teamLeaderId: number): Promise<Customer> {
+    const customerIdNum = Number(customerId);
+    const customer = await this.customerRepository.findOne({ where: { id: customerIdNum } });
+
+    if (!customer) {
+      throw new NotFoundException(`Customer with ID ${customerId} not found`);
+    }
+
+    if (customer.assigned_supervisor_id !== teamLeaderId) {
+      throw new ForbiddenException(
+        `Lead #${customerId} has not been assigned to you by the Sales Manager.`,
+      );
+    }
+
+    customer.assigned_to = null as any;
+    customer.updatedAt = new Date();
+    return await this.customerRepository.save(customer);
+  }
+
+  // Bulk unassign leads from their agents
+  async bulkUnassignLeads(
+    customerIds: (number | string)[],
+    teamLeaderId: number,
+  ): Promise<{ success: number; failed: number; results: any[] }> {
+    const results: any[] = [];
+    let success = 0;
+    let failed = 0;
+
+    for (const customerId of customerIds) {
+      try {
+        await this.unassignLead(String(customerId), teamLeaderId);
+        results.push({ customerId, status: 'success' });
+        success++;
+      } catch (error: any) {
+        results.push({ customerId, status: 'failed', error: error.message });
+        failed++;
+      }
+    }
+
+    return { success, failed, results };
+  }
+
   // Search agents by name for autocomplete
   async searchAgents(teamLeaderId: number, searchTerm: string): Promise<User[]> {
     const salesExecRole = await this.usersRepository.manager

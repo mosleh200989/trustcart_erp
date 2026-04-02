@@ -53,4 +53,16 @@ export class SalesManagerController {
       req.user.id,
     );
   }
+
+  @Post('unassign-leads')
+  @RequirePermissions('view-sales-manager-dashboard')
+  async unassignLeads(
+    @Body() body: { customerIds: number[] },
+    @Request() req: any,
+  ) {
+    return await this.salesManagerService.unassignLeadsFromTeamLeader(
+      body.customerIds,
+      req.user.id,
+    );
+  }
 }

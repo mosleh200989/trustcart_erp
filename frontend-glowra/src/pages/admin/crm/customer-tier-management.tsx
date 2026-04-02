@@ -58,6 +58,8 @@ export default function CustomerTierManagementPage() {
   const [stats, setStats] = useState({
     totalActive: 0,
     totalInactive: 0,
+    new: 0,
+    repeat: 0,
     silver: 0,
     gold: 0,
     platinum: 0,
@@ -105,6 +107,8 @@ export default function CustomerTierManagementPage() {
         setStats(data.stats || {
           totalActive: 0,
           totalInactive: 0,
+          new: 0,
+          repeat: 0,
           silver: 0,
           gold: 0,
           platinum: 0,
@@ -164,6 +168,10 @@ export default function CustomerTierManagementPage() {
 
   const getTierBadgeColor = (tier: string) => {
     switch (tier) {
+      case 'new':
+        return 'bg-blue-200 text-blue-800';
+      case 'repeat':
+        return 'bg-teal-200 text-teal-800';
       case 'silver':
         return 'bg-gray-200 text-gray-800';
       case 'gold':
@@ -191,14 +199,14 @@ export default function CustomerTierManagementPage() {
 
         {/* Stats Cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4 mb-6">
-          <div className="bg-green-50 p-4 rounded-lg shadow">
-            <div className="text-sm text-green-600 font-medium">Active Customers</div>
-            <div className="text-2xl font-bold text-green-700">{stats.totalActive}</div>
+          <div className="bg-blue-100 p-4 rounded-lg shadow">
+            <div className="text-sm text-blue-600 font-medium">New</div>
+            <div className="text-2xl font-bold text-blue-700">{stats.new || 0}</div>
           </div>
 
-          <div className="bg-red-50 p-4 rounded-lg shadow">
-            <div className="text-sm text-red-600 font-medium">Inactive</div>
-            <div className="text-2xl font-bold text-red-700">{stats.totalInactive}</div>
+          <div className="bg-teal-100 p-4 rounded-lg shadow">
+            <div className="text-sm text-teal-600 font-medium">Repeat</div>
+            <div className="text-2xl font-bold text-teal-700">{stats.repeat || 0}</div>
           </div>
 
           <div className="bg-gray-100 p-4 rounded-lg shadow">
@@ -243,6 +251,8 @@ export default function CustomerTierManagementPage() {
                 className="w-full border rounded-lg p-2"
               >
                 <option value="all">All Tiers</option>
+                <option value="new">New</option>
+                <option value="repeat">Repeat</option>
                 <option value="silver">Silver</option>
                 <option value="gold">Gold</option>
                 <option value="platinum">Platinum</option>
@@ -308,11 +318,8 @@ export default function CustomerTierManagementPage() {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Customer</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Contact</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tier</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Purchases</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total Spent</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Engagement</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Days Inactive</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Action</th>
                   </tr>
                 </thead>
@@ -336,35 +343,8 @@ export default function CustomerTierManagementPage() {
                           <span className="text-sm text-gray-400">Not Set</span>
                         )}
                       </td>
-                      <td className="px-6 py-4">
-                        {customer.tierData ? (
-                          customer.tierData.isActive ? (
-                            <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded">Active</span>
-                          ) : (
-                            <span className="px-2 py-1 bg-red-100 text-red-800 text-xs rounded">Inactive</span>
-                          )
-                        ) : (
-                          <span className="text-sm text-gray-400">-</span>
-                        )}
-                      </td>
                       <td className="px-6 py-4 text-sm">{customer.order_count || customer.tierData?.totalPurchases || 0}</td>
                       <td className="px-6 py-4 text-sm">৳{Number(customer.lifetime_value || customer.tierData?.totalSpent || 0).toLocaleString()}</td>
-                      <td className="px-6 py-4">
-                        {customer.tierData ? (
-                          <div className="flex items-center">
-                            <div className="w-16 bg-gray-200 rounded-full h-2 mr-2">
-                              <div
-                                className="bg-blue-600 h-2 rounded-full"
-                                style={{ width: `${customer.tierData.engagementScore}%` }}
-                              />
-                            </div>
-                            <span className="text-sm">{customer.tierData.engagementScore}%</span>
-                          </div>
-                        ) : (
-                          <span className="text-sm text-gray-400">-</span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 text-sm">{customer.tierData?.daysInactive || 0}</td>
                       <td className="px-6 py-4">
                         <button
                           onClick={() => openTierModal(customer)}
@@ -411,6 +391,8 @@ export default function CustomerTierManagementPage() {
                     onChange={(e) => setTierForm({ ...tierForm, tier: e.target.value })}
                     className="w-full border rounded-lg p-2"
                   >
+                    <option value="new">New</option>
+                    <option value="repeat">Repeat</option>
                     <option value="silver">Silver</option>
                     <option value="gold">Gold</option>
                     <option value="platinum">Platinum</option>

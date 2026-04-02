@@ -209,6 +209,40 @@ const SalesManagerLeadAssignment = () => {
     }
   };
 
+  // Single unassign (sales manager level — removes supervisor assignment)
+  const handleUnassign = async (lead: Lead) => {
+    if (!confirm(`Unassign lead "${lead.name || ''} ${lead.lastName || ''}" from their team leader?`)) return;
+    try {
+      await api.post('/crm/sales-manager/unassign-leads', {
+        customerIds: [lead.id],
+      });
+      toast.success('Lead unassigned successfully');
+      fetchLeads(page);
+    } catch {
+      toast.error('Failed to unassign lead');
+    }
+  };
+
+  // Bulk unassign
+  const handleBulkUnassign = async () => {
+    if (selected.size === 0) return;
+    if (!confirm(`Unassign ${selected.size} selected lead(s) from their team leaders?`)) return;
+    setAssigning(true);
+    try {
+      const res = await api.post('/crm/sales-manager/unassign-leads', {
+        customerIds: Array.from(selected),
+      });
+      const result = (res as any)?.data;
+      toast.success(`Bulk unassign completed! ${result?.unassigned || selected.size} lead(s) unassigned.`);
+      setSelected(new Set());
+      fetchLeads(page);
+    } catch {
+      toast.error('Failed to bulk unassign leads');
+    } finally {
+      setAssigning(false);
+    }
+  };
+
   const supervisorName = (id: number | null) => {
     if (!id) return <span className="text-gray-400 text-xs">Unassigned</span>;
     const tl = teamLeaders.find(t => t.id === id);
@@ -352,6 +386,13 @@ const SalesManagerLeadAssignment = () => {
               {assigning ? 'Assigning…' : `Assign ${selected.size} Lead${selected.size !== 1 ? 's' : ''}`}
             </button>
             <button
+              onClick={handleBulkUnassign}
+              disabled={assigning}
+              className="bg-red-600 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {assigning ? 'Unassigning…' : `Unassign ${selected.size} Lead${selected.size !== 1 ? 's' : ''}`}
+            </button>
+            <button
               onClick={() => setSelected(new Set())}
               className="text-indigo-600 text-sm hover:underline"
             >
@@ -434,6 +475,14 @@ const SalesManagerLeadAssignment = () => {
                             >
                               {lead.assigned_supervisor_id ? 'Reassign' : 'Assign'}
                             </button>
+                            {lead.assigned_supervisor_id && (
+                              <button
+                                onClick={() => handleUnassign(lead)}
+                                className="bg-red-600 text-white px-3 py-1.5 rounded text-sm hover:bg-red-700"
+                              >
+                                Unassign
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>

@@ -12,6 +12,7 @@ import { CommissionService } from '../crm/commission.service';
 import { CustomersService } from '../customers/customers.service';
 import { InventoryService } from '../inventory/inventory.service';
 import { CouponService } from './coupon.service';
+import { LeadManagementService } from '../lead-management/lead-management.service';
 
 @Injectable()
 export class SalesService {
@@ -30,6 +31,8 @@ export class SalesService {
     private customersService: CustomersService,
     private inventoryService: InventoryService,
     private couponService: CouponService,
+    @Inject(forwardRef(() => LeadManagementService))
+    private leadManagementService: LeadManagementService,
   ) {}
 
   private normalizeOfferCode(value: any): string {
@@ -411,6 +414,29 @@ export class SalesService {
       }
     }
 
+    // ──── Batch-fetch customer tags by customer_id ────
+    const customerIdSet = new Set<number>();
+    for (const o of orders) {
+      const cid = o.customerId != null ? Number(o.customerId) : NaN;
+      if (Number.isFinite(cid) && cid > 0) customerIdSet.add(cid);
+    }
+    const tagsByCustomerId = new Map<number, { name: string; color: string | null }[]>();
+    if (customerIdSet.size > 0) {
+      const tagRows: { customer_id: number; name: string; color: string | null }[] = await this.salesRepository.query(
+        `SELECT cta.customer_id, ct.name, ct.color
+         FROM customer_tag_assignments cta
+         INNER JOIN customer_tags ct ON ct.id = cta.tag_id
+         WHERE cta.customer_id = ANY($1)
+         ORDER BY ct.name`,
+        [Array.from(customerIdSet)],
+      );
+      for (const r of tagRows) {
+        const cid = Number(r.customer_id);
+        if (!tagsByCustomerId.has(cid)) tagsByCustomerId.set(cid, []);
+        tagsByCustomerId.get(cid)!.push({ name: r.name, color: r.color });
+      }
+    }
+
     return {
       data: orders.map((order) => {
         (order as any)._items = itemsByOrderId.get(order.id) || [];
@@ -419,6 +445,8 @@ export class SalesService {
         (dto as any).isRejectedCustomer = rejectedPhones.has(norm);
         (dto as any).customerTotalOrders = phoneTotalMap.get(norm) || 0;
         (dto as any).activeCouponCodes = couponCodesByPhone.get(norm) || [];
+        const cid = order.customerId != null ? Number(order.customerId) : NaN;
+        (dto as any).customerTags = Number.isFinite(cid) ? (tagsByCustomerId.get(cid) || []) : [];
         return dto;
       }),
       total,
@@ -1150,6 +1178,15 @@ export class SalesService {
         }
       } catch (err) {
         console.warn(`Coupon generation on delivery failed for order #${updated.id}:`, (err as any)?.message || err);
+      }
+
+      // Auto-assign customer tier based on delivered order count
+      if (updated.customerId) {
+        try {
+          await this.leadManagementService.autoAssignTierForCustomer(updated.customerId);
+        } catch (err) {
+          console.warn(`Auto-tier assignment failed for customer #${updated.customerId}:`, (err as any)?.message || err);
+        }
       }
     }
 

@@ -106,6 +106,10 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
   } | null>(null);
   const [customerFraudLoading, setCustomerFraudLoading] = useState(false);
 
+  // Customer badges (coupon codes + tags)
+  const [activeCouponCodes, setActiveCouponCodes] = useState<string[]>([]);
+  const [customerTags, setCustomerTags] = useState<{ name: string; color: string | null }[]>([]);
+
   // Call Logs state
   const [callLogs, setCallLogs] = useState<any[]>([]);
   const [callLogsLoading, setCallLogsLoading] = useState(false);
@@ -263,6 +267,8 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
       setCustomer(data.customer || null);
       setCustomerRecord(normalizedCustomerRecord);
       setOrderHistory(Array.isArray(data.orderHistory) ? data.orderHistory : []);
+      setActiveCouponCodes(Array.isArray(data.activeCouponCodes) ? data.activeCouponCodes : []);
+      setCustomerTags(Array.isArray(data.customerTags) ? data.customerTags : []);
       
       setShippingAddress(data.shippingAddress || '');
       setCourierNotes(data.courierNotes || '');
@@ -1465,7 +1471,27 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
           {activeTab === 'customer' && (
             <div className="space-y-4">
               <div className="flex items-center justify-between gap-3 flex-wrap">
-                <h3 className="text-xl font-bold">Customer Information</h3>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="text-xl font-bold">Customer Information</h3>
+                  {activeCouponCodes.map((code) => (
+                    <span key={code} className="inline-flex items-center px-2 py-1 bg-emerald-100 text-emerald-700 text-xs font-bold rounded tracking-wide" title="Active unused coupon">
+                      🎟 {code}
+                    </span>
+                  ))}
+                  {customerTags.map((tag) => (
+                    <span
+                      key={tag.name}
+                      className="inline-flex items-center px-2 py-1 text-xs font-bold rounded tracking-wide"
+                      style={{
+                        backgroundColor: tag.color ? `${tag.color}20` : '#e0e7ff',
+                        color: tag.color || '#4338ca',
+                      }}
+                      title="Customer tag"
+                    >
+                      🏷 {tag.name}
+                    </span>
+                  ))}
+                </div>
                 {!isEditingCustomer ? (
                   <button
                     onClick={startEditCustomer}

@@ -22,6 +22,7 @@ import { OffersModule } from '../offers/offers.module';
 import { MessagingModule } from '../messaging/messaging.module';
 import { CrmModule } from '../crm/crm.module';
 import { InventoryModule } from '../inventory/inventory.module';
+import { LeadManagementModule } from '../lead-management/lead-management.module';
 import { SteadfastWebhookGuard } from '../../common/guards/steadfast-webhook.guard';
 import { CouponCampaign } from './entities/coupon-campaign.entity';
 import { CampaignCustomer } from './entities/campaign-customer.entity';
@@ -50,6 +51,7 @@ import { CouponController } from './coupon.controller';
     MessagingModule,
     forwardRef(() => CrmModule),
     InventoryModule,
+    forwardRef(() => LeadManagementModule),
   ],
   controllers: [SalesController, OrderManagementController, FraudCheckController, CouponController],
   providers: [SalesService, OrderManagementService, FraudCheckService, CouponService, SteadfastWebhookGuard],

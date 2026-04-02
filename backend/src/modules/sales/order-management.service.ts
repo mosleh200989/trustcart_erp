@@ -1437,6 +1437,40 @@ export class OrderManagementService {
       orderDate: o.orderDate || o.createdAt,
     }));
 
+    // ──── Active unused coupon codes for this customer (by phone) ────
+    let activeCouponCodes: string[] = [];
+    const normPhone = customerPhone.replace(/^\+88/, '').trim();
+    if (normPhone) {
+      const couponRows: { code: string }[] = await this.salesOrderRepository.query(
+        `SELECT camp.code
+         FROM campaign_customers cc
+         INNER JOIN coupon_campaigns camp ON camp.id = cc.campaign_id
+         WHERE cc.is_active = true
+           AND camp.is_active = true
+           AND camp.code IS NOT NULL
+           AND cc.times_used < camp.per_customer_limit
+           AND (camp.valid_until IS NULL OR camp.valid_until > NOW())
+           AND (camp.valid_from IS NULL OR camp.valid_from <= NOW())
+           AND REPLACE(cc.customer_phone, '+88', '') = $1`,
+        [normPhone],
+      );
+      activeCouponCodes = couponRows.map(r => r.code);
+    }
+
+    // ──── Customer tags (by customer_id) ────
+    let customerTags: { name: string; color: string | null }[] = [];
+    if (customerId) {
+      const tagRows: { name: string; color: string | null }[] = await this.salesOrderRepository.query(
+        `SELECT ct.name, ct.color
+         FROM customer_tag_assignments cta
+         INNER JOIN customer_tags ct ON ct.id = cta.tag_id
+         WHERE cta.customer_id = $1
+         ORDER BY ct.name`,
+        [customerId],
+      );
+      customerTags = tagRows;
+    }
+
     return {
       ...orderWithCourierSync,
       deliveryCharge: resolvedDeliveryCharge,
@@ -1446,6 +1480,8 @@ export class OrderManagementService {
       customer,
       customerRecord,
       orderHistory,
+      activeCouponCodes,
+      customerTags,
     };
   }
 
