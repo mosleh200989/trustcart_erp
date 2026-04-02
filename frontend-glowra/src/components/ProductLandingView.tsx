@@ -337,13 +337,6 @@ export default function ProductLandingView({
                   </>
                 )}
               </div>
-
-              {/* Short description */}
-              {product.short_description && (
-                <p className="text-gray-600 mt-3 text-sm leading-relaxed max-w-lg mx-auto">
-                  {product.short_description}
-                </p>
-              )}
             </div>
           </div>
         </div>
