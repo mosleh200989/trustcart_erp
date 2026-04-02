@@ -292,16 +292,18 @@ export class CrmTeamService {
     // Scope: Check if user is actually a team leader (has teams assigned)
     const isTeamLeader = await this.salesTeamRepository.count({ where: { teamLeaderId } });
     if (isTeamLeader > 0) {
-      // TL scope: unclaimed customers + customers supervised by this TL + customers assigned to TL's agents
+      // TL scope: ONLY leads assigned to this TL by the Sales Manager (assigned_supervisor_id = TL)
+      // OR leads already assigned to one of this TL's agents.
+      // Unassigned leads (assigned_supervisor_id IS NULL) are NOT visible to TLs.
       const tlAgents = await this.usersRepository.find({ where: { teamLeaderId }, select: ['id'] });
       const tlAgentIds = tlAgents.map(a => a.id);
       if (tlAgentIds.length > 0) {
         qb.andWhere(
-          '(c.assigned_supervisor_id IS NULL OR c.assigned_supervisor_id = :tl OR c.assigned_to IN (:...scopeAgentIds))',
+          '(c.assigned_supervisor_id = :tl OR c.assigned_to IN (:...scopeAgentIds))',
           { tl: teamLeaderId, scopeAgentIds: tlAgentIds },
         );
       } else {
-        qb.andWhere('(c.assigned_supervisor_id IS NULL OR c.assigned_supervisor_id = :tl)', { tl: teamLeaderId });
+        qb.andWhere('c.assigned_supervisor_id = :tl', { tl: teamLeaderId });
       }
     } else if (filterTeamLeaderId) {
       // Admin filtering by a specific team leader
@@ -446,11 +448,11 @@ export class CrmTeamService {
       const tlAgentIds = (await this.usersRepository.find({ where: { teamLeaderId }, select: ['id'] })).map(a => a.id);
       if (tlAgentIds.length > 0) {
         countQb.andWhere(
-          '(c.assigned_supervisor_id IS NULL OR c.assigned_supervisor_id = :tl OR c.assigned_to IN (:...scopeAgentIds))',
+          '(c.assigned_supervisor_id = :tl OR c.assigned_to IN (:...scopeAgentIds))',
           { tl: teamLeaderId, scopeAgentIds: tlAgentIds },
         );
       } else {
-        countQb.andWhere('(c.assigned_supervisor_id IS NULL OR c.assigned_supervisor_id = :tl)', { tl: teamLeaderId });
+        countQb.andWhere('c.assigned_supervisor_id = :tl', { tl: teamLeaderId });
       }
     } else if (filterTeamLeaderId) {
       const filterTlId = Number(filterTeamLeaderId);
@@ -687,7 +689,7 @@ export class CrmTeamService {
     customersQb.where('c.is_deleted = false');
     customersQb.andWhere('c.is_active = true');
     customersQb.andWhere(
-      '(c.assigned_supervisor_id IS NULL OR c.assigned_supervisor_id = :tl)',
+      'c.assigned_supervisor_id = :tl',
       { tl: teamLeaderId },
     );
     customersQb.andWhere('c.created_at >= :fromDate', { fromDate });
