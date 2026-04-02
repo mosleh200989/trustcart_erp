@@ -861,12 +861,12 @@ export class CrmTeamService {
       );
     }
 
-    // Use a targeted UPDATE so only assigned_to is cleared.
-    // assigned_supervisor_id is intentionally NOT touched — the lead remains
-    // assigned to the TL; only the Sales Executive assignment is removed.
-    await this.customerRepository.update(
-      { id: customerIdNum },
-      { assigned_to: null as any, updatedAt: new Date() },
+    // Use raw SQL to guarantee ONLY assigned_to is cleared.
+    // assigned_supervisor_id is intentionally untouched — the lead stays
+    // under the TL; only the Sales Executive (agent) is removed.
+    await this.customerRepository.query(
+      `UPDATE customers SET assigned_to = NULL, updated_at = NOW() WHERE id = $1`,
+      [customerIdNum],
     );
 
     return (await this.customerRepository.findOne({ where: { id: customerIdNum } })) as Customer;
