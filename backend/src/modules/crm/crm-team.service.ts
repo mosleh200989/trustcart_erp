@@ -332,10 +332,6 @@ export class CrmTeamService {
       qb.andWhere('c.assigned_to IS NOT NULL');
     } else if (assignmentStatus === 'unassigned') {
       qb.andWhere('c.assigned_to IS NULL');
-      // Only show unassigned customers who have at least one delivered order
-      qb.andWhere(
-        `EXISTS (SELECT 1 FROM sales_orders so WHERE so.customer_id = c.id AND LOWER(so.status::text) = 'delivered')`
-      );
     }
     // 'all' or undefined = no assignment filter
 
@@ -479,9 +475,6 @@ export class CrmTeamService {
       countQb.andWhere('c.assigned_to IS NOT NULL');
     } else if (assignmentStatus === 'unassigned') {
       countQb.andWhere('c.assigned_to IS NULL');
-      countQb.andWhere(
-        `EXISTS (SELECT 1 FROM sales_orders so WHERE so.customer_id = c.id AND LOWER(so.status::text) = 'delivered')`
-      );
     }
     if (assignedTo) {
       countQb.andWhere('c.assigned_to = :assignedTo', { assignedTo: Number(assignedTo) });
@@ -864,12 +857,20 @@ export class CrmTeamService {
     // Use raw SQL to guarantee ONLY assigned_to is cleared.
     // assigned_supervisor_id is intentionally untouched — the lead stays
     // under the TL; only the Sales Executive (agent) is removed.
+    // Log BEFORE state
+    console.log(`[UNASSIGN] BEFORE — customer #${customerIdNum}: assigned_to=${customer.assigned_to}, assigned_supervisor_id=${customer.assigned_supervisor_id}`);
+
     await this.customerRepository.query(
       `UPDATE customers SET assigned_to = NULL, updated_at = NOW() WHERE id = $1`,
       [customerIdNum],
     );
 
-    return (await this.customerRepository.findOne({ where: { id: customerIdNum } })) as Customer;
+    const updated = (await this.customerRepository.findOne({ where: { id: customerIdNum } })) as Customer;
+
+    // Log AFTER state to prove assigned_supervisor_id is intact
+    console.log(`[UNASSIGN] AFTER  — customer #${customerIdNum}: assigned_to=${updated.assigned_to}, assigned_supervisor_id=${updated.assigned_supervisor_id}`);
+
+    return updated;
   }
 
   // Bulk unassign leads from their agents
