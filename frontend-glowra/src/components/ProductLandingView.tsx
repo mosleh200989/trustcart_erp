@@ -53,16 +53,23 @@ export default function ProductLandingView({
   const [variantQuantities, setVariantQuantities] = useState<
     Record<string, number>
   >(() => Object.fromEntries(sizeVariants.map((v) => [v.name, 1])));
+  const [baseQuantity, setBaseQuantity] = useState(1);
   const quantity = selectedVariant
     ? variantQuantities[selectedVariant.name] || 1
-    : 1;
+    : baseQuantity;
   const setQuantity = (updater: number | ((prev: number) => number)) => {
-    if (!selectedVariant) return;
-    setVariantQuantities((prev) => {
-      const cur = prev[selectedVariant.name] || 1;
-      const next = typeof updater === "function" ? updater(cur) : updater;
-      return { ...prev, [selectedVariant.name]: Math.max(1, next) };
-    });
+    if (selectedVariant) {
+      setVariantQuantities((prev) => {
+        const cur = prev[selectedVariant.name] || 1;
+        const next = typeof updater === "function" ? updater(cur) : updater;
+        return { ...prev, [selectedVariant.name]: Math.max(1, next) };
+      });
+    } else {
+      setBaseQuantity((prev) => {
+        const next = typeof updater === "function" ? updater(prev) : updater;
+        return Math.max(1, next);
+      });
+    }
   };
   const [deliveryZone, setDeliveryZone] = useState<"inside" | "outside">(
     "outside",
@@ -260,17 +267,14 @@ export default function ProductLandingView({
             {/* Product Image */}
             <div className="relative w-full max-w-md">
               <div className="relative aspect-square rounded-xl overflow-hidden bg-white border border-gray-100 shadow-sm">
-                <Image
+                <img
                   src={
                     productImages[currentImageIndex]?.image_url ||
                     mainImage ||
                     "/placeholder.png"
                   }
                   alt={displayName}
-                  fill
-                  sizes="(max-width: 768px) 100vw, 480px"
-                  className="object-contain"
-                  priority
+                  className="w-full h-full object-contain"
                 />
                 {hasDiscount && discountPercent > 0 && (
                   <div className="absolute top-2 right-2 z-10">
@@ -299,12 +303,10 @@ export default function ProductLandingView({
                           : "border-gray-200 hover:border-gray-300"
                       }`}
                     >
-                      <Image
+                      <img
                         src={img.image_url}
                         alt=""
-                        fill
-                        className="object-cover"
-                        sizes="64px"
+                        className="w-full h-full object-cover"
                       />
                     </button>
                   ))}
@@ -379,12 +381,10 @@ export default function ProductLandingView({
                       <div className="flex items-start gap-3 sm:gap-4">
                         {/* Product Image */}
                         <div className="relative w-14 h-14 sm:w-16 sm:h-16 flex-shrink-0 rounded-lg overflow-hidden bg-white">
-                          <Image
+                          <img
                             src={mainImage || "/placeholder.png"}
                             alt={v.name}
-                            fill
-                            className="object-contain"
-                            sizes="64px"
+                            className="w-full h-full object-contain"
                           />
                         </div>
 
@@ -460,12 +460,10 @@ export default function ProductLandingView({
               <div className="border-2 border-green-500 bg-green-50 rounded-xl p-3 sm:p-4">
                 <div className="flex items-start gap-3 sm:gap-4">
                   <div className="relative w-14 h-14 sm:w-16 sm:h-16 flex-shrink-0 rounded-lg overflow-hidden bg-white">
-                    <Image
+                    <img
                       src={mainImage || "/placeholder.png"}
                       alt={displayName}
-                      fill
-                      className="object-contain"
-                      sizes="64px"
+                      className="w-full h-full object-contain"
                     />
                   </div>
                   <div className="flex-1 min-w-0">
