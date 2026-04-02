@@ -260,7 +260,8 @@ export class CouponService {
     const custId = params.customerId != null ? Number(params.customerId) : null;
     const phone = (params.customerPhone || '').replace(/^\+88/, '').trim();
 
-    if (campaign.isRestricted) {
+    // Always check customer is listed in the coupon's customer list
+    {
       let assignment: CampaignCustomer | null = null;
       if (custId) {
         assignment = await this.customerRepo.findOne({
@@ -274,18 +275,8 @@ export class CouponService {
       }
       if (!assignment) throw new BadRequestException('This coupon is not valid for your account');
       if (assignment.timesUsed >= campaign.perCustomerLimit) throw new BadRequestException('You have already used this coupon the maximum number of times');
-    } else {
-      // Open campaign â€” check per-customer usage
-      let assignment: CampaignCustomer | null = null;
-      if (custId) {
-        assignment = await this.customerRepo.findOne({ where: { campaignId: campaign.id, customerId: custId } });
-      } else if (phone) {
-        assignment = await this.customerRepo.findOne({ where: { campaignId: campaign.id, customerPhone: phone } });
-      }
-      if (assignment && assignment.timesUsed >= campaign.perCustomerLimit) {
-        throw new BadRequestException('You have already used this coupon the maximum number of times');
-      }
     }
+
 
     const cartTotal = Number(params.cartTotal) || 0;
     if (campaign.minOrderAmount > 0 && cartTotal < Number(campaign.minOrderAmount)) {
@@ -315,6 +306,61 @@ export class CouponService {
 ? `${campaign.discountValue}% off applied - you save BDT ${discountAmount.toFixed(0)}`
         : `BDT ${discountAmount.toFixed(0)} discount applied`,
     };
+  }
+
+  // ─── AVAILABLE COUPONS FOR A CUSTOMER ─────────────────────────
+
+  async getAvailableCoupons(phone: string) {
+    const normalizedPhone = (phone || '').replace(/^\+88/, '').trim();
+    if (!normalizedPhone) return [];
+
+    // Find all active assignments for this phone
+    const assignments = await this.customerRepo.find({
+      where: { customerPhone: normalizedPhone, isActive: true },
+    });
+    if (!assignments.length) return [];
+
+    // Load their campaigns
+    const campaignIds = [...new Set(assignments.map(a => a.campaignId))];
+    const campaigns = await this.campaignRepo.find({ where: { id: In(campaignIds) } });
+    const campMap = new Map(campaigns.map(c => [c.id, c]));
+
+    const now = new Date();
+    const available: Array<{
+      campaignId: number;
+      code: string;
+      name: string;
+      discountType: string;
+      discountValue: number;
+      minOrderAmount: number;
+      maxDiscountAmount: number | null;
+      timesUsed: number;
+      perCustomerLimit: number;
+    }> = [];
+
+    for (const a of assignments) {
+      const camp = campMap.get(a.campaignId);
+      if (!camp || !camp.isActive) continue;
+      if (!camp.code) continue;
+      if (camp.validFrom && now < new Date(camp.validFrom)) continue;
+      if (camp.validUntil && now > new Date(camp.validUntil)) continue;
+      if (camp.maxUses != null && camp.usageCount >= camp.maxUses) continue;
+      if (a.timesUsed >= camp.perCustomerLimit) continue;
+
+      available.push({
+        campaignId: camp.id,
+        code: camp.code,
+        name: camp.name,
+        discountType: camp.discountType,
+        discountValue: Number(camp.discountValue),
+        minOrderAmount: Number(camp.minOrderAmount),
+        maxDiscountAmount: camp.maxDiscountAmount != null ? Number(camp.maxDiscountAmount) : null,
+        timesUsed: a.timesUsed,
+        perCustomerLimit: camp.perCustomerLimit,
+      });
+    }
+
+    return available;
   }
 
   async redeemCoupon(code: string, orderId: number, customerId?: number | null, customerPhone?: string | null) {
