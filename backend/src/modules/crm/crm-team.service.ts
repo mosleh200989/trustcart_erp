@@ -163,7 +163,7 @@ export class CrmTeamService {
     // Enforce Sales Manager ownership: TL can only assign leads that have been
     // explicitly assigned to them by a Sales Manager (assigned_supervisor_id = TL).
     // Completely unassigned leads (no supervisor) are not accessible to TLs.
-    if (customer.assigned_supervisor_id !== teamLeaderId) {
+    if (Number(customer.assigned_supervisor_id) !== Number(teamLeaderId)) {
       throw new ForbiddenException(
         `Lead #${customerId} has not been assigned to you by the Sales Manager.`,
       );
@@ -281,6 +281,12 @@ export class CrmTeamService {
     qb.addSelect(
       `(SELECT COUNT(*)::int FROM sales_orders so WHERE so.customer_id = c.id)`,
       'order_count'
+    );
+
+    // Add subquery to get the customer's tier
+    qb.addSelect(
+      `(SELECT ct.tier FROM customer_tiers ct WHERE ct.customer_id = c.id LIMIT 1)`,
+      'tier'
     );
     
     qb.where('c.is_deleted = false');
@@ -432,9 +438,11 @@ export class CrmTeamService {
     // Create a map of customer id to first_order_date and order_count
     const orderDateMap = new Map<number, Date | null>();
     const orderCountMap = new Map<number, number>();
+    const tierMap = new Map<number, string | null>();
     rawData.forEach((row: any) => {
       orderDateMap.set(row.c_id, row.first_order_date || null);
       orderCountMap.set(row.c_id, parseInt(row.order_count, 10) || 0);
+      tierMap.set(row.c_id, row.tier || null);
     });
     
     // Get total count (need separate query without the select for accurate count)
@@ -647,6 +655,7 @@ export class CrmTeamService {
       assigned_to_name: c.assigned_to ? (agentMap.get(c.assigned_to) || `Agent #${c.assigned_to}`) : null,
       first_order_date: orderDateMap.get(c.id) || null,
       order_count: orderCountMap.get(c.id) || 0,
+      tier: tierMap.get(c.id) || null,
       orders: customerOrdersMap.get(c.id) || [],
     }));
 
@@ -831,9 +840,24 @@ export class CrmTeamService {
       throw new NotFoundException(`Customer with ID ${customerId} not found`);
     }
 
-    if (customer.assigned_supervisor_id !== teamLeaderId) {
+    // Allow unassign if:
+    // 1. This TL was directly assigned the lead by the Sales Manager, OR
+    // 2. The lead is currently assigned to an agent who belongs to this TL's team
+    //    (handles leads assigned directly to agents without going through a TL)
+    const supervisorMatch = Number(customer.assigned_supervisor_id) === Number(teamLeaderId);
+
+    let agentMatch = false;
+    if (!supervisorMatch && customer.assigned_to) {
+      const agent = await this.usersRepository.findOne({
+        where: { id: customer.assigned_to },
+        select: ['id', 'teamLeaderId'],
+      });
+      agentMatch = !!agent && Number(agent.teamLeaderId) === Number(teamLeaderId);
+    }
+
+    if (!supervisorMatch && !agentMatch) {
       throw new ForbiddenException(
-        `Lead #${customerId} has not been assigned to you by the Sales Manager.`,
+        `You do not have permission to unassign lead #${customerId}.`,
       );
     }
 
@@ -1909,9 +1933,9 @@ export class CrmTeamService {
       return [];
     }
 
-    // Return all Sales Executives (can be filtered further if needed)
+    // Return only Sales Executives assigned to this team leader
     const agents = await this.usersRepository.find({
-      where: { roleId: salesExecRole.id },
+      where: { roleId: salesExecRole.id, teamLeaderId },
       select: ['id', 'name', 'lastName', 'email', 'phone', 'teamId', 'teamLeaderId', 'status'],
     });
 
