@@ -251,9 +251,13 @@ export class SalesManagerService {
         `c.id IN (
           SELECT so.customer_id FROM sales_orders so
           WHERE so.id IN (
-            SELECT oi.order_id FROM order_items oi WHERE LOWER(oi.product_name) LIKE :pName
+            SELECT oi.order_id FROM order_items oi WHERE oi.product_name ILIKE :pName
             UNION
-            SELECT soi.sales_order_id FROM sales_order_items soi WHERE LOWER(soi.product_name) LIKE :pName
+            SELECT oi2.order_id FROM order_items oi2 JOIN products p ON p.id = oi2.product_id WHERE p.name_en ILIKE :pName OR p.name_bn ILIKE :pName
+            UNION
+            SELECT soi.sales_order_id FROM sales_order_items soi WHERE soi.product_name ILIKE :pName
+            UNION
+            SELECT soi2.sales_order_id FROM sales_order_items soi2 JOIN products p2 ON p2.id = soi2.product_id WHERE p2.name_en ILIKE :pName OR p2.name_bn ILIKE :pName
           )
         )`,
         { pName },
