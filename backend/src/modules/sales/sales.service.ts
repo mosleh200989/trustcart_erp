@@ -312,14 +312,18 @@ export class SalesService {
       }
     }
 
-    // Product name filter — subquery in order_items / sales_order_items
+    // Product name filter — subquery in order_items / sales_order_items + products table
     if (params.productName && params.productName.trim()) {
       const pName = `%${params.productName.trim().toLowerCase()}%`;
       qb.andWhere(
         `(o.id IN (
           SELECT oi.order_id FROM order_items oi WHERE oi.product_name ILIKE :pName
           UNION
+          SELECT oi2.order_id FROM order_items oi2 JOIN products p ON p.id = oi2.product_id WHERE p.name_en ILIKE :pName OR p.name_bn ILIKE :pName
+          UNION
           SELECT soi.sales_order_id FROM sales_order_items soi WHERE soi.product_name ILIKE :pName
+          UNION
+          SELECT soi2.sales_order_id FROM sales_order_items soi2 JOIN products p2 ON p2.id = soi2.product_id WHERE p2.name_en ILIKE :pName OR p2.name_bn ILIKE :pName
         ))`,
         { pName },
       );
