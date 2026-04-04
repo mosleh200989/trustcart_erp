@@ -355,9 +355,12 @@ export class CrmTeamService {
       qb.andWhere('c.status = :status', { status });
     }
 
-    // Customer type filter (VIP, Platinum, Gold, Silver, New, Repeat)
+    // Customer type (tier) filter — use customer_tiers table for consistency
     if (customerType) {
-      qb.andWhere('c.customer_type = :customerType', { customerType });
+      qb.andWhere(
+        `EXISTS (SELECT 1 FROM customer_tiers ct_filter WHERE ct_filter.customer_id = c.id AND ct_filter.tier = :customerType)`,
+        { customerType }
+      );
     }
 
     // Purchase stage filter based on order count
@@ -497,9 +500,12 @@ export class CrmTeamService {
     if (status) {
       countQb.andWhere('c.status = :status', { status });
     }
-    // Customer type filter for count
+    // Customer type (tier) filter for count — use customer_tiers table
     if (customerType) {
-      countQb.andWhere('c.customer_type = :customerType', { customerType });
+      countQb.andWhere(
+        `EXISTS (SELECT 1 FROM customer_tiers ct_filter WHERE ct_filter.customer_id = c.id AND ct_filter.tier = :customerType)`,
+        { customerType }
+      );
     }
     // Purchase stage filter for count
     if (purchaseStage) {
@@ -931,7 +937,8 @@ export class CrmTeamService {
     }
 
     const qb = this.usersRepository.createQueryBuilder('u');
-    qb.where('u.role_id = :roleId', { roleId: salesExecRole.id });
+    // Include Sales Executives OR the team leader themselves (for self-assignment)
+    qb.where('(u.role_id = :roleId OR u.id = :teamLeaderId)', { roleId: salesExecRole.id, teamLeaderId });
     qb.andWhere('u.is_deleted = false');
 
     if (searchTerm && searchTerm.trim()) {
@@ -1957,11 +1964,20 @@ export class CrmTeamService {
       return [];
     }
 
-    // Return only Sales Executives assigned to this team leader
+    // Return Sales Executives assigned to this team leader
     const agents = await this.usersRepository.find({
       where: { roleId: salesExecRole.id, teamLeaderId },
       select: ['id', 'name', 'lastName', 'email', 'phone', 'teamId', 'teamLeaderId', 'status'],
     });
+
+    // Also include the team leader themselves (for self-assignment)
+    const teamLeader = await this.usersRepository.findOne({
+      where: { id: teamLeaderId },
+      select: ['id', 'name', 'lastName', 'email', 'phone', 'teamId', 'teamLeaderId', 'status'],
+    });
+    if (teamLeader && !agents.some(a => a.id === teamLeaderId)) {
+      agents.unshift(teamLeader);
+    }
 
     return agents;
   }

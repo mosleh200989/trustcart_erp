@@ -295,6 +295,9 @@ export default function MyFollowupsPage() {
 
   // Filter follow-ups
   const filteredFollowUps = followUps.filter(followUp => {
+    // Hide completed follow-ups — they should not appear on this page
+    if (followUp.status === 'completed') return false;
+
     // Search filter
     if (searchTerm) {
       const search = searchTerm.toLowerCase();
@@ -632,7 +635,6 @@ export default function MyFollowupsPage() {
                   <option value="">All Statuses</option>
                   <option value="pending">Pending</option>
                   <option value="in_progress">In Progress</option>
-                  <option value="completed">Completed</option>
                   <option value="failed">Failed</option>
                 </select>
               </div>

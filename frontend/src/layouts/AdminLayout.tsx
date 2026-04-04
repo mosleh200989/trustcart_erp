@@ -781,7 +781,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </header>
 
         {/* Page Content */}
-        <main className="flex-1 overflow-y-auto bg-gray-100 p-6">
+        <main className="flex-1 overflow-y-auto bg-gray-100 p-6" style={{ scrollBehavior: 'smooth' }}>
           {!hasRouteAccess ? (
             <div className="max-w-xl mx-auto bg-white rounded-lg shadow p-6">
               <h1 className="text-2xl font-bold text-gray-800">403 - Access denied</h1>

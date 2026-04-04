@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { FaChevronLeft, FaChevronRight, FaAngleDoubleLeft, FaAngleDoubleRight } from 'react-icons/fa';
 
 interface PaginationProps {
@@ -8,12 +8,10 @@ interface PaginationProps {
   totalItems?: number;
   itemsPerPage?: number;
   showInfo?: boolean;
+  showGoToPage?: boolean;
   className?: string;
 }
 
-/**
- * Professional pagination component with page numbers
- */
 export default function Pagination({
   currentPage,
   totalPages,
@@ -21,8 +19,18 @@ export default function Pagination({
   totalItems,
   itemsPerPage = 50,
   showInfo = true,
+  showGoToPage = true,
   className = '',
 }: PaginationProps) {
+  const [goToPageValue, setGoToPageValue] = useState('');
+
+  const handleGoToPage = () => {
+    const pageNum = parseInt(goToPageValue, 10);
+    if (pageNum >= 1 && pageNum <= totalPages) {
+      onPageChange(pageNum);
+      setGoToPageValue('');
+    }
+  };
   // Generate page numbers to display
   const getPageNumbers = (): (number | 'ellipsis')[] => {
     const pages: (number | 'ellipsis')[] = [];
@@ -171,6 +179,33 @@ export default function Pagination({
         >
           <FaAngleDoubleRight className="w-3 h-3" />
         </button>
+
+        {/* Go to page input */}
+        {showGoToPage && totalPages > 5 && (
+          <div className="flex items-center gap-1 ml-2">
+            <span className="text-sm text-gray-500">Go to</span>
+            <input
+              type="number"
+              min={1}
+              max={totalPages}
+              value={goToPageValue}
+              onChange={(e) => setGoToPageValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleGoToPage();
+              }}
+              placeholder="#"
+              className="w-16 h-9 px-2 text-sm text-center border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              aria-label="Go to page number"
+            />
+            <button
+              onClick={handleGoToPage}
+              disabled={!goToPageValue || parseInt(goToPageValue, 10) < 1 || parseInt(goToPageValue, 10) > totalPages}
+              className="h-9 px-2 text-sm rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              Go
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
