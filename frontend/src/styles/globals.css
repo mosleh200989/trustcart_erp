@@ -82,6 +82,47 @@ body {
   background: #e2e8f0;
 }
 
+/* ============================================
+   Admin Table Smooth Scrolling
+   Targets all table wrappers inside admin pages
+   ============================================ */
+
+/* Any overflow container holding a table inside the admin main area */
+main .overflow-x-auto,
+main .overflow-y-auto,
+main .overflow-auto {
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Table parent containers — smooth vertical scroll with visible styled scrollbar */
+main .overflow-x-auto {
+  max-height: calc(100vh - 260px);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #94a3b8 #f1f5f9;
+}
+
+main .overflow-x-auto::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+main .overflow-x-auto::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 4px;
+}
+main .overflow-x-auto::-webkit-scrollbar-thumb {
+  background: #94a3b8;
+  border-radius: 4px;
+  border: 2px solid #f1f5f9;
+}
+main .overflow-x-auto::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+main .overflow-x-auto::-webkit-scrollbar-corner {
+  background: #f1f5f9;
+}
+
 /* Button Styling */
 .btn {
   border-radius: var(--border-radius);
