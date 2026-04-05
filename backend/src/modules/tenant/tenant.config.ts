@@ -74,5 +74,33 @@ export function buildTenantRegistry(configService: ConfigService): TenantConfig[
       frontendUrl: configService.get<string>('GLOWRA_FRONTEND_URL', 'https://www.naturalglowra.com'),
       isActive: true,
     },
+
+    // ── Chinova (chinova.online) ──────────────────────────────
+    {
+      id: 'chinova',
+      name: 'Chinova',
+      domains: [
+        'chinova.online',
+        'www.chinova.online',
+        'api.chinova.online',
+        'localhost:3003',   // local frontend dev
+      ],
+      database: {
+        host: configService.get<string>('CHINOVA_DB_HOST', configService.get<string>('DB_HOST', '127.0.0.1')),
+        port: parseInt(configService.get<string>('CHINOVA_DB_PORT', configService.get<string>('DB_PORT', '5432')), 10),
+        username: configService.get<string>('CHINOVA_DB_USER', configService.get<string>('DB_USER', 'postgres')),
+        password: configService.get<string>('CHINOVA_DB_PASSWORD', configService.get<string>('DB_PASSWORD', '')),
+        database: configService.get<string>('CHINOVA_DB_NAME', 'chinova_db'),
+      },
+      branding: {
+        siteName: 'Chinova',
+        siteUrl: 'https://chinova.online',
+        description: 'Chinova Online Store.',
+        supportEmail: 'support@chinova.online',
+        supportPhone: configService.get<string>('CHINOVA_SUPPORT_PHONE', ''),
+      },
+      frontendUrl: configService.get<string>('CHINOVA_FRONTEND_URL', 'https://www.chinova.online'),
+      isActive: true,
+    },
   ];
 }
