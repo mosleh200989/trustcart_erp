@@ -42,6 +42,8 @@ frontend/node_modules
 frontend/.next
 frontend-glowra/node_modules
 frontend-glowra/.next
+frontend-chinova/node_modules
+frontend-chinova/.next
 backend/node_modules
 backend/dist
 backend/.env
