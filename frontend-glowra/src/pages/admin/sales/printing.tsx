@@ -161,6 +161,11 @@ export default function PrintingPage() {
     return () => clearTimeout(timer);
   }, [currentPage, itemsPerPage, filters]);
 
+  // Clear selection when navigating to a different page
+  useEffect(() => {
+    setSelectedRowIds([]);
+  }, [currentPage]);
+
   // ==================== HANDLERS ====================
 
   const handleFilterChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {

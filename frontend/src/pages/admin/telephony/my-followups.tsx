@@ -114,6 +114,11 @@ export default function MyFollowupsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [agentId, dateRangeFilter, specificDate]);
 
+  // Clear selection when navigating to a different page
+  useEffect(() => {
+    setSelectedTaskIds([]);
+  }, [currentPage]);
+
   const loadFollowUps = async () => {
     try {
       setLoading(true);

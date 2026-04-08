@@ -31,12 +31,19 @@ export class SalesController {
 
     // Fetch local tracking history; also get live Steadfast status if it's a Steadfast order with a tracking code
     const isSteadfast = order.courierCompany && String(order.courierCompany).toLowerCase() === 'steadfast';
-    const [trackingHistory, liveStatus] = await Promise.all([
+    const [trackingHistory, liveStatus, orderItems] = await Promise.all([
       this.orderManagementService.getCourierTrackingHistory(order.id),
       isSteadfast && order.trackingId
         ? this.orderManagementService.getLiveSteadfastStatus(order.trackingId)
         : Promise.resolve(null),
+      this.salesService.getOrderItems(String(order.id)),
     ]);
+
+    // Mask customer phone: show only last 3 digits
+    const rawPhone = (order as any).customerPhone || '';
+    const maskedPhone = rawPhone.length > 3
+      ? '*'.repeat(rawPhone.length - 3) + rawPhone.slice(-3)
+      : rawPhone;
 
     return {
       id: order.id,
@@ -45,11 +52,16 @@ export class SalesController {
       courierCompany: order.courierCompany,
       courierStatus: liveStatus || order.courierStatus,
       trackingId: order.trackingId,
-      totalAmount: order.totalAmount,
       createdAt: order.createdAt,
       shippedAt: order.shippedAt,
       deliveredAt: order.deliveredAt,
       shippingAddress: order.shippingAddress,
+      customerPhone: maskedPhone,
+      items: orderItems.map((item: any) => ({
+        productName: item.displayName || item.productName || 'Product',
+        quantity: item.quantity,
+        productImage: item.productImage || null,
+      })),
       trackingHistory: trackingHistory.map(h => ({
         status: h.status,
         location: h.location,

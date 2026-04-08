@@ -64,6 +64,7 @@ export class CrmAutomationService {
         OR t.call_reason ILIKE 'Follow-up from %'
         OR t.call_reason ILIKE '%callback%'
       )`,
+      "t.status NOT IN ('completed', 'failed')",
     ];
     const params: any[] = [safeAgentId];
     let paramIdx = 2;
@@ -114,7 +115,6 @@ export class CrmAutomationService {
       conditions.push(`t.task_date < $${paramIdx}`);
       params.push(todayStr);
       paramIdx++;
-      conditions.push("t.status NOT IN ('completed', 'failed')");
     } else if (dateRange === 'week') {
       const weekEnd = new Date(today);
       weekEnd.setDate(weekEnd.getDate() + 7);
