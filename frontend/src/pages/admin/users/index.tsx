@@ -66,6 +66,11 @@ export default function AdminUsers() {
     setSelectedUserIds(prev => prev.filter(id => userIdSet.has(id)));
   }, [users]);
 
+  // Clear selection when navigating to a different page
+  useEffect(() => {
+    setSelectedUserIds([]);
+  }, [currentPage]);
+
   const loadUsers = async () => {
     try {
       const data = await usersAPI.list();

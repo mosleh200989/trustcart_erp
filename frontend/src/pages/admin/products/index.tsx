@@ -116,6 +116,11 @@ export default function AdminProducts() {
     loadCategories();
   }, []);
 
+  // Clear selection when navigating to a different page
+  useEffect(() => {
+    setSelectedProductIds([]);
+  }, [currentPage]);
+
   const loadProducts = async () => {
     try {
       const response = await apiClient.get('/products/admin/all');

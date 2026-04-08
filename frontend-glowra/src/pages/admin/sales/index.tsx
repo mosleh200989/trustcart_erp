@@ -312,6 +312,11 @@ export default function AdminSales() {
     return () => clearTimeout(timer);
   }, [currentPage, itemsPerPage, filters]);
 
+  // Clear selection when navigating to a different page
+  useEffect(() => {
+    setSelectedRowIds([]);
+  }, [currentPage]);
+
   // Load source filter options on mount
   useEffect(() => {
     apiClient.get('/sales/source-options')

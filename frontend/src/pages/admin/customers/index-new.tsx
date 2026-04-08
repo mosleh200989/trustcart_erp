@@ -44,6 +44,11 @@ export default function AdminCustomers() {
     loadCustomers();
   }, []);
 
+  // Clear selection when navigating to a different page
+  useEffect(() => {
+    setSelectedCustomerIds([]);
+  }, [currentPage]);
+
   const loadCustomers = async () => {
     try {
       const response = await apiClient.get('/customers');

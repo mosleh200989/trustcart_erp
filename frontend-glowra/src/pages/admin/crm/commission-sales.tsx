@@ -167,6 +167,11 @@ export default function CommissionSalesPage() {
     loadSales(currentPage, itemsPerPage);
   }, [currentPage, itemsPerPage, agentFilter]);
 
+  // Clear selection when navigating to a different page
+  useEffect(() => {
+    setSelectedRowIds([]);
+  }, [currentPage]);
+
   const handleSearch = () => {
     setCurrentPage(1);
     setSelectedRowIds([]);

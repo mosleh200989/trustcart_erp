@@ -47,6 +47,12 @@ interface TrackingEvent {
   updatedAt: string;
 }
 
+interface OrderItem {
+  productName: string;
+  quantity: number;
+  productImage: string | null;
+}
+
 interface TrackingResult {
   id: number;
   salesOrderNumber: string;
@@ -54,11 +60,12 @@ interface TrackingResult {
   courierCompany: string | null;
   courierStatus: string | null;
   trackingId: string;
-  totalAmount: number;
   createdAt: string;
   shippedAt: string | null;
   deliveredAt: string | null;
   shippingAddress: string | null;
+  customerPhone: string | null;
+  items: OrderItem[];
   trackingHistory: TrackingEvent[];
 }
 
@@ -186,9 +193,6 @@ export default function TrackOrder() {
                     </p>
                   )}
                 </div>
-                <div className="bg-green-500 text-white px-6 py-2 rounded-full font-bold text-lg">
-                  ৳{Number(result.totalAmount || 0).toFixed(0)}
-                </div>
               </div>
             </div>
 
@@ -245,6 +249,21 @@ export default function TrackOrder() {
               </div>
             </div>
 
+            {/* Customer Phone */}
+            {result.customerPhone && (
+              <div className="px-6 py-4 border-b border-gray-100">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
+                    <span className="text-blue-500 font-bold">📞</span>
+                  </div>
+                  <div>
+                    <div className="text-sm text-gray-500">Customer Phone</div>
+                    <div className="font-semibold text-gray-800">{result.customerPhone}</div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Location Info */}
             {result.shippingAddress && (
               <div className="px-6 py-4 border-b border-gray-100">
@@ -258,6 +277,34 @@ export default function TrackOrder() {
                       {result.shippingAddress}
                     </div>
                   </div>
+                </div>
+              </div>
+            )}
+
+            {/* Products List */}
+            {result.items && result.items.length > 0 && (
+              <div className="px-6 py-4 border-b border-gray-100">
+                <h3 className="text-lg font-semibold text-gray-800 mb-3">Products</h3>
+                <div className="space-y-3">
+                  {result.items.map((item, idx) => (
+                    <div key={idx} className="flex items-center gap-3">
+                      {item.productImage ? (
+                        <img
+                          src={item.productImage}
+                          alt={item.productName}
+                          className="w-12 h-12 rounded-lg object-cover border"
+                        />
+                      ) : (
+                        <div className="w-12 h-12 rounded-lg bg-gray-100 flex items-center justify-center border">
+                          <FaBoxOpen className="text-gray-400" />
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium text-gray-800 truncate">{item.productName}</div>
+                        <div className="text-sm text-gray-500">Qty: {item.quantity}</div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             )}

@@ -181,7 +181,7 @@ export default function Pagination({
         </button>
 
         {/* Go to page input */}
-        {showGoToPage && totalPages > 5 && (
+        {showGoToPage && (
           <div className="flex items-center gap-1 ml-2">
             <span className="text-sm text-gray-500">Go to</span>
             <input
