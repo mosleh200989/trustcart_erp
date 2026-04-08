@@ -39,10 +39,10 @@ export class SalesController {
       this.salesService.getOrderItems(String(order.id)),
     ]);
 
-    // Mask customer phone: show only last 3 digits
+    // Mask customer phone: show only last 3 digits with a clean format
     const rawPhone = (order as any).customerPhone || '';
     const maskedPhone = rawPhone.length > 3
-      ? '*'.repeat(rawPhone.length - 3) + rawPhone.slice(-3)
+      ? '****' + rawPhone.slice(-3)
       : rawPhone;
 
     return {
