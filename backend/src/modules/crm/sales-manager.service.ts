@@ -53,11 +53,12 @@ export class SalesManagerService {
     const totalConverted = await this.customerRepository.count({ where: { lifecycleStage: 'customer' } });
     const conversionRate = totalCustomers > 0 ? Math.round((totalConverted / totalCustomers) * 100) : 0;
 
-    // Unassigned leads (no supervisor assigned)
+    // Unassigned leads (no supervisor assigned, excluding rejected)
     const unassignedLeads = await this.customerRepository
       .createQueryBuilder('c')
       .where('c.lifecycle_stage = :stage', { stage: 'lead' })
       .andWhere('(c.assigned_supervisor_id IS NULL)')
+      .andWhere(`NOT EXISTS (SELECT 1 FROM customer_tiers ct WHERE ct.customer_id = c.id AND ct.tier = 'rejected')`)
       .getCount();
 
     // Escalated leads
@@ -213,6 +214,10 @@ export class SalesManagerService {
       // Only customers who have at least one delivered order
       .andWhere(
         `c.id IN (SELECT so.customer_id FROM sales_orders so WHERE LOWER(so.status::text) = 'delivered')`,
+      )
+      // Exclude rejected customers
+      .andWhere(
+        `NOT EXISTS (SELECT 1 FROM customer_tiers ct2 WHERE ct2.customer_id = c.id AND ct2.tier = 'rejected')`,
       );
 
     // Assignment status filter

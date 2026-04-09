@@ -1504,8 +1504,8 @@ export class CommissionService {
     const limitNum = Number(limit) || 50;
     const offset = (pageNum - 1) * limitNum;
 
-    // Agent resolution expression: prefer creator if sales-executive, else customer's assigned agent
-    const agentExpr = `CASE WHEN cr.slug = 'sales-executive' THEN so.created_by ELSE c.assigned_to END`;
+    // Agent resolution expression: only attribute to creator if they are a sales-executive
+    const agentExpr = `CASE WHEN cr.slug = 'sales-executive' THEN so.created_by ELSE NULL END`;
 
     const conditions: string[] = [];
     const params: any[] = [];
@@ -1568,7 +1568,7 @@ export class CommissionService {
     const total = parseInt(countResult[0]?.total || '0', 10);
 
     // Agent resolution for CTEs (same logic, different alias)
-    const cteAgentExpr = `CASE WHEN cr2.slug = 'sales-executive' THEN so2.created_by ELSE c2.assigned_to END`;
+    const cteAgentExpr = `CASE WHEN cr2.slug = 'sales-executive' THEN so2.created_by ELSE NULL END`;
 
     // Data query — uses CTE to compute per-agent running order position for slab commission lookup
     const dataSql = `
@@ -1627,7 +1627,7 @@ export class CommissionService {
         so.shipping_address,
         CASE
           WHEN cr.slug = 'sales-executive' THEN CONCAT(COALESCE(uc.name, ''), ' ', COALESCE(uc.last_name, ''))
-          ELSE CONCAT(COALESCE(ua.name, ''), ' ', COALESCE(ua.last_name, ''))
+          ELSE NULL
         END as agent_name,
         COALESCE(oe.upsell_count, 0) as upsell_count,
         COALESCE(oe.cross_sell_count, 0) as cross_sell_count,
