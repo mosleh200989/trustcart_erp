@@ -573,25 +573,27 @@ export default function AdminSales() {
       return;
     }
 
-    if (!confirm(`Send ${ids.length} selected order(s) to Pathao?`)) return;
+    if (!confirm(`Send ${ids.length} selected order(s) to Pathao? City/zone will be auto-detected from shipping address. Orders that can't be matched will need manual sending from Order Details.`)) return;
 
-    const results = await Promise.allSettled(
-      ids.map((id) =>
-        apiClient.post(`/order-management/${id}/ship`, {
-          courierCompany: 'Pathao',
-          courierOrderId: '',
-          trackingId: `PATHAO-${id}`,
-        }),
-      ),
-    );
+    let successCount = 0;
+    let failedCount = 0;
+    const failedMessages: string[] = [];
 
-    const successCount = results.filter((r) => r.status === 'fulfilled').length;
-    const failedCount = results.length - successCount;
+    for (const id of ids) {
+      try {
+        await apiClient.post(`/order-management/${id}/pathao/send`, {});
+        successCount++;
+      } catch (e: any) {
+        failedCount++;
+        const msg = e.response?.data?.message || 'Unknown error';
+        failedMessages.push(`#${id}: ${msg}`);
+      }
+    }
 
     if (failedCount === 0) {
       toast.success(`Sent ${successCount} order(s) to Pathao.`);
     } else {
-      toast.warning(`Sent ${successCount} order(s) to Pathao. Failed: ${failedCount}.`);
+      toast.warning(`Sent ${successCount}, Failed ${failedCount}. ${failedMessages.slice(0, 3).join('; ')}`);
     }
 
     setSelectedRowIds([]);
@@ -614,6 +616,23 @@ export default function AdminSales() {
       toast.error(e?.response?.data?.message || 'Failed to sync Steadfast statuses');
     } finally {
       setSyncingSteadfast(false);
+    }
+  };
+
+  const [syncingPathao, setSyncingPathao] = useState(false);
+
+  const syncAllPathao = async () => {
+    if (!confirm('Sync all Pathao order statuses? This may take a while.')) return;
+    setSyncingPathao(true);
+    try {
+      const res = await apiClient.post('/order-management/pathao/sync-all');
+      const data = res.data;
+      toast.success(`Synced ${data.synced} of ${data.total} orders. Failed: ${data.failed}.`);
+      await loadOrders();
+    } catch (e: any) {
+      toast.error(e?.response?.data?.message || 'Failed to sync Pathao statuses');
+    } finally {
+      setSyncingPathao(false);
     }
   };
 
@@ -1074,6 +1093,18 @@ export default function AdminSales() {
               >
                 <FaSync className={syncingSteadfast ? 'animate-spin' : ''} />
                 {syncingSteadfast ? 'Syncing...' : 'Sync Steadfast'}
+              </button>
+            )}
+
+            {hasPermission('sync-steadfast') && (
+              <button
+                type="button"
+                onClick={syncAllPathao}
+                disabled={syncingPathao}
+                className="px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-orange-500 to-orange-600 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:from-orange-600 hover:to-orange-700 transition-all flex items-center gap-1.5"
+              >
+                <FaSync className={syncingPathao ? 'animate-spin' : ''} />
+                {syncingPathao ? 'Syncing...' : 'Sync Pathao'}
               </button>
             )}
 

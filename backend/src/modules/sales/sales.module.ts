@@ -24,6 +24,7 @@ import { CrmModule } from '../crm/crm.module';
 import { InventoryModule } from '../inventory/inventory.module';
 import { LeadManagementModule } from '../lead-management/lead-management.module';
 import { SteadfastWebhookGuard } from '../../common/guards/steadfast-webhook.guard';
+import { PathaoWebhookGuard } from '../../common/guards/pathao-webhook.guard';
 import { CouponCampaign } from './entities/coupon-campaign.entity';
 import { CampaignCustomer } from './entities/campaign-customer.entity';
 import { CouponService } from './coupon.service';
@@ -54,7 +55,7 @@ import { CouponController } from './coupon.controller';
     forwardRef(() => LeadManagementModule),
   ],
   controllers: [SalesController, OrderManagementController, FraudCheckController, CouponController],
-  providers: [SalesService, OrderManagementService, FraudCheckService, CouponService, SteadfastWebhookGuard],
+  providers: [SalesService, OrderManagementService, FraudCheckService, CouponService, SteadfastWebhookGuard, PathaoWebhookGuard],
   exports: [SalesService, OrderManagementService, FraudCheckService, CouponService],
 })
 export class SalesModule {}

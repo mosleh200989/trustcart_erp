@@ -55,6 +55,15 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
   const [showShipModal, setShowShipModal] = useState(false);
   const [courierData, setCourierData] = useState({ courierCompany: '', courierOrderId: '', trackingId: '' });
   
+  // Pathao
+  const [showPathaoModal, setShowPathaoModal] = useState(false);
+  const [pathaoStores, setPathaoStores] = useState<any[]>([]);
+  const [pathaoCities, setPathaoCities] = useState<any[]>([]);
+  const [pathaoZones, setPathaoZones] = useState<any[]>([]);
+  const [pathaoAreas, setPathaoAreas] = useState<any[]>([]);
+  const [pathaoForm, setPathaoForm] = useState({ storeId: 0, recipientCity: 0, recipientZone: 0, recipientArea: 0, itemWeight: 0.5 });
+  const [pathaoLoading, setPathaoLoading] = useState(false);
+
   // Cancel
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
@@ -362,6 +371,68 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
       onUpdate();
     } catch (e: any) {
       toast.error(e.response?.data?.message || 'Failed to send to Steadfast');
+    }
+  };
+
+  const openPathaoModal = async () => {
+    setShowPathaoModal(true);
+    setPathaoLoading(true);
+    try {
+      const [storesRes, citiesRes] = await Promise.all([
+        apiClient.get('/order-management/pathao/stores'),
+        apiClient.get('/order-management/pathao/cities'),
+      ]);
+      setPathaoStores(Array.isArray(storesRes.data) ? storesRes.data : []);
+      setPathaoCities(Array.isArray(citiesRes.data) ? citiesRes.data : []);
+    } catch (e: any) {
+      toast.error(e.response?.data?.message || 'Failed to load Pathao data');
+    } finally {
+      setPathaoLoading(false);
+    }
+  };
+
+  const loadPathaoZones = async (cityId: number) => {
+    setPathaoZones([]);
+    setPathaoAreas([]);
+    setPathaoForm((f) => ({ ...f, recipientCity: cityId, recipientZone: 0, recipientArea: 0 }));
+    if (!cityId) return;
+    try {
+      const res = await apiClient.get(`/order-management/pathao/cities/${cityId}/zones`);
+      setPathaoZones(Array.isArray(res.data) ? res.data : []);
+    } catch {
+      toast.error('Failed to load zones');
+    }
+  };
+
+  const loadPathaoAreas = async (zoneId: number) => {
+    setPathaoAreas([]);
+    setPathaoForm((f) => ({ ...f, recipientZone: zoneId, recipientArea: 0 }));
+    if (!zoneId) return;
+    try {
+      const res = await apiClient.get(`/order-management/pathao/zones/${zoneId}/areas`);
+      setPathaoAreas(Array.isArray(res.data) ? res.data : []);
+    } catch {
+      toast.error('Failed to load areas');
+    }
+  };
+
+  const sendToPathao = async () => {
+    if (!pathaoForm.storeId || !pathaoForm.recipientCity || !pathaoForm.recipientZone) {
+      toast.error('Please select Store, City and Zone');
+      return;
+    }
+    if (!confirm('Send this order to Pathao?')) return;
+    setPathaoLoading(true);
+    try {
+      const res = await apiClient.post(`/order-management/${currentOrderId}/pathao/send`, pathaoForm);
+      toast.success(res.data?.message || 'Sent to Pathao');
+      setShowPathaoModal(false);
+      loadOrderDetails();
+      onUpdate();
+    } catch (e: any) {
+      toast.error(e.response?.data?.message || 'Failed to send to Pathao');
+    } finally {
+      setPathaoLoading(false);
     }
   };
 
@@ -1104,13 +1175,10 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                 Send to Steadfast
               </button>
               <button
-                onClick={() => {
-                  setCourierData({ courierCompany: 'Pathao', courierOrderId: '', trackingId: '' });
-                  setShowShipModal(true);
-                }}
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2"
+                onClick={openPathaoModal}
+                className="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 flex items-center gap-2"
               >
-                Send this pathao
+                Send to Pathao
               </button>
             </>
           )}
@@ -2707,6 +2775,96 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                   Confirm Ship
                 </button>
                 <button onClick={() => setShowShipModal(false)} className="bg-gray-400 text-white px-6 py-2 rounded hover:bg-gray-500">
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Pathao Modal */}
+        {showPathaoModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white p-6 rounded-lg max-w-lg w-full max-h-[80vh] overflow-y-auto">
+              <h3 className="text-xl font-bold mb-4 text-orange-600">Send to Pathao</h3>
+              {pathaoLoading && !pathaoStores.length ? (
+                <p className="text-center text-gray-500 py-4">Loading Pathao data...</p>
+              ) : (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block font-semibold mb-1">Store *</label>
+                    <select
+                      value={pathaoForm.storeId}
+                      onChange={(e) => setPathaoForm({ ...pathaoForm, storeId: Number(e.target.value) })}
+                      className="w-full border p-2 rounded"
+                    >
+                      <option value={0}>Select Store</option>
+                      {pathaoStores.map((s: any) => (
+                        <option key={s.store_id} value={s.store_id}>{s.store_name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block font-semibold mb-1">Recipient City *</label>
+                    <select
+                      value={pathaoForm.recipientCity}
+                      onChange={(e) => loadPathaoZones(Number(e.target.value))}
+                      className="w-full border p-2 rounded"
+                    >
+                      <option value={0}>Select City</option>
+                      {pathaoCities.map((c: any) => (
+                        <option key={c.city_id} value={c.city_id}>{c.city_name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block font-semibold mb-1">Recipient Zone *</label>
+                    <select
+                      value={pathaoForm.recipientZone}
+                      onChange={(e) => loadPathaoAreas(Number(e.target.value))}
+                      className="w-full border p-2 rounded"
+                    >
+                      <option value={0}>Select Zone</option>
+                      {pathaoZones.map((z: any) => (
+                        <option key={z.zone_id} value={z.zone_id}>{z.zone_name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block font-semibold mb-1">Recipient Area</label>
+                    <select
+                      value={pathaoForm.recipientArea}
+                      onChange={(e) => setPathaoForm({ ...pathaoForm, recipientArea: Number(e.target.value) })}
+                      className="w-full border p-2 rounded"
+                    >
+                      <option value={0}>Select Area (Optional)</option>
+                      {pathaoAreas.map((a: any) => (
+                        <option key={a.area_id} value={a.area_id}>{a.area_name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block font-semibold mb-1">Item Weight (kg)</label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      min="0.1"
+                      value={pathaoForm.itemWeight}
+                      onChange={(e) => setPathaoForm({ ...pathaoForm, itemWeight: Number(e.target.value) })}
+                      className="w-full border p-2 rounded"
+                    />
+                  </div>
+                </div>
+              )}
+              <div className="flex gap-3 mt-6">
+                <button
+                  onClick={sendToPathao}
+                  disabled={pathaoLoading}
+                  className="bg-orange-600 text-white px-6 py-2 rounded hover:bg-orange-700 flex-1 disabled:opacity-50"
+                >
+                  {pathaoLoading ? 'Sending...' : 'Confirm Send to Pathao'}
+                </button>
+                <button onClick={() => setShowPathaoModal(false)} className="bg-gray-400 text-white px-6 py-2 rounded hover:bg-gray-500">
                   Cancel
                 </button>
               </div>
