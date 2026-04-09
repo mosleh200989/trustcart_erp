@@ -1896,6 +1896,694 @@ export class OrderManagementService {
     return results;
   }
 
+  // ==================== PATHAO COURIER INTEGRATION ====================
+
+  private readonly pathaoBaseUrl = process.env.PATHAO_BASE_URL || 'https://courier-api-sandbox.pathao.com';
+  private pathaoAccessToken: string | null = null;
+  private pathaoTokenExpiresAt: number = 0;
+
+  /**
+   * Issue or refresh a Pathao access token using client credentials + password grant.
+   */
+  private async getPathaoAccessToken(): Promise<string> {
+    // Return cached token if still valid (with 60s buffer)
+    if (this.pathaoAccessToken && Date.now() < this.pathaoTokenExpiresAt - 60000) {
+      return this.pathaoAccessToken;
+    }
+
+    const clientId = process.env.PATHAO_CLIENT_ID || '';
+    const clientSecret = process.env.PATHAO_CLIENT_SECRET || '';
+    const username = process.env.PATHAO_USERNAME || '';
+    const password = process.env.PATHAO_PASSWORD || '';
+
+    if (!clientId || !clientSecret || !username || !password) {
+      throw new BadRequestException(
+        'Pathao API credentials are not configured. Please set PATHAO_CLIENT_ID, PATHAO_CLIENT_SECRET, PATHAO_USERNAME, PATHAO_PASSWORD in backend/.env',
+      );
+    }
+
+    try {
+      const res = await axios.post(
+        `${this.pathaoBaseUrl}/aladdin/api/v1/issue-token`,
+        {
+          client_id: clientId,
+          client_secret: clientSecret,
+          username,
+          password,
+          grant_type: 'password',
+        },
+        { timeout: 20000 },
+      );
+
+      const { access_token, expires_in } = res.data;
+      if (!access_token) throw new Error('No access_token in response');
+
+      this.pathaoAccessToken = access_token;
+      // expires_in is in seconds
+      this.pathaoTokenExpiresAt = Date.now() + (expires_in || 3600) * 1000;
+
+      return access_token;
+    } catch (e: any) {
+      const msg = e?.response?.data?.message || e?.message || 'Failed to obtain Pathao access token';
+      throw new HttpException(
+        { statusCode: HttpStatus.BAD_GATEWAY, message: `Pathao auth error: ${msg}` },
+        HttpStatus.BAD_GATEWAY,
+      );
+    }
+  }
+
+  private async getPathaoHeaders(): Promise<Record<string, string>> {
+    const token = await this.getPathaoAccessToken();
+    return {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+    };
+  }
+
+  /**
+   * Get Pathao store list for the merchant account.
+   */
+  async getPathaoStores(): Promise<any> {
+    const headers = await this.getPathaoHeaders();
+    const res = await axios.get(`${this.pathaoBaseUrl}/aladdin/api/v1/stores`, {
+      headers,
+      timeout: 20000,
+    });
+    return res.data?.data?.data || res.data?.data || [];
+  }
+
+  /**
+   * Get Pathao city list.
+   */
+  async getPathaoCities(): Promise<any> {
+    const headers = await this.getPathaoHeaders();
+    const res = await axios.get(`${this.pathaoBaseUrl}/aladdin/api/v1/countries/1/city-list`, {
+      headers,
+      timeout: 20000,
+    });
+    return res.data?.data?.data || res.data?.data || [];
+  }
+
+  /**
+   * Get Pathao zone list by city ID.
+   */
+  async getPathaoZones(cityId: number): Promise<any> {
+    const headers = await this.getPathaoHeaders();
+    const res = await axios.get(`${this.pathaoBaseUrl}/aladdin/api/v1/cities/${cityId}/zone-list`, {
+      headers,
+      timeout: 20000,
+    });
+    return res.data?.data?.data || res.data?.data || [];
+  }
+
+  /**
+   * Get Pathao area list by zone ID.
+   */
+  async getPathaoAreas(zoneId: number): Promise<any> {
+    const headers = await this.getPathaoHeaders();
+    const res = await axios.get(`${this.pathaoBaseUrl}/aladdin/api/v1/zones/${zoneId}/area-list`, {
+      headers,
+      timeout: 20000,
+    });
+    return res.data?.data?.data || res.data?.data || [];
+  }
+
+  /**
+   * Calculate Pathao delivery price.
+   */
+  async getPathaoPriceCalculation(data: {
+    store_id: number;
+    item_type: number;
+    delivery_type: number;
+    item_weight: number;
+    recipient_city: number;
+    recipient_zone: number;
+  }): Promise<any> {
+    const headers = await this.getPathaoHeaders();
+    const res = await axios.post(
+      `${this.pathaoBaseUrl}/aladdin/api/v1/merchant/price-plan`,
+      data,
+      { headers, timeout: 20000 },
+    );
+    return res.data?.data || res.data;
+  }
+
+  /**
+   * Send an order to Pathao Courier via API.
+   */
+  /**
+   * Resolve store_id: use provided value, or fetch default/first store from Pathao.
+   */
+  private async resolvePathaoStoreId(storeId?: number): Promise<number> {
+    if (storeId && storeId > 0) return storeId;
+    const stores = await this.getPathaoStores();
+    const defaultStore = stores.find((s: any) => s.is_default_store) || stores[0];
+    if (!defaultStore?.store_id) {
+      throw new BadRequestException('No Pathao store found. Please create a store in your Pathao merchant account.');
+    }
+    return defaultStore.store_id;
+  }
+
+  /**
+   * Extract meaningful tokens from a Bangladeshi address for zone matching.
+   * Strips house/road/flat noise labels WITH their values.
+   * Keeps section/block VALUES (important for zone matching like "Mirpur 10").
+   */
+  private extractAddressTokens(address: string): Set<string> {
+    let cleaned = address.toLowerCase();
+    // Remove house/road/flat labels with their values (noise for zone matching)
+    cleaned = cleaned.replace(/\b(house|road|flat|floor|plot|holding|lane|gate)\s*[:# \-]?\s*\S*/gi, '');
+    // Remove section/block/sector labels but KEEP their values (e.g., "Section: 10" → "10")
+    cleaned = cleaned.replace(/\b(section|block|sector)\s*[:# \-]?\s*/gi, '');
+    return new Set(cleaned.split(/[\s,.\-\/\\:;#()|]+/).filter(Boolean));
+  }
+
+  /**
+   * Smart match a Pathao city from address text.
+   */
+  private async resolvePathaoCityFromAddress(address: string): Promise<{ city_id: number; city_name: string } | null> {
+    const cities = await this.getPathaoCities();
+    if (!cities?.length) return null;
+    const addrLower = address.toLowerCase();
+    for (const c of cities) {
+      const name = String(c.city_name || '').toLowerCase();
+      if (name && addrLower.includes(name)) {
+        return { city_id: c.city_id, city_name: c.city_name };
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Smart match a Pathao zone from address text within a city.
+   * Uses token-set matching: extracts tokens from address (after stripping noise),
+   * then finds the zone whose name tokens are ALL present in the address tokens.
+   * Among full matches, prefers the zone with the most tokens (most specific).
+   */
+  private async resolvePathaoZoneFromAddress(cityId: number, address: string): Promise<{ zone_id: number; zone_name: string } | null> {
+    const zones = await this.getPathaoZones(cityId);
+    if (!zones?.length) return null;
+
+    const addrLower = address.toLowerCase();
+    const addrTokens = this.extractAddressTokens(address);
+
+    let bestMatch: any = null;
+    let bestScore = 0;
+
+    for (const z of zones) {
+      const zoneName = String(z.zone_name || '').toLowerCase().trim();
+      if (!zoneName) continue;
+
+      let score = 0;
+
+      // Strategy 1: Exact zone name found as substring in raw address (highest confidence)
+      if (addrLower.includes(zoneName)) {
+        score = 200 + zoneName.length;
+      }
+
+      // Strategy 2: All zone-name tokens found in cleaned address tokens
+      if (score === 0) {
+        const zoneTokens = zoneName.split(/[\s,.\-\/\\:;#()|]+/).filter(Boolean);
+        if (zoneTokens.length > 0) {
+          const matchCount = zoneTokens.filter(zt => addrTokens.has(zt)).length;
+          if (matchCount === zoneTokens.length) {
+            // Full match — all zone words found. Prefer more specific (more tokens).
+            score = 100 + zoneTokens.length * 10;
+          }
+        }
+      }
+
+      if (score > bestScore) {
+        bestScore = score;
+        bestMatch = z;
+      }
+    }
+
+    if (bestMatch && bestScore >= 100) {
+      return { zone_id: bestMatch.zone_id, zone_name: bestMatch.zone_name };
+    }
+    return null;
+  }
+
+  async sendToPathao(data: {
+    orderId: number;
+    storeId?: number;
+    recipientCity?: number;
+    recipientZone?: number;
+    recipientArea?: number;
+    itemWeight?: number;
+    userId: number;
+    userName: string;
+    ipAddress?: string;
+  }): Promise<any> {
+    const order = await this.salesOrderRepository.findOne({ where: { id: data.orderId } });
+    if (!order) throw new Error('Order not found');
+
+    if (order.courierCompany && String(order.courierCompany).toLowerCase() === 'pathao' && order.trackingId) {
+      return {
+        success: true,
+        message: 'Order already sent to Pathao',
+        courierCompany: order.courierCompany,
+        courierOrderId: order.courierOrderId,
+        trackingId: order.trackingId,
+        status: order.status,
+      };
+    }
+
+    const items = await this.getOrderItems(order.id);
+    const recipientName = (order.customerName ? String(order.customerName).trim() : '') || 'N/A';
+    const recipientPhone = this.normalizeBdPhone(order.customerPhone);
+    const recipientAddress = (order.shippingAddress ? String(order.shippingAddress).trim() : '') || (order.notes ? String(order.notes).trim() : '');
+
+    if (!recipientPhone || recipientPhone.length !== 11) {
+      throw new BadRequestException('Customer phone must be a valid 11 digit number to send to Pathao');
+    }
+    if (!recipientAddress) {
+      throw new BadRequestException('Shipping address is required to send to Pathao');
+    }
+
+    // Auto-resolve store
+    const resolvedStoreId = await this.resolvePathaoStoreId(data.storeId);
+
+    // Auto-resolve city/zone if not provided
+    let resolvedCity = data.recipientCity && data.recipientCity > 0 ? data.recipientCity : 0;
+    let resolvedZone = data.recipientZone && data.recipientZone > 0 ? data.recipientZone : 0;
+
+    if (!resolvedCity) {
+      const matched = await this.resolvePathaoCityFromAddress(recipientAddress);
+      if (!matched) {
+        throw new BadRequestException(
+          `Could not auto-detect city from address "${recipientAddress.slice(0, 80)}…". Please send from Order Details with manual city/zone selection.`,
+        );
+      }
+      resolvedCity = matched.city_id;
+    }
+
+    if (!resolvedZone) {
+      const matched = await this.resolvePathaoZoneFromAddress(resolvedCity, recipientAddress);
+      if (!matched) {
+        throw new BadRequestException(
+          `Could not auto-detect zone from address "${recipientAddress.slice(0, 80)}…". Please send from Order Details with manual city/zone selection.`,
+        );
+      }
+      resolvedZone = matched.zone_id;
+    }
+
+    const codAmount = Math.max(0, Number(order.totalAmount || 0) - Number(order.discountAmount || 0));
+    if (!Number.isFinite(codAmount)) {
+      throw new BadRequestException('Invalid COD amount');
+    }
+
+    const itemDescription = items
+      .slice(0, 20)
+      .map((i) => `${i.displayName || i.customProductName || i.productName} x${Number(i.quantity || 0)}`)
+      .join(', ')
+      .slice(0, 250);
+
+    const itemQuantity = items.reduce((sum, i) => sum + Number(i.quantity || 1), 0);
+
+    const noteParts = [order.courierNotes, order.riderInstructions].filter(Boolean).map((v) => String(v));
+    const specialInstruction = noteParts.join(' | ').slice(0, 250) || '';
+
+    const merchantOrderId = order.salesOrderNumber
+      ? String(order.salesOrderNumber).trim()
+      : String(order.id);
+
+    const payload: any = {
+      store_id: resolvedStoreId,
+      merchant_order_id: merchantOrderId,
+      recipient_name: recipientName.slice(0, 100),
+      recipient_phone: recipientPhone,
+      recipient_address: recipientAddress.slice(0, 500),
+      recipient_city: resolvedCity,
+      recipient_zone: resolvedZone,
+      delivery_type: 48, // Normal delivery (48 hours)
+      item_type: 2, // Parcel
+      item_quantity: itemQuantity,
+      item_weight: data.itemWeight || 0.5,
+      amount_to_collect: codAmount,
+      item_description: itemDescription,
+    };
+
+    if (data.recipientArea) {
+      payload.recipient_area = data.recipientArea;
+    }
+    if (specialInstruction) {
+      payload.special_instruction = specialInstruction;
+    }
+
+    let resData: any;
+    try {
+      const headers = await this.getPathaoHeaders();
+      const res = await axios.post(
+        `${this.pathaoBaseUrl}/aladdin/api/v1/orders`,
+        payload,
+        { headers, timeout: 20000 },
+      );
+      resData = res.data;
+    } catch (e: any) {
+      const extStatus = e?.response?.status;
+      const errData = e?.response?.data;
+      const errors = errData?.errors || undefined;
+
+      if (extStatus === 401 || extStatus === 403) {
+        // Invalidate cached token and retry once
+        this.pathaoAccessToken = null;
+        this.pathaoTokenExpiresAt = 0;
+        throw new HttpException(
+          {
+            statusCode: HttpStatus.BAD_GATEWAY,
+            message: 'Pathao API authentication failed. Please verify Pathao credentials in backend/.env.',
+            errors,
+          },
+          HttpStatus.BAD_GATEWAY,
+        );
+      }
+
+      const msg = errData?.message || e?.message || 'Failed to connect to Pathao';
+      throw new HttpException(
+        { statusCode: HttpStatus.BAD_GATEWAY, message: `Pathao error: ${msg}`, errors },
+        HttpStatus.BAD_GATEWAY,
+      );
+    }
+
+    const consignmentId = resData?.data?.consignment_id ?? null;
+    const deliveryFee = resData?.data?.delivery_fee ?? null;
+    const orderStatus = resData?.data?.order_status ?? null;
+
+    if (!consignmentId) {
+      throw new BadRequestException(resData?.message || 'Pathao did not return consignment_id');
+    }
+
+    order.status = 'sent';
+    order.shippedAt = new Date();
+    order.courierCompany = 'Pathao';
+    order.courierOrderId = String(consignmentId);
+    order.trackingId = String(consignmentId);
+    if (deliveryFee != null) order.deliveryCharge = deliveryFee;
+
+    await this.salesOrderRepository.save(order);
+
+    await this.courierTrackingRepository.save({
+      orderId: order.id,
+      courierCompany: 'Pathao',
+      trackingId: String(consignmentId),
+      status: 'sent',
+      remarks: `Consignment created in Pathao. Delivery fee: ${deliveryFee ?? 'N/A'}`,
+    });
+
+    await this.logActivity({
+      orderId: order.id,
+      actionType: 'shipped',
+      actionDescription: `Order sent to Pathao. Consignment: ${consignmentId}`,
+      newValue: {
+        courierCompany: 'Pathao',
+        courierOrderId: String(consignmentId),
+        trackingId: String(consignmentId),
+        status: 'sent',
+        deliveryFee,
+      },
+      performedBy: data.userId,
+      performedByName: data.userName,
+      ipAddress: data.ipAddress,
+    });
+
+    return {
+      success: true,
+      message: resData?.message || 'Sent to Pathao',
+      courierCompany: 'Pathao',
+      courierOrderId: String(consignmentId),
+      trackingId: String(consignmentId),
+      deliveryFee,
+      status: 'sent',
+      raw: resData,
+    };
+  }
+
+  /**
+   * Get Pathao order status by consignment ID.
+   */
+  async getPathaoOrderStatus(consignmentId: string): Promise<any> {
+    const headers = await this.getPathaoHeaders();
+    const res = await axios.get(
+      `${this.pathaoBaseUrl}/aladdin/api/v1/orders/${encodeURIComponent(consignmentId)}/info`,
+      { headers, timeout: 20000 },
+    );
+    return res.data?.data || res.data;
+  }
+
+  /**
+   * Map Pathao order_status to our internal status.
+   */
+  private mapPathaoStatus(pathaoStatus: string): string {
+    const s = String(pathaoStatus).toLowerCase().replace(/[-_\s]/g, '');
+    const map: Record<string, string> = {
+      pending: 'pending',
+      pickup: 'pickup',
+      pickuppending: 'pickup_pending',
+      atthehub: 'in_transit',
+      intransit: 'in_transit',
+      delivered: 'delivered',
+      return: 'returned',
+      returned: 'returned',
+      onhold: 'on_hold',
+      cancelled: 'cancelled',
+      partialdelivered: 'partial_delivered',
+    };
+    return map[s] || pathaoStatus;
+  }
+
+  /**
+   * Handle Pathao webhook notifications.
+   */
+  async handlePathaoWebhook(
+    dto: import('./dto/pathao-webhook.dto').PathaoWebhookDto,
+    headers: Record<string, any>,
+  ): Promise<{ status: string; message: string }> {
+    const consignmentId = dto.consignment_id;
+    const orderStatus = dto.order_status || dto.order_status_slug;
+
+    this.logger.log(
+      `[Pathao Webhook] Received — CID=${consignmentId ?? '—'} status=${orderStatus ?? '—'} ` +
+        `merchant_order_id=${dto.merchant_order_id ?? '—'} reason=${dto.reason ?? '—'}`,
+    );
+    this.logger.debug(`[Pathao Webhook] Full payload: ${JSON.stringify(dto)}`);
+
+    if (!consignmentId) {
+      this.logger.warn('[Pathao Webhook] Missing consignment_id in payload');
+      return { status: 'error', message: 'Missing consignment_id in webhook payload' };
+    }
+
+    // Find the order by courier order ID (consignment_id)
+    const order = await this.salesOrderRepository.findOne({
+      where: {
+        courierCompany: 'Pathao',
+        courierOrderId: String(consignmentId),
+      },
+    });
+
+    if (!order) {
+      // Try by tracking_id
+      const orderByTracking = await this.salesOrderRepository.findOne({
+        where: {
+          courierCompany: 'Pathao',
+          trackingId: String(consignmentId),
+        },
+      });
+
+      if (!orderByTracking) {
+        const msg = `Order not found for Pathao consignment ${consignmentId}`;
+        this.logger.warn(`[Pathao Webhook] ${msg}`);
+        return { status: 'error', message: msg };
+      }
+
+      return this.processPathaoStatusUpdate(orderByTracking, dto);
+    }
+
+    return this.processPathaoStatusUpdate(order, dto);
+  }
+
+  private async processPathaoStatusUpdate(
+    order: SalesOrder,
+    dto: import('./dto/pathao-webhook.dto').PathaoWebhookDto,
+  ): Promise<{ status: string; message: string }> {
+    const rawStatus = dto.order_status || dto.order_status_slug;
+    if (!rawStatus) {
+      return { status: 'error', message: 'No status in webhook payload' };
+    }
+
+    const newStatus = this.mapPathaoStatus(rawStatus);
+
+    // Update financial fields
+    if (dto.cod_amount != null) order.codAmount = dto.cod_amount;
+    if (dto.delivery_fee != null) order.deliveryCharge = dto.delivery_fee;
+
+    // Check packed + sticker conditions
+    const isPacked = order.isPacked === true;
+    const stickerPrinted = (order as any).stickerPrinted === true;
+
+    if (!isPacked || !stickerPrinted) {
+      await this.salesOrderRepository.save(order);
+      this.logger.log(
+        `[Pathao Webhook] Order #${order.id} not ready (packed=${isPacked}, stickerPrinted=${stickerPrinted}) — status stays '${order.status}'`,
+      );
+
+      await this.courierTrackingRepository.save({
+        orderId: order.id,
+        courierCompany: 'Pathao',
+        trackingId: order.trackingId,
+        status: newStatus,
+        codAmount: dto.cod_amount ?? null,
+        deliveryCharge: dto.delivery_fee ?? null,
+        consignmentId: dto.consignment_id != null ? String(dto.consignment_id) : null,
+        rawPayload: dto,
+        remarks: `Pathao webhook: status=${newStatus} (NOT applied — packed=${isPacked}, stickerPrinted=${stickerPrinted})`,
+      });
+
+      return { status: 'success', message: 'Order not ready for status update, financial fields updated' };
+    }
+
+    const prevStatus = order.status;
+    const statusChanged = String(prevStatus || '').trim() !== newStatus.trim();
+
+    if (!statusChanged) {
+      await this.salesOrderRepository.save(order);
+      return { status: 'success', message: 'Status unchanged, financial fields updated' };
+    }
+
+    order.status = newStatus;
+
+    const becameDelivered = this.isDeliveredStatus(newStatus) && prevStatus !== 'delivered';
+    const becameCancelled = newStatus === 'cancelled' && prevStatus !== 'cancelled';
+
+    if (becameDelivered) {
+      order.deliveredAt = new Date();
+    }
+
+    if (becameCancelled) {
+      order.cancelReason = order.cancelReason || `Cancelled by courier (Pathao)${dto.reason ? ': ' + dto.reason : ''}`;
+      order.cancelledAt = new Date();
+    }
+
+    const saved = await this.salesOrderRepository.save(order);
+
+    // Post-delivery side effects (loyalty, customer lifecycle, etc.)
+    if (becameDelivered) {
+      try {
+        const custId = await this.customersService.ensureCustomerForDeliveredOrder({
+          customerId: saved.customerId,
+          customerPhone: saved.customerPhone,
+          customerName: saved.customerName,
+          customerEmail: saved.customerEmail,
+          orderSource: (saved as any).orderSource,
+        });
+        if (custId && !saved.customerId) {
+          await this.salesOrderRepository.update(saved.id, { customerId: custId });
+        }
+      } catch {
+        // never block courier updates
+      }
+
+      try {
+        await this.loyaltyService.autoCompleteReferralForDeliveredOrder({
+          orderId: saved.id,
+          customerId: saved.customerId,
+        });
+      } catch {
+        // never block courier updates
+      }
+    }
+
+    // Tracking history
+    await this.courierTrackingRepository.save({
+      orderId: saved.id,
+      courierCompany: 'Pathao',
+      trackingId: saved.trackingId,
+      status: newStatus,
+      codAmount: dto.cod_amount ?? null,
+      deliveryCharge: dto.delivery_fee ?? null,
+      consignmentId: dto.consignment_id != null ? String(dto.consignment_id) : null,
+      rawPayload: dto,
+      remarks: `Pathao webhook: ${prevStatus || 'null'} → ${newStatus}`,
+    });
+
+    // Activity log
+    await this.logActivity({
+      orderId: saved.id,
+      actionType: 'courier_status_webhook',
+      actionDescription: `Pathao webhook: ${prevStatus || 'null'} → ${newStatus}${dto.reason ? ` — "${dto.reason}"` : ''}`,
+      oldValue: { status: prevStatus },
+      newValue: { status: newStatus, codAmount: dto.cod_amount, deliveryFee: dto.delivery_fee },
+      performedBy: undefined,
+      performedByName: 'Pathao Webhook',
+    });
+
+    return { status: 'success', message: `Order #${saved.id} updated: ${prevStatus} → ${newStatus}` };
+  }
+
+  /**
+   * Sync all Pathao orders' statuses by polling their API.
+   */
+  async syncAllPathaoStatuses(): Promise<{
+    total: number;
+    synced: number;
+    failed: number;
+    errors: string[];
+  }> {
+    const orders = await this.salesOrderRepository.find({
+      where: {
+        courierCompany: 'Pathao',
+        status: In(['sent', 'shipped', 'pickup', 'pickup_pending', 'in_transit']),
+      },
+    });
+
+    const results = { total: orders.length, synced: 0, failed: 0, errors: [] as string[] };
+
+    for (const order of orders) {
+      try {
+        const cid = order.courierOrderId || order.trackingId;
+        if (!cid) {
+          results.failed++;
+          results.errors.push(`Order #${order.id}: No consignment ID`);
+          continue;
+        }
+
+        const info = await this.getPathaoOrderStatus(cid);
+        const rawStatus = info?.order_status || info?.order_status_slug;
+        if (!rawStatus) {
+          results.synced++;
+          continue;
+        }
+
+        const newStatus = this.mapPathaoStatus(rawStatus);
+
+        if (String(order.status || '').trim() !== newStatus.trim()) {
+          const isPacked = order.isPacked === true;
+          const stickerPrinted = (order as any).stickerPrinted === true;
+
+          if (isPacked && stickerPrinted) {
+            const prevStatus = order.status;
+            order.status = newStatus;
+
+            if (this.isDeliveredStatus(newStatus) && prevStatus !== 'delivered') {
+              order.deliveredAt = new Date();
+            }
+
+            await this.salesOrderRepository.save(order);
+          }
+        }
+
+        results.synced++;
+      } catch (e: any) {
+        results.failed++;
+        results.errors.push(`Order #${order.id}: ${e.message || 'Unknown error'}`);
+      }
+    }
+
+    return results;
+  }
+
   // ==================== MARK AS PACKED ====================
 
   async markAsPacked(orderId: number, userId: number, userName: string, ipAddress: string) {

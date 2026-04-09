@@ -4,9 +4,11 @@ import { Request, Response } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { SteadfastWebhookGuard } from '../../common/guards/steadfast-webhook.guard';
+import { PathaoWebhookGuard } from '../../common/guards/pathao-webhook.guard';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import { SteadfastWebhookDto } from './dto/steadfast-webhook.dto';
+import { PathaoWebhookDto } from './dto/pathao-webhook.dto';
 
 @Controller('order-management')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -165,7 +167,111 @@ export class OrderManagementController {
       ...userInfo,
     });
   }
+  @Get('pathao/stores')
+  @RequirePermissions('view-sales-orders')
+  async getPathaoStores() {
+    return await this.orderManagementService.getPathaoStores();
+  }
 
+  @Get('pathao/cities')
+  @RequirePermissions('view-sales-orders')
+  async getPathaoCities() {
+    return await this.orderManagementService.getPathaoCities();
+  }
+
+  @Get('pathao/cities/:cityId/zones')
+  @RequirePermissions('view-sales-orders')
+  async getPathaoZones(@Param('cityId') cityId: number) {
+    return await this.orderManagementService.getPathaoZones(cityId);
+  }
+
+  @Get('pathao/zones/:zoneId/areas')
+  @RequirePermissions('view-sales-orders')
+  async getPathaoAreas(@Param('zoneId') zoneId: number) {
+    return await this.orderManagementService.getPathaoAreas(zoneId);
+  }
+
+  @Post('pathao/price-plan')
+  @RequirePermissions('view-sales-orders')
+  async getPathaoPricePlan(@Body() body: {
+    store_id: number;
+    item_type: number;
+    delivery_type: number;
+    item_weight: number;
+    recipient_city: number;
+    recipient_zone: number;
+  }) {
+    return await this.orderManagementService.getPathaoPriceCalculation(body);
+  }
+
+  @Post('pathao/sync-all')
+  @RequirePermissions('sync-steadfast')
+  async syncAllPathaoStatuses() {
+    return await this.orderManagementService.syncAllPathaoStatuses();
+  }
+
+  /**
+   * Pathao webhook receiver.
+   * Public endpoint — Pathao requires:
+   *  - HTTP 202 response
+   *  - X-Pathao-Merchant-Webhook-Integration-Secret header
+   */
+  @Public()
+  @Post('webhook/pathao')
+  @HttpCode(202)
+  @UsePipes(new ValidationPipe({ transform: true, whitelist: true, forbidNonWhitelisted: false }))
+  async pathaoWebhook(
+    @Body() dto: PathaoWebhookDto,
+    @Headers() headers: Record<string, string>,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const integrationSecret = process.env.PATHAO_WEBHOOK_INTEGRATION_SECRET || '';
+    if (integrationSecret) {
+      res.setHeader('X-Pathao-Merchant-Webhook-Integration-Secret', integrationSecret);
+    }
+    return await this.orderManagementService.handlePathaoWebhook(dto, headers);
+  }
+
+  /**
+   * GET health-check for the Pathao webhook endpoint.
+   * Public so Pathao can verify the URL is live during registration.
+   * Returns HTTP 202 with the integration secret header.
+   */
+  @Public()
+  @Get('webhook/pathao')
+  @HttpCode(202)
+  async pathaoWebhookHealth(@Res({ passthrough: true }) res: Response) {
+    const integrationSecret = process.env.PATHAO_WEBHOOK_INTEGRATION_SECRET || '';
+    if (integrationSecret) {
+      res.setHeader('X-Pathao-Merchant-Webhook-Integration-Secret', integrationSecret);
+    }
+    return {
+      status: 'ok',
+      webhook: 'pathao',
+      timestamp: new Date().toISOString(),
+    };
+  }
+
+  /**
+   * Admin endpoint to view Pathao webhook configuration.
+   */
+  @Get('pathao/webhook-info')
+  @RequirePermissions('edit-sales-orders')
+  async pathaoWebhookInfo() {
+    const secret = process.env.PATHAO_WEBHOOK_SECRET;
+    const webhookUrl = process.env.PATHAO_WEBHOOK_URL || '';
+    const integrationSecret = process.env.PATHAO_WEBHOOK_INTEGRATION_SECRET || '';
+    return {
+      webhookUrl,
+      secured: !!secret,
+      integrationSecretSet: !!integrationSecret,
+      setup: {
+        step1: 'Go to https://merchant.pathao.com/courier/developer-api',
+        step2: `Set Webhook URL to: ${webhookUrl}`,
+        step3: 'Save — Pathao will verify the URL automatically',
+      },
+    };
+  }
   // ==================== ORDER STATUS ====================
 
   @Post(':orderId/approve')
@@ -485,5 +591,28 @@ export class OrderManagementController {
   @RequirePermissions('sync-steadfast')
   async syncAllSteadfastStatuses() {
     return await this.orderManagementService.syncAllSteadfastStatuses();
+  }
+
+  // ==================== PATHAO COURIER ====================
+
+  @Post(':orderId/pathao/send')
+  @RequirePermissions('edit-sales-orders')
+  async sendToPathao(
+    @Param('orderId') orderId: number,
+    @Body() body: {
+      storeId?: number;
+      recipientCity?: number;
+      recipientZone?: number;
+      recipientArea?: number;
+      itemWeight?: number;
+    },
+    @Req() req: Request,
+  ) {
+    const userInfo = this.getUserInfo(req);
+    return await this.orderManagementService.sendToPathao({
+      orderId,
+      ...body,
+      ...userInfo,
+    });
   }
 }
