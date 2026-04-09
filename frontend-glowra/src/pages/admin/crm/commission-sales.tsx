@@ -35,6 +35,9 @@ interface CommissionSale {
   approvedAt: string | null;
   paidAt: string | null;
   products: string;
+  upsellCount: number;
+  crossSellCount: number;
+  crossSellAgentName: string;
 }
 
 interface Agent {
@@ -301,7 +304,17 @@ export default function CommissionSalesPage() {
       key: 'agentName',
       label: 'Agent',
       render: (_: any, row: CommissionSale) => (
-        <span className="text-sm">{row.agentName || '-'}</span>
+        <div className="text-sm">
+          <div>{row.agentName || '-'}</div>
+          {row.upsellCount > 0 && (
+            <div className="text-xs text-orange-600 font-medium">+{row.upsellCount} upsell</div>
+          )}
+          {row.crossSellCount > 0 && (
+            <div className="text-xs text-green-600 font-medium">
+              {row.crossSellCount} cross-sell{row.crossSellAgentName ? ` by ${row.crossSellAgentName}` : ''}
+            </div>
+          )}
+        </div>
       ),
     },
   ];
