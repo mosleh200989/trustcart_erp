@@ -28,25 +28,31 @@ export class CrmAutomationController {
     return await this.automationService.getAgentFollowUpTasks(agentId, dateRange, specificDate);
   }
   
+  @UseGuards(JwtAuthGuard)
   @Put('tasks/:id/status')
   async updateTaskStatus(
+    @Request() req: any,
     @Param('id') id: number,
     @Body() body: { status: string; outcome?: string; notes?: string }
   ) {
+    const agentId = Number(req.user?.id || req.user?.userId);
     return await this.automationService.updateCallTaskStatus(
       id,
       body.status as any,
       body.outcome,
-      body.notes
+      body.notes,
+      agentId
     );
   }
 
+  @UseGuards(JwtAuthGuard)
   @Delete('tasks/bulk-clear')
-  async bulkClearTasks(@Query('ids') ids: string) {
+  async bulkClearTasks(@Request() req: any, @Query('ids') ids: string) {
     if (!ids) return { success: false, message: 'No IDs provided' };
     const idArray = ids.split(',').map(id => parseInt(id, 10)).filter(id => !isNaN(id));
     if (idArray.length === 0) return { success: false, message: 'No valid IDs provided' };
-    return await this.automationService.bulkDeleteTasks(idArray);
+    const agentId = Number(req.user?.id || req.user?.userId);
+    return await this.automationService.bulkDeleteTasks(idArray, agentId);
   }
   
   @Put('tasks/:id/assign')
@@ -54,10 +60,11 @@ export class CrmAutomationController {
     return await this.automationService.assignCallTask(id, body.agentId);
   }
   
-  @Post('tasks/generate')
-  async generateDailyTasks() {
-    return await this.automationService.generateDailyCallTasks();
-  }
+  // Auto-generation of tasks is disabled — follow-ups must be created manually by Sales Executives
+  // @Post('tasks/generate')
+  // async generateDailyTasks() {
+  //   return await this.automationService.generateDailyCallTasks();
+  // }
 
   @UseGuards(JwtAuthGuard)
   @Post('tasks')
