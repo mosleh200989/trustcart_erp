@@ -1562,15 +1562,31 @@ export class CommissionService {
     const countResult = await this.dataSource.query(countSql, params);
     const total = parseInt(countResult[0]?.total || '0', 10);
 
-    // Data query
+    // Data query — uses CTE to compute per-agent running order position for slab commission lookup
     const dataSql = `
+      WITH agent_order_positions AS (
+        SELECT
+          so2.id as order_id,
+          COALESCE(c2.assigned_to, CASE WHEN cr2.slug = 'sales-executive' THEN so2.created_by END) as effective_agent_id,
+          ROW_NUMBER() OVER (
+            PARTITION BY COALESCE(c2.assigned_to, CASE WHEN cr2.slug = 'sales-executive' THEN so2.created_by END)
+            ORDER BY so2.order_date, so2.id
+          ) as order_position
+        FROM sales_orders so2
+        LEFT JOIN customers c2 ON c2.id = so2.customer_id
+        LEFT JOIN users uc2 ON uc2.id = so2.created_by
+        LEFT JOIN roles cr2 ON cr2.id = uc2.role_id
+        WHERE so2.status = 'delivered'
+          AND so2.created_at >= '2026-03-01'
+          AND (so2.order_source IS NULL OR so2.order_source != 'website')
+      )
       SELECT
         ac.id as commission_id,
         COALESCE(c.assigned_to, CASE WHEN cr.slug = 'sales-executive' THEN so.created_by END) as agent_id,
         so.customer_id,
         ac.order_amount as commission_order_amount,
         ac.commission_rate,
-        ac.commission_amount,
+        COALESCE(cs.commission_amount, 0) as commission_amount,
         ac.commission_type,
         ac.status as commission_status,
         ac.approved_at,
@@ -1594,7 +1610,7 @@ export class CommissionService {
           NULLIF(CONCAT(COALESCE(ua.name, ''), ' ', COALESCE(ua.last_name, '')), ' '),
           CASE WHEN cr.slug = 'sales-executive' THEN CONCAT(COALESCE(uc.name, ''), ' ', COALESCE(uc.last_name, '')) END
         ) as agent_name,
-        (SELECT COUNT(*) FROM order_items oi WHERE oi.order_id = so.id AND oi.is_upsell = true) as upsell_count,
+        GREATEST((SELECT COALESCE(SUM(soi.quantity), 0) FROM sales_order_items soi WHERE soi.sales_order_id = so.id) + (SELECT COALESCE(SUM(oi.quantity), 0) FROM order_items oi WHERE oi.order_id = so.id) - 1, 0) as upsell_count,
         (SELECT COUNT(*) FROM order_items oi WHERE oi.order_id = so.id AND oi.is_cross_sell = true) as cross_sell_count,
         (SELECT CONCAT(COALESCE(u3.name, ''), ' ', COALESCE(u3.last_name, ''))
          FROM order_items oi LEFT JOIN users u3 ON u3.id = oi.added_by
@@ -1622,6 +1638,13 @@ export class CommissionService {
       LEFT JOIN users uc ON uc.id = so.created_by
       LEFT JOIN roles cr ON cr.id = uc.role_id
       LEFT JOIN agent_commissions ac ON ac.sales_order_id = so.id
+      LEFT JOIN agent_order_positions ap ON ap.order_id = so.id
+      LEFT JOIN commission_slabs cs ON cs.role_type = 'agent'
+        AND cs.slab_type = 'order'
+        AND cs.agent_tier = 'silver'
+        AND cs.is_active = true
+        AND cs.min_order_count <= ap.order_position
+        AND (cs.max_order_count IS NULL OR cs.max_order_count > ap.order_position)
       WHERE 1=1 ${whereClause}
       ORDER BY so.order_date DESC, so.id DESC
       LIMIT $${paramIdx} OFFSET $${paramIdx + 1}
