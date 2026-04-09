@@ -32,6 +32,8 @@ interface CommissionSale {
   commissionAmount: number;
   commissionType: string;
   commissionStatus: string;
+  commissionPaidAt: string | null;
+  commissionTrxId: string | null;
   approvedAt: string | null;
   paidAt: string | null;
   products: string;
@@ -168,7 +170,7 @@ export default function CommissionSalesPage() {
 
   useEffect(() => {
     loadSales(currentPage, itemsPerPage);
-  }, [currentPage, itemsPerPage, agentFilter]);
+  }, [currentPage, itemsPerPage, statusFilter, agentFilter, commissionStatusFilter, monthFilter, startDate, endDate]);
 
   // Clear selection when navigating to a different page
   useEffect(() => {
@@ -301,6 +303,28 @@ export default function CommissionSalesPage() {
       },
     },
     {
+      key: 'commissionStatus',
+      label: 'Commission Status',
+      render: (_: any, row: CommissionSale) => {
+        const isPaid = row.commissionStatus === 'paid';
+        return (
+          <div className="text-sm">
+            <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold ${isPaid ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
+              {isPaid ? 'Paid' : 'Pending'}
+            </span>
+            {isPaid && row.commissionPaidAt && (
+              <div className="text-[10px] text-gray-500 mt-0.5">
+                {new Date(row.commissionPaidAt).toLocaleDateString('en-CA', { timeZone: 'Asia/Dhaka' })}
+              </div>
+            )}
+            {isPaid && row.commissionTrxId && (
+              <div className="text-[10px] text-gray-400 mt-0.5">Trx: {row.commissionTrxId}</div>
+            )}
+          </div>
+        );
+      },
+    },
+    {
       key: 'agentName',
       label: 'Agent',
       render: (_: any, row: CommissionSale) => (
@@ -373,9 +397,7 @@ export default function CommissionSalesPage() {
               >
                 <option value="">All</option>
                 <option value="pending">Pending</option>
-                <option value="approved">Approved</option>
                 <option value="paid">Paid</option>
-                <option value="cancelled">Cancelled</option>
               </select>
             </div>
 
