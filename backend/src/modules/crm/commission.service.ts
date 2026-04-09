@@ -665,7 +665,7 @@ export class CommissionService {
       ) product_qty ON product_qty.order_id = so.id
       WHERE so.created_by = $1
         AND so.order_source IN ('admin_panel', 'agent_dashboard')
-        AND so.status != 'cancelled'
+        AND so.status = 'delivered'
         AND DATE(so.created_at AT TIME ZONE 'Asia/Dhaka') BETWEEN $2 AND $3
       GROUP BY DATE(so.created_at AT TIME ZONE 'Asia/Dhaka')
       ORDER BY order_date ASC
@@ -842,7 +842,7 @@ export class CommissionService {
         FROM sales_orders so
         WHERE so.created_by IS NOT NULL
           AND so.order_source IN ('admin_panel', 'agent_dashboard')
-          AND so.status != 'cancelled'
+          AND so.status = 'delivered'
           AND DATE(so.created_at AT TIME ZONE 'Asia/Dhaka') BETWEEN '${monthStart}' AND '${monthEnd}'
         GROUP BY so.created_by
       ) order_stats ON order_stats.agent_id = u.id
@@ -853,7 +853,7 @@ export class CommissionService {
           INNER JOIN sales_orders so ON so.id = soi.sales_order_id
           WHERE so.created_by IS NOT NULL
             AND so.order_source IN ('admin_panel', 'agent_dashboard')
-            AND so.status != 'cancelled'
+            AND so.status = 'delivered'
             AND DATE(so.created_at AT TIME ZONE 'Asia/Dhaka') BETWEEN '${monthStart}' AND '${monthEnd}'
           GROUP BY so.created_by
           UNION ALL
@@ -862,7 +862,7 @@ export class CommissionService {
           INNER JOIN sales_orders so ON so.id = oi.order_id
           WHERE so.created_by IS NOT NULL
             AND so.order_source IN ('admin_panel', 'agent_dashboard')
-            AND so.status != 'cancelled'
+            AND so.status = 'delivered'
             AND DATE(so.created_at AT TIME ZONE 'Asia/Dhaka') BETWEEN '${monthStart}' AND '${monthEnd}'
           GROUP BY so.created_by
         ) combined GROUP BY agent_id
@@ -995,7 +995,7 @@ export class CommissionService {
         INNER JOIN users au ON au.id = so.created_by
         WHERE au.team_leader_id IS NOT NULL
           AND so.order_source IN ('admin_panel', 'agent_dashboard')
-          AND so.status != 'cancelled'
+          AND so.status = 'delivered'
           AND DATE(so.created_at AT TIME ZONE 'Asia/Dhaka') BETWEEN '${monthStart}' AND '${monthEnd}'
         GROUP BY au.team_leader_id
       ) order_stats ON order_stats.tl_id = u.id
@@ -1076,7 +1076,7 @@ export class CommissionService {
       INNER JOIN users au ON au.id = so.created_by
       WHERE au.team_leader_id = $1
         AND so.order_source IN ('admin_panel', 'agent_dashboard')
-        AND so.status != 'cancelled'
+        AND so.status = 'delivered'
         AND DATE(so.created_at AT TIME ZONE 'Asia/Dhaka') BETWEEN $2 AND $3
       GROUP BY DATE(so.created_at AT TIME ZONE 'Asia/Dhaka')
       ORDER BY order_date ASC
@@ -1513,7 +1513,7 @@ export class CommissionService {
       params.push(status);
     }
     if (agentId) {
-      conditions.push(`c.assigned_to = $${paramIdx++}`);
+      conditions.push(`COALESCE(c.assigned_to, CASE WHEN cr.slug = 'sales-executive' THEN so.created_by END) = $${paramIdx++}`);
       params.push(Number(agentId));
     }
     if (commissionStatus) {
@@ -1541,8 +1541,8 @@ export class CommissionService {
     // Always exclude website orders
     conditions.push(`(so.order_source IS NULL OR so.order_source != 'website')`);
 
-    // Exclude cancelled orders from commission
-    conditions.push(`so.status != 'cancelled'`);
+    // Only count delivered orders for commission
+    conditions.push(`so.status = 'delivered'`);
 
     // Commission cutoff: only show orders from March 2026 onwards
     conditions.push(`so.created_at >= '2026-03-01'`);
@@ -1554,6 +1554,8 @@ export class CommissionService {
       SELECT COUNT(*) as total
       FROM sales_orders so
       LEFT JOIN customers c ON c.id = so.customer_id
+      LEFT JOIN users uc ON uc.id = so.created_by
+      LEFT JOIN roles cr ON cr.id = uc.role_id
       LEFT JOIN agent_commissions ac ON ac.sales_order_id = so.id
       WHERE 1=1 ${whereClause}
     `;
@@ -1564,7 +1566,7 @@ export class CommissionService {
     const dataSql = `
       SELECT
         ac.id as commission_id,
-        c.assigned_to as agent_id,
+        COALESCE(c.assigned_to, CASE WHEN cr.slug = 'sales-executive' THEN so.created_by END) as agent_id,
         so.customer_id,
         ac.order_amount as commission_order_amount,
         ac.commission_rate,
@@ -1588,7 +1590,15 @@ export class CommissionService {
         so.customer_name,
         so.customer_phone,
         so.shipping_address,
-        CONCAT(COALESCE(u.name, ''), ' ', COALESCE(u.last_name, '')) as agent_name,
+        COALESCE(
+          NULLIF(CONCAT(COALESCE(ua.name, ''), ' ', COALESCE(ua.last_name, '')), ' '),
+          CASE WHEN cr.slug = 'sales-executive' THEN CONCAT(COALESCE(uc.name, ''), ' ', COALESCE(uc.last_name, '')) END
+        ) as agent_name,
+        (SELECT COUNT(*) FROM order_items oi WHERE oi.order_id = so.id AND oi.is_upsell = true) as upsell_count,
+        (SELECT COUNT(*) FROM order_items oi WHERE oi.order_id = so.id AND oi.is_cross_sell = true) as cross_sell_count,
+        (SELECT CONCAT(COALESCE(u3.name, ''), ' ', COALESCE(u3.last_name, ''))
+         FROM order_items oi LEFT JOIN users u3 ON u3.id = oi.added_by
+         WHERE oi.order_id = so.id AND oi.is_cross_sell = true LIMIT 1) as cross_sell_agent_name,
         (
           SELECT STRING_AGG(
             REGEXP_REPLACE(COALESCE(sub.pname, ''), '\s*\([0-9]+(\.[0-9]+)?\)\s*$', '') || '|||' || CAST(sub.qty AS TEXT),
@@ -1608,7 +1618,9 @@ export class CommissionService {
         ) as products
       FROM sales_orders so
       LEFT JOIN customers c ON c.id = so.customer_id
-      LEFT JOIN users u ON u.id = c.assigned_to
+      LEFT JOIN users ua ON ua.id = c.assigned_to
+      LEFT JOIN users uc ON uc.id = so.created_by
+      LEFT JOIN roles cr ON cr.id = uc.role_id
       LEFT JOIN agent_commissions ac ON ac.sales_order_id = so.id
       WHERE 1=1 ${whereClause}
       ORDER BY so.order_date DESC, so.id DESC
@@ -1654,6 +1666,9 @@ export class CommissionService {
         approvedAt: r.approved_at,
         paidAt: r.paid_at,
         products: r.products || '',
+        upsellCount: parseInt(r.upsell_count || '0', 10),
+        crossSellCount: parseInt(r.cross_sell_count || '0', 10),
+        crossSellAgentName: (r.cross_sell_agent_name || '').trim(),
       })),
       total,
       agents: agents.map((a: any) => ({ id: a.id, name: (a.name || '').trim() })),

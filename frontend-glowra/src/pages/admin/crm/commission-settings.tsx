@@ -65,14 +65,24 @@ export default function CommissionSettingsPage() {
       };
 
       const tlSlabsRaw = data.teamLeader || [];
-      if (tlSlabsRaw.length === 0) {
-        setTeamLeaderAmount('');
-      } else {
-        setTeamLeaderAmount(String(Number(tlSlabsRaw[0].commissionAmount)));
-      }
+      // Separate global rate (silver/order slab) from website_sale slabs
+      const globalRateSlab = tlSlabsRaw.find((s: any) => s.agentTier !== 'website_sale');
+      setTeamLeaderAmount(globalRateSlab ? String(Number(globalRateSlab.commissionAmount)) : '');
+
+      // Load website_sale slabs for team leader
+      const tlWebsiteSlabs = tlSlabsRaw.filter((s: any) => s.agentTier === 'website_sale');
+      const mappedTlSlabs: SlabRow[] = tlWebsiteSlabs.length > 0
+        ? tlWebsiteSlabs.map((s: any) => ({
+            agentTier: s.agentTier,
+            slabType: s.slabType || 'order',
+            minOrderCount: s.minOrderCount !== undefined && s.minOrderCount !== null ? String(Number(s.minOrderCount)) : '0',
+            maxOrderCount: s.maxOrderCount !== null && s.maxOrderCount !== undefined ? String(Number(s.maxOrderCount)) : '',
+            commissionAmount: s.commissionAmount !== undefined && s.commissionAmount !== null ? String(Number(s.commissionAmount)) : '0',
+          }))
+        : SLAB_TYPES.map(st => emptySlabRow('website_sale', st.value));
 
       setAgentSlabs(mapSlabs(data.agent));
-      setTeamLeaderSlabs(mapSlabs(data.teamLeader));
+      setTeamLeaderSlabs(mappedTlSlabs);
     } catch (error) {
       console.error('Failed to load slabs:', error);
       toast.error('Failed to load commission settings');
@@ -124,17 +134,40 @@ export default function CommissionSettingsPage() {
         toast.error('Commission must be a valid non-negative number');
         return;
       }
+
+      // Validate website_sale slabs for team leader
+      const wsSlabs = teamLeaderSlabs.filter(s => s.agentTier === 'website_sale' && s.minOrderCount !== '' && s.commissionAmount !== '');
+      for (const slab of wsSlabs) {
+        const min = Number(slab.minOrderCount);
+        const max = slab.maxOrderCount ? Number(slab.maxOrderCount) : null;
+        const c = Number(slab.commissionAmount);
+        if (isNaN(min) || min < 0) { toast.error('Min count must be a valid non-negative number'); return; }
+        if (max !== null && (isNaN(max) || max <= min)) { toast.error('Max count must be greater than min'); return; }
+        if (isNaN(c) || c < 0) { toast.error('Commission must be a valid non-negative number'); return; }
+      }
       
       try {
         setSaving(true);
-        await apiClient.post(`/crm/commissions/slabs/${activeTab}`, {
-          slabs: [{
-            agentTier: 'silver', // Default dummy tier since they don't use it
+        const allSlabs = [
+          // Global rate (stored as silver/order slab)
+          {
+            agentTier: 'silver',
             slabType: 'order',
             minOrderCount: 0,
             maxOrderCount: null,
             commissionAmount: comm,
-          }],
+          },
+          // Website sale slabs
+          ...wsSlabs.map(s => ({
+            agentTier: s.agentTier,
+            slabType: s.slabType,
+            minOrderCount: Number(s.minOrderCount),
+            maxOrderCount: s.maxOrderCount ? Number(s.maxOrderCount) : null,
+            commissionAmount: Number(s.commissionAmount),
+          })),
+        ];
+        await apiClient.post(`/crm/commissions/slabs/${activeTab}`, {
+          slabs: allSlabs,
         });
         toast.success(`Team Leader commission saved successfully`);
         loadSlabs();
@@ -348,25 +381,38 @@ export default function CommissionSettingsPage() {
                   </div>
                 </>
               ) : (
-                <div className="max-w-md">
-                  <div className="mb-6 p-4 bg-gray-50 border border-gray-200 rounded-lg">
-                    <h3 className="text-lg font-semibold text-gray-800 mb-2">Team Leader Global Commission</h3>
-                    <p className="text-sm text-gray-600 mb-4">
-                      Set the fixed amount a Team Leader earns for <strong>every sale</strong> made by an agent assigned under them.
-                    </p>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Commission per sale (৳)
-                      </label>
-                      <input 
-                        type="number" 
-                        min="0"
-                        step="1"
-                        value={teamLeaderAmount}
-                        onChange={(e) => setTeamLeaderAmount(e.target.value)}
-                        placeholder="e.g. 50"
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
+                <div>
+                  <div className="max-w-md mb-8">
+                    <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg">
+                      <h3 className="text-lg font-semibold text-gray-800 mb-2">Team Leader Global Commission</h3>
+                      <p className="text-sm text-gray-600 mb-4">
+                        Set the fixed amount a Team Leader earns for <strong>every sale</strong> made by an agent assigned under them.
+                      </p>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Commission per sale (৳)
+                        </label>
+                        <input 
+                          type="number" 
+                          min="0"
+                          step="1"
+                          value={teamLeaderAmount}
+                          onChange={(e) => setTeamLeaderAmount(e.target.value)}
+                          placeholder="e.g. 50"
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Website Sale Tier for Team Leader */}
+                  <div className="mb-8">
+                    <div className="flex items-center gap-2 mb-4">
+                      <span className="text-lg">🌐</span>
+                      <h3 className="text-base font-semibold text-gray-800">Website Sale Tier</h3>
+                    </div>
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 pl-2">
+                      {SLAB_TYPES.map(st => renderSlabTable('website_sale', st))}
                     </div>
                   </div>
                 </div>
