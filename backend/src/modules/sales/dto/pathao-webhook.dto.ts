@@ -9,6 +9,10 @@ import { Type } from 'class-transformer';
  */
 export class PathaoWebhookDto {
   @IsOptional()
+  @IsString()
+  event?: string;
+
+  @IsOptional()
   @Type(() => Number)
   @IsNumber()
   consignment_id?: number;

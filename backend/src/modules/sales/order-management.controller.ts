@@ -219,7 +219,6 @@ export class OrderManagementController {
   @Public()
   @Post('webhook/pathao')
   @HttpCode(202)
-  @UsePipes(new ValidationPipe({ transform: true, whitelist: true, forbidNonWhitelisted: false }))
   async pathaoWebhook(
     @Body() dto: PathaoWebhookDto,
     @Headers() headers: Record<string, string>,
@@ -229,6 +228,12 @@ export class OrderManagementController {
     if (integrationSecret) {
       res.setHeader('X-Pathao-Merchant-Webhook-Integration-Secret', integrationSecret);
     }
+
+    // Pathao sends { event: "webhook_integration" } during verification — just acknowledge it
+    if (dto.event === 'webhook_integration') {
+      return { status: 'ok', message: 'Webhook integration verified' };
+    }
+
     return await this.orderManagementService.handlePathaoWebhook(dto, headers);
   }
 
