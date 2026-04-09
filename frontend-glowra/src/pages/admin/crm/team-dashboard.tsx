@@ -110,14 +110,6 @@ const SalesTeamLeaderDashboard = () => {
         <div className="mb-6 flex flex-col gap-4">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
             <h1 className="text-3xl font-bold">Sales Team Leader Dashboard</h1>
-
-            <button
-              onClick={handleGenerateCalls}
-              disabled={generating}
-              className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50 w-full md:w-auto"
-            >
-              {generating ? 'Generating...' : 'Generate Today\'s Auto Calls'}
-            </button>
           </div>
 
           {/* Quick Actions (moved from bottom) */}

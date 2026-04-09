@@ -130,15 +130,19 @@ export class CrmAutomationService {
     }
 
     const sql = `
-      SELECT t.*,
-             COALESCE(c1.name, c2.name) AS customer_name,
-             COALESCE(c1.phone, c2.phone, t.customer_id) AS customer_phone,
-             COALESCE(c1.email, c2.email) AS customer_email
-      FROM crm_call_tasks t
-      LEFT JOIN customers c1 ON c1.phone = t.customer_id
-      LEFT JOIN customers c2 ON c2.id::text = t.customer_id AND c1.id IS NULL
-      WHERE ${conditions.join(' AND ')}
-      ORDER BY t.task_date ASC, t.scheduled_time ASC, t.priority ASC
+      SELECT * FROM (
+        SELECT DISTINCT ON (t.id)
+               t.*,
+               COALESCE(c1.name, c2.name) AS customer_name,
+               COALESCE(c1.phone, c2.phone, t.customer_id) AS customer_phone,
+               COALESCE(c1.email, c2.email) AS customer_email
+        FROM crm_call_tasks t
+        LEFT JOIN customers c1 ON c1.phone = t.customer_id
+        LEFT JOIN customers c2 ON c2.id::text = t.customer_id AND c1.id IS NULL
+        WHERE ${conditions.join(' AND ')}
+        ORDER BY t.id
+      ) sub
+      ORDER BY sub.task_date ASC, sub.scheduled_time ASC, sub.priority ASC
     `;
 
     console.log('[MyFollowups] agentId =', safeAgentId, '| dateRange =', dateRange, '| params =', params);
@@ -155,10 +159,15 @@ export class CrmAutomationService {
     }));
   }
   
-  async updateCallTaskStatus(taskId: number, status: TaskStatus, outcome?: string, notes?: string) {
+  async updateCallTaskStatus(taskId: number, status: TaskStatus, outcome?: string, notes?: string, agentId?: number) {
     const task = await this.callTaskRepo.findOne({ where: { id: taskId } });
     if (!task) {
       throw new Error('Task not found');
+    }
+    
+    // Ownership check: agent can only update their own tasks
+    if (agentId && task.assigned_agent_id !== agentId) {
+      throw new Error('Unauthorized: You can only update your own tasks');
     }
     
     task.status = status;
@@ -174,7 +183,15 @@ export class CrmAutomationService {
     return await this.callTaskRepo.save(task);
   }
 
-  async bulkDeleteTasks(taskIds: number[]) {
+  async bulkDeleteTasks(taskIds: number[], agentId?: number) {
+    if (agentId) {
+      // Only delete tasks owned by this agent
+      const tasks = await this.callTaskRepo.findByIds(taskIds);
+      const ownedIds = tasks.filter(t => t.assigned_agent_id === agentId).map(t => t.id);
+      if (ownedIds.length === 0) return { success: true, count: 0 };
+      await this.callTaskRepo.delete(ownedIds);
+      return { success: true, count: ownedIds.length };
+    }
     await this.callTaskRepo.delete(taskIds);
     return { success: true, count: taskIds.length };
   }
