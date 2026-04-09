@@ -1517,8 +1517,11 @@ export class CommissionService {
       params.push(Number(agentId));
     }
     if (commissionStatus) {
-      conditions.push(`ac.status = $${paramIdx++}`);
-      params.push(commissionStatus);
+      if (commissionStatus === 'paid') {
+        conditions.push(`(so.order_date < '2026-04-01' OR EXISTS (SELECT 1 FROM commission_payment_requests cpr WHERE cpr.agent_id = COALESCE(c.assigned_to, CASE WHEN cr.slug = 'sales-executive' THEN so.created_by END) AND cpr.status = 'paid' AND cpr.paid_at >= so.order_date))`);
+      } else if (commissionStatus === 'pending') {
+        conditions.push(`(so.order_date >= '2026-04-01' AND NOT EXISTS (SELECT 1 FROM commission_payment_requests cpr WHERE cpr.agent_id = COALESCE(c.assigned_to, CASE WHEN cr.slug = 'sales-executive' THEN so.created_by END) AND cpr.status = 'paid' AND cpr.paid_at >= so.order_date))`);
+      }
     }
     if (paymentStatus) {
       conditions.push(`so.payment_status = $${paramIdx++}`);
@@ -1579,6 +1582,23 @@ export class CommissionService {
         WHERE so2.status = 'delivered'
           AND so2.created_at >= '2026-03-01'
           AND (so2.order_source IS NULL OR so2.order_source != 'website')
+      ),
+      order_extras AS (
+        SELECT
+          so3.id as order_id,
+          (SELECT COUNT(*) FROM order_items oi WHERE oi.order_id = so3.id AND oi.is_cross_sell = true) as cross_sell_count,
+          CASE
+            WHEN (SELECT COUNT(*) FROM order_items oi WHERE oi.order_id = so3.id AND oi.is_cross_sell = true) > 0 THEN 0
+            ELSE GREATEST(
+              (SELECT COALESCE(SUM(soi.quantity), 0) FROM sales_order_items soi WHERE soi.sales_order_id = so3.id)
+              + (SELECT COALESCE(SUM(oi.quantity), 0) FROM order_items oi WHERE oi.order_id = so3.id)
+              - 1, 0
+            )
+          END as upsell_count
+        FROM sales_orders so3
+        WHERE so3.status = 'delivered'
+          AND so3.created_at >= '2026-03-01'
+          AND (so3.order_source IS NULL OR so3.order_source != 'website')
       )
       SELECT
         ac.id as commission_id,
@@ -1586,7 +1606,8 @@ export class CommissionService {
         so.customer_id,
         ac.order_amount as commission_order_amount,
         ac.commission_rate,
-        COALESCE(cs.commission_amount, 0) as commission_amount,
+        COALESCE(cs_order.commission_amount, 0)
+          + oe.upsell_count * COALESCE(cs_upsell.commission_amount, 0) as commission_amount,
         ac.commission_type,
         ac.status as commission_status,
         ac.approved_at,
@@ -1610,11 +1631,29 @@ export class CommissionService {
           NULLIF(CONCAT(COALESCE(ua.name, ''), ' ', COALESCE(ua.last_name, '')), ' '),
           CASE WHEN cr.slug = 'sales-executive' THEN CONCAT(COALESCE(uc.name, ''), ' ', COALESCE(uc.last_name, '')) END
         ) as agent_name,
-        GREATEST((SELECT COALESCE(SUM(soi.quantity), 0) FROM sales_order_items soi WHERE soi.sales_order_id = so.id) + (SELECT COALESCE(SUM(oi.quantity), 0) FROM order_items oi WHERE oi.order_id = so.id) - 1, 0) as upsell_count,
-        (SELECT COUNT(*) FROM order_items oi WHERE oi.order_id = so.id AND oi.is_cross_sell = true) as cross_sell_count,
+        oe.upsell_count,
+        oe.cross_sell_count,
         (SELECT CONCAT(COALESCE(u3.name, ''), ' ', COALESCE(u3.last_name, ''))
          FROM order_items oi LEFT JOIN users u3 ON u3.id = oi.added_by
          WHERE oi.order_id = so.id AND oi.is_cross_sell = true LIMIT 1) as cross_sell_agent_name,
+        CASE
+          WHEN so.order_date < '2026-04-01' THEN 'paid'
+          WHEN EXISTS (
+            SELECT 1 FROM commission_payment_requests cpr
+            WHERE cpr.agent_id = COALESCE(c.assigned_to, CASE WHEN cr.slug = 'sales-executive' THEN so.created_by END)
+              AND cpr.status = 'paid'
+              AND cpr.paid_at >= so.order_date
+          ) THEN 'paid'
+          ELSE 'pending'
+        END as calc_commission_status,
+        (SELECT cpr.paid_at FROM commission_payment_requests cpr
+         WHERE cpr.agent_id = COALESCE(c.assigned_to, CASE WHEN cr.slug = 'sales-executive' THEN so.created_by END)
+           AND cpr.status = 'paid' AND cpr.paid_at >= so.order_date
+         ORDER BY cpr.paid_at DESC LIMIT 1) as commission_paid_at,
+        (SELECT cpr.payment_reference FROM commission_payment_requests cpr
+         WHERE cpr.agent_id = COALESCE(c.assigned_to, CASE WHEN cr.slug = 'sales-executive' THEN so.created_by END)
+           AND cpr.status = 'paid' AND cpr.paid_at >= so.order_date
+         ORDER BY cpr.paid_at DESC LIMIT 1) as commission_trx_id,
         (
           SELECT STRING_AGG(
             REGEXP_REPLACE(COALESCE(sub.pname, ''), '\s*\([0-9]+(\.[0-9]+)?\)\s*$', '') || '|||' || CAST(sub.qty AS TEXT),
@@ -1639,12 +1678,19 @@ export class CommissionService {
       LEFT JOIN roles cr ON cr.id = uc.role_id
       LEFT JOIN agent_commissions ac ON ac.sales_order_id = so.id
       LEFT JOIN agent_order_positions ap ON ap.order_id = so.id
-      LEFT JOIN commission_slabs cs ON cs.role_type = 'agent'
-        AND cs.slab_type = 'order'
-        AND cs.agent_tier = 'silver'
-        AND cs.is_active = true
-        AND cs.min_order_count <= ap.order_position
-        AND (cs.max_order_count IS NULL OR cs.max_order_count > ap.order_position)
+      LEFT JOIN order_extras oe ON oe.order_id = so.id
+      LEFT JOIN commission_slabs cs_order ON cs_order.role_type = 'agent'
+        AND cs_order.slab_type = 'order'
+        AND cs_order.agent_tier = 'silver'
+        AND cs_order.is_active = true
+        AND cs_order.min_order_count <= ap.order_position
+        AND (cs_order.max_order_count IS NULL OR cs_order.max_order_count > ap.order_position)
+      LEFT JOIN commission_slabs cs_upsell ON cs_upsell.role_type = 'agent'
+        AND cs_upsell.slab_type = 'upsell'
+        AND cs_upsell.agent_tier = 'silver'
+        AND cs_upsell.is_active = true
+        AND cs_upsell.min_order_count <= ap.order_position
+        AND (cs_upsell.max_order_count IS NULL OR cs_upsell.max_order_count > ap.order_position)
       WHERE 1=1 ${whereClause}
       ORDER BY so.order_date DESC, so.id DESC
       LIMIT $${paramIdx} OFFSET $${paramIdx + 1}
@@ -1685,7 +1731,9 @@ export class CommissionService {
         commissionRate: parseFloat(r.commission_rate || '0'),
         commissionAmount: parseFloat(r.commission_amount || '0'),
         commissionType: r.commission_type || '',
-        commissionStatus: r.commission_status || 'pending',
+        commissionStatus: r.calc_commission_status || 'pending',
+        commissionPaidAt: r.commission_paid_at || null,
+        commissionTrxId: r.commission_trx_id || null,
         approvedAt: r.approved_at,
         paidAt: r.paid_at,
         products: r.products || '',
