@@ -411,6 +411,10 @@ const SECTION_TYPES = [
   { value: 'trust', label: 'Trust / Why Choose Us' },
   { value: 'cta', label: 'Call to Action' },
   { value: 'custom-html', label: 'Custom HTML / Text' },
+  { value: 'event-rules', label: '📋 Event Rules' },
+  { value: 'event-prizes', label: '🏆 Event Prizes' },
+  { value: 'event-how-to', label: '🎯 Event How-To Steps' },
+  { value: 'event-countdown', label: '⏰ Event Countdown' },
 ];
 
 const DEFAULT_SECTION: Omit<LandingPageSection, 'id' | 'order'> = {
@@ -636,7 +640,7 @@ export default function LandingPageEditor() {
       {/* Template Selector */}
       <div className="bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-xl p-4">
         <label className="block text-sm font-semibold text-gray-800 mb-2">Page Template</label>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
           <div
             onClick={() => setForm((prev) => ({ ...prev, template: 'classic' }))}
             className={`cursor-pointer border-2 rounded-xl p-4 transition-all ${
@@ -719,6 +723,27 @@ export default function LandingPageEditor() {
               <div className="h-1 flex-1 rounded bg-gradient-to-r from-red-400 to-orange-400"></div>
               <div className="h-1 flex-1 rounded bg-gradient-to-r from-red-300 to-orange-300"></div>
               <div className="h-1 flex-1 rounded bg-gradient-to-r from-red-200 to-orange-200"></div>
+            </div>
+          </div>
+          <div
+            onClick={() => setForm((prev) => ({ ...prev, template: 'special-event' }))}
+            className={`cursor-pointer border-2 rounded-xl p-4 transition-all ${
+              form.template === 'special-event'
+                ? 'border-red-600 bg-white shadow-md ring-2 ring-red-300'
+                : 'border-gray-200 bg-white hover:border-gray-300'
+            }`}
+          >
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-10 h-10 bg-gradient-to-br from-red-700 to-yellow-500 rounded-lg flex items-center justify-center text-white font-bold text-lg">🔥</div>
+              <div>
+                <div className="font-semibold text-gray-800">Special Event</div>
+                <div className="text-xs text-gray-500">Challenge / Event — dark fiery theme</div>
+              </div>
+            </div>
+            <div className="flex gap-1">
+              <div className="h-1 flex-1 rounded bg-gradient-to-r from-red-600 to-yellow-500"></div>
+              <div className="h-1 flex-1 rounded bg-gradient-to-r from-red-500 to-yellow-400"></div>
+              <div className="h-1 flex-1 rounded bg-gradient-to-r from-red-400 to-yellow-300"></div>
             </div>
           </div>
         </div>
@@ -953,7 +978,7 @@ export default function LandingPageEditor() {
                 </div>
 
                 {/* Content */}
-                {(section.type === 'hero' || section.type === 'cta' || section.type === 'custom-html') && (
+                {(section.type === 'hero' || section.type === 'cta' || section.type === 'custom-html' || section.type === 'event-countdown') && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Content</label>
                     <textarea
@@ -967,7 +992,7 @@ export default function LandingPageEditor() {
                 )}
 
                 {/* Button Text */}
-                {(section.type === 'hero' || section.type === 'cta') && (
+                {(section.type === 'hero' || section.type === 'cta' || section.type === 'event-countdown') && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Button Text</label>
                     <input
@@ -979,8 +1004,8 @@ export default function LandingPageEditor() {
                   </div>
                 )}
 
-                {/* Items (for benefits, trust) */}
-                {(section.type === 'benefits' || section.type === 'trust') && (
+                {/* Items (for benefits, trust, event sections) */}
+                {(section.type === 'benefits' || section.type === 'trust' || section.type === 'event-rules' || section.type === 'event-prizes' || section.type === 'event-how-to') && (
                   <div>
                     <div className="flex items-center justify-between mb-2">
                       <label className="block text-sm font-medium text-gray-700">Items</label>

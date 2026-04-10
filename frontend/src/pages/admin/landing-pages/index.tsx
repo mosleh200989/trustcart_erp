@@ -176,9 +176,13 @@ export default function LandingPagesIndex() {
                           ? 'bg-gradient-to-r from-purple-100 to-pink-100 text-purple-700'
                           : page.template === 'ghee'
                             ? 'bg-gradient-to-r from-amber-100 to-yellow-100 text-amber-700'
-                            : 'bg-blue-50 text-blue-600'
+                            : page.template === 'pickle'
+                              ? 'bg-gradient-to-r from-red-100 to-orange-100 text-red-700'
+                              : page.template === 'special-event'
+                                ? 'bg-gradient-to-r from-red-100 to-yellow-100 text-red-800'
+                                : 'bg-blue-50 text-blue-600'
                       }`}>
-                        {page.template === 'elegant' ? '✨ Elegant' : page.template === 'ghee' ? '🧈 Ghee' : '📄 Classic'}
+                        {page.template === 'elegant' ? '✨ Elegant' : page.template === 'ghee' ? '🧈 Ghee' : page.template === 'pickle' ? '🌶️ Pickle' : page.template === 'special-event' ? '🔥 Special Event' : '📄 Classic'}
                       </span>
                     </td>
                     <td className="px-4 py-3">
