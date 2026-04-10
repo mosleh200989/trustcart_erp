@@ -554,11 +554,17 @@ export default function AgentDashboard() {
     setUpdatingTierId(customerId);
     try {
       await apiClient.put(`/crm/team/leads/${customerId}/tier`, { tier: newTier });
-      toast.success('Customer tier updated successfully!');
-      // Update local state immediately for responsive UI
-      setAssignedCustomers(prev =>
-        prev.map(c => c.id === customerId ? { ...c, customerType: newTier } : c)
-      );
+      if (newTier === 'rejected') {
+        toast.success('Customer rejected and unassigned successfully!');
+        // Remove from the local list since rejected customers are unassigned
+        setAssignedCustomers(prev => prev.filter(c => c.id !== customerId));
+      } else {
+        toast.success('Customer tier updated successfully!');
+        // Update local state immediately for responsive UI
+        setAssignedCustomers(prev =>
+          prev.map(c => c.id === customerId ? { ...c, customerType: newTier } : c)
+        );
+      }
     } catch (error: any) {
       console.error('Failed to update tier:', error);
       toast.error(error?.response?.data?.message || 'Failed to update customer tier');

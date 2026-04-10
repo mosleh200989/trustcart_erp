@@ -8,6 +8,7 @@ import { CallTask, TaskPriority, TaskStatus } from './entities/call-task.entity'
 import { Activity } from './entities/activity.entity';
 import { EngagementHistory } from './entities/engagement-history.entity';
 import { DashboardConfig } from './entities/dashboard-config.entity';
+import { CustomerTier } from '../lead-management/entities/customer-tier.entity';
 
 export enum LeadPriority {
   HOT = 'hot',
@@ -32,6 +33,8 @@ export class CrmTeamService {
     private engagementRepository: Repository<EngagementHistory>,
     @InjectRepository(DashboardConfig)
     private dashboardConfigRepo: Repository<DashboardConfig>,
+    @InjectRepository(CustomerTier)
+    private customerTierRepo: Repository<CustomerTier>,
   ) {}
 
   private getDateString(date?: string | Date): string {
@@ -227,7 +230,41 @@ export class CrmTeamService {
     (customer as any).customerType = normalizedTier;
     customer.updatedAt = new Date();
 
+    // If rejected, unassign the customer from the agent
+    if (normalizedTier === 'rejected') {
+      (customer as any).assigned_to = null;
+      (customer as any).assigned_supervisor_id = null;
+    }
+
     const saved = await this.customerRepository.save(customer);
+
+    // Sync customer_tiers table so rejected-customers page can show it
+    try {
+      const existingTier = await this.customerTierRepo.findOne({ where: { customerId: customerIdNum } });
+      if (existingTier) {
+        await this.customerTierRepo.update(existingTier.id, {
+          tier: normalizedTier,
+          isActive: normalizedTier !== 'rejected',
+          tierAssignedAt: new Date(),
+          tierAssignedById: actorUserId,
+          autoAssigned: false,
+          notes: `Tier changed from '${previousTier}' to '${normalizedTier}' via Agent Dashboard`,
+        });
+      } else {
+        const newTierRecord = this.customerTierRepo.create({
+          customerId: customerIdNum,
+          tier: normalizedTier,
+          isActive: normalizedTier !== 'rejected',
+          tierAssignedAt: new Date(),
+          tierAssignedById: actorUserId,
+          autoAssigned: false,
+          notes: `Tier set to '${normalizedTier}' via Agent Dashboard`,
+        });
+        await this.customerTierRepo.save(newTierRecord);
+      }
+    } catch {
+      // never block tier update if customer_tiers sync fails
+    }
 
     // Audit log
     try {
