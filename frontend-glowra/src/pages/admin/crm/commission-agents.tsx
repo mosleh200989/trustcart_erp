@@ -14,6 +14,7 @@ interface AgentRow {
   totalOrders: number;
   totalProductQty: number;
   upsellQty: number;
+  crossSellQty: number;
   totalAmount: number;
   extraPartial: number;
   totalCommission: number;
@@ -157,7 +158,15 @@ export default function CommissionAgentsPage() {
       label: 'Upsell Qty',
       sortable: true,
       render: (_: any, row: AgentRow) => (
-        <span className="text-sm">{row.upsellQty.toLocaleString()}</span>
+        <span className="text-sm">{(row.upsellQty || 0).toLocaleString()}</span>
+      ),
+    },
+    {
+      key: 'crossSellQty',
+      label: 'Cross-sell Qty',
+      sortable: true,
+      render: (_: any, row: AgentRow) => (
+        <span className="text-sm">{(row.crossSellQty || 0).toLocaleString()}</span>
       ),
     },
     {

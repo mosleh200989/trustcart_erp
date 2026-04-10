@@ -652,7 +652,8 @@ export class CommissionService {
       SELECT
         DATE(so.created_at AT TIME ZONE 'Asia/Dhaka') as order_date,
         COUNT(so.id) as order_count,
-        COALESCE(SUM(product_qty.total_qty), 0) as total_product_qty
+        COALESCE(SUM(product_qty.total_qty), 0) as total_product_qty,
+        COALESCE(SUM(cs_counts.cross_sell_qty), 0) as total_cross_sell_qty
       FROM sales_orders so
       LEFT JOIN (
         SELECT sub.order_id, SUM(sub.qty) as total_qty FROM (
@@ -663,6 +664,12 @@ export class CommissionService {
           FROM order_items oi GROUP BY oi.order_id
         ) sub GROUP BY sub.order_id
       ) product_qty ON product_qty.order_id = so.id
+      LEFT JOIN (
+        SELECT oi.order_id, COUNT(*) as cross_sell_qty
+        FROM order_items oi
+        WHERE oi.is_cross_sell = true
+        GROUP BY oi.order_id
+      ) cs_counts ON cs_counts.order_id = so.id
       WHERE so.created_by = $1
         AND so.order_source IN ('admin_panel', 'agent_dashboard')
         AND so.status = 'delivered'
@@ -682,19 +689,23 @@ export class CommissionService {
     // First pass: accumulate totals for the whole month
     let monthOrderCount = 0;
     let monthUpsellCount = 0;
+    let monthCrossSellCount = 0;
 
     const dailyData = dailyRows.map((row: any) => {
       const orderCount = parseInt(row.order_count || '0', 10);
       const totalProductQty = parseInt(row.total_product_qty || '0', 10);
-      const upsellCount = Math.max(totalProductQty - orderCount, 0);
+      const crossSellCount = parseInt(row.total_cross_sell_qty || '0', 10);
+      const upsellCount = crossSellCount > 0 ? 0 : Math.max(totalProductQty - orderCount, 0);
 
       monthOrderCount += orderCount;
       monthUpsellCount += upsellCount;
+      monthCrossSellCount += crossSellCount;
 
       return {
         date: row.order_date,
         orderCount,
         upsellCount,
+        crossSellCount,
         totalProductQty,
       };
     });
@@ -710,7 +721,7 @@ export class CommissionService {
 
     const orderRate = findSlabRate('order', monthOrderCount);
     const upsellRate = findSlabRate('upsell', monthUpsellCount);
-    const crossSellRate = findSlabRate('cross_sell', 0); // cross-sell to be tracked separately later
+    const crossSellRate = findSlabRate('cross_sell', monthCrossSellCount);
 
     // Build breakdown rows with daily commission
     const breakdown = dailyData.map((d: any) => ({
@@ -721,10 +732,10 @@ export class CommissionService {
       upsellCount: d.upsellCount,
       upsellRate,
       upsellCommission: d.upsellCount * upsellRate,
-      crossSellCount: 0,
+      crossSellCount: d.crossSellCount,
       crossSellRate,
-      crossSellCommission: 0,
-      dailyTotal: (d.orderCount * orderRate) + (d.upsellCount * upsellRate),
+      crossSellCommission: d.crossSellCount * crossSellRate,
+      dailyTotal: (d.orderCount * orderRate) + (d.upsellCount * upsellRate) + (d.crossSellCount * crossSellRate),
     }));
 
     const totalOrderCommission = breakdown.reduce((sum: number, b: any) => sum + b.orderCommission, 0);
@@ -752,7 +763,7 @@ export class CommissionService {
       summary: {
         totalOrders: monthOrderCount,
         totalUpsells: monthUpsellCount,
-        totalCrossSells: 0,
+        totalCrossSells: monthCrossSellCount,
         orderRate,
         upsellRate,
         crossSellRate,
@@ -828,7 +839,11 @@ export class CommissionService {
         COALESCE(u.agent_tier, 'silver') as agent_tier,
         COALESCE(order_stats.total_orders, 0) as total_orders,
         COALESCE(product_qty_stats.total_product_qty, 0) as total_product_qty,
-        GREATEST(COALESCE(product_qty_stats.total_product_qty, 0) - COALESCE(order_stats.total_orders, 0), 0) as upsell_qty,
+        GREATEST(
+          CASE WHEN COALESCE(cross_sell_stats.cross_sell_qty, 0) > 0 THEN 0
+          ELSE COALESCE(product_qty_stats.total_product_qty, 0) - COALESCE(order_stats.total_orders, 0) END, 0
+        ) as upsell_qty,
+        COALESCE(cross_sell_stats.cross_sell_qty, 0) as cross_sell_qty,
         COALESCE(order_stats.total_amount, 0) as total_amount,
         COALESCE(paid_stats.paid_commission, 0) as paid_commission,
         COALESCE(extra_partial.amount, 0) as extra_partial
@@ -868,6 +883,21 @@ export class CommissionService {
         ) combined GROUP BY agent_id
       ) product_qty_stats ON product_qty_stats.agent_id = u.id
       LEFT JOIN (
+        SELECT so.created_by as agent_id, COALESCE(SUM(cs.cross_sell_qty), 0) as cross_sell_qty
+        FROM sales_orders so
+        INNER JOIN (
+          SELECT oi.order_id, COUNT(*) as cross_sell_qty
+          FROM order_items oi
+          WHERE oi.is_cross_sell = true
+          GROUP BY oi.order_id
+        ) cs ON cs.order_id = so.id
+        WHERE so.created_by IS NOT NULL
+          AND so.order_source IN ('admin_panel', 'agent_dashboard')
+          AND so.status = 'delivered'
+          AND DATE(so.created_at AT TIME ZONE 'Asia/Dhaka') BETWEEN '${monthStart}' AND '${monthEnd}'
+        GROUP BY so.created_by
+      ) cross_sell_stats ON cross_sell_stats.agent_id = u.id
+      LEFT JOIN (
         SELECT
           ac.agent_id,
           COALESCE(SUM(CASE WHEN ac.status = 'paid' THEN ac.commission_amount ELSE 0 END), 0) as paid_commission
@@ -903,15 +933,16 @@ export class CommissionService {
         const totalOrders = parseInt(r.total_orders || '0', 10);
         const totalProductQty = parseInt(r.total_product_qty || '0', 10);
         const upsellQty = parseInt(r.upsell_qty || '0', 10);
+        const crossSellQty = parseInt(r.cross_sell_qty || '0', 10);
         const tier = r.agent_tier || 'silver';
         const paidCommission = parseFloat(r.paid_commission || '0');
 
         // Slab-based commission calculation (matches Payment Breakdown)
         const orderRate = findSlabRate(tier, 'order', totalOrders);
         const upsellRate = findSlabRate(tier, 'upsell', upsellQty);
-        const crossSellRate = findSlabRate(tier, 'cross_sell', 0);
+        const crossSellRate = findSlabRate(tier, 'cross_sell', crossSellQty);
         const extraPartial = parseFloat(r.extra_partial || '0');
-        const totalCommission = (totalOrders * orderRate) + (upsellQty * upsellRate) + extraPartial;
+        const totalCommission = (totalOrders * orderRate) + (upsellQty * upsellRate) + (crossSellQty * crossSellRate) + extraPartial;
 
         return {
           agentId: r.agent_id,
@@ -920,6 +951,7 @@ export class CommissionService {
           totalOrders,
           totalProductQty,
           upsellQty,
+          crossSellQty,
           totalAmount: parseFloat(r.total_amount || '0'),
           extraPartial,
           totalCommission,
@@ -987,7 +1019,11 @@ export class CommissionService {
         COALESCE(agent_order_stats.agent_orders, 0) as agent_orders,
         COALESCE(own_order_stats.own_orders, 0) as own_orders,
         COALESCE(own_order_stats.own_product_qty, 0) as own_product_qty,
-        GREATEST(COALESCE(own_order_stats.own_product_qty, 0) - COALESCE(own_order_stats.own_orders, 0), 0) as own_upsell_qty,
+        GREATEST(
+          CASE WHEN COALESCE(own_cross_sell_stats.cross_sell_qty, 0) > 0 THEN 0
+          ELSE COALESCE(own_order_stats.own_product_qty, 0) - COALESCE(own_order_stats.own_orders, 0) END, 0
+        ) as own_upsell_qty,
+        COALESCE(own_cross_sell_stats.cross_sell_qty, 0) as own_cross_sell_qty,
         COALESCE(paid_stats.paid_commission, 0) as paid_commission
       FROM users u
       INNER JOIN roles r ON r.id = u.role_id
@@ -1024,6 +1060,20 @@ export class CommissionService {
           AND DATE(so.created_at AT TIME ZONE 'Asia/Dhaka') BETWEEN '${monthStart}' AND '${monthEnd}'
         GROUP BY so.created_by
       ) own_order_stats ON own_order_stats.tl_id = u.id
+      LEFT JOIN (
+        SELECT so.created_by as tl_id, COALESCE(SUM(cs.cross_sell_qty), 0) as cross_sell_qty
+        FROM sales_orders so
+        INNER JOIN (
+          SELECT oi.order_id, COUNT(*) as cross_sell_qty
+          FROM order_items oi
+          WHERE oi.is_cross_sell = true
+          GROUP BY oi.order_id
+        ) cs ON cs.order_id = so.id
+        WHERE so.order_source IN ('admin_panel', 'agent_dashboard')
+          AND so.status = 'delivered'
+          AND DATE(so.created_at AT TIME ZONE 'Asia/Dhaka') BETWEEN '${monthStart}' AND '${monthEnd}'
+        GROUP BY so.created_by
+      ) own_cross_sell_stats ON own_cross_sell_stats.tl_id = u.id
       LEFT JOIN (
         SELECT
           pr.agent_id,
@@ -1066,6 +1116,7 @@ export class CommissionService {
         const agentOrders = parseInt(r.agent_orders || '0', 10);
         const ownOrders = parseInt(r.own_orders || '0', 10);
         const ownUpsellQty = parseInt(r.own_upsell_qty || '0', 10);
+        const ownCrossSellQty = parseInt(r.own_cross_sell_qty || '0', 10);
         const paidCommission = parseFloat(r.paid_commission || '0');
 
         // 1) Supervision commission: fixed rate per order by agents
@@ -1074,10 +1125,10 @@ export class CommissionService {
         // 2) Own sales commission: slab-based order/upsell/cross-sell
         const ownOrderRate = findTLSlabRate('order', ownOrders);
         const ownUpsellRate = findTLSlabRate('upsell', ownUpsellQty);
-        const ownCrossSellRate = findTLSlabRate('cross_sell', 0);
+        const ownCrossSellRate = findTLSlabRate('cross_sell', ownCrossSellQty);
         const ownOrderCommission = ownOrders * ownOrderRate;
         const ownUpsellCommission = ownUpsellQty * ownUpsellRate;
-        const ownCrossSellCommission = 0;
+        const ownCrossSellCommission = ownCrossSellQty * ownCrossSellRate;
         const ownSalesCommission = ownOrderCommission + ownUpsellCommission + ownCrossSellCommission;
 
         const totalCommission = supervisionCommission + ownSalesCommission;
@@ -1093,6 +1144,7 @@ export class CommissionService {
           // Own sales
           ownOrders,
           ownUpsellQty,
+          ownCrossSellQty,
           ownOrderRate,
           ownUpsellRate,
           ownCrossSellRate,
@@ -1165,7 +1217,8 @@ export class CommissionService {
       SELECT
         DATE(so.created_at AT TIME ZONE 'Asia/Dhaka') as order_date,
         COUNT(so.id) as order_count,
-        COALESCE(SUM(pq.total_qty), 0) as total_product_qty
+        COALESCE(SUM(pq.total_qty), 0) as total_product_qty,
+        COALESCE(SUM(cs_counts.cross_sell_qty), 0) as total_cross_sell_qty
       FROM sales_orders so
       LEFT JOIN (
         SELECT sub.order_id, SUM(sub.qty) as total_qty FROM (
@@ -1176,6 +1229,12 @@ export class CommissionService {
           FROM order_items oi GROUP BY oi.order_id
         ) sub GROUP BY sub.order_id
       ) pq ON pq.order_id = so.id
+      LEFT JOIN (
+        SELECT oi.order_id, COUNT(*) as cross_sell_qty
+        FROM order_items oi
+        WHERE oi.is_cross_sell = true
+        GROUP BY oi.order_id
+      ) cs_counts ON cs_counts.order_id = so.id
       WHERE so.created_by = $1
         AND so.order_source IN ('admin_panel', 'agent_dashboard')
         AND so.status = 'delivered'
@@ -1199,13 +1258,16 @@ export class CommissionService {
     // Own sales breakdown — accumulate monthly totals first for slab rate lookup
     let monthOwnOrders = 0;
     let monthOwnUpsells = 0;
+    let monthOwnCrossSells = 0;
     const ownSalesData = ownSalesRows.map((row: any) => {
       const orderCount = parseInt(row.order_count || '0', 10);
       const totalProductQty = parseInt(row.total_product_qty || '0', 10);
-      const upsellCount = Math.max(totalProductQty - orderCount, 0);
+      const crossSellCount = parseInt(row.total_cross_sell_qty || '0', 10);
+      const upsellCount = crossSellCount > 0 ? 0 : Math.max(totalProductQty - orderCount, 0);
       monthOwnOrders += orderCount;
       monthOwnUpsells += upsellCount;
-      return { date: row.order_date, orderCount, upsellCount };
+      monthOwnCrossSells += crossSellCount;
+      return { date: row.order_date, orderCount, upsellCount, crossSellCount };
     });
 
     const findTLSlabRate = (slabType: string, count: number): number => {
@@ -1218,7 +1280,7 @@ export class CommissionService {
 
     const ownOrderRate = findTLSlabRate('order', monthOwnOrders);
     const ownUpsellRate = findTLSlabRate('upsell', monthOwnUpsells);
-    const ownCrossSellRate = findTLSlabRate('cross_sell', 0);
+    const ownCrossSellRate = findTLSlabRate('cross_sell', monthOwnCrossSells);
 
     const ownSalesBreakdown = ownSalesData.map((d: any) => ({
       date: d.date,
@@ -1228,15 +1290,15 @@ export class CommissionService {
       upsellCount: d.upsellCount,
       upsellRate: ownUpsellRate,
       upsellCommission: d.upsellCount * ownUpsellRate,
-      crossSellCount: 0,
+      crossSellCount: d.crossSellCount,
       crossSellRate: ownCrossSellRate,
-      crossSellCommission: 0,
-      dailyTotal: (d.orderCount * ownOrderRate) + (d.upsellCount * ownUpsellRate),
+      crossSellCommission: d.crossSellCount * ownCrossSellRate,
+      dailyTotal: (d.orderCount * ownOrderRate) + (d.upsellCount * ownUpsellRate) + (d.crossSellCount * ownCrossSellRate),
     }));
 
     const totalOwnOrderCommission = ownSalesBreakdown.reduce((sum: number, b: any) => sum + b.orderCommission, 0);
     const totalOwnUpsellCommission = ownSalesBreakdown.reduce((sum: number, b: any) => sum + b.upsellCommission, 0);
-    const totalOwnCrossSellCommission = 0;
+    const totalOwnCrossSellCommission = ownSalesBreakdown.reduce((sum: number, b: any) => sum + b.crossSellCommission, 0);
     const totalOwnSalesCommission = totalOwnOrderCommission + totalOwnUpsellCommission + totalOwnCrossSellCommission;
 
     const grandTotal = totalSupervisionCommission + totalOwnSalesCommission;
@@ -1254,7 +1316,7 @@ export class CommissionService {
       ownSales: {
         totalOrders: monthOwnOrders,
         totalUpsells: monthOwnUpsells,
-        totalCrossSells: 0,
+        totalCrossSells: monthOwnCrossSells,
         orderRate: ownOrderRate,
         upsellRate: ownUpsellRate,
         crossSellRate: ownCrossSellRate,
@@ -1666,8 +1728,8 @@ export class CommissionService {
     const limitNum = Number(limit) || 50;
     const offset = (pageNum - 1) * limitNum;
 
-    // Agent resolution expression: only attribute to creator if they are a sales-executive
-    const agentExpr = `CASE WHEN cr.slug = 'sales-executive' THEN so.created_by ELSE NULL END`;
+    // Agent resolution expression: attribute to creator if they are a sales-executive or sales-team-leader
+    const agentExpr = `CASE WHEN cr.slug IN ('sales-executive', 'sales-team-leader') OR LOWER(cr.name) LIKE '%sales team leader%' THEN so.created_by ELSE NULL END`;
 
     const conditions: string[] = [];
     const params: any[] = [];
@@ -1730,7 +1792,7 @@ export class CommissionService {
     const total = parseInt(countResult[0]?.total || '0', 10);
 
     // Agent resolution for CTEs (same logic, different alias)
-    const cteAgentExpr = `CASE WHEN cr2.slug = 'sales-executive' THEN so2.created_by ELSE NULL END`;
+    const cteAgentExpr = `CASE WHEN cr2.slug IN ('sales-executive', 'sales-team-leader') OR LOWER(cr2.name) LIKE '%sales team leader%' THEN so2.created_by ELSE NULL END`;
 
     // Data query — uses CTE to compute per-agent running order position for slab commission lookup
     const dataSql = `
@@ -1788,7 +1850,7 @@ export class CommissionService {
         so.customer_phone,
         so.shipping_address,
         CASE
-          WHEN cr.slug = 'sales-executive' THEN CONCAT(COALESCE(uc.name, ''), ' ', COALESCE(uc.last_name, ''))
+          WHEN cr.slug IN ('sales-executive', 'sales-team-leader') OR LOWER(cr.name) LIKE '%sales team leader%' THEN CONCAT(COALESCE(uc.name, ''), ' ', COALESCE(uc.last_name, ''))
           ELSE NULL
         END as agent_name,
         COALESCE(oe.upsell_count, 0) as upsell_count,
@@ -1857,13 +1919,15 @@ export class CommissionService {
     const dataParams = [...params, limitNum, offset];
     const rows = await this.dataSource.query(dataSql, dataParams);
 
-    // Get all Sales Executives for filter dropdown
+    // Get all Sales Executives and Team Leaders for filter dropdown
     const agentsSql = `
-      SELECT u.id, CONCAT(COALESCE(u.name, ''), ' ', COALESCE(u.last_name, '')) as name
+      SELECT u.id, CONCAT(COALESCE(u.name, ''), ' ', COALESCE(u.last_name, '')) as name,
+        CASE WHEN LOWER(r.name) LIKE '%sales team leader%' OR r.slug = 'sales-team-leader' THEN 'TL' ELSE '' END as role_tag
       FROM users u
       INNER JOIN roles r ON r.id = u.role_id
       WHERE LOWER(r.name) LIKE '%sales executive%' OR r.slug = 'sales-executive'
-      ORDER BY name
+         OR LOWER(r.name) LIKE '%sales team leader%' OR r.slug = 'sales-team-leader'
+      ORDER BY role_tag DESC, name
     `;
     const agents = await this.dataSource.query(agentsSql);
 
@@ -1901,7 +1965,7 @@ export class CommissionService {
         crossSellAgentName: (r.cross_sell_agent_name || '').trim(),
       })),
       total,
-      agents: agents.map((a: any) => ({ id: a.id, name: (a.name || '').trim() })),
+      agents: agents.map((a: any) => ({ id: a.id, name: (a.name || '').trim() + (a.role_tag === 'TL' ? ' (TL)' : '') })),
     };
   }
 
