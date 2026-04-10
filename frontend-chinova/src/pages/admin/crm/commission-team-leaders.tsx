@@ -11,15 +11,21 @@ interface TLRow {
   tlId: number;
   tlName: string;
   phone: string;
-  totalOrders: number;
-  upsellQty: number;
+  // Supervision
+  agentOrders: number;
   commissionRate: number;
-  orderRate: number;
-  upsellRate: number;
-  crossSellRate: number;
-  orderCommission: number;
-  upsellCommission: number;
-  crossSellCommission: number;
+  supervisionCommission: number;
+  // Own sales
+  ownOrders: number;
+  ownUpsellQty: number;
+  ownOrderRate: number;
+  ownUpsellRate: number;
+  ownCrossSellRate: number;
+  ownOrderCommission: number;
+  ownUpsellCommission: number;
+  ownCrossSellCommission: number;
+  ownSalesCommission: number;
+  // Totals
   totalCommission: number;
   paidCommission: number;
   balance: number;
@@ -121,49 +127,60 @@ export default function CommissionTeamLeadersPage() {
       ),
     },
     {
-      key: 'totalOrders',
-      label: 'Orders',
+      key: 'agentOrders',
+      label: 'Agent Orders',
       sortable: true,
       render: (_: any, row: TLRow) => (
         <div>
-          <span className="text-sm font-medium">{row.totalOrders.toLocaleString()}</span>
-          {row.orderRate > 0 && <div className="text-xs text-gray-500">৳{row.orderRate}/order</div>}
+          <span className="text-sm font-medium">{(row.agentOrders || 0).toLocaleString()}</span>
+          <div className="text-xs text-gray-500">৳{(row.commissionRate || 0)}/order</div>
         </div>
       ),
     },
     {
-      key: 'orderCommission',
-      label: 'Order Commission',
+      key: 'supervisionCommission',
+      label: 'Supervision Commission',
       sortable: true,
       render: (_: any, row: TLRow) => (
-        <span className="text-sm font-medium text-blue-700">৳{row.orderCommission.toLocaleString()}</span>
+        <span className="text-sm font-medium text-indigo-700">৳{(row.supervisionCommission || 0).toLocaleString()}</span>
       ),
     },
     {
-      key: 'upsellQty',
-      label: 'Upsells',
+      key: 'ownOrders',
+      label: 'Own Orders',
       sortable: true,
       render: (_: any, row: TLRow) => (
         <div>
-          <span className="text-sm font-medium">{row.upsellQty.toLocaleString()}</span>
-          {row.upsellRate > 0 && <div className="text-xs text-gray-500">৳{row.upsellRate}/upsell</div>}
+          <span className="text-sm font-medium">{(row.ownOrders || 0).toLocaleString()}</span>
+          {(row.ownOrderRate || 0) > 0 && <div className="text-xs text-gray-500">৳{row.ownOrderRate}/order</div>}
         </div>
       ),
     },
     {
-      key: 'upsellCommission',
-      label: 'Upsell Commission',
+      key: 'ownOrderCommission',
+      label: 'Own Order Commission',
       sortable: true,
       render: (_: any, row: TLRow) => (
-        <span className="text-sm font-medium text-green-700">৳{row.upsellCommission.toLocaleString()}</span>
+        <span className="text-sm font-medium text-blue-700">৳{(row.ownOrderCommission || 0).toLocaleString()}</span>
       ),
     },
     {
-      key: 'crossSellCommission',
-      label: 'Cross-sell Commission',
+      key: 'ownUpsellQty',
+      label: 'Own Upsells',
       sortable: true,
       render: (_: any, row: TLRow) => (
-        <span className="text-sm font-medium text-purple-700">৳{row.crossSellCommission.toLocaleString()}</span>
+        <div>
+          <span className="text-sm font-medium">{(row.ownUpsellQty || 0).toLocaleString()}</span>
+          {(row.ownUpsellRate || 0) > 0 && <div className="text-xs text-gray-500">৳{row.ownUpsellRate}/upsell</div>}
+        </div>
+      ),
+    },
+    {
+      key: 'ownUpsellCommission',
+      label: 'Own Upsell Commission',
+      sortable: true,
+      render: (_: any, row: TLRow) => (
+        <span className="text-sm font-medium text-green-700">৳{(row.ownUpsellCommission || 0).toLocaleString()}</span>
       ),
     },
     {
@@ -171,7 +188,7 @@ export default function CommissionTeamLeadersPage() {
       label: 'Total Commission',
       sortable: true,
       render: (_: any, row: TLRow) => (
-        <span className="text-sm font-bold">৳{row.totalCommission.toLocaleString()}</span>
+        <span className="text-sm font-bold">৳{(row.totalCommission || 0).toLocaleString()}</span>
       ),
     },
     {
@@ -179,7 +196,7 @@ export default function CommissionTeamLeadersPage() {
       label: 'Last Paid',
       sortable: true,
       render: (_: any, row: TLRow) => (
-        <span className="text-sm text-green-600 font-medium">৳{row.paidCommission.toLocaleString()}</span>
+        <span className="text-sm text-green-600 font-medium">৳{(row.paidCommission || 0).toLocaleString()}</span>
       ),
     },
     {
@@ -187,8 +204,8 @@ export default function CommissionTeamLeadersPage() {
       label: 'Unpaid Balance',
       sortable: true,
       render: (_: any, row: TLRow) => (
-        <span className={`text-sm font-semibold ${row.balance > 0 ? 'text-red-600' : 'text-gray-600'}`}>
-          ৳{row.balance.toLocaleString()}
+        <span className={`text-sm font-semibold ${(row.balance || 0) > 0 ? 'text-red-600' : 'text-gray-600'}`}>
+          ৳{(row.balance || 0).toLocaleString()}
         </span>
       ),
     },
@@ -201,7 +218,7 @@ export default function CommissionTeamLeadersPage() {
           <button
             onClick={() => {
               setPaymentModal(row);
-              setPaymentForm({ amount: String(row.balance > 0 ? row.balance : ''), paymentMethod: '', notes: '' });
+              setPaymentForm({ amount: String((row.balance || 0) > 0 ? row.balance : ''), paymentMethod: '', notes: '' });
             }}
             className="bg-yellow-500 hover:bg-yellow-600 text-white px-2.5 py-1 rounded text-xs font-medium flex items-center gap-1"
             title="Payment Request"

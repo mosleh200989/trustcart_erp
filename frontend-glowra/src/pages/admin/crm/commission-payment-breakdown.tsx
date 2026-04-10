@@ -49,10 +49,17 @@ interface BreakdownData {
   breakdown: BreakdownRow[];
 }
 
-interface TLBreakdownRow {
+interface SupervisionBreakdownRow {
   date: string;
   orderCount: number;
   agentCount: number;
+  rate: number;
+  commission: number;
+}
+
+interface OwnSalesBreakdownRow {
+  date: string;
+  orderCount: number;
   orderRate: number;
   orderCommission: number;
   upsellCount: number;
@@ -68,7 +75,13 @@ interface TLBreakdownData {
   teamLeader: { id: number; name: string; phone: string };
   month: string;
   commissionRate: number;
-  summary: {
+  supervision: {
+    totalOrders: number;
+    rate: number;
+    totalCommission: number;
+    breakdown: SupervisionBreakdownRow[];
+  };
+  ownSales: {
     totalOrders: number;
     totalUpsells: number;
     totalCrossSells: number;
@@ -78,9 +91,10 @@ interface TLBreakdownData {
     totalOrderCommission: number;
     totalUpsellCommission: number;
     totalCrossSellCommission: number;
-    grandTotal: number;
+    totalCommission: number;
+    breakdown: OwnSalesBreakdownRow[];
   };
-  breakdown: TLBreakdownRow[];
+  grandTotal: number;
 }
 
 function getCurrentMonth() {
@@ -454,47 +468,91 @@ export default function CommissionPaymentBreakdownPage() {
             {/* TL Results */}
             {tlData && (
               <>
-                {/* TL Info + Summary */}
+                {/* TL Info + Grand Total */}
                 <div className="bg-white rounded-lg shadow p-4 mb-6">
                   <div className="flex flex-wrap items-center gap-4 mb-4">
                     <h2 className="text-lg font-semibold">{tlData.teamLeader.name}</h2>
                     <span className="text-sm text-gray-500">{tlData.teamLeader.phone}</span>
                     <span className="text-xs font-medium px-2 py-1 rounded-full bg-purple-100 text-purple-800">Team Leader</span>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className="bg-indigo-50 rounded-lg p-4">
+                      <div className="text-sm text-indigo-600 font-medium">Supervision Commission</div>
+                      <div className="text-2xl font-bold text-indigo-800">{formatCurrency(tlData.supervision?.totalCommission)}</div>
+                      <div className="text-sm text-indigo-500 mt-1">
+                        {tlData.supervision?.totalOrders || 0} agent orders &times; {formatCurrency(tlData.supervision?.rate)} / order
+                      </div>
+                    </div>
                     <div className="bg-blue-50 rounded-lg p-4">
-                      <div className="text-sm text-blue-600 font-medium">Orders</div>
-                      <div className="text-2xl font-bold text-blue-800">{tlData.summary.totalOrders || 0}</div>
+                      <div className="text-sm text-blue-600 font-medium">Own Sales Commission</div>
+                      <div className="text-2xl font-bold text-blue-800">{formatCurrency(tlData.ownSales?.totalCommission)}</div>
                       <div className="text-sm text-blue-500 mt-1">
-                        Rate: {formatCurrency(tlData.summary.orderRate)} &times; {tlData.summary.totalOrders || 0} = {formatCurrency(tlData.summary.totalOrderCommission)}
-                      </div>
-                    </div>
-                    <div className="bg-green-50 rounded-lg p-4">
-                      <div className="text-sm text-green-600 font-medium">Upsells</div>
-                      <div className="text-2xl font-bold text-green-800">{tlData.summary.totalUpsells || 0}</div>
-                      <div className="text-sm text-green-500 mt-1">
-                        Rate: {formatCurrency(tlData.summary.upsellRate)} &times; {tlData.summary.totalUpsells || 0} = {formatCurrency(tlData.summary.totalUpsellCommission)}
-                      </div>
-                    </div>
-                    <div className="bg-purple-50 rounded-lg p-4">
-                      <div className="text-sm text-purple-600 font-medium">Cross-sells</div>
-                      <div className="text-2xl font-bold text-purple-800">{tlData.summary.totalCrossSells || 0}</div>
-                      <div className="text-sm text-purple-500 mt-1">
-                        Rate: {formatCurrency(tlData.summary.crossSellRate)} &times; {tlData.summary.totalCrossSells || 0} = {formatCurrency(tlData.summary.totalCrossSellCommission)}
+                        {tlData.ownSales?.totalOrders || 0} orders + {tlData.ownSales?.totalUpsells || 0} upsells
                       </div>
                     </div>
                     <div className="bg-orange-50 rounded-lg p-4">
                       <div className="text-sm text-orange-600 font-medium">Grand Total</div>
-                      <div className="text-2xl font-bold text-orange-800">{formatCurrency(tlData.summary.grandTotal)}</div>
-                      <div className="text-sm text-orange-500 mt-1">
-                        All commissions combined
-                      </div>
+                      <div className="text-2xl font-bold text-orange-800">{formatCurrency(tlData.grandTotal)}</div>
+                      <div className="text-sm text-orange-500 mt-1">Supervision + Own Sales</div>
                     </div>
                   </div>
                 </div>
 
-                {/* Daily Breakdown Table */}
+                {/* Section 1: Supervision Breakdown */}
+                <div className="bg-white rounded-lg shadow overflow-hidden mb-6">
+                  <div className="px-4 py-3 bg-indigo-50 border-b border-indigo-100">
+                    <h3 className="text-lg font-semibold text-indigo-800">Supervision Commission (Agent Orders)</h3>
+                    <p className="text-sm text-indigo-500">Orders delivered by agents under this team leader &times; {formatCurrency(tlData.supervision?.rate)} per order</p>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200 text-sm">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-3 py-3 text-left font-semibold text-gray-600">Date</th>
+                          <th className="px-3 py-3 text-center font-semibold text-indigo-600">Agent Orders</th>
+                          <th className="px-3 py-3 text-center font-semibold text-gray-500">Active Agents</th>
+                          <th className="px-3 py-3 text-center font-semibold text-indigo-600">Rate</th>
+                          <th className="px-3 py-3 text-right font-semibold text-indigo-600">Commission</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {(!tlData.supervision?.breakdown || tlData.supervision.breakdown.length === 0) ? (
+                          <tr>
+                            <td colSpan={5} className="px-3 py-8 text-center text-gray-400">No agent orders found for this month</td>
+                          </tr>
+                        ) : (
+                          <>
+                            {tlData.supervision.breakdown.map((row, idx) => (
+                              <tr key={idx} className="hover:bg-gray-50">
+                                <td className="px-3 py-2 whitespace-nowrap font-medium">{formatDate(row.date)}</td>
+                                <td className="px-3 py-2 text-center">{row.orderCount}</td>
+                                <td className="px-3 py-2 text-center text-gray-500">{row.agentCount}</td>
+                                <td className="px-3 py-2 text-center">{formatCurrency(row.rate)}</td>
+                                <td className="px-3 py-2 text-right font-medium text-indigo-700">
+                                  {row.orderCount} &times; {formatCurrency(row.rate)} = {formatCurrency(row.commission)}
+                                </td>
+                              </tr>
+                            ))}
+                            <tr className="bg-gray-100 font-bold">
+                              <td className="px-3 py-3">Total</td>
+                              <td className="px-3 py-3 text-center">{tlData.supervision.totalOrders || 0}</td>
+                              <td className="px-3 py-3 text-center">-</td>
+                              <td className="px-3 py-3 text-center">{formatCurrency(tlData.supervision.rate)}</td>
+                              <td className="px-3 py-3 text-right text-indigo-700">{formatCurrency(tlData.supervision.totalCommission)}</td>
+                            </tr>
+                          </>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Section 2: Own Sales Breakdown */}
                 <div className="bg-white rounded-lg shadow overflow-hidden">
+                  <div className="px-4 py-3 bg-blue-50 border-b border-blue-100">
+                    <h3 className="text-lg font-semibold text-blue-800">Own Sales Commission (TL as Agent)</h3>
+                    <p className="text-sm text-blue-500">Orders created by the team leader acting as a sales executive</p>
+                  </div>
                   <div className="overflow-x-auto">
                     <table className="min-w-full divide-y divide-gray-200 text-sm">
                       <thead className="bg-gray-50">
@@ -506,55 +564,41 @@ export default function CommissionPaymentBreakdownPage() {
                           <th className="px-3 py-3 text-center font-semibold text-green-600">Upsell Count</th>
                           <th className="px-3 py-3 text-center font-semibold text-green-600">Rate</th>
                           <th className="px-3 py-3 text-right font-semibold text-green-600">Upsell Commission</th>
-                          <th className="px-3 py-3 text-center font-semibold text-purple-600">Cross-sell Count</th>
-                          <th className="px-3 py-3 text-center font-semibold text-purple-600">Rate</th>
-                          <th className="px-3 py-3 text-right font-semibold text-purple-600">Cross-sell Commission</th>
-                          <th className="px-3 py-3 text-center font-semibold text-gray-500">Active Agents</th>
                           <th className="px-3 py-3 text-right font-semibold text-gray-800">Daily Total</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100">
-                        {tlData.breakdown.length === 0 ? (
+                        {(!tlData.ownSales?.breakdown || tlData.ownSales.breakdown.length === 0) ? (
                           <tr>
-                            <td colSpan={12} className="px-3 py-8 text-center text-gray-400">No orders found for this month</td>
+                            <td colSpan={8} className="px-3 py-8 text-center text-gray-400">No own sales found for this month</td>
                           </tr>
                         ) : (
                           <>
-                            {tlData.breakdown.map((row, idx) => (
+                            {tlData.ownSales.breakdown.map((row, idx) => (
                               <tr key={idx} className="hover:bg-gray-50">
                                 <td className="px-3 py-2 whitespace-nowrap font-medium">{formatDate(row.date)}</td>
                                 <td className="px-3 py-2 text-center">{row.orderCount}</td>
                                 <td className="px-3 py-2 text-center">{formatCurrency(row.orderRate)}</td>
                                 <td className="px-3 py-2 text-right font-medium text-blue-700">
-                                  {row.orderCount} &times; {row.orderRate} = {formatCurrency(row.orderCommission)}
+                                  {row.orderCount} &times; {formatCurrency(row.orderRate)} = {formatCurrency(row.orderCommission)}
                                 </td>
                                 <td className="px-3 py-2 text-center">{row.upsellCount}</td>
                                 <td className="px-3 py-2 text-center">{formatCurrency(row.upsellRate)}</td>
                                 <td className="px-3 py-2 text-right font-medium text-green-700">
-                                  {row.upsellCount} &times; {row.upsellRate} = {formatCurrency(row.upsellCommission)}
+                                  {row.upsellCount} &times; {formatCurrency(row.upsellRate)} = {formatCurrency(row.upsellCommission)}
                                 </td>
-                                <td className="px-3 py-2 text-center">{row.crossSellCount}</td>
-                                <td className="px-3 py-2 text-center">{formatCurrency(row.crossSellRate)}</td>
-                                <td className="px-3 py-2 text-right font-medium text-purple-700">
-                                  {row.crossSellCount} &times; {row.crossSellRate} = {formatCurrency(row.crossSellCommission)}
-                                </td>
-                                <td className="px-3 py-2 text-center text-gray-500">{row.agentCount}</td>
                                 <td className="px-3 py-2 text-right font-bold">{formatCurrency(row.dailyTotal)}</td>
                               </tr>
                             ))}
                             <tr className="bg-gray-100 font-bold">
                               <td className="px-3 py-3">Total</td>
-                              <td className="px-3 py-3 text-center">{tlData.summary.totalOrders || 0}</td>
-                              <td className="px-3 py-3 text-center">{formatCurrency(tlData.summary.orderRate)}</td>
-                              <td className="px-3 py-3 text-right text-blue-700">{formatCurrency(tlData.summary.totalOrderCommission)}</td>
-                              <td className="px-3 py-3 text-center">{tlData.summary.totalUpsells || 0}</td>
-                              <td className="px-3 py-3 text-center">{formatCurrency(tlData.summary.upsellRate)}</td>
-                              <td className="px-3 py-3 text-right text-green-700">{formatCurrency(tlData.summary.totalUpsellCommission)}</td>
-                              <td className="px-3 py-3 text-center">{tlData.summary.totalCrossSells || 0}</td>
-                              <td className="px-3 py-3 text-center">{formatCurrency(tlData.summary.crossSellRate)}</td>
-                              <td className="px-3 py-3 text-right text-purple-700">{formatCurrency(tlData.summary.totalCrossSellCommission)}</td>
-                              <td className="px-3 py-3 text-center">-</td>
-                              <td className="px-3 py-3 text-right text-orange-700">{formatCurrency(tlData.summary.grandTotal)}</td>
+                              <td className="px-3 py-3 text-center">{tlData.ownSales.totalOrders || 0}</td>
+                              <td className="px-3 py-3 text-center">{formatCurrency(tlData.ownSales.orderRate)}</td>
+                              <td className="px-3 py-3 text-right text-blue-700">{formatCurrency(tlData.ownSales.totalOrderCommission)}</td>
+                              <td className="px-3 py-3 text-center">{tlData.ownSales.totalUpsells || 0}</td>
+                              <td className="px-3 py-3 text-center">{formatCurrency(tlData.ownSales.upsellRate)}</td>
+                              <td className="px-3 py-3 text-right text-green-700">{formatCurrency(tlData.ownSales.totalUpsellCommission)}</td>
+                              <td className="px-3 py-3 text-right text-orange-700">{formatCurrency(tlData.ownSales.totalCommission)}</td>
                             </tr>
                           </>
                         )}
