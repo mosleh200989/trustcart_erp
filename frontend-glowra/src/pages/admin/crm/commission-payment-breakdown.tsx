@@ -53,15 +53,33 @@ interface TLBreakdownRow {
   date: string;
   orderCount: number;
   agentCount: number;
-  commissionRate: number;
-  dailyCommission: number;
+  orderRate: number;
+  orderCommission: number;
+  upsellCount: number;
+  upsellRate: number;
+  upsellCommission: number;
+  crossSellCount: number;
+  crossSellRate: number;
+  crossSellCommission: number;
+  dailyTotal: number;
 }
 
 interface TLBreakdownData {
   teamLeader: { id: number; name: string; phone: string };
   month: string;
   commissionRate: number;
-  summary: { totalOrders: number; totalCommission: number };
+  summary: {
+    totalOrders: number;
+    totalUpsells: number;
+    totalCrossSells: number;
+    orderRate: number;
+    upsellRate: number;
+    crossSellRate: number;
+    totalOrderCommission: number;
+    totalUpsellCommission: number;
+    totalCrossSellCommission: number;
+    grandTotal: number;
+  };
   breakdown: TLBreakdownRow[];
 }
 
@@ -442,20 +460,35 @@ export default function CommissionPaymentBreakdownPage() {
                     <h2 className="text-lg font-semibold">{tlData.teamLeader.name}</h2>
                     <span className="text-sm text-gray-500">{tlData.teamLeader.phone}</span>
                     <span className="text-xs font-medium px-2 py-1 rounded-full bg-purple-100 text-purple-800">Team Leader</span>
-                    <span className="text-sm text-gray-600">Rate: <strong className="text-purple-700">{formatCurrency(tlData.commissionRate)}</strong> per order</span>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="bg-blue-50 rounded-lg p-4">
+                      <div className="text-sm text-blue-600 font-medium">Orders</div>
+                      <div className="text-2xl font-bold text-blue-800">{tlData.summary.totalOrders}</div>
+                      <div className="text-sm text-blue-500 mt-1">
+                        Rate: {formatCurrency(tlData.summary.orderRate)} &times; {tlData.summary.totalOrders} = {formatCurrency(tlData.summary.totalOrderCommission)}
+                      </div>
+                    </div>
+                    <div className="bg-green-50 rounded-lg p-4">
+                      <div className="text-sm text-green-600 font-medium">Upsells</div>
+                      <div className="text-2xl font-bold text-green-800">{tlData.summary.totalUpsells}</div>
+                      <div className="text-sm text-green-500 mt-1">
+                        Rate: {formatCurrency(tlData.summary.upsellRate)} &times; {tlData.summary.totalUpsells} = {formatCurrency(tlData.summary.totalUpsellCommission)}
+                      </div>
+                    </div>
                     <div className="bg-purple-50 rounded-lg p-4">
-                      <div className="text-sm text-purple-600 font-medium">Total Orders (by agents)</div>
-                      <div className="text-2xl font-bold text-purple-800">{tlData.summary.totalOrders}</div>
+                      <div className="text-sm text-purple-600 font-medium">Cross-sells</div>
+                      <div className="text-2xl font-bold text-purple-800">{tlData.summary.totalCrossSells}</div>
                       <div className="text-sm text-purple-500 mt-1">
-                        {tlData.summary.totalOrders} &times; {formatCurrency(tlData.commissionRate)} = {formatCurrency(tlData.summary.totalCommission)}
+                        Rate: {formatCurrency(tlData.summary.crossSellRate)} &times; {tlData.summary.totalCrossSells} = {formatCurrency(tlData.summary.totalCrossSellCommission)}
                       </div>
                     </div>
                     <div className="bg-orange-50 rounded-lg p-4">
-                      <div className="text-sm text-orange-600 font-medium">Total Commission</div>
-                      <div className="text-2xl font-bold text-orange-800">{formatCurrency(tlData.summary.totalCommission)}</div>
-                      <div className="text-sm text-orange-500 mt-1">For {tlData.month}</div>
+                      <div className="text-sm text-orange-600 font-medium">Grand Total</div>
+                      <div className="text-2xl font-bold text-orange-800">{formatCurrency(tlData.summary.grandTotal)}</div>
+                      <div className="text-sm text-orange-500 mt-1">
+                        All commissions combined
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -467,36 +500,61 @@ export default function CommissionPaymentBreakdownPage() {
                       <thead className="bg-gray-50">
                         <tr>
                           <th className="px-3 py-3 text-left font-semibold text-gray-600">Date</th>
-                          <th className="px-3 py-3 text-center font-semibold text-purple-600">Orders by Agents</th>
-                          <th className="px-3 py-3 text-center font-semibold text-gray-500">Active Agents</th>
+                          <th className="px-3 py-3 text-center font-semibold text-blue-600">Order Count</th>
+                          <th className="px-3 py-3 text-center font-semibold text-blue-600">Rate</th>
+                          <th className="px-3 py-3 text-right font-semibold text-blue-600">Order Commission</th>
+                          <th className="px-3 py-3 text-center font-semibold text-green-600">Upsell Count</th>
+                          <th className="px-3 py-3 text-center font-semibold text-green-600">Rate</th>
+                          <th className="px-3 py-3 text-right font-semibold text-green-600">Upsell Commission</th>
+                          <th className="px-3 py-3 text-center font-semibold text-purple-600">Cross-sell Count</th>
                           <th className="px-3 py-3 text-center font-semibold text-purple-600">Rate</th>
-                          <th className="px-3 py-3 text-right font-semibold text-purple-600">Daily Commission</th>
+                          <th className="px-3 py-3 text-right font-semibold text-purple-600">Cross-sell Commission</th>
+                          <th className="px-3 py-3 text-center font-semibold text-gray-500">Active Agents</th>
+                          <th className="px-3 py-3 text-right font-semibold text-gray-800">Daily Total</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100">
                         {tlData.breakdown.length === 0 ? (
                           <tr>
-                            <td colSpan={5} className="px-3 py-8 text-center text-gray-400">No orders found for this month</td>
+                            <td colSpan={12} className="px-3 py-8 text-center text-gray-400">No orders found for this month</td>
                           </tr>
                         ) : (
                           <>
                             {tlData.breakdown.map((row, idx) => (
                               <tr key={idx} className="hover:bg-gray-50">
                                 <td className="px-3 py-2 whitespace-nowrap font-medium">{formatDate(row.date)}</td>
-                                <td className="px-3 py-2 text-center font-medium">{row.orderCount}</td>
-                                <td className="px-3 py-2 text-center text-gray-500">{row.agentCount}</td>
-                                <td className="px-3 py-2 text-center">{formatCurrency(row.commissionRate)}</td>
-                                <td className="px-3 py-2 text-right font-medium text-purple-700">
-                                  {row.orderCount} &times; {row.commissionRate} = {formatCurrency(row.dailyCommission)}
+                                <td className="px-3 py-2 text-center">{row.orderCount}</td>
+                                <td className="px-3 py-2 text-center">{formatCurrency(row.orderRate)}</td>
+                                <td className="px-3 py-2 text-right font-medium text-blue-700">
+                                  {row.orderCount} &times; {row.orderRate} = {formatCurrency(row.orderCommission)}
                                 </td>
+                                <td className="px-3 py-2 text-center">{row.upsellCount}</td>
+                                <td className="px-3 py-2 text-center">{formatCurrency(row.upsellRate)}</td>
+                                <td className="px-3 py-2 text-right font-medium text-green-700">
+                                  {row.upsellCount} &times; {row.upsellRate} = {formatCurrency(row.upsellCommission)}
+                                </td>
+                                <td className="px-3 py-2 text-center">{row.crossSellCount}</td>
+                                <td className="px-3 py-2 text-center">{formatCurrency(row.crossSellRate)}</td>
+                                <td className="px-3 py-2 text-right font-medium text-purple-700">
+                                  {row.crossSellCount} &times; {row.crossSellRate} = {formatCurrency(row.crossSellCommission)}
+                                </td>
+                                <td className="px-3 py-2 text-center text-gray-500">{row.agentCount}</td>
+                                <td className="px-3 py-2 text-right font-bold">{formatCurrency(row.dailyTotal)}</td>
                               </tr>
                             ))}
                             <tr className="bg-gray-100 font-bold">
                               <td className="px-3 py-3">Total</td>
                               <td className="px-3 py-3 text-center">{tlData.summary.totalOrders}</td>
+                              <td className="px-3 py-3 text-center">{formatCurrency(tlData.summary.orderRate)}</td>
+                              <td className="px-3 py-3 text-right text-blue-700">{formatCurrency(tlData.summary.totalOrderCommission)}</td>
+                              <td className="px-3 py-3 text-center">{tlData.summary.totalUpsells}</td>
+                              <td className="px-3 py-3 text-center">{formatCurrency(tlData.summary.upsellRate)}</td>
+                              <td className="px-3 py-3 text-right text-green-700">{formatCurrency(tlData.summary.totalUpsellCommission)}</td>
+                              <td className="px-3 py-3 text-center">{tlData.summary.totalCrossSells}</td>
+                              <td className="px-3 py-3 text-center">{formatCurrency(tlData.summary.crossSellRate)}</td>
+                              <td className="px-3 py-3 text-right text-purple-700">{formatCurrency(tlData.summary.totalCrossSellCommission)}</td>
                               <td className="px-3 py-3 text-center">-</td>
-                              <td className="px-3 py-3 text-center">{formatCurrency(tlData.commissionRate)}</td>
-                              <td className="px-3 py-3 text-right text-orange-700">{formatCurrency(tlData.summary.totalCommission)}</td>
+                              <td className="px-3 py-3 text-right text-orange-700">{formatCurrency(tlData.summary.grandTotal)}</td>
                             </tr>
                           </>
                         )}

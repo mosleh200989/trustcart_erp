@@ -12,7 +12,14 @@ interface TLRow {
   tlName: string;
   phone: string;
   totalOrders: number;
+  upsellQty: number;
   commissionRate: number;
+  orderRate: number;
+  upsellRate: number;
+  crossSellRate: number;
+  orderCommission: number;
+  upsellCommission: number;
+  crossSellCommission: number;
   totalCommission: number;
   paidCommission: number;
   balance: number;
@@ -115,18 +122,48 @@ export default function CommissionTeamLeadersPage() {
     },
     {
       key: 'totalOrders',
-      label: 'Total Orders (by agents)',
+      label: 'Orders',
       sortable: true,
       render: (_: any, row: TLRow) => (
-        <span className="text-sm font-medium">{row.totalOrders.toLocaleString()}</span>
+        <div>
+          <span className="text-sm font-medium">{row.totalOrders.toLocaleString()}</span>
+          {row.orderRate > 0 && <div className="text-xs text-gray-500">৳{row.orderRate}/order</div>}
+        </div>
       ),
     },
     {
-      key: 'commissionRate',
-      label: 'Rate per Order',
-      sortable: false,
+      key: 'orderCommission',
+      label: 'Order Commission',
+      sortable: true,
       render: (_: any, row: TLRow) => (
-        <span className="text-sm">৳{row.commissionRate.toLocaleString()}</span>
+        <span className="text-sm font-medium text-blue-700">৳{row.orderCommission.toLocaleString()}</span>
+      ),
+    },
+    {
+      key: 'upsellQty',
+      label: 'Upsells',
+      sortable: true,
+      render: (_: any, row: TLRow) => (
+        <div>
+          <span className="text-sm font-medium">{row.upsellQty.toLocaleString()}</span>
+          {row.upsellRate > 0 && <div className="text-xs text-gray-500">৳{row.upsellRate}/upsell</div>}
+        </div>
+      ),
+    },
+    {
+      key: 'upsellCommission',
+      label: 'Upsell Commission',
+      sortable: true,
+      render: (_: any, row: TLRow) => (
+        <span className="text-sm font-medium text-green-700">৳{row.upsellCommission.toLocaleString()}</span>
+      ),
+    },
+    {
+      key: 'crossSellCommission',
+      label: 'Cross-sell Commission',
+      sortable: true,
+      render: (_: any, row: TLRow) => (
+        <span className="text-sm font-medium text-purple-700">৳{row.crossSellCommission.toLocaleString()}</span>
       ),
     },
     {
@@ -134,7 +171,7 @@ export default function CommissionTeamLeadersPage() {
       label: 'Total Commission',
       sortable: true,
       render: (_: any, row: TLRow) => (
-        <span className="text-sm font-medium">৳{row.totalCommission.toLocaleString()}</span>
+        <span className="text-sm font-bold">৳{row.totalCommission.toLocaleString()}</span>
       ),
     },
     {

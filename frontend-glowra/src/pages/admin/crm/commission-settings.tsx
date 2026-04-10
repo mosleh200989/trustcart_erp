@@ -405,13 +405,9 @@ export default function CommissionSettingsPage() {
                     </div>
                   </div>
 
-                  {/* Website Sale Tier for Team Leader */}
+                  {/* Order / Upsell / Cross-sell Slab Tables for Team Leader */}
                   <div className="mb-8">
-                    <div className="flex items-center gap-2 mb-4">
-                      <span className="text-lg">🌐</span>
-                      <h3 className="text-base font-semibold text-gray-800">Website Sale Tier</h3>
-                    </div>
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 pl-2">
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                       {SLAB_TYPES.map(st => renderSlabTable('website_sale', st))}
                     </div>
                   </div>

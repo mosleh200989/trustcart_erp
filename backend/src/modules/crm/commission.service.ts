@@ -984,15 +984,27 @@ export class CommissionService {
         CONCAT(COALESCE(u.name, ''), ' ', COALESCE(u.last_name, '')) as tl_name,
         u.phone,
         COALESCE(order_stats.total_orders, 0) as total_orders,
+        COALESCE(order_stats.total_product_qty, 0) as total_product_qty,
+        GREATEST(COALESCE(order_stats.total_product_qty, 0) - COALESCE(order_stats.total_orders, 0), 0) as upsell_qty,
         COALESCE(paid_stats.paid_commission, 0) as paid_commission
       FROM users u
       INNER JOIN roles r ON r.id = u.role_id
       LEFT JOIN (
         SELECT
           au.team_leader_id as tl_id,
-          COUNT(so.id) as total_orders
+          COUNT(so.id) as total_orders,
+          COALESCE(SUM(pq.total_qty), 0) as total_product_qty
         FROM sales_orders so
         INNER JOIN users au ON au.id = so.created_by
+        LEFT JOIN (
+          SELECT sub.order_id, SUM(sub.qty) as total_qty FROM (
+            SELECT soi.sales_order_id as order_id, COALESCE(SUM(soi.quantity), 0) as qty
+            FROM sales_order_items soi GROUP BY soi.sales_order_id
+            UNION ALL
+            SELECT oi.order_id as order_id, COALESCE(SUM(oi.quantity), 0) as qty
+            FROM order_items oi GROUP BY oi.order_id
+          ) sub GROUP BY sub.order_id
+        ) pq ON pq.order_id = so.id
         WHERE au.team_leader_id IS NOT NULL
           AND so.order_source IN ('admin_panel', 'agent_dashboard')
           AND so.status = 'delivered'
@@ -1021,17 +1033,50 @@ export class CommissionService {
     });
     const tlRate = tlSlabs.length > 0 ? Number(tlSlabs[0].commissionAmount) : 0;
 
+    // Also load website_sale tier slabs for order/upsell/cross-sell (TL acting as agent)
+    const wsTierSlabs = await this.slabRepository.find({
+      where: { roleType: 'team_leader', agentTier: 'website_sale' as any, isActive: true },
+      order: { slabType: 'ASC', minOrderCount: 'ASC' },
+    });
+
+    const findTLSlabRate = (slabType: string, count: number): number => {
+      const typeSlabs = wsTierSlabs.filter(s => s.slabType === slabType);
+      const matched = typeSlabs.find(s =>
+        count >= s.minOrderCount && (s.maxOrderCount === null || count < s.maxOrderCount)
+      );
+      return matched ? Number(matched.commissionAmount) : 0;
+    };
+
     return {
       data: rows.map((r: any) => {
         const totalOrders = parseInt(r.total_orders || '0', 10);
+        const totalProductQty = parseInt(r.total_product_qty || '0', 10);
+        const upsellQty = parseInt(r.upsell_qty || '0', 10);
         const paidCommission = parseFloat(r.paid_commission || '0');
-        const totalCommission = totalOrders * tlRate;
+
+        // Slab-based commission for order/upsell/cross-sell
+        const orderRate = findTLSlabRate('order', totalOrders);
+        const upsellRate = findTLSlabRate('upsell', upsellQty);
+        const crossSellRate = findTLSlabRate('cross_sell', 0);
+
+        const orderCommission = totalOrders * orderRate;
+        const upsellCommission = upsellQty * upsellRate;
+        const crossSellCommission = 0;
+        const totalCommission = orderCommission + upsellCommission + crossSellCommission;
+
         return {
           tlId: r.tl_id,
           tlName: (r.tl_name || '').trim(),
           phone: r.phone || '',
           totalOrders,
+          upsellQty,
           commissionRate: tlRate,
+          orderRate,
+          upsellRate,
+          crossSellRate,
+          orderCommission,
+          upsellCommission,
+          crossSellCommission,
           totalCommission,
           paidCommission,
           balance: totalCommission - paidCommission,
@@ -1067,13 +1112,29 @@ export class CommissionService {
     });
     const tlRate = tlSlabs.length > 0 ? Number(tlSlabs[0].commissionAmount) : 0;
 
+    // Load website_sale tier slabs for order/upsell/cross-sell (TL acting as agent)
+    const wsTierSlabs = await this.slabRepository.find({
+      where: { roleType: 'team_leader', agentTier: 'website_sale' as any, isActive: true },
+      order: { slabType: 'ASC', minOrderCount: 'ASC' },
+    });
+
     const dailyOrdersSql = `
       SELECT
         DATE(so.created_at AT TIME ZONE 'Asia/Dhaka') as order_date,
         COUNT(so.id) as order_count,
-        COUNT(DISTINCT so.created_by) as agent_count
+        COUNT(DISTINCT so.created_by) as agent_count,
+        COALESCE(SUM(pq.total_qty), 0) as total_product_qty
       FROM sales_orders so
       INNER JOIN users au ON au.id = so.created_by
+      LEFT JOIN (
+        SELECT sub.order_id, SUM(sub.qty) as total_qty FROM (
+          SELECT soi.sales_order_id as order_id, COALESCE(SUM(soi.quantity), 0) as qty
+          FROM sales_order_items soi GROUP BY soi.sales_order_id
+          UNION ALL
+          SELECT oi.order_id as order_id, COALESCE(SUM(oi.quantity), 0) as qty
+          FROM order_items oi GROUP BY oi.order_id
+        ) sub GROUP BY sub.order_id
+      ) pq ON pq.order_id = so.id
       WHERE au.team_leader_id = $1
         AND so.order_source IN ('admin_panel', 'agent_dashboard')
         AND so.status = 'delivered'
@@ -1083,25 +1144,68 @@ export class CommissionService {
     `;
     const dailyRows = await this.dataSource.query(dailyOrdersSql, [teamLeaderId, startDate, endDate]);
 
-    let totalOrders = 0;
-    const breakdown = dailyRows.map((row: any) => {
+    // First pass: accumulate monthly totals
+    let monthOrderCount = 0;
+    let monthUpsellCount = 0;
+    const dailyData = dailyRows.map((row: any) => {
       const orderCount = parseInt(row.order_count || '0', 10);
       const agentCount = parseInt(row.agent_count || '0', 10);
-      totalOrders += orderCount;
-      return {
-        date: row.order_date,
-        orderCount,
-        agentCount,
-        commissionRate: tlRate,
-        dailyCommission: orderCount * tlRate,
-      };
+      const totalProductQty = parseInt(row.total_product_qty || '0', 10);
+      const upsellCount = Math.max(totalProductQty - orderCount, 0);
+      monthOrderCount += orderCount;
+      monthUpsellCount += upsellCount;
+      return { date: row.order_date, orderCount, agentCount, upsellCount, totalProductQty };
     });
+
+    // Find matching slab rates based on monthly totals
+    const findTLSlabRate = (slabType: string, count: number): number => {
+      const typeSlabs = wsTierSlabs.filter(s => s.slabType === slabType);
+      const matched = typeSlabs.find(s =>
+        count >= s.minOrderCount && (s.maxOrderCount === null || count < s.maxOrderCount)
+      );
+      return matched ? Number(matched.commissionAmount) : 0;
+    };
+
+    const orderRate = findTLSlabRate('order', monthOrderCount);
+    const upsellRate = findTLSlabRate('upsell', monthUpsellCount);
+    const crossSellRate = findTLSlabRate('cross_sell', 0);
+
+    const breakdown = dailyData.map((d: any) => ({
+      date: d.date,
+      orderCount: d.orderCount,
+      agentCount: d.agentCount,
+      orderRate,
+      orderCommission: d.orderCount * orderRate,
+      upsellCount: d.upsellCount,
+      upsellRate,
+      upsellCommission: d.upsellCount * upsellRate,
+      crossSellCount: 0,
+      crossSellRate,
+      crossSellCommission: 0,
+      dailyTotal: (d.orderCount * orderRate) + (d.upsellCount * upsellRate),
+    }));
+
+    const totalOrderCommission = breakdown.reduce((sum: number, b: any) => sum + b.orderCommission, 0);
+    const totalUpsellCommission = breakdown.reduce((sum: number, b: any) => sum + b.upsellCommission, 0);
+    const totalCrossSellCommission = breakdown.reduce((sum: number, b: any) => sum + b.crossSellCommission, 0);
+    const grandTotal = totalOrderCommission + totalUpsellCommission + totalCrossSellCommission;
 
     return {
       teamLeader: { id: tl.id, name: (tl.name || '').trim(), phone: tl.phone },
       month: monthStr,
       commissionRate: tlRate,
-      summary: { totalOrders, totalCommission: totalOrders * tlRate },
+      summary: {
+        totalOrders: monthOrderCount,
+        totalUpsells: monthUpsellCount,
+        totalCrossSells: 0,
+        orderRate,
+        upsellRate,
+        crossSellRate,
+        totalOrderCommission,
+        totalUpsellCommission,
+        totalCrossSellCommission,
+        grandTotal,
+      },
       breakdown,
     };
   }
