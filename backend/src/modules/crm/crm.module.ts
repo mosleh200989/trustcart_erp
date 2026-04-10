@@ -80,6 +80,7 @@ import { CommissionSettings } from './entities/commission-settings.entity';
 import { CommissionSlab } from './entities/commission-slab.entity';
 import { CommissionPaymentRequest } from './entities/commission-payment-request.entity';
 import { DashboardConfig } from './entities/dashboard-config.entity';
+import { CustomerTier } from '../lead-management/entities/customer-tier.entity';
 
 @Module({
   imports: [
@@ -117,7 +118,9 @@ import { DashboardConfig } from './entities/dashboard-config.entity';
       CommissionSlab,
       CommissionPaymentRequest,
       // Dashboard config entity
-      DashboardConfig
+      DashboardConfig,
+      // Customer tier entity (for tier sync)
+      CustomerTier
     ]),
     RbacModule,
     LoyaltyModule,
