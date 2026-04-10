@@ -173,7 +173,7 @@ export default function CommissionPaymentBreakdownPage() {
     return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
   };
 
-  const formatCurrency = (val: number) => `৳${val.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const formatCurrency = (val: number) => `৳${(val || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   return (
     <AdminLayout>
@@ -464,23 +464,23 @@ export default function CommissionPaymentBreakdownPage() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     <div className="bg-blue-50 rounded-lg p-4">
                       <div className="text-sm text-blue-600 font-medium">Orders</div>
-                      <div className="text-2xl font-bold text-blue-800">{tlData.summary.totalOrders}</div>
+                      <div className="text-2xl font-bold text-blue-800">{tlData.summary.totalOrders || 0}</div>
                       <div className="text-sm text-blue-500 mt-1">
-                        Rate: {formatCurrency(tlData.summary.orderRate)} &times; {tlData.summary.totalOrders} = {formatCurrency(tlData.summary.totalOrderCommission)}
+                        Rate: {formatCurrency(tlData.summary.orderRate)} &times; {tlData.summary.totalOrders || 0} = {formatCurrency(tlData.summary.totalOrderCommission)}
                       </div>
                     </div>
                     <div className="bg-green-50 rounded-lg p-4">
                       <div className="text-sm text-green-600 font-medium">Upsells</div>
-                      <div className="text-2xl font-bold text-green-800">{tlData.summary.totalUpsells}</div>
+                      <div className="text-2xl font-bold text-green-800">{tlData.summary.totalUpsells || 0}</div>
                       <div className="text-sm text-green-500 mt-1">
-                        Rate: {formatCurrency(tlData.summary.upsellRate)} &times; {tlData.summary.totalUpsells} = {formatCurrency(tlData.summary.totalUpsellCommission)}
+                        Rate: {formatCurrency(tlData.summary.upsellRate)} &times; {tlData.summary.totalUpsells || 0} = {formatCurrency(tlData.summary.totalUpsellCommission)}
                       </div>
                     </div>
                     <div className="bg-purple-50 rounded-lg p-4">
                       <div className="text-sm text-purple-600 font-medium">Cross-sells</div>
-                      <div className="text-2xl font-bold text-purple-800">{tlData.summary.totalCrossSells}</div>
+                      <div className="text-2xl font-bold text-purple-800">{tlData.summary.totalCrossSells || 0}</div>
                       <div className="text-sm text-purple-500 mt-1">
-                        Rate: {formatCurrency(tlData.summary.crossSellRate)} &times; {tlData.summary.totalCrossSells} = {formatCurrency(tlData.summary.totalCrossSellCommission)}
+                        Rate: {formatCurrency(tlData.summary.crossSellRate)} &times; {tlData.summary.totalCrossSells || 0} = {formatCurrency(tlData.summary.totalCrossSellCommission)}
                       </div>
                     </div>
                     <div className="bg-orange-50 rounded-lg p-4">
@@ -544,13 +544,13 @@ export default function CommissionPaymentBreakdownPage() {
                             ))}
                             <tr className="bg-gray-100 font-bold">
                               <td className="px-3 py-3">Total</td>
-                              <td className="px-3 py-3 text-center">{tlData.summary.totalOrders}</td>
+                              <td className="px-3 py-3 text-center">{tlData.summary.totalOrders || 0}</td>
                               <td className="px-3 py-3 text-center">{formatCurrency(tlData.summary.orderRate)}</td>
                               <td className="px-3 py-3 text-right text-blue-700">{formatCurrency(tlData.summary.totalOrderCommission)}</td>
-                              <td className="px-3 py-3 text-center">{tlData.summary.totalUpsells}</td>
+                              <td className="px-3 py-3 text-center">{tlData.summary.totalUpsells || 0}</td>
                               <td className="px-3 py-3 text-center">{formatCurrency(tlData.summary.upsellRate)}</td>
                               <td className="px-3 py-3 text-right text-green-700">{formatCurrency(tlData.summary.totalUpsellCommission)}</td>
-                              <td className="px-3 py-3 text-center">{tlData.summary.totalCrossSells}</td>
+                              <td className="px-3 py-3 text-center">{tlData.summary.totalCrossSells || 0}</td>
                               <td className="px-3 py-3 text-center">{formatCurrency(tlData.summary.crossSellRate)}</td>
                               <td className="px-3 py-3 text-right text-purple-700">{formatCurrency(tlData.summary.totalCrossSellCommission)}</td>
                               <td className="px-3 py-3 text-center">-</td>
