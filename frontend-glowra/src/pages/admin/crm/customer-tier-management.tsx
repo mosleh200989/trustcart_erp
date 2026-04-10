@@ -37,6 +37,7 @@ export default function CustomerTierManagementPage() {
   const toast = useToast();
   const [customers, setCustomers] = useState<any[]>([]);
   const [filter, setFilter] = useState({ tier: 'all', status: 'all', agent: 'all' });
+  const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [showTierModal, setShowTierModal] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
@@ -75,7 +76,7 @@ export default function CustomerTierManagementPage() {
 
   useEffect(() => {
     fetchCustomers();
-  }, [filter, currentPage, itemsPerPage]);
+  }, [filter, currentPage, itemsPerPage, searchQuery]);
 
   const fetchAgents = async () => {
     try {
@@ -95,6 +96,7 @@ export default function CustomerTierManagementPage() {
       if (filter.tier !== 'all') params.append('tier', filter.tier);
       if (filter.status !== 'all') params.append('status', filter.status);
       if (filter.agent !== 'all') params.append('assignedTo', filter.agent);
+      if (searchQuery.trim()) params.append('search', searchQuery.trim());
       params.append('page', currentPage.toString());
       params.append('limit', itemsPerPage.toString());
       
@@ -240,8 +242,18 @@ export default function CustomerTierManagementPage() {
           </div>
         </div>
 
-        {/* Filters */}
+        {/* Search & Filters */}
         <div className="bg-white p-4 rounded-lg shadow mb-6">
+          <div className="mb-4">
+            <label className="block text-sm font-medium mb-2">Search</label>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
+              placeholder="Search by name, phone, email, or order number..."
+              className="w-full border rounded-lg p-2"
+            />
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-medium mb-2">Filter by Tier</label>
