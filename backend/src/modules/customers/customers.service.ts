@@ -138,14 +138,17 @@ export class CustomersService {
     limit: number;
     search?: string;
     tier?: string;
+    agentId?: number | 'unassigned';
+    teamLeaderId?: number | 'unassigned';
   }) {
-    const { page = 1, limit = 10, search, tier } = options;
+    const { page = 1, limit = 10, search, tier, agentId, teamLeaderId } = options;
     const skip = (page - 1) * limit;
 
     const qb = this.customersRepository.createQueryBuilder('c')
       .leftJoin('sales_orders', 'so', 'so.customer_id = c.id')
       .leftJoin('customer_tiers', 'ct', 'ct.customer_id = c.id')
       .leftJoin('users', 'u', 'u.id = c.assigned_to')
+      .leftJoin('users', 'sup', 'sup.id = c.assigned_supervisor_id')
       .select([
         'c.id as id',
         'c.uuid as uuid',
@@ -154,14 +157,17 @@ export class CustomersService {
         'c.phone as phone',
         'c.company_name as company',
         'c.lifecycle_stage as "lifecycleStage"',
+        'c.assigned_to as "assignedTo"',
+        'c.assigned_supervisor_id as "assignedSupervisorId"',
         'c.created_at as "createdAt"',
         'COUNT(so.id) as "totalOrders"',
         'COALESCE(SUM(so.total_amount), 0) as "totalSpent"',
         "TRIM(COALESCE(u.name, '') || ' ' || COALESCE(u.last_name, '')) as \"agentName\"",
+        "TRIM(COALESCE(sup.name, '') || ' ' || COALESCE(sup.last_name, '')) as \"teamLeaderName\"",
       ])
       .addSelect('(SELECT ct2.tier FROM customer_tiers ct2 WHERE ct2.customer_id = c.id LIMIT 1)', 'tier')
       .where('c.is_deleted = :deleted', { deleted: false })
-      .groupBy('c.id, u.name, u.last_name');
+      .groupBy('c.id, u.name, u.last_name, sup.name, sup.last_name');
 
     if (search) {
       const normalizedPhone = `%${search.replace(/^\+88/, '')}%`;
@@ -175,6 +181,18 @@ export class CustomersService {
       qb.andWhere('ct.tier = :tier', { tier });
     }
 
+    if (agentId === 'unassigned') {
+      qb.andWhere('c.assigned_to IS NULL');
+    } else if (agentId) {
+      qb.andWhere('c.assigned_to = :agentId', { agentId });
+    }
+
+    if (teamLeaderId === 'unassigned') {
+      qb.andWhere('c.assigned_supervisor_id IS NULL');
+    } else if (teamLeaderId) {
+      qb.andWhere('c.assigned_supervisor_id = :teamLeaderId', { teamLeaderId });
+    }
+
     qb.orderBy('c.created_at', 'DESC');
 
     // Count query
@@ -183,6 +201,18 @@ export class CustomersService {
 
     if (tier) {
       countQb.innerJoin('customer_tiers', 'ct', 'ct.customer_id = c.id AND ct.tier = :tier', { tier });
+    }
+
+    if (agentId === 'unassigned') {
+      countQb.andWhere('c.assigned_to IS NULL');
+    } else if (agentId) {
+      countQb.andWhere('c.assigned_to = :agentId', { agentId });
+    }
+
+    if (teamLeaderId === 'unassigned') {
+      countQb.andWhere('c.assigned_supervisor_id IS NULL');
+    } else if (teamLeaderId) {
+      countQb.andWhere('c.assigned_supervisor_id = :teamLeaderId', { teamLeaderId });
     }
 
     if (search) {
@@ -204,6 +234,7 @@ export class CustomersService {
       totalOrders: parseInt(item.totalOrders, 10) || 0,
       totalSpent: parseFloat(item.totalSpent) || 0,
       agentName: item.agentName?.trim() || null,
+      teamLeaderName: item.teamLeaderName?.trim() || null,
     }));
 
     return {
