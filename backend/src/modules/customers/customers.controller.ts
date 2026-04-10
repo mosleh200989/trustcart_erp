@@ -51,6 +51,8 @@ export class CustomersController {
     @Query('limit') limit?: string,
     @Query('search') search?: string,
     @Query('tier') tier?: string,
+    @Query('agentId') agentId?: string,
+    @Query('teamLeaderId') teamLeaderId?: string,
   ) {
     const pageNum = page ? parseInt(page, 10) : 1;
     const limitNum = limit ? parseInt(limit, 10) : 10;
@@ -59,6 +61,8 @@ export class CustomersController {
       limit: limitNum,
       search,
       tier,
+      agentId: agentId === 'unassigned' ? 'unassigned' : (agentId ? parseInt(agentId, 10) : undefined),
+      teamLeaderId: teamLeaderId === 'unassigned' ? 'unassigned' : (teamLeaderId ? parseInt(teamLeaderId, 10) : undefined),
     });
   }
 

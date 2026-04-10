@@ -19,6 +19,9 @@ interface Customer {
   company?: string;
   tier?: string;
   agentName?: string | null;
+  teamLeaderName?: string | null;
+  assignedTo?: number | null;
+  assignedSupervisorId?: number | null;
   totalOrders?: number;
   totalSpent?: number;
   createdAt: string;
@@ -32,6 +35,10 @@ export default function CustomersPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [searchDebounced, setSearchDebounced] = useState('');
   const [tierFilter, setTierFilter] = useState('');
+  const [agentFilter, setAgentFilter] = useState('');
+  const [tlFilter, setTlFilter] = useState('');
+  const [agents, setAgents] = useState<{id: number; name: string; lastName?: string}[]>([]);
+  const [teamLeaders, setTeamLeaders] = useState<{id: number; name: string; lastName?: string}[]>([]);
   const [selectedCustomers, setSelectedCustomers] = useState<number[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -55,10 +62,26 @@ export default function CustomersPage() {
     return () => clearTimeout(timer);
   }, [searchTerm]);
 
+  // Load agent and team leader lists for filters
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await apiClient.get('/crm/team/available-agents');
+        setAgents(Array.isArray(res.data) ? res.data : []);
+      } catch {}
+    })();
+    (async () => {
+      try {
+        const res = await apiClient.get('/crm/team/team-leaders');
+        setTeamLeaders(Array.isArray(res.data) ? res.data : []);
+      } catch {}
+    })();
+  }, []);
+
   useEffect(() => {
     setSelectedCustomers([]);
     loadCustomers();
-  }, [tierFilter, currentPage, itemsPerPage, searchDebounced]);
+  }, [tierFilter, agentFilter, tlFilter, currentPage, itemsPerPage, searchDebounced]);
 
   const loadCustomers = useCallback(async () => {
     try {
@@ -68,6 +91,8 @@ export default function CustomersPage() {
         limit: itemsPerPage,
       };
       if (tierFilter) params.tier = tierFilter;
+      if (agentFilter) params.agentId = agentFilter;
+      if (tlFilter) params.teamLeaderId = tlFilter;
       if (searchDebounced) params.search = searchDebounced;
       
       const res = await apiClient.get('/customers', { params });
@@ -92,7 +117,7 @@ export default function CustomersPage() {
     } finally {
       setLoading(false);
     }
-  }, [tierFilter, currentPage, itemsPerPage, searchDebounced]);
+  }, [tierFilter, agentFilter, tlFilter, currentPage, itemsPerPage, searchDebounced]);
 
   // Since we're using server-side pagination/filtering, display customers directly
   const displayedCustomers = customers;
@@ -289,7 +314,7 @@ export default function CustomersPage() {
 
         {/* Filters */}
         <div className="bg-white rounded-lg shadow p-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Search</label>
               <input
@@ -305,7 +330,7 @@ export default function CustomersPage() {
               <select
                 className="w-full border border-gray-300 rounded-lg px-3 py-2"
                 value={tierFilter}
-                onChange={(e) => setTierFilter(e.target.value)}
+                onChange={(e) => { setTierFilter(e.target.value); setCurrentPage(1); }}
               >
                 <option value="">All Tiers</option>
                 <option value="new">New</option>
@@ -316,6 +341,34 @@ export default function CustomersPage() {
                 <option value="vip">VIP</option>
                 <option value="blacklist">Black List</option>
                 <option value="rejected">Rejected</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Filter by Agent</label>
+              <select
+                className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                value={agentFilter}
+                onChange={(e) => { setAgentFilter(e.target.value); setCurrentPage(1); }}
+              >
+                <option value="">All Agents</option>
+                <option value="unassigned">Unassigned</option>
+                {agents.map(a => (
+                  <option key={a.id} value={a.id}>{a.name} {a.lastName || ''}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Filter by Team Leader</label>
+              <select
+                className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                value={tlFilter}
+                onChange={(e) => { setTlFilter(e.target.value); setCurrentPage(1); }}
+              >
+                <option value="">All Team Leaders</option>
+                <option value="unassigned">Unassigned</option>
+                {teamLeaders.map(tl => (
+                  <option key={tl.id} value={tl.id}>{tl.name} {tl.lastName || ''}</option>
+                ))}
               </select>
             </div>
           </div>
@@ -355,6 +408,7 @@ export default function CustomersPage() {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Contact</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tier</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Agent</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Team Leader</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Orders</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total Spent</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
@@ -363,13 +417,13 @@ export default function CustomersPage() {
               <tbody className="divide-y divide-gray-200">
                 {loading ? (
                   <tr>
-                    <td colSpan={8} className="px-6 py-4 text-center text-gray-500">
+                    <td colSpan={9} className="px-6 py-4 text-center text-gray-500">
                       Loading customers...
                     </td>
                   </tr>
                 ) : displayedCustomers.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="px-6 py-4 text-center text-gray-500">
+                    <td colSpan={9} className="px-6 py-4 text-center text-gray-500">
                       No customers found
                     </td>
                   </tr>
@@ -406,6 +460,13 @@ export default function CustomersPage() {
                       <td className="px-6 py-4 text-sm text-gray-700">
                         {customer.agentName ? (
                           <span className="font-medium text-indigo-700">{customer.agentName}</span>
+                        ) : (
+                          <span className="text-gray-400 text-xs">Unassigned</span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-700">
+                        {customer.teamLeaderName ? (
+                          <span className="font-medium text-purple-700">{customer.teamLeaderName}</span>
                         ) : (
                           <span className="text-gray-400 text-xs">Unassigned</span>
                         )}
