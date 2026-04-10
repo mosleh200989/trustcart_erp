@@ -18,6 +18,7 @@ interface TLRow {
   // Own sales
   ownOrders: number;
   ownUpsellQty: number;
+  ownCrossSellQty: number;
   ownOrderRate: number;
   ownUpsellRate: number;
   ownCrossSellRate: number;
@@ -181,6 +182,25 @@ export default function CommissionTeamLeadersPage() {
       sortable: true,
       render: (_: any, row: TLRow) => (
         <span className="text-sm font-medium text-green-700">৳{(row.ownUpsellCommission || 0).toLocaleString()}</span>
+      ),
+    },
+    {
+      key: 'ownCrossSellQty',
+      label: 'Own Cross-sells',
+      sortable: true,
+      render: (_: any, row: TLRow) => (
+        <div>
+          <span className="text-sm font-medium">{(row.ownCrossSellQty || 0).toLocaleString()}</span>
+          {(row.ownCrossSellRate || 0) > 0 && <div className="text-xs text-gray-500">৳{row.ownCrossSellRate}/cross-sell</div>}
+        </div>
+      ),
+    },
+    {
+      key: 'ownCrossSellCommission',
+      label: 'Own Cross-sell Commission',
+      sortable: true,
+      render: (_: any, row: TLRow) => (
+        <span className="text-sm font-medium text-purple-700">৳{(row.ownCrossSellCommission || 0).toLocaleString()}</span>
       ),
     },
     {

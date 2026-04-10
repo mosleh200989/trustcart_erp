@@ -487,7 +487,7 @@ export default function CommissionPaymentBreakdownPage() {
                       <div className="text-sm text-blue-600 font-medium">Own Sales Commission</div>
                       <div className="text-2xl font-bold text-blue-800">{formatCurrency(tlData.ownSales?.totalCommission)}</div>
                       <div className="text-sm text-blue-500 mt-1">
-                        {tlData.ownSales?.totalOrders || 0} orders + {tlData.ownSales?.totalUpsells || 0} upsells
+                        {tlData.ownSales?.totalOrders || 0} orders + {tlData.ownSales?.totalUpsells || 0} upsells + {tlData.ownSales?.totalCrossSells || 0} cross-sells
                       </div>
                     </div>
                     <div className="bg-orange-50 rounded-lg p-4">
@@ -564,13 +564,16 @@ export default function CommissionPaymentBreakdownPage() {
                           <th className="px-3 py-3 text-center font-semibold text-green-600">Upsell Count</th>
                           <th className="px-3 py-3 text-center font-semibold text-green-600">Rate</th>
                           <th className="px-3 py-3 text-right font-semibold text-green-600">Upsell Commission</th>
+                          <th className="px-3 py-3 text-center font-semibold text-purple-600">Cross-sell Count</th>
+                          <th className="px-3 py-3 text-center font-semibold text-purple-600">Rate</th>
+                          <th className="px-3 py-3 text-right font-semibold text-purple-600">Cross-sell Commission</th>
                           <th className="px-3 py-3 text-right font-semibold text-gray-800">Daily Total</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100">
                         {(!tlData.ownSales?.breakdown || tlData.ownSales.breakdown.length === 0) ? (
                           <tr>
-                            <td colSpan={8} className="px-3 py-8 text-center text-gray-400">No own sales found for this month</td>
+                            <td colSpan={11} className="px-3 py-8 text-center text-gray-400">No own sales found for this month</td>
                           </tr>
                         ) : (
                           <>
@@ -587,6 +590,11 @@ export default function CommissionPaymentBreakdownPage() {
                                 <td className="px-3 py-2 text-right font-medium text-green-700">
                                   {row.upsellCount} &times; {formatCurrency(row.upsellRate)} = {formatCurrency(row.upsellCommission)}
                                 </td>
+                                <td className="px-3 py-2 text-center">{row.crossSellCount}</td>
+                                <td className="px-3 py-2 text-center">{formatCurrency(row.crossSellRate)}</td>
+                                <td className="px-3 py-2 text-right font-medium text-purple-700">
+                                  {row.crossSellCount} &times; {formatCurrency(row.crossSellRate)} = {formatCurrency(row.crossSellCommission)}
+                                </td>
                                 <td className="px-3 py-2 text-right font-bold">{formatCurrency(row.dailyTotal)}</td>
                               </tr>
                             ))}
@@ -598,6 +606,9 @@ export default function CommissionPaymentBreakdownPage() {
                               <td className="px-3 py-3 text-center">{tlData.ownSales.totalUpsells || 0}</td>
                               <td className="px-3 py-3 text-center">{formatCurrency(tlData.ownSales.upsellRate)}</td>
                               <td className="px-3 py-3 text-right text-green-700">{formatCurrency(tlData.ownSales.totalUpsellCommission)}</td>
+                              <td className="px-3 py-3 text-center">{tlData.ownSales.totalCrossSells || 0}</td>
+                              <td className="px-3 py-3 text-center">{formatCurrency(tlData.ownSales.crossSellRate)}</td>
+                              <td className="px-3 py-3 text-right text-purple-700">{formatCurrency(tlData.ownSales.totalCrossSellCommission)}</td>
                               <td className="px-3 py-3 text-right text-orange-700">{formatCurrency(tlData.ownSales.totalCommission)}</td>
                             </tr>
                           </>
