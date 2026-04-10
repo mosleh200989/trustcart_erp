@@ -600,7 +600,7 @@ export class LeadManagementService {
     // Build search clause
     const searchTerm = (filters.search || '').trim().toLowerCase();
     const searchClause = searchTerm
-      ? `AND (LOWER(c.name) LIKE '%${searchTerm.replace(/'/g, "''")}%' OR LOWER(c.last_name) LIKE '%${searchTerm.replace(/'/g, "''")}%' OR c.phone LIKE '%${searchTerm.replace(/'/g, "''")}%' OR LOWER(c.email) LIKE '%${searchTerm.replace(/'/g, "''")}%')`
+      ? `AND (LOWER(c.name) LIKE '%${searchTerm.replace(/'/g, "''")}%' OR LOWER(c.last_name) LIKE '%${searchTerm.replace(/'/g, "''")}%' OR c.phone LIKE '%${searchTerm.replace(/'/g, "''")}%' OR LOWER(c.email) LIKE '%${searchTerm.replace(/'/g, "''")}%' OR c.id::text = '${searchTerm.replace(/'/g, "''")}' OR EXISTS (SELECT 1 FROM sales_orders so2 WHERE so2.customer_id = c.id AND LOWER(so2.sales_order_number) LIKE '%${searchTerm.replace(/'/g, "''")}%'))`
       : '';
 
     // First, get total count for stats (before pagination)
