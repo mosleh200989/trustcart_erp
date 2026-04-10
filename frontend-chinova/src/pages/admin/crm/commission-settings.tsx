@@ -348,7 +348,8 @@ export default function CommissionSettingsPage() {
                   </div>
                 </>
               ) : (
-                <div className="max-w-md">
+                <div>
+                  <div className="max-w-md mb-8">
                   <div className="mb-6 p-4 bg-gray-50 border border-gray-200 rounded-lg">
                     <h3 className="text-lg font-semibold text-gray-800 mb-2">Team Leader Global Commission</h3>
                     <p className="text-sm text-gray-600 mb-4">
@@ -367,6 +368,14 @@ export default function CommissionSettingsPage() {
                         placeholder="e.g. 50"
                         className="w-full border border-gray-300 rounded-lg px-3 py-2 text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
                       />
+                    </div>
+                  </div>
+                  </div>
+
+                  {/* Order / Upsell / Cross-sell Slab Tables for Team Leader */}
+                  <div className="mb-8">
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                      {SLAB_TYPES.map(st => renderSlabTable('website_sale', st))}
                     </div>
                   </div>
                 </div>
