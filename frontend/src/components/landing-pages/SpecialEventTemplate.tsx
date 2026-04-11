@@ -576,10 +576,10 @@ export default function SpecialEventTemplate({
         >
           <div className="max-w-5xl mx-auto px-4 py-2.5 flex items-center justify-center gap-3 text-sm font-medium" style={{ color: page.secondary_color }}>
             <FaFire className="text-yellow-300 text-xs event-flame" />
-            <span className="opacity-90">বিশেষ ইভেন্ট চলছে!</span>
+            <span className="opacity-90">অংশগ্রহণ করুন!</span>
             <span className="opacity-40">|</span>
             <FaTrophy className="text-yellow-300 text-xs" />
-            <span className="opacity-90">চ্যালেঞ্জ জিতুন, পুরস্কার নিন!</span>
+            <span className="opacity-90">চ্যালেঞ্জ নিন, পুরস্কার জিতুন!</span>
             <span className="opacity-40 hidden sm:inline">|</span>
             <span className="opacity-90 hidden sm:inline">
               <FaGift className="text-yellow-300 text-xs inline mr-1" />
@@ -615,18 +615,6 @@ export default function SpecialEventTemplate({
             <div className="flex flex-col-reverse md:flex-row items-center gap-12 md:gap-16 lg:gap-20">
               {/* Hero Text */}
               <div ref={heroTextRef} className="w-full md:w-1/2 text-center md:text-left">
-                <div
-                  className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-semibold mb-6 border event-challenge-pulse"
-                  style={{
-                    backgroundColor: 'rgba(239,68,68,0.15)',
-                    borderColor: 'rgba(239,68,68,0.3)',
-                    color: '#FCA5A5',
-                  }}
-                >
-                  <FaFire className="text-xs event-flame" />
-                  স্পেশাল চ্যালেঞ্জ ইভেন্ট
-                </div>
-
                 <h1
                   className="event-heading text-3xl sm:text-4xl md:text-5xl lg:text-[3.6rem] font-extrabold mb-6 leading-[1.15] whitespace-pre-line"
                   style={{ color: page.secondary_color || '#FFFFFF' }}
@@ -760,11 +748,11 @@ export default function SpecialEventTemplate({
                     {section.title && (
                       <div className="text-center mb-12">
                         <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-semibold mb-4 bg-red-500/10 border border-red-500/20 text-red-400">
-                          <FaExclamationTriangle /> নিয়মাবলী
+                          <FaExclamationTriangle /> নিয়মাবলী <FaExclamationTriangle />
                         </div>
-                        <h2 className="event-heading text-2xl sm:text-3xl md:text-4xl font-bold">
+                        {/* <h2 className="event-heading text-2xl sm:text-3xl md:text-4xl font-bold">
                           {section.title}
-                        </h2>
+                        </h2> */}
                       </div>
                     )}
                     <div className="space-y-4">
