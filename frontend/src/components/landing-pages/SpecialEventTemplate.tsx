@@ -575,16 +575,20 @@ export default function SpecialEventTemplate({
           className="relative overflow-hidden"
           style={{ background: `linear-gradient(90deg, ${page.primary_color}, ${primaryDark})` }}
         >
-          <div className="max-w-5xl mx-auto px-4 py-2.5 flex items-center justify-center gap-3 text-sm font-medium" style={{ color: page.secondary_color }}>
-            <FaFire className="text-yellow-300 text-xs event-flame" />
-            <span className="opacity-90">অংশগ্রহণ করুন!</span>
+          <div className="max-w-5xl mx-auto px-4 py-2.5 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-sm font-medium" style={{ color: page.secondary_color }}>
+            <span className="inline-flex items-center gap-1.5">
+              <FaFire className="text-yellow-300 text-xs event-flame" />
+              <span className="opacity-90">অংশগ্রহণ করুন!</span>
+            </span>
             <span className="opacity-40">|</span>
-            <FaTrophy className="text-yellow-300 text-xs" />
-            <span className="opacity-90">চ্যালেঞ্জ নিন, পুরস্কার জিতুন!</span>
-            <span className="opacity-40 hidden sm:inline">|</span>
-            <span className="opacity-90 hidden sm:inline">
-              <FaGift className="text-yellow-300 text-xs inline mr-1" />
-              সীমিত সময়ের অফার
+            <span className="inline-flex items-center gap-1.5">
+              <FaTrophy className="text-yellow-300 text-xs" />
+              <span className="opacity-90">চ্যালেঞ্জ নিন!</span>
+            </span>
+            <span className="opacity-40">|</span>
+            <span className="inline-flex items-center gap-1.5">
+              <FaGift className="text-yellow-300 text-xs" />
+              <span className="opacity-90">পুরস্কার জিতুন!!!</span>
             </span>
           </div>
         </div>
@@ -633,9 +637,10 @@ export default function SpecialEventTemplate({
                 {/* Countdown Timer */}
                 {page.end_date && (
                   <div className="mb-8">
-                    <p className="text-sm font-semibold mb-3" style={{ color: '#FCA5A5' }}>
-                      ⏰ ইভেন্ট শেষ হতে বাকি:
-                    </p>
+                    <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-semibold mb-4 bg-red-500/10 border border-red-500/20 text-red-300">
+                      <FaClock className="text-red-400 event-flame" />
+                      ইভেন্ট শেষ হতে বাকি
+                    </div>
                     <div className="flex gap-3 justify-center md:justify-start">
                       {[
                         { val: countdown.days, label: 'দিন' },
@@ -643,11 +648,16 @@ export default function SpecialEventTemplate({
                         { val: countdown.minutes, label: 'মিনিট' },
                         { val: countdown.seconds, label: 'সেকেন্ড' },
                       ].map((item, i) => (
-                        <div key={i} className="event-countdown-card rounded-xl px-4 py-3 text-center min-w-[65px]">
-                          <div className="event-num text-2xl sm:text-3xl font-bold text-white">
+                        <div key={i} className="relative group rounded-2xl px-4 py-3.5 text-center min-w-[70px] border border-red-500/20 overflow-hidden"
+                          style={{ background: 'linear-gradient(145deg, rgba(220,38,38,0.15), rgba(0,0,0,0.4))' }}
+                        >
+                          <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500"
+                            style={{ background: 'radial-gradient(circle at 50% 50%, rgba(239,68,68,0.2), transparent 70%)' }}
+                          />
+                          <div className="event-num text-3xl sm:text-4xl font-extrabold text-white relative z-10 drop-shadow-[0_0_12px_rgba(239,68,68,0.5)]">
                             {String(item.val).padStart(2, '0')}
                           </div>
-                          <div className="text-[10px] text-gray-400 mt-0.5">{item.label}</div>
+                          <div className="text-[10px] font-semibold text-red-300/80 mt-1 uppercase tracking-wider relative z-10">{item.label}</div>
                         </div>
                       ))}
                     </div>
@@ -834,9 +844,9 @@ export default function SpecialEventTemplate({
                         <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-semibold mb-4 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
                           <FaPlayCircle /> কিভাবে অংশ নেবেন
                         </div>
-                        <h2 className="event-heading text-2xl sm:text-3xl md:text-4xl font-bold">
+                        {/* <h2 className="event-heading text-2xl sm:text-3xl md:text-4xl font-bold">
                           {section.title}
-                        </h2>
+                        </h2> */}
                       </div>
                     )}
                     <div className="relative">
