@@ -147,6 +147,7 @@ export default function SpecialEventTemplate({
   const [deliveryZone, setDeliveryZone] = useState<'inside' | 'outside'>('outside');
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [savedOrderId, setSavedOrderId] = useState<number | string | null>(null);
   const [formTouched, setFormTouched] = useState(false);
 
   const countdown = useCountdown(page.end_date);
@@ -398,13 +399,11 @@ export default function SpecialEventTemplate({
           })
           .catch(() => {});
       }
+      setSubmitted(true);
       if (savedOrderId) {
-        window.location.href = `/thank-you?orderId=${savedOrderId}`;
-        return;
-      } else {
-        setSubmitted(true);
-        toast.success('আপনার অর্ডারটি সফলভাবে গ্রহণ করা হয়েছে! ধন্যবাদ।');
+        setSavedOrderId(savedOrderId);
       }
+      toast.success('আপনার অর্ডারটি সফলভাবে গ্রহণ করা হয়েছে! ধন্যবাদ।');
     } catch (err: any) {
       console.error('Order submission error:', err);
       const status = err?.response?.status;
@@ -420,7 +419,9 @@ export default function SpecialEventTemplate({
             })
             .catch(() => {});
         }
-        window.location.href = `/thank-you?orderId=${savedId}`;
+        setSubmitted(true);
+        setSavedOrderId(savedId);
+        toast.success('আপনার অর্ডারটি সফলভাবে গ্রহণ করা হয়েছে! ধন্যবাদ।');
         return;
       }
       if (status && status >= 500) {
@@ -576,10 +577,10 @@ export default function SpecialEventTemplate({
         >
           <div className="max-w-5xl mx-auto px-4 py-2.5 flex items-center justify-center gap-3 text-sm font-medium" style={{ color: page.secondary_color }}>
             <FaFire className="text-yellow-300 text-xs event-flame" />
-            <span className="opacity-90">বিশেষ ইভেন্ট চলছে!</span>
+            <span className="opacity-90">অংশগ্রহণ করুন!</span>
             <span className="opacity-40">|</span>
             <FaTrophy className="text-yellow-300 text-xs" />
-            <span className="opacity-90">চ্যালেঞ্জ জিতুন, পুরস্কার নিন!</span>
+            <span className="opacity-90">চ্যালেঞ্জ নিন, পুরস্কার জিতুন!</span>
             <span className="opacity-40 hidden sm:inline">|</span>
             <span className="opacity-90 hidden sm:inline">
               <FaGift className="text-yellow-300 text-xs inline mr-1" />
@@ -615,18 +616,6 @@ export default function SpecialEventTemplate({
             <div className="flex flex-col-reverse md:flex-row items-center gap-12 md:gap-16 lg:gap-20">
               {/* Hero Text */}
               <div ref={heroTextRef} className="w-full md:w-1/2 text-center md:text-left">
-                <div
-                  className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-semibold mb-6 border event-challenge-pulse"
-                  style={{
-                    backgroundColor: 'rgba(239,68,68,0.15)',
-                    borderColor: 'rgba(239,68,68,0.3)',
-                    color: '#FCA5A5',
-                  }}
-                >
-                  <FaFire className="text-xs event-flame" />
-                  স্পেশাল চ্যালেঞ্জ ইভেন্ট
-                </div>
-
                 <h1
                   className="event-heading text-3xl sm:text-4xl md:text-5xl lg:text-[3.6rem] font-extrabold mb-6 leading-[1.15] whitespace-pre-line"
                   style={{ color: page.secondary_color || '#FFFFFF' }}
@@ -727,10 +716,10 @@ export default function SpecialEventTemplate({
                     />
                     {/* Challenge badge */}
                     <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 z-10">
-                      <div className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full text-sm font-bold shadow-lg border border-white/20 event-challenge-pulse"
+                      <div className="inline-flex items-center gap-2 px-4 sm:px-6 py-2.5 rounded-full text-xs sm:text-sm font-bold shadow-lg border border-white/20 event-challenge-pulse whitespace-nowrap"
                         style={{ background: 'linear-gradient(135deg, #DC2626, #B91C1C)', color: '#FFFFFF' }}
                       >
-                        <FaFire className="event-flame" /> চ্যালেঞ্জ গ্রহণ করুন!
+                        <FaFire className="event-flame" /> চ্যালেঞ্জ গ্রহণ করুন! <FaFire className="event-flame" />
                       </div>
                     </div>
                   </div>
@@ -760,23 +749,23 @@ export default function SpecialEventTemplate({
                     {section.title && (
                       <div className="text-center mb-12">
                         <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-semibold mb-4 bg-red-500/10 border border-red-500/20 text-red-400">
-                          <FaExclamationTriangle /> নিয়মাবলী
+                          <FaExclamationTriangle /> নিয়মাবলী <FaExclamationTriangle />
                         </div>
-                        <h2 className="event-heading text-2xl sm:text-3xl md:text-4xl font-bold">
+                        {/* <h2 className="event-heading text-2xl sm:text-3xl md:text-4xl font-bold">
                           {section.title}
-                        </h2>
+                        </h2> */}
                       </div>
                     )}
                     <div className="space-y-4">
                       {(section.items || []).map((item, idx) => (
                         <div
                           key={idx}
-                          className="gsap-event-card group flex items-start gap-4 p-5 rounded-2xl border border-red-500/10 bg-gradient-to-r from-red-500/5 to-transparent hover:from-red-500/10 transition-all duration-400"
+                          className="gsap-event-card group flex items-center gap-4 p-5 rounded-2xl border border-red-500/10 bg-gradient-to-r from-red-500/5 to-transparent hover:from-red-500/10 transition-all duration-400"
                         >
                           <div className="flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center text-white text-sm font-bold bg-gradient-to-br from-red-600 to-orange-600 shadow-lg event-step-num">
                             {item.icon || `${idx + 1}`}
                           </div>
-                          <span className="text-base sm:text-lg font-medium leading-relaxed pt-1.5" style={{ color: section.textColor || 'rgba(255,255,255,0.9)' }}>
+                          <span className="text-base sm:text-lg font-medium leading-relaxed" style={{ color: section.textColor || 'rgba(255,255,255,0.9)' }}>
                             {item.text}
                           </span>
                         </div>
@@ -815,11 +804,11 @@ export default function SpecialEventTemplate({
                           <div className="absolute top-0 right-0 w-20 h-20 rounded-bl-[3rem] opacity-10"
                             style={{ background: `linear-gradient(135deg, ${page.primary_color}, #F59E0B)` }}
                           />
-                          <div className="flex items-start gap-4">
+                          <div className="flex items-center gap-4">
                             <div className="flex-shrink-0 w-12 h-12 rounded-xl flex items-center justify-center text-2xl bg-gradient-to-br from-yellow-500/20 to-orange-500/20 shadow-inner transition-transform duration-300 group-hover:scale-110">
                               {item.icon || '🏆'}
                             </div>
-                            <span className="text-base font-medium leading-relaxed pt-2" style={{ color: section.textColor || 'rgba(255,255,255,0.9)' }}>
+                            <span className="text-base font-medium leading-relaxed" style={{ color: section.textColor || 'rgba(255,255,255,0.9)' }}>
                               {item.text}
                             </span>
                           </div>
@@ -857,7 +846,7 @@ export default function SpecialEventTemplate({
                         {(section.items || []).map((item, idx) => (
                           <div
                             key={idx}
-                            className="gsap-event-card flex items-start gap-5 relative"
+                            className="gsap-event-card flex items-center gap-5 relative"
                           >
                             <div className="flex-shrink-0 w-12 h-12 rounded-full flex items-center justify-center text-white text-lg font-bold bg-gradient-to-br from-red-600 via-orange-600 to-yellow-600 shadow-lg z-10 event-step-num">
                               {item.icon || `${idx + 1}`}
@@ -953,13 +942,13 @@ export default function SpecialEventTemplate({
                           key={idx}
                           className="gsap-event-card group rounded-2xl p-6 border border-white/5 bg-white/5 hover:bg-white/[0.08] transition-all duration-400 hover:shadow-[0_8px_30px_-6px_rgba(239,68,68,0.15)]"
                         >
-                          <div className="flex items-start gap-4">
+                          <div className="flex items-center gap-4">
                             <div
                               className="flex-shrink-0 w-11 h-11 rounded-xl flex items-center justify-center text-xl transition-transform duration-300 group-hover:scale-110 bg-red-500/10"
                             >
                               {item.icon || '🌶️'}
                             </div>
-                            <span className="text-base font-medium leading-relaxed pt-2" style={{ color: section.textColor || 'rgba(255,255,255,0.9)' }}>
+                            <span className="text-base font-medium leading-relaxed" style={{ color: section.textColor || 'rgba(255,255,255,0.9)' }}>
                               {item.text}
                             </span>
                           </div>
@@ -1169,17 +1158,87 @@ export default function SpecialEventTemplate({
           >
             <div className="max-w-xl mx-auto">
               {submitted ? (
-                <div className="text-center py-16">
-                  <div className="w-20 h-20 rounded-full mx-auto mb-6 flex items-center justify-center bg-gradient-to-br from-green-400 to-emerald-500 shadow-lg">
-                    <FaCheckCircle className="text-white text-4xl" />
+                <div className="relative overflow-hidden rounded-[2rem] border border-green-500/20 bg-gradient-to-b from-gray-900 to-gray-950 shadow-[0_30px_80px_-20px_rgba(34,197,94,0.15)]">
+                  {/* Success header */}
+                  <div className="relative overflow-hidden px-6 py-8 text-center event-grain"
+                    style={{ background: 'linear-gradient(135deg, #059669, #047857)' }}
+                  >
+                    <div className="absolute inset-0 opacity-10"
+                      style={{ background: 'radial-gradient(circle at 30% 50%, rgba(255,255,255,0.3), transparent 60%)' }}
+                    />
+                    <div className="relative z-10">
+                      <div className="w-20 h-20 rounded-full mx-auto mb-5 flex items-center justify-center bg-white/20 backdrop-blur-sm border-2 border-white/30 shadow-lg">
+                        <FaCheckCircle className="text-white text-4xl drop-shadow-md" />
+                      </div>
+                      <h2 className="event-heading text-2xl sm:text-3xl font-extrabold text-white mb-2 drop-shadow-md">
+                        অর্ডার সফল হয়েছে!
+                      </h2>
+                      <p className="text-emerald-100 text-base opacity-90">
+                        আমরা শীঘ্রই আপনার সাথে যোগাযোগ করব
+                      </p>
+                    </div>
                   </div>
-                  <h2 className="event-heading text-2xl sm:text-3xl font-bold text-white mb-3">
-                    আপনার অর্ডার সফলভাবে গ্রহণ করা হয়েছে!
-                  </h2>
-                  <p className="text-gray-400 text-lg">আমরা শীঘ্রই আপনার সাথে যোগাযোগ করব।</p>
-                  <p className="text-gray-500 mt-2 text-sm">
-                    চ্যালেঞ্জে অংশ নিতে প্রোডাক্ট ডেলিভেরি নেওয়ার পর নিয়ম অনুযায়ী ভিডিও পাঠান
-                  </p>
+
+                  {/* Body */}
+                  <div className="p-6 sm:p-8 space-y-6">
+                    {/* Challenge next steps */}
+                    <div className="rounded-2xl border border-yellow-500/15 bg-gradient-to-br from-yellow-500/5 to-orange-500/5 p-5 sm:p-6">
+                      <div className="flex items-center gap-3 mb-4">
+                        <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-gradient-to-br from-yellow-500/20 to-orange-500/20">
+                          <FaTrophy className="text-yellow-400 text-lg" />
+                        </div>
+                        <h3 className="event-heading text-lg font-bold text-white">
+                          চ্যালেঞ্জে অংশ নিতে চান?
+                        </h3>
+                      </div>
+                      <div className="space-y-3 mb-5">
+                        <div className="flex items-start gap-3">
+                          <span className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold bg-red-500/20 text-red-400 mt-0.5">1</span>
+                          <p className="text-sm text-gray-300 leading-relaxed">প্রোডাক্ট ডেলিভেরি নিন</p>
+                        </div>
+                        <div className="flex items-start gap-3">
+                          <span className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold bg-red-500/20 text-red-400 mt-0.5">2</span>
+                          <p className="text-sm text-gray-300 leading-relaxed">নিয়ম অনুযায়ী ভিডিও রেকর্ড করুন</p>
+                        </div>
+                        <div className="flex items-start gap-3">
+                          <span className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold bg-red-500/20 text-red-400 mt-0.5">3</span>
+                          <p className="text-sm text-gray-300 leading-relaxed">আমাদের গ্রুপে ভিডিও পোস্ট করুন — রিভিউ হবে এবং পুরস্কার পাবেন!</p>
+                        </div>
+                      </div>
+
+                      {/* Join Group CTA */}
+                      <a
+                        href="https://www.facebook.com/share/g/18h66RkRo9/"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="event-btn-ripple group relative w-full flex items-center justify-center gap-3 px-8 py-4 rounded-xl text-base sm:text-lg font-bold shadow-xl hover:shadow-2xl transform hover:scale-[1.03] transition-all duration-300 overflow-hidden"
+                        style={{
+                          background: 'linear-gradient(135deg, #DC2626, #B91C1C, #9A3412)',
+                          color: '#FFFFFF',
+                        }}
+                      >
+                        <div className="absolute inset-0 bg-gradient-to-r from-yellow-500/0 via-yellow-500/20 to-yellow-500/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700" />
+                        <FaUsers className="text-xl relative z-10" />
+                        <span className="relative z-10">গ্রুপে জয়েন করুন</span>
+                        <FaArrowRight className="text-sm relative z-10 group-hover:translate-x-1 transition-transform" />
+                      </a>
+                      <p className="text-center text-xs text-gray-500 mt-2.5">
+                        ভিডিও এই গ্রুপে পোস্ট করতে হবে — গ্রুপে জয়েন করা আবশ্যক
+                      </p>
+                    </div>
+
+                    {/* Thank you page button */}
+                    {savedOrderId && (
+                      <button
+                        onClick={() => window.location.href = `/thank-you?orderId=${savedOrderId}`}
+                        className="w-full py-3.5 rounded-xl text-sm font-semibold border border-white/10 bg-white/5 hover:bg-white/[0.08] text-gray-300 hover:text-white transition-all duration-300 flex items-center justify-center gap-2"
+                      >
+                        <FaCheckCircle className="text-green-400 text-xs" />
+                        অর্ডার ডিটেইলস দেখুন
+                        <FaArrowRight className="text-xs opacity-50" />
+                      </button>
+                    )}
+                  </div>
                 </div>
               ) : (
                 <div className="bg-gradient-to-b from-gray-900 to-gray-950 rounded-[2rem] shadow-[0_30px_80px_-20px_rgba(239,68,68,0.2),0_0_0_1px_rgba(239,68,68,0.1)] overflow-hidden border border-red-500/10 relative z-10">
