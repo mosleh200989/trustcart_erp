@@ -346,7 +346,13 @@ export default function StickerPrintModal({ orderIds, onClose }: StickerPrintMod
                           {order.courierOrderId && (
                             <div className="text-center" style={{ border: '2px solid #000', padding: '3px 4px', marginTop: '2mm' }}>
                               <div style={{ fontSize: '8px', fontWeight: 'bold', letterSpacing: '1px' }}>CONSIGNMENT</div>
-                              <div style={{ fontSize: '20px', fontWeight: 'bold', letterSpacing: '2px', lineHeight: '1.2' }}>{order.courierOrderId}</div>
+                              <div style={{
+                                fontSize: order.courierOrderId.length > 12 ? '14px' : '20px',
+                                fontWeight: 'bold',
+                                letterSpacing: order.courierOrderId.length > 12 ? '1px' : '2px',
+                                lineHeight: '1.2',
+                                wordBreak: 'break-all',
+                              }}>{order.courierOrderId}</div>
                             </div>
                           )}
                           {order.trackingId && (
