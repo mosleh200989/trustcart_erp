@@ -2083,12 +2083,55 @@ export class OrderManagementService {
   private async resolvePathaoCityFromAddress(address: string): Promise<{ city_id: number; city_name: string } | null> {
     const cities = await this.getPathaoCities();
     if (!cities?.length) return null;
-    const addrLower = address.toLowerCase();
 
-    // Strategy 1: Direct city name match
+    // Transliterate Bangla district/city/area names to English equivalents
+    const banglaToEnglish: Record<string, string> = {
+      'ঢাকা': 'dhaka', 'চট্টগ্রাম': 'chattogram', 'চিটাগাং': 'chattogram', 'রাজশাহী': 'rajshahi',
+      'খুলনা': 'khulna', 'সিলেট': 'sylhet', 'রংপুর': 'rangpur', 'বরিশাল': 'barishal',
+      'ময়মনসিংহ': 'mymensingh', 'কুমিল্লা': 'comilla',
+      'গাজীপুর': 'gazipur', 'নারায়ণগঞ্জ': 'narayanganj', 'সাভার': 'savar',
+      'টঙ্গী': 'tongi', 'মানিকগঞ্জ': 'manikganj', 'মুন্সীগঞ্জ': 'munshiganj',
+      'নরসিংদী': 'narsingdi', 'কিশোরগঞ্জ': 'kishoreganj', 'নেত্রকোনা': 'netrokona',
+      'শেরপুর': 'sherpur', 'জামালপুর': 'jamalpur', 'টাঙ্গাইল': 'tangail',
+      'ফরিদপুর': 'faridpur', 'মাদারীপুর': 'madaripur', 'শরীয়তপুর': 'shariatpur',
+      'রাজবাড়ী': 'rajbari', 'গোপালগঞ্জ': 'gopalganj',
+      'ব্রাহ্মণবাড়িয়া': 'brahmanbaria', 'চাঁদপুর': 'chandpur',
+      'লক্ষ্মীপুর': 'lakshmipur', 'নোয়াখালী': 'noakhali', 'ফেনী': 'feni',
+      'কক্সবাজার': 'coxs bazar',
+      'রাঙামাটি': 'rangamati', 'খাগড়াছড়ি': 'khagrachhari', 'বান্দরবান': 'bandarban',
+      'পটুয়াখালী': 'patuakhali', 'ভোলা': 'bhola', 'ঝালকাঠি': 'jhalokati',
+      'পিরোজপুর': 'pirojpur', 'বরগুনা': 'barguna',
+      'যশোর': 'jessore', 'সাতক্ষীরা': 'satkhira', 'নড়াইল': 'narail',
+      'মাগুরা': 'magura', 'মেহেরপুর': 'meherpur', 'কুষ্টিয়া': 'kushtia',
+      'ঝিনাইদহ': 'jhenaidah', 'চুয়াডাঙ্গা': 'chuadanga',
+      'বগুড়া': 'bogura', 'জয়পুরহাট': 'joypurhat', 'নওগাঁ': 'naogaon',
+      'নাটোর': 'natore', 'চাঁপাইনবাবগঞ্জ': 'chapainawabganj', 'পাবনা': 'pabna',
+      'সিরাজগঞ্জ': 'sirajganj',
+      'দিনাজপুর': 'dinajpur', 'ঠাকুরগাঁও': 'thakurgaon', 'পঞ্চগড়': 'panchagarh',
+      'নীলফামারী': 'nilphamari', 'লালমনিরহাট': 'lalmonirhat', 'কুড়িগ্রাম': 'kurigram',
+      'গাইবান্ধা': 'gaibandha',
+      'হবিগঞ্জ': 'habiganj', 'মৌলভীবাজার': 'moulvibazar', 'সুনামগঞ্জ': 'sunamganj',
+      // Common upazila/area names in Bangla
+      'মিরপুর': 'mirpur', 'ধানমন্ডি': 'dhanmondi', 'গুলশান': 'gulshan',
+      'বনানী': 'banani', 'উত্তরা': 'uttara', 'মোহাম্মদপুর': 'mohammadpur',
+      'নবীনগর': 'nabinagar', 'কসবা': 'kasba', 'আখাউড়া': 'akhaura',
+      'সরাইল': 'sarail', 'বাঞ্ছারামপুর': 'banchharampur', 'বিজয়নগর': 'bijoynagar',
+      'আশুগঞ্জ': 'ashuganj', 'নাসিরনগর': 'nasirnagar',
+      'খুলনা সদর': 'khulna sadar', 'ফরাজীপাড়া': 'farazipara',
+    };
+
+    // Build an enriched English version of the address
+    let enrichedAddr = address.toLowerCase();
+    for (const [bangla, english] of Object.entries(banglaToEnglish)) {
+      if (address.includes(bangla)) {
+        enrichedAddr += ' ' + english;
+      }
+    }
+
+    // Strategy 1: Direct city name match (on enriched address)
     for (const c of cities) {
       const name = String(c.city_name || '').toLowerCase();
-      if (name && addrLower.includes(name)) {
+      if (name && enrichedAddr.includes(name)) {
         return { city_id: c.city_id, city_name: c.city_name };
       }
     }
@@ -2142,7 +2185,7 @@ export class OrderManagementService {
 
     for (const [cityKey, areas] of Object.entries(areaToCity)) {
       for (const area of areas) {
-        if (addrLower.includes(area)) {
+        if (enrichedAddr.includes(area)) {
           // Find matching city from Pathao's city list
           const matchedCity = cities.find((c: any) =>
             String(c.city_name || '').toLowerCase().includes(cityKey)
@@ -2155,11 +2198,15 @@ export class OrderManagementService {
     }
 
     // Strategy 3: Reverse zone lookup — try zones of each city and infer city from zone match
-    for (const c of cities) {
-      const zoneMatch = await this.resolvePathaoZoneFromAddress(c.city_id, address);
-      if (zoneMatch) {
-        return { city_id: c.city_id, city_name: c.city_name };
+    try {
+      for (const c of cities) {
+        const zoneMatch = await this.resolvePathaoZoneFromAddress(c.city_id, enrichedAddr);
+        if (zoneMatch) {
+          return { city_id: c.city_id, city_name: c.city_name };
+        }
       }
+    } catch {
+      // If zone API calls fail, fall through to return null
     }
 
     return null;
@@ -2274,22 +2321,16 @@ export class OrderManagementService {
 
     if (!resolvedCity) {
       const matched = await this.resolvePathaoCityFromAddress(enrichedAddress);
-      if (!matched) {
-        throw new BadRequestException(
-          `Could not auto-detect city from address "${recipientAddress.slice(0, 80)}…". Please send from Order Details with manual city/zone selection.`,
-        );
+      if (matched) {
+        resolvedCity = matched.city_id;
       }
-      resolvedCity = matched.city_id;
     }
 
-    if (!resolvedZone) {
+    if (!resolvedZone && resolvedCity) {
       const matched = await this.resolvePathaoZoneFromAddress(resolvedCity, enrichedAddress);
-      if (!matched) {
-        throw new BadRequestException(
-          `Could not auto-detect zone from address "${recipientAddress.slice(0, 80)}…". Please send from Order Details with manual city/zone selection.`,
-        );
+      if (matched) {
+        resolvedZone = matched.zone_id;
       }
-      resolvedZone = matched.zone_id;
     }
 
     const codAmount = Math.max(0, Number(order.totalAmount || 0) - Number(order.discountAmount || 0));
@@ -2318,8 +2359,6 @@ export class OrderManagementService {
       recipient_name: recipientName.slice(0, 100),
       recipient_phone: recipientPhone,
       recipient_address: recipientAddress.slice(0, 500),
-      recipient_city: resolvedCity,
-      recipient_zone: resolvedZone,
       delivery_type: 48, // Normal delivery (48 hours)
       item_type: 2, // Parcel
       item_quantity: itemQuantity,
@@ -2328,12 +2367,21 @@ export class OrderManagementService {
       item_description: itemDescription,
     };
 
+    // Only include city+zone together — Pathao requires zone when city is present
+    // If zone is missing, omit both so Pathao resolves from raw address
+    if (resolvedCity && resolvedZone) {
+      payload.recipient_city = resolvedCity;
+      payload.recipient_zone = resolvedZone;
+    }
+
     if (data.recipientArea) {
       payload.recipient_area = data.recipientArea;
     }
     if (specialInstruction) {
       payload.special_instruction = specialInstruction;
     }
+
+    this.logger.log(`[Pathao] Sending order payload: ${JSON.stringify(payload)}`);
 
     let resData: any;
     try {
@@ -2349,6 +2397,8 @@ export class OrderManagementService {
       const errData = e?.response?.data;
       const errors = errData?.errors || undefined;
 
+      this.logger.error(`[Pathao] API error ${extStatus}: ${JSON.stringify(errData)}`);
+
       if (extStatus === 401 || extStatus === 403) {
         // Invalidate cached token and retry once
         this.pathaoAccessToken = null;
@@ -2363,7 +2413,16 @@ export class OrderManagementService {
         );
       }
 
-      const msg = errData?.message || e?.message || 'Failed to connect to Pathao';
+      // Flatten Pathao validation errors into readable message
+      let msg = errData?.message || e?.message || 'Failed to connect to Pathao';
+      if (errors && typeof errors === 'object') {
+        const fieldErrors = Object.entries(errors)
+          .map(([field, msgs]) => `${field}: ${Array.isArray(msgs) ? msgs.join(', ') : msgs}`)
+          .join('; ');
+        if (fieldErrors) {
+          msg = `${msg} — ${fieldErrors}`;
+        }
+      }
       throw new HttpException(
         { statusCode: HttpStatus.BAD_GATEWAY, message: `Pathao error: ${msg}`, errors },
         HttpStatus.BAD_GATEWAY,
