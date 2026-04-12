@@ -1902,6 +1902,10 @@ export class OrderManagementService {
   private pathaoAccessToken: string | null = null;
   private pathaoTokenExpiresAt: number = 0;
 
+  // In-memory cache for Pathao city/zone lists (5 min TTL)
+  private pathaoCityCache: { data: any[]; expiresAt: number } = { data: [], expiresAt: 0 };
+  private pathaoZoneCache: Map<number, { data: any[]; expiresAt: number }> = new Map();
+
   /**
    * Issue or refresh a Pathao access token using client credentials + password grant.
    */
@@ -1974,27 +1978,38 @@ export class OrderManagementService {
   }
 
   /**
-   * Get Pathao city list.
+   * Get Pathao city list (cached for 5 minutes).
    */
   async getPathaoCities(): Promise<any> {
+    if (this.pathaoCityCache.data.length > 0 && Date.now() < this.pathaoCityCache.expiresAt) {
+      return this.pathaoCityCache.data;
+    }
     const headers = await this.getPathaoHeaders();
     const res = await axios.get(`${this.pathaoBaseUrl}/aladdin/api/v1/countries/1/city-list`, {
       headers,
       timeout: 20000,
     });
-    return res.data?.data?.data || res.data?.data || [];
+    const data = res.data?.data?.data || res.data?.data || [];
+    this.pathaoCityCache = { data, expiresAt: Date.now() + 5 * 60 * 1000 };
+    return data;
   }
 
   /**
-   * Get Pathao zone list by city ID.
+   * Get Pathao zone list by city ID (cached for 5 minutes per city).
    */
   async getPathaoZones(cityId: number): Promise<any> {
+    const cached = this.pathaoZoneCache.get(cityId);
+    if (cached && cached.data.length > 0 && Date.now() < cached.expiresAt) {
+      return cached.data;
+    }
     const headers = await this.getPathaoHeaders();
     const res = await axios.get(`${this.pathaoBaseUrl}/aladdin/api/v1/cities/${cityId}/zone-list`, {
       headers,
       timeout: 20000,
     });
-    return res.data?.data?.data || res.data?.data || [];
+    const data = res.data?.data?.data || res.data?.data || [];
+    this.pathaoZoneCache.set(cityId, { data, expiresAt: Date.now() + 5 * 60 * 1000 });
+    return data;
   }
 
   /**
@@ -2061,17 +2076,92 @@ export class OrderManagementService {
 
   /**
    * Smart match a Pathao city from address text.
+   * Strategy 1: Direct substring match of city name in address.
+   * Strategy 2: Well-known area/zone keywords that map to a known city.
+   * Strategy 3: Reverse lookup — scan zones of major cities and infer city from a zone match.
    */
   private async resolvePathaoCityFromAddress(address: string): Promise<{ city_id: number; city_name: string } | null> {
     const cities = await this.getPathaoCities();
     if (!cities?.length) return null;
     const addrLower = address.toLowerCase();
+
+    // Strategy 1: Direct city name match
     for (const c of cities) {
       const name = String(c.city_name || '').toLowerCase();
       if (name && addrLower.includes(name)) {
         return { city_id: c.city_id, city_name: c.city_name };
       }
     }
+
+    // Strategy 2: Well-known area keywords → city mapping
+    // These are neighborhoods/zones commonly used in addresses without mentioning the city
+    const areaToCity: Record<string, string[]> = {
+      'dhaka': [
+        'mirpur', 'dhanmondi', 'gulshan', 'banani', 'uttara', 'mohammadpur', 'tejgaon',
+        'motijheel', 'paltan', 'farmgate', 'shantinagar', 'jatrabari', 'demra', 'badda',
+        'rampura', 'khilgaon', 'mugda', 'basabo', 'sabujbag', 'kadamtali', 'kotwali',
+        'lalbagh', 'hazaribagh', 'kamrangirchar', 'keraniganj', 'shyampur', 'postogola',
+        'sutrapur', 'wari', 'gandaria', 'chawkbazar', 'bangshal', 'shahbagh', 'ramna',
+        'new market', 'elephant road', 'adabor', 'kafrul', 'cantonment', 'pallabi',
+        'turag', 'dakshinkhan', 'bhashantek', 'rupnagar', 'kazipara', 'shewrapara',
+        'agargaon', 'sher-e-bangla', 'jigatola', 'kalabagan', 'lalmatia', 'eskaton',
+        'moghbazar', 'hatirpool', 'green road', 'dhanmondi', 'shankar', 'rayerbazar',
+        'bashundhara', 'aftabnagar', 'nikunja', 'khilkhet', 'vatara', 'merul',
+        'mohakhali', 'bijoy sarani', 'kakrail', 'segunbagicha', 'tikatuli',
+        'azimpur', 'nilkhet', 'nawabpur', 'islampur', 'sadarghat', 'old dhaka',
+        'tongi', 'gazipur', 'savar', 'ashulia', 'dhamrai', 'narayanganj',
+        'banasree', 'manda', 'matuail', 'shonir akhra', 'signboard',
+        'malibagh', 'mouchak', 'rajarbagh', 'kamalapur', 'shantibagh',
+      ],
+      'chattogram': [
+        'agrabad', 'nasirabad', 'khulshi', 'panchlaish', 'halishahar', 'pahartali',
+        'bayezid', 'bakalia', 'chawkbazar', 'kotwali', 'double mooring', 'patenga',
+        'karnaphuli', 'chandgaon', 'oxygen', 'muradpur', 'gec', 'bahaddarhat',
+        'probartak', 'dewanhat', 'lalkhanbazar',
+      ],
+      'rajshahi': [
+        'boalia', 'rajpara', 'motihar', 'shah makhdum',
+      ],
+      'khulna': [
+        'sonadanga', 'khalishpur', 'daulatpur', 'khan jahan ali', 'boyra',
+        'khulna sadar', 'farazipara',
+      ],
+      'sylhet': [
+        'zindabazar', 'ambarkhana', 'subid bazar', 'kumargaon', 'shibganj',
+      ],
+      'rangpur': [
+        'rangpur sadar', 'mahiganj',
+      ],
+      'barishal': [
+        'barishal sadar', 'nathullabad',
+      ],
+      'mymensingh': [
+        'mymensingh sadar',
+      ],
+    };
+
+    for (const [cityKey, areas] of Object.entries(areaToCity)) {
+      for (const area of areas) {
+        if (addrLower.includes(area)) {
+          // Find matching city from Pathao's city list
+          const matchedCity = cities.find((c: any) =>
+            String(c.city_name || '').toLowerCase().includes(cityKey)
+          );
+          if (matchedCity) {
+            return { city_id: matchedCity.city_id, city_name: matchedCity.city_name };
+          }
+        }
+      }
+    }
+
+    // Strategy 3: Reverse zone lookup — try zones of each city and infer city from zone match
+    for (const c of cities) {
+      const zoneMatch = await this.resolvePathaoZoneFromAddress(c.city_id, address);
+      if (zoneMatch) {
+        return { city_id: c.city_id, city_name: c.city_name };
+      }
+    }
+
     return null;
   }
 
@@ -2170,8 +2260,20 @@ export class OrderManagementService {
     let resolvedCity = data.recipientCity && data.recipientCity > 0 ? data.recipientCity : 0;
     let resolvedZone = data.recipientZone && data.recipientZone > 0 ? data.recipientZone : 0;
 
+    // Augment address with customer district/city for better auto-detection
+    let enrichedAddress = recipientAddress;
+    if ((!resolvedCity || !resolvedZone) && order.customerId) {
+      try {
+        const cust = await this.customersService.findOne(String(order.customerId));
+        if (cust) {
+          const extra = [cust.district, cust.city].filter(Boolean).join(' ');
+          if (extra) enrichedAddress = `${recipientAddress}, ${extra}`;
+        }
+      } catch {}
+    }
+
     if (!resolvedCity) {
-      const matched = await this.resolvePathaoCityFromAddress(recipientAddress);
+      const matched = await this.resolvePathaoCityFromAddress(enrichedAddress);
       if (!matched) {
         throw new BadRequestException(
           `Could not auto-detect city from address "${recipientAddress.slice(0, 80)}…". Please send from Order Details with manual city/zone selection.`,
@@ -2181,7 +2283,7 @@ export class OrderManagementService {
     }
 
     if (!resolvedZone) {
-      const matched = await this.resolvePathaoZoneFromAddress(resolvedCity, recipientAddress);
+      const matched = await this.resolvePathaoZoneFromAddress(resolvedCity, enrichedAddress);
       if (!matched) {
         throw new BadRequestException(
           `Could not auto-detect zone from address "${recipientAddress.slice(0, 80)}…". Please send from Order Details with manual city/zone selection.`,
