@@ -601,7 +601,7 @@ export class SalesService {
     const thresholdDays =
       params?.thresholdDays != null && Number.isFinite(params.thresholdDays)
         ? Math.max(0, Math.floor(params.thresholdDays))
-        : 3;
+        : 1;
 
     const cutoff = new Date(Date.now() - thresholdDays * 24 * 60 * 60 * 1000);
 
