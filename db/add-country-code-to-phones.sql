@@ -328,6 +328,18 @@ JOIN customers keeper ON keeper.phone = '+88' || dup.phone
 WHERE dup.phone NOT LIKE '+%'
   AND price_locks.customer_id = dup.id;
 
+UPDATE wallet_transactions SET customer_id = keeper.id
+FROM customers dup
+JOIN customers keeper ON keeper.phone = '+88' || dup.phone
+WHERE dup.phone NOT LIKE '+%'
+  AND wallet_transactions.customer_id = dup.id;
+
+UPDATE campaign_customers SET customer_id = keeper.id
+FROM customers dup
+JOIN customers keeper ON keeper.phone = '+88' || dup.phone
+WHERE dup.phone NOT LIKE '+%'
+  AND campaign_customers.customer_id = dup.id;
+
 -- Now delete the duplicate customer records (the ones without +88)
 DELETE FROM customers
 WHERE phone NOT LIKE '+%'
