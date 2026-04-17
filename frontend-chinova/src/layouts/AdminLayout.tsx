@@ -309,9 +309,11 @@ const menuItems: MenuItem[] = [
   {
     title: 'CRM',
     icon: FaHandshake,
-    requiredPermissions: ['view-leads', 'view-customers', 'view-crm-reports', 'manage-team-members'],
+    requiredPermissions: ['view-leads', 'view-customers', 'view-crm-reports', 'manage-team-members', 'view-sales-manager-dashboard'],
     children: [
       { title: 'Dashboard', icon: FaTachometerAlt, path: '/admin/crm' },
+      { title: 'Sales Manager', icon: FaChartBar, path: '/admin/crm/sales-manager-dashboard', requiredPermissions: ['view-sales-manager-dashboard'] },
+      { title: 'Assign Leads', icon: FaUsers, path: '/admin/crm/sales-manager-leads', requiredPermissions: ['view-sales-manager-dashboard'] },
       { title: 'Customers', icon: FaUsers, path: '/admin/crm/customers', requiredPermissions: ['view-customers'] },
       { title: 'Team Dashboard', icon: FaTachometerAlt, path: '/admin/crm/team-dashboard', requiredPermissions: ['view-team-performance', 'manage-team-members'] },
       { title: 'Lead Assignment', icon: FaUsers, path: '/admin/crm/lead-assignment', requiredPermissions: ['assign-leads-to-team'] },
@@ -319,6 +321,7 @@ const menuItems: MenuItem[] = [
       { title: 'Commission Settings', icon: FaMoneyBillWave, path: '/admin/crm/commission-settings', requiredPermissions: ['manage-commission-settings'] },
       { title: 'Tier Management', icon: FaTachometerAlt, path: '/admin/crm/customer-tier-management', requiredPermissions: ['view-customers'] },
       { title: 'Rejected Customers', icon: FaBan, path: '/admin/crm/rejected-customers', requiredPermissions: ['view-customers'] },
+      { title: 'Customer Segments', icon: FaUsers, path: '/admin/crm/customer-segments', requiredPermissions: ['view-customers'] },
       { title: 'Pipeline', icon: FaBullseye, path: '/admin/crm/pipeline' },
       { title: 'Tasks', icon: FaBullseye, path: '/admin/crm/tasks' },
       { title: 'Analytics', icon: FaTachometerAlt, path: '/admin/crm/analytics' },
@@ -779,7 +782,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </header>
 
         {/* Page Content */}
-        <main className="flex-1 overflow-y-auto bg-gray-100 p-6">
+        <main className="flex-1 overflow-y-auto bg-gray-100 p-6" style={{ scrollBehavior: 'smooth' }}>
           {!hasRouteAccess ? (
             <div className="max-w-xl mx-auto bg-white rounded-lg shadow p-6">
               <h1 className="text-2xl font-bold text-gray-800">403 - Access denied</h1>

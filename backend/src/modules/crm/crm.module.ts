@@ -78,6 +78,8 @@ import { SalesManagerController } from './sales-manager.controller';
 import { AgentCommission } from './entities/agent-commission.entity';
 import { CommissionSettings } from './entities/commission-settings.entity';
 import { CommissionSlab } from './entities/commission-slab.entity';
+import { CustomerSegmentService } from './customer-segment.service';
+import { CustomerSegmentController } from './customer-segment.controller';
 import { CommissionPaymentRequest } from './entities/commission-payment-request.entity';
 import { DashboardConfig } from './entities/dashboard-config.entity';
 import { CustomerTier } from '../lead-management/entities/customer-tier.entity';
@@ -152,6 +154,8 @@ import { CustomerTier } from '../lead-management/entities/customer-tier.entity';
     CommissionController,
     // Sales Manager controller
     SalesManagerController,
+    // Customer segment controller
+    CustomerSegmentController,
   ],
   providers: [
     // Existing providers
@@ -180,6 +184,8 @@ import { CustomerTier } from '../lead-management/entities/customer-tier.entity';
     CommissionService,
     // Sales Manager service
     SalesManagerService,
+    // Customer segment service
+    CustomerSegmentService,
   ],
   exports: [
     // Existing exports
