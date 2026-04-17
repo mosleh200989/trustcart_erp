@@ -321,6 +321,7 @@ const menuItems: MenuItem[] = [
       { title: 'Commission Settings', icon: FaMoneyBillWave, path: '/admin/crm/commission-settings', requiredPermissions: ['manage-commission-settings'] },
       { title: 'Tier Management', icon: FaTachometerAlt, path: '/admin/crm/customer-tier-management', requiredPermissions: ['view-customers'] },
       { title: 'Rejected Customers', icon: FaBan, path: '/admin/crm/rejected-customers', requiredPermissions: ['view-customers'] },
+      { title: 'Customer Segments', icon: FaUsers, path: '/admin/crm/customer-segments', requiredPermissions: ['view-customers'] },
       { title: 'Pipeline', icon: FaBullseye, path: '/admin/crm/pipeline' },
       { title: 'Tasks', icon: FaBullseye, path: '/admin/crm/tasks' },
       { title: 'Analytics', icon: FaTachometerAlt, path: '/admin/crm/analytics' },
