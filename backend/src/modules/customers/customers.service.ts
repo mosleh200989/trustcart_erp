@@ -13,6 +13,24 @@ export class CustomersService {
     private readonly loyaltyService: LoyaltyService,
   ) {}
 
+  /** Ensure phone always has +88 prefix (Bangladesh country code) */
+  private normalizePhone(raw: string): string {
+    let phone = raw.trim();
+    if (!phone) return phone;
+    // Remove leading + for uniform handling
+    if (phone.startsWith('+')) phone = phone.slice(1);
+    // If starts with 88 followed by 0 (e.g. 8801...), it already has country code sans +
+    if (phone.startsWith('880') && phone.length >= 13) {
+      return '+' + phone;
+    }
+    // If starts with 0 (local format like 01...), add +88
+    if (phone.startsWith('0')) {
+      return '+88' + phone;
+    }
+    // Already has some other format — add + back if it was stripped
+    return raw.trim().startsWith('+') ? raw.trim() : '+88' + phone;
+  }
+
   private normalizeReferralCode(raw: any): string | null {
     if (raw == null) return null;
     const code = String(raw).trim();
@@ -262,7 +280,7 @@ export class CustomersService {
         typeof createCustomerDto.email === 'string'
           ? createCustomerDto.email.trim()
           : null;
-      const phone =
+      const rawPhone =
         typeof createCustomerDto.phone === 'string'
           ? createCustomerDto.phone.trim()
           : '';
@@ -271,9 +289,11 @@ export class CustomersService {
         typeof createCustomerDto.password === 'string' &&
         createCustomerDto.password.trim().length > 0;
 
-      if (!phone) {
+      if (!rawPhone) {
         throw new Error('Phone number is required');
       }
+
+      const phone = this.normalizePhone(rawPhone);
 
       // Normalize empty email to null to avoid unique collisions on ''
       createCustomerDto.email = email && email.length > 0 ? email : null;
@@ -482,10 +502,11 @@ export class CustomersService {
     const patch: any = { ...updateCustomerDto };
 
     if (Object.prototype.hasOwnProperty.call(patch, 'phone')) {
-      const phone = typeof patch.phone === 'string' ? patch.phone.trim() : '';
-      if (!phone) {
+      const rawPhone = typeof patch.phone === 'string' ? patch.phone.trim() : '';
+      if (!rawPhone) {
         throw new Error('Phone number is required');
       }
+      const phone = this.normalizePhone(rawPhone);
 
       // Only enforce uniqueness if the phone is being changed.
       // This avoids false positives when legacy data contains duplicates.
