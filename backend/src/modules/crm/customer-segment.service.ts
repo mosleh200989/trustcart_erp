@@ -87,6 +87,7 @@ export class CustomerSegmentService {
         (SELECT COALESCE(SUM(so.total_amount), 0)::numeric FROM sales_orders so WHERE so.customer_id = c.id) AS "totalSpent",
         (SELECT COUNT(*)::int FROM sales_orders so WHERE so.customer_id = c.id AND so.sales_order_number LIKE 'SO-%') AS "soCount",
         (SELECT COUNT(*)::int FROM sales_orders so WHERE so.customer_id = c.id AND so.sales_order_number LIKE 'LEG-%') AS "legCount",
+        (SELECT so2.id FROM sales_orders so2 WHERE so2.customer_id = c.id ORDER BY so2.created_at DESC LIMIT 1) AS "latestOrderId",
         u.name AS "agentName"
       FROM customers c
       LEFT JOIN users u ON u.id = c.assigned_user_id
