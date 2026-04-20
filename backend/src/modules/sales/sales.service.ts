@@ -219,7 +219,7 @@ export class SalesService {
       { value: 'website', label: 'Website' },
     ];
 
-    // Get distinct agents/admins who created orders
+    // Get distinct active agents/admins who created orders
     const agents: { id: number; name: string; last_name: string | null }[] =
       await this.salesRepository.query(
         `SELECT DISTINCT u.id, u.name, u.last_name
@@ -227,6 +227,8 @@ export class SalesService {
          INNER JOIN users u ON u.id = o.created_by
          WHERE o.order_source IN ('admin_panel', 'agent_dashboard')
            AND o.created_by IS NOT NULL
+           AND u.status = 'active'
+           AND u.is_deleted = false
          ORDER BY u.name ASC`,
       );
 

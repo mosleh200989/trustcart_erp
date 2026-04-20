@@ -66,6 +66,11 @@ export default function AdminUsers() {
     setSelectedUserIds(prev => prev.filter(id => userIdSet.has(id)));
   }, [users]);
 
+  // Clear selection when navigating to a different page
+  useEffect(() => {
+    setSelectedUserIds([]);
+  }, [currentPage]);
+
   const loadUsers = async () => {
     try {
       const data = await usersAPI.list();
@@ -178,6 +183,9 @@ export default function AdminUsers() {
         const updated = await usersAPI.update(selectedUser.id, payload);
         setUsers((prev) => prev.map((u) => (u.id === selectedUser.id ? updated : u)));
         toast.success('User updated successfully');
+        if (updated.unassignedCount > 0) {
+          toast.info(`${updated.unassignedCount} customer(s) were unassigned from this agent.`);
+        }
       }
 
       setIsModalOpen(false);
@@ -192,9 +200,13 @@ export default function AdminUsers() {
     if (!confirm('Are you sure you want to deactivate this user?')) return;
 
     try {
-      await usersAPI.delete(id);
+      const res = await usersAPI.delete(id);
       setUsers(users.filter(u => u.id !== id));
       setSelectedUserIds(prev => prev.filter(x => x !== id));
+      toast.success('User deactivated');
+      if (res?.unassignedCount > 0) {
+        toast.info(`${res.unassignedCount} customer(s) were unassigned from this agent.`);
+      }
     } catch (error) {
       toast.error('Failed to deactivate user');
     }
@@ -285,6 +297,9 @@ export default function AdminUsers() {
 
       const succeeded = results.filter(r => r.status === 'fulfilled').length;
       const failed = results.length - succeeded;
+      const totalUnassigned = results
+        .filter((r): r is PromiseFulfilledResult<any> => r.status === 'fulfilled')
+        .reduce((sum, r) => sum + (r.value?.unassignedCount || 0), 0);
 
       await loadUsers();
       clearSelection();
@@ -292,6 +307,11 @@ export default function AdminUsers() {
 
       if (failed > 0) {
         toast.warning(`Bulk action completed: ${succeeded} succeeded, ${failed} failed.`);
+      } else {
+        toast.success(`${succeeded} user(s) updated successfully.`);
+      }
+      if (totalUnassigned > 0) {
+        toast.info(`${totalUnassigned} customer(s) were unassigned from deactivated agents.`);
       }
     } catch (error) {
       console.error('Bulk action failed:', error);
