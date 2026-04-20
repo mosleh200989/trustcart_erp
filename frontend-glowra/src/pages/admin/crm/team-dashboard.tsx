@@ -183,23 +183,23 @@ const SalesTeamLeaderDashboard = () => {
           </div>
 
           {/* Quick Actions */}
-          <nav aria-label="Quick actions" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
-            <Link href="/admin/crm/leads" className="bg-blue-600 text-white text-center py-3 rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-400 focus:outline-none">
+          <nav aria-label="Quick actions" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
+            <Link href="/admin/crm/leads" className="bg-blue-600 text-white text-center rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-400 focus:outline-none min-h-[48px] px-3 py-3 flex items-center justify-center">
               View and Manage Leads
             </Link>
-            <Link href="/admin/crm/team/followups" className="bg-yellow-600 text-white text-center py-3 rounded-lg hover:bg-yellow-700 focus:ring-2 focus:ring-yellow-400 focus:outline-none">
+            <Link href="/admin/crm/team/followups" className="bg-yellow-600 text-white text-center rounded-lg hover:bg-yellow-700 focus:ring-2 focus:ring-yellow-400 focus:outline-none min-h-[48px] px-3 py-3 flex items-center justify-center">
               Track Follow-ups
             </Link>
-            <Link href="/admin/crm/team-agents-report" className="bg-cyan-600 text-white text-center py-3 rounded-lg hover:bg-cyan-700 focus:ring-2 focus:ring-cyan-400 focus:outline-none">
+            <Link href="/admin/crm/team-agents-report" className="bg-cyan-600 text-white text-center rounded-lg hover:bg-cyan-700 focus:ring-2 focus:ring-cyan-400 focus:outline-none min-h-[48px] px-3 py-3 flex items-center justify-center">
               Agent Reports
             </Link>
-            <Link href="/admin/crm/reports" className="bg-purple-600 text-white text-center py-3 rounded-lg hover:bg-purple-700 focus:ring-2 focus:ring-purple-400 focus:outline-none">
+            {/* <Link href="/admin/crm/reports" className="bg-purple-600 text-white text-center py-3 rounded-lg hover:bg-purple-700 focus:ring-2 focus:ring-purple-400 focus:outline-none">
               View Reports
-            </Link>
-            <Link href="/admin/crm/teams" className="bg-pink-600 text-white text-center py-3 rounded-lg hover:bg-pink-700 focus:ring-2 focus:ring-pink-400 focus:outline-none">
+            </Link> */}
+            <Link href="/admin/crm/teams" className="bg-pink-600 text-white text-center rounded-lg hover:bg-pink-700 focus:ring-2 focus:ring-pink-400 focus:outline-none min-h-[48px] px-3 py-3 flex items-center justify-center">
               Manage Teams
             </Link>
-            <Link href="/admin/crm/agent-tiers" className="bg-amber-600 text-white text-center py-3 rounded-lg hover:bg-amber-700 focus:ring-2 focus:ring-amber-400 focus:outline-none">
+            <Link href="/admin/crm/agent-tiers" className="bg-amber-600 text-white text-center rounded-lg hover:bg-amber-700 focus:ring-2 focus:ring-amber-400 focus:outline-none min-h-[48px] px-3 py-3 flex items-center justify-center">
               Agents Tiers
             </Link>
           </nav>

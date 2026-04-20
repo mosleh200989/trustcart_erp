@@ -3,6 +3,8 @@ import AdminLayout from '@/layouts/AdminLayout';
 import apiClient from '@/services/api';
 import PageSizeSelector from '@/components/admin/PageSizeSelector';
 import Pagination from '@/components/admin/Pagination';
+import AdminOrderDetailsModal from '@/components/AdminOrderDetailsModal';
+import { useToast } from '@/contexts/ToastContext';
 
 interface Customer {
   id: number | string;
@@ -10,8 +12,7 @@ interface Customer {
   name?: string;
   email?: string;
   phone?: string;
-  priority?: string;
-  status?: string;
+  tier?: string | null;
   next_follow_up?: string;
 }
 
@@ -29,9 +30,14 @@ interface Agent {
 }
 
 export default function CrmFollowupsPage() {
+  const toast = useToast();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [totalCustomers, setTotalCustomers] = useState(0);
+
+  // Order modal state
+  const [showOrderModal, setShowOrderModal] = useState(false);
+  const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
   
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
@@ -145,6 +151,35 @@ export default function CrmFollowupsPage() {
     if (c.name) return c.name;
     const full = [c.name, c.last_name].filter(Boolean).join(' ');
     return full || 'N/A';
+  };
+
+  const getTierColor = (tier: string | undefined | null) => {
+    switch (tier?.toLowerCase()) {
+      case 'vip': return 'bg-yellow-100 text-yellow-800 border-yellow-300';
+      case 'platinum': return 'bg-indigo-100 text-indigo-800 border-indigo-300';
+      case 'gold': return 'bg-amber-100 text-amber-800 border-amber-300';
+      case 'silver': return 'bg-gray-100 text-gray-700 border-gray-300';
+      case 'repeat': return 'bg-blue-100 text-blue-800 border-blue-300';
+      case 'new': return 'bg-green-100 text-green-800 border-green-300';
+      case 'blacklist': return 'bg-red-100 text-red-800 border-red-300';
+      case 'rejected': return 'bg-rose-100 text-rose-800 border-rose-300';
+      default: return 'bg-slate-100 text-slate-600 border-slate-300';
+    }
+  };
+
+  const handleViewOrder = async (customerId: number | string) => {
+    try {
+      const response = await apiClient.get(`/order-management/customer/${customerId}/orders`);
+      const orders = response.data?.data || response.data || [];
+      if (orders.length > 0) {
+        setSelectedOrderId(orders[0].id);
+        setShowOrderModal(true);
+      } else {
+        toast.warning('No orders found for this customer');
+      }
+    } catch {
+      toast.error('Failed to fetch customer orders');
+    }
   };
 
   const handleTodayToggle = () => {
@@ -322,11 +357,10 @@ export default function CrmFollowupsPage() {
                   <tr>
                     <th className="px-4 py-2 text-left font-medium text-gray-500 uppercase">ID</th>
                     <th className="px-4 py-2 text-left font-medium text-gray-500 uppercase">Customer</th>
-                    <th className="px-4 py-2 text-left font-medium text-gray-500 uppercase">Email</th>
                     <th className="px-4 py-2 text-left font-medium text-gray-500 uppercase">Phone</th>
-                    <th className="px-4 py-2 text-left font-medium text-gray-500 uppercase">Priority</th>
-                    <th className="px-4 py-2 text-left font-medium text-gray-500 uppercase">Status</th>
+                    <th className="px-4 py-2 text-left font-medium text-gray-500 uppercase">Tier</th>
                     <th className="px-4 py-2 text-left font-medium text-gray-500 uppercase">Next Follow-up</th>
+                    <th className="px-4 py-2 text-left font-medium text-gray-500 uppercase">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
@@ -334,11 +368,25 @@ export default function CrmFollowupsPage() {
                     <tr key={c.id} className="hover:bg-gray-50">
                       <td className="px-4 py-2">#{c.id}</td>
                       <td className="px-4 py-2">{formatName(c)}</td>
-                      <td className="px-4 py-2">{c.email || 'N/A'}</td>
                       <td className="px-4 py-2">{c.phone || 'N/A'}</td>
-                      <td className="px-4 py-2 capitalize">{c.priority || '-'}</td>
-                      <td className="px-4 py-2 capitalize">{c.status || '-'}</td>
+                      <td className="px-4 py-2">
+                        {c.tier ? (
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${getTierColor(c.tier)}`}>
+                            {c.tier.charAt(0).toUpperCase() + c.tier.slice(1)}
+                          </span>
+                        ) : (
+                          <span className="text-gray-400 text-xs">—</span>
+                        )}
+                      </td>
                       <td className="px-4 py-2">{c.next_follow_up ? new Date(c.next_follow_up).toLocaleString() : '-'}</td>
+                      <td className="px-4 py-2">
+                        <button
+                          onClick={() => handleViewOrder(c.id)}
+                          className="px-3 py-1 border rounded hover:bg-gray-50 text-sm text-blue-600 hover:text-blue-800"
+                        >
+                          View
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -362,6 +410,13 @@ export default function CrmFollowupsPage() {
           </div>
         </div>
       </div>
+      {showOrderModal && selectedOrderId && (
+        <AdminOrderDetailsModal
+          orderId={selectedOrderId}
+          onClose={() => { setShowOrderModal(false); setSelectedOrderId(null); }}
+          onUpdate={() => {}}
+        />
+      )}
     </AdminLayout>
   );
 }

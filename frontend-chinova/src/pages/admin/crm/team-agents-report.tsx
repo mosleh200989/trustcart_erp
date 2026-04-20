@@ -169,16 +169,6 @@ export default function TeamAgentsReportPage() {
     }
   };
 
-  const formatDuration = (seconds: number): string => {
-    if (!seconds) return '0s';
-    const hours = Math.floor(seconds / 3600);
-    const mins = Math.floor((seconds % 3600) / 60);
-    const secs = seconds % 60;
-    if (hours > 0) return `${hours}h ${mins}m`;
-    if (mins > 0) return `${mins}m ${secs}s`;
-    return `${secs}s`;
-  };
-
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'active':
@@ -398,14 +388,6 @@ export default function TeamAgentsReportPage() {
                               <span>Failed</span>
                               <span className="font-semibold text-red-600">{agentDetail.telephonyStats.summary?.failed_calls || 0}</span>
                             </div>
-                            <div className="flex justify-between">
-                              <span>Total Talk Time</span>
-                              <span className="font-semibold">{formatDuration(agentDetail.telephonyStats.summary?.total_talk_time || 0)}</span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span>Avg Call Duration</span>
-                              <span className="font-semibold">{formatDuration(Math.round(agentDetail.telephonyStats.summary?.avg_call_duration || 0))}</span>
-                            </div>
                           </div>
                         ) : (
                           <p className="text-gray-500 text-sm">No call data available</p>
@@ -418,18 +400,10 @@ export default function TeamAgentsReportPage() {
                       <h4 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
                         <FaUser className="text-indigo-600" /> Customer Stats
                       </h4>
-                      <div className="grid grid-cols-3 gap-4 text-center">
+                      <div className="grid grid-cols-1 gap-4 text-center">
                         <div>
                           <div className="text-2xl font-bold text-indigo-600">{agentDetail.customerStats?.total_assigned || 0}</div>
                           <div className="text-sm text-gray-600">Total Assigned</div>
-                        </div>
-                        <div>
-                          <div className="text-2xl font-bold text-green-600">{agentDetail.customerStats?.converted || 0}</div>
-                          <div className="text-sm text-gray-600">Converted</div>
-                        </div>
-                        <div>
-                          <div className="text-2xl font-bold text-red-600">{agentDetail.customerStats?.escalated || 0}</div>
-                          <div className="text-sm text-gray-600">Escalated</div>
                         </div>
                       </div>
                     </div>
@@ -534,7 +508,6 @@ export default function TeamAgentsReportPage() {
                           <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Status</th>
                           <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Activities</th>
                           <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Calls</th>
-                          <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Talk Time</th>
                           <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Tasks</th>
                           <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Customers</th>
                           <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
@@ -567,14 +540,6 @@ export default function TeamAgentsReportPage() {
                               <div className="text-lg font-semibold text-green-600">{agent.telephony.totalCalls}</div>
                               <div className="text-xs text-gray-500">
                                 {agent.telephony.completedCalls} completed
-                              </div>
-                            </td>
-                            <td className="px-4 py-3 text-center">
-                              <div className="text-sm font-semibold text-gray-700">
-                                {formatDuration(agent.telephony.totalTalkTime)}
-                              </div>
-                              <div className="text-xs text-gray-500">
-                                avg: {formatDuration(Math.round(agent.telephony.avgCallDuration))}
                               </div>
                             </td>
                             <td className="px-4 py-3 text-center">

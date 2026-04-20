@@ -1207,6 +1207,22 @@ export class CrmTeamService {
       }
     }
 
+    // Enrich with tier from customer_tiers
+    if (data.length > 0) {
+      const ids = data.map(c => c.id);
+      const tierRows = await this.customerTierRepo.query(
+        `SELECT customer_id, tier FROM customer_tiers WHERE customer_id = ANY($1) AND is_active = true`,
+        [ids],
+      );
+      const tierMap = new Map<number, string>();
+      for (const r of tierRows) {
+        tierMap.set(r.customer_id, r.tier);
+      }
+      for (const customer of data) {
+        (customer as any).tier = tierMap.get(customer.id as number) || null;
+      }
+    }
+
     return { data, total };
   }
 
