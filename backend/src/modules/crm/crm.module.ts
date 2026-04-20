@@ -83,6 +83,9 @@ import { CustomerSegmentController } from './customer-segment.controller';
 import { CommissionPaymentRequest } from './entities/commission-payment-request.entity';
 import { DashboardConfig } from './entities/dashboard-config.entity';
 import { CustomerTier } from '../lead-management/entities/customer-tier.entity';
+import { CrmNotification } from './entities/crm-notification.entity';
+import { CrmNotificationsService } from './crm-notifications.service';
+import { CrmNotificationsController } from './crm-notifications.controller';
 
 @Module({
   imports: [
@@ -122,7 +125,9 @@ import { CustomerTier } from '../lead-management/entities/customer-tier.entity';
       // Dashboard config entity
       DashboardConfig,
       // Customer tier entity (for tier sync)
-      CustomerTier
+      CustomerTier,
+      // CRM Notifications
+      CrmNotification,
     ]),
     RbacModule,
     LoyaltyModule,
@@ -156,6 +161,8 @@ import { CustomerTier } from '../lead-management/entities/customer-tier.entity';
     SalesManagerController,
     // Customer segment controller
     CustomerSegmentController,
+    // CRM Notifications controller
+    CrmNotificationsController,
   ],
   providers: [
     // Existing providers
@@ -186,6 +193,8 @@ import { CustomerTier } from '../lead-management/entities/customer-tier.entity';
     SalesManagerService,
     // Customer segment service
     CustomerSegmentService,
+    // CRM Notifications service
+    CrmNotificationsService,
   ],
   exports: [
     // Existing exports
