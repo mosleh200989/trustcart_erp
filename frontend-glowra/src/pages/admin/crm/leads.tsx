@@ -12,9 +12,7 @@ interface LeadCustomer {
   last_name?: string;
   email?: string;
   phone?: string;
-  priority?: string;
-  status?: string;
-  customer_type?: string;
+  tier?: string | null;
   assigned_to?: number | null;
   assigned_to_name?: string | null;
 }
@@ -41,9 +39,7 @@ export default function CrmLeadsPage() {
   const [pageSize, setPageSize] = useState(50);
   
   // Filters
-  const [priority, setPriority] = useState<string>('');
-  const [status, setStatus] = useState<string>('');
-  const [customerType, setCustomerType] = useState<string>('');
+  const [tierFilter, setTierFilter] = useState<string>('');
   const [purchaseStage, setPurchaseStage] = useState<string>('');
   const [assignmentStatus, setAssignmentStatus] = useState<string>('');
   const [selectedAgentFilter, setSelectedAgentFilter] = useState<string>('');
@@ -84,7 +80,7 @@ export default function CrmLeadsPage() {
     setSelectedLeads(new Set());
     loadLeads();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, priority, status, customerType, purchaseStage, assignmentStatus, selectedAgentFilter, teamLeaderFilter, pageSize]);
+  }, [page, tierFilter, purchaseStage, assignmentStatus, selectedAgentFilter, teamLeaderFilter, pageSize]);
 
   // Debounced search
   useEffect(() => {
@@ -156,9 +152,7 @@ export default function CrmLeadsPage() {
     try {
       setLoading(true);
       const params: any = { page, limit: pageSize };
-      if (priority) params.priority = priority;
-      if (status) params.status = status;
-      if (customerType) params.customerType = customerType;
+      if (tierFilter) params.customerType = tierFilter;
       if (purchaseStage) params.purchaseStage = purchaseStage;
       if (assignmentStatus) params.assignmentStatus = assignmentStatus;
       if (selectedAgentFilter) params.assignedTo = selectedAgentFilter;
@@ -302,9 +296,7 @@ export default function CrmLeadsPage() {
   };
 
   const clearFilters = () => {
-    setPriority('');
-    setStatus('');
-    setCustomerType('');
+    setTierFilter('');
     setPurchaseStage('');
     setAssignmentStatus('');
     setSelectedAgentFilter('');
@@ -313,13 +305,17 @@ export default function CrmLeadsPage() {
     setPage(1);
   };
 
-  const getCustomerTypeColor = (type: string | undefined) => {
-    switch (type?.toLowerCase()) {
-      case 'vip': return 'bg-purple-100 text-purple-800';
-      case 'platinum': return 'bg-gray-100 text-gray-800';
-      case 'gold': return 'bg-yellow-100 text-yellow-800';
-      case 'silver': return 'bg-gray-200 text-gray-600';
-      default: return 'bg-blue-100 text-blue-800';
+  const getTierColor = (tier: string | undefined | null) => {
+    switch (tier?.toLowerCase()) {
+      case 'vip': return 'bg-yellow-100 text-yellow-800 border-yellow-300';
+      case 'platinum': return 'bg-indigo-100 text-indigo-800 border-indigo-300';
+      case 'gold': return 'bg-amber-100 text-amber-800 border-amber-300';
+      case 'silver': return 'bg-gray-100 text-gray-700 border-gray-300';
+      case 'repeat': return 'bg-blue-100 text-blue-800 border-blue-300';
+      case 'new': return 'bg-green-100 text-green-800 border-green-300';
+      case 'blacklist': return 'bg-red-100 text-red-800 border-red-300';
+      case 'rejected': return 'bg-rose-100 text-rose-800 border-rose-300';
+      default: return 'bg-slate-100 text-slate-600 border-slate-300';
     }
   };
 
@@ -356,13 +352,13 @@ export default function CrmLeadsPage() {
 
         {/* Filters Section */}
         <div className="bg-white rounded-lg shadow p-4">
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
             {/* Search */}
             <div>
               <label className="text-xs text-gray-500 block mb-1">Search</label>
               <input
                 type="text"
-                placeholder="Name, email, phone..."
+                placeholder="Name, phone..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full border rounded-lg px-3 py-1.5 text-sm"
@@ -426,47 +422,30 @@ export default function CrmLeadsPage() {
               </select>
             </div>
 
-            {/* Priority Filter */}
+            {/* Tier Filter */}
             <div>
-              <label className="text-xs text-gray-500 block mb-1">Priority</label>
+              <label className="text-xs text-gray-500 block mb-1">Tier</label>
               <select
                 className="w-full border rounded-lg px-3 py-1.5 text-sm"
-                value={priority}
+                value={tierFilter}
                 onChange={(e) => {
                   setPage(1);
-                  setPriority(e.target.value);
+                  setTierFilter(e.target.value);
                 }}
               >
-                <option value="">All Priorities</option>
-                <option value="hot">Hot</option>
-                <option value="warm">Warm</option>
-                <option value="cold">Sleep/Dead</option>
-              </select>
-            </div>
-
-            {/* Customer Type Filter (VIP, Platinum, etc.) */}
-            <div>
-              <label className="text-xs text-gray-500 block mb-1">Customer Type</label>
-              <select
-                className="w-full border rounded-lg px-3 py-1.5 text-sm"
-                value={customerType}
-                onChange={(e) => {
-                  setPage(1);
-                  setCustomerType(e.target.value);
-                }}
-              >
-                <option value="">All Types</option>
+                <option value="">All Tiers</option>
                 <option value="vip">VIP</option>
                 <option value="platinum">Platinum</option>
                 <option value="gold">Gold</option>
                 <option value="silver">Silver</option>
-                <option value="new">New</option>
                 <option value="repeat">Repeat</option>
+                <option value="new">New</option>
+                <option value="blacklist">Blacklist</option>
                 <option value="rejected">Rejected</option>
               </select>
             </div>
 
-            {/* Purchase Stage Filter (Repeat 2, Repeat 3, etc.) */}
+            {/* Purchase Stage Filter */}
             <div>
               <label className="text-xs text-gray-500 block mb-1">Purchase Stage</label>
               <select
@@ -483,24 +462,6 @@ export default function CrmLeadsPage() {
                 <option value="repeat_3">Repeat 3</option>
                 <option value="regular">Regular (4-7 orders)</option>
                 <option value="permanent">Permanent (8+ orders)</option>
-              </select>
-            </div>
-
-            {/* Status Filter */}
-            <div>
-              <label className="text-xs text-gray-500 block mb-1">Status</label>
-              <select
-                className="w-full border rounded-lg px-3 py-1.5 text-sm"
-                value={status}
-                onChange={(e) => {
-                  setPage(1);
-                  setStatus(e.target.value);
-                }}
-              >
-                <option value="">All Status</option>
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
-                <option value="closed">Closed</option>
               </select>
             </div>
           </div>
@@ -627,11 +588,8 @@ export default function CrmLeadsPage() {
                     </th>
                     <th className="px-4 py-2 text-left font-medium text-gray-500 uppercase">ID</th>
                     <th className="px-4 py-2 text-left font-medium text-gray-500 uppercase">Customer</th>
-                    <th className="px-4 py-2 text-left font-medium text-gray-500 uppercase">Email</th>
                     <th className="px-4 py-2 text-left font-medium text-gray-500 uppercase">Phone</th>
-                    <th className="px-4 py-2 text-left font-medium text-gray-500 uppercase">Priority</th>
-                    <th className="px-4 py-2 text-left font-medium text-gray-500 uppercase">Type</th>
-                    <th className="px-4 py-2 text-left font-medium text-gray-500 uppercase">Status</th>
+                    <th className="px-4 py-2 text-left font-medium text-gray-500 uppercase">Tier</th>
                     <th className="px-4 py-2 text-left font-medium text-gray-500 uppercase">Assigned To</th>
                     <th className="px-4 py-2 text-left font-medium text-gray-500 uppercase">Actions</th>
                   </tr>
@@ -649,17 +607,16 @@ export default function CrmLeadsPage() {
                       </td>
                       <td className="px-4 py-2">#{lead.id}</td>
                       <td className="px-4 py-2">{formatName(lead)}</td>
-                      <td className="px-4 py-2">{lead.email || 'N/A'}</td>
                       <td className="px-4 py-2">{lead.phone || 'N/A'}</td>
-                      <td className="px-4 py-2 capitalize">{lead.priority || '-'}</td>
                       <td className="px-4 py-2">
-                        {lead.customer_type && (
-                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getCustomerTypeColor(lead.customer_type)}`}>
-                            {lead.customer_type.toUpperCase()}
+                        {lead.tier ? (
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${getTierColor(lead.tier)}`}>
+                            {lead.tier.charAt(0).toUpperCase() + lead.tier.slice(1)}
                           </span>
+                        ) : (
+                          <span className="text-gray-400 text-xs">—</span>
                         )}
                       </td>
-                      <td className="px-4 py-2 capitalize">{lead.status || '-'}</td>
                       <td className="px-4 py-2">{lead.assigned_to_name || (lead.assigned_to ? `Agent #${lead.assigned_to}` : 'Unassigned')}</td>
                       <td className="px-4 py-2">
                         <div className="flex items-center gap-2">
