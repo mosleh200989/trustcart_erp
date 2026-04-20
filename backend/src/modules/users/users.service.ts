@@ -1,14 +1,17 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { User } from './user.entity';
 import * as bcrypt from 'bcrypt';
 
 @Injectable()
 export class UsersService {
+  private readonly logger = new Logger(UsersService.name);
+
   constructor(
     @InjectRepository(User)
     private usersRepository: Repository<User>,
+    private dataSource: DataSource,
   ) {}
 
   private safeSelectFields(alias: string) {
@@ -93,14 +96,42 @@ export class UsersService {
       }
     }
 
+    // Auto-unassign customers when agent is deactivated or suspended
+    let unassignedCount = 0;
+    const isBeingDeactivated =
+      (nextDto.status === 'inactive' || nextDto.status === 'suspended') &&
+      existing.status === 'active';
+
+    if (isBeingDeactivated) {
+      const result = await this.dataSource.query(
+        `UPDATE customers SET assigned_to = NULL WHERE assigned_to = $1`,
+        [id],
+      );
+      unassignedCount = result?.[1] ?? 0;
+      if (unassignedCount > 0) {
+        this.logger.log(`Unassigned ${unassignedCount} customers from deactivated user #${id} (${existing.name})`);
+      }
+    }
+
     await this.usersRepository.update(id, nextDto);
-    return this.findOne(id);
+    const updated = await this.findOne(id);
+    return { ...updated, unassignedCount };
   }
 
   async remove(id: number) {
     const user = await this.findOne(id);
     if (!user || user.isDeleted) {
       throw new NotFoundException('User not found');
+    }
+
+    // Unassign all customers before deactivating
+    const result = await this.dataSource.query(
+      `UPDATE customers SET assigned_to = NULL WHERE assigned_to = $1`,
+      [id],
+    );
+    const unassignedCount = result?.[1] ?? 0;
+    if (unassignedCount > 0) {
+      this.logger.log(`Unassigned ${unassignedCount} customers from deleted user #${id} (${user.name})`);
     }
 
     const timestamp = Date.now();
@@ -114,6 +145,6 @@ export class UsersService {
       phone: null,
     });
 
-    return { success: true, message: 'User deactivated' };
+    return { success: true, message: 'User deactivated', unassignedCount };
   }
 }
