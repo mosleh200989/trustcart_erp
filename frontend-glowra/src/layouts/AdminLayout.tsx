@@ -2,6 +2,7 @@ import { useMemo, useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 // import QuoteNotifications from '@/components/QuoteNotifications'; // DISABLED
+import CrmNotifications from '@/components/CrmNotifications';
 import { useAuth } from '@/contexts/AuthContext';
 import apiClient, { stockAlerts } from '@/services/api';
 import { 
@@ -768,6 +769,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   </div>
                 )}
               </div>
+              {/* CRM Notifications Bell */}
+              <CrmNotifications />
               <span className="text-sm text-gray-700 font-medium">
                 {isLoading ? 'Loading…' : (user?.email || user?.phone || 'User')}
               </span>

@@ -5,6 +5,7 @@ import { CallTask, TaskPriority, TaskStatus } from './entities/call-task.entity'
 import { EngagementHistory } from './entities/engagement-history.entity';
 import { RecommendationRule } from './entities/recommendation-rule.entity';
 import { MarketingCampaign } from './entities/marketing-campaign.entity';
+import { CrmNotificationsService } from './crm-notifications.service';
 
 @Injectable()
 export class CrmAutomationService {
@@ -20,6 +21,7 @@ export class CrmAutomationService {
     
     @InjectRepository(MarketingCampaign)
     private campaignRepo: Repository<MarketingCampaign>,
+    private readonly notificationsService: CrmNotificationsService,
   ) {}
 
   // ==================== CALL TASK MANAGEMENT ====================
@@ -205,7 +207,20 @@ export class CrmAutomationService {
     task.assigned_agent_id = agentId;
     task.status = TaskStatus.IN_PROGRESS;
     
-    return await this.callTaskRepo.save(task);
+    const saved = await this.callTaskRepo.save(task);
+
+    // Notify the assigned agent
+    try {
+      await this.notificationsService.create(
+        agentId,
+        'task_assigned',
+        'New Task Assigned',
+        `A call task has been assigned to you (Customer: ${task.customer_id})`,
+        { taskId: saved.id, customerId: task.customer_id },
+      );
+    } catch { /* non-blocking */ }
+
+    return saved;
   }
 
   async createCallTask(dto: {
@@ -229,7 +244,24 @@ export class CrmAutomationService {
     };
     
     const task = this.callTaskRepo.create(taskData);
-    return await this.callTaskRepo.save(task);
+    const saved = await this.callTaskRepo.save(task);
+
+    // Notify the assigned agent when one is explicitly provided
+    if (dto.assigned_agent_id) {
+      try {
+        const reason = dto.call_reason || 'Follow-up Call';
+        const dateLabel = dto.task_date || new Date().toLocaleDateString();
+        await this.notificationsService.create(
+          dto.assigned_agent_id,
+          'followup_assigned',
+          'Follow-up Task Assigned',
+          `"${reason}" scheduled for ${dateLabel} (Customer: ${dto.customer_id})`,
+          { taskId: saved.id, customerId: dto.customer_id, taskDate: dto.task_date },
+        );
+      } catch { /* non-blocking */ }
+    }
+
+    return saved;
   }
   
   // ==================== CUSTOMER INTELLIGENCE ====================
