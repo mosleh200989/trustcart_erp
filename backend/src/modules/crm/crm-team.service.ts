@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
+﻿import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Customer } from '../customers/customer.entity';
@@ -9,6 +9,13 @@ import { Activity } from './entities/activity.entity';
 import { EngagementHistory } from './entities/engagement-history.entity';
 import { DashboardConfig } from './entities/dashboard-config.entity';
 import { CustomerTier } from '../lead-management/entities/customer-tier.entity';
+import { DEFAULT_SCRIPTS, DEFAULT_TRAINING_ROLE_PLAYS } from './constants/dashboard-defaults';
+
+/** Simple in-memory cache entry */
+interface CacheEntry<T> {
+  data: T;
+  expiresAt: number;
+}
 
 export enum LeadPriority {
   HOT = 'hot',
@@ -36,6 +43,10 @@ export class CrmTeamService {
     @InjectRepository(CustomerTier)
     private customerTierRepo: Repository<CustomerTier>,
   ) {}
+
+  /** Dashboard cache: key = teamLeaderId, TTL = 5 minutes */
+  private static readonly DASHBOARD_CACHE_TTL_MS = 5 * 60 * 1000;
+  private dashboardCache = new Map<number, CacheEntry<any>>();
 
   private getDateString(date?: string | Date): string {
     if (!date) return new Date().toISOString().split('T')[0];
@@ -1239,79 +1250,67 @@ export class CrmTeamService {
     throw new ForbiddenException('You are not allowed to view this agent\'s customers');
   }
 
-  async getTeamPerformance(teamLeaderId: number): Promise<any> {
-    // Get all customers under this team leader
-    const customers = await this.getLeaderCustomers(teamLeaderId);
+  async getTeamPerformance(teamLeaderId: number, preloadedCustomers?: Customer[]): Promise<any> {
+    const customers = preloadedCustomers ?? await this.getLeaderCustomers(teamLeaderId);
 
-    // Calculate lead counts
     const totalLeads = customers.length;
     const assignedLeads = customers.filter(c => c.assigned_to !== null && c.assigned_to !== undefined).length;
-    const unassignedLeads = customers.filter(c => c.assigned_to === null || c.assigned_to === undefined).length;
-
-    // Count by priority
-    const hotLeads = customers.filter(c => c.priority === LeadPriority.HOT).length;
-    const warmLeads = customers.filter(c => c.priority === LeadPriority.WARM).length;
-    const coldLeads = customers.filter(c => c.priority === LeadPriority.COLD).length;
-
-    // Calculate conversion rate (leads with lifecycle_stage = 'customer')
+    const unassignedLeads = totalLeads - assignedLeads;
     const convertedLeads = customers.filter(c => c.lifecycleStage === 'customer').length;
     const conversionRate = totalLeads > 0 ? Math.round((convertedLeads / totalLeads) * 100 * 100) / 100 : 0;
 
-    // Calculate average response time from activities
-    let averageResponseTime = 'N/A';
-    try {
-      const agentIds = (await this.usersRepository.find({ where: { teamLeaderId } })).map(u => u.id);
-      if (agentIds.length > 0) {
-        const avgTimeResult = await this.activityRepo
-          .createQueryBuilder('a')
-          .select('AVG(EXTRACT(EPOCH FROM (a.createdAt - c.createdAt)))', 'avgSeconds')
-          .innerJoin(Customer, 'c', 'c.id = a.customerId')
-          .where('a.userId IN (:...agentIds)', { agentIds })
-          .andWhere('a.type = :type', { type: 'first_contact' })
-          .getRawOne();
+    // Build per-team rows matching frontend shape
+    const salesTeams = await this.salesTeamRepository.find({ where: { teamLeaderId } });
+    const teams: any[] = [];
+    let totalMembers = 0;
 
-        if (avgTimeResult?.avgSeconds && !isNaN(avgTimeResult.avgSeconds)) {
-          const hours = Math.round(avgTimeResult.avgSeconds / 3600);
-          if (hours < 24) {
-            averageResponseTime = `${hours} hours`;
-          } else {
-            averageResponseTime = `${Math.round(hours / 24)} days`;
-          }
-        }
-      }
-    } catch {
-      // If activity query fails, keep N/A
-    }
+    for (const team of salesTeams) {
+      const members = await this.usersRepository.find({
+        where: { teamId: team.id, status: 'active' as any },
+        select: ['id', 'name', 'lastName', 'email', 'agentTier'],
+      });
+      const memberCount = members.length;
+      totalMembers += memberCount;
 
-    // Get team members
-    const teams = await this.salesTeamRepository.find({ where: { teamLeaderId } });
-    const teamMembers: any[] = [];
+      let teamTotalLeads = 0;
+      let teamConverted = 0;
+      const memberRows: any[] = [];
 
-    for (const team of teams) {
-      const members = await this.usersRepository.find({ where: { teamId: team.id } });
-      for (const member of members) {
-        const memberCustomers = customers.filter(c => c.assigned_to === member.id);
-        teamMembers.push({
-          id: member.id,
-          name: `${member.name} ${member.lastName || ''}`.trim(),
-          email: member.email,
-          teamName: team.name,
-          assignedLeads: memberCustomers.length,
-          convertedLeads: memberCustomers.filter(c => c.lifecycleStage === 'customer').length,
+      for (const m of members) {
+        const mCustomers = customers.filter(c => c.assigned_to === m.id);
+        const mConverted = mCustomers.filter(c => c.lifecycleStage === 'customer').length;
+        teamTotalLeads += mCustomers.length;
+        teamConverted += mConverted;
+        memberRows.push({
+          id: m.id,
+          name: `${m.name} ${m.lastName || ''}`.trim(),
+          email: m.email,
+          agentTier: m.agentTier || 'silver',
+          assignedLeads: mCustomers.length,
+          convertedLeads: mConverted,
         });
       }
+
+      teams.push({
+        teamId: team.id,
+        teamName: team.name,
+        teamCode: team.code || null,
+        memberCount,
+        totalLeads: teamTotalLeads,
+        convertedLeads: teamConverted,
+        conversionRate: teamTotalLeads > 0 ? Math.round((teamConverted / teamTotalLeads) * 100 * 100) / 100 : 0,
+        members: memberRows,
+      });
     }
 
     return {
+      totalTeams: salesTeams.length,
+      totalMembers,
       totalLeads,
       assignedLeads,
       unassignedLeads,
-      hotLeads,
-      warmLeads,
-      coldLeads,
       conversionRate,
-      averageResponseTime,
-      teamMembers,
+      teams,
     };
   }
 
@@ -1354,6 +1353,33 @@ export class CrmTeamService {
 
   // ==================== ANALYTICS ====================
   async getTeamLeaderDashboard(teamLeaderId: number): Promise<any> {
+    // Check cache first
+    const cached = this.dashboardCache.get(teamLeaderId);
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.data;
+    }
+
+    const result = await this.buildTeamLeaderDashboard(teamLeaderId);
+
+    // Store in cache
+    this.dashboardCache.set(teamLeaderId, {
+      data: result,
+      expiresAt: Date.now() + CrmTeamService.DASHBOARD_CACHE_TTL_MS,
+    });
+
+    return result;
+  }
+
+  /** Invalidate dashboard cache for a specific TL (call after config updates, etc.) */
+  invalidateDashboardCache(teamLeaderId?: number): void {
+    if (teamLeaderId) {
+      this.dashboardCache.delete(teamLeaderId);
+    } else {
+      this.dashboardCache.clear();
+    }
+  }
+
+  private async buildTeamLeaderDashboard(teamLeaderId: number): Promise<any> {
     const today = this.getDateString();
     const customers = await this.getLeaderCustomers(teamLeaderId);
     const segments = await this.computeSegmentsForCustomers(customers);
@@ -1429,205 +1455,55 @@ export class CrmTeamService {
     const repeatRate = customers.length > 0 ? Number(((repeatCustomers / customers.length) * 100).toFixed(2)) : 0;
     const vipRetention30 = vipPermanent > 0 ? Number(((vipPermanentActive30 / vipPermanent) * 100).toFixed(2)) : 0;
 
-    const scripts = {
-      commonOpening: {
-        title: 'Common Call Opening (সব কলের শুরুতে)',
-        lines: [
-          'আসসালামু আলাইকুম। আমি TrustCart Organic Grocery থেকে বলছি।',
-          'আমি কি [Customer Name] ভাই/আপু কথা বলছি?',
-          '(Yes হলে) ধন্যবাদ। ১ মিনিট সময় দিলে ভালো লাগবে।',
-        ],
-      },
-      A: {
-        title: '1) New Customer (১ম অর্ডার)',
-        goal: 'Trust build + 2nd order',
-        style: ['Friendly', 'Educative', 'No pressure'],
-        script: [
-          'আপনি সম্প্রতি আমাদের থেকে [Product Name] নিয়েছিলেন।',
-          'জানতে চাইছিলাম—প্রোডাক্টের কোয়ালিটি কেমন লেগেছে?',
-          '(Positive হলে) আলহামদুলিল্লাহ। আমরা খাঁটি অর্গানিক প্রোডাক্ট নিয়ে কাজ করি, যেন বাজারের ভেজাল থেকে পরিবারকে নিরাপদ রাখা যায়।',
-          'আপনি যেহেতু নতুন কাস্টমার, আপনার জন্য একটা ছোট বিশেষ ছাড় চালু আছে। চাইলে আজই আবার অর্ডার করতে পারেন।',
-        ],
-      },
-      B: {
-        title: '2) Second-Time Customer (২য় অর্ডার)',
-        goal: 'Habit build + reminder',
-        style: ['Solution based', 'Consumption reminder'],
-        script: [
-          'আপনি গতবার [Product + Quantity] নিয়েছিলেন। সাধারণত এই পরিমাণে প্রায় [X] দিন ব্যবহার হয়।',
-          'তাই ভাবলাম সময়মতো মনে করিয়ে দেই, যেন হঠাৎ শেষ হয়ে না যায়।',
-          'এই প্রোডাক্টের সাথে অনেক কাস্টমার [Related Product] নিচ্ছেন। চাইলে আপনাকে কম্বো অফার দিতে পারি।',
-        ],
-      },
-      C: {
-        title: '3) Third-Time Customer (৩য় অর্ডার)',
-        goal: 'Loyalty entry + membership intro',
-        style: ['Benefit driven', 'Membership intro'],
-        script: [
-          'আপনি আমাদের নিয়মিত কাস্টমার হয়ে যাচ্ছেন, এজন্য আপনাকে ধন্যবাদ।',
-          'আমরা এমন কাস্টমারদের জন্য Membership সুবিধা দেই।',
-          'মেম্বার হলে নিয়মিত ডিসকাউন্ট, বিশেষ অফার আর অগ্রাধিকার ডেলিভারি পাবেন।',
-          'আজকের অর্ডারের সাথে এই সুবিধাটা নিতে চান?',
-        ],
-      },
-      D: {
-        title: '4) Regular / Medium Customer',
-        goal: 'Upsell + combo',
-        style: ['Value comparison', 'Combo offer'],
-        script: [
-          'আপনি নিয়মিত আমাদের থেকে কেনাকাটা করেন, এজন্য আমরা আপনাকে আলাদা করে গুরুত্ব দেই।',
-          'বাজারে যেসব পণ্যে ভেজাল বেশি, আমরা সেগুলো নিয়েই বেশি কাজ করছি।',
-          'এই মাসে আপনার জন্য একটা Save More Combo আছে। একসাথে নিলে খরচ কম পড়বে।',
-        ],
-      },
-      E: {
-        title: '5) VIP / Permanent Customer',
-        goal: 'Retention + exclusivity',
-        style: ['Respectful', 'Exclusive'],
-        script: [
-          'আপনি আমাদের প্রিমিয়াম কাস্টমার, এজন্য ধন্যবাদ। এই অফারটা সাধারণ কাস্টমারের জন্য না।',
-          'আপনার জন্য আমরা Early Access দিচ্ছি নতুন প্রোডাক্টে।',
-          'আপনি চাইলে আজকেই অর্ডার কনফার্ম করে রাখছি।',
-        ],
-      },
-      winBack: {
-        title: '6) Inactive / Lost Customer (Win-back)',
-        goal: 'Re-engage',
-        style: ['Empathy', 'Service recovery', 'Win-back offer'],
-        script: [
-          'কিছুদিন ধরে আপনার কোনো অর্ডার পাইনি। ভাবলাম খোঁজ নিই—কোনো সমস্যা হয়েছিল কি?',
-          'আমরা চাই আপনি ভালো সার্ভিস পান।',
-          'এই সপ্তাহে আপনার জন্য একটা Comeback Discount আছে। চাইলে আজকেই অর্ডার করতে পারেন।',
-        ],
-      },
-      permanentDeclaration: {
-        title: '7) Permanent Customer Declaration Call',
-        goal: 'Celebrate + retention lock-in',
-        style: ['Celebratory', 'Respectful', 'Emotional close'],
-        script: [
-          'অভিনন্দন! আপনি এখন TrustCart Permanent Customer।',
-          'এর মানে আপনি আজীবন বিশেষ ছাড়, প্রাইওরিটি ডেলিভারি আর এক্সক্লুসিভ অফার পাবেন।',
-          'আমরা আপনাকে শুধু কাস্টমার না, পরিবারের একজন মনে করি।',
-        ],
-      },
-      objectionHandling: {
-        title: 'Objection Handling (কমন আপত্তি)',
-        items: [
-          {
-            objection: 'দাম বেশি',
-            reply: 'বুঝতে পারছি। তবে আমরা ভেজালমুক্ত অর্গানিক দেই—লং টার্মে এটা আসলে সাশ্রয়ী।',
-          },
-          {
-            objection: 'পরে নিব',
-            reply: 'সমস্যা নেই। আমি আপনার জন্য রিমাইন্ডার সেট করে দিচ্ছি।',
-          },
-        ],
-      },
-      callEnding: {
-        title: 'Call Ending (সব কলের শেষে)',
-        lines: [
-          'ধন্যবাদ আপনার সময় দেওয়ার জন্য।',
-          'কোনো প্রশ্ন থাকলে যেকোনো সময় TrustCart-এ কল করতে পারেন।',
-        ],
-      },
-      universal: {
-        title: 'Universal Call Flow (AIDA)',
-        flow: ['Relationship opener', 'Need/usage reminder', 'Problem awareness', 'Solution offer', 'Soft close'],
-      },
-    };
+    // Tier stats — counts from customer_tiers table scoped to TL's customers
+    const customerIds = customers.map(c => c.id);
+    let tierStats = { new: 0, repeat: 0, silver: 0, gold: 0, platinum: 0, vip: 0, blacklist: 0, rejected: 0, no_tier: customers.length };
+    if (customerIds.length > 0) {
+      const tierRows = await this.customerTierRepo.query(
+        `SELECT
+           COALESCE(ct.tier, 'no_tier') AS tier,
+           COUNT(*)::int AS count
+         FROM unnest($1::int[]) AS cid(id)
+         LEFT JOIN customer_tiers ct ON ct.customer_id = cid.id AND ct.is_active = true
+         GROUP BY ct.tier
+         ORDER BY count DESC`,
+        [customerIds],
+      );
+      tierStats = { new: 0, repeat: 0, silver: 0, gold: 0, platinum: 0, vip: 0, blacklist: 0, rejected: 0, no_tier: 0 };
+      for (const row of tierRows) {
+        const key = row.tier === null ? 'no_tier' : row.tier;
+        if (key in tierStats) {
+          (tierStats as any)[key] = Number(row.count);
+        } else {
+          tierStats.no_tier += Number(row.count);
+        }
+      }
+    }
 
-    const trainingRolePlays = {
-      title: 'Agent Training – Role Play Scripts (Bangla)',
-      format: 'Trainer (TL) + Agent + Customer',
-      rolePlays: [
-        {
-          id: 'RP1',
-          title: 'ROLE PLAY–1 : New Customer (1st Order)',
-          trainingGoal: ['কাস্টমারকে চাপ না দেওয়া', 'Trust build করা', '2nd order-এর দরজা খোলা'],
-          script: [
-            { speaker: 'TL (Customer)', line: 'হ্যালো, কে বলছেন?' },
-            {
-              speaker: 'Agent',
-              line: 'আসসালামু আলাইকুম। আমি TrustCart Organic Grocery থেকে বলছি। আমি কি মোহাম্মদ রাশেদ ভাইয়ের সাথে কথা বলছি?',
-            },
-            { speaker: 'TL (Customer)', line: 'হ্যাঁ, বলুন।' },
-            { speaker: 'Agent', line: 'আপনি সম্প্রতি আমাদের থেকে অর্গানিক চাল নিয়েছিলেন। জানতে চাইছিলাম—কোয়ালিটি কেমন লেগেছে?' },
-            { speaker: 'TL (Customer)', line: 'ভালোই ছিল।' },
-            {
-              speaker: 'Agent (Correct Tone)',
-              line: 'আলহামদুলিল্লাহ। আমরা খাঁটি পণ্য দেওয়ার চেষ্টা করি, যেন পরিবার নিরাপদ থাকে।',
-            },
-            {
-              speaker: 'Agent',
-              line: 'আপনি যেহেতু নতুন কাস্টমার, আপনার জন্য একটা ছোট ডিসকাউন্ট আছে। চাইলে আমি ডিটেইলস জানাতে পারি।',
-            },
-          ],
-          notes: ['❌ এখনই দাম বা অর্ডার চাপ দিবে না'],
-        },
-        {
-          id: 'RP2',
-          title: 'ROLE PLAY–2 : Second-Time Customer (Reminder Call)',
-          trainingGoal: ['Natural reminder', 'Helpful tone'],
-          script: [
-            { speaker: 'TL (Customer)', line: 'হ্যালো।' },
-            { speaker: 'Agent', line: 'আপনি গতবার ৫ কেজি চাল নিয়েছিলেন। সাধারণত এই পরিমাণে প্রায় ২৫–৩০ দিন ব্যবহার হয়।' },
-            { speaker: 'TL (Customer)', line: 'হ্যাঁ।' },
-            { speaker: 'Agent', line: 'তাই সময়মতো মনে করিয়ে দিচ্ছি, যেন হঠাৎ শেষ হয়ে না যায়।' },
-            { speaker: 'Agent', line: 'এই চালের সাথে অনেকেই তেল নিচ্ছেন। চাইলে কম্বো অফার দিতে পারি।' },
-          ],
-          notes: ['✔️ “মনে করিয়ে দিচ্ছি” — এটা কাস্টমার পছন্দ করে'],
-        },
-        {
-          id: 'RP3',
-          title: 'ROLE PLAY–3 : Third-Time Customer (Membership Intro)',
-          trainingGoal: ['কাস্টমারকে Special feel করানো', 'Membership explain করা'],
-          script: [
-            { speaker: 'TL (Customer)', line: 'আবার অর্ডার?' },
-            { speaker: 'Agent', line: 'না না, আজ অর্ডারের জন্য চাপ দিচ্ছি না। আপনাকে শুধু জানাতে চাচ্ছি—আপনি এখন আমাদের রেগুলার কাস্টমার।' },
-            { speaker: 'TL (Customer)', line: 'ও আচ্ছা।' },
-            { speaker: 'Agent', line: 'এই পর্যায়ে আমরা Membership সুবিধা দেই—ডিসকাউন্ট, ফ্রি ডেলিভারি, আলাদা অফার।' },
-            { speaker: 'Agent', line: 'আপনি চাইলে পরের অর্ডার থেকেই এই সুবিধা নিতে পারবেন।' },
-          ],
-          notes: ['❌ “আজই নিতেই হবে” বলা যাবে না'],
-        },
-        {
-          id: 'RP4',
-          title: 'ROLE PLAY–4 : Regular / Medium Customer (Upsell)',
-          trainingGoal: ['Value based selling', 'Comparison without badmouthing market'],
-          script: [
-            { speaker: 'TL (Customer)', line: 'দাম একটু বেশি না?' },
-            { speaker: 'Agent', line: 'বুঝতে পারছি। কিন্তু বাজারের অনেক পণ্যে ভেজাল থাকে—যা ধীরে ধীরে ক্ষতি করে।' },
-            { speaker: 'TL (Customer)', line: 'হুম।' },
-            { speaker: 'Agent', line: 'আমাদের প্রোডাক্ট লং টার্মে আসলে সাশ্রয়ী। এই মাসে আপনার জন্য একটা কম্বো আছে—নিলে দাম কম পড়বে।' },
-          ],
-        },
-        {
-          id: 'RP5',
-          title: 'ROLE PLAY–5 : VIP / Permanent Customer',
-          trainingGoal: ['Respect', 'Exclusivity', 'Relationship'],
-          script: [
-            { speaker: 'TL (Customer)', line: 'বলুন।' },
-            { speaker: 'Agent', line: 'আপনি আমাদের প্রিমিয়াম কাস্টমার, এজন্য ধন্যবাদ। এই অফারটা সাধারণ কাস্টমারের জন্য না।' },
-            { speaker: 'TL (Customer)', line: 'কী অফার?' },
-            { speaker: 'Agent', line: 'নতুন অর্গানিক পণ্য এসেছে। আপনি চাইলে আগে এক্সেস পাবেন।' },
-          ],
-          notes: ['✔️ VIP কল = কম কথা, বেশি সম্মান'],
-        },
-        {
-          id: 'RP6',
-          title: 'ROLE PLAY–6 : Inactive Customer (Win Back)',
-          trainingGoal: ['Blame না করা', 'Empathy'],
-          script: [
-            { speaker: 'TL (Customer)', line: 'এতদিন পর কেন কল?' },
-            { speaker: 'Agent', line: 'আসলে বিক্রির জন্য না। আপনি ভালো আছেন কিনা, সেটাই জানতে চাচ্ছি।' },
-            { speaker: 'TL (Customer)', line: 'ব্যস্ত ছিলাম।' },
-            { speaker: 'Agent', line: 'বুঝতে পারছি। এই সপ্তাহে আপনার জন্য একটা comeback ডিসকাউন্ট আছে—চাইলে জানাবো।' },
-          ],
-        },
-      ],
-      commonMistakes: ['জোর করে অর্ডার নেওয়া', 'বেশি কথা বলা', 'দাম নিয়ে তর্ক', '“আজই শেষ” বলে ভয় দেখানো'],
-      goldenRules: ['আগে সম্পর্ক, পরে বিক্রি', 'কাস্টমারের সমস্যা বলাতে দাও', 'নিজের মতামত চাপিও না', 'CRM নোট অবশ্যই আপডেট করো'],
-    };
+    // Assigned agents — all users under this TL with their lead stats
+    const agentUsers = await this.usersRepository.find({
+      where: { teamLeaderId, status: 'active' as any },
+      select: ['id', 'name', 'lastName', 'email', 'agentTier', 'phone'],
+    });
+    const assignedAgents = agentUsers.map(a => {
+      const aCustomers = customers.filter(c => c.assigned_to === a.id);
+      const aConverted = aCustomers.filter(c => c.lifecycleStage === 'customer').length;
+      // Merge today's call stats from agentPerformance
+      const callRow = agentPerformance.find((r: any) => r.agent_id === a.id);
+      return {
+        id: a.id,
+        name: `${a.name} ${a.lastName || ''}`.trim(),
+        email: a.email,
+        phone: a.phone || null,
+        agentTier: a.agentTier || 'silver',
+        assignedLeads: aCustomers.length,
+        convertedLeads: aConverted,
+        conversionRate: aCustomers.length > 0 ? Math.round((aConverted / aCustomers.length) * 100 * 100) / 100 : 0,
+        callsToday: Number(callRow?.total_today ?? 0),
+        callsCompleted: Number(callRow?.completed_today ?? 0),
+        callsFailed: Number(callRow?.failed_today ?? 0),
+      };
+    });
 
     return {
       overview: {
@@ -1636,16 +1512,18 @@ export class CrmTeamService {
         vipRetention30,
         pendingFromPreviousDays: Number(tasksPendingPrev?.[0]?.cnt || 0),
       },
+      tierStats,
       segmentation: {
         purchaseStageCounts,
         valueStageCounts,
       },
+      assignedAgents,
       agentWiseCalls: agentPerformance,
       tasksTodayByStatus: tasksToday,
-      teamPerformance: await this.getTeamPerformance(teamLeaderId),
+      teamPerformance: await this.getTeamPerformance(teamLeaderId, customers),
       recentEscalations: await this.getEscalatedCustomers(teamLeaderId),
-      scripts,
-      trainingRolePlays,
+      scripts: DEFAULT_SCRIPTS,
+      trainingRolePlays: DEFAULT_TRAINING_ROLE_PLAYS,
     };
   }
 
