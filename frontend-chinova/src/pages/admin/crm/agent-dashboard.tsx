@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import AdminLayout from '@/layouts/AdminLayout';
 import { 
-  FaPhone, FaWhatsapp, FaSms, FaEnvelope, FaFire, FaChartLine, FaCheckCircle, FaClock, 
+  FaPhone, FaWhatsapp, FaSms, FaFire, FaChartLine, FaCheckCircle, FaClock, 
   FaMoneyBillWave, FaDollarSign, FaStickyNote, FaCalendarAlt, FaCheckDouble, FaThumbsUp, FaThumbsDown,
   FaChevronLeft, FaChevronRight, FaShoppingCart, FaCrown
 } from 'react-icons/fa';
@@ -1330,6 +1330,24 @@ export default function AgentDashboard() {
                               </a>
 
                               <a
+                                href={rawPhone ? `https://imoim.app/${rawPhone}` : undefined}
+                                target="_blank"
+                                rel="noreferrer"
+                                aria-disabled={!rawPhone}
+                                title={rawPhone ? 'IMO' : 'No phone'}
+                                className={`p-1.5 rounded border ${rawPhone ? 'border-indigo-200 text-indigo-700 hover:bg-indigo-50' : 'border-gray-200 text-gray-300 cursor-not-allowed'}`}
+                                onClick={(e) => {
+                                  if (!rawPhone) e.preventDefault();
+                                }}
+                              >
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                                  <circle cx="12" cy="12" r="11" stroke="currentColor" strokeWidth="2" fill="none" />
+                                  <circle cx="12" cy="10" r="4" fill="currentColor" />
+                                  <ellipse cx="12" cy="18" rx="6" ry="3" fill="currentColor" />
+                                </svg>
+                              </a>
+
+                              <a
                                 href={rawPhone ? `sms:${rawPhone}` : undefined}
                                 aria-disabled={!rawPhone}
                                 title={rawPhone ? 'SMS' : 'No phone'}
@@ -1339,18 +1357,6 @@ export default function AgentDashboard() {
                                 }}
                               >
                                 <FaSms size={12} />
-                              </a>
-
-                              <a
-                                href={email ? `mailto:${email}` : undefined}
-                                aria-disabled={!email}
-                                title={email ? 'Email' : 'No email'}
-                                className={`p-1.5 rounded border ${email ? 'border-purple-200 text-purple-700 hover:bg-purple-50' : 'border-gray-200 text-gray-300 cursor-not-allowed'}`}
-                                onClick={(e) => {
-                                  if (!email) e.preventDefault();
-                                }}
-                              >
-                                <FaEnvelope size={12} />
                               </a>
 
                               {/* Log Call Button - Opens unified modal */}
