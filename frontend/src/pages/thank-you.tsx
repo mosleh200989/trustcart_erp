@@ -7,6 +7,7 @@ import ElectroFooter from "@/components/ElectroFooter";
 import ElectroProductCard from "@/components/ElectroProductCard";
 import apiClient from "@/services/api";
 import { trackPurchaseWithUser, extractLocationFromAddress } from "@/utils/gtm";
+import { trackHerbolinPurchase } from "@/utils/herbolinPixel";
 import { 
   FaCheckCircle, 
   FaShoppingCart, 
@@ -282,6 +283,28 @@ export default function ThankYouPage() {
     sessionStorage.setItem(trackedKey, 'true');
     purchaseTrackedRef.current = true;
   }, [order, items, orderId, totalAmount, deliveryCharge, discount]);
+
+  useEffect(() => {
+    if (!orderId || !order || items.length === 0 || typeof window === 'undefined') return;
+    if (!['herbolin.com', 'www.herbolin.com'].includes(window.location.hostname)) return;
+
+    const trackedKey = `herbolin_purchase_tracked_${orderId}`;
+    if (sessionStorage.getItem(trackedKey)) return;
+
+    trackHerbolinPurchase({
+      orderId: order?.orderNumber || order?.id || orderId,
+      pageTitle: 'Herbolin Landing Order',
+      pageSlug: String(order?.utm_source || order?.landingPageSlug || order?.landing_page_slug || 'Harbora-kosthogut'),
+      totalAmount,
+      items: items.map((item) => ({
+        product_id: item.productId,
+        product_name: item.productName || `Product ${item.productId}`,
+        quantity: item.quantity || 1,
+      })),
+    });
+
+    sessionStorage.setItem(trackedKey, 'true');
+  }, [order, items, orderId, totalAmount]);
 
   const courierName = useMemo(() => {
     return order?.courierName ?? order?.courier_name ?? null;

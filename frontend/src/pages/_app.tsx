@@ -10,6 +10,7 @@ import AdminRouteGuard from '@/components/auth/AdminRouteGuard';
 import MobileBottomNav from '@/components/MobileBottomNav';
 import { isAuthPath, setAuthReturnPath } from '@/utils/authReturnPath';
 import { initDataLayer, trackPageView } from '@/utils/gtm';
+import { initHerbolinPixel, trackHerbolinPageView } from '@/utils/herbolinPixel';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -49,15 +50,18 @@ export default function App({ Component, pageProps }: AppProps) {
   useEffect(() => {
     // Initialize dataLayer on app load
     initDataLayer();
+    initHerbolinPixel();
     
     // Track initial page view
     trackPageView(window.location.pathname);
+    trackHerbolinPageView();
   }, []);
 
   // Track route changes for SPA navigation
   useEffect(() => {
     const handleRouteChange = (url: string) => {
       trackPageView(url);
+      trackHerbolinPageView();
       // Track FB Pixel PageView on SPA navigation
       if (typeof window !== 'undefined' && window.fbq) {
         window.fbq('track', 'PageView');
