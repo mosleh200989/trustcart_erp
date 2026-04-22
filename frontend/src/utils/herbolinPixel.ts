@@ -1,5 +1,9 @@
 const HERBOLIN_PIXEL_ID = '1433976858485362';
 const HERBOLIN_HOSTS = new Set(['herbolin.com', 'www.herbolin.com']);
+const PAGEVIEW_DEDUPE_MS = 1500;
+
+let lastTrackedPageKey = '';
+let lastTrackedPageAt = 0;
 
 declare global {
   interface Window {
@@ -7,8 +11,12 @@ declare global {
   }
 }
 
-function canUseHerbolinPixel() {
+export function isHerbolinHost() {
   return typeof window !== 'undefined' && HERBOLIN_HOSTS.has(window.location.hostname);
+}
+
+function canUseHerbolinPixel() {
+  return isHerbolinHost();
 }
 
 export function initHerbolinPixel() {
@@ -29,8 +37,16 @@ export function trackHerbolinPageView() {
     return;
   }
 
+  const pageKey = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+  const now = Date.now();
+  if (pageKey === lastTrackedPageKey && now - lastTrackedPageAt < PAGEVIEW_DEDUPE_MS) {
+    return;
+  }
+
   initHerbolinPixel();
   fbq('trackSingle', HERBOLIN_PIXEL_ID, 'PageView');
+  lastTrackedPageKey = pageKey;
+  lastTrackedPageAt = now;
 }
 
 interface HerbolinPurchaseItem {
