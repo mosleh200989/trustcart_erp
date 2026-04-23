@@ -62,10 +62,7 @@ export default function App({ Component, pageProps }: AppProps) {
     const handleRouteChange = (url: string) => {
       trackPageView(url);
       trackHerbolinPageView();
-      // Track generic FB pixel pageviews only on non-Herbolin hosts
-      if (typeof window !== 'undefined' && window.fbq && !isHerbolinHost()) {
-        window.fbq('track', 'PageView');
-      }
+      // GTM handles generic FB pixel pageviews - removed direct fbq call to prevent duplication
     };
 
     router.events.on('routeChangeComplete', handleRouteChange);

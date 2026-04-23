@@ -35,7 +35,7 @@ export default function Document() {
               new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
               j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
               'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
-              })(window,document,'script','dataLayer','GTM-TSC7TFV6');`,
+              })(window,document,'script','dataLayer','GTM-PK5G5DWZ');`,
           }}
         />
         {/* End Google Tag Manager */}
@@ -61,7 +61,7 @@ export default function Document() {
           }}
         />
         {/* End Google Analytics */}
-        {/* Meta (Facebook) Pixel */}
+        {/* Meta (Facebook) Pixel - Managed by GTM-PK5G5DWZ */}
         <script
           dangerouslySetInnerHTML={{
             __html: `!function(f,b,e,v,n,t,s)
@@ -71,26 +71,16 @@ export default function Document() {
               n.queue=[];t=b.createElement(e);t.async=!0;
               t.src=v;s=b.getElementsByTagName(e)[0];
               s.parentNode.insertBefore(t,s)}(window, document,'script',
-              'https://connect.facebook.net/en_US/fbevents.js');
-              fbq('init', '1882443545705830');
-              fbq('track', 'PageView');`,
+              'https://connect.facebook.net/en_US/fbevents.js');`,
           }}
         />
-        <noscript>
-          <img
-            height="1"
-            width="1"
-            style={{ display: 'none' }}
-            src="https://www.facebook.com/tr?id=1882443545705830&ev=PageView&noscript=1"
-          />
-        </noscript>
-        {/* End Meta Pixel */}
+        {/* End Meta Pixel - Now managed by GTM */}
       </Head>
       <body>
         {/* Google Tag Manager (noscript) */}
         <noscript>
           <iframe
-            src="https://www.googletagmanager.com/ns.html?id=GTM-TSC7TFV6"
+            src="https://www.googletagmanager.com/ns.html?id=GTM-PK5G5DWZ"
             height="0"
             width="0"
             style={{ display: 'none', visibility: 'hidden' }}
