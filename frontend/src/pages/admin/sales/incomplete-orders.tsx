@@ -588,7 +588,8 @@ export default function AdminSalesIncompleteOrders() {
                   value={filters.source}
                   onChange={handleFilterChange}
                   options={[
-                    { value: 'landing_page', label: 'Landing Page' },
+                    { value: 'landing_page', label: 'Landing Page (All)' },
+                    { value: 'landing_page_intl', label: 'Landing Page Intl' },
                     { value: 'website', label: 'Website' },
                     { value: 'checkout', label: 'Checkout' },
                   ]}

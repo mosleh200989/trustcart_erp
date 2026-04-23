@@ -434,6 +434,7 @@ export default function GheeTemplate({
           .post('/lead-management/incomplete-order/converted', {
             sessionId: sessionIdRef.current,
             landingPageId: page.id,
+            landingPageSlug: page.slug,
             orderId: savedOrderId,
           })
           .catch(() => {});
@@ -456,6 +457,7 @@ export default function GheeTemplate({
             .post('/lead-management/incomplete-order/converted', {
               sessionId: sessionIdRef.current,
               landingPageId: page.id,
+              landingPageSlug: page.slug,
               orderId: savedId,
             })
             .catch(() => {});

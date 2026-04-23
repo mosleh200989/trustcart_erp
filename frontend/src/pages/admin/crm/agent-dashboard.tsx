@@ -8,6 +8,7 @@ import {
 import apiClient, { users as usersApi } from '@/services/api';
 import AdminOrderDetailsModal from '@/components/AdminOrderDetailsModal';
 import PageSizeSelector from '@/components/admin/PageSizeSelector';
+import ProductAutocomplete from '@/components/admin/ProductAutocomplete';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { getTelephonySocket, type IncomingCallPayload } from '@/services/telephonySocket';
@@ -149,6 +150,7 @@ export default function AgentDashboard() {
   // Assigned leads filters
   const [leadsSearchTerm, setLeadsSearchTerm] = useState('');
   const [leadsTierFilter, setLeadsTierFilter] = useState('');
+  const [leadsProductFilter, setLeadsProductFilter] = useState('');
   const [leadsCalledFilter, setLeadsCalledFilter] = useState<FilterCalledStatus>('all');
   const [leadsOutcomeFilter, setLeadsOutcomeFilter] = useState<FilterOutcome>('all');
   const [leadsPage, setLeadsPage] = useState(1);
@@ -376,6 +378,7 @@ export default function AgentDashboard() {
     priority?: string;
     stage?: string;
     customerType?: string;
+    productName?: string;
     calledStatus?: FilterCalledStatus;
     outcome?: FilterOutcome;
     page?: number;
@@ -400,6 +403,10 @@ export default function AgentDashboard() {
       // Tier filter
       const tierVal = filters?.customerType || leadsTierFilter;
       if (tierVal) params.customerType = tierVal;
+
+      // Product filter
+      const productVal = filters?.productName || leadsProductFilter;
+      if (productVal) params.productName = productVal;
       
       // Add new filters
       const calledStatus = filters?.calledStatus ?? leadsCalledFilter;
@@ -1114,6 +1121,15 @@ export default function AgentDashboard() {
                 />
               </div>
 
+              <div className="w-64">
+                <label className="block text-xs font-medium text-gray-600 mb-1">Product</label>
+                <ProductAutocomplete
+                  value={leadsProductFilter}
+                  onChange={setLeadsProductFilter}
+                  className="w-full border rounded-lg px-3 py-2 text-sm"
+                />
+              </div>
+
               <div className="w-40">
                 <label className="block text-xs font-medium text-gray-600 mb-1">Tier</label>
                 <select
@@ -1166,6 +1182,7 @@ export default function AgentDashboard() {
                       loadAssignedCustomers(selectedViewAgentId, {
                         search: leadsSearchTerm,
                         customerType: leadsTierFilter,
+                        productName: leadsProductFilter,
                         calledStatus: leadsCalledFilter,
                         outcome: leadsOutcomeFilter,
                         page: 1
@@ -1181,6 +1198,7 @@ export default function AgentDashboard() {
                   onClick={() => {
                     setLeadsSearchTerm('');
                     setLeadsTierFilter('');
+                    setLeadsProductFilter('');
                     setLeadsCalledFilter('all');
                     setLeadsOutcomeFilter('all');
                     setLeadsPage(1);
@@ -1200,7 +1218,7 @@ export default function AgentDashboard() {
             <div className="flex items-center justify-between mb-4">
               <div className="text-sm text-gray-600">
                 Total assigned: <span className="font-semibold">{assignedTotal}</span>
-                {(leadsSearchTerm || leadsTierFilter || leadsCalledFilter !== 'all' || leadsOutcomeFilter !== 'all') && (
+                {(leadsSearchTerm || leadsTierFilter || leadsProductFilter || leadsCalledFilter !== 'all' || leadsOutcomeFilter !== 'all') && (
                   <span className="ml-2 text-blue-600">(filtered)</span>
                 )}
               </div>

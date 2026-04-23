@@ -81,7 +81,7 @@ function getCourierTrackingUrl(courierCompany: string | null | undefined, tracki
   }
   if (!trackingId) return null;
   if (company.includes('pathao')) {
-    return `https://merchant.pathao.com/tracking?consignment_id=${trackingId}`;
+    return `https://merchant.pathao.com/courier/orders/${encodeURIComponent(trackingId)}?isShowingActive=1`;
   }
   if (company.includes('redx')) {
     return `https://redx.com.bd/track-parcel/?trackingId=${trackingId}`;

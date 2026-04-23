@@ -114,8 +114,15 @@ export class LeadManagementController {
 
   @Post('incomplete-order/converted')
   @Public()
-  async markIncompleteOrderConverted(@Body() data: { sessionId: string; landingPageId: number; orderId: number }) {
-    await this.leadService.markAsConverted(data.sessionId, data.landingPageId, data.orderId);
+  async markIncompleteOrderConverted(
+    @Body() data: { sessionId: string; landingPageId?: number; landingPageSlug?: string; orderId: number },
+  ) {
+    await this.leadService.markAsConverted(
+      data.sessionId,
+      data.landingPageId ?? null,
+      data.orderId,
+      data.landingPageSlug,
+    );
     return { success: true };
   }
 
