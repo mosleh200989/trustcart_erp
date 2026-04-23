@@ -294,6 +294,7 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
         apiClient.post('/lead-management/incomplete-order/converted', {
           sessionId: sessionIdRef.current,
           landingPageId: page.id,
+          landingPageSlug: page.slug,
           orderId: savedOrderId,
         }).catch(() => {});
       }
@@ -315,6 +316,7 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
           apiClient.post('/lead-management/incomplete-order/converted', {
             sessionId: sessionIdRef.current,
             landingPageId: page.id,
+            landingPageSlug: page.slug,
             orderId: savedId,
           }).catch(() => {});
         }

@@ -80,17 +80,24 @@ export class LeadManagementService {
    * for the same landing page, update it instead of creating a new row.
    */
   async trackLandingPageIncompleteOrder(data: Partial<IncompleteOrder>) {
-    // Try to find existing record for this session + landing page
-    if (data.sessionId && data.landingPageId) {
-      const existing = await this.incompleteOrderRepo.findOne({
-        where: {
-          sessionId: data.sessionId,
-          landingPageId: data.landingPageId,
-          convertedToOrder: false,
-        },
-      });
+    // Try to find existing record for this session + landing page.
+    // Use resilient matching to support routes where only slug is available.
+    if (data.sessionId) {
+      const existingQb = this.incompleteOrderRepo
+        .createQueryBuilder('io')
+        .where('io.session_id = :sessionId', { sessionId: data.sessionId })
+        .andWhere('io.converted_to_order = false');
+
+      if (data.landingPageId) {
+        existingQb.andWhere('io.landing_page_id = :landingPageId', { landingPageId: data.landingPageId });
+      } else if (data.landingPageSlug) {
+        existingQb.andWhere('io.landing_page_slug = :landingPageSlug', { landingPageSlug: data.landingPageSlug });
+      } else {
+        existingQb.andWhere('io.source LIKE :lpSource', { lpSource: 'landing_page%' });
+      }
+
+      const existing = await existingQb.orderBy('io.updated_at', 'DESC').getOne();
       if (existing) {
-        // Update existing record with latest form data
         Object.assign(existing, data);
         return this.incompleteOrderRepo.save(existing);
       }
@@ -107,14 +114,26 @@ export class LeadManagementService {
   /**
    * Mark an incomplete order as converted when the user submits the actual order.
    */
-  async markAsConverted(sessionId: string, landingPageId: number, recoveredOrderId: number) {
-    const existing = await this.incompleteOrderRepo.findOne({
-      where: {
-        sessionId,
-        landingPageId,
-        convertedToOrder: false,
-      },
-    });
+  async markAsConverted(
+    sessionId: string,
+    landingPageId: number | null,
+    recoveredOrderId: number,
+    landingPageSlug?: string,
+  ) {
+    const existingQb = this.incompleteOrderRepo
+      .createQueryBuilder('io')
+      .where('io.session_id = :sessionId', { sessionId })
+      .andWhere('io.converted_to_order = false');
+
+    if (landingPageId) {
+      existingQb.andWhere('io.landing_page_id = :landingPageId', { landingPageId });
+    } else if (landingPageSlug) {
+      existingQb.andWhere('io.landing_page_slug = :landingPageSlug', { landingPageSlug });
+    } else {
+      existingQb.andWhere('io.source LIKE :lpSource', { lpSource: 'landing_page%' });
+    }
+
+    const existing = await existingQb.orderBy('io.updated_at', 'DESC').getOne();
     if (existing) {
       existing.convertedToOrder = true;
       existing.recovered = true;
@@ -159,7 +178,12 @@ export class LeadManagementService {
     }
 
     if (filters.source) {
-      qb.andWhere('io.source = :source', { source: filters.source });
+      // Treat "landing_page" as umbrella filter for all landing-page variants.
+      if (filters.source === 'landing_page') {
+        qb.andWhere("io.source LIKE 'landing_page%'");
+      } else {
+        qb.andWhere('io.source = :source', { source: filters.source });
+      }
     }
 
     if (filters.landingPageSlug) {

@@ -1063,7 +1063,7 @@ export class CrmTeamService {
   }
 
   async getAgentCustomers(agentId: number, query: any = {}): Promise<{ data: Customer[], total: number }> {
-    const { page = 1, limit = 20, search, priority, stage, customerType, calledStatus, outcome, startDate, endDate, followUpDate } = query;
+    const { page = 1, limit = 20, search, priority, stage, customerType, productName, calledStatus, outcome, startDate, endDate, followUpDate } = query;
     const skip = (page - 1) * limit;
 
     // Use query builder for complex filtering
@@ -1102,6 +1102,26 @@ export class CrmTeamService {
     // Customer tier/type filter
     if (customerType && customerType !== 'all') {
       qb.andWhere('c.customer_type = :customerType', { customerType });
+    }
+
+    // Product-wise filter: customers who ordered the selected product
+    if (productName && String(productName).trim()) {
+      const pName = `%${String(productName).trim().toLowerCase()}%`;
+      qb.andWhere(
+        `c.id IN (
+          SELECT so.customer_id FROM sales_orders so
+          WHERE so.id IN (
+            SELECT oi.order_id FROM order_items oi WHERE oi.product_name ILIKE :pName
+            UNION
+            SELECT oi2.order_id FROM order_items oi2 JOIN products p ON p.id = oi2.product_id WHERE p.name_en ILIKE :pName OR p.name_bn ILIKE :pName
+            UNION
+            SELECT soi.sales_order_id FROM sales_order_items soi WHERE soi.product_name ILIKE :pName
+            UNION
+            SELECT soi2.sales_order_id FROM sales_order_items soi2 JOIN products p2 ON p2.id = soi2.product_id WHERE p2.name_en ILIKE :pName OR p2.name_bn ILIKE :pName
+          )
+        )`,
+        { pName },
+      );
     }
 
     // Follow-up date filters
