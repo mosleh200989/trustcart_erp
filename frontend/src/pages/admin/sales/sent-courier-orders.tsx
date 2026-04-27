@@ -339,9 +339,9 @@ export default function SentCourierOrdersPage() {
         return (
           <div className="max-w-[220px]">
             {items.slice(0, 3).map((item, i) => (
-              <div key={i} className="text-xs text-gray-700 truncate" title={`${item.productNameBn || item.productName || 'Unknown'}${item.variantName ? ` - ${item.variantName}` : ''} x${item.quantity}`}>
+              <div key={i} className="text-xs text-gray-700 truncate" title={`${item.productNameBn || item.productName || 'Unknown'}${item.variantName ? ` (${item.variantName})` : ''} x${item.quantity}`}>
                 <span className="font-medium">{item.quantity}x</span>{' '}
-                {item.productNameBn || item.productName || 'Unknown'}{item.variantName ? ` - ${item.variantName}` : ''}
+                {item.productNameBn || item.productName || 'Unknown'}{item.variantName ? ` (${item.variantName})` : ''}
               </div>
             ))}
             {items.length > 3 && (
