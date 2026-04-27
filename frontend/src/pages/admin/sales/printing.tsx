@@ -449,7 +449,7 @@ export default function PrintingPage() {
           <div className="text-xs max-h-28 overflow-y-auto" style={{ whiteSpace: 'pre-line' }}>
             {items.map((item, idx) => (
               <span key={idx}>
-                {item.productNameBn || item.productName}{item.variantName ? ` - ${item.variantName}` : ''} <span className="text-gray-500">({item.quantity})</span>
+                {item.productNameBn || item.productName}{item.variantName ? ` (${item.variantName})` : ''} <span className="text-gray-500">({item.quantity})</span>
                 {idx < items.length - 1 && <br />}
               </span>
             ))}
@@ -877,7 +877,7 @@ export default function PrintingPage() {
                             <div className="max-w-[200px]">
                               {ao.items.slice(0, 3).map((item, i) => (
                                 <div key={i} className="text-xs text-gray-700 truncate">
-                                  {item.quantity}x {item.productNameBn || item.productName}{item.variantName ? ` - ${item.variantName}` : ''}
+                                  {item.quantity}x {item.productNameBn || item.productName}{item.variantName ? ` (${item.variantName})` : ''}
                                 </div>
                               ))}
                               {ao.items.length > 3 && <div className="text-xs text-blue-600">+{ao.items.length - 3} more</div>}

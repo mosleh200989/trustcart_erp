@@ -178,7 +178,7 @@ function ProductSearchField({
         .then((res) => {
           const p = res.data;
           const name = p?.name_en || p?.name || `Product #${productId}`;
-          setLinkedName(variantName ? `${name} — ${variantName}` : name);
+          setLinkedName(variantName ? `${name} (${variantName})` : name);
         })
         .catch(() => setLinkedName(`Product #${productId}`));
     } else {

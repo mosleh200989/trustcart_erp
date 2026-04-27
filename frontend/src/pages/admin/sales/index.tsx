@@ -348,7 +348,7 @@ export default function AdminSales() {
   const addProductToOrder = (product: any, variant?: { name: string; price: number }) => {
     const variantName = variant?.name || '';
     const price = variant ? Number(variant.price) : Number(product.sale_price || product.base_price || product.price || 0);
-    const displayName = variantName ? `${product.name_en || product.name} - ${variantName}` : (product.name_en || product.name);
+    const displayName = variantName ? `${product.name_en || product.name} (${variantName})` : (product.name_en || product.name);
     // Use a composite key: productId + variantName to allow same product with different variants
     const itemKey = `${product.id}-${variantName}`;
     const existing = orderItems.find(item => `${item.productId}-${item.variantName}` === itemKey);
@@ -975,13 +975,13 @@ export default function AdminSales() {
                   <span
                     onClick={(e) => {
                       e.stopPropagation();
-                      const displayedName = (item.customProductName || item.productNameBn || item.productName || '') + (item.variantName ? ` - ${item.variantName}` : '');
+                      const displayedName = (item.customProductName || item.productNameBn || item.productName || '') + (item.variantName ? ` (${item.variantName})` : '');
                       startEditProductName(row.id, idx, displayedName);
                     }}
                     className="cursor-pointer hover:text-blue-600 hover:underline border-b border-dashed border-gray-300"
                     title="Click to edit product name"
                   >
-                    {item.customProductName || item.productNameBn || item.productName}{item.variantName ? ` - ${item.variantName}` : ''}
+                    {item.customProductName || item.productNameBn || item.productName}{item.variantName ? ` (${item.variantName})` : ''}
                   </span>
                   {item.customProductName && (
                     <span className="text-[9px] text-orange-500 flex-shrink-0" title="Custom name (original product unchanged)">✎</span>

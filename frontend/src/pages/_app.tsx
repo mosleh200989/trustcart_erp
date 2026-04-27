@@ -30,6 +30,7 @@ function FacebookAdvancedMatching() {
   useEffect(() => {
     if (typeof window === 'undefined' || !window.fbq) return;
     if (!user) return;
+    if (isHerbolinHost()) return;
 
     const userData: Record<string, string> = {};
     if (user.email) userData.em = user.email;

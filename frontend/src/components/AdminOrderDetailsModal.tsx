@@ -732,7 +732,7 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
   const selectAddProduct = (product: any, variant?: { name: string; price: number }) => {
     const variantName = variant?.name || '';
     const price = variant ? Number(variant.price) : Number(product.sale_price || product.base_price || product.price || 0);
-    const displayName = variantName ? `${product.name_en || product.name} - ${variantName}` : (product.name_en || product.name || '');
+    const displayName = variantName ? `${product.name_en || product.name} (${variantName})` : (product.name_en || product.name || '');
     setNewProduct({
       ...newProduct,
       productId: product.id?.toString() || '',
@@ -807,7 +807,7 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
   const addProductToNewOrder = (product: any, variant?: { name: string; price: number }) => {
     const variantName = variant?.name || '';
     const price = variant ? Number(variant.price) : Number(product.sale_price || product.base_price || product.price || 0);
-    const displayName = variantName ? `${product.name_en || product.name} - ${variantName}` : (product.name_en || product.name);
+    const displayName = variantName ? `${product.name_en || product.name} (${variantName})` : (product.name_en || product.name);
     const itemKey = `${product.id}-${variantName}`;
     const existing = newOrderItems.find(item => `${item.productId}-${item.variantName}` === itemKey);
     if (existing) {
@@ -1473,7 +1473,7 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                             </div>
                           ) : (
                             <div>
-                              {item.customProductName || item.productNameBn || item.displayName || item.productName}{item.variantName ? ` - ${item.variantName}` : ''}
+                              {item.customProductName || item.productNameBn || item.displayName || item.productName}{item.variantName ? ` (${item.variantName})` : ''}
                               {item.customProductName && (
                                 <span className="ml-1 text-[9px] text-orange-500" title={`Original: ${item.productName}`}>✎</span>
                               )}

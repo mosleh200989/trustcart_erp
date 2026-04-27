@@ -23,8 +23,10 @@ type OrderItem = {
   id: number;
   productId: number;
   productName?: string;
+  productNameBn?: string;
   productImage?: string;
   productSku?: string;
+  variantName?: string;
   quantity: number;
   unitPrice: number;
   lineTotal: number;
@@ -264,7 +266,7 @@ export default function ThankYouPage() {
       discount: discount,
       items: items.map((item) => ({
         id: item.productId,
-        name: item.productName || `Product ${item.productId}`,
+        name: (item.productName || `Product ${item.productId}`) + (item.variantName ? ` (${item.variantName})` : ''),
         price: Number(item.unitPrice) || 0,
         quantity: item.quantity || 1,
       })),
@@ -298,7 +300,7 @@ export default function ThankYouPage() {
       totalAmount,
       items: items.map((item) => ({
         product_id: item.productId,
-        product_name: item.productName || `Product ${item.productId}`,
+        product_name: (item.productName || `Product ${item.productId}`) + (item.variantName ? ` (${item.variantName})` : ''),
         quantity: item.quantity || 1,
       })),
     });
@@ -526,7 +528,7 @@ export default function ThankYouPage() {
                         />
                         <div className="flex-1 min-w-0">
                           <div className="font-semibold text-gray-800 text-sm truncate">
-                            {item.productName || `Product #${item.productId}`}
+                            {item.productName || `Product #${item.productId}`}{item.variantName ? ` (${item.variantName})` : ''}
                           </div>
                           <div className="flex items-center justify-between mt-1">
                             <span className="text-xs text-gray-500">Qty: {item.quantity}</span>
@@ -544,7 +546,7 @@ export default function ThankYouPage() {
                           />
                           <div>
                             <div className="font-semibold text-gray-800">
-                              {item.productName || `Product #${item.productId}`}
+                              {item.productName || `Product #${item.productId}`}{item.variantName ? ` (${item.variantName})` : ''}
                             </div>
                             <div className="text-xs text-gray-500">
                               SKU: {item.productSku || ""}

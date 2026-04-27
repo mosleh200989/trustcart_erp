@@ -344,7 +344,7 @@ export default function AdminSalesIncompleteOrders() {
           <div className="max-w-[200px] whitespace-normal">
             {cart.slice(0, 3).map((item: any, idx: number) => (
               <div key={idx} className="text-xs text-gray-700 break-words leading-tight mb-0.5">
-                {item.name_bn || item.name || item.product_name || 'Product'} &times; {item.quantity || 1}
+                {item.name_bn || item.name || item.product_name || 'Product'}{item.variant_name ? ` (${item.variant_name})` : ''} &times; {item.quantity || 1}
               </div>
             ))}
             {cart.length > 3 && (
@@ -752,7 +752,7 @@ export default function AdminSalesIncompleteOrders() {
                               <img src={item.image_url} alt="" className="w-10 h-10 rounded object-cover flex-shrink-0" />
                             )}
                             <div className="flex-1 min-w-0">
-                              <div className="text-sm font-medium text-gray-800 truncate">{item.name_bn || item.name || item.product_name}</div>
+                              <div className="text-sm font-medium text-gray-800 truncate">{item.name_bn || item.name || item.product_name}{item.variant_name ? ` (${item.variant_name})` : ''}</div>
                               <div className="text-xs text-gray-500">Qty: {item.quantity || 1}</div>
                             </div>
                             <div className="text-sm font-semibold text-gray-700">

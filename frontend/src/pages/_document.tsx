@@ -1,5 +1,8 @@
 import { Html, Head, Main, NextScript } from 'next/document';
 
+const MAIN_TRUSTCART_GTM_ID = 'GTM-TSC7TFV6';
+const HERBOLIN_GTM_ID = 'GTM-PK5G5DWZ';
+
 declare global {
   interface Window {
     fbq: any;
@@ -31,11 +34,13 @@ export default function Document() {
         {/* Google Tag Manager */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+            __html: `(function(w,d,s,l,mainId,herbolinId){var hostname=w.location.hostname;
+              var containerId=(hostname==='herbolin.com'||hostname==='www.herbolin.com')?herbolinId:mainId;
+              w[l]=w[l]||[];w[l].push({'gtm.start':
               new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
               j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
-              'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
-              })(window,document,'script','dataLayer','GTM-PK5G5DWZ');`,
+              'https://www.googletagmanager.com/gtm.js?id='+containerId+dl;f.parentNode.insertBefore(j,f);
+              })(window,document,'script','dataLayer','${MAIN_TRUSTCART_GTM_ID}','${HERBOLIN_GTM_ID}');`,
           }}
         />
         {/* End Google Tag Manager */}
@@ -61,7 +66,7 @@ export default function Document() {
           }}
         />
         {/* End Google Analytics */}
-        {/* Meta (Facebook) Pixel - Managed by GTM-PK5G5DWZ */}
+        {/* Meta (Facebook) Pixel - Managed by host-specific GTM container */}
         <script
           dangerouslySetInnerHTML={{
             __html: `!function(f,b,e,v,n,t,s)
@@ -74,19 +79,9 @@ export default function Document() {
               'https://connect.facebook.net/en_US/fbevents.js');`,
           }}
         />
-        {/* End Meta Pixel - Now managed by GTM */}
+        {/* End Meta Pixel - Now managed by host-specific GTM */}
       </Head>
       <body>
-        {/* Google Tag Manager (noscript) */}
-        <noscript>
-          <iframe
-            src="https://www.googletagmanager.com/ns.html?id=GTM-PK5G5DWZ"
-            height="0"
-            width="0"
-            style={{ display: 'none', visibility: 'hidden' }}
-          />
-        </noscript>
-        {/* End Google Tag Manager (noscript) */}
         <Main />
         <NextScript />
         {/* Bootstrap Bundle JS (includes Popper) */}
