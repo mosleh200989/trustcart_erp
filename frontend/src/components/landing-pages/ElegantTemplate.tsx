@@ -541,16 +541,16 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
 
                 {/* Price preview */}
                 {page.products?.[0] && (
-                  <div className="flex items-center justify-center md:justify-start gap-3 mb-8 flex-nowrap">
+                  <div className="flex flex-wrap items-center justify-center md:justify-start gap-2 sm:gap-3 mb-8">
                     {page.products[0].compare_price && page.products[0].compare_price > page.products[0].price && (
-                      <span className="red-strikethrough price-number font-bold px-4 py-1.5 rounded-lg bg-white/20 backdrop-blur-sm border border-white/30 text-white text-base sm:text-xl">
+                      <span className="red-strikethrough price-number font-bold px-3 sm:px-4 py-1.5 rounded-lg bg-white/20 backdrop-blur-sm border border-white/30 text-white text-sm sm:text-base md:text-xl">
                         ৳{page.products[0].compare_price.toLocaleString()}
                       </span>
                     )}
-                    <span className="text-3xl sm:text-4xl font-extrabold px-5 py-2 rounded-xl bg-white/15 backdrop-blur-sm border border-yellow-400/40"
+                    <span className="text-2xl sm:text-3xl md:text-4xl font-extrabold px-4 sm:px-5 py-2 rounded-xl bg-white/15 backdrop-blur-sm border border-yellow-400/40"
                       style={{ color: '#FFD700' }}
                     >
-                      <span className="text-lg font-normal opacity-80 mr-1">মাত্র</span>
+                      <span className="text-sm sm:text-base md:text-lg font-normal opacity-80 mr-1">মাত্র</span>
                       <span className="price-number">৳{page.products[0].price.toLocaleString()}</span>
                     </span>
                     {page.products[0].compare_price && page.products[0].compare_price > page.products[0].price && (
@@ -565,14 +565,14 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
                   <div className="flex items-center justify-center md:justify-start">
                     <button
                       onClick={scrollToOrderForm}
-                      className="group relative px-10 py-4 rounded-2xl text-xl sm:text-2xl font-extrabold shadow-2xl hover:shadow-xl transform hover:scale-105 transition-all duration-300 elegant-glow overflow-hidden"
+                      className="group relative w-full sm:w-auto px-8 sm:px-10 py-3.5 sm:py-4 rounded-2xl text-lg sm:text-xl md:text-2xl font-extrabold shadow-2xl hover:shadow-xl transform hover:scale-105 transition-all duration-300 elegant-glow overflow-hidden"
                       style={{
                         background: 'linear-gradient(135deg, #FFD700 0%, #FFA500 100%)',
                         color: '#1a1a2e',
                       }}
                     >
-                      <span className="relative z-10 flex items-center gap-2">
-                        <FaShoppingCart className="text-lg" />
+                      <span className="relative z-10 flex items-center justify-center gap-2">
+                        <FaShoppingCart className="text-base sm:text-lg" />
                         {page.hero_button_text}
                       </span>
                       <div className="absolute inset-0 bg-white opacity-0 group-hover:opacity-20 transition-opacity duration-300" />
