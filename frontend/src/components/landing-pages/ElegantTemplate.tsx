@@ -1218,13 +1218,24 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
                         <button
                           onClick={handleSubmitOrder}
                           disabled={submitting || orderItems.length === 0}
-                          className="w-full mt-5 py-4 rounded-2xl text-sm sm:text-lg font-extrabold text-white shadow-lg hover:shadow-xl transform hover:scale-[1.02] transition-all duration-300 disabled:opacity-50 disabled:transform-none flex items-center justify-center gap-2 whitespace-nowrap"
+                          className="w-full mt-5 py-4 rounded-2xl font-extrabold text-white shadow-lg hover:shadow-xl transform hover:scale-[1.02] transition-all duration-300 disabled:opacity-50 disabled:transform-none flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2"
                           style={{
                             background: `linear-gradient(135deg, ${page.primary_color} 0%, ${primaryDark} 100%)`,
                           }}
                         >
-                          <FaShoppingCart className="text-base sm:text-lg flex-shrink-0" />
-                          <span>{submitting ? 'প্রসেসিং...' : `অর্ডার কনফার্ম করুন — ${getTotal().toLocaleString()} ৳`}</span>
+                          {submitting ? (
+                            <span className="text-base sm:text-lg">প্রসেসিং...</span>
+                          ) : (
+                            <>
+                              <span className="flex items-center gap-2 text-sm sm:text-base md:text-lg leading-tight">
+                                <FaShoppingCart className="flex-shrink-0" />
+                                <span>অর্ডার কনফার্ম করুন</span>
+                              </span>
+                              <span className="text-base sm:text-lg md:text-xl font-extrabold sm:before:content-['—'] sm:before:mr-2 sm:before:opacity-70">
+                                {getTotal().toLocaleString()} ৳
+                              </span>
+                            </>
+                          )}
                         </button>
                       </div>
                     </div>
