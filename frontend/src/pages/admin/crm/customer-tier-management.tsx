@@ -4,6 +4,8 @@ import apiClient from '@/services/api';
 import { useToast } from '@/contexts/ToastContext';
 import PageSizeSelector from '@/components/admin/PageSizeSelector';
 import Pagination from '@/components/admin/Pagination';
+import ThSort from '@/components/admin/ThSort';
+import { useSortableData } from '@/hooks/useSortableData';
 
 interface Customer {
   id: number;
@@ -46,6 +48,7 @@ export default function CustomerTierManagementPage() {
     isActive: true,
     notes: '',
   });
+  const { sorted: sortedTierCustomers, sortKey: tierSortKey, sortDir: tierSortDir, toggleSort: toggleTierSort } = useSortableData<any>(customers);
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -327,16 +330,16 @@ export default function CustomerTierManagementPage() {
               <table className="w-full">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Customer</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Contact</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tier</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Purchases</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total Spent</th>
+                      <ThSort col="first_name" label="Customer" sortKey={tierSortKey} sortDir={tierSortDir} onSort={toggleTierSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                      <ThSort col="email" label="Contact" sortKey={tierSortKey} sortDir={tierSortDir} onSort={toggleTierSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                      <ThSort col="tier" label="Tier" sortKey={tierSortKey} sortDir={tierSortDir} onSort={toggleTierSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                      <ThSort col="order_count" label="Purchases" sortKey={tierSortKey} sortDir={tierSortDir} onSort={toggleTierSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                      <ThSort col="lifetime_value" label="Total Spent" sortKey={tierSortKey} sortDir={tierSortDir} onSort={toggleTierSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
-                  {customers.map((customer) => (
+                  {sortedTierCustomers.map((customer) => (
                     <tr key={customer.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4">
                         <div className="font-medium">{customer.first_name} {customer.last_name}</div>

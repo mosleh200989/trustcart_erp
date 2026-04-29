@@ -7,6 +7,8 @@ import { useRouter } from 'next/router';
 import { FaSearch, FaUsers, FaGlobe, FaExchangeAlt, FaEye } from 'react-icons/fa';
 import { useToast } from '@/contexts/ToastContext';
 import AdminOrderDetailsModal from '@/components/AdminOrderDetailsModal';
+import ThSort from '@/components/admin/ThSort';
+import { useSortableData } from '@/hooks/useSortableData';
 
 type TabType = 'new' | 'legacy' | 'mixed';
 
@@ -68,6 +70,7 @@ export default function CustomerSegmentsPage() {
   const [counts, setCounts] = useState({ newCount: 0, legacyCount: 0, mixedCount: 0 });
   const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
   const [showOrderModal, setShowOrderModal] = useState(false);
+  const { sorted: sortedSegmentCustomers, sortKey: segSortKey, sortDir: segSortDir, toggleSort: toggleSegSort } = useSortableData<SegmentCustomer>(customers);
 
   // Debounce search
   useEffect(() => {
@@ -252,14 +255,14 @@ export default function CustomerSegmentsPage() {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Customer</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Contact</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Location</th>
-                  <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">SO</th>
-                  <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">LEG</th>
-                  <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Total</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Spent</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Agent</th>
+                  <ThSort col="name" label="Customer" sortKey={segSortKey} sortDir={segSortDir} onSort={toggleSegSort} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" />
+                  <ThSort col="phone" label="Contact" sortKey={segSortKey} sortDir={segSortDir} onSort={toggleSegSort} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" />
+                  <ThSort col="city" label="Location" sortKey={segSortKey} sortDir={segSortDir} onSort={toggleSegSort} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" />
+                  <ThSort col="totalOrders" label="SO" sortKey={segSortKey} sortDir={segSortDir} onSort={toggleSegSort} className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider" />
+                  <ThSort col="legacyOrders" label="LEG" sortKey={segSortKey} sortDir={segSortDir} onSort={toggleSegSort} className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider" />
+                  <ThSort col="totalOrderCount" label="Total" sortKey={segSortKey} sortDir={segSortDir} onSort={toggleSegSort} className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider" />
+                  <ThSort col="totalSpent" label="Spent" sortKey={segSortKey} sortDir={segSortDir} onSort={toggleSegSort} className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider" />
+                  <ThSort col="agentName" label="Agent" sortKey={segSortKey} sortDir={segSortDir} onSort={toggleSegSort} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" />
                   <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Action</th>
                 </tr>
               </thead>
@@ -280,7 +283,7 @@ export default function CustomerSegmentsPage() {
                     </td>
                   </tr>
                 ) : (
-                  customers.map((c) => (
+                  sortedSegmentCustomers.map((c) => (
                     <tr key={c.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-4 py-3">
                         <div className="font-medium text-gray-900 text-sm">{c.name} {c.lastName || ''}</div>
@@ -341,7 +344,7 @@ export default function CustomerSegmentsPage() {
               No customers found in this segment
             </div>
           ) : (
-            customers.map((c) => (
+            sortedSegmentCustomers.map((c) => (
               <div key={c.id} className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
                 {/* Name + ID */}
                 <div className="flex items-start justify-between mb-3">

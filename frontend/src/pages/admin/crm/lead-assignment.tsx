@@ -10,6 +10,8 @@ import apiClient from '@/services/api';
 import { useToast } from '@/contexts/ToastContext';
 import { FaEye, FaChartBar, FaChevronDown, FaChevronRight, FaBoxOpen } from 'react-icons/fa';
 import { getOrderStatusLabel, getOrderStatusColor } from '@/utils/orderStatus';
+import ThSort from '@/components/admin/ThSort';
+import { useSortableData } from '@/hooks/useSortableData';
 
 interface OrderItem {
   productName: string;
@@ -70,6 +72,7 @@ export default function LeadAssignmentPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [leads, setLeads] = useState<LeadCustomer[]>([]);
   const [totalLeads, setTotalLeads] = useState(0);
+  const { sorted: sortedAssignmentLeads, sortKey: assignSortKey, sortDir: assignSortDir, toggleSort: toggleAssignSort } = useSortableData<LeadCustomer>(leads);
 
   // Filters
   const [assignmentStatus, setAssignmentStatus] = useState<'all' | 'assigned' | 'unassigned'>('unassigned');
@@ -729,17 +732,17 @@ export default function LeadAssignmentPage() {
                           className="w-4 h-4 rounded border-gray-300"
                         />
                       </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Contact</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tier</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Orders</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Order Date</th>
+                      <ThSort col="name" label="Name" sortKey={assignSortKey} sortDir={assignSortDir} onSort={toggleAssignSort} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                      <ThSort col="phone" label="Contact" sortKey={assignSortKey} sortDir={assignSortDir} onSort={toggleAssignSort} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                      <ThSort col="tier" label="Tier" sortKey={assignSortKey} sortDir={assignSortDir} onSort={toggleAssignSort} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                      <ThSort col="priority" label="Status" sortKey={assignSortKey} sortDir={assignSortDir} onSort={toggleAssignSort} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                      <ThSort col="order_count" label="Orders" sortKey={assignSortKey} sortDir={assignSortDir} onSort={toggleAssignSort} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                      <ThSort col="first_order_date" label="Order Date" sortKey={assignSortKey} sortDir={assignSortDir} onSort={toggleAssignSort} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Action</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
-                    {leads.map((lead) => {
+                    {sortedAssignmentLeads.map((lead) => {
                       const isExpanded = expandedLeadIds.has(lead.id);
                       const hasOrders = (lead.orders && lead.orders.length > 0);
                       return (

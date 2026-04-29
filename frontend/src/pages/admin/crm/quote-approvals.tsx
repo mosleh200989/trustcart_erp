@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import AdminLayout from '@/layouts/AdminLayout';
 import apiClient from '@/services/api';
 import { useToast } from '@/contexts/ToastContext';
+import ThSort from '@/components/admin/ThSort';
+import { useSortableData } from '@/hooks/useSortableData';
 
 interface Quote {
   id: number;
@@ -19,6 +21,7 @@ export default function QuoteApprovalsPage() {
   const toast = useToast();
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [loading, setLoading] = useState(true);
+  const { sorted: sortedQuotes, sortKey: quoteSortKey, sortDir: quoteSortDir, toggleSort: toggleQuoteSort } = useSortableData<Quote>(quotes);
 
   useEffect(() => {
     loadPendingQuotes();
@@ -90,11 +93,11 @@ export default function QuoteApprovalsPage() {
           <table className="w-full">
             <thead className="bg-gray-50 border-b">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Quote #</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Customer</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Version</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Created</th>
+                  <ThSort col="quoteNumber" label="Quote #" sortKey={quoteSortKey} sortDir={quoteSortDir} onSort={toggleQuoteSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                  <ThSort col="customerId" label="Customer" sortKey={quoteSortKey} sortDir={quoteSortDir} onSort={toggleQuoteSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                  <ThSort col="totalAmount" label="Amount" sortKey={quoteSortKey} sortDir={quoteSortDir} onSort={toggleQuoteSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                  <ThSort col="version" label="Version" sortKey={quoteSortKey} sortDir={quoteSortDir} onSort={toggleQuoteSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                  <ThSort col="createdAt" label="Created" sortKey={quoteSortKey} sortDir={quoteSortDir} onSort={toggleQuoteSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
               </tr>
             </thead>
@@ -112,7 +115,7 @@ export default function QuoteApprovalsPage() {
                   </td>
                 </tr>
               ) : (
-                quotes.map((quote) => (
+                sortedQuotes.map((quote) => (
                   <tr key={quote.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 text-sm font-medium text-gray-900">{quote.quoteNumber}</td>
                     <td className="px-6 py-4 text-sm text-gray-700">Customer #{quote.customerId}</td>

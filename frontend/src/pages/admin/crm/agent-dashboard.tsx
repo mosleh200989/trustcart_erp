@@ -8,6 +8,8 @@ import {
 import apiClient, { users as usersApi } from '@/services/api';
 import AdminOrderDetailsModal from '@/components/AdminOrderDetailsModal';
 import PageSizeSelector from '@/components/admin/PageSizeSelector';
+import ThSort from '@/components/admin/ThSort';
+import { useSortableData } from '@/hooks/useSortableData';
 import ProductAutocomplete from '@/components/admin/ProductAutocomplete';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
@@ -146,6 +148,7 @@ export default function AgentDashboard() {
   const [assignedTotal, setAssignedTotal] = useState(0);
   const [assignedLoading, setAssignedLoading] = useState(false);
   const [assignedError, setAssignedError] = useState<string | null>(null);
+  const { sorted: sortedAssignedCustomers, sortKey: assignedSortKey, sortDir: assignedSortDir, toggleSort: toggleAssignedSort } = useSortableData<AssignedCustomer>(assignedCustomers);
 
   // Assigned leads filters
   const [leadsSearchTerm, setLeadsSearchTerm] = useState('');
@@ -1248,17 +1251,15 @@ export default function AgentDashboard() {
                 <table className="w-full">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Phone</th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                        <span className="flex items-center gap-1"><FaCrown size={10} className="text-yellow-500" /> Tier</span>
-                      </th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Last Called</th>
+                      <ThSort col="name" label="Name" sortKey={assignedSortKey} sortDir={assignedSortDir} onSort={toggleAssignedSort} className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase" />
+                      <ThSort col="phone" label="Phone" sortKey={assignedSortKey} sortDir={assignedSortDir} onSort={toggleAssignedSort} className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase" />
+                      <ThSort col="customerType" label={<span className="flex items-center gap-1"><FaCrown size={10} className="text-yellow-500" /> Tier</span>} sortKey={assignedSortKey} sortDir={assignedSortDir} onSort={toggleAssignedSort} className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase" />
+                      <ThSort col="lastCalledAt" label="Last Called" sortKey={assignedSortKey} sortDir={assignedSortDir} onSort={toggleAssignedSort} className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase" />
                       <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Action</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
-                    {assignedCustomers.map((c) => {
+                    {sortedAssignedCustomers.map((c) => {
                       const fullName = [String(c?.name || '').trim(), String(c?.last_name || '').trim()]
                         .filter(Boolean)
                         .join(' ');

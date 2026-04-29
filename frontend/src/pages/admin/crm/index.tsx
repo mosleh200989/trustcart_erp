@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { FaPlus, FaUserTie, FaUsers, FaPhone, FaFire, FaThermometerHalf, FaClipboardList, FaExclamationTriangle } from 'react-icons/fa';
 // Commented out icons for Phase 1 features (keeping for future use):
 // import { FaProjectDiagram, FaTasks, FaEnvelope, FaCogs, FaFileInvoice, FaCheckCircle, FaChartLine, FaUserFriends } from 'react-icons/fa';
+import ThSort from '@/components/admin/ThSort';
+import { useSortableData } from '@/hooks/useSortableData';
 
 interface DashboardStats {
   totalCustomers: number;
@@ -23,6 +25,7 @@ export default function AdminCRM() {
   const [loading, setLoading] = useState(true);
   const [dashboardStats, setDashboardStats] = useState<DashboardStats | null>(null);
   const [statsLoading, setStatsLoading] = useState(true);
+  const { sorted: sortedLeads, sortKey, sortDir, toggleSort } = useSortableData<any>(leads);
 
   useEffect(() => {
     loadLeads();
@@ -319,15 +322,15 @@ export default function AdminCRM() {
               <table className="w-full">
                 <thead className="bg-gray-50 border-b">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Lead ID</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Phone</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                    <ThSort col="id" label="Lead ID" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                    <ThSort col="name" label="Name" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                    <ThSort col="email" label="Email" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                    <ThSort col="phone" label="Phone" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                    <ThSort col="status" label="Status" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
                   </tr>
                 </thead>
                 <tbody className="divide-y">
-                  {leads.map((lead) => (
+                  {sortedLeads.map((lead) => (
                     <tr key={lead.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4">#{lead.id}</td>
                       <td className="px-6 py-4">{lead.name || 'N/A'}</td>
