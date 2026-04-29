@@ -8,6 +8,8 @@ import { useRouter } from 'next/router';
 import { FaFileExport, FaTags, FaTrash, FaSms, FaEnvelope, FaPlus, FaEye } from 'react-icons/fa';
 import { useToast } from '@/contexts/ToastContext';
 import AdminOrderDetailsModal from '@/components/AdminOrderDetailsModal';
+import ThSort from '@/components/admin/ThSort';
+import { useSortableData } from '@/hooks/useSortableData';
 
 interface Customer {
   id: number;
@@ -121,6 +123,7 @@ export default function CustomersPage() {
 
   // Since we're using server-side pagination/filtering, display customers directly
   const displayedCustomers = customers;
+  const { sorted: sortedCustomers, sortKey, sortDir, toggleSort } = useSortableData<Customer>(displayedCustomers);
 
   const toggleSelectCustomer = (id: number) => {
     setSelectedCustomers(prev =>
@@ -404,13 +407,13 @@ export default function CustomersPage() {
                       className="rounded"
                     />
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Customer</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Contact</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tier</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Agent</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Team Leader</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Orders</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total Spent</th>
+                  <ThSort col="name" label="Customer" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                  <ThSort col="phone" label="Contact" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                  <ThSort col="tier" label="Tier" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                  <ThSort col="agentName" label="Agent" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                  <ThSort col="teamLeaderName" label="Team Leader" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                  <ThSort col="totalOrders" label="Orders" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                  <ThSort col="totalSpent" label="Total Spent" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
                 </tr>
               </thead>
@@ -428,7 +431,7 @@ export default function CustomersPage() {
                     </td>
                   </tr>
                 ) : (
-                  displayedCustomers.map((customer) => (
+                  sortedCustomers.map((customer) => (
                     <tr key={customer.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4">
                         <input

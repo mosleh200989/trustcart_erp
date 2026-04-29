@@ -2,6 +2,8 @@ import { useEffect, useState, useCallback } from 'react';
 import AdminLayout from '@/layouts/AdminLayout';
 import { useToast } from '@/contexts/ToastContext';
 import apiClient from '@/services/api';
+import ThSort from '@/components/admin/ThSort';
+import { useSortableData } from '@/hooks/useSortableData';
 
 interface AgentTier {
   id: number;
@@ -25,6 +27,7 @@ export default function AgentTiersPage() {
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState<number | null>(null);
   const [confirmModal, setConfirmModal] = useState<{ agent: AgentTier; newTier: string } | null>(null);
+  const { sorted: sortedAgents, sortKey: agentSortKey, sortDir: agentSortDir, toggleSort: toggleAgentSort } = useSortableData<AgentTier>(agents);
 
   const loadAgents = useCallback(async () => {
     try {
@@ -101,11 +104,11 @@ export default function AgentTiersPage() {
           <table className="min-w-full">
             <thead className="bg-gray-50">
               <tr>
-                <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 uppercase">Agent</th>
-                <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 uppercase">Phone</th>
-                <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 uppercase">Current Tier</th>
-                <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 uppercase">Assigned Customers</th>
-                <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 uppercase">Status</th>
+                  <ThSort col="name" label="Agent" sortKey={agentSortKey} sortDir={agentSortDir} onSort={toggleAgentSort} className="text-left py-3 px-4 text-xs font-semibold text-gray-600 uppercase" />
+                  <ThSort col="phone" label="Phone" sortKey={agentSortKey} sortDir={agentSortDir} onSort={toggleAgentSort} className="text-left py-3 px-4 text-xs font-semibold text-gray-600 uppercase" />
+                  <ThSort col="tier" label="Current Tier" sortKey={agentSortKey} sortDir={agentSortDir} onSort={toggleAgentSort} className="text-left py-3 px-4 text-xs font-semibold text-gray-600 uppercase" />
+                  <ThSort col="assignedCustomers" label="Assigned Customers" sortKey={agentSortKey} sortDir={agentSortDir} onSort={toggleAgentSort} className="text-left py-3 px-4 text-xs font-semibold text-gray-600 uppercase" />
+                  <ThSort col="status" label="Status" sortKey={agentSortKey} sortDir={agentSortDir} onSort={toggleAgentSort} className="text-left py-3 px-4 text-xs font-semibold text-gray-600 uppercase" />
                 <th className="text-left py-3 px-4 text-xs font-semibold text-gray-600 uppercase">Change Tier</th>
               </tr>
             </thead>
@@ -119,7 +122,7 @@ export default function AgentTiersPage() {
                   <td colSpan={6} className="py-8 text-center text-gray-500">No agents found</td>
                 </tr>
               ) : (
-                agents.map(agent => {
+                sortedAgents.map(agent => {
                   const tierInfo = getTierInfo(agent.tier);
                   return (
                     <tr key={agent.id} className="border-t hover:bg-gray-50">

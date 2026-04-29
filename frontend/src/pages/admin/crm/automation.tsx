@@ -3,6 +3,8 @@ import AdminLayout from '@/layouts/AdminLayout';
 import { FaPlus, FaEdit, FaTrash, FaToggleOn, FaToggleOff, FaChartBar } from 'react-icons/fa';
 import apiClient from '@/services/api';
 import { useToast } from '@/contexts/ToastContext';
+import ThSort from '@/components/admin/ThSort';
+import { useSortableData } from '@/hooks/useSortableData';
 
 interface RecommendationRule {
   id: number;
@@ -44,6 +46,9 @@ export default function CrmAutomationAdmin() {
   const [isCampaignModalOpen, setIsCampaignModalOpen] = useState(false);
   const [selectedRule, setSelectedRule] = useState<RecommendationRule | null>(null);
   const [selectedCampaign, setSelectedCampaign] = useState<MarketingCampaign | null>(null);
+  const { sorted: sortedRules, sortKey: rulesSortKey, sortDir: rulesSortDir, toggleSort: toggleRulesSort } = useSortableData<RecommendationRule>(rules);
+  const { sorted: sortedCampaigns, sortKey: campSortKey, sortDir: campSortDir, toggleSort: toggleCampSort } = useSortableData<MarketingCampaign>(campaigns);
+  const { sorted: sortedHotCustomers, sortKey: hotSortKey, sortDir: hotSortDir, toggleSort: toggleHotSort } = useSortableData<any>(hotCustomers);
 
   const [ruleForm, setRuleForm] = useState({
     rule_name: '',
@@ -293,17 +298,17 @@ export default function CrmAutomationAdmin() {
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Rule Name</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Time Window</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Min Order</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Priority</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Success Rate</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                      <ThSort col="rule_name" label="Rule Name" sortKey={rulesSortKey} sortDir={rulesSortDir} onSort={toggleRulesSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                      <ThSort col="min_days_passed" label="Time Window" sortKey={rulesSortKey} sortDir={rulesSortDir} onSort={toggleRulesSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                      <ThSort col="min_order_value" label="Min Order" sortKey={rulesSortKey} sortDir={rulesSortDir} onSort={toggleRulesSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                      <ThSort col="priority" label="Priority" sortKey={rulesSortKey} sortDir={rulesSortDir} onSort={toggleRulesSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                      <ThSort col="success_rate" label="Success Rate" sortKey={rulesSortKey} sortDir={rulesSortDir} onSort={toggleRulesSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                      <ThSort col="is_active" label="Status" sortKey={rulesSortKey} sortDir={rulesSortDir} onSort={toggleRulesSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
-                    {rules.map((rule) => (
+                    {sortedRules.map((rule) => (
                       <tr key={rule.id} className="hover:bg-gray-50">
                         <td className="px-6 py-4 text-sm font-medium text-gray-900">{rule.rule_name}</td>
                         <td className="px-6 py-4 text-sm text-gray-700">{rule.min_days_passed}-{rule.max_days_passed} days</td>
@@ -372,17 +377,17 @@ export default function CrmAutomationAdmin() {
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Campaign Name</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Channel</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Target</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Success</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                      <ThSort col="campaign_name" label="Campaign Name" sortKey={campSortKey} sortDir={campSortDir} onSort={toggleCampSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                      <ThSort col="campaign_type" label="Type" sortKey={campSortKey} sortDir={campSortDir} onSort={toggleCampSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                      <ThSort col="channel" label="Channel" sortKey={campSortKey} sortDir={campSortDir} onSort={toggleCampSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                      <ThSort col="target_segment" label="Target" sortKey={campSortKey} sortDir={campSortDir} onSort={toggleCampSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                      <ThSort col="success_count" label="Success" sortKey={campSortKey} sortDir={campSortDir} onSort={toggleCampSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                      <ThSort col="is_active" label="Status" sortKey={campSortKey} sortDir={campSortDir} onSort={toggleCampSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
-                    {campaigns.map((campaign) => (
+                    {sortedCampaigns.map((campaign) => (
                       <tr key={campaign.id} className="hover:bg-gray-50">
                         <td className="px-6 py-4 text-sm font-medium text-gray-900">{campaign.campaign_name}</td>
                         <td className="px-6 py-4 text-sm text-gray-700">{campaign.campaign_type}</td>
@@ -440,17 +445,17 @@ export default function CrmAutomationAdmin() {
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Customer</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total Orders</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Lifetime Value</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Avg Order</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Last Purchase</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Temperature</th>
+                      <ThSort col="name" label="Customer" sortKey={hotSortKey} sortDir={hotSortDir} onSort={toggleHotSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                      <ThSort col="email" label="Email" sortKey={hotSortKey} sortDir={hotSortDir} onSort={toggleHotSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                      <ThSort col="total_orders" label="Total Orders" sortKey={hotSortKey} sortDir={hotSortDir} onSort={toggleHotSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                      <ThSort col="lifetime_value" label="Lifetime Value" sortKey={hotSortKey} sortDir={hotSortDir} onSort={toggleHotSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                      <ThSort col="avg_order_value" label="Avg Order" sortKey={hotSortKey} sortDir={hotSortDir} onSort={toggleHotSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                      <ThSort col="days_since_last_order" label="Last Purchase" sortKey={hotSortKey} sortDir={hotSortDir} onSort={toggleHotSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                      <ThSort col="customer_temperature" label="Temperature" sortKey={hotSortKey} sortDir={hotSortDir} onSort={toggleHotSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
-                    {hotCustomers.map((customer, idx) => (
+                    {sortedHotCustomers.map((customer, idx) => (
                       <tr key={idx} className="hover:bg-gray-50">
                         <td className="px-6 py-4 text-sm font-medium text-gray-900">
                           {customer.name} {customer.last_name}

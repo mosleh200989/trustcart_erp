@@ -2,6 +2,8 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import AdminLayout from '@/layouts/AdminLayout';
 import PageSizeSelector from '@/components/admin/PageSizeSelector';
 import Pagination from '@/components/admin/Pagination';
+import ThSort from '@/components/admin/ThSort';
+import { useSortableData } from '@/hooks/useSortableData';
 import apiClient from '@/services/api';
 import { useToast } from '@/contexts/ToastContext';
 import AdminOrderDetailsModal from '@/components/AdminOrderDetailsModal';
@@ -172,6 +174,7 @@ export default function CrmLeadsPage() {
   };
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const { sorted: sortedLeads, sortKey, sortDir, toggleSort } = useSortableData<LeadCustomer>(leads);
 
   const formatName = (lead: LeadCustomer) => {
     if (lead.name) return lead.name;
@@ -586,16 +589,16 @@ export default function CrmLeadsPage() {
                         className="rounded"
                       />
                     </th>
-                    <th className="px-4 py-2 text-left font-medium text-gray-500 uppercase">ID</th>
-                    <th className="px-4 py-2 text-left font-medium text-gray-500 uppercase">Customer</th>
-                    <th className="px-4 py-2 text-left font-medium text-gray-500 uppercase">Phone</th>
-                    <th className="px-4 py-2 text-left font-medium text-gray-500 uppercase">Tier</th>
-                    <th className="px-4 py-2 text-left font-medium text-gray-500 uppercase">Assigned To</th>
+                    <ThSort col="id" label="ID" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} className="px-4 py-2 text-left font-medium text-gray-500 uppercase" />
+                    <ThSort col="name" label="Customer" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} className="px-4 py-2 text-left font-medium text-gray-500 uppercase" />
+                    <ThSort col="phone" label="Phone" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} className="px-4 py-2 text-left font-medium text-gray-500 uppercase" />
+                    <ThSort col="tier" label="Tier" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} className="px-4 py-2 text-left font-medium text-gray-500 uppercase" />
+                    <ThSort col="assigned_to_name" label="Assigned To" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} className="px-4 py-2 text-left font-medium text-gray-500 uppercase" />
                     <th className="px-4 py-2 text-left font-medium text-gray-500 uppercase">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
-                  {leads.map((lead) => (
+                  {sortedLeads.map((lead) => (
                     <tr key={lead.id} className={`hover:bg-gray-50 ${selectedLeads.has(lead.id) ? 'bg-green-50' : ''}`}>
                       <td className="px-4 py-2">
                         <input

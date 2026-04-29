@@ -3,6 +3,8 @@ import Link from 'next/link';
 import AdminLayout from '@/layouts/AdminLayout';
 import apiClient from '@/services/api';
 import { FaChevronLeft, FaChevronRight } from 'react-icons/fa';
+import ThSort from '@/components/admin/ThSort';
+import { useSortableData } from '@/hooks/useSortableData';
 
 export default function TelephonyReportsPage() {
   const [rangeDays, setRangeDays] = useState<number>(7);
@@ -71,6 +73,13 @@ export default function TelephonyReportsPage() {
     return `${m}m ${r}s`;
   };
 
+  // Per-table sort state
+  const { sorted: sortedCdr, sortKey: cdrSortKey, sortDir: cdrSortDir, toggleSort: cdrToggleSort } = useSortableData<any>(cdr?.items ?? []);
+  const { sorted: sortedQueues, sortKey: queueSortKey, sortDir: queueSortDir, toggleSort: queueToggleSort } = useSortableData<any>(queues?.items ?? []);
+  const { sorted: sortedTrunks, sortKey: trunkSortKey, sortDir: trunkSortDir, toggleSort: trunkToggleSort } = useSortableData<any>(trunks?.items ?? []);
+  const { sorted: sortedAgentCalls, sortKey: agentCallsSortKey, sortDir: agentCallsSortDir, toggleSort: agentCallsToggleSort } = useSortableData<any>(agentCalls?.items ?? []);
+  const { sorted: sortedAgentPresence, sortKey: presenceSortKey, sortDir: presenceSortDir, toggleSort: presenceToggleSort } = useSortableData<any>(agentPresence?.items ?? []);
+
   return (
     <AdminLayout>
       <div className="p-6 space-y-6">
@@ -137,22 +146,22 @@ export default function TelephonyReportsPage() {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">ID</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Started</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Direction</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Customer</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Agent</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Disposition</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Queue</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Trunk</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Wait</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Hold</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Duration</th>
+                  <ThSort col="id" label="ID" sortKey={cdrSortKey} sortDir={cdrSortDir} onSort={cdrToggleSort} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                  <ThSort col="startedAt" label="Started" sortKey={cdrSortKey} sortDir={cdrSortDir} onSort={cdrToggleSort} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                  <ThSort col="direction" label="Direction" sortKey={cdrSortKey} sortDir={cdrSortDir} onSort={cdrToggleSort} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                  <ThSort col="customerPhone" label="Customer" sortKey={cdrSortKey} sortDir={cdrSortDir} onSort={cdrToggleSort} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                  <ThSort col="agentUserId" label="Agent" sortKey={cdrSortKey} sortDir={cdrSortDir} onSort={cdrToggleSort} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                  <ThSort col="status" label="Status" sortKey={cdrSortKey} sortDir={cdrSortDir} onSort={cdrToggleSort} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                  <ThSort col="disposition" label="Disposition" sortKey={cdrSortKey} sortDir={cdrSortDir} onSort={cdrToggleSort} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                  <ThSort col="queueName" label="Queue" sortKey={cdrSortKey} sortDir={cdrSortDir} onSort={cdrToggleSort} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                  <ThSort col="trunkName" label="Trunk" sortKey={cdrSortKey} sortDir={cdrSortDir} onSort={cdrToggleSort} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                  <ThSort col="waitSeconds" label="Wait" sortKey={cdrSortKey} sortDir={cdrSortDir} onSort={cdrToggleSort} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                  <ThSort col="holdSeconds" label="Hold" sortKey={cdrSortKey} sortDir={cdrSortDir} onSort={cdrToggleSort} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                  <ThSort col="durationSeconds" label="Duration" sortKey={cdrSortKey} sortDir={cdrSortDir} onSort={cdrToggleSort} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {(cdr?.items || []).map((c: any) => (
+                {sortedCdr.map((c: any) => (
                   <tr key={c.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3 text-sm">
                       <Link href={`/admin/telephony/calls/${c.id}`} className="text-blue-600 hover:text-blue-800 font-medium">
@@ -231,16 +240,16 @@ export default function TelephonyReportsPage() {
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Queue</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Completed</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Failed</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Avg Wait</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Avg Duration</th>
+                    <ThSort col="queueName" label="Queue" sortKey={queueSortKey} sortDir={queueSortDir} onSort={queueToggleSort} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                    <ThSort col="total" label="Total" sortKey={queueSortKey} sortDir={queueSortDir} onSort={queueToggleSort} className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase" />
+                    <ThSort col="completed" label="Completed" sortKey={queueSortKey} sortDir={queueSortDir} onSort={queueToggleSort} className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase" />
+                    <ThSort col="failed" label="Failed" sortKey={queueSortKey} sortDir={queueSortDir} onSort={queueToggleSort} className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase" />
+                    <ThSort col="avgWaitSeconds" label="Avg Wait" sortKey={queueSortKey} sortDir={queueSortDir} onSort={queueToggleSort} className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase" />
+                    <ThSort col="avgDurationSeconds" label="Avg Duration" sortKey={queueSortKey} sortDir={queueSortDir} onSort={queueToggleSort} className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase" />
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {(queues?.items || []).map((r: any) => (
+                  {sortedQueues.map((r: any) => (
                     <tr key={r.queueName}>
                       <td className="px-4 py-3 text-sm text-gray-900">{r.queueName}</td>
                       <td className="px-4 py-3 text-sm text-gray-700 text-right">{r.total}</td>
@@ -267,14 +276,14 @@ export default function TelephonyReportsPage() {
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Trunk</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Talk Time</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Utilization</th>
+                    <ThSort col="trunkName" label="Trunk" sortKey={trunkSortKey} sortDir={trunkSortDir} onSort={trunkToggleSort} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                    <ThSort col="total" label="Total" sortKey={trunkSortKey} sortDir={trunkSortDir} onSort={trunkToggleSort} className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase" />
+                    <ThSort col="totalDurationSeconds" label="Talk Time" sortKey={trunkSortKey} sortDir={trunkSortDir} onSort={trunkToggleSort} className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase" />
+                    <ThSort col="utilizationRatioAssumingSingleChannel" label="Utilization" sortKey={trunkSortKey} sortDir={trunkSortDir} onSort={trunkToggleSort} className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase" />
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {(trunks?.items || []).map((r: any) => (
+                  {sortedTrunks.map((r: any) => (
                     <tr key={r.trunkName}>
                       <td className="px-4 py-3 text-sm text-gray-900">{r.trunkName}</td>
                       <td className="px-4 py-3 text-sm text-gray-700 text-right">{r.total}</td>
@@ -299,15 +308,15 @@ export default function TelephonyReportsPage() {
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Agent</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Completed</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Failed</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Talk Time</th>
+                    <ThSort col="agentUserId" label="Agent" sortKey={agentCallsSortKey} sortDir={agentCallsSortDir} onSort={agentCallsToggleSort} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                    <ThSort col="total" label="Total" sortKey={agentCallsSortKey} sortDir={agentCallsSortDir} onSort={agentCallsToggleSort} className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase" />
+                    <ThSort col="completed" label="Completed" sortKey={agentCallsSortKey} sortDir={agentCallsSortDir} onSort={agentCallsToggleSort} className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase" />
+                    <ThSort col="failed" label="Failed" sortKey={agentCallsSortKey} sortDir={agentCallsSortDir} onSort={agentCallsToggleSort} className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase" />
+                    <ThSort col="totalDurationSeconds" label="Talk Time" sortKey={agentCallsSortKey} sortDir={agentCallsSortDir} onSort={agentCallsToggleSort} className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase" />
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {(agentCalls?.items || []).map((r: any) => (
+                  {sortedAgentCalls.map((r: any) => (
                     <tr key={r.agentUserId}>
                       <td className="px-4 py-3 text-sm text-gray-900">{r.agentUserId}</td>
                       <td className="px-4 py-3 text-sm text-gray-700 text-right">{r.total}</td>
@@ -333,17 +342,17 @@ export default function TelephonyReportsPage() {
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Agent</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Logins</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Logouts</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Breaks</th>
+                    <ThSort col="userId" label="Agent" sortKey={presenceSortKey} sortDir={presenceSortDir} onSort={presenceToggleSort} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                    <ThSort col="loginCount" label="Logins" sortKey={presenceSortKey} sortDir={presenceSortDir} onSort={presenceToggleSort} className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase" />
+                    <ThSort col="logoutCount" label="Logouts" sortKey={presenceSortKey} sortDir={presenceSortDir} onSort={presenceToggleSort} className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase" />
+                    <ThSort col="breakCount" label="Breaks" sortKey={presenceSortKey} sortDir={presenceSortDir} onSort={presenceToggleSort} className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase" />
                     <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Online</th>
                     <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">On Call</th>
                     <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Break</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {(agentPresence?.items || []).map((r: any) => (
+                  {sortedAgentPresence.map((r: any) => (
                     <tr key={r.userId}>
                       <td className="px-4 py-3 text-sm text-gray-900">{r.userId}</td>
                       <td className="px-4 py-3 text-sm text-gray-700 text-right">{r.loginCount}</td>

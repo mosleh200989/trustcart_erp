@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { FaEdit, FaEye, FaTrash, FaChevronLeft, FaChevronRight } from 'react-icons/fa';
 
 interface Column {
@@ -6,6 +6,8 @@ interface Column {
   label: string;
   className?: string;
   render?: (value: any, row: any) => React.ReactNode;
+  /** Set to false to disable sorting on this column. Defaults to true. */
+  sortable?: boolean;
 }
 
 interface DataTableProps {
@@ -41,6 +43,37 @@ export default function DataTable({
 }: DataTableProps) {
   const hasActions = !!(onView || onEdit || onDelete);
   const getRowId = selection?.getRowId ?? ((row: any) => row?.id);
+
+  // ── Column sort state ──────────────────────────────────────────────────────
+  const [sortKey, setSortKey] = useState<string | null>(null);
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+
+  const handleSort = (key: string) => {
+    if (sortKey === key) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortKey(key);
+      setSortDir('asc');
+    }
+  };
+
+  const sortedData = useMemo(() => {
+    if (!sortKey) return data;
+    return [...data].sort((a, b) => {
+      const av = a[sortKey];
+      const bv = b[sortKey];
+      if (av == null && bv == null) return 0;
+      if (av == null) return sortDir === 'asc' ? 1 : -1;
+      if (bv == null) return sortDir === 'asc' ? -1 : 1;
+      if (typeof av === 'number' && typeof bv === 'number') {
+        return sortDir === 'asc' ? av - bv : bv - av;
+      }
+      const aStr = String(av).toLowerCase();
+      const bStr = String(bv).toLowerCase();
+      return sortDir === 'asc' ? aStr.localeCompare(bStr) : bStr.localeCompare(aStr);
+    });
+  }, [data, sortKey, sortDir]);
+  // ──────────────────────────────────────────────────────────────────────────
   const visibleRowIds = useMemo(
     () => (selection ? data.map((row) => getRowId(row)) : []),
     [data, selection, getRowId],
@@ -106,9 +139,20 @@ export default function DataTable({
               {columns.map((column) => (
                 <th
                   key={column.key}
-                  className={`px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider ${column.className || ''}`}
+                  onClick={column.sortable !== false ? () => handleSort(column.key) : undefined}
+                  className={`px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider ${column.sortable !== false ? 'cursor-pointer select-none hover:bg-blue-400' : ''} ${column.className || ''}`}
                 >
-                  {column.label}
+                  <span className="inline-flex items-center gap-1 group">
+                    <span>{column.label}</span>
+                    {column.sortable !== false && (
+                      <span
+                        className={`text-xs transition-opacity ${sortKey === column.key ? 'opacity-100' : 'opacity-40 group-hover:opacity-80'}`}
+                        aria-hidden="true"
+                      >
+                        {sortKey === column.key ? (sortDir === 'asc' ? '▲' : '▼') : '⇅'}
+                      </span>
+                    )}
+                  </span>
                 </th>
               ))}
               {(onView || onEdit || onDelete) && (
@@ -135,7 +179,7 @@ export default function DataTable({
                 </td>
               </tr>
             ) : (
-              data.map((row, index) => (
+              sortedData.map((row, index) => (
                 <tr key={index} className={`hover:bg-gray-50 transition-colors ${rowClassName ? rowClassName(row, index) : ''}`}>
                   {selection && (
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">

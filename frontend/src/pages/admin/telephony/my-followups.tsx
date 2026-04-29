@@ -3,6 +3,8 @@ import { useToast } from '@/contexts/ToastContext';
 import AdminLayout from '@/layouts/AdminLayout';
 import { wrapCustomerName } from '@/utils/wrapCustomerName';
 import Pagination from '@/components/admin/Pagination';
+import ThSort from '@/components/admin/ThSort';
+import { useSortableData } from '@/hooks/useSortableData';
 import apiClient from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { 
@@ -393,12 +395,15 @@ export default function MyFollowupsPage() {
 
   const hasActiveFilters = searchTerm || priorityFilter || statusFilter || dateRangeFilter || specificDate;
 
+  // Sort
+  const { sorted: sortedFollowUps, sortKey, sortDir, toggleSort } = useSortableData<any>(filteredFollowUps);
+
   // Pagination
   const totalPages = Math.ceil(filteredFollowUps.length / itemsPerPage);
   const paginatedFollowUps = useMemo(() => {
     const start = (currentPage - 1) * itemsPerPage;
-    return filteredFollowUps.slice(start, start + itemsPerPage);
-  }, [filteredFollowUps, currentPage, itemsPerPage]);
+    return sortedFollowUps.slice(start, start + itemsPerPage);
+  }, [sortedFollowUps, currentPage, itemsPerPage]);
 
   // Reset page when filters change
   useEffect(() => {
@@ -793,12 +798,12 @@ export default function MyFollowupsPage() {
                         }}
                       />
                     </th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Phone</th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Priority</th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Reason</th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Scheduled</th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                    <ThSort col="customer_name" label="Name" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase" />
+                    <ThSort col="customer_phone" label="Phone" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase" />
+                    <ThSort col="priority" label="Priority" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase" />
+                    <ThSort col="call_reason" label="Reason" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase" />
+                    <ThSort col="task_date" label="Scheduled" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase" />
+                    <ThSort col="status" label="Status" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase" />
                     <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Action</th>
                   </tr>
                 </thead>

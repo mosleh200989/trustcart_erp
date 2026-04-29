@@ -3,6 +3,8 @@ import AdminLayout from '@/layouts/AdminLayout';
 import apiClient from '@/services/api';
 import { Line, Bar } from 'react-chartjs-2';
 import { useToast } from '@/contexts/ToastContext';
+import ThSort from '@/components/admin/ThSort';
+import { useSortableData } from '@/hooks/useSortableData';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -50,6 +52,8 @@ export default function ForecastDashboardPage() {
   const [period, setPeriod] = useState('monthly');
   const [showQuotaModal, setShowQuotaModal] = useState(false);
   const [showForecastModal, setShowForecastModal] = useState(false);
+  const { sorted: sortedQuotas, sortKey: quotaSortKey, sortDir: quotaSortDir, toggleSort: toggleQuotaSort } = useSortableData<SalesQuota>(quotas);
+  const { sorted: sortedForecasts, sortKey: forecastSortKey, sortDir: forecastSortDir, toggleSort: toggleForecastSort } = useSortableData<SalesForecast>(forecasts);
 
   useEffect(() => {
     loadData();
@@ -211,15 +215,15 @@ export default function ForecastDashboardPage() {
             <table className="w-full">
               <thead className="bg-gray-50 border-b">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Period</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Quota</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actual</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Attainment</th>
+                  <ThSort col="quotaPeriod" label="Period" sortKey={quotaSortKey} sortDir={quotaSortDir} onSort={toggleQuotaSort} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                  <ThSort col="quotaAmount" label="Quota" sortKey={quotaSortKey} sortDir={quotaSortDir} onSort={toggleQuotaSort} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                  <ThSort col="actualAmount" label="Actual" sortKey={quotaSortKey} sortDir={quotaSortDir} onSort={toggleQuotaSort} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                  <ThSort col="attainmentPercentage" label="Attainment" sortKey={quotaSortKey} sortDir={quotaSortDir} onSort={toggleQuotaSort} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {quotas.map((quota) => (
+                {sortedQuotas.map((quota) => (
                   <tr key={quota.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3 text-sm">{quota.quotaPeriod}</td>
                     <td className="px-4 py-3 text-sm">${quota.quotaAmount.toLocaleString()}</td>
@@ -256,16 +260,16 @@ export default function ForecastDashboardPage() {
             <table className="w-full">
               <thead className="bg-gray-50 border-b">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Period</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Forecast</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actual</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Accuracy</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Deals</th>
+                  <ThSort col="forecastPeriod" label="Period" sortKey={forecastSortKey} sortDir={forecastSortDir} onSort={toggleForecastSort} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                  <ThSort col="forecastType" label="Type" sortKey={forecastSortKey} sortDir={forecastSortDir} onSort={toggleForecastSort} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                  <ThSort col="forecastAmount" label="Forecast" sortKey={forecastSortKey} sortDir={forecastSortDir} onSort={toggleForecastSort} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                  <ThSort col="actualAmount" label="Actual" sortKey={forecastSortKey} sortDir={forecastSortDir} onSort={toggleForecastSort} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                  <ThSort col="accuracyPercentage" label="Accuracy" sortKey={forecastSortKey} sortDir={forecastSortDir} onSort={toggleForecastSort} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                  <ThSort col="dealCount" label="Deals" sortKey={forecastSortKey} sortDir={forecastSortDir} onSort={toggleForecastSort} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {forecasts.map((forecast) => (
+                {sortedForecasts.map((forecast) => (
                   <tr key={forecast.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3 text-sm">{forecast.forecastPeriod}</td>
                     <td className="px-4 py-3 text-sm capitalize">{forecast.forecastType.replace(/_/g, ' ')}</td>

@@ -5,6 +5,8 @@ import { format } from 'date-fns';
 import apiClient from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/contexts/ToastContext';
+import ThSort from '@/components/admin/ThSort';
+import { useSortableData } from '@/hooks/useSortableData';
 
 interface TeamMember {
   id: number;
@@ -311,6 +313,8 @@ const TaskManagement = () => {
     task.assignee?.name?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const { sorted: sortedTasks, sortKey, sortDir, toggleSort } = useSortableData<any>(filteredTasks);
+
   const getPriorityColor = (priority: string) => {
     switch (priority) {
       case 'high': return 'text-red-600 bg-red-50 border-red-200';
@@ -518,16 +522,16 @@ const TaskManagement = () => {
                 <table className="w-full">
                   <thead className="bg-gray-50 border-b border-gray-200">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Task</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Assigned To</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Due Date</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Priority</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                      <ThSort col="title" label="Task" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" />
+                      <ThSort col="assignee" label="Assigned To" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" />
+                      <ThSort col="dueDate" label="Due Date" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" />
+                      <ThSort col="priority" label="Priority" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" />
+                      <ThSort col="status" label="Status" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" />
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {filteredTasks.map(task => (
+                    {sortedTasks.map(task => (
                       <tr key={task.id} className="hover:bg-gray-50">
                         <td className="px-6 py-4">
                           <div>

@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import AdminLayout from '@/layouts/AdminLayout';
 import apiClient from '@/services/api';
+import ThSort from '@/components/admin/ThSort';
+import { useSortableData } from '@/hooks/useSortableData';
 
 type CallRow = any;
 
@@ -50,6 +52,7 @@ export default function TelephonyCallsPage() {
   }, [queryString]);
 
   const totalPages = Math.max(1, Math.ceil((data?.total || 0) / (data?.limit || limit)));
+  const { sorted: sortedCalls, sortKey, sortDir, toggleSort } = useSortableData<any>(data?.items ?? []);
 
   const formatDateTime = (value: any) => {
     if (!value) return '—';
@@ -138,13 +141,13 @@ export default function TelephonyCallsPage() {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">ID</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Direction</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">From</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">To</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Started</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Recording</th>
+                <ThSort col="id" label="ID" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                <ThSort col="direction" label="Direction" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                <ThSort col="customerPhone" label="From" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                <ThSort col="agentPhone" label="To" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                <ThSort col="status" label="Status" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                <ThSort col="startedAt" label="Started" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                <ThSort col="recordingUrl" label="Recording" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
                 <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Action</th>
               </tr>
             </thead>
@@ -161,7 +164,7 @@ export default function TelephonyCallsPage() {
                 </tr>
               )}
 
-              {(data?.items || []).map((c: any) => (
+              {sortedCalls.map((c: any) => (
                 <tr key={c.id} className="hover:bg-gray-50">
                   <td className="px-4 py-3 text-sm text-gray-900">#{c.id}</td>
                   <td className="px-4 py-3 text-sm text-gray-700">{c.direction || '—'}</td>
