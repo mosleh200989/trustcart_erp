@@ -1559,7 +1559,7 @@ export class SalesService {
         `COUNT(CASE WHEN LOWER(o.status::text) = 'approved' THEN 1 END) AS approved_orders`,
         `COUNT(CASE WHEN LOWER(o.status::text) = 'shipped' THEN 1 END) AS shipped_orders`,
         `COUNT(CASE WHEN LOWER(o.status::text) = 'delivered' THEN 1 END) AS delivered_orders`,
-        `COUNT(CASE WHEN LOWER(o.status::text) = 'admin_cancelled' THEN 1 END) AS admin_cancelled_orders`,
+        `COUNT(CASE WHEN LOWER(o.status::text) IN ('cancelled', 'admin_cancelled', 'returned') THEN 1 END) AS cancelled_orders`,
       ])
       .where('o.created_by IS NOT NULL')
       .andWhere('o.order_source IN (:...agentSources)', { agentSources: ['admin_panel', 'agent_dashboard'] })
@@ -1810,10 +1810,10 @@ export class SalesService {
         approvedOrders: toNum(r.approved_orders),
         shippedOrders: toNum(r.shipped_orders),
         deliveredOrders: toNum(r.delivered_orders),
-        adminCancelledOrders: toNum(r.admin_cancelled_orders),
+        cancelledOrders: toNum(r.cancelled_orders),
         conversionRate: convRateMap.get(toNum(r.agent_id)) || 0,
         cancelRate: toNum(r.total_orders) > 0
-          ? Math.round((toNum(r.admin_cancelled_orders) / toNum(r.total_orders)) * 100)
+          ? Math.round((toNum(r.cancelled_orders) / toNum(r.total_orders)) * 100)
           : 0,
       };
     });

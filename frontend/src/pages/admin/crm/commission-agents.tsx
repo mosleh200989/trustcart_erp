@@ -17,6 +17,7 @@ interface AgentRow {
   totalDeliveredProducts: number;
   upsellQty: number;
   crossSellQty: number;
+  cancelledOrders: number;
   totalAmount: number;
   extraPartial: number;
   totalCommission: number;
@@ -185,6 +186,14 @@ export default function CommissionAgentsPage() {
       sortable: true,
       render: (_: any, row: AgentRow) => (
         <span className="text-sm">{(row.crossSellQty || 0).toLocaleString()}</span>
+      ),
+    },
+    {
+      key: 'cancelledOrders',
+      label: 'Cancelled / Returned',
+      sortable: true,
+      render: (_: any, row: AgentRow) => (
+        <span className="text-sm font-medium text-red-600">{(row.cancelledOrders || 0).toLocaleString()}</span>
       ),
     },
     {

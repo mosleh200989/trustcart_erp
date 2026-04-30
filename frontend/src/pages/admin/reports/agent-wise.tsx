@@ -58,7 +58,7 @@ interface AgentRow {
   approvedOrders: number;
   shippedOrders: number;
   deliveredOrders: number;
-  adminCancelledOrders: number;
+  cancelledOrders: number;
   conversionRate: number;
   cancelRate: number;
 }
@@ -292,7 +292,7 @@ export default function AgentWiseReportPage() {
     const headers = [
       'Agent Name', 'Total Orders',
       'Products Qty', 'Upsell Qty', 'Cross-Sell Qty',
-      'Order Rejected',
+      'Cancelled / Returned',
       'Conversion %', 'Cancel %',
     ];
     const rows = data.agents.map((a) =>
@@ -300,7 +300,7 @@ export default function AgentWiseReportPage() {
         `"${a.agentName}"`, a.totalOrders,
         a.productsQty, a.upsellQty,
         a.crossSellQty,
-        a.adminCancelledOrders, a.conversionRate, a.cancelRate,
+        a.cancelledOrders, a.conversionRate, a.cancelRate,
       ].join(','),
     );
     const csv = [headers.join(','), ...rows].join('\n');
@@ -493,8 +493,8 @@ export default function AgentWiseReportPage() {
                           <th className="px-3 py-3 text-center cursor-pointer hover:text-violet-600" onClick={() => handleSort('crossSellQty')}>
                             <span className="text-pink-600">Cross-Sell Qty</span> <SortIcon field="crossSellQty" />
                           </th>
-                          <th className="px-3 py-3 text-center cursor-pointer hover:text-violet-600" onClick={() => handleSort('adminCancelledOrders')}>
-                            <span className="text-red-600">Order Rejected</span> <SortIcon field="adminCancelledOrders" />
+                          <th className="px-3 py-3 text-center cursor-pointer hover:text-violet-600" onClick={() => handleSort('cancelledOrders')}>
+                            <span className="text-red-600">Cancelled / Returned</span> <SortIcon field="cancelledOrders" />
                           </th>
                           <th className="px-3 py-3 text-center cursor-pointer hover:text-violet-600" onClick={() => handleSort('conversionRate')}>
                             Conv % <SortIcon field="conversionRate" />
@@ -541,7 +541,7 @@ export default function AgentWiseReportPage() {
                                 <td className="px-3 py-3 text-center font-medium text-gray-700">{a.productsQty}</td>
                                 <td className="px-3 py-3 text-center font-medium text-amber-600">{a.upsellQty}</td>
                                 <td className="px-3 py-3 text-center font-medium text-pink-600">{a.crossSellQty}</td>
-                                <td className="px-3 py-3 text-center font-medium text-red-600">{a.adminCancelledOrders}</td>
+                                <td className="px-3 py-3 text-center font-medium text-red-600">{a.cancelledOrders}</td>
                                 <td className="px-3 py-3 text-center">
                                   <ConversionBadge value={a.conversionRate} />
                                 </td>
@@ -560,7 +560,7 @@ export default function AgentWiseReportPage() {
                             <td className="px-3 py-3 text-center">{sortedAgents.reduce((s, a) => s + a.productsQty, 0)}</td>
                             <td className="px-3 py-3 text-center text-amber-600">{sortedAgents.reduce((s, a) => s + a.upsellQty, 0)}</td>
                             <td className="px-3 py-3 text-center text-pink-600">{sortedAgents.reduce((s, a) => s + a.crossSellQty, 0)}</td>
-                            <td className="px-3 py-3 text-center text-red-600">{sortedAgents.reduce((s, a) => s + a.adminCancelledOrders, 0)}</td>
+                            <td className="px-3 py-3 text-center text-red-600">{sortedAgents.reduce((s, a) => s + a.cancelledOrders, 0)}</td>
                             <td className="px-3 py-3 text-center">—</td>
                           </tr>
                         </tfoot>
@@ -736,7 +736,7 @@ export default function AgentWiseReportPage() {
                           <div className="space-y-2 text-xs">
                             <MetricRow label="Upsell Qty" value={fmt(a.upsellQty)} highlight />
                             <MetricRow label="Conversion" value={`${a.conversionRate}%`} />
-                            <MetricRow label="Order Rejected" value={`${a.adminCancelledOrders} (${a.cancelRate}%)`} />
+                            <MetricRow label="Cancelled / Returned" value={`${a.cancelledOrders} (${a.cancelRate}%)`} />
                           </div>
                         </div>
                       ))}
