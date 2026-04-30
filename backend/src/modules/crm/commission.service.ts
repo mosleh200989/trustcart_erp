@@ -886,6 +886,7 @@ export class CommissionService {
         GROUP BY so.created_by
       ) cancelled_stats ON cancelled_stats.agent_id = u.id
       LEFT JOIN (
+        SELECT agent_id, SUM(qty) as total_product_qty FROM (
           SELECT so.created_by as agent_id, COALESCE(SUM(soi.quantity), 0) as qty
           FROM sales_order_items soi
           INNER JOIN sales_orders so ON so.id = soi.sales_order_id
