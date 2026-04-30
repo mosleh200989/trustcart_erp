@@ -5,7 +5,7 @@ import { useRouter } from "next/router";
 import ElectroNavbar from "@/components/ElectroNavbar";
 import ElectroFooter from "@/components/ElectroFooter";
 import ElectroProductCard from "@/components/ElectroProductCard";
-import { FaThLarge, FaThList, FaFilter } from "react-icons/fa";
+import { FaThLarge, FaThList, FaFilter, FaTag, FaTimes, FaBoxOpen, FaSearch } from "react-icons/fa";
 import apiClient from "@/services/api";
 import { SITE_NAME, SITE_URL, DEFAULT_OG_IMAGE, canonicalUrl } from '@/config/seo';
 
@@ -58,6 +58,7 @@ export default function Products() {
     sortBy: "featured",
     inStock: false,
     isCombo: false,
+    hasDiscount: false,
   });
 
   const isUpdatingFromUrl = useRef(false);
@@ -83,6 +84,7 @@ export default function Products() {
     if (f.maxPrice) params.maxPrice = f.maxPrice;
     if (f.inStock) params.inStock = "true";
     if (f.isCombo) params.is_combo = "true";
+    if (f.hasDiscount) params.hasDiscount = "true";
     return params;
   }, [filters, categories, itemsPerPage]);
 
@@ -170,6 +172,7 @@ export default function Products() {
     if (router.query.maxPrice) updates.maxPrice = router.query.maxPrice as string;
     if (router.query.inStock === "true") updates.inStock = true;
     if (router.query.is_combo === "true") updates.isCombo = true;
+    if (router.query.hasDiscount === "true") updates.hasDiscount = true;
 
     const initialFilters = { ...filters, ...updates };
     setFilters(initialFilters);
@@ -198,6 +201,8 @@ export default function Products() {
       if (f.minPrice) query.minPrice = f.minPrice;
       if (f.maxPrice) query.maxPrice = f.maxPrice;
       if (f.inStock) query.inStock = "true";
+      if (f.isCombo) query.is_combo = "true";
+      if (f.hasDiscount) query.hasDiscount = "true";
 
       router.push({ pathname: router.pathname, query }, undefined, { shallow: true });
     },
@@ -214,7 +219,9 @@ export default function Products() {
       prevFiltersRef.current.minPrice !== filters.minPrice ||
       prevFiltersRef.current.maxPrice !== filters.maxPrice ||
       prevFiltersRef.current.sortBy !== filters.sortBy ||
-      prevFiltersRef.current.inStock !== filters.inStock;
+      prevFiltersRef.current.inStock !== filters.inStock ||
+      prevFiltersRef.current.isCombo !== filters.isCombo ||
+      prevFiltersRef.current.hasDiscount !== filters.hasDiscount;
 
     if (filtersChanged && !isUpdatingFromUrl.current) {
       const timeout = setTimeout(() => {
@@ -274,113 +281,265 @@ export default function Products() {
     </div>
   );
 
+  const DEFAULT_FILTERS = {
+    search: "",
+    category: "",
+    minPrice: "",
+    maxPrice: "",
+    sortBy: "featured",
+    inStock: false,
+    isCombo: false,
+    hasDiscount: false,
+  };
+
+  const PRICE_PRESETS = [
+    { label: "৳100–200", min: "100", max: "200" },
+    { label: "৳200–500", min: "200", max: "500" },
+    { label: "৳500–1000", min: "500", max: "1000" },
+    { label: "৳1000+", min: "1000", max: "" },
+  ];
+
+  const activeFilterCount = [
+    filters.category !== "",
+    filters.minPrice !== "" || filters.maxPrice !== "",
+    filters.inStock,
+    filters.hasDiscount,
+    filters.isCombo,
+    filters.sortBy !== "featured",
+  ].filter(Boolean).length;
+
   const filtersContent = (
     <>
-      <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
-        <FaFilter className="text-orange-500" />
-        Filters
-      </h3>
+      {/* Header */}
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-base font-bold text-gray-800 flex items-center gap-2">
+          <FaFilter className="text-orange-500" size={13} />
+          Filters
+          {activeFilterCount > 0 && (
+            <span className="ml-0.5 text-xs font-bold bg-orange-500 text-white rounded-full w-5 h-5 flex items-center justify-center">
+              {activeFilterCount}
+            </span>
+          )}
+        </h3>
+        {activeFilterCount > 0 && (
+          <button
+            onClick={() => setFilters(DEFAULT_FILTERS)}
+            className="text-xs text-orange-500 hover:text-orange-700 font-semibold flex items-center gap-1 transition-colors"
+          >
+            <FaTimes size={9} />
+            Clear all
+          </button>
+        )}
+      </div>
 
       {/* Search */}
-      <div className="mb-6">
-        <label className="block text-sm font-semibold mb-2">Search</label>
-        <input
-          type="text"
-          value={filters.search}
-          onChange={(e) => setFilters({ ...filters, search: e.target.value })}
-          placeholder="Search products..."
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-500"
-        />
+      <div className="mb-3 pb-3 border-b border-gray-100">
+        <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Search</label>
+        <div className="relative">
+          <FaSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={11} />
+          <input
+            type="text"
+            value={filters.search}
+            onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+            placeholder="Search products..."
+            className="w-full pl-8 pr-8 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-orange-400 focus:ring-1 focus:ring-orange-100 transition"
+          />
+          {filters.search && (
+            <button
+              onClick={() => setFilters({ ...filters, search: "" })}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              <FaTimes size={11} />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Sort By */}
+      <div className="mb-3 pb-3 border-b border-gray-100">
+        <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Sort By</label>
+        <div className="space-y-0.5">
+          {([
+            { value: "featured", label: "Featured" },
+            { value: "newest", label: "Newest Arrivals" },
+            { value: "price-low", label: "Price: Low to High" },
+            { value: "price-high", label: "Price: High to Low" },
+            { value: "discount", label: "Biggest Discount" },
+            { value: "name", label: "Name: A to Z" },
+          ] as const).map((opt) => (
+            <button
+              key={opt.value}
+              onClick={() => setFilters({ ...filters, sortBy: opt.value })}
+              className={`w-full text-left px-3 py-1.5 rounded-lg text-sm transition-colors flex items-center gap-2.5 ${
+                filters.sortBy === opt.value
+                  ? "bg-orange-50 text-orange-700 font-semibold"
+                  : "text-gray-600 hover:bg-gray-50 hover:text-gray-800"
+              }`}
+            >
+              <span className={`w-2 h-2 rounded-full flex-shrink-0 transition-colors ${
+                filters.sortBy === opt.value ? "bg-orange-500" : "bg-gray-300"
+              }`} />
+              {opt.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Categories */}
-      <div className="mb-6">
-        <label className="block text-sm font-semibold mb-3">Categories</label>
-        <div className="space-y-2">
-          <label className="flex items-center gap-2 cursor-pointer hover:text-orange-500">
-            <input
-              type="radio"
-              name="category"
-              checked={filters.category === ""}
-              onChange={() => setFilters({ ...filters, category: "" })}
-              className="text-orange-500"
-            />
-            <span className="text-sm">All Categories</span>
-          </label>
+      <div className="mb-3 pb-3 border-b border-gray-100">
+        <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Category</label>
+        <div className="space-y-0.5">
+          <button
+            onClick={() => setFilters({ ...filters, category: "" })}
+            className={`w-full text-left px-3 py-1.5 rounded-lg text-sm transition-colors flex items-center gap-2.5 ${
+              filters.category === ""
+                ? "bg-orange-50 text-orange-700 font-semibold"
+                : "text-gray-600 hover:bg-gray-50 hover:text-gray-800"
+            }`}
+          >
+            <span className={`w-2 h-2 rounded-full flex-shrink-0 ${
+              filters.category === "" ? "bg-orange-500" : "bg-gray-300"
+            }`} />
+            All Categories
+          </button>
           {categories.map((cat) => (
-            <label
+            <button
               key={cat.id}
-              className="flex items-center gap-2 cursor-pointer hover:text-orange-500"
+              onClick={() => setFilters({ ...filters, category: filters.category === cat.name_en ? "" : cat.name_en })}
+              className={`w-full text-left px-3 py-1.5 rounded-lg text-sm transition-colors flex items-center justify-between group ${
+                filters.category === cat.name_en
+                  ? "bg-orange-50 text-orange-700 font-semibold"
+                  : "text-gray-600 hover:bg-gray-50 hover:text-gray-800"
+              }`}
             >
-              <input
-                type="radio"
-                name="category"
-                checked={filters.category === cat.name_en}
-                onChange={() => setFilters({ ...filters, category: cat.name_en })}
-                className="text-orange-500"
-              />
-              <span className="text-sm">
-                {cat.name_en}
-                {cat.name_bn && (
-                  <span className="text-gray-500 ml-1">({cat.name_bn})</span>
-                )}
+              <span className="flex items-center gap-2.5 min-w-0">
+                <span className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                  filters.category === cat.name_en ? "bg-orange-500" : "bg-gray-300"
+                }`} />
+                <span className="truncate">{cat.name_en}</span>
+                {cat.name_bn && <span className="text-gray-400 text-xs flex-shrink-0">({cat.name_bn})</span>}
               </span>
-            </label>
+              {filters.category === cat.name_en && (
+                <FaTimes size={9} className="text-orange-400 flex-shrink-0 ml-1" />
+              )}
+            </button>
           ))}
         </div>
       </div>
 
       {/* Price Range */}
-      <div className="mb-6">
-        <label className="block text-sm font-semibold mb-3">Price Range</label>
-        <div className="flex gap-2">
-          <input
-            type="number"
-            value={filters.minPrice}
-            onChange={(e) => setFilters({ ...filters, minPrice: e.target.value })}
-            placeholder="Min"
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-500"
-          />
-          <input
-            type="number"
-            value={filters.maxPrice}
-            onChange={(e) => setFilters({ ...filters, maxPrice: e.target.value })}
-            placeholder="Max"
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-500"
-          />
+      <div className="mb-3 pb-3 border-b border-gray-100">
+        <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Price Range</label>
+        <div className="flex flex-wrap gap-1.5 mb-2">
+          {PRICE_PRESETS.map((preset) => {
+            const isActive = filters.minPrice === preset.min && filters.maxPrice === preset.max;
+            return (
+              <button
+                key={preset.label}
+                onClick={() => setFilters({
+                  ...filters,
+                  minPrice: isActive ? "" : preset.min,
+                  maxPrice: isActive ? "" : preset.max,
+                })}
+                className={`text-xs px-2.5 py-1 rounded-full border font-medium transition-colors ${
+                  isActive
+                    ? "bg-orange-500 border-orange-500 text-white"
+                    : "border-gray-300 text-gray-600 hover:border-orange-400 hover:text-orange-600 bg-white"
+                }`}
+              >
+                {preset.label}
+              </button>
+            );
+          })}
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="relative flex-1">
+            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs font-medium">৳</span>
+            <input
+              type="number"
+              value={filters.minPrice}
+              onChange={(e) => setFilters({ ...filters, minPrice: e.target.value })}
+              placeholder="Min"
+              className="w-full pl-6 pr-2 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-orange-400 focus:ring-1 focus:ring-orange-100 transition"
+            />
+          </div>
+          <span className="text-gray-400 text-xs font-medium flex-shrink-0">to</span>
+          <div className="relative flex-1">
+            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs font-medium">৳</span>
+            <input
+              type="number"
+              value={filters.maxPrice}
+              onChange={(e) => setFilters({ ...filters, maxPrice: e.target.value })}
+              placeholder="Max"
+              className="w-full pl-6 pr-2 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-orange-400 focus:ring-1 focus:ring-orange-100 transition"
+            />
+          </div>
         </div>
       </div>
 
-      {/* Stock */}
-      <div className="mb-6">
-        <label className="flex items-center gap-2 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={filters.inStock}
-            onChange={(e) => setFilters({ ...filters, inStock: e.target.checked })}
-            className="text-orange-500"
-          />
-          <span className="text-sm font-semibold">In Stock Only</span>
-        </label>
+      {/* Deals & Offers */}
+      <div className="mb-3 pb-3 border-b border-gray-100">
+        <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Deals &amp; Offers</label>
+        <div className="space-y-0.5">
+          <button
+            onClick={() => setFilters({ ...filters, hasDiscount: !filters.hasDiscount })}
+            className={`w-full text-left px-3 py-1.5 rounded-lg text-sm transition-colors flex items-center gap-2.5 ${
+              filters.hasDiscount
+                ? "bg-orange-50 text-orange-700 font-semibold"
+                : "text-gray-600 hover:bg-gray-50 hover:text-gray-800"
+            }`}
+          >
+            <span className={`w-2 h-2 rounded-full flex-shrink-0 transition-colors ${
+              filters.hasDiscount ? "bg-orange-500" : "bg-gray-300"
+            }`} />
+            <FaTag size={10} className={filters.hasDiscount ? "text-orange-500" : "text-gray-400"} />
+            On Sale
+          </button>
+          <button
+            onClick={() => setFilters({ ...filters, isCombo: !filters.isCombo })}
+            className={`w-full text-left px-3 py-1.5 rounded-lg text-sm transition-colors flex items-center gap-2.5 ${
+              filters.isCombo
+                ? "bg-orange-50 text-orange-700 font-semibold"
+                : "text-gray-600 hover:bg-gray-50 hover:text-gray-800"
+            }`}
+          >
+            <span className={`w-2 h-2 rounded-full flex-shrink-0 transition-colors ${
+              filters.isCombo ? "bg-orange-500" : "bg-gray-300"
+            }`} />
+            <FaBoxOpen size={10} className={filters.isCombo ? "text-orange-500" : "text-gray-400"} />
+            Combo Packs
+          </button>
+        </div>
       </div>
 
-      {/* Reset */}
-      <button
-        onClick={() =>
-          setFilters({
-            search: "",
-            category: "",
-            minPrice: "",
-            maxPrice: "",
-            sortBy: "featured",
-            inStock: false,
-            isCombo: false,
-          })
-        }
-        className="w-full bg-gray-200 hover:bg-gray-300 text-gray-800 py-2 rounded-lg font-semibold transition"
-      >
-        Reset Filters
-      </button>
+      {/* Availability */}
+      <div className="mb-3">
+        <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Availability</label>
+        <button
+          onClick={() => setFilters({ ...filters, inStock: !filters.inStock })}
+          className={`w-full text-left px-3 py-1.5 rounded-lg text-sm transition-colors flex items-center gap-2.5 ${
+            filters.inStock
+              ? "bg-orange-50 text-orange-700 font-semibold"
+              : "text-gray-600 hover:bg-gray-50 hover:text-gray-800"
+          }`}
+        >
+          <span className={`w-2 h-2 rounded-full flex-shrink-0 transition-colors ${
+            filters.inStock ? "bg-orange-500" : "bg-gray-300"
+          }`} />
+          In Stock Only
+        </button>
+      </div>
+
+      {/* Clear All */}
+      {activeFilterCount > 0 && (
+        <button
+          onClick={() => setFilters(DEFAULT_FILTERS)}
+          className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg border border-orange-200 bg-orange-50 hover:bg-orange-100 text-orange-700 font-semibold text-sm transition-colors"
+        >
+          <FaTimes size={10} />
+          Clear All Filters ({activeFilterCount})
+        </button>
+      )}
     </>
   );
 
@@ -437,7 +596,7 @@ export default function Products() {
           <div className="flex flex-col lg:flex-row gap-6 lg:gap-8">
             {/* Desktop Sidebar */}
             <div className="hidden lg:block lg:w-72 lg:flex-shrink-0">
-              <div className="bg-white rounded-lg shadow-md p-6 lg:sticky lg:top-4">
+              <div className="bg-white rounded-lg shadow-md p-6 lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto">
                 {filtersContent}
               </div>
             </div>
@@ -462,10 +621,15 @@ export default function Products() {
                   {/* Mobile Filters */}
                   <button
                     onClick={() => setMobileFiltersOpen(true)}
-                    className="lg:hidden inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700"
+                    className="lg:hidden inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 relative"
                   >
                     <FaFilter />
                     Filters
+                    {activeFilterCount > 0 && (
+                      <span className="absolute -top-1.5 -right-1.5 bg-orange-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center leading-none">
+                        {activeFilterCount}
+                      </span>
+                    )}
                   </button>
 
                   {/* Sort */}
@@ -477,6 +641,7 @@ export default function Products() {
                     className="w-full sm:w-auto px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-500"
                   >
                     <option value="featured">Featured</option>
+                    <option value="newest">Newest Arrivals</option>
                     <option value="price-low">Price: Low to High</option>
                     <option value="price-high">Price: High to Low</option>
                     <option value="discount">Biggest Discount</option>
