@@ -1968,6 +1968,122 @@ export class CrmTeamService {
     return aging;
   }
 
+  // ==================== AGENT REMOVE / TRANSFER ====================
+
+  /**
+   * Get all Sales Executives across all team leaders (admin view).
+   * Returns agent info enriched with their current TL name.
+   */
+  async getAllSalesAgents(): Promise<any[]> {
+    const salesExecRole = await this.usersRepository.manager
+      .createQueryBuilder()
+      .select('r.id', 'id')
+      .from('roles', 'r')
+      .where("r.slug = :slug OR LOWER(r.name) LIKE :pattern", {
+        slug: 'sales-executive',
+        pattern: '%sales executive%',
+      })
+      .getRawOne();
+
+    if (!salesExecRole) return [];
+
+    const agents = await this.usersRepository.find({
+      where: { roleId: salesExecRole.id },
+      select: ['id', 'name', 'lastName', 'email', 'phone', 'teamId', 'teamLeaderId', 'status'],
+      order: { name: 'ASC' },
+    });
+
+    // Get TL names in one shot
+    const tlIds = [...new Set(agents.map(a => a.teamLeaderId).filter(Boolean))] as number[];
+    const tls = tlIds.length
+      ? await this.usersRepository.findByIds(tlIds, { select: ['id', 'name', 'lastName'] })
+      : [];
+    const tlMap = new Map(tls.map(t => [t.id, `${t.name} ${t.lastName || ''}`.trim()]));
+
+    // Get team names
+    const teamIds = [...new Set(agents.map(a => a.teamId).filter(Boolean))] as number[];
+    const teams = teamIds.length
+      ? await this.salesTeamRepository.findByIds(teamIds)
+      : [];
+    const teamMap = new Map(teams.map(t => [t.id, t.name]));
+
+    return agents.map(a => ({
+      id: a.id,
+      name: `${a.name} ${a.lastName || ''}`.trim(),
+      email: a.email,
+      phone: a.phone,
+      status: a.status,
+      teamLeaderId: a.teamLeaderId ?? null,
+      teamLeaderName: a.teamLeaderId ? (tlMap.get(a.teamLeaderId) ?? null) : null,
+      teamId: a.teamId ?? null,
+      teamName: a.teamId ? (teamMap.get(a.teamId) ?? null) : null,
+    }));
+  }
+
+  /**
+   * Remove an agent from their current team leader.
+   * - Clears agent.teamLeaderId and agent.teamId
+   * - Unassigns all the agent's customers from the agent (assigned_to = NULL)
+   *   but keeps them under the old team leader (assigned_supervisor_id unchanged).
+   */
+  async removeAgentFromTeamLeader(agentId: number): Promise<{ removed: boolean; customersUpdated: number }> {
+    const agent = await this.usersRepository.findOne({ where: { id: agentId } });
+    if (!agent) throw new NotFoundException('Agent not found');
+
+    const oldTeamLeaderId = agent.teamLeaderId;
+
+    // Unassign all customers from this agent — keep assigned_supervisor_id intact
+    const updateResult = await this.customerRepository
+      .createQueryBuilder()
+      .update()
+      .set({ assigned_to: null } as any)
+      .where('assigned_to = :agentId', { agentId })
+      .execute();
+
+    // Clear agent's TL and team binding
+    await this.usersRepository.update(agentId, { teamLeaderId: null, teamId: null } as any);
+
+    return {
+      removed: true,
+      customersUpdated: updateResult.affected ?? 0,
+    };
+  }
+
+  /**
+   * Transfer an agent from their current team leader to a new team leader.
+   * - Unassigns all the agent's customers from the agent
+   * - Those customers remain under the OLD team leader (assigned_supervisor_id = oldTeamLeaderId)
+   * - Updates agent.teamLeaderId = newTeamLeaderId, agent.teamId = null
+   *   (admin must manually place agent into a team under the new TL afterwards if needed)
+   */
+  async transferAgent(agentId: number, newTeamLeaderId: number): Promise<{ transferred: boolean; customersUpdated: number }> {
+    const agent = await this.usersRepository.findOne({ where: { id: agentId } });
+    if (!agent) throw new NotFoundException('Agent not found');
+
+    const newTL = await this.usersRepository.findOne({ where: { id: newTeamLeaderId } });
+    if (!newTL) throw new NotFoundException('Target team leader not found');
+
+    if (agent.teamLeaderId === newTeamLeaderId) {
+      throw new Error('Agent is already under this team leader');
+    }
+
+    // Unassign all customers from the agent — keep assigned_supervisor_id = old TL
+    const updateResult = await this.customerRepository
+      .createQueryBuilder()
+      .update()
+      .set({ assigned_to: null } as any)
+      .where('assigned_to = :agentId', { agentId })
+      .execute();
+
+    // Move agent to new TL, clear team (team belongs to specific TL)
+    await this.usersRepository.update(agentId, { teamLeaderId: newTeamLeaderId, teamId: null } as any);
+
+    return {
+      transferred: true,
+      customersUpdated: updateResult.affected ?? 0,
+    };
+  }
+
   // ==================== TEAM AGENT REPORTS ====================
   /**
    * Get all agents under the team leader with their basic info
