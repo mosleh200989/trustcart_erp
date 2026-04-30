@@ -1,7 +1,7 @@
 import { Injectable, CanActivate, ExecutionContext, ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import { ModuleRef, Reflector } from '@nestjs/core';
 import { RbacService } from '../../modules/rbac/rbac.service';
-import { PERMISSIONS_KEY } from '../decorators/permissions.decorator';
+import { PERMISSIONS_KEY, ANY_PERMISSIONS_KEY } from '../decorators/permissions.decorator';
 
 const CUSTOMER_ACCOUNT_SLUG = 'customer-account';
 const CUSTOMER_BUILTIN_PERMISSIONS = new Set<string>([
@@ -18,12 +18,20 @@ export class PermissionsGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const requiredPermissions = this.reflector.getAllAndOverride<string[]>(PERMISSIONS_KEY, [
+    // AND-check: all listed permissions must be present
+    const requiredAll = this.reflector.getAllAndOverride<string[]>(PERMISSIONS_KEY, [
       context.getHandler(),
       context.getClass(),
     ]);
 
-    if (!requiredPermissions) {
+    // OR-check: at least one listed permission must be present
+    const requiredAny = this.reflector.getAllAndOverride<string[]>(ANY_PERMISSIONS_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+
+    // No permission requirement on this route
+    if (!requiredAll && !requiredAny) {
       return true;
     }
 
@@ -44,16 +52,40 @@ export class PermissionsGuard implements CanActivate {
     const isCustomerAccount =
       user?.type === 'customer' || String(user?.roleSlug || '') === CUSTOMER_ACCOUNT_SLUG;
 
-    // Check if user has all required permissions
-    for (const permission of requiredPermissions) {
-      if (isCustomerAccount && CUSTOMER_BUILTIN_PERMISSIONS.has(String(permission))) {
-        continue;
+    // AND-check: every permission in the list must be present
+    if (requiredAll && requiredAll.length > 0) {
+      for (const permission of requiredAll) {
+        if (isCustomerAccount && CUSTOMER_BUILTIN_PERMISSIONS.has(String(permission))) {
+          continue;
+        }
+
+        const hasPermission = await rbacService.checkPermission(user.id, permission);
+        if (!hasPermission) {
+          console.log(`User ${user.id} (${user.email}) missing permission: ${permission}`);
+          throw new ForbiddenException(`Missing required permission: ${permission}`);
+        }
+      }
+    }
+
+    // OR-check: at least one permission in the list must be present
+    if (requiredAny && requiredAny.length > 0) {
+      let hasAny = false;
+      for (const permission of requiredAny) {
+        if (isCustomerAccount && CUSTOMER_BUILTIN_PERMISSIONS.has(String(permission))) {
+          hasAny = true;
+          break;
+        }
+
+        const hasPerm = await rbacService.checkPermission(user.id, permission);
+        if (hasPerm) {
+          hasAny = true;
+          break;
+        }
       }
 
-      const hasPermission = await rbacService.checkPermission(user.id, permission);
-      if (!hasPermission) {
-        console.log(`User ${user.id} (${user.email}) missing permission: ${permission}`);
-        throw new ForbiddenException(`Missing required permission: ${permission}`);
+      if (!hasAny) {
+        console.log(`User ${user.id} (${user.email}) missing any of permissions: ${requiredAny.join(', ')}`);
+        throw new ForbiddenException(`Missing required permission`);
       }
     }
 

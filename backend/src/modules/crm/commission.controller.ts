@@ -14,6 +14,7 @@ import { CommissionService, CommissionSettingsDto } from './commission.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
+import { RequireAnyPermission } from '../../common/decorators/permissions.decorator';
 
 @Controller('crm/commissions')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -26,7 +27,7 @@ export class CommissionController {
    * Get all commission settings (Admin)
    */
   @Get('settings')
-  @RequirePermissions('manage-commission-settings')
+  @RequireAnyPermission('view-commission-settings', 'manage-commission-settings')
   async getAllSettings() {
     return await this.commissionService.getAllSettings();
   }
@@ -35,7 +36,7 @@ export class CommissionController {
    * Get global commission settings (Admin)
    */
   @Get('settings/global')
-  @RequirePermissions('manage-commission-settings')
+  @RequireAnyPermission('view-commission-settings', 'manage-commission-settings')
   async getGlobalSettings() {
     return await this.commissionService.getGlobalSettings();
   }
@@ -65,7 +66,7 @@ export class CommissionController {
    * Get all commission slabs (both agent and team_leader)
    */
   @Get('slabs')
-  @RequirePermissions('manage-commission-settings')
+  @RequireAnyPermission('view-commission-settings', 'manage-commission-settings')
   async getAllSlabs() {
     return await this.commissionService.getAllSlabs();
   }
@@ -88,7 +89,7 @@ export class CommissionController {
    * Get agent-wise commission summary report
    */
   @Get('agents')
-  @RequirePermissions('view-commission-reports')
+  @RequireAnyPermission('view-agent-commissions', 'view-commission-reports')
   async getAgentCommissionReport(@Query() query: any) {
     return await this.commissionService.getAgentCommissionReport(query);
   }
@@ -97,7 +98,7 @@ export class CommissionController {
    * Get team-leader-wise commission summary report
    */
   @Get('team-leaders')
-  @RequirePermissions('view-commission-reports')
+  @RequireAnyPermission('view-tl-commissions', 'view-commission-reports')
   async getTeamLeaderCommissionReport(@Query() query: any) {
     return await this.commissionService.getTeamLeaderCommissionReport(query);
   }
@@ -106,7 +107,7 @@ export class CommissionController {
    * Get payment breakdown for a team leader (daily order counts by agents under them)
    */
   @Get('tl-payment-breakdown')
-  @RequirePermissions('view-commission-reports')
+  @RequireAnyPermission('view-tl-commissions', 'view-commission-reports')
   async getTLPaymentBreakdown(@Query() query: any) {
     return await this.commissionService.getTLPaymentBreakdown(query);
   }
@@ -115,7 +116,7 @@ export class CommissionController {
    * Get payment breakdown for an agent (daily order/upsell/cross-sell counts with slab rates)
    */
   @Get('payment-breakdown')
-  @RequirePermissions('view-commission-reports')
+  @RequireAnyPermission('view-payment-breakdown', 'view-commission-reports')
   async getPaymentBreakdown(@Query() query: { agentId: string; month: string }) {
     return await this.commissionService.getPaymentBreakdown(query);
   }
@@ -124,7 +125,7 @@ export class CommissionController {
    * Save extra partial amount for an agent+month
    */
   @Put('extra-partial')
-  @RequirePermissions('view-commission-reports')
+  @RequireAnyPermission('manage-agent-commissions', 'view-commission-reports')
   async saveExtraPartial(@Body() body: { agentId: number; month: string; amount: number; notes?: string }, @Request() req: any) {
     return await this.commissionService.saveExtraPartial(body.agentId, body.month, body.amount, req.user.id, body.notes);
   }
@@ -133,7 +134,7 @@ export class CommissionController {
    * Get commission sales data (orders with commission details)
    */
   @Get('sales')
-  @RequirePermissions('view-commission-reports')
+  @RequireAnyPermission('view-commission-sales', 'view-commission-reports')
   async getCommissionSales(@Query() query: any) {
     return await this.commissionService.getCommissionSales(query);
   }
@@ -142,7 +143,7 @@ export class CommissionController {
    * Update editable fields on a commission sales row
    */
   @Put('sales/:orderId')
-  @RequirePermissions('view-commission-reports')
+  @RequireAnyPermission('manage-commission-sales', 'view-commission-reports')
   async updateCommissionSaleFields(
     @Param('orderId') orderId: string,
     @Body() body: { totalAmount?: number; deliveryCharge?: number; codAmount?: number; commissionAmount?: number },
@@ -154,7 +155,7 @@ export class CommissionController {
    * Get all commissions (Admin view)
    */
   @Get()
-  @RequirePermissions('view-commission-reports')
+  @RequireAnyPermission('view-agent-commissions', 'view-commission-reports')
   async getAllCommissions(@Query() query: any) {
     return await this.commissionService.getAllCommissions(query);
   }
@@ -163,7 +164,7 @@ export class CommissionController {
    * Get commission report (Admin)
    */
   @Get('report')
-  @RequirePermissions('view-commission-reports')
+  @RequireAnyPermission('view-agent-commissions', 'view-commission-reports')
   async getCommissionReport(@Query() query: { startDate?: string; endDate?: string }) {
     return await this.commissionService.getCommissionReport(query);
   }
@@ -208,25 +209,25 @@ export class CommissionController {
   // ==================== PAYMENT REQUESTS ====================
 
   @Post('payment-requests')
-  @RequirePermissions('approve-commissions')
+  @RequireAnyPermission('manage-payment-requests', 'approve-commissions')
   async createPaymentRequest(@Body() body: { agentId: number; requestedAmount: number; paymentMethod?: string; notes?: string }, @Request() req: any) {
     return await this.commissionService.createPaymentRequest({ ...body, requestedBy: req.user.id });
   }
 
   @Get('payment-requests')
-  @RequirePermissions('view-commission-reports')
+  @RequireAnyPermission('view-payment-requests', 'manage-payment-requests', 'view-commission-reports')
   async getPaymentRequests(@Query() query: any) {
     return await this.commissionService.getPaymentRequests(query);
   }
 
   @Put('payment-requests/:id/approve')
-  @RequirePermissions('approve-commissions')
+  @RequireAnyPermission('manage-payment-requests', 'approve-commissions')
   async approvePaymentRequest(@Param('id') id: string, @Body() body: { approvedAmount?: number }, @Request() req: any) {
     return await this.commissionService.approvePaymentRequest(Number(id), req.user.id, body.approvedAmount);
   }
 
   @Put('payment-requests/:id/pay')
-  @RequirePermissions('approve-commissions')
+  @RequireAnyPermission('manage-payment-requests', 'approve-commissions')
   async markPaymentRequestPaid(
     @Param('id') id: string,
     @Body() body: { paymentMethod?: string; paymentReference?: string; adminNotes?: string },
@@ -236,13 +237,13 @@ export class CommissionController {
   }
 
   @Put('payment-requests/:id/reject')
-  @RequirePermissions('approve-commissions')
+  @RequireAnyPermission('manage-payment-requests', 'approve-commissions')
   async rejectPaymentRequest(@Param('id') id: string, @Body() body: { adminNotes?: string }, @Request() req: any) {
     return await this.commissionService.rejectPaymentRequest(Number(id), req.user.id, body.adminNotes);
   }
 
   @Get('payment-history')
-  @RequirePermissions('view-commission-reports')
+  @RequireAnyPermission('view-payment-history', 'view-commission-reports')
   async getPaymentHistory(@Query() query: any) {
     return await this.commissionService.getPaymentHistory(query);
   }
@@ -296,7 +297,7 @@ export class CommissionController {
    * Get commission summary for a specific agent (Admin/Team Lead)
    */
   @Get('agent/:agentId/summary')
-  @RequirePermissions('view-commission-reports')
+  @RequireAnyPermission('view-agent-commissions', 'view-commission-reports')
   async getAgentCommissionSummary(@Param('agentId') agentId: string) {
     return await this.commissionService.getAgentCommissionSummary(Number(agentId));
   }
@@ -305,7 +306,7 @@ export class CommissionController {
    * Get commissions for a specific agent (Admin/Team Lead)
    */
   @Get('agent/:agentId')
-  @RequirePermissions('view-commission-reports')
+  @RequireAnyPermission('view-agent-commissions', 'view-commission-reports')
   async getAgentCommissions(@Param('agentId') agentId: string, @Query() query: any) {
     return await this.commissionService.getAgentCommissions(Number(agentId), query);
   }
