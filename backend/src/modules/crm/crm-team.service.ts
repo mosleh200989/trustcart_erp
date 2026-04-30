@@ -1,6 +1,6 @@
 ﻿import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, In } from 'typeorm';
 import { Customer } from '../customers/customer.entity';
 import { SalesTeam } from './entities/sales-team.entity';
 import { User } from '../users/user.entity';
@@ -1996,7 +1996,7 @@ export class CrmTeamService {
     // Get TL names in one shot
     const tlIds = [...new Set(agents.map(a => a.teamLeaderId).filter(Boolean))] as number[];
     const tls = tlIds.length
-      ? await this.usersRepository.findByIds(tlIds, { select: ['id', 'name', 'lastName'] })
+      ? await this.usersRepository.find({ where: { id: In(tlIds) }, select: ['id', 'name', 'lastName'] })
       : [];
     const tlMap = new Map(tls.map(t => [t.id, `${t.name} ${t.lastName || ''}`.trim()]));
 
