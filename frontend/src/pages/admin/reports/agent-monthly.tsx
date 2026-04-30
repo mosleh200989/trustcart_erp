@@ -8,9 +8,35 @@ import {
   FaDownload,
   FaSyncAlt,
   FaUserTie,
+  FaGlobe,
 } from 'react-icons/fa';
+import {
+  ResponsiveContainer,
+  AreaChart,
+  Area,
+  CartesianGrid,
+  XAxis,
+  YAxis,
+  Tooltip,
+  Legend,
+} from 'recharts';
 
 /* ========== TYPES ========== */
+interface SourceSummary {
+  total: number;
+  delivered: number;
+  cancelled: number;
+}
+
+interface WebsiteMonthlyData {
+  month: number;
+  year: number;
+  daysInMonth: number;
+  dailyChart: Array<{ day: number; website: number; landingPage: number }>;
+  website: SourceSummary;
+  landingPage: SourceSummary;
+}
+
 interface AgentMonthly {
   agentId: number;
   agentName: string;
@@ -46,6 +72,10 @@ export default function AgentMonthlyReportPage() {
   const [error, setError] = useState('');
   const tableRef = useRef<HTMLDivElement>(null);
 
+  const [webData, setWebData] = useState<WebsiteMonthlyData | null>(null);
+  const [webLoading, setWebLoading] = useState(false);
+  const [webError, setWebError] = useState('');
+
   const fetchReport = useCallback(async (m: number, y: number) => {
     setLoading(true);
     setError('');
@@ -59,9 +89,23 @@ export default function AgentMonthlyReportPage() {
     }
   }, []);
 
+  const fetchWebReport = useCallback(async (m: number, y: number) => {
+    setWebLoading(true);
+    setWebError('');
+    try {
+      const res = await apiClient.get(`/sales/website-monthly-report?month=${m}&year=${y}`);
+      setWebData(res.data);
+    } catch (err: any) {
+      setWebError(err?.response?.data?.message || err.message || 'Failed to load website report');
+    } finally {
+      setWebLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     fetchReport(month, year);
-  }, [month, year, fetchReport]);
+    fetchWebReport(month, year);
+  }, [month, year, fetchReport, fetchWebReport]);
 
   const goToPrevMonth = () => {
     if (month === 1) { setMonth(12); setYear(y => y - 1); }
@@ -367,6 +411,131 @@ export default function AgentMonthlyReportPage() {
             </div>
           </div>
         )}
+
+        {/* ── Website & Landing Page Chart ── */}
+        <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+          <div className="px-5 py-3 border-b border-gray-100 bg-gray-50/50 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <FaGlobe className="text-sky-500" />
+              <h2 className="text-sm font-semibold text-gray-700">
+                {MONTH_NAMES[month - 1]} {year} — Website &amp; Landing Page Orders
+              </h2>
+            </div>
+            {webLoading && (
+              <div className="animate-spin rounded-full h-4 w-4 border-2 border-sky-200 border-t-sky-500" />
+            )}
+          </div>
+
+          {webError && (
+            <div className="m-4 bg-red-50 border border-red-200 text-red-700 rounded-lg p-3 text-sm">{webError}</div>
+          )}
+
+          {/* Summary Cards */}
+          {webData && !webLoading && (
+            <div className="p-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+              {/* Website */}
+              <div className="col-span-1 bg-sky-50 border border-sky-200 rounded-lg p-3 text-center">
+                <p className="text-xs font-medium text-sky-600 uppercase tracking-wide mb-1">Website Orders</p>
+                <p className="text-xl font-bold text-sky-700">{webData.website.total.toLocaleString()}</p>
+              </div>
+              <div className="col-span-1 bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-center">
+                <p className="text-xs font-medium text-emerald-600 uppercase tracking-wide mb-1">Website Delivered</p>
+                <p className="text-xl font-bold text-emerald-700">{webData.website.delivered.toLocaleString()}</p>
+              </div>
+              <div className="col-span-1 bg-red-50 border border-red-200 rounded-lg p-3 text-center">
+                <p className="text-xs font-medium text-red-500 uppercase tracking-wide mb-1">Website Cancelled</p>
+                <p className="text-xl font-bold text-red-600">{webData.website.cancelled.toLocaleString()}</p>
+              </div>
+              {/* Landing Page */}
+              <div className="col-span-1 bg-violet-50 border border-violet-200 rounded-lg p-3 text-center">
+                <p className="text-xs font-medium text-violet-600 uppercase tracking-wide mb-1">Landing Page Orders</p>
+                <p className="text-xl font-bold text-violet-700">{webData.landingPage.total.toLocaleString()}</p>
+              </div>
+              <div className="col-span-1 bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-center">
+                <p className="text-xs font-medium text-emerald-600 uppercase tracking-wide mb-1">LP Delivered</p>
+                <p className="text-xl font-bold text-emerald-700">{webData.landingPage.delivered.toLocaleString()}</p>
+              </div>
+              <div className="col-span-1 bg-red-50 border border-red-200 rounded-lg p-3 text-center">
+                <p className="text-xs font-medium text-red-500 uppercase tracking-wide mb-1">LP Cancelled</p>
+                <p className="text-xl font-bold text-red-600">{webData.landingPage.cancelled.toLocaleString()}</p>
+              </div>
+            </div>
+          )}
+
+          {/* Area Chart */}
+          {webData && !webLoading && (
+            <div className="px-4 pb-5">
+              <ResponsiveContainer width="100%" height={280}>
+                <AreaChart
+                  data={webData.dailyChart}
+                  margin={{ top: 10, right: 24, left: 0, bottom: 0 }}
+                >
+                  <defs>
+                    <linearGradient id="gradWebsite" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#0ea5e9" stopOpacity={0.25} />
+                      <stop offset="95%" stopColor="#0ea5e9" stopOpacity={0.03} />
+                    </linearGradient>
+                    <linearGradient id="gradLanding" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.25} />
+                      <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0.03} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                  <XAxis
+                    dataKey="day"
+                    tick={{ fontSize: 11, fill: '#6b7280' }}
+                    tickLine={false}
+                    axisLine={{ stroke: '#e5e7eb' }}
+                  />
+                  <YAxis
+                    allowDecimals={false}
+                    tick={{ fontSize: 11, fill: '#6b7280' }}
+                    tickLine={false}
+                    axisLine={false}
+                    width={32}
+                  />
+                  <Tooltip
+                    contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e5e7eb' }}
+                    formatter={(value: any, name: any) => [
+                      value,
+                      name === 'website' ? 'Website' : 'Landing Page',
+                    ]}
+                    labelFormatter={(label) => `Day ${label}`}
+                  />
+                  <Legend
+                    formatter={(value) => (
+                      <span style={{ fontSize: 12, color: '#374151' }}>
+                        {value === 'website' ? 'Website' : 'Landing Page'}
+                      </span>
+                    )}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="website"
+                    stroke="#0ea5e9"
+                    strokeWidth={2}
+                    fill="url(#gradWebsite)"
+                    dot={false}
+                    activeDot={{ r: 4 }}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="landingPage"
+                    stroke="#8b5cf6"
+                    strokeWidth={2}
+                    fill="url(#gradLanding)"
+                    dot={false}
+                    activeDot={{ r: 4 }}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+
+          {!webData && !webLoading && !webError && (
+            <div className="py-10 text-center text-gray-400 text-sm">No website or landing page data for this month.</div>
+          )}
+        </div>
 
         {/* ── Legend ── */}
         {data && !loading && data.agents.length > 0 && (

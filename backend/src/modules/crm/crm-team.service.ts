@@ -132,7 +132,7 @@ export class CrmTeamService {
       }>;
     }
 
-    // Aggregate orders by customer phone.
+    // Aggregate delivered orders by customer phone.
     const statsRows = await this.customerRepository.query(
       `
       SELECT
@@ -143,6 +143,7 @@ export class CrmTeamService {
         MAX(so.order_date)::date AS last_order_date
       FROM sales_orders so
       WHERE so.customer_phone = ANY($1)
+        AND LOWER(so.status::text) = 'delivered'
       GROUP BY so.customer_phone
       `,
       [phones],
@@ -351,6 +352,11 @@ export class CrmTeamService {
     // Exclude rejected customers
     qb.andWhere(`NOT EXISTS (SELECT 1 FROM customer_tiers ct WHERE ct.customer_id = c.id AND ct.tier = 'rejected')`);
 
+    // Only customers who have at least one delivered order
+    qb.andWhere(
+      `EXISTS (SELECT 1 FROM sales_orders so WHERE so.customer_id = c.id AND LOWER(so.status::text) = 'delivered')`,
+    );
+
     // Scope: Check if user is actually a team leader (has teams assigned)
     const isTeamLeader = await this.salesTeamRepository.count({ where: { teamLeaderId } });
     if (isTeamLeader > 0) {
@@ -411,28 +417,19 @@ export class CrmTeamService {
       );
     }
 
-    // Purchase stage filter based on order count
+    // Purchase stage filter based on delivered order count only
     if (purchaseStage) {
+      const deliveredCount = `(SELECT COUNT(*)::int FROM sales_orders so WHERE so.customer_id = c.id AND LOWER(so.status::text) = 'delivered')`;
       if (purchaseStage === 'new') {
-        qb.andWhere(
-          `(SELECT COUNT(*)::int FROM sales_orders so WHERE so.customer_id = c.id) <= 1`
-        );
+        qb.andWhere(`${deliveredCount} = 1`);
       } else if (purchaseStage === 'repeat_2') {
-        qb.andWhere(
-          `(SELECT COUNT(*)::int FROM sales_orders so WHERE so.customer_id = c.id) = 2`
-        );
+        qb.andWhere(`${deliveredCount} = 2`);
       } else if (purchaseStage === 'repeat_3') {
-        qb.andWhere(
-          `(SELECT COUNT(*)::int FROM sales_orders so WHERE so.customer_id = c.id) = 3`
-        );
+        qb.andWhere(`${deliveredCount} = 3`);
       } else if (purchaseStage === 'regular') {
-        qb.andWhere(
-          `(SELECT COUNT(*)::int FROM sales_orders so WHERE so.customer_id = c.id) >= 4 AND (SELECT COUNT(*)::int FROM sales_orders so WHERE so.customer_id = c.id) < 8`
-        );
+        qb.andWhere(`${deliveredCount} >= 4 AND ${deliveredCount} < 8`);
       } else if (purchaseStage === 'permanent') {
-        qb.andWhere(
-          `(SELECT COUNT(*)::int FROM sales_orders so WHERE so.customer_id = c.id) >= 8`
-        );
+        qb.andWhere(`${deliveredCount} >= 8`);
       }
     }
 
@@ -510,6 +507,10 @@ export class CrmTeamService {
     countQb.andWhere('c.is_active = true');
     // Exclude rejected customers
     countQb.andWhere(`NOT EXISTS (SELECT 1 FROM customer_tiers ct WHERE ct.customer_id = c.id AND ct.tier = 'rejected')`);
+    // Only customers who have at least one delivered order
+    countQb.andWhere(
+      `EXISTS (SELECT 1 FROM sales_orders so WHERE so.customer_id = c.id AND LOWER(so.status::text) = 'delivered')`,
+    );
     // Apply same conditional TL filter as data query
     if (isTeamLeader > 0) {
       const tlAgentIds = (await this.usersRepository.find({ where: { teamLeaderId }, select: ['id'] })).map(a => a.id);
@@ -555,18 +556,19 @@ export class CrmTeamService {
         { customerType }
       );
     }
-    // Purchase stage filter for count
+    // Purchase stage filter for count — delivered orders only
     if (purchaseStage) {
+      const deliveredCountC = `(SELECT COUNT(*)::int FROM sales_orders so WHERE so.customer_id = c.id AND LOWER(so.status::text) = 'delivered')`;
       if (purchaseStage === 'new') {
-        countQb.andWhere(`(SELECT COUNT(*)::int FROM sales_orders so WHERE so.customer_id = c.id) <= 1`);
+        countQb.andWhere(`${deliveredCountC} = 1`);
       } else if (purchaseStage === 'repeat_2') {
-        countQb.andWhere(`(SELECT COUNT(*)::int FROM sales_orders so WHERE so.customer_id = c.id) = 2`);
+        countQb.andWhere(`${deliveredCountC} = 2`);
       } else if (purchaseStage === 'repeat_3') {
-        countQb.andWhere(`(SELECT COUNT(*)::int FROM sales_orders so WHERE so.customer_id = c.id) = 3`);
+        countQb.andWhere(`${deliveredCountC} = 3`);
       } else if (purchaseStage === 'regular') {
-        countQb.andWhere(`(SELECT COUNT(*)::int FROM sales_orders so WHERE so.customer_id = c.id) >= 4 AND (SELECT COUNT(*)::int FROM sales_orders so WHERE so.customer_id = c.id) < 8`);
+        countQb.andWhere(`${deliveredCountC} >= 4 AND ${deliveredCountC} < 8`);
       } else if (purchaseStage === 'permanent') {
-        countQb.andWhere(`(SELECT COUNT(*)::int FROM sales_orders so WHERE so.customer_id = c.id) >= 8`);
+        countQb.andWhere(`${deliveredCountC} >= 8`);
       }
     }
     if (search && search.trim()) {
