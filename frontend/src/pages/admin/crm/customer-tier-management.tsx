@@ -157,12 +157,24 @@ export default function CustomerTierManagementPage() {
   const handleSaveTier = async () => {
     if (!selectedCustomer) return;
 
+    if (tierForm.tier === 'rejected') {
+      const confirmed = confirm(
+        `Are you sure you want to mark "${selectedCustomer.first_name} ${selectedCustomer.last_name}" as Rejected?\n\nThis will:\n• Unassign the customer from their agent and team leader\n• Remove them from all CRM and Telephony views\n• Move them to the Rejected Customers sub-module only`
+      );
+      if (!confirmed) return;
+    }
+
     try {
       await apiClient.post('/lead-management/tier', {
         customerId: selectedCustomer.id,
         ...tierForm,
+        isActive: tierForm.tier !== 'rejected' ? tierForm.isActive : false,
       });
-      toast.success('Tier updated successfully!');
+      if (tierForm.tier === 'rejected') {
+        toast.success('Customer moved to Rejected. They have been unassigned from agent and team leader.');
+      } else {
+        toast.success('Tier updated successfully!');
+      }
       setShowTierModal(false);
       fetchCustomers();
     } catch (error) {
@@ -273,7 +285,7 @@ export default function CustomerTierManagementPage() {
                 <option value="platinum">Platinum</option>
                 <option value="vip">VIP</option>
                 <option value="blacklist">Black List</option>
-                <option value="rejected">Rejected</option>
+                {/* Rejected customers are managed from the Rejected Customers sub-module */}
               </select>
             </div>
 
@@ -413,8 +425,13 @@ export default function CustomerTierManagementPage() {
                     <option value="platinum">Platinum</option>
                     <option value="vip">VIP</option>
                     <option value="blacklist">Black List</option>
-                    <option value="rejected">Rejected</option>
+                    <option value="rejected">Rejected — unassigns &amp; removes from CRM/Telephony</option>
                   </select>
+                  {tierForm.tier === 'rejected' && (
+                    <p className="mt-1.5 text-xs text-orange-600 bg-orange-50 border border-orange-200 rounded px-3 py-2">
+                      ⚠️ This customer will be <strong>unassigned</strong> from their agent and team leader, and will only appear in the <strong>Rejected Customers</strong> sub-module. Orders from this customer will still be visible in the Orders page.
+                    </p>
+                  )}
                 </div>
 
                 <div>

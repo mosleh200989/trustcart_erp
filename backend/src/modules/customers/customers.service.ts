@@ -185,6 +185,7 @@ export class CustomersService {
       ])
       .addSelect('(SELECT ct2.tier FROM customer_tiers ct2 WHERE ct2.customer_id = c.id LIMIT 1)', 'tier')
       .where('c.is_deleted = :deleted', { deleted: false })
+      .andWhere(`NOT EXISTS (SELECT 1 FROM customer_tiers ct_rej WHERE ct_rej.customer_id = c.id AND ct_rej.tier = 'rejected')`)
       .groupBy('c.id, u.name, u.last_name, sup.name, sup.last_name');
 
     if (search) {
@@ -215,7 +216,8 @@ export class CustomersService {
 
     // Count query
     const countQb = this.customersRepository.createQueryBuilder('c')
-      .where('c.is_deleted = :deleted', { deleted: false });
+      .where('c.is_deleted = :deleted', { deleted: false })
+      .andWhere(`NOT EXISTS (SELECT 1 FROM customer_tiers ct_rej WHERE ct_rej.customer_id = c.id AND ct_rej.tier = 'rejected')`);
 
     if (tier) {
       countQb.innerJoin('customer_tiers', 'ct', 'ct.customer_id = c.id AND ct.tier = :tier', { tier });

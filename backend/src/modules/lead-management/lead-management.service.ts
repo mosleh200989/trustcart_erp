@@ -523,6 +523,14 @@ export class LeadManagementService {
     tierAssignedById?: number;
     notes?: string;
   }) {
+    // When rejecting a customer: unassign from agent and team leader
+    if (data.tier === 'rejected') {
+      await this.sessionRepo.query(
+        `UPDATE customers SET assigned_to = NULL, assigned_supervisor_id = NULL WHERE id = $1`,
+        [data.customerId],
+      );
+    }
+
     const existing = await this.customerTierRepo.findOne({
       where: { customerId: data.customerId },
     });
@@ -627,6 +635,12 @@ export class LeadManagementService {
       ? `AND (LOWER(c.name) LIKE '%${searchTerm.replace(/'/g, "''")}%' OR LOWER(c.last_name) LIKE '%${searchTerm.replace(/'/g, "''")}%' OR c.phone LIKE '%${searchTerm.replace(/'/g, "''")}%' OR LOWER(c.email) LIKE '%${searchTerm.replace(/'/g, "''")}%' OR c.id::text = '${searchTerm.replace(/'/g, "''")}' OR EXISTS (SELECT 1 FROM sales_orders so2 WHERE so2.customer_id = c.id AND LOWER(so2.sales_order_number) LIKE '%${searchTerm.replace(/'/g, "''")}%'))`
       : '';
 
+    // Rejected customers are only accessible from the Rejected Customers sub-module.
+    // Exclude them from general list unless explicitly filtering for rejected.
+    const excludeRejected = filters.tier !== 'rejected'
+      ? `AND NOT EXISTS (SELECT 1 FROM customer_tiers ct_rej WHERE ct_rej.customer_id = c.id AND ct_rej.tier = 'rejected')`
+      : '';
+
     // First, get total count for stats (before pagination)
     const statsQuery = `
       SELECT 
@@ -645,6 +659,7 @@ export class LeadManagementService {
       LEFT JOIN customer_tiers ct ON ct.customer_id = c.id
       WHERE c.is_deleted = false
       ${filters.tier && filters.tier !== 'all' ? `AND ct.tier = '${filters.tier}'` : ''}
+      ${excludeRejected}
       ${filters.status === 'active' ? 'AND ct.is_active = true' : ''}
       ${filters.status === 'inactive' ? 'AND ct.is_active = false' : ''}
       ${filters.assignedTo ? `AND c.assigned_to = ${filters.assignedTo}` : ''}
@@ -661,6 +676,7 @@ export class LeadManagementService {
       LEFT JOIN customer_tiers ct ON ct.customer_id = c.id
       WHERE c.is_deleted = false
       ${filters.tier && filters.tier !== 'all' ? `AND ct.tier = '${filters.tier}'` : ''}
+      ${excludeRejected}
       ${filters.status === 'active' ? 'AND ct.is_active = true' : ''}
       ${filters.status === 'inactive' ? 'AND ct.is_active = false' : ''}
       ${filters.assignedTo ? `AND c.assigned_to = ${filters.assignedTo}` : ''}
@@ -705,6 +721,7 @@ export class LeadManagementService {
       LEFT JOIN users u ON u.id = c.assigned_to
       WHERE c.is_deleted = false
       ${filters.tier && filters.tier !== 'all' ? `AND ct.tier = '${filters.tier}'` : ''}
+      ${excludeRejected}
       ${filters.status === 'active' ? 'AND ct.is_active = true' : ''}
       ${filters.status === 'inactive' ? 'AND ct.is_active = false' : ''}
       ${filters.assignedTo ? `AND c.assigned_to = ${filters.assignedTo}` : ''}

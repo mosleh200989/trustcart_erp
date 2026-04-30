@@ -343,7 +343,7 @@ export default function CustomersPage() {
                 <option value="platinum">Platinum</option>
                 <option value="vip">VIP</option>
                 <option value="blacklist">Black List</option>
-                <option value="rejected">Rejected</option>
+                {/* Rejected customers are managed exclusively from the Rejected Customers sub-module */}
               </select>
             </div>
             <div>
