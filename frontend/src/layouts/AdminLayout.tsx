@@ -296,15 +296,20 @@ const menuItems: MenuItem[] = [
   {
     title: 'Commission',
     icon: FaMoneyBillWave,
-    requiredPermissions: ['manage-commission-settings', 'view-commission-reports', 'approve-commissions'],
+    requiredPermissions: [
+      'manage-commission-settings', 'view-commission-reports', 'approve-commissions',
+      'view-commission-settings', 'view-commission-sales', 'view-agent-commissions',
+      'view-tl-commissions', 'view-payment-requests', 'manage-payment-requests',
+      'view-payment-history', 'view-payment-breakdown',
+    ],
     children: [
-      { title: 'Commission Sales', icon: FaMoneyBillWave, path: '/admin/crm/commission-sales', requiredPermissions: ['view-commission-reports'] },
-      { title: 'Agents', icon: FaUsers, path: '/admin/crm/commission-agents', requiredPermissions: ['view-commission-reports'] },
-      { title: 'Team Leaders', icon: FaUsers, path: '/admin/crm/commission-team-leaders', requiredPermissions: ['view-commission-reports'] },
-      { title: 'Payment Requests', icon: FaMoneyBillWave, path: '/admin/crm/commission-payment-requests', requiredPermissions: ['approve-commissions'] },
-      { title: 'Payment History', icon: FaHistory, path: '/admin/crm/commission-payment-history', requiredPermissions: ['view-commission-reports'] },
-      { title: 'Payment Breakdown', icon: FaChartBar, path: '/admin/crm/commission-payment-breakdown', requiredPermissions: ['view-commission-reports'] },
-      { title: 'Commission Settings', icon: FaCog, path: '/admin/crm/commission-settings', requiredPermissions: ['manage-commission-settings'] },
+      { title: 'Commission Sales', icon: FaMoneyBillWave, path: '/admin/crm/commission-sales', requiredPermissions: ['view-commission-sales', 'view-commission-reports'] },
+      { title: 'Agents', icon: FaUsers, path: '/admin/crm/commission-agents', requiredPermissions: ['view-agent-commissions', 'view-commission-reports'] },
+      { title: 'Team Leaders', icon: FaUsers, path: '/admin/crm/commission-team-leaders', requiredPermissions: ['view-tl-commissions', 'view-commission-reports'] },
+      { title: 'Payment Requests', icon: FaMoneyBillWave, path: '/admin/crm/commission-payment-requests', requiredPermissions: ['view-payment-requests', 'manage-payment-requests', 'approve-commissions'] },
+      { title: 'Payment History', icon: FaHistory, path: '/admin/crm/commission-payment-history', requiredPermissions: ['view-payment-history', 'view-commission-reports'] },
+      { title: 'Payment Breakdown', icon: FaChartBar, path: '/admin/crm/commission-payment-breakdown', requiredPermissions: ['view-payment-breakdown', 'view-commission-reports'] },
+      { title: 'Commission Settings', icon: FaCog, path: '/admin/crm/commission-settings', requiredPermissions: ['view-commission-settings', 'manage-commission-settings'] },
     ],
   },
   {
