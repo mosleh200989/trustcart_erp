@@ -853,6 +853,7 @@ export class CommissionService {
         u.phone,
         COALESCE(u.agent_tier, 'silver') as agent_tier,
         COALESCE(order_stats.total_orders, 0) as total_orders,
+        COALESCE(cancelled_stats.cancelled_orders, 0) as cancelled_orders,
         COALESCE(product_qty_stats.total_product_qty, 0) as total_product_qty,
         COALESCE(delivered_order_stats.delivered_orders, 0) as delivered_orders,
         COALESCE(delivered_product_qty_stats.delivered_product_qty, 0) as delivered_product_qty,
@@ -874,7 +875,17 @@ export class CommissionService {
         GROUP BY so.created_by
       ) order_stats ON order_stats.agent_id = u.id
       LEFT JOIN (
-        SELECT agent_id, SUM(qty) as total_product_qty FROM (
+        SELECT
+          so.created_by as agent_id,
+          COUNT(so.id) as cancelled_orders
+        FROM sales_orders so
+        WHERE so.created_by IS NOT NULL
+          AND so.order_source IN ('admin_panel', 'agent_dashboard')
+          AND so.status IN ('cancelled', 'admin_cancelled', 'returned')
+          AND DATE(so.created_at AT TIME ZONE 'Asia/Dhaka') BETWEEN '${monthStart}' AND '${monthEnd}'
+        GROUP BY so.created_by
+      ) cancelled_stats ON cancelled_stats.agent_id = u.id
+      LEFT JOIN (
           SELECT so.created_by as agent_id, COALESCE(SUM(soi.quantity), 0) as qty
           FROM sales_order_items soi
           INNER JOIN sales_orders so ON so.id = soi.sales_order_id
@@ -989,6 +1000,7 @@ export class CommissionService {
           agentName: (r.agent_name || '').trim(),
           phone: r.phone || '',
           totalOrders,
+          cancelledOrders: parseInt(r.cancelled_orders || '0', 10),
           totalProductQty,
           totalDeliveredOrders: deliveredOrders,
           totalDeliveredProducts: deliveredProductQty,
