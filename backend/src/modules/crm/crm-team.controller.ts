@@ -205,6 +205,29 @@ export class CrmTeamController {
     return await this.crmTeamService.getTeamLeadersList();
   }
 
+  // ==================== AGENT REMOVE / TRANSFER ====================
+
+  @Get('all-agents')
+  @RequirePermissions('manage-crm-teams')
+  async getAllSalesAgents() {
+    return await this.crmTeamService.getAllSalesAgents();
+  }
+
+  @Post('agents/:agentId/remove-from-team')
+  @RequirePermissions('manage-crm-teams')
+  async removeAgentFromTeam(@Param('agentId') agentId: string) {
+    return await this.crmTeamService.removeAgentFromTeamLeader(Number(agentId));
+  }
+
+  @Post('agents/:agentId/transfer')
+  @RequirePermissions('manage-crm-teams')
+  async transferAgent(
+    @Param('agentId') agentId: string,
+    @Body() body: { newTeamLeaderId: number },
+  ) {
+    return await this.crmTeamService.transferAgent(Number(agentId), body.newTeamLeaderId);
+  }
+
   // ==================== TEAM AGENT REPORTS ====================
 
   @Get('agent-tiers')
