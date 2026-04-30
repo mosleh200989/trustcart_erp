@@ -1350,7 +1350,7 @@ export class SalesService {
         `COUNT(DISTINCT CASE WHEN LOWER(o.courier_company) = 'redx' THEN o.id END) AS redx_orders`,
         `COUNT(DISTINCT CASE WHEN o.courier_company IS NULL OR o.courier_company = '' THEN o.id END) AS no_courier_orders`,
         `COUNT(DISTINCT CASE WHEN LOWER(o.status::text) = 'delivered' THEN o.id END) AS delivered_orders`,
-        `COUNT(DISTINCT CASE WHEN LOWER(o.status::text) IN ('cancelled', 'admin_cancelled') THEN o.id END) AS cancelled_orders`,
+        `COUNT(DISTINCT CASE WHEN LOWER(o.status::text) IN ('cancelled', 'admin_cancelled', 'returned') THEN o.id END) AS cancelled_orders`,
         `COUNT(DISTINCT CASE WHEN LOWER(o.status::text) = 'pending' THEN o.id END) AS pending_orders`,
         `COUNT(DISTINCT CASE WHEN LOWER(o.status::text) = 'approved' THEN o.id END) AS approved_orders`,
         `COUNT(DISTINCT CASE WHEN LOWER(o.status::text) = 'shipped' THEN o.id END) AS shipped_orders`,
@@ -1373,7 +1373,7 @@ export class SalesService {
         `COUNT(CASE WHEN LOWER(o.status::text) = 'approved' THEN 1 END) AS approved_orders`,
         `COUNT(CASE WHEN LOWER(o.status::text) = 'shipped' THEN 1 END) AS shipped_orders`,
         `COUNT(CASE WHEN LOWER(o.status::text) = 'delivered' THEN 1 END) AS delivered_orders`,
-        `COUNT(CASE WHEN LOWER(o.status::text) IN ('cancelled', 'admin_cancelled') THEN 1 END) AS cancelled_orders`,
+        `COUNT(CASE WHEN LOWER(o.status::text) IN ('cancelled', 'admin_cancelled', 'returned') THEN 1 END) AS cancelled_orders`,
         `COUNT(CASE WHEN LOWER(o.courier_company) = 'steadfast' THEN 1 END) AS steadfast_orders`,
         `COUNT(CASE WHEN LOWER(o.courier_company) = 'pathao' THEN 1 END) AS pathao_orders`,
         `COUNT(CASE WHEN LOWER(o.courier_company) = 'redx' THEN 1 END) AS redx_orders`,
@@ -1915,7 +1915,7 @@ export class SalesService {
         'u.last_name AS agent_last_name',
         'COUNT(o.id) AS total_orders',
         `COUNT(CASE WHEN LOWER(o.status::text) = 'delivered' THEN 1 END) AS delivered_orders`,
-        `COUNT(CASE WHEN LOWER(o.status::text) = 'cancelled' THEN 1 END) AS cancelled_orders`,
+        `COUNT(CASE WHEN LOWER(o.status::text) IN ('cancelled', 'admin_cancelled', 'returned') THEN 1 END) AS cancelled_orders`,
       ])
       .where('o.created_by IS NOT NULL')
       .andWhere('o.courier_order_id IS NOT NULL')
