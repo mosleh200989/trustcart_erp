@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useCallback } from 'react';
+import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import AdminLayout from '@/layouts/AdminLayout';
 import DataTable from '@/components/admin/DataTable';
 import PageSizeSelector from '@/components/admin/PageSizeSelector';
@@ -145,6 +145,27 @@ export default function AdminSalesLateDelivery() {
   const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
   const [showOrderDetails, setShowOrderDetails] = useState(false);
 
+  // Dedicated search state with debounce
+  const [searchInput, setSearchInput] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setSearchInput(val);
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    searchDebounceRef.current = setTimeout(() => {
+      setSearchQuery(val);
+      setCurrentPage(1);
+    }, 280);
+  };
+
+  const clearSearch = () => {
+    setSearchInput('');
+    setSearchQuery('');
+    setCurrentPage(1);
+  };
+
   // Notes editing state
   const [editingNotes, setEditingNotes] = useState<Record<number, string>>({});
   const [savingNotes, setSavingNotes] = useState<Record<number, boolean>>({});
@@ -260,6 +281,21 @@ export default function AdminSalesLateDelivery() {
       const courierCompany = o.courierCompany ?? o.courier_company ?? '';
       const shippedAt = o.shippedAt ?? o.shipped_at ?? null;
 
+      // Always-visible search bar
+      const sq = normalize(searchQuery);
+      if (sq) {
+        const orderNum = o.salesOrderNumber ?? o.sales_order_number ?? o.order_number ?? '';
+        const courierId = o.courierOrderId ?? o.courier_order_id ?? '';
+        const trackId = o.trackingId ?? o.tracking_id ?? '';
+        const haystack = [
+          o.id, orderNum, customerName, customerPhone,
+          courierCompany, courierId, trackId,
+          o.status, o.notes, o.internal_notes,
+        ].map((v) => normalize(v)).join(' ');
+        if (!haystack.includes(sq)) return false;
+      }
+
+      // Filter panel (q field removed, kept for old compatibility)
       const q = normalize(filters.q);
       if (q) {
         const haystack = [o.id, customerName, customerPhone, courierCompany, o.status, o.notes, o.internal_notes]
@@ -274,11 +310,11 @@ export default function AdminSalesLateDelivery() {
 
       return true;
     });
-  }, [orders, filters]);
+  }, [orders, filters, searchQuery]);
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [filters]);
+  }, [filters, searchQuery]);
 
   const totalPages = Math.ceil(filtered.length / itemsPerPage);
   const paginated = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
@@ -516,7 +552,9 @@ export default function AdminSalesLateDelivery() {
     },
   ];
 
-  const activeFilterCount = Object.values(filters).filter((v) => String(v).trim() !== '').length;
+  const activeFilterCount = Object.entries(filters)
+    .filter(([k, v]) => k !== 'q' && String(v).trim() !== '')
+    .length;
 
   return (
     <AdminLayout>
@@ -559,6 +597,30 @@ export default function AdminSalesLateDelivery() {
           </div>
         </div>
 
+        {/* ── Always-visible Search Bar ── */}
+        <div className="mb-4">
+          <div className="relative max-w-2xl">
+            <FaSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={14} />
+            <input
+              type="text"
+              value={searchInput}
+              onChange={handleSearchChange}
+              placeholder="Search by order number, customer name, phone, courier ID, tracking ID…"
+              className="w-full pl-10 pr-9 py-2.5 text-sm bg-white border border-gray-300 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 placeholder-gray-400 transition"
+            />
+            {searchInput && (
+              <button
+                type="button"
+                onClick={clearSearch}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition"
+                aria-label="Clear search"
+              >
+                <FaTimes size={12} />
+              </button>
+            )}
+          </div>
+        </div>
+
         {/* Filter Panel */}
         {showFilters && (
           <div className="mb-6 bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
@@ -582,21 +644,6 @@ export default function AdminSalesLateDelivery() {
             </div>
 
             <div className="p-5">
-              {/* Search */}
-              <div className="mb-4">
-                <div className="relative">
-                  <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={14} />
-                  <input
-                    type="text"
-                    name="q"
-                    value={filters.q}
-                    onChange={handleFilterChange}
-                    placeholder="Search by customer name, phone, courier, status..."
-                    className="w-full pl-10 pr-4 py-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  />
-                </div>
-              </div>
-
               {/* Filter grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <FormInput

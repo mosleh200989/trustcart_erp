@@ -1984,4 +1984,89 @@ export class SalesService {
         : 0,
     };
   }
+
+  async getWebsiteMonthlyReport(params: { month: number; year: number }) {
+    const { month, year } = params;
+    const toNum = (v: any) => parseFloat(v) || 0;
+
+    const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
+    const lastDay = new Date(year, month, 0).getDate();
+    const endDate = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+
+    // Daily counts per source
+    const dailyRaw: Array<{ order_source: string; day: number; order_count: string }> =
+      await this.salesRepository.query(
+        `SELECT
+           order_source,
+           EXTRACT(DAY FROM order_date)::int AS day,
+           COUNT(id) AS order_count
+         FROM sales_orders
+         WHERE order_source IN ('website', 'landing_page')
+           AND DATE(order_date) BETWEEN $1 AND $2
+         GROUP BY order_source, EXTRACT(DAY FROM order_date)
+         ORDER BY day`,
+        [startDate, endDate],
+      );
+
+    // Summary (total / delivered / cancelled) per source
+    const summaryRaw: Array<{
+      order_source: string;
+      total_orders: string;
+      delivered_orders: string;
+      cancelled_orders: string;
+    }> = await this.salesRepository.query(
+      `SELECT
+         order_source,
+         COUNT(id) AS total_orders,
+         COUNT(CASE WHEN LOWER(status::text) = 'delivered' THEN 1 END) AS delivered_orders,
+         COUNT(CASE WHEN LOWER(status::text) IN ('cancelled', 'admin_cancelled', 'returned') THEN 1 END) AS cancelled_orders
+       FROM sales_orders
+       WHERE order_source IN ('website', 'landing_page')
+         AND DATE(order_date) BETWEEN $1 AND $2
+       GROUP BY order_source`,
+      [startDate, endDate],
+    );
+
+    // Index daily rows
+    const websiteDaily: Record<number, number> = {};
+    const landingPageDaily: Record<number, number> = {};
+    for (const r of dailyRaw) {
+      const day = toNum(r.day);
+      const count = toNum(r.order_count);
+      if (r.order_source === 'website') websiteDaily[day] = count;
+      else if (r.order_source === 'landing_page') landingPageDaily[day] = count;
+    }
+
+    // Build summary objects
+    let websiteSummary = { total: 0, delivered: 0, cancelled: 0 };
+    let landingPageSummary = { total: 0, delivered: 0, cancelled: 0 };
+    for (const r of summaryRaw) {
+      const s = {
+        total: toNum(r.total_orders),
+        delivered: toNum(r.delivered_orders),
+        cancelled: toNum(r.cancelled_orders),
+      };
+      if (r.order_source === 'website') websiteSummary = s;
+      else if (r.order_source === 'landing_page') landingPageSummary = s;
+    }
+
+    // One chart point per day
+    const dailyChart = Array.from({ length: lastDay }, (_, i) => {
+      const day = i + 1;
+      return {
+        day,
+        website: websiteDaily[day] || 0,
+        landingPage: landingPageDaily[day] || 0,
+      };
+    });
+
+    return {
+      month,
+      year,
+      daysInMonth: lastDay,
+      dailyChart,
+      website: websiteSummary,
+      landingPage: landingPageSummary,
+    };
+  }
 }
