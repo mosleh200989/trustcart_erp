@@ -582,7 +582,7 @@ export default function LeadAssignmentPage() {
               </select>
             </div>
 
-            {/* Purchase Stage (Repeat) */
+            {/* Purchase Stage (Repeat) */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Purchase Stage</label>
               <select
