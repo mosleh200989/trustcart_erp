@@ -64,7 +64,7 @@ export class StockMovementService {
       const refNumber = await this.generateReferenceNumber(manager);
 
       // Determine balance before/after based on movement direction
-      const isInbound = ['receipt', 'sales_return', 'transfer_in', 'adjustment_increase', 'production_output', 'opening_balance'].includes(params.movement_type);
+      const isInbound = ['receipt', 'sales_return', 'transfer_in', 'adjustment_increase', 'production_output', 'opening_balance', 'repack_in'].includes(params.movement_type);
       const warehouseId = isInbound ? params.destination_warehouse_id : params.source_warehouse_id;
 
       let balanceBefore = 0;

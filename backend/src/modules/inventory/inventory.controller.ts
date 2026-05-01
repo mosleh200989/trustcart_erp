@@ -624,4 +624,75 @@ export class InventoryController {
   async getWarehouseMap(@Param('warehouseId', ParseIntPipe) warehouseId: number) {
     return this.inventoryService.getWarehouseMap(warehouseId);
   }
+
+  // ── Packaging Configs ───────────────────────────────
+
+  @Get('repack/configs')
+  @RequirePermissions('view-inventory')
+  async getPackagingConfigs(@Query('source_product_id') sourceProductId?: string) {
+    return this.inventoryService.getPackagingConfigs(sourceProductId ? parseInt(sourceProductId) : undefined);
+  }
+
+  @Post('repack/configs')
+  @RequirePermissions('manage-stock')
+  async createPackagingConfig(@Body() dto: any, @Req() req: any) {
+    return this.inventoryService.createPackagingConfig(dto, req.user.id);
+  }
+
+  @Put('repack/configs/:id')
+  @RequirePermissions('manage-stock')
+  async updatePackagingConfig(@Param('id', ParseIntPipe) id: number, @Body() dto: any) {
+    return this.inventoryService.updatePackagingConfig(id, dto);
+  }
+
+  @Delete('repack/configs/:id')
+  @RequirePermissions('manage-stock')
+  async deletePackagingConfig(@Param('id', ParseIntPipe) id: number) {
+    await this.inventoryService.deletePackagingConfig(id);
+    return { message: 'Packaging configuration deleted' };
+  }
+
+  // ── Repack Orders ───────────────────────────────────
+
+  @Get('repack/orders')
+  @RequirePermissions('view-inventory')
+  async getRepackOrders(
+    @Query('status') status?: string,
+    @Query('warehouse_id') warehouseId?: string,
+  ) {
+    return this.inventoryService.getRepackOrders({
+      status,
+      warehouse_id: warehouseId ? parseInt(warehouseId) : undefined,
+    });
+  }
+
+  @Get('repack/orders/:id')
+  @RequirePermissions('view-inventory')
+  async getRepackOrder(@Param('id', ParseIntPipe) id: number) {
+    return this.inventoryService.getRepackOrder(id);
+  }
+
+  @Post('repack/orders')
+  @RequirePermissions('manage-stock')
+  async createRepackOrder(@Body() dto: any, @Req() req: any) {
+    return this.inventoryService.createRepackOrder(dto, req.user.id);
+  }
+
+  @Post('repack/orders/:id/start')
+  @RequirePermissions('manage-stock')
+  async startRepackOrder(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
+    return this.inventoryService.startRepackOrder(id, req.user.id);
+  }
+
+  @Post('repack/orders/:id/complete')
+  @RequirePermissions('manage-stock')
+  async completeRepackOrder(@Param('id', ParseIntPipe) id: number, @Body() dto: any, @Req() req: any) {
+    return this.inventoryService.completeRepackOrder(id, dto, req.user.id);
+  }
+
+  @Post('repack/orders/:id/cancel')
+  @RequirePermissions('manage-stock')
+  async cancelRepackOrder(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
+    return this.inventoryService.cancelRepackOrder(id, req.user.id);
+  }
 }

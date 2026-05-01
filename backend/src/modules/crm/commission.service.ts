@@ -1081,16 +1081,17 @@ export class CommissionService {
       INNER JOIN roles r ON r.id = u.role_id
       LEFT JOIN (
         SELECT
-          au.team_leader_id as tl_id,
+          ath.team_leader_id as tl_id,
           COUNT(so.id) as agent_orders
         FROM sales_orders so
-        INNER JOIN users au ON au.id = so.created_by
-        WHERE au.team_leader_id IS NOT NULL
-          AND so.created_by != au.team_leader_id
+        INNER JOIN agent_tl_history ath ON ath.agent_id = so.created_by
+          AND ath.valid_from <= so.created_at
+          AND (ath.valid_until IS NULL OR ath.valid_until > so.created_at)
+        WHERE so.created_by IS NOT NULL
           AND so.order_source IN ('admin_panel', 'agent_dashboard')
           AND so.status = 'delivered'
           AND DATE(so.created_at AT TIME ZONE 'Asia/Dhaka') BETWEEN '${monthStart}' AND '${monthEnd}'
-        GROUP BY au.team_leader_id
+        GROUP BY ath.team_leader_id
       ) agent_order_stats ON agent_order_stats.tl_id = u.id
       LEFT JOIN (
         SELECT
@@ -1249,9 +1250,11 @@ export class CommissionService {
         COUNT(so.id) as order_count,
         COUNT(DISTINCT so.created_by) as agent_count
       FROM sales_orders so
-      INNER JOIN users au ON au.id = so.created_by
-      WHERE au.team_leader_id = $1
-        AND so.created_by != $1
+      INNER JOIN agent_tl_history ath ON ath.agent_id = so.created_by
+        AND ath.team_leader_id = $1
+        AND ath.valid_from <= so.created_at
+        AND (ath.valid_until IS NULL OR ath.valid_until > so.created_at)
+      WHERE so.created_by != $1
         AND so.order_source IN ('admin_panel', 'agent_dashboard')
         AND so.status = 'delivered'
         AND DATE(so.created_at AT TIME ZONE 'Asia/Dhaka') BETWEEN $2 AND $3

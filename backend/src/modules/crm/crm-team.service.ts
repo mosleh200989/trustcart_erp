@@ -433,20 +433,16 @@ export class CrmTeamService {
       }
     }
 
-    // Product name filter — customers who ordered a specific product
+    // Product name filter — customers who ordered a specific product (based on actual product master only)
     if (productName && productName.trim()) {
       const pName = `%${productName.trim().toLowerCase()}%`;
       qb.andWhere(
         `c.id IN (
           SELECT so.customer_id FROM sales_orders so
           WHERE so.id IN (
-            SELECT oi.order_id FROM order_items oi WHERE oi.product_name ILIKE :pName
+            SELECT oi.order_id FROM order_items oi JOIN products p ON p.id = oi.product_id WHERE p.name_en ILIKE :pName OR p.name_bn ILIKE :pName
             UNION
-            SELECT oi2.order_id FROM order_items oi2 JOIN products p ON p.id = oi2.product_id WHERE p.name_en ILIKE :pName OR p.name_bn ILIKE :pName
-            UNION
-            SELECT soi.sales_order_id FROM sales_order_items soi WHERE soi.product_name ILIKE :pName
-            UNION
-            SELECT soi2.sales_order_id FROM sales_order_items soi2 JOIN products p2 ON p2.id = soi2.product_id WHERE p2.name_en ILIKE :pName OR p2.name_bn ILIKE :pName
+            SELECT soi.sales_order_id FROM sales_order_items soi JOIN products p2 ON p2.id = soi.product_id WHERE p2.name_en ILIKE :pName OR p2.name_bn ILIKE :pName
           )
         )`,
         { pName },
@@ -579,20 +575,16 @@ export class CrmTeamService {
         { search: searchTerm, normalizedPhone }
       );
     }
-    // Product name filter for count
+    // Product name filter for count (based on actual product master only)
     if (productName && productName.trim()) {
       const pName = `%${productName.trim().toLowerCase()}%`;
       countQb.andWhere(
         `c.id IN (
           SELECT so.customer_id FROM sales_orders so
           WHERE so.id IN (
-            SELECT oi.order_id FROM order_items oi WHERE oi.product_name ILIKE :pName
+            SELECT oi.order_id FROM order_items oi JOIN products p ON p.id = oi.product_id WHERE p.name_en ILIKE :pName OR p.name_bn ILIKE :pName
             UNION
-            SELECT oi2.order_id FROM order_items oi2 JOIN products p ON p.id = oi2.product_id WHERE p.name_en ILIKE :pName OR p.name_bn ILIKE :pName
-            UNION
-            SELECT soi.sales_order_id FROM sales_order_items soi WHERE soi.product_name ILIKE :pName
-            UNION
-            SELECT soi2.sales_order_id FROM sales_order_items soi2 JOIN products p2 ON p2.id = soi2.product_id WHERE p2.name_en ILIKE :pName OR p2.name_bn ILIKE :pName
+            SELECT soi.sales_order_id FROM sales_order_items soi JOIN products p2 ON p2.id = soi.product_id WHERE p2.name_en ILIKE :pName OR p2.name_bn ILIKE :pName
           )
         )`,
         { pName },
@@ -1871,12 +1863,24 @@ export class CrmTeamService {
       throw new NotFoundException('Agent not found');
     }
 
+    const hadNoTL = !agent.teamLeaderId;
     agent.teamId = team.id;
     if (!agent.teamLeaderId) {
       agent.teamLeaderId = teamLeaderId;
     }
 
-    return this.usersRepository.save(agent);
+    const saved = await this.usersRepository.save(agent);
+
+    // Record initial TL assignment in history so commission queries can
+    // use time-based attribution even before any transfer occurs.
+    if (hadNoTL) {
+      await this.usersRepository.manager.query(
+        `INSERT INTO agent_tl_history (agent_id, team_leader_id, valid_from) VALUES ($1, $2, NOW())`,
+        [agentId, teamLeaderId],
+      );
+    }
+
+    return saved;
   }
 
   async getTeamLeadersList(): Promise<User[]> {
@@ -2043,6 +2047,12 @@ export class CrmTeamService {
     // Clear agent's TL and team binding
     await this.usersRepository.update(agentId, { teamLeaderId: null, teamId: null } as any);
 
+    // Close the current history record — agent no longer has a TL
+    await this.usersRepository.manager.query(
+      `UPDATE agent_tl_history SET valid_until = NOW() WHERE agent_id = $1 AND valid_until IS NULL`,
+      [agentId],
+    );
+
     return {
       removed: true,
       customersUpdated: updateResult.affected ?? 0,
@@ -2077,6 +2087,18 @@ export class CrmTeamService {
 
     // Move agent to new TL, clear team (team belongs to specific TL)
     await this.usersRepository.update(agentId, { teamLeaderId: newTeamLeaderId, teamId: null } as any);
+
+    // Close the old TL history record and open a new one for the new TL.
+    // This ensures historical commission queries attribute previous orders to
+    // the OLD TL and future orders to the NEW TL.
+    await this.usersRepository.manager.query(
+      `UPDATE agent_tl_history SET valid_until = NOW() WHERE agent_id = $1 AND valid_until IS NULL`,
+      [agentId],
+    );
+    await this.usersRepository.manager.query(
+      `INSERT INTO agent_tl_history (agent_id, team_leader_id, valid_from) VALUES ($1, $2, NOW())`,
+      [agentId, newTeamLeaderId],
+    );
 
     return {
       transferred: true,

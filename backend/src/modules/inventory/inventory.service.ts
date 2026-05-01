@@ -19,6 +19,8 @@ import { CreateInventoryCountDto, RecordCountItemDto } from './dto/create-invent
 import { StockMovementService } from './stock-movement.service';
 import { StockReservation } from './entities/stock-reservation.entity';
 import { DemandForecast } from './entities/demand-forecast.entity';
+import { PackagingConfig } from './entities/packaging-config.entity';
+import { RepackOrder } from './entities/repack-order.entity';
 import * as bwipjs from 'bwip-js';
 
 @Injectable()
@@ -49,6 +51,10 @@ export class InventoryService {
     private reservationRepo: Repository<StockReservation>,
     @InjectRepository(DemandForecast)
     private forecastRepo: Repository<DemandForecast>,
+    @InjectRepository(PackagingConfig)
+    private packagingConfigRepo: Repository<PackagingConfig>,
+    @InjectRepository(RepackOrder)
+    private repackOrderRepo: Repository<RepackOrder>,
     private dataSource: DataSource,
     private stockMovementService: StockMovementService,
   ) {}
@@ -2297,5 +2303,259 @@ export class InventoryService {
         occupied_locations: stockByLocation.length,
       },
     };
+  }
+
+  // ══════════════════════════════════════════════════════
+  // ── Packaging Configs ──────────────────────────────
+  // ══════════════════════════════════════════════════════
+
+  async getPackagingConfigs(sourceProductId?: number): Promise<any[]> {
+    const conds = sourceProductId ? 'WHERE pc.source_product_id = $1' : '';
+    const params = sourceProductId ? [sourceProductId] : [];
+    return this.dataSource.query(
+      `SELECT pc.*,
+              sp.name_en as source_product_name, sp.sku as source_product_sku, sp.unit_of_measure as source_uom,
+              op.name_en as output_product_name, op.sku as output_product_sku, op.unit_of_measure as output_uom
+       FROM packaging_configs pc
+       LEFT JOIN products sp ON sp.id = pc.source_product_id
+       LEFT JOIN products op ON op.id = pc.output_product_id
+       ${conds}
+       ORDER BY pc.id DESC`, params,
+    );
+  }
+
+  async createPackagingConfig(dto: {
+    source_product_id: number;
+    source_variant_key?: string;
+    source_qty: number;
+    output_product_id: number;
+    output_variant_key?: string;
+    output_qty: number;
+    waste_percentage?: number;
+    description?: string;
+  }, userId: number): Promise<any> {
+    const [row] = await this.dataSource.query(
+      `INSERT INTO packaging_configs (source_product_id, source_variant_key, source_qty, output_product_id, output_variant_key, output_qty, waste_percentage, description, is_active, created_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,true,$9) RETURNING *`,
+      [dto.source_product_id, dto.source_variant_key || null, dto.source_qty,
+       dto.output_product_id, dto.output_variant_key || null, dto.output_qty,
+       dto.waste_percentage ?? 0, dto.description || null, userId],
+    );
+    return row;
+  }
+
+  async updatePackagingConfig(id: number, dto: any): Promise<any> {
+    const allowed = ['source_product_id', 'source_qty', 'output_product_id', 'output_qty', 'waste_percentage', 'description', 'is_active'];
+    const fields: string[] = [];
+    const values: any[] = [];
+    let idx = 1;
+    for (const key of allowed) {
+      if (dto[key] !== undefined) { fields.push(`${key} = $${idx++}`); values.push(dto[key]); }
+    }
+    if (!fields.length) throw new BadRequestException('No fields to update');
+    values.push(id);
+    const [row] = await this.dataSource.query(
+      `UPDATE packaging_configs SET ${fields.join(', ')} WHERE id = $${idx} RETURNING *`, values,
+    );
+    if (!row) throw new NotFoundException(`Packaging config #${id} not found`);
+    return row;
+  }
+
+  async deletePackagingConfig(id: number): Promise<void> {
+    await this.dataSource.query(`DELETE FROM packaging_configs WHERE id = $1`, [id]);
+  }
+
+  // ══════════════════════════════════════════════════════
+  // ── Repack Orders ──────────────────────────────────
+  // ══════════════════════════════════════════════════════
+
+  async getRepackOrders(filters?: { status?: string; warehouse_id?: number }): Promise<any[]> {
+    const conds: string[] = [];
+    const params: any[] = [];
+    let idx = 1;
+    if (filters?.status) { conds.push(`ro.status = $${idx++}`); params.push(filters.status); }
+    if (filters?.warehouse_id) { conds.push(`ro.warehouse_id = $${idx++}`); params.push(filters.warehouse_id); }
+    const where = conds.length ? `WHERE ${conds.join(' AND ')}` : '';
+    return this.dataSource.query(
+      `SELECT ro.*,
+              sp.name_en as source_product_name, sp.sku as source_product_sku,
+              op.name_en as output_product_name, op.sku as output_product_sku,
+              w.name as warehouse_name
+       FROM repack_orders ro
+       LEFT JOIN products sp ON sp.id = ro.source_product_id
+       LEFT JOIN products op ON op.id = ro.output_product_id
+       LEFT JOIN warehouses w ON w.id = ro.warehouse_id
+       ${where}
+       ORDER BY ro.created_at DESC`, params,
+    );
+  }
+
+  async getRepackOrder(id: number): Promise<any> {
+    const [row] = await this.dataSource.query(
+      `SELECT ro.*,
+              sp.name_en as source_product_name, sp.sku as source_product_sku, sp.unit_of_measure as source_uom,
+              op.name_en as output_product_name, op.sku as output_product_sku, op.unit_of_measure as output_uom,
+              w.name as warehouse_name,
+              sb.batch_number as source_batch_number
+       FROM repack_orders ro
+       LEFT JOIN products sp ON sp.id = ro.source_product_id
+       LEFT JOIN products op ON op.id = ro.output_product_id
+       LEFT JOIN warehouses w ON w.id = ro.warehouse_id
+       LEFT JOIN stock_batches sb ON sb.id = ro.source_batch_id
+       WHERE ro.id = $1`, [id],
+    );
+    if (!row) throw new NotFoundException(`Repack order #${id} not found`);
+    return row;
+  }
+
+  private async generateRepackNumber(): Promise<string> {
+    const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    const prefix = `RPK-${dateStr}-`;
+    const [last] = await this.dataSource.query(
+      `SELECT repack_number FROM repack_orders WHERE repack_number LIKE $1 ORDER BY repack_number DESC LIMIT 1`,
+      [`${prefix}%`],
+    );
+    const seq = last ? parseInt(last.repack_number.split('-').pop() ?? '0', 10) + 1 : 1;
+    return `${prefix}${seq.toString().padStart(3, '0')}`;
+  }
+
+  async createRepackOrder(dto: {
+    warehouse_id: number;
+    config_id?: number;
+    source_product_id: number;
+    source_variant_key?: string;
+    source_batch_id?: number;
+    source_qty_to_consume: number;
+    output_product_id: number;
+    output_variant_key?: string;
+    output_qty_expected: number;
+    notes?: string;
+  }, userId: number): Promise<any> {
+    // Check source stock availability
+    const [srcLevel] = await this.dataSource.query(
+      `SELECT quantity FROM stock_levels WHERE product_id = $1 AND warehouse_id = $2 LIMIT 1`,
+      [dto.source_product_id, dto.warehouse_id],
+    );
+    const available = srcLevel ? Number(srcLevel.quantity) : 0;
+    if (available < dto.source_qty_to_consume) {
+      throw new BadRequestException(
+        `Insufficient source stock. Available: ${available}, Required: ${dto.source_qty_to_consume}`,
+      );
+    }
+    const repackNumber = await this.generateRepackNumber();
+    const [row] = await this.dataSource.query(
+      `INSERT INTO repack_orders
+         (repack_number, warehouse_id, config_id, source_product_id, source_variant_key, source_batch_id,
+          source_qty_to_consume, output_product_id, output_variant_key, output_qty_expected, notes, status, created_by, created_at, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'draft',$12,NOW(),NOW()) RETURNING *`,
+      [repackNumber, dto.warehouse_id, dto.config_id || null,
+       dto.source_product_id, dto.source_variant_key || null, dto.source_batch_id || null,
+       dto.source_qty_to_consume, dto.output_product_id, dto.output_variant_key || null,
+       dto.output_qty_expected, dto.notes || null, userId],
+    );
+    return this.getRepackOrder(row.id);
+  }
+
+  async startRepackOrder(id: number, userId: number): Promise<any> {
+    const order = await this.getRepackOrder(id);
+    if (order.status !== 'draft') throw new BadRequestException('Only draft orders can be started');
+    await this.dataSource.query(
+      `UPDATE repack_orders SET status = 'in_progress', updated_at = NOW() WHERE id = $1`, [id],
+    );
+    return this.getRepackOrder(id);
+  }
+
+  async completeRepackOrder(id: number, dto: {
+    source_qty_consumed: number;
+    output_qty_actual: number;
+    waste_qty?: number;
+    output_batch_number?: string;
+    notes?: string;
+  }, userId: number): Promise<any> {
+    const order = await this.getRepackOrder(id);
+    if (order.status === 'completed' || order.status === 'cancelled') {
+      throw new BadRequestException('Order is already completed or cancelled');
+    }
+    return this.dataSource.transaction(async (manager) => {
+      // 1. Deduct source product stock (repack_out)
+      await this.stockMovementService.recordMovement({
+        movement_type: 'repack_out',
+        product_id: order.source_product_id,
+        variant_key: order.source_variant_key || undefined,
+        batch_id: order.source_batch_id || undefined,
+        source_warehouse_id: order.warehouse_id,
+        quantity: dto.source_qty_consumed,
+        reason: `Repackaged to ${order.output_product_name} (${order.repack_number})`,
+        related_document_type: 'repack_order',
+        related_document_id: id,
+        performed_by: userId,
+      });
+
+      // 2. Add output product stock (repack_in)
+      await this.stockMovementService.recordMovement({
+        movement_type: 'repack_in',
+        product_id: order.output_product_id,
+        variant_key: order.output_variant_key || undefined,
+        destination_warehouse_id: order.warehouse_id,
+        quantity: dto.output_qty_actual,
+        reason: `Repackaged from ${order.source_product_name} (${order.repack_number})`,
+        related_document_type: 'repack_order',
+        related_document_id: id,
+        performed_by: userId,
+      });
+
+      // 3. Create new output batch if batch number provided
+      if (dto.output_batch_number) {
+        const existing = await manager.query(
+          `SELECT id FROM stock_batches WHERE batch_number = $1 AND product_id = $2 LIMIT 1`,
+          [dto.output_batch_number, order.output_product_id],
+        );
+        if (!existing.length) {
+          await manager.query(
+            `INSERT INTO stock_batches (batch_number, product_id, warehouse_id, received_date, initial_quantity, remaining_quantity, status, quality_status, created_at)
+             VALUES ($1,$2,$3,CURRENT_DATE,$4,$4,'available','accepted',NOW())`,
+            [dto.output_batch_number, order.output_product_id, order.warehouse_id, dto.output_qty_actual],
+          );
+        }
+      }
+
+      // 4. Reduce source batch remaining qty if applicable
+      if (order.source_batch_id) {
+        await manager.query(
+          `UPDATE stock_batches SET remaining_quantity = GREATEST(0, remaining_quantity - $1) WHERE id = $2`,
+          [dto.source_qty_consumed, order.source_batch_id],
+        );
+      }
+
+      // 5. Sync denormalised product.stock_quantity
+      await manager.query(
+        `UPDATE products SET stock_quantity = GREATEST(0, COALESCE(stock_quantity, 0) - $1) WHERE id = $2`,
+        [dto.source_qty_consumed, order.source_product_id],
+      );
+      await manager.query(
+        `UPDATE products SET stock_quantity = COALESCE(stock_quantity, 0) + $1 WHERE id = $2`,
+        [dto.output_qty_actual, order.output_product_id],
+      );
+
+      // 6. Mark order completed
+      await manager.query(
+        `UPDATE repack_orders SET status='completed', source_qty_consumed=$1, output_qty_actual=$2,
+         waste_qty=$3, output_batch_number=$4, notes=COALESCE($5, notes),
+         completed_by=$6, completed_at=NOW(), updated_at=NOW() WHERE id=$7`,
+        [dto.source_qty_consumed, dto.output_qty_actual, dto.waste_qty ?? 0,
+         dto.output_batch_number || null, dto.notes || null, userId, id],
+      );
+
+      return this.getRepackOrder(id);
+    });
+  }
+
+  async cancelRepackOrder(id: number, userId: number): Promise<any> {
+    const order = await this.getRepackOrder(id);
+    if (order.status === 'completed') throw new BadRequestException('Completed orders cannot be cancelled');
+    await this.dataSource.query(
+      `UPDATE repack_orders SET status='cancelled', updated_at=NOW() WHERE id=$1`, [id],
+    );
+    return this.getRepackOrder(id);
   }
 }

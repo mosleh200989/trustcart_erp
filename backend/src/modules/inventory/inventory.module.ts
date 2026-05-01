@@ -16,6 +16,8 @@ import { InventoryCount } from './entities/inventory-count.entity';
 import { InventoryCountItem } from './entities/inventory-count-item.entity';
 import { ReorderRule } from './entities/reorder-rule.entity';
 import { DemandForecast } from './entities/demand-forecast.entity';
+import { PackagingConfig } from './entities/packaging-config.entity';
+import { RepackOrder } from './entities/repack-order.entity';
 
 @Module({
   imports: [
@@ -33,6 +35,8 @@ import { DemandForecast } from './entities/demand-forecast.entity';
       InventoryCountItem,
       ReorderRule,
       DemandForecast,
+      PackagingConfig,
+      RepackOrder,
     ]),
   ],
   controllers: [InventoryController],
