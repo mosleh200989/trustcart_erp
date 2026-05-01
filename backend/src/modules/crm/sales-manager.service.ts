@@ -224,13 +224,11 @@ export class SalesManagerService {
       .andWhere(
         `c.id IN (SELECT so.customer_id FROM sales_orders so WHERE LOWER(so.status::text) = 'delivered')`,
       )
-      // Exclude rejected customers unless explicitly filtering for them
+      // Rejected customers are never shown here (only visible in Rejected Customers list)
       .andWhere(
-        query.tier === 'rejected'
-          ? '1=1'
-          : `NOT EXISTS (SELECT 1 FROM customer_tiers ct2 WHERE ct2.customer_id = c.id AND ct2.tier = 'rejected')`,
+        `NOT EXISTS (SELECT 1 FROM customer_tiers ct2 WHERE ct2.customer_id = c.id AND ct2.tier = 'rejected')`,
       )
-      .andWhere(query.tier === 'rejected' ? '1=1' : `(c.customer_type IS NULL OR c.customer_type != 'rejected')`);
+      .andWhere(`(c.customer_type IS NULL OR c.customer_type != 'rejected')`);
 
     // Assignment status filter
     if (query.assignmentStatus === 'unassigned' || query.unassignedOnly === 'true' || query.unassignedOnly === true) {
