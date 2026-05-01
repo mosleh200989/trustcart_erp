@@ -59,6 +59,7 @@ export class SalesManagerService {
       .where('c.lifecycle_stage = :stage', { stage: 'lead' })
       .andWhere('(c.assigned_supervisor_id IS NULL)')
       .andWhere(`NOT EXISTS (SELECT 1 FROM customer_tiers ct WHERE ct.customer_id = c.id AND ct.tier = 'rejected')`)
+      .andWhere(`(c.customer_type IS NULL OR c.customer_type != 'rejected')`)
       .getCount();
 
     // Escalated leads
@@ -215,10 +216,11 @@ export class SalesManagerService {
       .andWhere(
         `c.id IN (SELECT so.customer_id FROM sales_orders so WHERE LOWER(so.status::text) = 'delivered')`,
       )
-      // Exclude rejected customers
+      // Exclude rejected customers (double-guard: both customer_tiers table and direct column)
       .andWhere(
         `NOT EXISTS (SELECT 1 FROM customer_tiers ct2 WHERE ct2.customer_id = c.id AND ct2.tier = 'rejected')`,
-      );
+      )
+      .andWhere(`(c.customer_type IS NULL OR c.customer_type != 'rejected')`);
 
     // Assignment status filter
     if (query.assignmentStatus === 'unassigned' || query.unassignedOnly === 'true' || query.unassignedOnly === true) {
@@ -263,6 +265,18 @@ export class SalesManagerService {
         )`,
         { pName },
       );
+    }
+
+    // Order segment filter (SO-/LEG- based)
+    if (query.orderSegment === 'new') {
+      qb.andWhere(`EXISTS (SELECT 1 FROM sales_orders so WHERE so.customer_id = c.id AND so.sales_order_number LIKE 'SO-%')`);
+      qb.andWhere(`NOT EXISTS (SELECT 1 FROM sales_orders so WHERE so.customer_id = c.id AND so.sales_order_number LIKE 'LEG-%')`);
+    } else if (query.orderSegment === 'legacy') {
+      qb.andWhere(`EXISTS (SELECT 1 FROM sales_orders so WHERE so.customer_id = c.id AND so.sales_order_number LIKE 'LEG-%')`);
+      qb.andWhere(`NOT EXISTS (SELECT 1 FROM sales_orders so WHERE so.customer_id = c.id AND so.sales_order_number LIKE 'SO-%')`);
+    } else if (query.orderSegment === 'mixed') {
+      qb.andWhere(`EXISTS (SELECT 1 FROM sales_orders so WHERE so.customer_id = c.id AND so.sales_order_number LIKE 'SO-%')`);
+      qb.andWhere(`EXISTS (SELECT 1 FROM sales_orders so WHERE so.customer_id = c.id AND so.sales_order_number LIKE 'LEG-%')`);
     }
 
     const sortBy = query.sortBy || 'createdAt';
