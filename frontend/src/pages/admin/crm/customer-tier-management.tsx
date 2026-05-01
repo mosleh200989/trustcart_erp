@@ -285,7 +285,7 @@ export default function CustomerTierManagementPage() {
                 <option value="platinum">Platinum</option>
                 <option value="vip">VIP</option>
                 <option value="blacklist">Black List</option>
-                {/* Rejected customers are managed from the Rejected Customers sub-module */}
+                <option value="rejected">Rejected</option>
               </select>
             </div>
 
