@@ -4,7 +4,7 @@ import api from '../../../services/api';
 import { useToast } from '@/contexts/ToastContext';
 import AdminOrderDetailsModal from '@/components/AdminOrderDetailsModal';
 import ProductAutocomplete from '@/components/admin/ProductAutocomplete';
-import { FaEye } from 'react-icons/fa';
+import { FaEye, FaUsers, FaGlobe, FaExchangeAlt } from 'react-icons/fa';
 
 interface Lead {
   id: number;
@@ -23,6 +23,8 @@ interface Lead {
   createdAt: string;
   last_contact_date: string | null;
   tier: string | null;
+  soCount: number;
+  legCount: number;
 }
 
 interface TeamLeader {
@@ -38,6 +40,15 @@ const TIER_COLORS: Record<string, string> = {
   gold: 'bg-amber-100 text-amber-700',
   platinum: 'bg-indigo-100 text-indigo-700',
   vip: 'bg-purple-100 text-purple-700',
+};
+
+const getSegment = (lead: Lead): { label: string; className: string; Icon: React.ElementType } | null => {
+  const so = lead.soCount ?? 0;
+  const leg = lead.legCount ?? 0;
+  if (so > 0 && leg === 0) return { label: 'New', className: 'bg-blue-100 text-blue-700 border border-blue-200', Icon: FaUsers };
+  if (leg > 0 && so === 0) return { label: 'Legacy', className: 'bg-amber-100 text-amber-700 border border-amber-200', Icon: FaGlobe };
+  if (so > 0 && leg > 0) return { label: 'Converted', className: 'bg-green-100 text-green-700 border border-green-200', Icon: FaExchangeAlt };
+  return null;
 };
 
 const LIFECYCLE_COLORS: Record<string, string> = {
@@ -64,6 +75,7 @@ const SalesManagerLeadAssignment = () => {
   const [tlFilter, setTlFilter] = useState('');
   const [lifecycleFilter, setLifecycleFilter] = useState('');
   const [productFilter, setProductFilter] = useState('');
+  const [segmentFilter, setSegmentFilter] = useState<'' | 'new' | 'legacy' | 'mixed'>('');
   const [rowsPerPage, setRowsPerPage] = useState(200);
 
   // Selection
@@ -95,6 +107,7 @@ const SalesManagerLeadAssignment = () => {
       if (tlFilter) params.set('supervisor', tlFilter);
       if (lifecycleFilter) params.set('lifecycleStage', lifecycleFilter);
       if (productFilter) params.set('productName', productFilter);
+      if (segmentFilter) params.set('orderSegment', segmentFilter);
 
       const res = await api.get(`/crm/sales-manager/unassigned-leads?${params}`);
       setLeads(res.data.items || []);
@@ -107,7 +120,7 @@ const SalesManagerLeadAssignment = () => {
     } finally {
       setLoading(false);
     }
-  }, [search, assignmentStatus, tierFilter, tlFilter, lifecycleFilter, productFilter, rowsPerPage, toast]);
+  }, [search, assignmentStatus, tierFilter, tlFilter, lifecycleFilter, productFilter, segmentFilter, rowsPerPage, toast]);
 
   const fetchTeamLeaders = useCallback(async () => {
     try {
@@ -330,6 +343,33 @@ const SalesManagerLeadAssignment = () => {
               <option value="customer">Customer</option>
             </select>
 
+            {/* Customer Segment filter */}
+            <div className="relative">
+              <select
+                value={segmentFilter}
+                onChange={e => setSegmentFilter(e.target.value as '' | 'new' | 'legacy' | 'mixed')}
+                className={`w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 appearance-none pr-8 font-medium ${
+                  segmentFilter === 'new'
+                    ? 'border-blue-400 bg-blue-50 text-blue-800'
+                    : segmentFilter === 'legacy'
+                    ? 'border-amber-400 bg-amber-50 text-amber-800'
+                    : segmentFilter === 'mixed'
+                    ? 'border-green-400 bg-green-50 text-green-800'
+                    : 'border-gray-300 text-gray-700'
+                }`}
+              >
+                <option value="">All Segments</option>
+                <option value="new">🔵 New (SO- orders only)</option>
+                <option value="legacy">🟡 Legacy (LEG- orders only)</option>
+                <option value="mixed">🟢 Converted (SO- &amp; LEG-)</option>
+              </select>
+              <div className="pointer-events-none absolute inset-y-0 right-2 flex items-center">
+                {segmentFilter === 'new' && <FaUsers className="text-blue-500" size={12} />}
+                {segmentFilter === 'legacy' && <FaGlobe className="text-amber-500" size={12} />}
+                {segmentFilter === 'mixed' && <FaExchangeAlt className="text-green-500" size={12} />}
+              </div>
+            </div>
+
             {/* Product search — Bengali + English */}
             <div className="xl:col-span-2">
               <ProductAutocomplete
@@ -425,6 +465,7 @@ const SalesManagerLeadAssignment = () => {
                       </th>
                       <th className="text-left py-3 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Name</th>
                       <th className="text-left py-3 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Phone</th>
+                      <th className="text-center py-3 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Segment</th>
                       <th className="text-center py-3 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Tier</th>
                       <th className="text-left py-3 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Assigned To</th>
                       <th className="text-center py-3 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Action</th>
@@ -451,6 +492,18 @@ const SalesManagerLeadAssignment = () => {
                           <div className="text-xs text-gray-400">#{lead.id}</div>
                         </td>
                         <td className="py-3 px-3 text-sm text-gray-700 whitespace-nowrap">{lead.phone || '—'}</td>
+                        <td className="py-3 px-3 text-center">
+                          {(() => {
+                            const seg = getSegment(lead);
+                            if (!seg) return <span className="text-gray-300 text-xs">—</span>;
+                            const Icon = seg.Icon;
+                            return (
+                              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${seg.className}`}>
+                                <Icon size={10} />{seg.label}
+                              </span>
+                            );
+                          })()}
+                        </td>
                         <td className="py-3 px-3 text-center">
                           {lead.tier ? (
                             <span className={`px-2 py-0.5 rounded-full text-xs font-medium capitalize ${TIER_COLORS[lead.tier] || 'bg-gray-100 text-gray-600'}`}>
