@@ -115,6 +115,8 @@ export class CrmTeamService {
     }
     qb.andWhere('c.is_active = true');
     qb.andWhere('c.phone IS NOT NULL');
+    qb.andWhere(`NOT EXISTS (SELECT 1 FROM customer_tiers ct WHERE ct.customer_id = c.id AND ct.tier = 'rejected')`);
+    qb.andWhere(`(c.customer_type IS NULL OR c.customer_type != 'rejected')`);
     return qb.getMany();
   }
 
@@ -1097,6 +1099,7 @@ export class CrmTeamService {
 
     // Exclude rejected customers
     qb.andWhere(`NOT EXISTS (SELECT 1 FROM customer_tiers ct WHERE ct.customer_id = c.id AND ct.tier = 'rejected')`);
+    qb.andWhere(`(c.customer_type IS NULL OR c.customer_type != 'rejected')`);
 
     // Search filter (name, email, phone, product_suggestion)
     if (search && search.trim()) {
@@ -1404,10 +1407,16 @@ export class CrmTeamService {
 
   async getEscalatedCustomers(teamLeaderId: number): Promise<Customer[]> {
     // Get customers marked for escalation
-    return await this.customerRepository.find({
-      where: { is_escalated: true, is_deleted: false, isActive: true },
-      order: { escalated_at: 'DESC' }
-    });
+    const qb = this.customerRepository.createQueryBuilder('c')
+      .where('c.is_escalated = :escalated', { escalated: true })
+      .andWhere('c.is_deleted = :deleted', { deleted: false })
+      .andWhere('c.is_active = :active', { active: true });
+    
+    qb.andWhere(`NOT EXISTS (SELECT 1 FROM customer_tiers ct WHERE ct.customer_id = c.id AND ct.tier = 'rejected')`);
+    qb.andWhere(`(c.customer_type IS NULL OR c.customer_type != 'rejected')`);
+    
+    qb.orderBy('c.escalated_at', 'DESC');
+    return await qb.getMany();
   }
 
   // ==================== ANALYTICS ====================

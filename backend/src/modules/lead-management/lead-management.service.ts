@@ -636,10 +636,8 @@ export class LeadManagementService {
       : '';
 
     // Rejected customers are only accessible from the Rejected Customers sub-module.
-    // Exclude them from general list unless explicitly filtering for rejected.
-    const excludeRejected = filters.tier !== 'rejected'
-      ? `AND NOT EXISTS (SELECT 1 FROM customer_tiers ct_rej WHERE ct_rej.customer_id = c.id AND ct_rej.tier = 'rejected')`
-      : '';
+    // Exclude them from general list unconditionally (double-guard).
+    const excludeRejected = `AND NOT EXISTS (SELECT 1 FROM customer_tiers ct_rej WHERE ct_rej.customer_id = c.id AND ct_rej.tier = 'rejected') AND (c.customer_type IS NULL OR c.customer_type != 'rejected')`;
 
     // First, get total count for stats (before pagination)
     const statsQuery = `
