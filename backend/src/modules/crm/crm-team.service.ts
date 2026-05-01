@@ -350,9 +350,11 @@ export class CrmTeamService {
     qb.where('c.is_deleted = false');
     qb.andWhere('c.is_active = true');
 
-    // Exclude rejected customers (double-guard: both customer_tiers table and direct column)
-    qb.andWhere(`NOT EXISTS (SELECT 1 FROM customer_tiers ct WHERE ct.customer_id = c.id AND ct.tier = 'rejected')`);
-    qb.andWhere(`(c.customer_type IS NULL OR c.customer_type != 'rejected')`);
+    // Exclude rejected customers unless explicitly filtering for them
+    if (customerType !== 'rejected') {
+      qb.andWhere(`NOT EXISTS (SELECT 1 FROM customer_tiers ct WHERE ct.customer_id = c.id AND ct.tier = 'rejected')`);
+      qb.andWhere(`(c.customer_type IS NULL OR c.customer_type != 'rejected')`);
+    }
 
     // Only customers who have at least one delivered order
     qb.andWhere(
@@ -518,9 +520,11 @@ export class CrmTeamService {
     const countQb = this.customerRepository.createQueryBuilder('c');
     countQb.where('c.is_deleted = false');
     countQb.andWhere('c.is_active = true');
-    // Exclude rejected customers (double-guard: both customer_tiers table and direct column)
-    countQb.andWhere(`NOT EXISTS (SELECT 1 FROM customer_tiers ct WHERE ct.customer_id = c.id AND ct.tier = 'rejected')`);
-    countQb.andWhere(`(c.customer_type IS NULL OR c.customer_type != 'rejected')`);
+    // Exclude rejected customers unless explicitly filtering for them
+    if (customerType !== 'rejected') {
+      countQb.andWhere(`NOT EXISTS (SELECT 1 FROM customer_tiers ct WHERE ct.customer_id = c.id AND ct.tier = 'rejected')`);
+      countQb.andWhere(`(c.customer_type IS NULL OR c.customer_type != 'rejected')`);
+    }
     // Only customers who have at least one delivered order
     countQb.andWhere(
       `EXISTS (SELECT 1 FROM sales_orders so WHERE so.customer_id = c.id AND LOWER(so.status::text) = 'delivered')`,

@@ -330,6 +330,7 @@ const SalesManagerLeadAssignment = () => {
               <option value="gold">Gold</option>
               <option value="platinum">Platinum</option>
               <option value="vip">VIP</option>
+              <option value="rejected">Rejected</option>
             </select>
 
             {/* Lifecycle filter */}

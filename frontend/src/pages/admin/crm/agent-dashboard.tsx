@@ -1148,6 +1148,7 @@ export default function AgentDashboard() {
                   <option value="platinum">Platinum</option>
                   <option value="vip">VIP</option>
                   <option value="repeat">Repeat</option>
+                  <option value="rejected">Rejected</option>
                 </select>
               </div>
               <div className="w-40">
