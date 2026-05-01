@@ -579,11 +579,10 @@ export default function LeadAssignmentPage() {
                 <option value="platinum">Platinum</option>
                 <option value="vip">VIP</option>
                 <option value="repeat">Repeat</option>
-                <option value="rejected">Rejected</option>
               </select>
             </div>
 
-            {/* Purchase Stage (Repeat) */}
+            {/* Purchase Stage (Repeat) */
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Purchase Stage</label>
               <select

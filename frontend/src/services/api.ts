@@ -1120,6 +1120,55 @@ export const inventoryAuditTrail = {
   },
 };
 
+// ── Packaging Configs ─────────────────────────────
+
+export const packagingConfigs = {
+  async list(sourceProductId?: number) {
+    const res = await apiClient.get('/inventory/repack/configs', { params: sourceProductId ? { source_product_id: sourceProductId } : {} });
+    return Array.isArray(res.data) ? res.data : [];
+  },
+  async create(dto: any) {
+    const res = await apiClient.post('/inventory/repack/configs', dto);
+    return res.data;
+  },
+  async update(id: number, dto: any) {
+    const res = await apiClient.put(`/inventory/repack/configs/${id}`, dto);
+    return res.data;
+  },
+  async remove(id: number) {
+    await apiClient.delete(`/inventory/repack/configs/${id}`);
+  },
+};
+
+// ── Repack Orders ─────────────────────────────────
+
+export const repackOrders = {
+  async list(filters?: { status?: string; warehouse_id?: number }) {
+    const res = await apiClient.get('/inventory/repack/orders', { params: filters });
+    return Array.isArray(res.data) ? res.data : [];
+  },
+  async get(id: number) {
+    const res = await apiClient.get(`/inventory/repack/orders/${id}`);
+    return res.data;
+  },
+  async create(dto: any) {
+    const res = await apiClient.post('/inventory/repack/orders', dto);
+    return res.data;
+  },
+  async start(id: number) {
+    const res = await apiClient.post(`/inventory/repack/orders/${id}/start`);
+    return res.data;
+  },
+  async complete(id: number, dto: any) {
+    const res = await apiClient.post(`/inventory/repack/orders/${id}/complete`, dto);
+    return res.data;
+  },
+  async cancel(id: number) {
+    const res = await apiClient.post(`/inventory/repack/orders/${id}/cancel`);
+    return res.data;
+  },
+};
+
 // ── Phase 6: Warehouse Map ────────────────────────
 
 export const warehouseMap = {
