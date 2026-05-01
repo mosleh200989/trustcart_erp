@@ -212,6 +212,14 @@ export class SalesManagerService {
         '(SELECT ct.tier FROM customer_tiers ct WHERE ct.customer_id = c.id LIMIT 1)',
         'tier',
       )
+      .addSelect(
+        `(SELECT COUNT(*)::int FROM sales_orders so WHERE so.customer_id = c.id AND so.sales_order_number LIKE 'SO-%')`,
+        'so_count',
+      )
+      .addSelect(
+        `(SELECT COUNT(*)::int FROM sales_orders so WHERE so.customer_id = c.id AND so.sales_order_number LIKE 'LEG-%')`,
+        'leg_count',
+      )
       // Only customers who have at least one delivered order
       .andWhere(
         `c.id IN (SELECT so.customer_id FROM sales_orders so WHERE LOWER(so.status::text) = 'delivered')`,
@@ -298,6 +306,8 @@ export class SalesManagerService {
     const items = entities.map((entity, i) => ({
       ...entity,
       tier: raw[i]?.tier ?? null,
+      soCount: Number(raw[i]?.so_count ?? 0),
+      legCount: Number(raw[i]?.leg_count ?? 0),
     }));
 
     return { items, total, page, limit, totalPages: Math.ceil(total / limit) };
