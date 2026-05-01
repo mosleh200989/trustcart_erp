@@ -81,6 +81,7 @@ export default function LeadAssignmentPage() {
   const [customerTypeFilter, setCustomerTypeFilter] = useState('');
   const [purchaseStageFilter, setPurchaseStageFilter] = useState('');
   const [productNameFilter, setProductNameFilter] = useState('');
+  const [orderSegmentFilter, setOrderSegmentFilter] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [page, setPage] = useState(1);
@@ -139,7 +140,7 @@ export default function LeadAssignmentPage() {
     setSelectedLeadIds(new Set());
     loadLeads();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [assignmentStatus, debouncedSearchTerm, agentFilter, customerTypeFilter, purchaseStageFilter, productNameFilter, dateFrom, dateTo, page, limit]);
+  }, [assignmentStatus, debouncedSearchTerm, agentFilter, customerTypeFilter, purchaseStageFilter, productNameFilter, orderSegmentFilter, dateFrom, dateTo, page, limit]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -191,6 +192,7 @@ export default function LeadAssignmentPage() {
       if (customerTypeFilter) params.customerType = customerTypeFilter;
       if (purchaseStageFilter) params.purchaseStage = purchaseStageFilter;
       if (productNameFilter) params.productName = productNameFilter;
+      if (orderSegmentFilter) params.orderSegment = orderSegmentFilter;
       if (dateFrom) params.dateFrom = dateFrom;
       if (dateTo) params.dateTo = dateTo;
 
@@ -378,6 +380,7 @@ export default function LeadAssignmentPage() {
     setCustomerTypeFilter('');
     setPurchaseStageFilter('');
     setProductNameFilter('');
+    setOrderSegmentFilter('');
     setDateFrom('');
     setDateTo('');
     setAssignmentStatus('unassigned');
@@ -599,6 +602,24 @@ export default function LeadAssignmentPage() {
                 <option value="repeat_3">Repeat-3</option>
                 <option value="regular">Regular (4-7)</option>
                 <option value="permanent">Permanent (8+)</option>
+              </select>
+            </div>
+
+            {/* Customer Segment */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Customer Segment</label>
+              <select
+                value={orderSegmentFilter}
+                onChange={(e) => {
+                  setOrderSegmentFilter(e.target.value);
+                  setPage(1);
+                }}
+                className="w-full border rounded-lg px-3 py-2"
+              >
+                <option value="">All Segments</option>
+                <option value="new">New (SO- orders only)</option>
+                <option value="legacy">Legacy (LEG- orders only)</option>
+                <option value="mixed">Converted (both SO- &amp; LEG-)</option>
               </select>
             </div>
 

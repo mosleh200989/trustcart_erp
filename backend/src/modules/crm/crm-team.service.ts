@@ -319,6 +319,7 @@ export class CrmTeamService {
       sortBy = 'created_at',
       sortOrder = 'DESC',
       productName,
+      orderSegment,       // 'new' (SO- only) | 'legacy' (LEG- only) | 'mixed' (both)
       filterTeamLeaderId, // admin-only: filter leads by a specific team leader
     } = query;
     
@@ -349,8 +350,9 @@ export class CrmTeamService {
     qb.where('c.is_deleted = false');
     qb.andWhere('c.is_active = true');
 
-    // Exclude rejected customers
+    // Exclude rejected customers (double-guard: both customer_tiers table and direct column)
     qb.andWhere(`NOT EXISTS (SELECT 1 FROM customer_tiers ct WHERE ct.customer_id = c.id AND ct.tier = 'rejected')`);
+    qb.andWhere(`(c.customer_type IS NULL OR c.customer_type != 'rejected')`);
 
     // Only customers who have at least one delivered order
     qb.andWhere(
@@ -449,6 +451,21 @@ export class CrmTeamService {
       );
     }
 
+    // Order segment filter (SO-/LEG- based)
+    if (orderSegment === 'new') {
+      // Only SO- orders, no LEG-
+      qb.andWhere(`EXISTS (SELECT 1 FROM sales_orders so WHERE so.customer_id = c.id AND so.sales_order_number LIKE 'SO-%')`);
+      qb.andWhere(`NOT EXISTS (SELECT 1 FROM sales_orders so WHERE so.customer_id = c.id AND so.sales_order_number LIKE 'LEG-%')`);
+    } else if (orderSegment === 'legacy') {
+      // Only LEG- orders, no SO-
+      qb.andWhere(`EXISTS (SELECT 1 FROM sales_orders so WHERE so.customer_id = c.id AND so.sales_order_number LIKE 'LEG-%')`);
+      qb.andWhere(`NOT EXISTS (SELECT 1 FROM sales_orders so WHERE so.customer_id = c.id AND so.sales_order_number LIKE 'SO-%')`);
+    } else if (orderSegment === 'mixed') {
+      // Has both SO- and LEG- orders
+      qb.andWhere(`EXISTS (SELECT 1 FROM sales_orders so WHERE so.customer_id = c.id AND so.sales_order_number LIKE 'SO-%')`);
+      qb.andWhere(`EXISTS (SELECT 1 FROM sales_orders so WHERE so.customer_id = c.id AND so.sales_order_number LIKE 'LEG-%')`);
+    }
+
     // Search filter
     if (search && search.trim()) {
       const searchTerm = `%${search.trim().toLowerCase()}%`;
@@ -501,8 +518,9 @@ export class CrmTeamService {
     const countQb = this.customerRepository.createQueryBuilder('c');
     countQb.where('c.is_deleted = false');
     countQb.andWhere('c.is_active = true');
-    // Exclude rejected customers
+    // Exclude rejected customers (double-guard: both customer_tiers table and direct column)
     countQb.andWhere(`NOT EXISTS (SELECT 1 FROM customer_tiers ct WHERE ct.customer_id = c.id AND ct.tier = 'rejected')`);
+    countQb.andWhere(`(c.customer_type IS NULL OR c.customer_type != 'rejected')`);
     // Only customers who have at least one delivered order
     countQb.andWhere(
       `EXISTS (SELECT 1 FROM sales_orders so WHERE so.customer_id = c.id AND LOWER(so.status::text) = 'delivered')`,
@@ -589,6 +607,17 @@ export class CrmTeamService {
         )`,
         { pName },
       );
+    }
+    // Order segment filter for count
+    if (orderSegment === 'new') {
+      countQb.andWhere(`EXISTS (SELECT 1 FROM sales_orders so WHERE so.customer_id = c.id AND so.sales_order_number LIKE 'SO-%')`);
+      countQb.andWhere(`NOT EXISTS (SELECT 1 FROM sales_orders so WHERE so.customer_id = c.id AND so.sales_order_number LIKE 'LEG-%')`);
+    } else if (orderSegment === 'legacy') {
+      countQb.andWhere(`EXISTS (SELECT 1 FROM sales_orders so WHERE so.customer_id = c.id AND so.sales_order_number LIKE 'LEG-%')`);
+      countQb.andWhere(`NOT EXISTS (SELECT 1 FROM sales_orders so WHERE so.customer_id = c.id AND so.sales_order_number LIKE 'SO-%')`);
+    } else if (orderSegment === 'mixed') {
+      countQb.andWhere(`EXISTS (SELECT 1 FROM sales_orders so WHERE so.customer_id = c.id AND so.sales_order_number LIKE 'SO-%')`);
+      countQb.andWhere(`EXISTS (SELECT 1 FROM sales_orders so WHERE so.customer_id = c.id AND so.sales_order_number LIKE 'LEG-%')`);
     }
     if (dateFrom) {
       countQb.andWhere(
