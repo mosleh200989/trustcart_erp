@@ -9,6 +9,7 @@ import ElegantTemplate from '@/components/landing-pages/ElegantTemplate';
 import GheeTemplate from '@/components/landing-pages/GheeTemplate';
 import PickleTemplate from '@/components/landing-pages/PickleTemplate';
 import SpecialEventTemplate from '@/components/landing-pages/SpecialEventTemplate';
+import FreeOfferTemplate from '@/components/landing-pages/FreeOfferTemplate';
 
 interface LandingPageSection {
   id: string;
@@ -381,6 +382,11 @@ export default function LandingPagePublic() {
   // ─── Template Routing: Render Special Event template if selected ───
   if (page.template === 'special-event') {
     return <SpecialEventTemplate page={page} trafficSource="landing_page" />;
+  }
+
+  // ─── Template Routing: Render Free Offer template if selected ───
+  if (page.template === 'free-offer') {
+    return <FreeOfferTemplate page={page} trafficSource="landing_page" />;
   }
 
   const visibleSections = (page.sections || [])

@@ -640,7 +640,7 @@ export default function LandingPageEditor() {
       {/* Template Selector */}
       <div className="bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-xl p-4">
         <label className="block text-sm font-semibold text-gray-800 mb-2">Page Template</label>
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-3">
           <div
             onClick={() => setForm((prev) => ({ ...prev, template: 'classic' }))}
             className={`cursor-pointer border-2 rounded-xl p-4 transition-all ${
@@ -744,6 +744,27 @@ export default function LandingPageEditor() {
               <div className="h-1 flex-1 rounded bg-gradient-to-r from-red-600 to-yellow-500"></div>
               <div className="h-1 flex-1 rounded bg-gradient-to-r from-red-500 to-yellow-400"></div>
               <div className="h-1 flex-1 rounded bg-gradient-to-r from-red-400 to-yellow-300"></div>
+            </div>
+          </div>
+          <div
+            onClick={() => setForm((prev) => ({ ...prev, template: 'free-offer' }))}
+            className={`cursor-pointer border-2 rounded-xl p-4 transition-all ${
+              form.template === 'free-offer'
+                ? 'border-yellow-500 bg-white shadow-md ring-2 ring-yellow-200'
+                : 'border-gray-200 bg-white hover:border-gray-300'
+            }`}
+          >
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-10 h-10 bg-gradient-to-br from-yellow-500 to-yellow-700 rounded-lg flex items-center justify-center text-white font-bold text-lg">F</div>
+              <div>
+                <div className="font-semibold text-gray-800">Free Offer</div>
+                <div className="text-xs text-gray-500">Dark high-converting offer theme</div>
+              </div>
+            </div>
+            <div className="flex gap-1">
+              <div className="h-1 flex-1 rounded bg-gradient-to-r from-yellow-600 to-yellow-500"></div>
+              <div className="h-1 flex-1 rounded bg-gradient-to-r from-yellow-500 to-yellow-400"></div>
+              <div className="h-1 flex-1 rounded bg-gradient-to-r from-yellow-400 to-yellow-300"></div>
             </div>
           </div>
         </div>
