@@ -84,6 +84,21 @@ export default function Document() {
           }}
         />
         {/* End Meta Pixel - Now managed by host-specific GTM */}
+        {/* Global AddToCart Tracker for Custom Landing Pages */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `function trackCart(){
+              var priceElement = document.getElementById('price');
+              var price = priceElement ? Number(priceElement.value) : 0;
+              var h = window.location.hostname;
+              if (h === 'herbolin.com' || h === 'www.herbolin.com') {
+                if (window.fbq) fbq('trackSingle', '1433976858485362', 'AddToCart', { value: price, currency: 'BDT' });
+              } else {
+                if (window.fbq) fbq('track', 'AddToCart', { value: price, currency: 'BDT' });
+              }
+            }`,
+          }}
+        />
       </Head>
       <body>
         <Main />
