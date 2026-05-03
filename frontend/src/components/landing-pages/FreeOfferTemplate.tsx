@@ -1,0 +1,794 @@
+import { useState, useRef, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/router';
+import Head from 'next/head';
+import apiClient from '@/services/api';
+import PhoneInput from '@/components/PhoneInput';
+import InternationalPhoneInput from '@/components/InternationalPhoneInput';
+import { useToast } from '@/contexts/ToastContext';
+import {
+  FaPhone,
+  FaShoppingCart,
+  FaMinus,
+  FaPlus,
+  FaCheckCircle,
+  FaClock,
+} from 'react-icons/fa';
+
+interface LandingPageSection {
+  id: string;
+  type: 'hero' | 'benefits' | 'images' | 'trust' | 'order-form' | 'cta' | 'custom-html';
+  title?: string;
+  content?: string;
+  items?: Array<{ icon?: string; text: string }>;
+  images?: string[];
+  buttonText?: string;
+  buttonLink?: string;
+  backgroundColor?: string;
+  textColor?: string;
+  order: number;
+  is_visible: boolean;
+}
+
+interface LandingPageProduct {
+  id: string;
+  name: string;
+  description?: string;
+  image_url?: string;
+  price: number;
+  compare_price?: number;
+  qty?: number;
+  product_id?: number;
+  is_default: boolean;
+  is_featured?: boolean;
+  featured_label?: string;
+}
+
+interface LandingPageData {
+  id: number;
+  title: string;
+  slug: string;
+  description: string;
+  hero_image_url: string;
+  hero_title: string;
+  hero_subtitle: string;
+  hero_button_text: string;
+  primary_color: string;
+  secondary_color: string;
+  background_color: string;
+  meta_title: string;
+  meta_description: string;
+  og_image_url: string;
+  sections: LandingPageSection[];
+  products: LandingPageProduct[];
+  phone_number: string;
+  whatsapp_number: string;
+  show_order_form: boolean;
+  cash_on_delivery: boolean;
+  free_delivery: boolean;
+  delivery_charge: number;
+  delivery_charge_outside: number;
+  delivery_note: string;
+}
+
+interface OrderItem {
+  product: LandingPageProduct;
+  quantity: number;
+}
+
+interface FreeOfferTemplateProps {
+  page: LandingPageData;
+  trafficSource?: string;
+  isInternational?: boolean;
+}
+
+export default function FreeOfferTemplate({ page, trafficSource = 'landing_page', isInternational = false }: FreeOfferTemplateProps) {
+  const orderFormRef = useRef<HTMLDivElement>(null);
+  const toast = useToast();
+
+  // Order form state
+  const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
+  const [orderForm, setOrderForm] = useState({
+    name: '',
+    phone: '',
+    address: '',
+    note: '',
+  });
+  const [deliveryZone, setDeliveryZone] = useState<'inside' | 'outside'>('outside');
+  const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  const [formTouched, setFormTouched] = useState(false);
+  
+  // Urgency Timer State (15 mins countdown)
+  const [timeLeft, setTimeLeft] = useState(15 * 60);
+
+  // Incomplete order tracking
+  const sessionIdRef = useRef<string>('');
+  const trackingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hasTrackedRef = useRef(false);
+
+  useEffect(() => {
+    sessionIdRef.current = `lp_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+  }, []);
+
+  // Timer countdown
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setTimeLeft((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const formatTime = (seconds: number) => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  };
+
+  // Debounced tracker
+  const trackIncompleteOrder = useCallback(
+    (stage: string) => {
+      if (!page || submitted) return;
+      const hasAnyData = orderForm.name || orderForm.phone || orderForm.address;
+      if (!hasAnyData) return;
+
+      if (trackingTimerRef.current) clearTimeout(trackingTimerRef.current);
+
+      trackingTimerRef.current = setTimeout(() => {
+        const subtotal = orderItems.reduce((s, i) => s + i.product.price * i.quantity, 0);
+        apiClient
+          .post('/lead-management/incomplete-order/track', {
+            sessionId: sessionIdRef.current,
+            name: orderForm.name || null,
+            phone: orderForm.phone || null,
+            address: orderForm.address || null,
+            note: orderForm.note || null,
+            email: null,
+            source: trafficSource,
+            landingPageId: page.id,
+            landingPageSlug: page.slug,
+            landingPageTitle: page.title,
+            abandonedStage: stage,
+            deliveryZone,
+            totalAmount: subtotal,
+            cartData: orderItems.map((i) => ({
+              product_id: i.product.product_id || null,
+              name: i.product.name,
+              price: i.product.price,
+              quantity: i.quantity,
+              image_url: i.product.image_url || null,
+            })),
+            referrerUrl: window.location.href,
+            userAgent: navigator.userAgent,
+          })
+          .catch(() => {});
+        hasTrackedRef.current = true;
+      }, 2000);
+    },
+    [page, orderForm, orderItems, deliveryZone, submitted, trafficSource],
+  );
+
+  useEffect(() => {
+    if (!page || submitted) return;
+    const stage = orderForm.name && orderForm.phone && orderForm.address
+      ? 'form_filled'
+      : orderForm.phone
+        ? 'phone_entered'
+        : orderForm.name
+          ? 'name_entered'
+          : 'form_started';
+    trackIncompleteOrder(stage);
+  }, [orderForm.name, orderForm.phone, orderForm.address, orderForm.note, deliveryZone, trackIncompleteOrder]);
+
+  // Auto-detect Dhaka in address and set delivery zone
+  useEffect(() => {
+    const addr = orderForm.address.toLowerCase();
+    if (addr.includes('dhaka') || addr.includes('ঢাকা')) {
+      setDeliveryZone('inside');
+    } else if (addr.length > 10 && !addr.includes('dhaka') && !addr.includes('ঢাকা')) {
+      setDeliveryZone('outside');
+    }
+  }, [orderForm.address]);
+
+  useEffect(() => {
+    if (!page || submitted || !hasTrackedRef.current) return;
+    trackIncompleteOrder('product_changed');
+  }, [orderItems]);
+
+  // Initialize order items with default product
+  useEffect(() => {
+    if (page.products?.length > 0) {
+      const defaultProduct = page.products.find((p) => p.is_default) || page.products[0];
+      setOrderItems([{ product: defaultProduct, quantity: 1 }]);
+    }
+  }, [page]);
+
+  const scrollToOrderForm = () => {
+    orderFormRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  const updateQuantity = (productId: string, delta: number) => {
+    setOrderItems((prev) =>
+      prev.map((item) =>
+        item.product.id === productId
+          ? { ...item, quantity: Math.max(1, item.quantity + delta) }
+          : item
+      )
+    );
+  };
+
+  const toggleProduct = (product: LandingPageProduct) => {
+    setOrderItems([{ product, quantity: 1 }]);
+  };
+
+  const getSubtotal = () => orderItems.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
+
+  const getDeliveryCharge = () => {
+    if (page.free_delivery) return 0;
+    return deliveryZone === 'inside'
+      ? Number(page.delivery_charge || 0)
+      : Number(page.delivery_charge_outside || 0);
+  };
+
+  const getTotal = () => getSubtotal() + getDeliveryCharge();
+
+  const isBdPhoneValid = () => {
+    if (!orderForm.phone) return false;
+    if (isInternational) return orderForm.phone.replace(/\D/g, '').length >= 7;
+    const digits = orderForm.phone.replace(/^\+?88/, '').replace(/\D/g, '');
+    return digits.length === 11 && digits.startsWith('0');
+  };
+
+  const handleSubmitOrder = async () => {
+    setFormTouched(true);
+    if (!orderForm.name || !orderForm.phone || !orderForm.address) {
+      toast.warning('অনুগ্রহ করে সব তথ্য পূরণ করুন');
+      return;
+    }
+    if (!isBdPhoneValid()) {
+      toast.warning(isInternational ? 'Please enter a valid phone number' : 'ফোন নম্বর অবশ্যই 0 দিয়ে শুরু হতে হবে এবং ১১ ডিজিট হতে হবে');
+      return;
+    }
+    if (orderItems.length === 0) {
+      toast.warning('অনুগ্রহ করে একটি প্রোডাক্ট নির্বাচন করুন');
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      const subtotal = getSubtotal();
+      const deliveryCharge = getDeliveryCharge();
+      const total = subtotal + deliveryCharge;
+
+      const orderPayload = {
+        customer_name: orderForm.name,
+        customer_phone: orderForm.phone,
+        shipping_address: orderForm.address,
+        notes: orderForm.note || '',
+        payment_method: 'cash',
+        items: orderItems.map((item) => {
+          const productQty = item.product.qty || 1;
+          const effectiveQty = item.quantity * productQty;
+          const perUnitPrice = item.product.price / productQty;
+          return {
+            product_id: item.product.product_id || null,
+            product_name: item.product.name,
+            product_image: item.product.image_url || null,
+            quantity: effectiveQty,
+            unit_price: perUnitPrice,
+            total_price: perUnitPrice * effectiveQty,
+          };
+        }),
+        subtotal,
+        delivery_charge: deliveryCharge,
+        total_amount: total,
+        status: 'processing',
+        order_source: 'landing_page',
+        traffic_source: trafficSource,
+        referrer_url: window.location.href,
+        utm_source: page.slug,
+        utm_medium: 'landing_page',
+        utm_campaign: page.title,
+      };
+      const res = await apiClient.post('/sales', orderPayload);
+      const savedOrderId = res.data?.id || res.data?.data?.id;
+
+      apiClient.post(`/landing-pages/${page.id}/increment-order`).catch(() => {});
+
+      if (savedOrderId && sessionIdRef.current && page.id) {
+        apiClient.post('/lead-management/incomplete-order/converted', {
+          sessionId: sessionIdRef.current,
+          landingPageId: page.id,
+          landingPageSlug: page.slug,
+          orderId: savedOrderId,
+        }).catch(() => {});
+      }
+
+      if (savedOrderId) {
+        window.location.href = `/thank-you?orderId=${savedOrderId}`;
+        return;
+      } else {
+        setSubmitted(true);
+        toast.success('আপনার অর্ডারটি সফলভাবে গ্রহণ করা হয়েছে! ধন্যবাদ।');
+      }
+    } catch (err: any) {
+      console.error('Order submission error:', err);
+      const status = err?.response?.status;
+      const savedId = err?.response?.data?.id || err?.response?.data?.data?.id;
+      if (savedId) {
+        apiClient.post(`/landing-pages/${page?.id}/increment-order`).catch(() => {});
+        if (sessionIdRef.current && page?.id) {
+          apiClient.post('/lead-management/incomplete-order/converted', {
+            sessionId: sessionIdRef.current,
+            landingPageId: page.id,
+            landingPageSlug: page.slug,
+            orderId: savedId,
+          }).catch(() => {});
+        }
+        window.location.href = `/thank-you?orderId=${savedId}`;
+        return;
+      }
+      if (status && status >= 500) {
+        setSubmitted(true);
+        toast.success('আপনার অর্ডারটি গ্রহণ করা হয়েছে! শীঘ্রই আমরা আপনার সাথে যোগাযোগ করবো।');
+      } else {
+        toast.error('অর্ডার জমা দিতে সমস্যা হয়েছে। আবার চেষ্টা করুন।');
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const visibleSections = (page.sections || [])
+    .filter((s) => s.is_visible)
+    .sort((a, b) => a.order - b.order);
+
+  return (
+    <>
+      <Head>
+        <title>{page.meta_title || page.title}</title>
+        {page.meta_description && <meta name="description" content={page.meta_description} />}
+        {page.og_image_url && <meta property="og:image" content={page.og_image_url} />}
+        <meta property="og:title" content={page.meta_title || page.title} />
+        <meta property="og:description" content={page.meta_description || page.description} />
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&display=swap" rel="stylesheet" />
+      </Head>
+
+      <style jsx global>{`
+        .free-offer-landing * {
+          font-family: 'Hind Siliguri', sans-serif;
+        }
+        @keyframes pulseAlert {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.8; }
+        }
+        .urgent-pulse {
+          animation: pulseAlert 2s infinite;
+        }
+        .gold-gradient-text {
+          background: linear-gradient(to right, #F5D76E, #FFD700, #F5D76E);
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+        }
+        .dark-glass {
+          background: rgba(26, 26, 46, 0.85);
+          backdrop-filter: blur(10px);
+          border: 1px solid rgba(255, 215, 0, 0.15);
+        }
+      `}</style>
+
+      <div className="min-h-screen free-offer-landing" style={{ backgroundColor: '#0B0C10', color: '#E2E2E2' }}>
+        
+        {/* Sticky Urgency Bar Removed */}
+
+        {/* ═══════════════ HERO SECTION ═══════════════ */}
+        <div className="relative pt-12 pb-16 px-4">
+          <div className="max-w-4xl mx-auto text-center">
+            <h1 className="text-3xl sm:text-4xl md:text-5xl font-extrabold mb-6 leading-tight">
+              {page.hero_title || page.title}
+            </h1>
+            
+            {page.hero_subtitle && (
+              <p
+                className="text-lg sm:text-xl md:text-2xl mb-8 leading-relaxed font-medium"
+                style={{ color: '#F5D76E' }}
+                dangerouslySetInnerHTML={{ __html: page.hero_subtitle }}
+              />
+            )}
+
+            {page.hero_image_url && (
+              <div className="mb-10 relative inline-block">
+                <div className="absolute inset-0 bg-yellow-400 rounded-2xl blur-xl opacity-20"></div>
+                <img
+                  src={page.hero_image_url}
+                  alt={page.title}
+                  className="relative w-full max-w-lg mx-auto rounded-2xl shadow-[0_0_40px_rgba(255,215,0,0.15)] border border-[#FFD700]/30"
+                />
+              </div>
+            )}
+
+            {page.hero_button_text && (
+              <button
+                onClick={scrollToOrderForm}
+                className="group relative inline-flex items-center justify-center gap-3 px-8 sm:px-12 py-4 rounded-full text-xl md:text-2xl font-extrabold shadow-[0_0_20px_rgba(255,215,0,0.3)] hover:shadow-[0_0_30px_rgba(255,215,0,0.5)] transform hover:-translate-y-1 transition-all duration-300 bg-gradient-to-r from-yellow-400 to-yellow-600 text-black border-2 border-yellow-300"
+              >
+                <FaShoppingCart />
+                {page.hero_button_text}
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* ═══════════════ DYNAMIC SECTIONS ═══════════════ */}
+        {visibleSections.map((section, sIdx) => (
+          <div key={section.id} className="py-12 px-4 border-t border-gray-800">
+            <div className="max-w-4xl mx-auto">
+              
+              {section.type === 'hero' && (
+                <div className="text-center bg-[#15161C] p-8 rounded-2xl border border-gray-800 shadow-2xl mb-8">
+                  {section.title && (
+                    <h2 className="text-2xl md:text-4xl font-extrabold mb-4 text-white">
+                      {section.title}
+                    </h2>
+                  )}
+                  {section.content && (
+                    <p className="text-lg text-gray-300 mb-6 max-w-2xl mx-auto leading-relaxed">
+                      {section.content}
+                    </p>
+                  )}
+                  {section.buttonText && (
+                    <button
+                      onClick={scrollToOrderForm}
+                      className="px-10 py-4 rounded-full text-xl font-bold bg-gradient-to-r from-yellow-400 to-yellow-600 hover:from-yellow-500 hover:to-yellow-700 text-black shadow-lg transition-all"
+                    >
+                      {section.buttonText}
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {section.type === 'images' && (
+                <div className="mb-8">
+                  {section.title && (
+                    <h2 className="text-2xl md:text-3xl font-bold mb-6 text-center text-yellow-500">{section.title}</h2>
+                  )}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {(section.images || []).map((img, idx) => (
+                      <div key={idx} className="relative rounded-2xl overflow-hidden border border-gray-700 shadow-xl group">
+                        <img src={img} alt={`${page.title} image ${idx + 1}`} className="w-full h-auto object-cover transform group-hover:scale-105 transition-all duration-500" />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {section.type === 'benefits' && (
+                <div>
+                  {section.title && (
+                    <h2 className="text-2xl md:text-3xl font-bold mb-8 text-center text-white">{section.title}</h2>
+                  )}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {(section.items || []).map((item, idx) => (
+                      <div key={idx} className="flex items-start gap-4 p-5 rounded-xl dark-glass">
+                        <div className="text-2xl mt-1 text-yellow-400 drop-shadow-md">
+                          {item.icon || '✅'}
+                        </div>
+                        <p className="text-base sm:text-lg leading-relaxed text-gray-200 font-medium">
+                          {item.text}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                  {section.buttonText && (
+                    <div className="text-center mt-10">
+                      <button
+                        onClick={scrollToOrderForm}
+                        className="px-8 py-3 rounded-full text-lg font-bold bg-green-600 hover:bg-green-500 text-white shadow-lg transition-all"
+                      >
+                        {section.buttonText}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {section.type === 'trust' && (
+                <div className="bg-[#15161C] p-8 rounded-2xl border border-gray-800 shadow-2xl">
+                  {section.title && (
+                    <h2 className="text-2xl md:text-3xl font-bold mb-6 text-center text-yellow-500">{section.title}</h2>
+                  )}
+                  <div className="space-y-4">
+                    {(section.items || []).map((item, idx) => (
+                      <div key={idx} className="flex items-center gap-3">
+                        <FaCheckCircle className="text-green-500 text-xl flex-shrink-0" />
+                        <span className="text-lg text-gray-300">{item.text}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {section.type === 'cta' && (
+                <div className="text-center p-10 rounded-2xl bg-gradient-to-b from-[#1a1a2e] to-[#0f0f1a] border border-gray-800">
+                  {section.title && (
+                    <h2 className="text-2xl md:text-4xl font-extrabold mb-4 gold-gradient-text">{section.title}</h2>
+                  )}
+                  {section.content && (
+                    <p className="text-lg text-gray-300 mb-8 max-w-2xl mx-auto">{section.content}</p>
+                  )}
+                  {section.buttonText && (
+                    <button
+                      onClick={scrollToOrderForm}
+                      className="px-10 py-4 rounded-full text-xl font-bold bg-red-600 hover:bg-red-500 text-white shadow-[0_0_20px_rgba(220,38,38,0.5)] transition-all"
+                    >
+                      {section.buttonText}
+                    </button>
+                  )}
+                </div>
+              )}
+
+            </div>
+          </div>
+        ))}
+
+        {/* ═══════════════ ORDER FORM SECTION ═══════════════ */}
+        {page.show_order_form && (
+          <div ref={orderFormRef} className="py-16 px-4 bg-[#0a0a0f] border-t border-gray-800">
+            <div className="max-w-4xl mx-auto dark-glass p-6 sm:p-10 rounded-2xl shadow-2xl">
+              
+              {submitted ? (
+                <div className="text-center py-12">
+                  <FaCheckCircle className="text-green-500 text-6xl mx-auto mb-4" />
+                  <h2 className="text-2xl font-bold text-white mb-2">আপনার অর্ডার সফলভাবে গ্রহণ করা হয়েছে!</h2>
+                  <p className="text-gray-400">আমরা শীঘ্রই আপনার সাথে যোগাযোগ করব।</p>
+                </div>
+              ) : (
+                <>
+                  <div className="text-center mb-8">
+                    <h2 className="text-2xl sm:text-3xl font-extrabold text-white mb-3">
+                      বিলিং এবং শিপিং তথ্য
+                    </h2>
+                    <p className="text-gray-400">অর্ডার কনফার্ম করতে নিচের ফর্মটি সঠিক তথ্য দিয়ে পূরণ করুন</p>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-5 gap-8">
+                    {/* Left: Form Fields */}
+                    <div className="md:col-span-3 space-y-6">
+                      
+                      {/* Product Selection */}
+                      <div className="bg-[#15161C] p-5 rounded-xl border border-gray-700">
+                        <h3 className="font-semibold text-white mb-4 text-lg border-b border-gray-700 pb-2">প্রোডাক্ট নির্বাচন করুন</h3>
+                        <div className="space-y-3">
+                          {(page.products || []).map((product) => {
+                            const orderItem = orderItems.find((i) => i.product.id === product.id);
+                            const isSelected = !!orderItem;
+                            const isFeatured = !!product.is_featured;
+                            const featuredLabel = product.featured_label || '🔥 বিশেষ অফার';
+                            return (
+                              <div
+                                key={product.id}
+                                className={`relative border-2 rounded-xl p-3 sm:p-4 cursor-pointer transition-all ${
+                                  isFeatured && !isSelected
+                                    ? 'border-yellow-600 bg-[#1f1a10] shadow-lg ring-1 ring-yellow-500/50'
+                                    : isSelected
+                                      ? 'border-green-500 bg-[#102416]'
+                                      : 'border-gray-700 hover:border-gray-500 bg-[#0B0C10]'
+                                }`}
+                                onClick={() => toggleProduct(product)}
+                              >
+                                {/* Featured badge */}
+                                {isFeatured && (
+                                  <div className="absolute -top-3 left-4 bg-gradient-to-r from-yellow-600 to-yellow-400 text-black text-xs font-bold px-3 py-1 rounded-full shadow-md">
+                                    {featuredLabel}
+                                  </div>
+                                )}
+                                <div className={`flex items-start gap-3 sm:gap-4 ${isFeatured ? 'mt-1' : ''}`}>
+                                  {product.image_url && (
+                                    <img
+                                      src={product.image_url}
+                                      alt={product.name}
+                                      className={`object-cover rounded-lg flex-shrink-0 ${
+                                        isFeatured ? 'w-16 h-16 sm:w-20 sm:h-20 ring-2 ring-yellow-500/50' : 'w-14 h-14 sm:w-16 sm:h-16'
+                                      }`}
+                                    />
+                                  )}
+                                  <div className="flex-1 min-w-0">
+                                    <div className={`font-semibold text-sm sm:text-base leading-tight ${
+                                      isFeatured ? 'text-yellow-400' : 'text-gray-200'
+                                    }`}>{product.name}</div>
+                                    {product.description && (
+                                      <div className="text-xs sm:text-sm text-gray-400 mt-0.5 leading-tight">{product.description}</div>
+                                    )}
+                                    <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mt-1.5">
+                                      {product.compare_price && product.compare_price > product.price && (
+                                        <span className="text-xs sm:text-sm line-through font-medium text-gray-500">
+                                          {product.compare_price.toLocaleString()} ৳
+                                        </span>
+                                      )}
+                                      <span className="text-base sm:text-xl font-extrabold px-2 py-0.5 rounded text-white bg-green-600/20 border border-green-500/30">
+                                        {product.price.toLocaleString()} ৳
+                                      </span>
+                                      {product.compare_price && product.compare_price > product.price && (
+                                        <span className="text-[10px] sm:text-xs font-bold text-red-400 bg-red-400/10 border border-red-400/20 px-1.5 sm:px-2 py-0.5 rounded-full">
+                                          {Math.round(((product.compare_price - product.price) / product.compare_price) * 100)}% OFF
+                                        </span>
+                                      )}
+                                    </div>
+                                    {isSelected && (
+                                      <div className="flex items-center gap-3 mt-3" onClick={(e) => e.stopPropagation()}>
+                                        <button
+                                          onClick={() => updateQuantity(product.id, -1)}
+                                          className="w-8 h-8 rounded-full bg-gray-800 text-gray-300 flex items-center justify-center hover:bg-gray-700 transition-colors border border-gray-600"
+                                        >
+                                          <FaMinus className="text-xs" />
+                                        </button>
+                                        <span className="w-8 text-center font-bold text-white text-lg">{orderItem!.quantity}</span>
+                                        <button
+                                          onClick={() => updateQuantity(product.id, 1)}
+                                          className="w-8 h-8 rounded-full bg-gray-800 text-gray-300 flex items-center justify-center hover:bg-gray-700 transition-colors border border-gray-600"
+                                        >
+                                          <FaPlus className="text-xs" />
+                                        </button>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Customer Info Form */}
+                      <div className="bg-[#15161C] p-5 rounded-xl border border-gray-700 space-y-4">
+                        <h3 className="font-semibold text-white mb-2 text-lg border-b border-gray-700 pb-2">ডেলিভারি ঠিকানা</h3>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-1">আপনার নাম *</label>
+                          <input
+                            type="text"
+                            value={orderForm.name}
+                            onChange={(e) => setOrderForm((prev) => ({ ...prev, name: e.target.value }))}
+                            className="w-full bg-[#1A1A24] border border-gray-700 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none transition-all"
+                            placeholder="আপনার সম্পূর্ণ নাম"
+                          />
+                        </div>
+                      
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-1">ফোন নাম্বার *</label>
+                          <div className="phone-dark-theme">
+                            <PhoneInput
+                              value={orderForm.phone}
+                              onChange={(val) => setOrderForm((prev) => ({ ...prev, phone: val }))}
+                              required
+                              placeholder="01XXXXXXXXX"
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-1">সম্পূর্ণ ঠিকানা *</label>
+                          <textarea
+                            value={orderForm.address}
+                            onChange={(e) => setOrderForm((prev) => ({ ...prev, address: e.target.value }))}
+                            className="w-full bg-[#1A1A24] border border-gray-700 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none transition-all"
+                            rows={3}
+                            placeholder="বাসা নং, রোড নং, এলাকা, থানা, জেলা"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Right: Order Summary */}
+                    <div className="md:col-span-2">
+                      <div className="bg-[#15161C] rounded-xl p-5 border border-gray-700 sticky top-24">
+                        <h3 className="font-bold text-lg text-white border-b border-gray-700 pb-3 mb-4">আপনার অর্ডার</h3>
+                        
+                        <div className="mb-4">
+                          {orderItems.map((item) => (
+                            <div key={item.product.id} className="flex justify-between items-center text-sm mb-3 text-gray-300">
+                              <span className="font-medium pr-2">
+                                {item.product.name} {item.quantity > 1 ? `× ${item.quantity}` : ''}
+                              </span>
+                              <span className="font-bold text-white whitespace-nowrap">
+                                ৳ {(item.product.price * item.quantity).toLocaleString()}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Delivery Zone Selector */}
+                        {!page.free_delivery && (Number(page.delivery_charge) > 0 || Number(page.delivery_charge_outside) > 0) && (
+                          <div className="mb-4">
+                            <label className="block text-sm font-medium text-gray-300 mb-2">ডেলিভারি এলাকা নির্বাচন করুন</label>
+                            <div className="flex gap-2">
+                              <button
+                                type="button"
+                                onClick={() => setDeliveryZone('inside')}
+                                className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium border-2 transition-all ${
+                                  deliveryZone === 'inside'
+                                    ? 'border-yellow-500 bg-yellow-500/10 text-yellow-400'
+                                    : 'border-gray-700 bg-[#0B0C10] text-gray-400 hover:border-gray-500'
+                                }`}
+                              >
+                                ঢাকার ভিতরে
+                                <div className="text-xs mt-0.5">
+                                  {Number(page.delivery_charge) === 0 ? (
+                                    <span className="text-green-500 font-semibold">ফ্রি</span>
+                                  ) : (
+                                    <span>{Number(page.delivery_charge).toLocaleString()} ৳</span>
+                                  )}
+                                </div>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setDeliveryZone('outside')}
+                                className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium border-2 transition-all ${
+                                  deliveryZone === 'outside'
+                                    ? 'border-yellow-500 bg-yellow-500/10 text-yellow-400'
+                                    : 'border-gray-700 bg-[#0B0C10] text-gray-400 hover:border-gray-500'
+                                }`}
+                              >
+                                ঢাকার বাইরে
+                                <div className="text-xs mt-0.5">
+                                  {Number(page.delivery_charge_outside) === 0 ? (
+                                    <span className="text-green-500 font-semibold">ফ্রি</span>
+                                  ) : (
+                                    <span>{Number(page.delivery_charge_outside).toLocaleString()} ৳</span>
+                                  )}
+                                </div>
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="border-t border-gray-700 pt-3 mt-2 space-y-2">
+                          <div className="flex justify-between text-sm text-gray-400">
+                            <span>সাবটোটাল</span>
+                            <span>৳ {getSubtotal()}</span>
+                          </div>
+                          <div className="flex justify-between text-sm text-gray-400">
+                            <span>ডেলিভারি চার্জ</span>
+                            <span>৳ {getDeliveryCharge()}</span>
+                          </div>
+                          <div className="flex justify-between text-lg font-bold text-yellow-400 pt-2 border-t border-gray-700">
+                            <span>সর্বমোট</span>
+                            <span>৳ {getTotal()}</span>
+                          </div>
+                        </div>
+
+                        <button
+                          onClick={handleSubmitOrder}
+                          disabled={submitting}
+                          className="w-full mt-6 py-4 rounded-lg font-bold text-lg bg-green-600 hover:bg-green-500 text-white shadow-lg disabled:opacity-50 transition-all flex justify-center items-center gap-2"
+                        >
+                          {submitting ? (
+                            <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                          ) : (
+                            <span className="flex items-center justify-center gap-2 flex-wrap">
+                              <FaCheckCircle className="flex-shrink-0" />
+                              <span>অর্ডার কনফার্ম করুন</span>
+                            </span>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="mt-8 text-center text-sm text-gray-500 flex justify-center items-center gap-2">
+                    <FaCheckCircle className="text-gray-400" /> পণ্য হাতে পেয়ে মূল্য পরিশোধ করুন (Cash on Delivery)
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Footer */}
+        <div className="py-6 text-center text-gray-500 text-sm border-t border-gray-900 bg-black">
+          &copy; {new Date().getFullYear()} TrustCart. All rights reserved.
+        </div>
+      </div>
+    </>
+  );
+}
