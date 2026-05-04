@@ -27,6 +27,8 @@ interface LandingPageSection {
   images?: string[];
   buttonText?: string;
   buttonLink?: string;
+  buttonColor?: string;
+  buttonTextColor?: string;
   backgroundColor?: string;
   textColor?: string;
   order: number;
@@ -66,6 +68,8 @@ interface LandingPageData {
   products: LandingPageProduct[];
   phone_number: string;
   whatsapp_number: string;
+  floating_whatsapp_color?: string;
+  floating_phone_color?: string;
   show_order_form: boolean;
   cash_on_delivery: boolean;
   free_delivery: boolean;
@@ -380,6 +384,30 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
 
   const primaryLight = adjustColor(page.primary_color, 40);
   const primaryDark = adjustColor(page.primary_color, -30);
+
+  const renderSectionButton = (section: LandingPageSection) => {
+    if (!section.buttonText) return null;
+    return (
+      <div className="mt-8 text-center w-full">
+        <a
+          href={section.buttonLink || '#'}
+          className="inline-block px-8 py-3.5 rounded-2xl font-extrabold text-white shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300"
+          style={{
+            backgroundColor: section.buttonColor || page.primary_color,
+            color: section.buttonTextColor || '#FFFFFF',
+          }}
+          onClick={(e) => {
+            if (section.buttonLink === '#order-form' || !section.buttonLink) {
+              e.preventDefault();
+              scrollToOrderForm();
+            }
+          }}
+        >
+          {section.buttonText}
+        </a>
+      </div>
+    );
+  };
 
   // Helper: render text with Bengali digits in a different font for better readability
   const renderBengaliText = (text: string) => {
@@ -790,6 +818,7 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
                       </div>
                     ))}
                   </div>
+                  {renderSectionButton(section)}
                 </div>
               </div>
             )}
@@ -823,16 +852,16 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
                         : 'grid-cols-1 sm:grid-cols-2'
                   }`}>
                     {(section.images || []).map((img, idx) => (
-                      <div key={idx} className="group relative overflow-hidden rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-500">
+                      <div key={idx} className="relative overflow-hidden rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-500">
                         <img
                           src={img}
                           alt={`${page.title} - ${idx + 1}`}
-                          className="w-full rounded-2xl transform group-hover:scale-105 transition-transform duration-700"
+                          className="w-full rounded-2xl"
                         />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 rounded-2xl" />
                       </div>
                     ))}
                   </div>
+                  {renderSectionButton(section)}
                 </div>
               </div>
             )}
@@ -870,18 +899,7 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
                       {section.content}
                     </p>
                   )}
-                  {section.buttonText && (
-                    <button
-                      onClick={scrollToOrderForm}
-                      className="group relative px-10 py-4 rounded-2xl text-lg font-bold shadow-xl hover:shadow-2xl transform hover:scale-105 transition-all duration-300 overflow-hidden"
-                      style={{
-                        background: `linear-gradient(135deg, ${section.textColor || page.secondary_color}, ${adjustColor(section.textColor || page.secondary_color, -15)})`,
-                        color: section.backgroundColor || page.primary_color,
-                      }}
-                    >
-                      <span className="relative z-10">{section.buttonText}</span>
-                    </button>
-                  )}
+                  {renderSectionButton(section)}
                 </div>
               </div>
             )}
@@ -912,6 +930,7 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
                       {section.content}
                     </p>
                   )}
+                  {renderSectionButton(section)}
                 </div>
               </div>
             )}
@@ -929,6 +948,9 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
                   className="max-w-4xl mx-auto prose prose-lg"
                   dangerouslySetInnerHTML={{ __html: section.content || '' }}
                 />
+                <div className="max-w-4xl mx-auto flex justify-center">
+                  {renderSectionButton(section)}
+                </div>
               </div>
             )}
           </div>
@@ -974,10 +996,10 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
 
         {/* ═══════════════ ORDER FORM ═══════════════ */}
         {page.show_order_form && (
-          <div ref={orderFormRef} className="py-16 md:py-20 px-4 sm:px-6">
+          <div ref={orderFormRef} className="py-10 md:py-14 px-4 sm:px-6">
             <div className="max-w-2xl mx-auto">
               {submitted ? (
-                <div className="text-center py-16">
+                <div className="text-center py-10">
                   <div
                     className="w-24 h-24 rounded-full mx-auto mb-6 flex items-center justify-center elegant-scale-in"
                     style={{ background: `linear-gradient(135deg, #22c55e, #16a34a)` }}
@@ -994,7 +1016,7 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
                 <div className="bg-white rounded-3xl shadow-2xl overflow-hidden border border-gray-100">
                   {/* Form header */}
                   <div
-                    className="px-6 py-5 text-center"
+                    className="px-4 py-4 text-center"
                     style={{
                       background: `linear-gradient(135deg, ${page.primary_color} 0%, ${primaryDark} 100%)`,
                     }}
@@ -1012,10 +1034,10 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
                     )}
                   </div>
 
-                  <div className="p-6 sm:p-8">
+                  <div className="p-4 sm:p-6">
                     {/* Product Selection */}
-                    <div className="mb-8">
-                      <h3 className="font-bold text-gray-800 mb-4 text-lg flex items-center gap-2">
+                    <div className="mb-6">
+                      <h3 className="font-bold text-gray-800 mb-3 text-lg flex items-center gap-2">
                         <span
                           className="w-7 h-7 rounded-full flex items-center justify-center text-white text-sm font-bold"
                           style={{ backgroundColor: page.primary_color }}
@@ -1056,7 +1078,7 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
                                 <div className="absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl" style={{ backgroundColor: page.primary_color }} />
                               )}
                               {isFeatured && (
-                                <div className="absolute -top-3 left-4 bg-gradient-to-r from-orange-500 to-red-500 text-white text-xs font-bold px-4 py-1 rounded-full shadow-lg">
+                                <div className="absolute -top-3 right-4 bg-gradient-to-r from-orange-500 to-red-500 text-white text-xs font-bold px-4 py-1 rounded-full shadow-lg">
                                   {featuredLabel}
                                 </div>
                               )}
@@ -1132,8 +1154,8 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
                     </div>
 
                     {/* Customer Info */}
-                    <div className="mb-8">
-                      <h3 className="font-bold text-gray-800 mb-4 text-lg flex items-center gap-2">
+                    <div className="mb-6">
+                      <h3 className="font-bold text-gray-800 mb-3 text-lg flex items-center gap-2">
                         <span
                           className="w-7 h-7 rounded-full flex items-center justify-center text-white text-sm font-bold"
                           style={{ backgroundColor: page.primary_color }}
@@ -1213,7 +1235,7 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
 
                     {/* Order Summary */}
                     <div>
-                      <h3 className="font-bold text-gray-800 mb-4 text-lg flex items-center gap-2">
+                      <h3 className="font-bold text-gray-800 mb-3 text-lg flex items-center gap-2">
                         <span
                           className="w-7 h-7 rounded-full flex items-center justify-center text-white text-sm font-bold"
                           style={{ backgroundColor: page.primary_color }}
@@ -1223,7 +1245,7 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
                         অর্ডার সামারি
                       </h3>
 
-                      <div className="bg-gray-50 rounded-2xl p-5 border border-gray-100">
+                      <div className="bg-gray-50 rounded-2xl p-4 border border-gray-100">
                         <div className="space-y-2 border-b border-gray-200 pb-3 mb-3">
                           {orderItems.map((item) => (
                             <div key={item.product.id} className="flex justify-between items-center text-sm">
@@ -1354,7 +1376,7 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
                         <button
                           onClick={handleSubmitOrder}
                           disabled={submitting || orderItems.length === 0}
-                          className="w-full mt-5 py-4 rounded-2xl font-extrabold text-white shadow-lg hover:shadow-xl transform hover:scale-[1.02] transition-all duration-300 disabled:opacity-50 disabled:transform-none flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2"
+                          className="w-full mt-4 py-3 rounded-2xl font-extrabold text-white shadow-lg hover:shadow-xl transform hover:scale-[1.02] transition-all duration-300 disabled:opacity-50 disabled:transform-none flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2"
                           style={{
                             background: `linear-gradient(135deg, ${page.primary_color} 0%, ${primaryDark} 100%)`,
                           }}
@@ -1389,7 +1411,10 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
               href={`https://wa.me/${page.whatsapp_number}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="w-14 h-14 bg-gradient-to-br from-green-400 to-green-600 text-white rounded-full flex items-center justify-center shadow-xl hover:shadow-2xl hover:scale-110 transition-all duration-300"
+              className="w-14 h-14 text-white rounded-full flex items-center justify-center shadow-xl hover:shadow-2xl hover:scale-110 transition-all duration-300"
+              style={{
+                backgroundColor: page.floating_whatsapp_color || '#25D366',
+              }}
             >
               <FaWhatsapp className="text-2xl" />
             </a>
@@ -1399,7 +1424,7 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
               href={`tel:${page.phone_number}`}
               className="w-14 h-14 rounded-full text-white flex items-center justify-center shadow-xl hover:shadow-2xl hover:scale-110 transition-all duration-300"
               style={{
-                background: `linear-gradient(135deg, ${page.primary_color}, ${primaryDark})`,
+                backgroundColor: page.floating_phone_color || '#FF6B35',
               }}
             >
               <FaPhone className="text-xl" />

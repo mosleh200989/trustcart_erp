@@ -352,6 +352,8 @@ interface LandingPageSection {
   images?: string[];
   buttonText?: string;
   buttonLink?: string;
+  buttonColor?: string;
+  buttonTextColor?: string;
   backgroundColor?: string;
   textColor?: string;
   order: number;
@@ -407,6 +409,8 @@ interface FormData {
   products: LandingPageProduct[];
   phone_number: string;
   whatsapp_number: string;
+  floating_whatsapp_color: string;
+  floating_phone_color: string;
   show_order_form: boolean;
   cash_on_delivery: boolean;
   free_delivery: boolean;
@@ -479,6 +483,8 @@ export default function LandingPageEditor() {
     products: [],
     phone_number: '',
     whatsapp_number: '',
+    floating_whatsapp_color: '#25D366',
+    floating_phone_color: '#FF6B35',
     show_order_form: true,
     cash_on_delivery: true,
     free_delivery: false,
@@ -1298,6 +1304,69 @@ export default function LandingPageEditor() {
                     )}
                   </div>
                 )}
+
+                {/* Optional Button for Section */}
+                <div className="mt-4 pt-4 border-t border-gray-100">
+                  <h4 className="text-sm font-medium text-gray-700 mb-2">Optional Button</h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-2">
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Button Text</label>
+                      <input
+                        type="text"
+                        value={section.buttonText || ''}
+                        onChange={(e) => updateSection(section.id, { buttonText: e.target.value })}
+                        className="w-full border rounded px-3 py-1.5 text-sm"
+                        placeholder="Leave empty to hide button"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Button Link</label>
+                      <input
+                        type="text"
+                        value={section.buttonLink || ''}
+                        onChange={(e) => updateSection(section.id, { buttonLink: e.target.value })}
+                        className="w-full border rounded px-3 py-1.5 text-sm"
+                        placeholder="#order-form or https://..."
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Button Color</label>
+                      <div className="flex gap-2">
+                        <input
+                          type="color"
+                          value={section.buttonColor || form.primary_color}
+                          onChange={(e) => updateSection(section.id, { buttonColor: e.target.value })}
+                          className="w-8 h-8 rounded cursor-pointer border"
+                        />
+                        <input
+                          type="text"
+                          value={section.buttonColor || form.primary_color}
+                          onChange={(e) => updateSection(section.id, { buttonColor: e.target.value })}
+                          className="flex-1 border rounded px-2 py-1 text-sm font-mono"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Button Text Color</label>
+                      <div className="flex gap-2">
+                        <input
+                          type="color"
+                          value={section.buttonTextColor || '#FFFFFF'}
+                          onChange={(e) => updateSection(section.id, { buttonTextColor: e.target.value })}
+                          className="w-8 h-8 rounded cursor-pointer border"
+                        />
+                        <input
+                          type="text"
+                          value={section.buttonTextColor || '#FFFFFF'}
+                          onChange={(e) => updateSection(section.id, { buttonTextColor: e.target.value })}
+                          className="flex-1 border rounded px-2 py-1 text-sm font-mono"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
           </div>
@@ -1628,6 +1697,40 @@ export default function LandingPageEditor() {
               className="w-full border rounded-lg px-3 py-2"
               placeholder="8801XXXXXXXXX"
             />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Phone Button Color</label>
+            <div className="flex gap-2">
+              <input
+                type="color"
+                value={form.floating_phone_color || '#FF6B35'}
+                onChange={(e) => setForm((prev) => ({ ...prev, floating_phone_color: e.target.value }))}
+                className="w-10 h-10 rounded cursor-pointer border"
+              />
+              <input
+                type="text"
+                value={form.floating_phone_color || '#FF6B35'}
+                onChange={(e) => setForm((prev) => ({ ...prev, floating_phone_color: e.target.value }))}
+                className="flex-1 border rounded-lg px-3 py-2"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">WhatsApp Button Color</label>
+            <div className="flex gap-2">
+              <input
+                type="color"
+                value={form.floating_whatsapp_color || '#25D366'}
+                onChange={(e) => setForm((prev) => ({ ...prev, floating_whatsapp_color: e.target.value }))}
+                className="w-10 h-10 rounded cursor-pointer border"
+              />
+              <input
+                type="text"
+                value={form.floating_whatsapp_color || '#25D366'}
+                onChange={(e) => setForm((prev) => ({ ...prev, floating_whatsapp_color: e.target.value }))}
+                className="flex-1 border rounded-lg px-3 py-2"
+              />
+            </div>
           </div>
         </div>
         <div className="mt-4 space-y-3">
