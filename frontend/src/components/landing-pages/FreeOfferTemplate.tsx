@@ -85,6 +85,26 @@ export default function FreeOfferTemplate({ page, trafficSource = 'landing_page'
   const orderFormRef = useRef<HTMLDivElement>(null);
   const toast = useToast();
 
+  // Dynamic theme colors from page data
+  const bgColor = page.background_color || '#0B0C10';
+  const primaryColor = page.primary_color || '#DC2626';
+  const secondaryColor = page.secondary_color || '#F5D76E';
+  // Derive a card background (slightly lighter than main bg)
+  const cardBg = (() => {
+    const hex = bgColor.replace('#', '');
+    const r = Math.min(255, parseInt(hex.substring(0, 2), 16) + 15);
+    const g = Math.min(255, parseInt(hex.substring(2, 4), 16) + 15);
+    const b = Math.min(255, parseInt(hex.substring(4, 6), 16) + 15);
+    return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+  })();
+  const cardBg2 = (() => {
+    const hex = bgColor.replace('#', '');
+    const r = Math.min(255, parseInt(hex.substring(0, 2), 16) + 25);
+    const g = Math.min(255, parseInt(hex.substring(2, 4), 16) + 25);
+    const b = Math.min(255, parseInt(hex.substring(4, 6), 16) + 25);
+    return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+  })();
+
   // Order form state
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
   const [orderForm, setOrderForm] = useState({
@@ -367,18 +387,18 @@ export default function FreeOfferTemplate({ page, trafficSource = 'landing_page'
           animation: pulseAlert 2s infinite;
         }
         .gold-gradient-text {
-          background: linear-gradient(to right, #F5D76E, #FFD700, #F5D76E);
+          background: linear-gradient(to right, ${secondaryColor}, ${secondaryColor}CC, ${secondaryColor});
           -webkit-background-clip: text;
           -webkit-text-fill-color: transparent;
         }
         .dark-glass {
-          background: rgba(26, 26, 46, 0.85);
+          background: ${bgColor}D9;
           backdrop-filter: blur(10px);
-          border: 1px solid rgba(255, 215, 0, 0.15);
+          border: 1px solid ${secondaryColor}26;
         }
       `}</style>
 
-      <div className="min-h-screen free-offer-landing" style={{ backgroundColor: '#0B0C10', color: '#E2E2E2' }}>
+      <div className="min-h-screen free-offer-landing" style={{ backgroundColor: bgColor, color: '#E2E2E2' }}>
         
         {/* Sticky Urgency Bar Removed */}
 
@@ -392,18 +412,18 @@ export default function FreeOfferTemplate({ page, trafficSource = 'landing_page'
             {page.hero_subtitle && (
               <p
                 className="text-lg sm:text-xl md:text-2xl mb-8 leading-relaxed font-medium"
-                style={{ color: '#F5D76E' }}
+                style={{ color: secondaryColor }}
                 dangerouslySetInnerHTML={{ __html: page.hero_subtitle }}
               />
             )}
 
             {page.hero_image_url && (
               <div className="mb-10 relative inline-block">
-                <div className="absolute inset-0 bg-yellow-400 rounded-2xl blur-xl opacity-20"></div>
+                <div className="absolute inset-0 rounded-2xl blur-xl opacity-20" style={{ backgroundColor: secondaryColor }}></div>
                 <img
                   src={page.hero_image_url}
                   alt={page.title}
-                  className="relative w-full max-w-lg mx-auto rounded-2xl shadow-[0_0_40px_rgba(255,215,0,0.15)] border border-[#FFD700]/30"
+                  className="relative w-full max-w-lg mx-auto rounded-2xl" style={{ boxShadow: `0 0 40px ${secondaryColor}26`, border: `1px solid ${secondaryColor}4D` }}
                 />
               </div>
             )}
@@ -411,7 +431,8 @@ export default function FreeOfferTemplate({ page, trafficSource = 'landing_page'
             {page.hero_button_text && (
               <button
                 onClick={scrollToOrderForm}
-                className="group relative inline-flex items-center justify-center gap-3 px-8 sm:px-12 py-4 rounded-full text-xl md:text-2xl font-extrabold shadow-[0_0_20px_rgba(255,215,0,0.3)] hover:shadow-[0_0_30px_rgba(255,215,0,0.5)] transform hover:-translate-y-1 transition-all duration-300 bg-gradient-to-r from-yellow-400 to-yellow-600 text-black border-2 border-yellow-300"
+                className="group relative inline-flex items-center justify-center gap-3 px-8 sm:px-12 py-4 rounded-full text-xl md:text-2xl font-extrabold transform hover:-translate-y-1 transition-all duration-300 text-black border-2"
+                style={{ background: `linear-gradient(to right, ${secondaryColor}, ${secondaryColor}CC)`, borderColor: secondaryColor, boxShadow: `0 0 20px ${secondaryColor}4D` }}
               >
                 <FaShoppingCart />
                 {page.hero_button_text}
@@ -426,7 +447,7 @@ export default function FreeOfferTemplate({ page, trafficSource = 'landing_page'
             <div className="max-w-4xl mx-auto">
               
               {section.type === 'hero' && (
-                <div className="text-center bg-[#15161C] p-8 rounded-2xl border border-gray-800 shadow-2xl mb-8">
+                <div className="text-center p-8 rounded-2xl border border-gray-800 shadow-2xl mb-8" style={{ backgroundColor: section.backgroundColor && section.backgroundColor !== 'transparent' ? section.backgroundColor : cardBg }}>
                   {section.title && (
                     <h2 className="text-2xl md:text-4xl font-extrabold mb-4 text-white">
                       {section.title}
@@ -440,7 +461,8 @@ export default function FreeOfferTemplate({ page, trafficSource = 'landing_page'
                   {section.buttonText && (
                     <button
                       onClick={scrollToOrderForm}
-                      className="px-10 py-4 rounded-full text-xl font-bold bg-gradient-to-r from-yellow-400 to-yellow-600 hover:from-yellow-500 hover:to-yellow-700 text-black shadow-lg transition-all"
+                      className="px-10 py-4 rounded-full text-xl font-bold text-black shadow-lg transition-all"
+                      style={{ background: `linear-gradient(to right, ${secondaryColor}, ${secondaryColor}CC)` }}
                     >
                       {section.buttonText}
                     </button>
@@ -451,7 +473,7 @@ export default function FreeOfferTemplate({ page, trafficSource = 'landing_page'
               {section.type === 'images' && (
                 <div className="mb-8">
                   {section.title && (
-                    <h2 className="text-2xl md:text-3xl font-bold mb-6 text-center text-yellow-500">{section.title}</h2>
+                    <h2 className="text-2xl md:text-3xl font-bold mb-6 text-center" style={{ color: section.textColor || secondaryColor }}>{section.title}</h2>
                   )}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {(section.images || []).map((img, idx) => (
@@ -494,9 +516,9 @@ export default function FreeOfferTemplate({ page, trafficSource = 'landing_page'
               )}
 
               {section.type === 'trust' && (
-                <div className="bg-[#15161C] p-8 rounded-2xl border border-gray-800 shadow-2xl">
+                <div className="p-8 rounded-2xl border border-gray-800 shadow-2xl" style={{ backgroundColor: section.backgroundColor && section.backgroundColor !== 'transparent' ? section.backgroundColor : cardBg }}>
                   {section.title && (
-                    <h2 className="text-2xl md:text-3xl font-bold mb-6 text-center text-yellow-500">{section.title}</h2>
+                    <h2 className="text-2xl md:text-3xl font-bold mb-6 text-center" style={{ color: section.textColor || secondaryColor }}>{section.title}</h2>
                   )}
                   <div className="space-y-4">
                     {(section.items || []).map((item, idx) => (
@@ -510,7 +532,7 @@ export default function FreeOfferTemplate({ page, trafficSource = 'landing_page'
               )}
 
               {section.type === 'cta' && (
-                <div className="text-center p-10 rounded-2xl bg-gradient-to-b from-[#1a1a2e] to-[#0f0f1a] border border-gray-800">
+                <div className="text-center p-10 rounded-2xl border border-gray-800" style={{ backgroundColor: section.backgroundColor && section.backgroundColor !== 'transparent' ? section.backgroundColor : cardBg }}>
                   {section.title && (
                     <h2 className="text-2xl md:text-4xl font-extrabold mb-4 gold-gradient-text">{section.title}</h2>
                   )}
@@ -520,7 +542,8 @@ export default function FreeOfferTemplate({ page, trafficSource = 'landing_page'
                   {section.buttonText && (
                     <button
                       onClick={scrollToOrderForm}
-                      className="px-10 py-4 rounded-full text-xl font-bold bg-red-600 hover:bg-red-500 text-white shadow-[0_0_20px_rgba(220,38,38,0.5)] transition-all"
+                      className="px-10 py-4 rounded-full text-xl font-bold text-white transition-all"
+                      style={{ backgroundColor: primaryColor, boxShadow: `0 0 20px ${primaryColor}80` }}
                     >
                       {section.buttonText}
                     </button>
@@ -534,7 +557,7 @@ export default function FreeOfferTemplate({ page, trafficSource = 'landing_page'
 
         {/* ═══════════════ ORDER FORM SECTION ═══════════════ */}
         {page.show_order_form && (
-          <div ref={orderFormRef} className="py-16 px-4 bg-[#0a0a0f] border-t border-gray-800">
+          <div ref={orderFormRef} className="py-16 px-4 border-t border-gray-800" style={{ backgroundColor: bgColor }}>
             <div className="max-w-4xl mx-auto dark-glass p-6 sm:p-10 rounded-2xl shadow-2xl">
               
               {submitted ? (
@@ -557,7 +580,7 @@ export default function FreeOfferTemplate({ page, trafficSource = 'landing_page'
                     <div className="md:col-span-3 space-y-6">
                       
                       {/* Product Selection */}
-                      <div className="bg-[#15161C] p-5 rounded-xl border border-gray-700">
+                      <div className="p-5 rounded-xl border border-gray-700" style={{ backgroundColor: cardBg }}>
                         <h3 className="font-semibold text-white mb-4 text-lg border-b border-gray-700 pb-2">প্রোডাক্ট নির্বাচন করুন</h3>
                         <div className="space-y-3">
                           {(page.products || []).map((product) => {
@@ -569,17 +592,21 @@ export default function FreeOfferTemplate({ page, trafficSource = 'landing_page'
                               <div
                                 key={product.id}
                                 className={`relative border-2 rounded-xl p-3 sm:p-4 cursor-pointer transition-all ${
-                                  isFeatured && !isSelected
-                                    ? 'border-yellow-600 bg-[#1f1a10] shadow-lg ring-1 ring-yellow-500/50'
-                                    : isSelected
-                                      ? 'border-green-500 bg-[#102416]'
-                                      : 'border-gray-700 hover:border-gray-500 bg-[#0B0C10]'
+                                  isSelected
+                                    ? 'border-green-500'
+                                    : isFeatured
+                                      ? 'shadow-lg'
+                                      : 'border-gray-700 hover:border-gray-500'
                                 }`}
+                                style={{
+                                  backgroundColor: isSelected ? '#102416' : isFeatured ? cardBg2 : bgColor,
+                                  borderColor: isSelected ? undefined : isFeatured ? secondaryColor : undefined,
+                                }}
                                 onClick={() => toggleProduct(product)}
                               >
                                 {/* Featured badge */}
                                 {isFeatured && (
-                                  <div className="absolute -top-3 left-4 bg-gradient-to-r from-yellow-600 to-yellow-400 text-black text-xs font-bold px-3 py-1 rounded-full shadow-md">
+                                  <div className="absolute -top-3 left-4 text-black text-xs font-bold px-3 py-1 rounded-full shadow-md" style={{ background: `linear-gradient(to right, ${secondaryColor}CC, ${secondaryColor})` }}>
                                     {featuredLabel}
                                   </div>
                                 )}
@@ -595,8 +622,8 @@ export default function FreeOfferTemplate({ page, trafficSource = 'landing_page'
                                   )}
                                   <div className="flex-1 min-w-0">
                                     <div className={`font-semibold text-sm sm:text-base leading-tight ${
-                                      isFeatured ? 'text-yellow-400' : 'text-gray-200'
-                                    }`}>{product.name}</div>
+                                      isFeatured ? '' : 'text-gray-200'
+                                    }`} style={isFeatured ? { color: secondaryColor } : undefined}>{product.name}</div>
                                     {product.description && (
                                       <div className="text-xs sm:text-sm text-gray-400 mt-0.5 leading-tight">{product.description}</div>
                                     )}
@@ -641,7 +668,7 @@ export default function FreeOfferTemplate({ page, trafficSource = 'landing_page'
                       </div>
 
                       {/* Customer Info Form */}
-                      <div className="bg-[#15161C] p-5 rounded-xl border border-gray-700 space-y-4">
+                      <div className="p-5 rounded-xl border border-gray-700 space-y-4" style={{ backgroundColor: cardBg }}>
                         <h3 className="font-semibold text-white mb-2 text-lg border-b border-gray-700 pb-2">ডেলিভারি ঠিকানা</h3>
                         <div>
                           <label className="block text-sm font-medium text-gray-300 mb-1">আপনার নাম *</label>
@@ -649,7 +676,8 @@ export default function FreeOfferTemplate({ page, trafficSource = 'landing_page'
                             type="text"
                             value={orderForm.name}
                             onChange={(e) => setOrderForm((prev) => ({ ...prev, name: e.target.value }))}
-                            className="w-full bg-[#1A1A24] border border-gray-700 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none transition-all"
+                            className="w-full border border-gray-700 rounded-lg px-4 py-3 text-white focus:ring-2 outline-none transition-all"
+                            style={{ backgroundColor: cardBg2, '--tw-ring-color': secondaryColor } as any}
                             placeholder="আপনার সম্পূর্ণ নাম"
                           />
                         </div>
@@ -671,7 +699,8 @@ export default function FreeOfferTemplate({ page, trafficSource = 'landing_page'
                           <textarea
                             value={orderForm.address}
                             onChange={(e) => setOrderForm((prev) => ({ ...prev, address: e.target.value }))}
-                            className="w-full bg-[#1A1A24] border border-gray-700 rounded-lg px-4 py-3 text-white focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none transition-all"
+                            className="w-full border border-gray-700 rounded-lg px-4 py-3 text-white focus:ring-2 outline-none transition-all"
+                            style={{ backgroundColor: cardBg2, '--tw-ring-color': secondaryColor } as any}
                             rows={3}
                             placeholder="বাসা নং, রোড নং, এলাকা, থানা, জেলা"
                           />
@@ -681,7 +710,7 @@ export default function FreeOfferTemplate({ page, trafficSource = 'landing_page'
 
                     {/* Right: Order Summary */}
                     <div className="md:col-span-2">
-                      <div className="bg-[#15161C] rounded-xl p-5 border border-gray-700 sticky top-24">
+                      <div className="rounded-xl p-5 border border-gray-700 sticky top-24" style={{ backgroundColor: cardBg }}>
                         <h3 className="font-bold text-lg text-white border-b border-gray-700 pb-3 mb-4">আপনার অর্ডার</h3>
                         
                         <div className="mb-4">
@@ -707,9 +736,13 @@ export default function FreeOfferTemplate({ page, trafficSource = 'landing_page'
                                 onClick={() => setDeliveryZone('inside')}
                                 className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium border-2 transition-all ${
                                   deliveryZone === 'inside'
-                                    ? 'border-yellow-500 bg-yellow-500/10 text-yellow-400'
-                                    : 'border-gray-700 bg-[#0B0C10] text-gray-400 hover:border-gray-500'
+                                    ? ''
+                                    : 'text-gray-400 hover:border-gray-500'
                                 }`}
+                                style={deliveryZone === 'inside'
+                                  ? { borderColor: secondaryColor, backgroundColor: `${secondaryColor}1A`, color: secondaryColor }
+                                  : { borderColor: '#374151', backgroundColor: bgColor }
+                                }
                               >
                                 ঢাকার ভিতরে
                                 <div className="text-xs mt-0.5">
@@ -725,9 +758,13 @@ export default function FreeOfferTemplate({ page, trafficSource = 'landing_page'
                                 onClick={() => setDeliveryZone('outside')}
                                 className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium border-2 transition-all ${
                                   deliveryZone === 'outside'
-                                    ? 'border-yellow-500 bg-yellow-500/10 text-yellow-400'
-                                    : 'border-gray-700 bg-[#0B0C10] text-gray-400 hover:border-gray-500'
+                                    ? ''
+                                    : 'text-gray-400 hover:border-gray-500'
                                 }`}
+                                style={deliveryZone === 'outside'
+                                  ? { borderColor: secondaryColor, backgroundColor: `${secondaryColor}1A`, color: secondaryColor }
+                                  : { borderColor: '#374151', backgroundColor: bgColor }
+                                }
                               >
                                 ঢাকার বাইরে
                                 <div className="text-xs mt-0.5">
@@ -751,7 +788,7 @@ export default function FreeOfferTemplate({ page, trafficSource = 'landing_page'
                             <span>ডেলিভারি চার্জ</span>
                             <span>৳ {getDeliveryCharge()}</span>
                           </div>
-                          <div className="flex justify-between text-lg font-bold text-yellow-400 pt-2 border-t border-gray-700">
+                          <div className="flex justify-between text-lg font-bold pt-2 border-t border-gray-700" style={{ color: secondaryColor }}>
                             <span>সর্বমোট</span>
                             <span>৳ {getTotal()}</span>
                           </div>
