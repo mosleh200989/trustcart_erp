@@ -15,6 +15,8 @@ export interface LandingPageSection {
   images?: string[];
   buttonText?: string;
   buttonLink?: string;
+  buttonColor?: string;
+  buttonTextColor?: string;
   backgroundColor?: string;
   textColor?: string;
   order: number;
@@ -117,6 +119,12 @@ export class LandingPage {
 
   @Column({ length: 255, nullable: true })
   whatsapp_number!: string;
+
+  @Column({ length: 50, default: '#25D366' })
+  floating_whatsapp_color!: string;
+
+  @Column({ length: 50, default: '#FF6B35' })
+  floating_phone_color!: string;
 
   @Column({ type: 'boolean', default: true })
   show_order_form!: boolean;
