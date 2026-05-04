@@ -392,6 +392,7 @@ interface FormData {
   template: string;
   hero_layout: string;
   show_hero_price: boolean;
+  hero_subtitle_position: string;
   hero_image_url: string;
   hero_title: string;
   hero_subtitle: string;
@@ -452,6 +453,10 @@ export default function LandingPageEditor() {
   const [saving, setSaving] = useState(false);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
 
+  // Drag-and-drop state for sections
+  const [draggedSectionId, setDraggedSectionId] = useState<string | null>(null);
+  const [dragOverSectionId, setDragOverSectionId] = useState<string | null>(null);
+
   const [form, setForm] = useState<FormData>({
     title: '',
     slug: '',
@@ -459,6 +464,7 @@ export default function LandingPageEditor() {
     template: 'classic',
     hero_layout: 'image-first',
     show_hero_price: true,
+    hero_subtitle_position: 'above-image',
     hero_image_url: '',
     hero_title: '',
     hero_subtitle: '',
@@ -583,6 +589,57 @@ export default function LandingPageEditor() {
       [newSections[idx], newSections[swapIdx]] = [newSections[swapIdx], newSections[idx]];
       return { ...prev, sections: newSections.map((s, i) => ({ ...s, order: i + 1 })) };
     });
+  };
+
+  // Drag-and-drop handlers for sections
+  const handleDragStart = (e: React.DragEvent, sectionId: string) => {
+    setDraggedSectionId(sectionId);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', sectionId);
+    // Make the drag image semi-transparent
+    if (e.currentTarget instanceof HTMLElement) {
+      e.currentTarget.style.opacity = '0.5';
+    }
+  };
+
+  const handleDragEnd = (e: React.DragEvent) => {
+    setDraggedSectionId(null);
+    setDragOverSectionId(null);
+    if (e.currentTarget instanceof HTMLElement) {
+      e.currentTarget.style.opacity = '1';
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent, sectionId: string) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (sectionId !== draggedSectionId) {
+      setDragOverSectionId(sectionId);
+    }
+  };
+
+  const handleDragLeave = () => {
+    setDragOverSectionId(null);
+  };
+
+  const handleDrop = (e: React.DragEvent, targetSectionId: string) => {
+    e.preventDefault();
+    if (!draggedSectionId || draggedSectionId === targetSectionId) {
+      setDraggedSectionId(null);
+      setDragOverSectionId(null);
+      return;
+    }
+    setForm((prev) => {
+      const newSections = [...prev.sections];
+      const dragIdx = newSections.findIndex((s) => s.id === draggedSectionId);
+      const dropIdx = newSections.findIndex((s) => s.id === targetSectionId);
+      if (dragIdx === -1 || dropIdx === -1) return prev;
+      const [draggedSection] = newSections.splice(dragIdx, 1);
+      newSections.splice(dropIdx, 0, draggedSection);
+      return { ...prev, sections: newSections.map((s, i) => ({ ...s, order: i + 1 })) };
+    });
+    setDraggedSectionId(null);
+    setDragOverSectionId(null);
   };
 
   const addSectionItem = (sectionId: string) => {
@@ -889,6 +946,40 @@ export default function LandingPageEditor() {
           </div>
         </div>
 
+        {/* Subtitle Position — only visible when Title First */}
+        {form.hero_layout === 'title-first' && (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+            <label className="block text-sm font-semibold text-gray-700 mb-2">Subtitle Position (Title First layout)</label>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setForm((prev) => ({ ...prev, hero_subtitle_position: 'above-image' }))}
+                className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium border-2 transition-all flex items-center justify-center gap-2 ${
+                  form.hero_subtitle_position === 'above-image'
+                    ? 'border-blue-500 bg-blue-100 text-blue-700'
+                    : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
+                }`}
+              >
+                <span>⬆️</span>
+                <span>Subtitle Above Image</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setForm((prev) => ({ ...prev, hero_subtitle_position: 'below-image' }))}
+                className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium border-2 transition-all flex items-center justify-center gap-2 ${
+                  form.hero_subtitle_position === 'below-image'
+                    ? 'border-blue-500 bg-blue-100 text-blue-700'
+                    : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
+                }`}
+              >
+                <span>⬇️</span>
+                <span>Subtitle Below Image</span>
+              </button>
+            </div>
+            <p className="text-xs text-gray-400 mt-1">When &quot;Title First&quot; is selected, choose where the subtitle text appears relative to the hero image</p>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <ImageUploadField
@@ -1020,15 +1111,39 @@ export default function LandingPageEditor() {
           No sections yet. Add a section from the dropdown above.
         </div>
       ) : (
-        form.sections.map((section) => (
-          <div key={section.id} className={`border rounded-lg ${section.is_visible ? 'bg-white' : 'bg-gray-50 opacity-60'}`}>
+        form.sections.map((section, sectionIndex) => (
+          <div
+            key={section.id}
+            draggable
+            onDragStart={(e) => handleDragStart(e, section.id)}
+            onDragEnd={handleDragEnd}
+            onDragOver={(e) => handleDragOver(e, section.id)}
+            onDragLeave={handleDragLeave}
+            onDrop={(e) => handleDrop(e, section.id)}
+            className={`border rounded-lg transition-all duration-200 ${
+              section.is_visible ? 'bg-white' : 'bg-gray-50 opacity-60'
+            } ${
+              draggedSectionId === section.id ? 'opacity-50 scale-[0.98]' : ''
+            } ${
+              dragOverSectionId === section.id && draggedSectionId !== section.id
+                ? 'ring-2 ring-blue-400 ring-offset-2 border-blue-400'
+                : ''
+            }`}
+          >
+            {/* Drop indicator line */}
+            {dragOverSectionId === section.id && draggedSectionId !== section.id && (
+              <div className="h-0.5 bg-blue-500 rounded-full mx-2 -mt-px" />
+            )}
             {/* Section Header */}
             <div
-              className="flex items-center justify-between px-4 py-3 bg-gray-50 rounded-t-lg cursor-pointer"
+              className="flex items-center justify-between px-4 py-3 bg-gray-50 rounded-t-lg cursor-pointer select-none"
               onClick={() => toggleExpanded(section.id)}
             >
               <div className="flex items-center gap-3">
-                <FaGripVertical className="text-gray-400" />
+                <div className="cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600 p-1 -ml-1" title="Drag to reorder">
+                  <FaGripVertical />
+                </div>
+                <span className="text-xs font-bold text-gray-400 w-5 text-center">{sectionIndex + 1}</span>
                 <span className="text-xs font-medium bg-blue-100 text-blue-700 px-2 py-0.5 rounded">
                   {SECTION_TYPES.find((t) => t.value === section.type)?.label || section.type}
                 </span>
@@ -1549,32 +1664,91 @@ export default function LandingPageEditor() {
         {!form.free_delivery && (
           <div className="mt-4 p-4 bg-orange-50 border border-orange-200 rounded-lg">
             <h4 className="text-sm font-semibold text-orange-800 mb-3">Delivery Charge Settings</h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Inside Dhaka (৳)</label>
+
+            {/* Same / Different toggle */}
+            <div className="flex items-center gap-3 mb-4">
+              <label className="text-sm font-medium text-gray-700">Charge Type:</label>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    // When switching to same, sync outside to inside value
+                    setForm((prev) => ({ ...prev, delivery_charge_outside: prev.delivery_charge }));
+                  }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium border-2 transition-all ${
+                    Number(form.delivery_charge) === Number(form.delivery_charge_outside)
+                      ? 'border-orange-500 bg-orange-100 text-orange-700'
+                      : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
+                  }`}
+                >
+                  Same Everywhere
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    // When switching to different, set outside to a higher default if they're the same
+                    if (Number(form.delivery_charge) === Number(form.delivery_charge_outside)) {
+                      setForm((prev) => ({ ...prev, delivery_charge_outside: prev.delivery_charge + 50 }));
+                    }
+                  }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium border-2 transition-all ${
+                    Number(form.delivery_charge) !== Number(form.delivery_charge_outside)
+                      ? 'border-orange-500 bg-orange-100 text-orange-700'
+                      : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
+                  }`}
+                >
+                  Inside / Outside Dhaka
+                </button>
+              </div>
+            </div>
+
+            {Number(form.delivery_charge) === Number(form.delivery_charge_outside) ? (
+              /* Same charge — single input */
+              <div className="max-w-xs">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Delivery Charge (৳)</label>
                 <input
                   type="number"
                   min="0"
                   step="1"
                   value={form.delivery_charge}
-                  onChange={(e) => setForm((prev) => ({ ...prev, delivery_charge: Number(e.target.value) || 0 }))}
+                  onChange={(e) => {
+                    const val = Number(e.target.value) || 0;
+                    setForm((prev) => ({ ...prev, delivery_charge: val, delivery_charge_outside: val }));
+                  }}
                   className="w-full border rounded-lg px-3 py-2"
-                  placeholder="e.g. 80"
+                  placeholder="e.g. 100"
                 />
+                <p className="text-xs text-gray-500 mt-1">Same delivery charge for all areas</p>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Outside Dhaka (৳)</label>
-                <input
-                  type="number"
-                  min="0"
-                  step="1"
-                  value={form.delivery_charge_outside}
-                  onChange={(e) => setForm((prev) => ({ ...prev, delivery_charge_outside: Number(e.target.value) || 0 }))}
-                  className="w-full border rounded-lg px-3 py-2"
-                  placeholder="e.g. 130"
-                />
+            ) : (
+              /* Different charges — two inputs */
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Inside Dhaka (৳)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={form.delivery_charge}
+                    onChange={(e) => setForm((prev) => ({ ...prev, delivery_charge: Number(e.target.value) || 0 }))}
+                    className="w-full border rounded-lg px-3 py-2"
+                    placeholder="e.g. 80"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Outside Dhaka (৳)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={form.delivery_charge_outside}
+                    onChange={(e) => setForm((prev) => ({ ...prev, delivery_charge_outside: Number(e.target.value) || 0 }))}
+                    className="w-full border rounded-lg px-3 py-2"
+                    placeholder="e.g. 130"
+                  />
+                </div>
               </div>
-            </div>
+            )}
             <p className="text-xs text-gray-500 mt-2">Set to 0 for free delivery in that zone. These charges will be shown to the customer on the landing page.</p>
           </div>
         )}
