@@ -5,6 +5,7 @@ import apiClient from '@/services/api';
 import PhoneInput from '@/components/PhoneInput';
 import InternationalPhoneInput from '@/components/InternationalPhoneInput';
 import { useToast } from '@/contexts/ToastContext';
+import CrossSellSuggestion from '@/components/landing-pages/CrossSellSuggestion';
 import {
   FaPhone,
   FaShoppingCart,
@@ -68,6 +69,16 @@ interface LandingPageData {
   delivery_charge: number;
   delivery_charge_outside: number;
   delivery_note: string;
+  cross_sell_product?: {
+    name: string;
+    description?: string;
+    image_url?: string;
+    price: number;
+    compare_price?: number;
+    product_id?: number;
+    badge_text?: string;
+    suggestion_text?: string;
+  } | null;
 }
 
 interface OrderItem {
@@ -117,6 +128,7 @@ export default function FreeOfferTemplate({ page, trafficSource = 'landing_page'
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [formTouched, setFormTouched] = useState(false);
+  const [crossSellChecked, setCrossSellChecked] = useState(false);
   
   // Urgency Timer State (15 mins countdown)
   const [timeLeft, setTimeLeft] = useState(15 * 60);
@@ -240,7 +252,13 @@ export default function FreeOfferTemplate({ page, trafficSource = 'landing_page'
     setOrderItems([{ product, quantity: 1 }]);
   };
 
-  const getSubtotal = () => orderItems.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
+  const getSubtotal = () => {
+    let sub = orderItems.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
+    if (crossSellChecked && page.cross_sell_product) {
+      sub += page.cross_sell_product.price;
+    }
+    return sub;
+  };
 
   const getDeliveryCharge = () => {
     if (page.free_delivery) return 0;
@@ -285,19 +303,29 @@ export default function FreeOfferTemplate({ page, trafficSource = 'landing_page'
         shipping_address: orderForm.address,
         notes: orderForm.note || '',
         payment_method: 'cash',
-        items: orderItems.map((item) => {
-          const productQty = item.product.qty || 1;
-          const effectiveQty = item.quantity * productQty;
-          const perUnitPrice = item.product.price / productQty;
-          return {
-            product_id: item.product.product_id || null,
-            product_name: item.product.name,
-            product_image: item.product.image_url || null,
-            quantity: effectiveQty,
-            unit_price: perUnitPrice,
-            total_price: perUnitPrice * effectiveQty,
-          };
-        }),
+        items: [
+          ...orderItems.map((item) => {
+            const productQty = item.product.qty || 1;
+            const effectiveQty = item.quantity * productQty;
+            const perUnitPrice = item.product.price / productQty;
+            return {
+              product_id: item.product.product_id || null,
+              product_name: item.product.name,
+              product_image: item.product.image_url || null,
+              quantity: effectiveQty,
+              unit_price: perUnitPrice,
+              total_price: perUnitPrice * effectiveQty,
+            };
+          }),
+          ...(crossSellChecked && page.cross_sell_product ? [{
+            product_id: page.cross_sell_product.product_id || null,
+            product_name: page.cross_sell_product.name,
+            product_image: page.cross_sell_product.image_url || null,
+            quantity: 1,
+            unit_price: page.cross_sell_product.price,
+            total_price: page.cross_sell_product.price,
+          }] : []),
+        ],
         subtotal,
         delivery_charge: deliveryCharge,
         total_amount: total,
@@ -555,6 +583,17 @@ export default function FreeOfferTemplate({ page, trafficSource = 'landing_page'
           </div>
         ))}
 
+        {/* ═══════════════ CROSS-SELL SUGGESTION ═══════════════ */}
+        {page.cross_sell_product && page.cross_sell_product.name && (
+          <CrossSellSuggestion
+            product={page.cross_sell_product}
+            isChecked={crossSellChecked}
+            onToggle={setCrossSellChecked}
+            theme="dark"
+            accentColor={secondaryColor}
+          />
+        )}
+
         {/* ═══════════════ ORDER FORM SECTION ═══════════════ */}
         {page.show_order_form && (
           <div ref={orderFormRef} className="py-16 px-4 border-t border-gray-800" style={{ backgroundColor: bgColor }}>
@@ -724,6 +763,16 @@ export default function FreeOfferTemplate({ page, trafficSource = 'landing_page'
                               </span>
                             </div>
                           ))}
+                          {crossSellChecked && page.cross_sell_product && (
+                            <div className="flex justify-between items-center text-sm mb-3 text-green-400">
+                              <span className="font-medium pr-2 flex items-center gap-1">
+                                🎁 {page.cross_sell_product.name}
+                              </span>
+                              <span className="font-bold whitespace-nowrap">
+                                ৳ {page.cross_sell_product.price.toLocaleString()}
+                              </span>
+                            </div>
+                          )}
                         </div>
 
                         {/* Delivery Zone Selector */}

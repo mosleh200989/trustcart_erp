@@ -374,6 +374,17 @@ interface LandingPageProduct {
   featured_label?: string;
 }
 
+interface CrossSellProductData {
+  name: string;
+  description?: string;
+  image_url?: string;
+  price: number;
+  compare_price?: number;
+  product_id?: number;
+  badge_text?: string;
+  suggestion_text?: string;
+}
+
 interface FormData {
   title: string;
   slug: string;
@@ -402,6 +413,7 @@ interface FormData {
   is_active: boolean;
   start_date: string;
   end_date: string;
+  cross_sell_product: CrossSellProductData | null;
 }
 
 const SECTION_TYPES = [
@@ -466,6 +478,7 @@ export default function LandingPageEditor() {
     is_active: true,
     start_date: '',
     end_date: '',
+    cross_sell_product: null,
   });
 
   useEffect(() => {
@@ -1255,6 +1268,156 @@ export default function LandingPageEditor() {
           </div>
         ))
       )}
+
+      {/* ─── Cross-Sell Product Suggestion ─── */}
+      <div className="mt-8 border-t pt-6">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="text-lg font-semibold flex items-center gap-2">
+              🎁 Cross-Sell Product Suggestion
+            </h3>
+            <p className="text-sm text-gray-500 mt-1">
+              Add an optional product suggestion with a checkbox. When checked by the customer, it gets added to their order.
+            </p>
+          </div>
+          {form.cross_sell_product ? (
+            <button
+              onClick={() => setForm((prev) => ({ ...prev, cross_sell_product: null }))}
+              className="text-red-500 hover:text-red-700 text-sm flex items-center gap-1 px-3 py-1.5 border border-red-200 rounded-lg hover:bg-red-50 transition"
+            >
+              <FaTrash className="text-xs" /> Remove
+            </button>
+          ) : (
+            <button
+              onClick={() => setForm((prev) => ({
+                ...prev,
+                cross_sell_product: {
+                  name: '',
+                  description: '',
+                  image_url: '',
+                  price: 0,
+                  compare_price: 0,
+                  badge_text: '🎁 সাথে নিন',
+                  suggestion_text: 'এটিও সাথে নিতে চাই',
+                },
+              }))}
+              className="bg-green-600 text-white px-3 py-2 rounded-lg text-sm flex items-center gap-1 hover:bg-green-700 transition"
+            >
+              <FaPlus /> Add Cross-Sell Product
+            </button>
+          )}
+        </div>
+
+        {form.cross_sell_product && (
+          <div className="border-2 border-green-200 rounded-xl p-5 bg-green-50/30">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Product Name *</label>
+                <input
+                  type="text"
+                  value={form.cross_sell_product.name}
+                  onChange={(e) => setForm((prev) => ({
+                    ...prev,
+                    cross_sell_product: { ...prev.cross_sell_product!, name: e.target.value },
+                  }))}
+                  className="w-full border rounded px-3 py-2 text-sm"
+                  placeholder="e.g. হারবোরা ফুল কোর্স"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Price (৳) *</label>
+                <input
+                  type="number"
+                  value={form.cross_sell_product.price}
+                  onChange={(e) => setForm((prev) => ({
+                    ...prev,
+                    cross_sell_product: { ...prev.cross_sell_product!, price: parseFloat(e.target.value) || 0 },
+                  }))}
+                  className="w-full border rounded px-3 py-2 text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Compare Price (৳)</label>
+                <input
+                  type="number"
+                  value={form.cross_sell_product.compare_price || ''}
+                  onChange={(e) => setForm((prev) => ({
+                    ...prev,
+                    cross_sell_product: { ...prev.cross_sell_product!, compare_price: parseFloat(e.target.value) || 0 },
+                  }))}
+                  className="w-full border rounded px-3 py-2 text-sm"
+                />
+              </div>
+              <ImageUploadField
+                label="Image URL"
+                value={form.cross_sell_product.image_url || ''}
+                onChange={(url) => setForm((prev) => ({
+                  ...prev,
+                  cross_sell_product: { ...prev.cross_sell_product!, image_url: url },
+                }))}
+                placeholder="/product-image.jpg"
+                inputClassName="w-full border rounded px-3 py-2 text-sm"
+                labelClassName="block text-xs text-gray-500 mb-1"
+              />
+              <ProductSearchField
+                productId={form.cross_sell_product.product_id}
+                onSelect={(data) => setForm((prev) => ({
+                  ...prev,
+                  cross_sell_product: {
+                    ...prev.cross_sell_product!,
+                    product_id: data.product_id,
+                    ...(data.name ? { name: data.name } : {}),
+                    ...(data.price ? { price: data.price } : {}),
+                    ...(data.compare_price ? { compare_price: data.compare_price } : {}),
+                    ...(data.image_url ? { image_url: data.image_url } : {}),
+                  },
+                }))}
+              />
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Description</label>
+                <input
+                  type="text"
+                  value={form.cross_sell_product.description || ''}
+                  onChange={(e) => setForm((prev) => ({
+                    ...prev,
+                    cross_sell_product: { ...prev.cross_sell_product!, description: e.target.value },
+                  }))}
+                  className="w-full border rounded px-3 py-2 text-sm"
+                  placeholder="Short product description"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Badge Text</label>
+                <input
+                  type="text"
+                  value={form.cross_sell_product.badge_text || ''}
+                  onChange={(e) => setForm((prev) => ({
+                    ...prev,
+                    cross_sell_product: { ...prev.cross_sell_product!, badge_text: e.target.value },
+                  }))}
+                  className="w-full border rounded px-3 py-2 text-sm"
+                  placeholder="e.g. 🎁 সাথে নিন"
+                />
+                <p className="text-xs text-gray-400 mt-0.5">Badge shown on the card corner</p>
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Checkbox Label</label>
+                <input
+                  type="text"
+                  value={form.cross_sell_product.suggestion_text || ''}
+                  onChange={(e) => setForm((prev) => ({
+                    ...prev,
+                    cross_sell_product: { ...prev.cross_sell_product!, suggestion_text: e.target.value },
+                  }))}
+                  className="w-full border rounded px-3 py-2 text-sm"
+                  placeholder="e.g. এটিও সাথে নিতে চাই"
+                />
+                <p className="text-xs text-gray-400 mt-0.5">Text shown next to the checkbox</p>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 
