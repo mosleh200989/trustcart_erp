@@ -71,6 +71,7 @@ interface LandingPageData {
   delivery_note: string;
   hero_layout?: string;
   show_hero_price?: boolean;
+  hero_subtitle_position?: string;
   cross_sell_product?: {
     name: string;
     description?: string;
@@ -469,7 +470,8 @@ export default function FreeOfferTemplate({ page, trafficSource = 'landing_page'
                   {page.hero_title || page.title}
                 </h1>
                 
-                {page.hero_subtitle && (
+                {/* Subtitle ABOVE image (default) */}
+                {page.hero_subtitle && page.hero_subtitle_position !== 'below-image' && (
                   <p
                     className="text-lg sm:text-xl md:text-2xl mb-8 leading-relaxed font-medium"
                     style={{ color: secondaryColor }}
@@ -486,6 +488,15 @@ export default function FreeOfferTemplate({ page, trafficSource = 'landing_page'
                       className="relative w-full max-w-lg mx-auto rounded-2xl" style={{ boxShadow: `0 0 40px ${secondaryColor}26`, border: `1px solid ${secondaryColor}4D` }}
                     />
                   </div>
+                )}
+
+                {/* Subtitle BELOW image */}
+                {page.hero_subtitle && page.hero_subtitle_position === 'below-image' && (
+                  <p
+                    className="text-lg sm:text-xl md:text-2xl mb-8 leading-relaxed font-medium"
+                    style={{ color: secondaryColor }}
+                    dangerouslySetInnerHTML={{ __html: page.hero_subtitle }}
+                  />
                 )}
               </>
             )}
@@ -809,8 +820,8 @@ export default function FreeOfferTemplate({ page, trafficSource = 'landing_page'
                           )}
                         </div>
 
-                        {/* Delivery Zone Selector */}
-                        {!page.free_delivery && (Number(page.delivery_charge) > 0 || Number(page.delivery_charge_outside) > 0) && (
+                        {/* Delivery Zone Selector — only when charges differ */}
+                        {!page.free_delivery && (Number(page.delivery_charge) > 0 || Number(page.delivery_charge_outside) > 0) && Number(page.delivery_charge) !== Number(page.delivery_charge_outside) && (
                           <div className="mb-4">
                             <label className="block text-sm font-medium text-gray-300 mb-2">ডেলিভারি এলাকা নির্বাচন করুন</label>
                             <div className="flex gap-2">

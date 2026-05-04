@@ -74,6 +74,7 @@ interface LandingPageData {
   delivery_note: string;
   hero_layout?: string;
   show_hero_price?: boolean;
+  hero_subtitle_position?: string;
   cross_sell_product?: {
     name: string;
     description?: string;
@@ -520,7 +521,8 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
                   {page.hero_title || page.title}
                 </h1>
 
-                {page.hero_subtitle && (
+                {/* Subtitle ABOVE image (default) */}
+                {page.hero_subtitle && page.hero_subtitle_position !== 'below-image' && (
                   <p
                     className="text-base sm:text-lg md:text-xl mb-8 leading-relaxed opacity-85 whitespace-pre-line max-w-3xl mx-auto"
                     style={{ color: page.secondary_color }}
@@ -571,6 +573,15 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
                       </div>
                     )}
                   </div>
+                )}
+
+                {/* Subtitle BELOW image */}
+                {page.hero_subtitle && page.hero_subtitle_position === 'below-image' && (
+                  <p
+                    className="text-base sm:text-lg md:text-xl mb-8 leading-relaxed opacity-85 whitespace-pre-line max-w-3xl mx-auto"
+                    style={{ color: page.secondary_color }}
+                    dangerouslySetInnerHTML={{ __html: page.hero_subtitle }}
+                  />
                 )}
 
                 {page.hero_button_text && (
@@ -1238,49 +1249,53 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
 
                         {/* Delivery Zone */}
                         {!page.free_delivery && (Number(page.delivery_charge) > 0 || Number(page.delivery_charge_outside) > 0) && (
-                          <div className="mb-4">
-                            <label className="block text-sm font-semibold text-gray-700 mb-2">ডেলিভারি এলাকা</label>
-                            <div className="grid grid-cols-2 gap-2">
-                              <button
-                                type="button"
-                                onClick={() => setDeliveryZone('inside')}
-                                className={`py-3 px-3 rounded-xl text-sm font-medium border-2 transition-all duration-300 ${
-                                  deliveryZone === 'inside'
-                                    ? 'text-white shadow-md'
-                                    : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
-                                }`}
-                                style={
-                                  deliveryZone === 'inside'
-                                    ? { backgroundColor: page.primary_color, borderColor: page.primary_color }
-                                    : {}
-                                }
-                              >
-                                ঢাকার ভিতরে
-                                <div className="text-xs mt-0.5 opacity-80">
-                                  {Number(page.delivery_charge) === 0 ? 'ফ্রি' : `${Number(page.delivery_charge).toLocaleString()} ৳`}
-                                </div>
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setDeliveryZone('outside')}
-                                className={`py-3 px-3 rounded-xl text-sm font-medium border-2 transition-all duration-300 ${
-                                  deliveryZone === 'outside'
-                                    ? 'text-white shadow-md'
-                                    : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
-                                }`}
-                                style={
-                                  deliveryZone === 'outside'
-                                    ? { backgroundColor: page.primary_color, borderColor: page.primary_color }
-                                    : {}
-                                }
-                              >
-                                ঢাকার বাইরে
-                                <div className="text-xs mt-0.5 opacity-80">
-                                  {Number(page.delivery_charge_outside) === 0 ? 'ফ্রি' : `${Number(page.delivery_charge_outside).toLocaleString()} ৳`}
-                                </div>
-                              </button>
+                          Number(page.delivery_charge) !== Number(page.delivery_charge_outside) ? (
+                            /* Different charges — show inside/outside selector */
+                            <div className="mb-4">
+                              <label className="block text-sm font-semibold text-gray-700 mb-2">ডেলিভারি এলাকা</label>
+                              <div className="grid grid-cols-2 gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => setDeliveryZone('inside')}
+                                  className={`py-3 px-3 rounded-xl text-sm font-medium border-2 transition-all duration-300 ${
+                                    deliveryZone === 'inside'
+                                      ? 'text-white shadow-md'
+                                      : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
+                                  }`}
+                                  style={
+                                    deliveryZone === 'inside'
+                                      ? { backgroundColor: page.primary_color, borderColor: page.primary_color }
+                                      : {}
+                                  }
+                                >
+                                  ঢাকার ভিতরে
+                                  <div className="text-xs mt-0.5 opacity-80">
+                                    {Number(page.delivery_charge) === 0 ? 'ফ্রি' : `${Number(page.delivery_charge).toLocaleString()} ৳`}
+                                  </div>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setDeliveryZone('outside')}
+                                  className={`py-3 px-3 rounded-xl text-sm font-medium border-2 transition-all duration-300 ${
+                                    deliveryZone === 'outside'
+                                      ? 'text-white shadow-md'
+                                      : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
+                                  }`}
+                                  style={
+                                    deliveryZone === 'outside'
+                                      ? { backgroundColor: page.primary_color, borderColor: page.primary_color }
+                                      : {}
+                                  }
+                                >
+                                  ঢাকার বাইরে
+                                  <div className="text-xs mt-0.5 opacity-80">
+                                    {Number(page.delivery_charge_outside) === 0 ? 'ফ্রি' : `${Number(page.delivery_charge_outside).toLocaleString()} ৳`}
+                                  </div>
+                                </button>
+                              </div>
                             </div>
-                          </div>
+                          ) : null
+                          /* Same charge — no zone selector needed, delivery charge shows in summary below */
                         )}
 
                         {/* Charges */}

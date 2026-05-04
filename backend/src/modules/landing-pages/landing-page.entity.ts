@@ -91,6 +91,9 @@ export class LandingPage {
   @Column({ type: 'boolean', default: true })
   show_hero_price!: boolean;
 
+  @Column({ length: 20, default: 'above-image' })
+  hero_subtitle_position!: string;
+
   @Column({ length: 500, nullable: true })
   meta_title!: string;
 
