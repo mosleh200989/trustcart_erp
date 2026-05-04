@@ -5,6 +5,7 @@ import apiClient from '@/services/api';
 import PhoneInput from '@/components/PhoneInput';
 import InternationalPhoneInput from '@/components/InternationalPhoneInput';
 import { useToast } from '@/contexts/ToastContext';
+import CrossSellSuggestion from '@/components/landing-pages/CrossSellSuggestion';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/dist/ScrollTrigger';
 import {
@@ -82,6 +83,16 @@ interface LandingPageData {
   delivery_charge: number;
   delivery_charge_outside: number;
   delivery_note: string;
+  cross_sell_product?: {
+    name: string;
+    description?: string;
+    image_url?: string;
+    price: number;
+    compare_price?: number;
+    product_id?: number;
+    badge_text?: string;
+    suggestion_text?: string;
+  } | null;
 }
 
 interface OrderItem {
@@ -116,6 +127,7 @@ export default function PickleTemplate({
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [formTouched, setFormTouched] = useState(false);
+  const [crossSellChecked, setCrossSellChecked] = useState(false);
 
   // Incomplete-order tracking
   const sessionIdRef = useRef<string>('');
@@ -305,7 +317,13 @@ export default function PickleTemplate({
     setOrderItems([{ product, quantity: 1 }]);
   };
 
-  const getSubtotal = () => orderItems.reduce((sum, i) => sum + i.product.price * i.quantity, 0);
+  const getSubtotal = () => {
+    let sub = orderItems.reduce((sum, i) => sum + i.product.price * i.quantity, 0);
+    if (crossSellChecked && page.cross_sell_product) {
+      sub += page.cross_sell_product.price;
+    }
+    return sub;
+  };
   const getDeliveryCharge = () => {
     if (page.free_delivery) return 0;
     return deliveryZone === 'inside' ? Number(page.delivery_charge || 0) : Number(page.delivery_charge_outside || 0);
@@ -359,19 +377,29 @@ export default function PickleTemplate({
         shipping_address: orderForm.address,
         notes: orderForm.note || '',
         payment_method: 'cash',
-        items: orderItems.map((item) => {
-          const productQty = item.product.qty || 1;
-          const effectiveQty = item.quantity * productQty;
-          const perUnitPrice = item.product.price / productQty;
-          return {
-            product_id: item.product.product_id || null,
-            product_name: item.product.name,
-            product_image: item.product.image_url || null,
-            quantity: effectiveQty,
-            unit_price: perUnitPrice,
-            total_price: perUnitPrice * effectiveQty,
-          };
-        }),
+        items: [
+          ...orderItems.map((item) => {
+            const productQty = item.product.qty || 1;
+            const effectiveQty = item.quantity * productQty;
+            const perUnitPrice = item.product.price / productQty;
+            return {
+              product_id: item.product.product_id || null,
+              product_name: item.product.name,
+              product_image: item.product.image_url || null,
+              quantity: effectiveQty,
+              unit_price: perUnitPrice,
+              total_price: perUnitPrice * effectiveQty,
+            };
+          }),
+          ...(crossSellChecked && page.cross_sell_product ? [{
+            product_id: page.cross_sell_product.product_id || null,
+            product_name: page.cross_sell_product.name,
+            product_image: page.cross_sell_product.image_url || null,
+            quantity: 1,
+            unit_price: page.cross_sell_product.price,
+            total_price: page.cross_sell_product.price,
+          }] : []),
+        ],
         subtotal,
         delivery_charge: deliveryCharge,
         total_amount: total,
@@ -972,6 +1000,17 @@ export default function PickleTemplate({
         )}
 
         {/* ═══════════════════ ORDER FORM ═══════════════════ */}
+        {/* ═══════════════ CROSS-SELL SUGGESTION ═══════════════ */}
+        {page.cross_sell_product && page.cross_sell_product.name && (
+          <CrossSellSuggestion
+            product={page.cross_sell_product}
+            isChecked={crossSellChecked}
+            onToggle={setCrossSellChecked}
+            theme="light"
+            accentColor={page.primary_color}
+          />
+        )}
+
         {page.show_order_form && (
           <div
             ref={orderFormRef}

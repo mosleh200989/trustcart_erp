@@ -33,6 +33,17 @@ export interface LandingPageProduct {
   is_default: boolean;
 }
 
+export interface CrossSellProduct {
+  name: string;
+  description?: string;
+  image_url?: string;
+  price: number;
+  compare_price?: number;
+  product_id?: number;
+  badge_text?: string;
+  suggestion_text?: string;
+}
+
 @Entity('landing_pages')
 export class LandingPage {
   @PrimaryGeneratedColumn()
@@ -88,6 +99,9 @@ export class LandingPage {
 
   @Column({ type: 'jsonb', default: '[]' })
   products!: LandingPageProduct[];
+
+  @Column({ type: 'jsonb', nullable: true, default: null })
+  cross_sell_product!: CrossSellProduct | null;
 
   @Column({ length: 20, nullable: true })
   phone_number!: string;
