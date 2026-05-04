@@ -69,6 +69,8 @@ interface LandingPageData {
   delivery_charge: number;
   delivery_charge_outside: number;
   delivery_note: string;
+  hero_layout?: string;
+  show_hero_price?: boolean;
   cross_sell_product?: {
     name: string;
     description?: string;
@@ -433,27 +435,59 @@ export default function FreeOfferTemplate({ page, trafficSource = 'landing_page'
         {/* ═══════════════ HERO SECTION ═══════════════ */}
         <div className="relative pt-12 pb-16 px-4">
           <div className="max-w-4xl mx-auto text-center">
-            <h1 className="text-3xl sm:text-4xl md:text-5xl font-extrabold mb-6 leading-tight">
-              {page.hero_title || page.title}
-            </h1>
-            
-            {page.hero_subtitle && (
-              <p
-                className="text-lg sm:text-xl md:text-2xl mb-8 leading-relaxed font-medium"
-                style={{ color: secondaryColor }}
-                dangerouslySetInnerHTML={{ __html: page.hero_subtitle }}
-              />
-            )}
+            {/* Title-first layout (default for FreeOffer) or image-first */}
+            {page.hero_layout === 'image-first' ? (
+              <>
+                {/* Image first */}
+                {page.hero_image_url && (
+                  <div className="mb-10 relative inline-block">
+                    <div className="absolute inset-0 rounded-2xl blur-xl opacity-20" style={{ backgroundColor: secondaryColor }}></div>
+                    <img
+                      src={page.hero_image_url}
+                      alt={page.title}
+                      className="relative w-full max-w-lg mx-auto rounded-2xl" style={{ boxShadow: `0 0 40px ${secondaryColor}26`, border: `1px solid ${secondaryColor}4D` }}
+                    />
+                  </div>
+                )}
 
-            {page.hero_image_url && (
-              <div className="mb-10 relative inline-block">
-                <div className="absolute inset-0 rounded-2xl blur-xl opacity-20" style={{ backgroundColor: secondaryColor }}></div>
-                <img
-                  src={page.hero_image_url}
-                  alt={page.title}
-                  className="relative w-full max-w-lg mx-auto rounded-2xl" style={{ boxShadow: `0 0 40px ${secondaryColor}26`, border: `1px solid ${secondaryColor}4D` }}
-                />
-              </div>
+                <h1 className="text-3xl sm:text-4xl md:text-5xl font-extrabold mb-6 leading-tight">
+                  {page.hero_title || page.title}
+                </h1>
+                
+                {page.hero_subtitle && (
+                  <p
+                    className="text-lg sm:text-xl md:text-2xl mb-8 leading-relaxed font-medium"
+                    style={{ color: secondaryColor }}
+                    dangerouslySetInnerHTML={{ __html: page.hero_subtitle }}
+                  />
+                )}
+              </>
+            ) : (
+              <>
+                {/* Title first (default) */}
+                <h1 className="text-3xl sm:text-4xl md:text-5xl font-extrabold mb-6 leading-tight">
+                  {page.hero_title || page.title}
+                </h1>
+                
+                {page.hero_subtitle && (
+                  <p
+                    className="text-lg sm:text-xl md:text-2xl mb-8 leading-relaxed font-medium"
+                    style={{ color: secondaryColor }}
+                    dangerouslySetInnerHTML={{ __html: page.hero_subtitle }}
+                  />
+                )}
+
+                {page.hero_image_url && (
+                  <div className="mb-10 relative inline-block">
+                    <div className="absolute inset-0 rounded-2xl blur-xl opacity-20" style={{ backgroundColor: secondaryColor }}></div>
+                    <img
+                      src={page.hero_image_url}
+                      alt={page.title}
+                      className="relative w-full max-w-lg mx-auto rounded-2xl" style={{ boxShadow: `0 0 40px ${secondaryColor}26`, border: `1px solid ${secondaryColor}4D` }}
+                    />
+                  </div>
+                )}
+              </>
             )}
 
             {page.hero_button_text && (
