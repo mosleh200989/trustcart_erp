@@ -85,6 +85,12 @@ export class LandingPage {
   @Column({ length: 50, default: 'classic' })
   template!: string;
 
+  @Column({ length: 20, default: 'image-first' })
+  hero_layout!: string;
+
+  @Column({ type: 'boolean', default: true })
+  show_hero_price!: boolean;
+
   @Column({ length: 500, nullable: true })
   meta_title!: string;
 

@@ -390,6 +390,8 @@ interface FormData {
   slug: string;
   description: string;
   template: string;
+  hero_layout: string;
+  show_hero_price: boolean;
   hero_image_url: string;
   hero_title: string;
   hero_subtitle: string;
@@ -455,6 +457,8 @@ export default function LandingPageEditor() {
     slug: '',
     description: '',
     template: 'classic',
+    hero_layout: 'image-first',
+    show_hero_price: true,
     hero_image_url: '',
     hero_title: '',
     hero_subtitle: '',
@@ -822,6 +826,69 @@ export default function LandingPageEditor() {
 
       <div className="border-t pt-4">
         <h3 className="text-lg font-semibold mb-3">Hero Section</h3>
+
+        {/* Hero Layout & Price Toggle */}
+        <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 mb-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Hero Layout Order */}
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Hero Layout Order</label>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setForm((prev) => ({ ...prev, hero_layout: 'image-first' }))}
+                  className={`flex-1 py-2.5 px-3 rounded-lg text-sm font-medium border-2 transition-all flex flex-col items-center gap-1 ${
+                    form.hero_layout === 'image-first'
+                      ? 'border-blue-500 bg-blue-50 text-blue-700'
+                      : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
+                  }`}
+                >
+                  <span className="text-lg">🖼️</span>
+                  <span>Image First</span>
+                  <span className="text-[10px] text-gray-400">Elegant style</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setForm((prev) => ({ ...prev, hero_layout: 'title-first' }))}
+                  className={`flex-1 py-2.5 px-3 rounded-lg text-sm font-medium border-2 transition-all flex flex-col items-center gap-1 ${
+                    form.hero_layout === 'title-first'
+                      ? 'border-blue-500 bg-blue-50 text-blue-700'
+                      : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
+                  }`}
+                >
+                  <span className="text-lg">📝</span>
+                  <span>Title First</span>
+                  <span className="text-[10px] text-gray-400">Free Offer style</span>
+                </button>
+              </div>
+              <p className="text-xs text-gray-400 mt-1">Controls whether the image or the title/subtitle appears first in the hero</p>
+            </div>
+            {/* Show Price in Hero */}
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Hero Price Display</label>
+              <div className="flex items-center gap-3 p-3 bg-white rounded-lg border border-gray-200">
+                <button
+                  type="button"
+                  onClick={() => setForm((prev) => ({ ...prev, show_hero_price: !prev.show_hero_price }))}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                    form.show_hero_price ? 'bg-green-500' : 'bg-gray-300'
+                  }`}
+                >
+                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    form.show_hero_price ? 'translate-x-6' : 'translate-x-1'
+                  }`} />
+                </button>
+                <div>
+                  <div className="text-sm font-medium text-gray-700">
+                    {form.show_hero_price ? 'Price shown in hero' : 'Price hidden in hero'}
+                  </div>
+                  <p className="text-xs text-gray-400">Show product price preview in the hero section (Elegant template)</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <ImageUploadField
