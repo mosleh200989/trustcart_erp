@@ -241,11 +241,19 @@ export default function LandingPageInternational() {
     return digits.length >= 7 && digits.length <= 15;
   };
 
+  const isAddressValid = () => {
+    return orderForm.address.trim().length >= 15;
+  };
+
   const handleSubmitOrder = async () => {
     setFormTouched(true);
 
     if (!orderForm.name || !orderForm.address) {
       toast.warning('Please fill in all required fields');
+      return;
+    }
+    if (!isAddressValid()) {
+      toast.warning('Address must be at least 15 characters — please enter your full address');
       return;
     }
     if (!isForeignPhoneValid()) {
@@ -735,14 +743,23 @@ export default function LandingPageInternational() {
                       />
                     </div>
                     <div>
-                      <label className={`block text-sm font-medium mb-1 ${formTouched && !orderForm.address ? 'text-red-600' : 'text-gray-600'}`}>Your address * {formTouched && !orderForm.address && <span className="text-red-500 text-xs">(required)</span>}</label>
+                      <label className={`block text-sm font-medium mb-1 ${formTouched && !isAddressValid() ? 'text-red-600' : 'text-gray-600'}`}>
+                        Your address *
+                        {formTouched && orderForm.address && !isAddressValid() && (
+                          <span className="text-red-500 text-xs ml-1">(minimum 15 characters)</span>
+                        )}
+                        {formTouched && !orderForm.address && <span className="text-red-500 text-xs ml-1">(required)</span>}
+                      </label>
                       <textarea
                         value={orderForm.address}
                         onChange={(e) => setOrderForm((prev) => ({ ...prev, address: e.target.value }))}
-                        className={`w-full border rounded-lg px-4 py-3 focus:ring-2 focus:ring-green-500 focus:border-green-500 ${formTouched && !orderForm.address ? 'border-red-500 bg-red-50' : ''}`}
+                        className={`w-full border rounded-lg px-4 py-3 focus:ring-2 focus:ring-green-500 focus:border-green-500 ${formTouched && !isAddressValid() ? 'border-red-500 bg-red-50' : ''}`}
                         rows={2}
-                        placeholder="Full address"
+                        placeholder="Full address (minimum 15 characters)"
                       />
+                      {formTouched && orderForm.address && !isAddressValid() && (
+                        <p className="text-red-500 text-xs mt-1">Address must be at least 15 characters ({orderForm.address.trim().length}/15)</p>
+                      )}
                     </div>
                     <div>
                       <label className={`block text-sm font-medium mb-1 ${formTouched && !isForeignPhoneValid() ? 'text-red-600' : 'text-gray-600'}`}>প্রবাসী ফোন নাম্বার * (Your foreign phone number) {formTouched && !orderForm.phone && <span className="text-red-500 text-xs">(required)</span>}</label>
