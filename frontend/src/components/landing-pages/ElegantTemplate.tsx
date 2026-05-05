@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+﻿import { useState, useRef, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
 import apiClient from '@/services/api';
@@ -20,7 +20,7 @@ import {
 
 interface LandingPageSection {
   id: string;
-  type: 'hero' | 'benefits' | 'images' | 'trust' | 'order-form' | 'cta' | 'custom-html';
+  type: 'hero' | 'benefits' | 'images' | 'trust' | 'order-form' | 'cta' | 'custom-html' | 'phone-cta' | 'spacer';
   title?: string;
   content?: string;
   items?: Array<{ icon?: string; text: string }>;
@@ -31,6 +31,7 @@ interface LandingPageSection {
   buttonTextColor?: string;
   backgroundColor?: string;
   textColor?: string;
+  paddingY?: number;
   order: number;
   is_visible: boolean;
 }
@@ -736,7 +737,7 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
             {/* Benefits Section */}
             {section.type === 'benefits' && (
               <div
-                className="py-16 md:py-20 px-4 sm:px-6"
+                className="py-8 md:py-12 px-4 sm:px-6"
                 style={{
                   backgroundColor: section.backgroundColor || '#FFFFFF',
                   color: section.textColor || '#1a1a2e',
@@ -744,7 +745,7 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
               >
                 <div className="max-w-5xl mx-auto">
                   {section.title && (
-                    <div className="text-center mb-12">
+                    <div className="text-center mb-6">
                       <h2 className="text-2xl sm:text-3xl md:text-4xl font-extrabold mb-3">{section.title}</h2>
                       <div
                         className="w-20 h-1 mx-auto rounded-full"
@@ -786,7 +787,7 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
             {/* Trust / Why Choose Us */}
             {section.type === 'trust' && (
               <div
-                className="py-16 md:py-20 px-4 sm:px-6"
+                className="py-8 md:py-12 px-4 sm:px-6"
                 style={{
                   backgroundColor: section.backgroundColor || '#f8f9fa',
                   color: section.textColor || '#1a1a2e',
@@ -794,7 +795,7 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
               >
                 <div className="max-w-4xl mx-auto">
                   {section.title && (
-                    <div className="text-center mb-12">
+                    <div className="text-center mb-6">
                       <h2 className="text-2xl sm:text-3xl md:text-4xl font-extrabold mb-3">{section.title}</h2>
                       <div
                         className="w-20 h-1 mx-auto rounded-full"
@@ -826,12 +827,12 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
             {/* Image Gallery */}
             {section.type === 'images' && (
               <div
-                className="py-16 md:py-20 px-4 sm:px-6"
+                className="py-8 md:py-12 px-4 sm:px-6"
                 style={{ backgroundColor: section.backgroundColor || '#FFFFFF' }}
               >
                 <div className="max-w-5xl mx-auto">
                   {section.title && (
-                    <div className="text-center mb-12">
+                    <div className="text-center mb-6">
                       <h2
                         className="text-2xl sm:text-3xl md:text-4xl font-extrabold mb-3"
                         style={{ color: section.textColor }}
@@ -868,7 +869,7 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
 
             {/* CTA Section */}
             {section.type === 'cta' && (
-              <div className="relative overflow-hidden py-16 md:py-20 px-4 sm:px-6">
+              <div className="relative overflow-hidden py-8 md:py-12 px-4 sm:px-6">
                 <div
                   className="absolute inset-0"
                   style={{
@@ -953,35 +954,47 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
                 </div>
               </div>
             )}
+
+            {/* Spacer */}
+            {section.type === 'spacer' && (
+              <div
+                style={{
+                  height: `${section.paddingY ?? 40}px`,
+                  backgroundColor: section.backgroundColor || 'transparent',
+                }}
+              />
+            )}
+
+            {/* Phone / WhatsApp CTA */}
+            {section.type === 'phone-cta' && page.phone_number && (
+              <div className="relative overflow-hidden py-10">
+                <div
+                  className="absolute inset-0"
+                  style={{
+                    background: `linear-gradient(135deg, ${section.backgroundColor || page.primary_color} 0%, ${adjustColor(section.backgroundColor || page.primary_color, -30)} 100%)`,
+                  }}
+                />
+                <div className="relative text-center">
+                  {section.title && (
+                    <p className="text-lg mb-3 opacity-80" style={{ color: section.textColor || page.secondary_color }}>
+                      {section.title}
+                    </p>
+                  )}
+                  <a
+                    href={`tel:${page.phone_number}`}
+                    className="inline-flex items-center gap-3 text-3xl sm:text-4xl font-bold hover:opacity-80 transition-opacity"
+                    style={{ color: section.textColor || page.secondary_color }}
+                  >
+                    <div className="w-14 h-14 rounded-full flex items-center justify-center glass-card">
+                      <FaPhone className="text-xl" />
+                    </div>
+                    {page.phone_number}
+                  </a>
+                </div>
+              </div>
+            )}
           </div>
         ))}
-
-        {/* ═══════════════ PHONE CTA ═══════════════ */}
-        {page.phone_number && (
-          <div className="relative overflow-hidden py-10">
-            <div
-              className="absolute inset-0"
-              style={{
-                background: `linear-gradient(135deg, ${page.primary_color} 0%, ${primaryDark} 100%)`,
-              }}
-            />
-            <div className="relative text-center">
-              <p className="text-lg mb-3 opacity-80" style={{ color: page.secondary_color }}>
-                প্রশ্ন আছে? এখনই কল করুন অথবা হোয়াটসঅ্যাপ করুন!
-              </p>
-              <a
-                href={`tel:${page.phone_number}`}
-                className="inline-flex items-center gap-3 text-3xl sm:text-4xl font-bold hover:opacity-80 transition-opacity"
-                style={{ color: page.secondary_color }}
-              >
-                <div className="w-14 h-14 rounded-full flex items-center justify-center glass-card">
-                  <FaPhone className="text-xl" />
-                </div>
-                {page.phone_number}
-              </a>
-            </div>
-          </div>
-        )}
 
         {/* ═══════════════ CROSS-SELL SUGGESTION ═══════════════ */}
         {page.cross_sell_product && page.cross_sell_product.name && (

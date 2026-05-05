@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+﻿import { useState, useRef, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
 import apiClient from '@/services/api';
@@ -31,15 +31,18 @@ if (typeof window !== 'undefined') {
 
 interface LandingPageSection {
   id: string;
-  type: 'hero' | 'benefits' | 'images' | 'trust' | 'order-form' | 'cta' | 'custom-html';
+  type: 'hero' | 'benefits' | 'images' | 'trust' | 'order-form' | 'cta' | 'custom-html' | 'phone-cta' | 'spacer';
   title?: string;
   content?: string;
   items?: Array<{ icon?: string; text: string }>;
   images?: string[];
   buttonText?: string;
   buttonLink?: string;
+  buttonColor?: string;
+  buttonTextColor?: string;
   backgroundColor?: string;
   textColor?: string;
+  paddingY?: number;
   order: number;
   is_visible: boolean;
 }
@@ -952,8 +955,8 @@ export default function GheeTemplate({
                         onClick={scrollToOrderForm}
                         className="ghee-btn-ripple inline-flex items-center gap-2 px-10 py-4 rounded-full text-lg font-bold shadow-xl hover:shadow-2xl transform hover:scale-[1.04] transition-all duration-300"
                         style={{
-                          background: `linear-gradient(135deg, ${section.textColor || page.secondary_color}, ${adjustColor(section.textColor || page.secondary_color, -15)})`,
-                          color: section.backgroundColor || page.primary_color,
+                          backgroundColor: section.buttonColor || page.secondary_color,
+                          color: section.buttonTextColor || '#FFFFFF',
                         }}
                       >
                         {section.buttonText}
@@ -1008,39 +1011,51 @@ export default function GheeTemplate({
                   />
                 </div>
               )}
+
+              {/* Spacer */}
+              {section.type === 'spacer' && (
+                <div
+                  style={{
+                    height: `${section.paddingY ?? 40}px`,
+                    backgroundColor: section.backgroundColor || 'transparent',
+                  }}
+                />
+              )}
+
+              {/* Phone / WhatsApp CTA */}
+              {section.type === 'phone-cta' && page.phone_number && (
+                <div className="relative overflow-hidden py-10 ghee-grain">
+                  <div
+                    className="absolute inset-0"
+                    style={{
+                      background: `linear-gradient(135deg, ${section.backgroundColor || page.primary_color} 0%, ${adjustColor(section.backgroundColor || page.primary_color, -30)} 100%)`,
+                    }}
+                  />
+                  <div className="relative text-center">
+                    {section.title && (
+                      <p className="text-base mb-3 opacity-80" style={{ color: section.textColor || page.secondary_color }}>
+                        {section.title}
+                      </p>
+                    )}
+                    <a
+                      href={`tel:${page.phone_number}`}
+                      className="inline-flex items-center gap-3 text-2xl sm:text-3xl font-bold hover:opacity-80 transition-opacity"
+                      style={{ color: section.textColor || page.secondary_color }}
+                    >
+                      <div
+                        className="w-12 h-12 rounded-full flex items-center justify-center border border-white/20"
+                        style={{ backgroundColor: 'rgba(255,255,255,0.12)' }}
+                      >
+                        <FaPhone className="text-lg" />
+                      </div>
+                      <span className="ghee-num">{page.phone_number}</span>
+                    </a>
+                  </div>
+                </div>
+              )}
             </div>
           ))}
         </div>
-
-        {/* ═══════════════════ PHONE CTA ═══════════════════ */}
-        {page.phone_number && (
-          <div className="relative overflow-hidden py-10 ghee-grain">
-            <div
-              className="absolute inset-0"
-              style={{
-                background: `linear-gradient(135deg, ${page.primary_color} 0%, ${primaryDark} 100%)`,
-              }}
-            />
-            <div className="relative text-center">
-              <p className="text-base mb-3 opacity-80" style={{ color: page.secondary_color }}>
-                প্রশ্ন আছে? এখনই কল করুন
-              </p>
-              <a
-                href={`tel:${page.phone_number}`}
-                className="inline-flex items-center gap-3 text-2xl sm:text-3xl font-bold hover:opacity-80 transition-opacity"
-                style={{ color: page.secondary_color }}
-              >
-                <div
-                  className="w-12 h-12 rounded-full flex items-center justify-center border border-white/20"
-                  style={{ backgroundColor: 'rgba(255,255,255,0.12)' }}
-                >
-                  <FaPhone className="text-lg" />
-                </div>
-                <span className="ghee-num">{page.phone_number}</span>
-              </a>
-            </div>
-          </div>
-        )}
 
         {/* ═══════════════════ ORDER FORM ═══════════════════ */}
         {/* ═══════════════ CROSS-SELL SUGGESTION ═══════════════ */}

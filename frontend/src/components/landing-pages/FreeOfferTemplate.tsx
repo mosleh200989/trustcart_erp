@@ -17,15 +17,18 @@ import {
 
 interface LandingPageSection {
   id: string;
-  type: 'hero' | 'benefits' | 'images' | 'trust' | 'order-form' | 'cta' | 'custom-html';
+  type: 'hero' | 'benefits' | 'images' | 'trust' | 'order-form' | 'cta' | 'custom-html' | 'phone-cta' | 'spacer';
   title?: string;
   content?: string;
   items?: Array<{ icon?: string; text: string }>;
   images?: string[];
   buttonText?: string;
   buttonLink?: string;
+  buttonColor?: string;
+  buttonTextColor?: string;
   backgroundColor?: string;
   textColor?: string;
+  paddingY?: number;
   order: number;
   is_visible: boolean;
 }
@@ -615,12 +618,48 @@ export default function FreeOfferTemplate({ page, trafficSource = 'landing_page'
                   {section.buttonText && (
                     <button
                       onClick={scrollToOrderForm}
-                      className="px-10 py-4 rounded-full text-xl font-bold text-white transition-all"
-                      style={{ backgroundColor: primaryColor, boxShadow: `0 0 20px ${primaryColor}80` }}
+                      className="px-10 py-4 rounded-full text-xl font-bold transition-all"
+                      style={{
+                        backgroundColor: section.buttonColor || primaryColor,
+                        color: section.buttonTextColor || '#FFFFFF',
+                        boxShadow: `0 0 20px ${section.buttonColor || primaryColor}80`,
+                      }}
                     >
                       {section.buttonText}
                     </button>
                   )}
+                </div>
+              )}
+
+              {/* Spacer */}
+              {section.type === 'spacer' && (
+                <div
+                  style={{
+                    height: `${section.paddingY ?? 40}px`,
+                    backgroundColor: section.backgroundColor || 'transparent',
+                  }}
+                />
+              )}
+
+              {/* Phone / WhatsApp CTA */}
+              {section.type === 'phone-cta' && page.phone_number && (
+                <div
+                  className="py-6 text-center"
+                  style={{ backgroundColor: section.backgroundColor || cardBg }}
+                >
+                  {section.title && (
+                    <p className="text-lg mb-2 opacity-80" style={{ color: section.textColor || secondaryColor }}>
+                      {section.title}
+                    </p>
+                  )}
+                  <a
+                    href={`tel:${page.phone_number}`}
+                    className="inline-flex items-center gap-3 text-2xl sm:text-3xl font-bold hover:opacity-80 transition-opacity"
+                    style={{ color: section.textColor || secondaryColor }}
+                  >
+                    <FaPhone className="text-xl" />
+                    {page.phone_number}
+                  </a>
                 </div>
               )}
 
