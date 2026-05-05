@@ -242,10 +242,18 @@ export default function LandingPagePublic() {
     return digits.length === 11 && digits.startsWith('0');
   };
 
+  const isAddressValid = () => {
+    return orderForm.address.trim().length >= 15;
+  };
+
   const handleSubmitOrder = async () => {
     setFormTouched(true);
     if (!orderForm.name || !orderForm.phone || !orderForm.address) {
       toast.warning('অনুগ্রহ করে সব তথ্য পূরণ করুন');
+      return;
+    }
+    if (!isAddressValid()) {
+      toast.warning('ঠিকানা অন্তত ১৫ অক্ষর হতে হবে — সম্পূর্ণ ঠিকানা লিখুন');
       return;
     }
     if (!isBdPhoneValid()) {
@@ -755,14 +763,25 @@ export default function LandingPagePublic() {
                       />
                     </div>
                     <div>
-                      <label className={`block text-sm font-medium mb-1 ${formTouched && !orderForm.address ? 'text-red-600' : 'text-gray-600'}`}>আপনার ঠিকানা লিখুন *</label>
+                      <label className={`block text-sm font-medium mb-1 ${formTouched && !isAddressValid() ? 'text-red-600' : 'text-gray-600'}`}>
+                        আপনার ঠিকানা লিখুন *
+                        {formTouched && orderForm.address && !isAddressValid() && (
+                          <span className="text-red-500 text-xs ml-1">(কমপক্ষে ১৫ অক্ষর লিখুন)</span>
+                        )}
+                        {formTouched && !orderForm.address && (
+                          <span className="text-red-500 text-xs ml-1">(required)</span>
+                        )}
+                      </label>
                       <textarea
                         value={orderForm.address}
                         onChange={(e) => setOrderForm((prev) => ({ ...prev, address: e.target.value }))}
-                        className={`w-full border rounded-lg px-4 py-3 focus:ring-2 focus:ring-green-500 focus:border-green-500 ${formTouched && !orderForm.address ? 'border-red-500 bg-red-50' : ''}`}
+                        className={`w-full border rounded-lg px-4 py-3 focus:ring-2 focus:ring-green-500 focus:border-green-500 ${formTouched && !isAddressValid() ? 'border-red-500 bg-red-50' : ''}`}
                         rows={2}
-                        placeholder="সম্পূর্ণ ঠিকানা"
+                        placeholder="সম্পূর্ণ ঠিকানা (কমপক্ষে ১৫ অক্ষর)"
                       />
+                      {formTouched && orderForm.address && !isAddressValid() && (
+                        <p className="text-red-500 text-xs mt-1">ঠিকানা অন্তত ১৫ অক্ষর হতে হবে ({orderForm.address.trim().length}/15)</p>
+                      )}
                     </div>
                     <div>
                       <label className={`block text-sm font-medium mb-1 ${formTouched && (!orderForm.phone || !isBdPhoneValid()) ? 'text-red-600' : 'text-gray-600'}`}>মোবাইল *</label>
