@@ -13,15 +13,18 @@ import FreeOfferTemplate from '@/components/landing-pages/FreeOfferTemplate';
 
 interface LandingPageSection {
   id: string;
-  type: 'hero' | 'benefits' | 'images' | 'trust' | 'order-form' | 'cta' | 'custom-html';
+  type: 'hero' | 'benefits' | 'images' | 'trust' | 'order-form' | 'cta' | 'custom-html' | 'phone-cta' | 'spacer';
   title?: string;
   content?: string;
   items?: Array<{ icon?: string; text: string }>;
   images?: string[];
   buttonText?: string;
   buttonLink?: string;
+  buttonColor?: string;
+  buttonTextColor?: string;
   backgroundColor?: string;
   textColor?: string;
+  paddingY?: number;
   order: number;
   is_visible: boolean;
 }
@@ -581,8 +584,8 @@ export default function LandingPagePublic() {
                       onClick={scrollToOrderForm}
                       className="px-8 py-4 rounded-full text-lg font-bold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all"
                       style={{
-                        backgroundColor: section.textColor || page.secondary_color,
-                        color: section.backgroundColor || page.primary_color,
+                        backgroundColor: section.buttonColor || section.textColor || page.secondary_color,
+                        color: section.buttonTextColor || section.backgroundColor || page.primary_color,
                       }}
                     >
                       {section.buttonText}
@@ -625,25 +628,40 @@ export default function LandingPagePublic() {
                 />
               </div>
             )}
+
+            {/* Spacer */}
+            {section.type === 'spacer' && (
+              <div
+                style={{
+                  height: `${section.paddingY ?? 40}px`,
+                  backgroundColor: section.backgroundColor || 'transparent',
+                }}
+              />
+            )}
+
+            {/* Phone / WhatsApp CTA */}
+            {section.type === 'phone-cta' && page.phone_number && (
+              <div
+                className="py-6 text-center"
+                style={{ backgroundColor: section.backgroundColor || page.primary_color }}
+              >
+                {section.title && (
+                  <p className="text-lg mb-2 opacity-80" style={{ color: section.textColor || page.secondary_color }}>
+                    {section.title}
+                  </p>
+                )}
+                <a
+                  href={`tel:${page.phone_number}`}
+                  className="text-3xl font-bold hover:underline"
+                  style={{ color: section.textColor || page.secondary_color }}
+                >
+                  <FaPhone className="inline mr-2" />
+                  {page.phone_number}
+                </a>
+              </div>
+            )}
           </div>
         ))}
-
-        {/* ─── Phone CTA ─── */}
-        {page.phone_number && (
-          <div className="py-6 text-center" style={{ backgroundColor: page.primary_color }}>
-            <p className="text-lg mb-2" style={{ color: page.secondary_color }}>
-              প্রয়োজনে কল করুন
-            </p>
-            <a
-              href={`tel:${page.phone_number}`}
-              className="text-3xl font-bold hover:underline"
-              style={{ color: page.secondary_color }}
-            >
-              <FaPhone className="inline mr-2" />
-              {page.phone_number}
-            </a>
-          </div>
-        )}
 
         {/* ─── Order Form ─── */}
         {page.show_order_form && (

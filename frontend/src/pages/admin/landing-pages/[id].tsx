@@ -345,7 +345,7 @@ function ProductSearchField({
 
 interface LandingPageSection {
   id: string;
-  type: 'hero' | 'benefits' | 'images' | 'trust' | 'order-form' | 'cta' | 'custom-html' | 'event-rules' | 'event-prizes' | 'event-how-to' | 'event-countdown';
+  type: 'hero' | 'benefits' | 'images' | 'trust' | 'order-form' | 'cta' | 'custom-html' | 'event-rules' | 'event-prizes' | 'event-how-to' | 'event-countdown' | 'phone-cta' | 'spacer';
   title?: string;
   content?: string;
   items?: Array<{ icon?: string; text: string }>;
@@ -356,6 +356,7 @@ interface LandingPageSection {
   buttonTextColor?: string;
   backgroundColor?: string;
   textColor?: string;
+  paddingY?: number;
   order: number;
   is_visible: boolean;
 }
@@ -430,6 +431,8 @@ const SECTION_TYPES = [
   { value: 'trust', label: 'Trust / Why Choose Us' },
   { value: 'cta', label: 'Call to Action' },
   { value: 'custom-html', label: 'Custom HTML / Text' },
+  { value: 'phone-cta', label: '📞 Phone / WhatsApp CTA' },
+  { value: 'spacer', label: '↕️ Spacer / Gap' },
   { value: 'event-rules', label: '📋 Event Rules' },
   { value: 'event-prizes', label: '🏆 Event Prizes' },
   { value: 'event-how-to', label: '🎯 Event How-To Steps' },
@@ -445,6 +448,7 @@ const DEFAULT_SECTION: Omit<LandingPageSection, 'id' | 'order'> = {
   buttonText: '',
   backgroundColor: '#FFFFFF',
   textColor: '#1a1a2e',
+  paddingY: undefined,
   is_visible: true,
 };
 
@@ -1167,6 +1171,118 @@ export default function LandingPageEditor() {
             {/* Section Body (expandable) */}
             {expandedSections.has(section.id) && (
               <div className="p-4 space-y-4">
+
+                {/* ─── Spacer section: only height control ─── */}
+                {section.type === 'spacer' && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <h4 className="text-sm font-semibold text-blue-800 mb-3">⬆️⬇️ Spacer / Gap Settings</h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Height (px)</label>
+                        <input
+                          type="number"
+                          min={4}
+                          max={500}
+                          value={section.paddingY ?? 40}
+                          onChange={(e) => updateSection(section.id, { paddingY: parseInt(e.target.value) || 40 })}
+                          className="w-full border rounded-lg px-3 py-2"
+                          placeholder="40"
+                        />
+                        <p className="text-xs text-gray-400 mt-0.5">Total height of the spacer in pixels (default: 40px)</p>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Background Color (optional)</label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="color"
+                            value={section.backgroundColor || '#FFFFFF'}
+                            onChange={(e) => updateSection(section.id, { backgroundColor: e.target.value })}
+                            className="w-10 h-10 rounded border cursor-pointer"
+                          />
+                          <input
+                            type="text"
+                            value={section.backgroundColor || ''}
+                            onChange={(e) => updateSection(section.id, { backgroundColor: e.target.value })}
+                            className="flex-1 border rounded-lg px-3 py-2 text-sm font-mono"
+                            placeholder="#FFFFFF or transparent"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="mt-3 p-3 rounded border-2 border-dashed border-blue-300 bg-white text-center text-xs text-blue-500">
+                      This renders as empty space of {section.paddingY ?? 40}px height between sections
+                    </div>
+                  </div>
+                )}
+
+                {/* ─── Phone CTA section ─── */}
+                {section.type === 'phone-cta' && (
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-4 space-y-3">
+                    <h4 className="text-sm font-semibold text-green-800 mb-2">📞 Phone / WhatsApp CTA Section</h4>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Headline Text</label>
+                      <input
+                        type="text"
+                        value={section.title || ''}
+                        onChange={(e) => updateSection(section.id, { title: e.target.value })}
+                        className="w-full border rounded-lg px-3 py-2"
+                        placeholder="e.g. প্রশ্ন আছে? এখনই কল করুন অথবা হোয়াটসঅ্যাপ করুন!"
+                      />
+                      <p className="text-xs text-gray-400 mt-0.5">The text shown above the phone number link</p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Background Color</label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="color"
+                            value={section.backgroundColor || form.primary_color}
+                            onChange={(e) => updateSection(section.id, { backgroundColor: e.target.value })}
+                            className="w-10 h-10 rounded border cursor-pointer"
+                          />
+                          <input
+                            type="text"
+                            value={section.backgroundColor || form.primary_color}
+                            onChange={(e) => updateSection(section.id, { backgroundColor: e.target.value })}
+                            className="flex-1 border rounded-lg px-3 py-2 text-sm font-mono"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Text / Link Color</label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="color"
+                            value={section.textColor || form.secondary_color || '#FFFFFF'}
+                            onChange={(e) => updateSection(section.id, { textColor: e.target.value })}
+                            className="w-10 h-10 rounded border cursor-pointer"
+                          />
+                          <input
+                            type="text"
+                            value={section.textColor || form.secondary_color || '#FFFFFF'}
+                            onChange={(e) => updateSection(section.id, { textColor: e.target.value })}
+                            className="flex-1 border rounded-lg px-3 py-2 text-sm font-mono"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    <div
+                      className="mt-2 p-3 rounded-lg text-center text-sm"
+                      style={{ backgroundColor: section.backgroundColor || form.primary_color }}
+                    >
+                      <p className="opacity-80 text-xs mb-1" style={{ color: section.textColor || form.secondary_color || '#FFFFFF' }}>
+                        {section.title || 'Headline text will appear here'}
+                      </p>
+                      <span className="font-bold text-base" style={{ color: section.textColor || form.secondary_color || '#FFFFFF' }}>
+                        📞 {form.phone_number || '01XXXXXXXXX'}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* ─── Standard section fields (not spacer, not phone-cta) ─── */}
+                {section.type !== 'spacer' && section.type !== 'phone-cta' && (
+                <>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Section Title</label>
@@ -1367,6 +1483,8 @@ export default function LandingPageEditor() {
                     </div>
                   </div>
                 </div>
+                </>
+                )} {/* end: not spacer / not phone-cta */}
               </div>
             )}
           </div>
