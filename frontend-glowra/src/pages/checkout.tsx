@@ -21,7 +21,7 @@ import {
 import apiClient, { customers, stockAvailability } from "@/services/api";
 import { TrackingService } from "@/utils/tracking";
 import PhoneInput, { validateBDPhone } from "@/components/PhoneInput";
-import { trackBeginCheckout, trackAddPaymentInfo, trackPurchaseWithUser, extractLocationFromAddress } from "@/utils/gtm";
+import { trackBeginCheckout, trackAddPaymentInfo } from "@/utils/gtm";
 import { initiatePayment, redirectToPaymentGateway } from "@/services/payment";
 import { useCart } from "@/contexts/CartContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -502,33 +502,7 @@ export default function Checkout() {
       const response = await apiClient.post("/sales", orderData);
 
       if (response.data) {
-        // Extract city/district from address
-        const location = extractLocationFromAddress(formData.address);
-        
-        // Track purchase event for GTM/Analytics with user info
-        trackPurchaseWithUser({
-          orderId: response.data.id || response.data.orderNumber,
-          totalValue: total,
-          shipping: deliveryCharge,
-          discount: response.data.discountAmount || 0,
-          coupon: formData.offerCode || undefined,
-          items: cart.map((item) => ({
-            id: item.id,
-            name: item.name || item.name_en || 'Product',
-            price: item.price,
-            quantity: item.quantity || 1,
-            category: item.category || undefined,
-          })),
-          user: {
-            name: formData.fullName,
-            phone: formData.phone,
-            email: formData.email || undefined,
-            city: location.city,
-            district: location.district,
-            area: location.area,
-            address: formData.address,
-          },
-        });
+        // [Tracking Removed] Purchase tracking is now only handled on the Thank You page to prevent duplicates.
         
         // Also track payment info
         trackAddPaymentInfo(
