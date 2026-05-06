@@ -9,7 +9,7 @@ export class OrderItem {
   @Column({ name: 'order_id' })
   orderId: number;
 
-  @Column({ name: 'product_id', nullable: true })
+  @Column({ name: 'product_id', type: 'int', nullable: true })
   productId: number | null;
 
   @Column({ name: 'product_name', type: 'varchar', length: 255 })
