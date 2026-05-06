@@ -9,8 +9,8 @@ export class OrderItem {
   @Column({ name: 'order_id' })
   orderId: number;
 
-  @Column({ name: 'product_id' })
-  productId: number;
+  @Column({ name: 'product_id', nullable: true })
+  productId: number | null;
 
   @Column({ name: 'product_name', type: 'varchar', length: 255 })
   productName: string;

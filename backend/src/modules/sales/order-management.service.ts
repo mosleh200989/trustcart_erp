@@ -462,7 +462,7 @@ export class OrderManagementService {
 
   async addOrderItem(data: {
     orderId: number;
-    productId: number;
+    productId: number | null;
     productName: string;
     variantName?: string;
     quantity: number;
@@ -494,8 +494,8 @@ export class OrderManagementService {
 
           const migratedItem = this.orderItemRepository.create({
             orderId: data.orderId,
-            productId: si.productId ? Number(si.productId) : 0,
-            productName: product?.name_en || (si as any).productName || (si as any).product_name || 'Product',
+            productId: si.productId ? Number(si.productId) : null,
+            productName: product?.name_en || si.productName || (si as any).product_name || 'Product',
             customProductName: (si as any).customProductName || (si as any).custom_product_name || null,
             variantName: (si as any).variantName || (si as any).variant_name || undefined,
             quantity: qty,
@@ -532,7 +532,7 @@ export class OrderManagementService {
 
     const orderItem = this.orderItemRepository.create({
       orderId: data.orderId,
-      productId: data.productId,
+      productId: data.productId || null,
       productName: data.productName,
       variantName: data.variantName || undefined,
       quantity: data.quantity,

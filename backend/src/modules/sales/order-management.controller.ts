@@ -91,7 +91,7 @@ export class OrderManagementController {
   async addOrderItem(
     @Param('orderId') orderId: number,
     @Body() body: {
-      productId: number;
+      productId?: number | null;
       productName: string;
       variantName?: string;
       quantity: number;
@@ -102,7 +102,11 @@ export class OrderManagementController {
     const userInfo = this.getUserInfo(req);
     return await this.orderManagementService.addOrderItem({
       orderId,
-      ...body,
+      productId: body.productId ?? null,
+      productName: body.productName,
+      variantName: body.variantName,
+      quantity: body.quantity,
+      unitPrice: body.unitPrice,
       ...userInfo,
     });
   }
