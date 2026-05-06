@@ -73,6 +73,7 @@ const menuItems: MenuItem[] = [
       { title: 'Product Reports', icon: FaChartBar, path: '/admin/reports?tab=products', requiredPermissions: ['view-product-reports'] },
       { title: 'Inventory Reports', icon: FaChartBar, path: '/admin/reports?tab=inventory', requiredPermissions: ['view-stock-reports'] },
       { title: 'Marketing Reports', icon: FaChartBar, path: '/admin/reports?tab=marketing', requiredPermissions: ['view-marketing-reports'] },
+      { title: 'Landing Page Reports', icon: FaChartBar, path: '/admin/reports/landing-pages', requiredPermissions: ['view-sales-reports'] },
     ],
   },
   {

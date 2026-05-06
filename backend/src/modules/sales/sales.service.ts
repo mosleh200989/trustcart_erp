@@ -2069,4 +2069,201 @@ export class SalesService {
       landingPage: landingPageSummary,
     };
   }
+
+  /**
+   * Comprehensive landing page analytics report.
+   * Supports date range, optional slug filter, groupBy: hour | day.
+   */
+  async getLandingPageReport(params: {
+    startDate?: string;
+    endDate?: string;
+    slug?: string;
+    groupBy?: 'hour' | 'day';
+  }) {
+    const toNum = (v: any) => parseFloat(v) || 0;
+    const today = new Date().toISOString().slice(0, 10);
+    const startDate = params.startDate || today;
+    const endDate = params.endDate || today;
+    const groupBy = params.groupBy || 'day';
+
+    // Build base query conditions
+    const buildBase = () => {
+      const qb = this.salesRepository
+        .createQueryBuilder('o')
+        .where("o.order_source = 'landing_page'")
+        .andWhere('DATE(o.created_at) >= :startDate', { startDate })
+        .andWhere('DATE(o.created_at) <= :endDate', { endDate });
+      if (params.slug) {
+        qb.andWhere('o.utm_source = :slug', { slug: params.slug });
+      }
+      return qb;
+    };
+
+    // 1) Overall summary
+    const summaryRaw = await buildBase()
+      .select([
+        'COUNT(o.id) AS total_orders',
+        'COALESCE(SUM(o.total_amount), 0) AS total_revenue',
+        'COALESCE(AVG(o.total_amount), 0) AS avg_order_value',
+        `COUNT(CASE WHEN o.thank_you_offer_accepted = true THEN 1 END) AS upsell_accepted`,
+        `COUNT(CASE WHEN LOWER(o.status::text) = 'pending' THEN 1 END) AS pending_orders`,
+        `COUNT(CASE WHEN LOWER(o.status::text) = 'approved' THEN 1 END) AS approved_orders`,
+        `COUNT(CASE WHEN LOWER(o.status::text) = 'shipped' THEN 1 END) AS shipped_orders`,
+        `COUNT(CASE WHEN LOWER(o.status::text) = 'delivered' THEN 1 END) AS delivered_orders`,
+        `COUNT(CASE WHEN LOWER(o.status::text) IN ('cancelled', 'admin_cancelled', 'returned') THEN 1 END) AS cancelled_orders`,
+        'COUNT(DISTINCT o.customer_phone) AS unique_customers',
+      ])
+      .getRawOne();
+
+    // 2) Hourly breakdown (useful for single-day view)
+    const hourlyRaw = await buildBase()
+      .select([
+        'EXTRACT(HOUR FROM o.created_at) AS hour',
+        'COUNT(o.id) AS orders',
+        'COALESCE(SUM(o.total_amount), 0) AS revenue',
+        `COUNT(CASE WHEN o.thank_you_offer_accepted = true THEN 1 END) AS upsell_accepted`,
+      ])
+      .groupBy('hour')
+      .orderBy('hour', 'ASC')
+      .getRawMany();
+
+    // 3) Daily breakdown
+    const dailyRaw = await buildBase()
+      .select([
+        'DATE(o.created_at) AS date',
+        'COUNT(o.id) AS orders',
+        'COALESCE(SUM(o.total_amount), 0) AS revenue',
+        `COUNT(CASE WHEN o.thank_you_offer_accepted = true THEN 1 END) AS upsell_accepted`,
+      ])
+      .groupBy('date')
+      .orderBy('date', 'ASC')
+      .getRawMany();
+
+    // 4) Per-landing-page breakdown (by utm_source = slug)
+    const perPageRaw = await buildBase()
+      .select([
+        `COALESCE(o.utm_source, 'unknown') AS slug`,
+        `COALESCE(o.utm_campaign, 'unknown') AS title`,
+        'COUNT(o.id) AS orders',
+        'COALESCE(SUM(o.total_amount), 0) AS revenue',
+        `COUNT(CASE WHEN o.thank_you_offer_accepted = true THEN 1 END) AS upsell_accepted`,
+        `COUNT(CASE WHEN LOWER(o.status::text) = 'delivered' THEN 1 END) AS delivered_orders`,
+        `COUNT(CASE WHEN LOWER(o.status::text) IN ('cancelled', 'admin_cancelled', 'returned') THEN 1 END) AS cancelled_orders`,
+      ])
+      .groupBy('slug')
+      .addGroupBy('title')
+      .orderBy('orders', 'DESC')
+      .getRawMany();
+
+    // 5) Traffic source breakdown
+    const trafficRaw = await buildBase()
+      .select([
+        `COALESCE(o.traffic_source, 'direct') AS source`,
+        'COUNT(o.id) AS orders',
+        'COALESCE(SUM(o.total_amount), 0) AS revenue',
+      ])
+      .groupBy('source')
+      .orderBy('orders', 'DESC')
+      .getRawMany();
+
+    // 6) Status breakdown
+    const statusRaw = await buildBase()
+      .select([
+        `COALESCE(o.status, 'unknown') AS status`,
+        'COUNT(o.id) AS orders',
+        'COALESCE(SUM(o.total_amount), 0) AS revenue',
+      ])
+      .groupBy('status')
+      .orderBy('orders', 'DESC')
+      .getRawMany();
+
+    // 7) Product-wise breakdown from order items
+    const productRaw = await this.orderItemsRepository
+      .createQueryBuilder('soi')
+      .innerJoin('soi.salesOrder', 'o')
+      .select([
+        'soi.product_id AS product_id',
+        'soi.product_name AS product_name',
+        'COUNT(DISTINCT o.id) AS total_orders',
+        'SUM(soi.quantity) AS total_qty',
+        'SUM(soi.line_total) AS total_revenue',
+      ])
+      .where("o.order_source = 'landing_page'")
+      .andWhere('DATE(o.created_at) >= :startDate', { startDate })
+      .andWhere('DATE(o.created_at) <= :endDate', { endDate })
+      .andWhere(params.slug ? 'o.utm_source = :slug' : '1=1', params.slug ? { slug: params.slug } : {})
+      .groupBy('soi.product_id')
+      .addGroupBy('soi.product_name')
+      .orderBy('total_orders', 'DESC')
+      .getRawMany();
+
+    const totalOrders = toNum(summaryRaw?.total_orders);
+    const upsellAccepted = toNum(summaryRaw?.upsell_accepted);
+
+    return {
+      startDate,
+      endDate,
+      slug: params.slug || null,
+      summary: {
+        totalOrders,
+        totalRevenue: toNum(summaryRaw?.total_revenue),
+        avgOrderValue: toNum(summaryRaw?.avg_order_value),
+        upsellAccepted,
+        upsellRate: totalOrders > 0 ? Math.round((upsellAccepted / totalOrders) * 100) : 0,
+        pendingOrders: toNum(summaryRaw?.pending_orders),
+        approvedOrders: toNum(summaryRaw?.approved_orders),
+        shippedOrders: toNum(summaryRaw?.shipped_orders),
+        deliveredOrders: toNum(summaryRaw?.delivered_orders),
+        cancelledOrders: toNum(summaryRaw?.cancelled_orders),
+        uniqueCustomers: toNum(summaryRaw?.unique_customers),
+      },
+      hourly: Array.from({ length: 24 }, (_, i) => {
+        const found = hourlyRaw.find((r: any) => toNum(r.hour) === i);
+        return {
+          hour: i,
+          label: `${i.toString().padStart(2, '0')}:00`,
+          orders: toNum(found?.orders),
+          revenue: toNum(found?.revenue),
+          upsellAccepted: toNum(found?.upsell_accepted),
+        };
+      }),
+      daily: dailyRaw.map((r: any) => ({
+        date: r.date instanceof Date ? r.date.toISOString().slice(0, 10) : String(r.date).slice(0, 10),
+        orders: toNum(r.orders),
+        revenue: toNum(r.revenue),
+        upsellAccepted: toNum(r.upsell_accepted),
+      })),
+      perPage: perPageRaw.map((r: any) => {
+        const ord = toNum(r.orders);
+        const ups = toNum(r.upsell_accepted);
+        return {
+          slug: r.slug,
+          title: r.title,
+          orders: ord,
+          revenue: toNum(r.revenue),
+          upsellAccepted: ups,
+          upsellRate: ord > 0 ? Math.round((ups / ord) * 100) : 0,
+          deliveredOrders: toNum(r.delivered_orders),
+          cancelledOrders: toNum(r.cancelled_orders),
+        };
+      }),
+      trafficSources: trafficRaw.map((r: any) => ({
+        source: r.source,
+        orders: toNum(r.orders),
+        revenue: toNum(r.revenue),
+      })),
+      statusBreakdown: statusRaw.map((r: any) => ({
+        status: r.status,
+        orders: toNum(r.orders),
+        revenue: toNum(r.revenue),
+      })),
+      products: productRaw.map((r: any) => ({
+        productId: toNum(r.product_id),
+        productName: r.product_name || 'Unknown',
+        totalOrders: toNum(r.total_orders),
+        totalQty: toNum(r.total_qty),
+        totalRevenue: toNum(r.total_revenue),
+      })),
+    };
+  }
 }

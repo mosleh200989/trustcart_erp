@@ -251,6 +251,17 @@ export class SalesController {
     return this.salesService.getWebsiteMonthlyReport({ month: m, year: y });
   }
 
+  @Get('landing-page-report')
+  @RequirePermissions('view-sales-reports')
+  async getLandingPageReport(
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('slug') slug?: string,
+    @Query('groupBy') groupBy?: 'hour' | 'day',
+  ) {
+    return this.salesService.getLandingPageReport({ startDate, endDate, slug, groupBy });
+  }
+
   @Get(':id')
   @RequirePermissions('view-sales-orders')
   async findOne(@Param('id') id: string) {
