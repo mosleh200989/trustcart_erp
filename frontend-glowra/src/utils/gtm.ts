@@ -474,6 +474,7 @@ export const trackPurchaseWithUser = (order: {
   
   const purchaseData: Record<string, any> = {
     event: 'purchase',
+    order_id: String(order.orderId),
     ecommerce: {
       transaction_id: String(order.orderId),
       currency: 'BDT',
