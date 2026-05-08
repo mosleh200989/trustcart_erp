@@ -54,6 +54,47 @@ export class CrmTeamService {
     return date.toISOString().split('T')[0];
   }
 
+  /**
+   * Apply "Called Status" filter to any QueryBuilder that has `c` aliased to the customers table.
+   * Supported values: called_today, called_week, called_month,
+   *                   not_called_today, not_called_week, never,
+   *                   (legacy: called → called_today, not_called → not_called_today)
+   */
+  private applyCalledStatusFilter(qb: any, calledStatus: string): void {
+    if (!calledStatus || calledStatus === 'all') return;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const weekAgo = new Date(today);
+    weekAgo.setDate(weekAgo.getDate() - 6);   // 7-day window
+    const monthAgo = new Date(today);
+    monthAgo.setDate(monthAgo.getDate() - 29); // 30-day window
+
+    switch (calledStatus) {
+      case 'called':
+      case 'called_today':
+        qb.andWhere('c.last_contact_date >= :csToday AND c.last_contact_date < :csTomorrow', { csToday: today, csTomorrow: tomorrow });
+        break;
+      case 'called_week':
+        qb.andWhere('c.last_contact_date >= :csWeekAgo AND c.last_contact_date < :csTomorrow', { csWeekAgo: weekAgo, csTomorrow: tomorrow });
+        break;
+      case 'called_month':
+        qb.andWhere('c.last_contact_date >= :csMonthAgo AND c.last_contact_date < :csTomorrow', { csMonthAgo: monthAgo, csTomorrow: tomorrow });
+        break;
+      case 'not_called':
+      case 'not_called_today':
+        qb.andWhere('(c.last_contact_date IS NULL OR c.last_contact_date < :csToday)', { csToday: today });
+        break;
+      case 'not_called_week':
+        qb.andWhere('(c.last_contact_date IS NULL OR c.last_contact_date < :csWeekAgo)', { csWeekAgo: weekAgo });
+        break;
+      case 'never':
+        qb.andWhere('c.last_contact_date IS NULL');
+        break;
+    }
+  }
+
   private getPurchaseStage(orderCount: number): 'new' | 'repeat_2' | 'repeat_3' | 'regular' | 'permanent' {
     if (orderCount <= 1) return 'new';
     if (orderCount === 2) return 'repeat_2';
@@ -495,18 +536,8 @@ export class CrmTeamService {
       );
     }
 
-    // Called Status filter — based on last_contact_date column
-    if (calledStatus && calledStatus !== 'all') {
-      const todayStart = new Date();
-      todayStart.setHours(0, 0, 0, 0);
-      const tomorrowStart = new Date(todayStart);
-      tomorrowStart.setDate(tomorrowStart.getDate() + 1);
-      if (calledStatus === 'called') {
-        qb.andWhere('c.last_contact_date >= :calledToday AND c.last_contact_date < :calledTomorrow', { calledToday: todayStart, calledTomorrow: tomorrowStart });
-      } else if (calledStatus === 'not_called') {
-        qb.andWhere('(c.last_contact_date IS NULL OR c.last_contact_date < :calledToday)', { calledToday: todayStart });
-      }
-    }
+    // Called Status filter
+    this.applyCalledStatusFilter(qb, calledStatus);
 
     // Sorting
     const validSortColumns = ['created_at', 'name', 'email', 'priority'];
@@ -650,17 +681,7 @@ export class CrmTeamService {
       );
     }
     // Called Status filter for count
-    if (calledStatus && calledStatus !== 'all') {
-      const todayStart = new Date();
-      todayStart.setHours(0, 0, 0, 0);
-      const tomorrowStart = new Date(todayStart);
-      tomorrowStart.setDate(tomorrowStart.getDate() + 1);
-      if (calledStatus === 'called') {
-        countQb.andWhere('c.last_contact_date >= :calledToday AND c.last_contact_date < :calledTomorrow', { calledToday: todayStart, calledTomorrow: tomorrowStart });
-      } else if (calledStatus === 'not_called') {
-        countQb.andWhere('(c.last_contact_date IS NULL OR c.last_contact_date < :calledToday)', { calledToday: todayStart });
-      }
-    }
+    this.applyCalledStatusFilter(countQb, calledStatus);
     const total = await countQb.getCount();
 
     // Enrich with agent names
@@ -1199,21 +1220,8 @@ export class CrmTeamService {
       }
     }
 
-    // Called Status filter - based on last_contact_date being today
-    if (calledStatus && calledStatus !== 'all') {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const tomorrow = new Date(today);
-      tomorrow.setDate(tomorrow.getDate() + 1);
-
-      if (calledStatus === 'called') {
-        // Called today: last_contact_date is today
-        qb.andWhere('c.last_contact_date >= :today AND c.last_contact_date < :tomorrow', { today, tomorrow });
-      } else if (calledStatus === 'not_called') {
-        // Not called today: last_contact_date is null or before today
-        qb.andWhere('(c.last_contact_date IS NULL OR c.last_contact_date < :today)', { today });
-      }
-    }
+    // Called Status filter
+    this.applyCalledStatusFilter(qb, calledStatus);
 
     // Outcome filter - check latest engagement metadata
     if (outcome && outcome !== 'all') {
