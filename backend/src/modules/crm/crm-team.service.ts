@@ -323,6 +323,7 @@ export class CrmTeamService {
       productName,
       orderSegment,       // 'new' (SO- only) | 'legacy' (LEG- only) | 'mixed' (both)
       filterTeamLeaderId, // admin-only: filter leads by a specific team leader
+      calledStatus,       // 'all' | 'called' | 'not_called'
     } = query;
     
     const pageNum = Number(page) || 1;
@@ -494,6 +495,19 @@ export class CrmTeamService {
       );
     }
 
+    // Called Status filter — based on last_contact_date column
+    if (calledStatus && calledStatus !== 'all') {
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+      const tomorrowStart = new Date(todayStart);
+      tomorrowStart.setDate(tomorrowStart.getDate() + 1);
+      if (calledStatus === 'called') {
+        qb.andWhere('c.last_contact_date >= :calledToday AND c.last_contact_date < :calledTomorrow', { calledToday: todayStart, calledTomorrow: tomorrowStart });
+      } else if (calledStatus === 'not_called') {
+        qb.andWhere('(c.last_contact_date IS NULL OR c.last_contact_date < :calledToday)', { calledToday: todayStart });
+      }
+    }
+
     // Sorting
     const validSortColumns = ['created_at', 'name', 'email', 'priority'];
     const sortColumn = validSortColumns.includes(sortBy) ? `c.${sortBy}` : 'c.created_at';
@@ -635,6 +649,18 @@ export class CrmTeamService {
         { dateTo: toDate }
       );
     }
+    // Called Status filter for count
+    if (calledStatus && calledStatus !== 'all') {
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+      const tomorrowStart = new Date(todayStart);
+      tomorrowStart.setDate(tomorrowStart.getDate() + 1);
+      if (calledStatus === 'called') {
+        countQb.andWhere('c.last_contact_date >= :calledToday AND c.last_contact_date < :calledTomorrow', { calledToday: todayStart, calledTomorrow: tomorrowStart });
+      } else if (calledStatus === 'not_called') {
+        countQb.andWhere('(c.last_contact_date IS NULL OR c.last_contact_date < :calledToday)', { calledToday: todayStart });
+      }
+    }
     const total = await countQb.getCount();
 
     // Enrich with agent names
@@ -745,6 +771,7 @@ export class CrmTeamService {
       order_count: orderCountMap.get(c.id) || 0,
       tier: tierMap.get(c.id) || null,
       orders: customerOrdersMap.get(c.id) || [],
+      last_contact_date: c.last_contact_date ?? null,
     }));
 
     return { data: enrichedData, total };
