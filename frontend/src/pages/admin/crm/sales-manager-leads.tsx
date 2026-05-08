@@ -36,10 +36,15 @@ interface TeamLeader {
 const ROWS_OPTIONS = [200, 500, 750, 1000, 2000];
 
 const TIER_COLORS: Record<string, string> = {
-  silver: 'bg-gray-100 text-gray-700',
+  new: 'bg-blue-100 text-blue-700',
+  normal: 'bg-gray-100 text-gray-600',
+  repeat: 'bg-teal-100 text-teal-700',
+  silver: 'bg-slate-200 text-slate-700',
   gold: 'bg-amber-100 text-amber-700',
   platinum: 'bg-indigo-100 text-indigo-700',
   vip: 'bg-purple-100 text-purple-700',
+  blacklist: 'bg-red-100 text-red-700',
+  rejected: 'bg-rose-100 text-rose-800',
 };
 
 const getSegment = (lead: Lead): { label: string; className: string; Icon: React.ElementType } | null => {
@@ -326,11 +331,19 @@ const SalesManagerLeadAssignment = () => {
               className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500"
             >
               <option value="">All Tiers</option>
-              <option value="silver">Silver</option>
-              <option value="gold">Gold</option>
-              <option value="platinum">Platinum</option>
-              <option value="vip">VIP</option>
-              <option value="rejected">Rejected</option>
+              <optgroup label="Active">
+                <option value="new">New</option>
+                <option value="normal">Normal</option>
+                <option value="repeat">Repeat</option>
+                <option value="silver">Silver</option>
+                <option value="gold">Gold</option>
+                <option value="platinum">Platinum</option>
+                <option value="vip">VIP</option>
+              </optgroup>
+              <optgroup label="Restricted">
+                <option value="blacklist">Blacklisted</option>
+                <option value="rejected">Rejected</option>
+              </optgroup>
             </select>
 
             {/* Lifecycle filter */}
