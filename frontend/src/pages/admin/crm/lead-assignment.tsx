@@ -11,6 +11,24 @@ import { useToast } from '@/contexts/ToastContext';
 import { FaEye, FaChartBar, FaChevronDown, FaChevronRight, FaBoxOpen } from 'react-icons/fa';
 import { getOrderStatusLabel, getOrderStatusColor } from '@/utils/orderStatus';
 import ThSort from '@/components/admin/ThSort';
+
+type FilterCalledStatus = 'all' | 'called' | 'not_called';
+
+const formatLastCalled = (dateStr?: string | null): { text: string; color: string } => {
+  if (!dateStr) return { text: 'Never', color: 'text-red-600' };
+  const date = new Date(dateStr);
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const callDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const diffDays = Math.floor((today.getTime() - callDate.getTime()) / (1000 * 60 * 60 * 24));
+  if (diffDays === 0) return { text: 'Today', color: 'text-green-600 font-semibold' };
+  if (diffDays === 1) return { text: 'Yesterday', color: 'text-blue-600' };
+  if (diffDays === 2) return { text: '2 days ago', color: 'text-yellow-600' };
+  if (diffDays <= 7) return { text: `${diffDays} days ago`, color: 'text-orange-600' };
+  if (diffDays <= 14) return { text: '1 week ago', color: 'text-orange-700' };
+  if (diffDays <= 30) return { text: `${Math.floor(diffDays / 7)} weeks ago`, color: 'text-red-500' };
+  return { text: `${Math.floor(diffDays / 30)} months ago`, color: 'text-red-600' };
+};
 import { useSortableData } from '@/hooks/useSortableData';
 
 interface OrderItem {
@@ -40,6 +58,7 @@ interface LeadCustomer {
   assigned_to?: number | null;
   created_at?: string;
   first_order_date?: string;
+  last_contact_date?: string | null;
   order_count?: number;
   orders?: CustomerOrder[];
 }
@@ -84,6 +103,7 @@ export default function LeadAssignmentPage() {
   const [orderSegmentFilter, setOrderSegmentFilter] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  const [calledStatusFilter, setCalledStatusFilter] = useState<FilterCalledStatus>('all');
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(50);
 
@@ -140,7 +160,7 @@ export default function LeadAssignmentPage() {
     setSelectedLeadIds(new Set());
     loadLeads();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [assignmentStatus, debouncedSearchTerm, agentFilter, customerTypeFilter, purchaseStageFilter, productNameFilter, orderSegmentFilter, dateFrom, dateTo, page, limit]);
+  }, [assignmentStatus, debouncedSearchTerm, agentFilter, customerTypeFilter, purchaseStageFilter, productNameFilter, orderSegmentFilter, dateFrom, dateTo, calledStatusFilter, page, limit]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -195,6 +215,7 @@ export default function LeadAssignmentPage() {
       if (orderSegmentFilter) params.orderSegment = orderSegmentFilter;
       if (dateFrom) params.dateFrom = dateFrom;
       if (dateTo) params.dateTo = dateTo;
+      if (calledStatusFilter && calledStatusFilter !== 'all') params.calledStatus = calledStatusFilter;
 
       const res = await apiClient.get<PaginatedResponse>('/crm/team/leads', { params });
       const data = Array.isArray((res as any)?.data?.data) ? (res as any).data.data : [];
@@ -564,6 +585,23 @@ export default function LeadAssignmentPage() {
               />
             </div>
 
+            {/* Called Status */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Called Status</label>
+              <select
+                value={calledStatusFilter}
+                onChange={(e) => {
+                  setCalledStatusFilter(e.target.value as FilterCalledStatus);
+                  setPage(1);
+                }}
+                className="w-full border rounded-lg px-3 py-2"
+              >
+                <option value="all">All</option>
+                <option value="called">Called Today</option>
+                <option value="not_called">Not Called</option>
+              </select>
+            </div>
+
             {/* Tier */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Tier</label>
@@ -756,6 +794,7 @@ export default function LeadAssignmentPage() {
                       <ThSort col="name" label="Name" sortKey={assignSortKey} sortDir={assignSortDir} onSort={toggleAssignSort} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
                       <ThSort col="phone" label="Contact" sortKey={assignSortKey} sortDir={assignSortDir} onSort={toggleAssignSort} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
                       <ThSort col="tier" label="Tier" sortKey={assignSortKey} sortDir={assignSortDir} onSort={toggleAssignSort} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                      <ThSort col="last_contact_date" label="Last Called" sortKey={assignSortKey} sortDir={assignSortDir} onSort={toggleAssignSort} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
                       <ThSort col="priority" label="Status" sortKey={assignSortKey} sortDir={assignSortDir} onSort={toggleAssignSort} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
                       <ThSort col="order_count" label="Orders" sortKey={assignSortKey} sortDir={assignSortDir} onSort={toggleAssignSort} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
                       <ThSort col="first_order_date" label="Order Date" sortKey={assignSortKey} sortDir={assignSortDir} onSort={toggleAssignSort} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
@@ -816,6 +855,12 @@ export default function LeadAssignmentPage() {
                               ) : (
                                 <span className="text-xs text-gray-400">—</span>
                               )}
+                            </td>
+                            <td className="px-4 py-4">
+                              {(() => {
+                                const lc = formatLastCalled(lead.last_contact_date);
+                                return <span className={`text-sm ${lc.color}`}>{lc.text}</span>;
+                              })()}
                             </td>
                             <td className="px-4 py-4">
                               {lead.assigned_to ? (
