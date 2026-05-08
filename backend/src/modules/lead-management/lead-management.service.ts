@@ -641,7 +641,8 @@ export class LeadManagementService {
       ? ''
       : `AND NOT EXISTS (SELECT 1 FROM customer_tiers ct_rej WHERE ct_rej.customer_id = c.id AND ct_rej.tier = 'rejected') AND (c.customer_type IS NULL OR c.customer_type != 'rejected')`;
 
-    // First, get total count for stats (before pagination)
+    // Stats query: always returns counts for ALL tiers regardless of tier filter,
+    // so the tier cards on the management page always show correct global totals.
     const statsQuery = `
       SELECT 
         COUNT(CASE WHEN ct.is_active = true THEN 1 END)::int as total_active,
@@ -658,12 +659,7 @@ export class LeadManagementService {
       FROM customers c
       LEFT JOIN customer_tiers ct ON ct.customer_id = c.id
       WHERE c.is_deleted = false
-      ${filters.tier && filters.tier !== 'all' ? `AND ct.tier = '${filters.tier}'` : ''}
-      ${excludeRejected}
-      ${filters.status === 'active' ? 'AND ct.is_active = true' : ''}
-      ${filters.status === 'inactive' ? 'AND ct.is_active = false' : ''}
       ${filters.assignedTo ? `AND c.assigned_to = ${filters.assignedTo}` : ''}
-      ${searchClause}
     `;
 
     const statsResults = await this.sessionRepo.query(statsQuery);
