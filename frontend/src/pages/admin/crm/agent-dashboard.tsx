@@ -111,7 +111,7 @@ interface CommissionRecord {
 }
 
 // Filter types for leads
-type FilterCalledStatus = 'all' | 'called' | 'not_called';
+type FilterCalledStatus = 'all' | 'called_today' | 'called_week' | 'called_month' | 'not_called_today' | 'not_called_week' | 'never';
 type FilterOutcome = 'all' | 'positive' | 'negative' | 'neutral' | 'no_answer';
 
 // Helper function to format last called date
@@ -1159,8 +1159,16 @@ export default function AgentDashboard() {
                   className="w-full border rounded-lg px-3 py-2 text-sm"
                 >
                   <option value="all">All</option>
-                  <option value="called">Called Today</option>
-                  <option value="not_called">Not Called</option>
+                  <optgroup label="Called">
+                    <option value="called_today">Called Today</option>
+                    <option value="called_week">Called This Week</option>
+                    <option value="called_month">Called This Month</option>
+                  </optgroup>
+                  <optgroup label="Not Called">
+                    <option value="not_called_today">Not Called Today</option>
+                    <option value="not_called_week">Not Called in 7+ Days</option>
+                    <option value="never">Never Called</option>
+                  </optgroup>
                 </select>
               </div>
               <div className="w-40">
