@@ -1,4 +1,4 @@
-﻿import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
 import apiClient from '@/services/api';
@@ -202,9 +202,9 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
   // Auto-detect Dhaka in address and set delivery zone
   useEffect(() => {
     const addr = orderForm.address.toLowerCase();
-    if (addr.includes('dhaka') || addr.includes('ঢাকা')) {
+    if (addr.includes('dhaka') || addr.includes('????')) {
       setDeliveryZone('inside');
-    } else if (addr.length > 10 && !addr.includes('dhaka') && !addr.includes('ঢাকা')) {
+    } else if (addr.length > 10 && !addr.includes('dhaka') && !addr.includes('????')) {
       setDeliveryZone('outside');
     }
   }, [orderForm.address]);
@@ -267,15 +267,15 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
   const handleSubmitOrder = async () => {
     setFormTouched(true);
     if (!orderForm.name || !orderForm.phone || !orderForm.address) {
-      toast.warning('অনুগ্রহ করে সব তথ্য পূরণ করুন');
+      toast.warning('??????? ??? ?? ???? ???? ????');
       return;
     }
     if (!isBdPhoneValid()) {
-      toast.warning(isInternational ? 'Please enter a valid phone number' : 'ফোন নম্বর অবশ্যই 0 দিয়ে শুরু হতে হবে এবং ১১ ডিজিট হতে হবে');
+      toast.warning(isInternational ? 'Please enter a valid phone number' : '??? ????? ?????? 0 ????? ???? ??? ??? ??? ?? ????? ??? ???');
       return;
     }
     if (orderItems.length === 0) {
-      toast.warning('অনুগ্রহ করে একটি প্রোডাক্ট নির্বাচন করুন');
+      toast.warning('??????? ??? ???? ????????? ???????? ????');
       return;
     }
 
@@ -344,7 +344,7 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
         return;
       } else {
         setSubmitted(true);
-        toast.success('আপনার অর্ডারটি সফলভাবে গ্রহণ করা হয়েছে! ধন্যবাদ।');
+        toast.success('????? ???????? ??????? ????? ??? ??????! ????????');
       }
     } catch (err: any) {
       console.error('Order submission error:', err);
@@ -365,9 +365,9 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
       }
       if (status && status >= 500) {
         setSubmitted(true);
-        toast.success('আপনার অর্ডারটি গ্রহণ করা হয়েছে! শীঘ্রই আমরা আপনার সাথে যোগাযোগ করবো।');
+        toast.success('????? ???????? ????? ??? ??????! ?????? ???? ????? ???? ??????? ?????');
       } else {
-        toast.error('অর্ডার জমা দিতে সমস্যা হয়েছে। আবার চেষ্টা করুন।');
+        toast.error('?????? ??? ???? ?????? ??????? ???? ?????? ?????');
       }
     } finally {
       setSubmitting(false);
@@ -514,7 +514,7 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
 
       <div className="min-h-screen elegant-landing" style={{ backgroundColor: page.background_color }}>
 
-        {/* ═══════════════ HERO SECTION ═══════════════ */}
+        {/* --------------- HERO SECTION --------------- */}
         <div className="relative overflow-hidden" style={{ minHeight: '85vh' }}>
           {/* Gradient Background */}
           <div
@@ -543,9 +543,9 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
           {/* Shimmer overlay */}
           {/* <div className="absolute inset-0 elegant-shimmer pointer-events-none" /> */}
 
-          <div className="relative max-w-6xl mx-auto px-4 sm:px-6 py-16 md:py-24">
+          <div className="relative max-w-6xl mx-auto px-2 sm:px-3 py-16 md:py-24">
             {page.hero_layout === 'title-first' ? (
-              /* ─── Title-First: Stacked single-column layout (like FreeOffer) ─── */
+              /* --- Title-First: Stacked single-column layout (like FreeOffer) --- */
               <div className="text-center elegant-fade-in">
                 <h1
                   className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold mb-5 leading-tight whitespace-pre-line"
@@ -568,18 +568,18 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
                   <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3 mb-8">
                     {page.products[0].compare_price && page.products[0].compare_price > page.products[0].price && (
                       <span className="red-strikethrough price-number font-bold px-3 sm:px-4 py-1.5 rounded-lg bg-white/20 backdrop-blur-sm border border-white/30 text-white text-sm sm:text-base md:text-xl">
-                        ৳{page.products[0].compare_price.toLocaleString()}
+                        ?{page.products[0].compare_price.toLocaleString()}
                       </span>
                     )}
                     <span className="text-2xl sm:text-3xl md:text-4xl font-extrabold px-4 sm:px-5 py-2 rounded-xl bg-white/15 backdrop-blur-sm border border-yellow-400/40"
                       style={{ color: '#FFD700' }}
                     >
-                      <span className="text-sm sm:text-base md:text-lg font-normal opacity-80 mr-1">মাত্র</span>
-                      <span className="price-number">৳{page.products[0].price.toLocaleString()}</span>
+                      <span className="text-sm sm:text-base md:text-lg font-normal opacity-80 mr-1">?????</span>
+                      <span className="price-number">?{page.products[0].price.toLocaleString()}</span>
                     </span>
                     {page.products[0].compare_price && page.products[0].compare_price > page.products[0].price && (
                       <span className="bg-green-500 text-white text-xs sm:text-sm font-extrabold px-3 sm:px-4 py-1.5 sm:py-2 rounded-full whitespace-nowrap shadow-lg">
-                        {Math.round(((page.products[0].compare_price - page.products[0].price) / page.products[0].compare_price) * 100)}% ছাড়!
+                        {Math.round(((page.products[0].compare_price - page.products[0].price) / page.products[0].compare_price) * 100)}% ????!
                       </span>
                     )}
                   </div>
@@ -601,7 +601,7 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
                       <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 z-10">
                         <div className="inline-flex items-center gap-2 bg-gradient-to-r from-yellow-400 to-amber-500 text-gray-900 px-5 py-2.5 rounded-full shadow-xl font-bold text-sm elegant-glow">
                           <FaTruck className="text-lg" />
-                          ফ্রি ডেলিভেরি!
+                          ???? ????????!
                         </div>
                       </div>
                     )}
@@ -641,7 +641,7 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
                 )}
               </div>
             ) : (
-              /* ─── Image-First: Two-column side-by-side layout (default Elegant) ─── */
+              /* --- Image-First: Two-column side-by-side layout (default Elegant) --- */
               <div className="flex flex-col md:flex-row items-center gap-10 md:gap-16">
                 {/* Hero Image */}
                 {page.hero_image_url && (
@@ -661,7 +661,7 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
                         <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 z-10">
                           <div className="inline-flex items-center gap-2 bg-gradient-to-r from-yellow-400 to-amber-500 text-gray-900 px-5 py-2.5 rounded-full shadow-xl font-bold text-sm elegant-glow">
                             <FaTruck className="text-lg" />
-                            ফ্রি ডেলিভেরি!
+                            ???? ????????!
                           </div>
                         </div>
                       )}
@@ -691,18 +691,18 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
                     <div className="flex flex-wrap items-center justify-center md:justify-start gap-2 sm:gap-3 mb-8">
                       {page.products[0].compare_price && page.products[0].compare_price > page.products[0].price && (
                         <span className="red-strikethrough price-number font-bold px-3 sm:px-4 py-1.5 rounded-lg bg-white/20 backdrop-blur-sm border border-white/30 text-white text-sm sm:text-base md:text-xl">
-                          ৳{page.products[0].compare_price.toLocaleString()}
+                          ?{page.products[0].compare_price.toLocaleString()}
                         </span>
                       )}
                       <span className="text-2xl sm:text-3xl md:text-4xl font-extrabold px-4 sm:px-5 py-2 rounded-xl bg-white/15 backdrop-blur-sm border border-yellow-400/40"
                         style={{ color: '#FFD700' }}
                       >
-                        <span className="text-sm sm:text-base md:text-lg font-normal opacity-80 mr-1">মাত্র</span>
-                        <span className="price-number">৳{page.products[0].price.toLocaleString()}</span>
+                        <span className="text-sm sm:text-base md:text-lg font-normal opacity-80 mr-1">?????</span>
+                        <span className="price-number">?{page.products[0].price.toLocaleString()}</span>
                       </span>
                       {page.products[0].compare_price && page.products[0].compare_price > page.products[0].price && (
                         <span className="bg-green-500 text-white text-xs sm:text-sm font-extrabold px-3 sm:px-4 py-1.5 sm:py-2 rounded-full whitespace-nowrap shadow-lg">
-                          {Math.round(((page.products[0].compare_price - page.products[0].price) / page.products[0].compare_price) * 100)}% ছাড়!
+                          {Math.round(((page.products[0].compare_price - page.products[0].price) / page.products[0].compare_price) * 100)}% ????!
                         </span>
                       )}
                     </div>
@@ -743,13 +743,13 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
           </div>
         </div>
 
-        {/* ═══════════════ DYNAMIC SECTIONS ═══════════════ */}
+        {/* --------------- DYNAMIC SECTIONS --------------- */}
         {visibleSections.map((section, sIdx) => (
           <div key={section.id}>
             {/* Benefits Section */}
             {section.type === 'benefits' && (
               <div
-                className="py-8 md:py-12 px-4 sm:px-6"
+                className="py-8 md:py-12 px-2 sm:px-3"
                 style={{
                   backgroundColor: section.backgroundColor || '#FFFFFF',
                   color: section.textColor || '#1a1a2e',
@@ -785,7 +785,7 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
                               background: `linear-gradient(135deg, ${page.primary_color}15 0%, ${page.primary_color}25 100%)`,
                             }}
                           >
-                            {item.icon || '✅'}
+                            {item.icon || '?'}
                           </div>
                           <span className="text-base font-medium leading-relaxed pt-2">{item.text}</span>
                         </div>
@@ -799,7 +799,7 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
             {/* Trust / Why Choose Us */}
             {section.type === 'trust' && (
               <div
-                className="py-8 md:py-12 px-4 sm:px-6"
+                className="py-8 md:py-12 px-2 sm:px-3"
                 style={{
                   backgroundColor: section.backgroundColor || '#f8f9fa',
                   color: section.textColor || '#1a1a2e',
@@ -839,7 +839,7 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
             {/* Image Gallery */}
             {section.type === 'images' && (
               <div
-                className="py-8 md:py-12 px-4 sm:px-6"
+                className="py-8 md:py-12 px-2 sm:px-3"
                 style={{ backgroundColor: section.backgroundColor || '#FFFFFF' }}
               >
                 <div className="max-w-5xl mx-auto">
@@ -881,7 +881,7 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
 
             {/* CTA Section */}
             {section.type === 'cta' && (
-              <div className="relative overflow-hidden py-8 md:py-12 px-4 sm:px-6">
+              <div className="relative overflow-hidden py-8 md:py-12 px-2 sm:px-3">
                 <div
                   className="absolute inset-0"
                   style={{
@@ -919,7 +919,7 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
 
             {/* Hero (mid-page) */}
             {section.type === 'hero' && (
-              <div className="relative overflow-hidden py-16 md:py-20 px-4 sm:px-6">
+              <div className="relative overflow-hidden py-16 md:py-20 px-2 sm:px-3">
                 <div
                   className="absolute inset-0"
                   style={{
@@ -951,7 +951,7 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
             {/* Custom HTML */}
             {section.type === 'custom-html' && (
               <div
-                className="py-12 px-4 sm:px-6"
+                className="py-12 px-2 sm:px-3"
                 style={{
                   backgroundColor: section.backgroundColor || '#FFFFFF',
                   color: section.textColor || '#1a1a2e',
@@ -1008,7 +1008,7 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
           </div>
         ))}
 
-        {/* ═══════════════ CROSS-SELL SUGGESTION ═══════════════ */}
+        {/* --------------- CROSS-SELL SUGGESTION --------------- */}
         {page.cross_sell_product && page.cross_sell_product.name && (
           <CrossSellSuggestion
             product={page.cross_sell_product}
@@ -1019,9 +1019,9 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
           />
         )}
 
-        {/* ═══════════════ ORDER FORM ═══════════════ */}
+        {/* --------------- ORDER FORM --------------- */}
         {page.show_order_form && (
-          <div ref={orderFormRef} className="py-10 md:py-14 px-4 sm:px-6">
+          <div ref={orderFormRef} className="py-10 md:py-14 px-2 sm:px-3">
             <div className="max-w-2xl mx-auto">
               {submitted ? (
                 <div className="text-center py-10">
@@ -1032,10 +1032,10 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
                     <FaCheckCircle className="text-white text-5xl" />
                   </div>
                   <h2 className="text-2xl sm:text-3xl font-extrabold text-gray-800 mb-3">
-                    আপনার অর্ডার সফলভাবে গ্রহণ করা হয়েছে!
+                    ????? ?????? ??????? ????? ??? ??????!
                   </h2>
-                  <p className="text-gray-500 text-lg">আমরা শীঘ্রই আপনার সাথে যোগাযোগ করব।</p>
-                  <p className="text-gray-400 mt-2">আমাদের একজন কাস্টমার প্রতিনিধি আপনাকে কল করে আবার কনফার্ম করবে</p>
+                  <p className="text-gray-500 text-lg">???? ?????? ????? ???? ??????? ????</p>
+                  <p className="text-gray-400 mt-2">?????? ???? ???????? ????????? ?????? ?? ??? ???? ??????? ????</p>
                 </div>
               ) : (
                 <div className="bg-white rounded-3xl shadow-2xl overflow-hidden border border-gray-100">
@@ -1050,7 +1050,7 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
                       className="text-xl sm:text-2xl font-extrabold"
                       style={{ color: page.secondary_color }}
                     >
-                      অর্ডার করতে ফর্মটি পূরণ করুন
+                      ?????? ???? ?????? ???? ????
                     </h2>
                     {page.delivery_note && (
                       <p className="mt-1.5 text-sm opacity-80" style={{ color: page.secondary_color }}>
@@ -1069,14 +1069,14 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
                         >
                           1
                         </span>
-                        প্রোডাক্ট নির্বাচন করুন
+                        ????????? ???????? ????
                       </h3>
                       <div className="space-y-3">
                         {(page.products || []).map((product) => {
                           const orderItem = orderItems.find((i) => i.product.id === product.id);
                           const isSelected = !!orderItem;
                           const isFeatured = !!product.is_featured;
-                          const featuredLabel = product.featured_label || '🔥 বিশেষ অফার';
+                          const featuredLabel = product.featured_label || '?? ????? ????';
                           return (
                             <div
                               key={product.id}
@@ -1137,14 +1137,14 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
                                   <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mt-1.5">
                                     {product.compare_price && product.compare_price > product.price && (
                                       <span className="text-xs sm:text-sm line-through font-bold text-red-500 bg-red-50 px-2 py-0.5 rounded border border-red-200">
-                                        {product.compare_price.toLocaleString()} ৳
+                                        {product.compare_price.toLocaleString()} ?
                                       </span>
                                     )}
                                     <span
                                       className="text-base sm:text-xl font-extrabold px-2 sm:px-3 py-0.5 rounded-lg text-white"
                                       style={{ backgroundColor: page.primary_color }}
                                     >
-                                      {product.price.toLocaleString()} ৳
+                                      {product.price.toLocaleString()} ?
                                     </span>
                                     {product.compare_price && product.compare_price > product.price && (
                                       <span className="text-[10px] sm:text-xs font-bold text-green-600 bg-green-100 px-1.5 sm:px-2 py-0.5 rounded-full whitespace-nowrap">
@@ -1187,12 +1187,12 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
                         >
                           2
                         </span>
-                        আপনার তথ্য
+                        ????? ????
                       </h3>
                       <div className="space-y-4">
                         <div>
                           <label className={`block text-sm font-semibold mb-1.5 ${formTouched && !orderForm.name ? 'text-red-600' : 'text-gray-700'}`}>
-                            নাম *
+                            ??? *
                           </label>
                           <input
                             type="text"
@@ -1204,12 +1204,12 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
                                 : 'border-gray-200 focus:ring-opacity-30'
                             }`}
                             style={{ ...(formTouched && !orderForm.name ? {} : { '--tw-ring-color': page.primary_color } as any) }}
-                            placeholder="আপনার নাম লিখুন"
+                            placeholder="????? ??? ?????"
                           />
                         </div>
                         <div>
                           <label className={`block text-sm font-semibold mb-1.5 ${formTouched && !orderForm.address ? 'text-red-600' : 'text-gray-700'}`}>
-                            সম্পূর্ণ ঠিকানা *
+                            ???????? ?????? *
                           </label>
                           <textarea
                             value={orderForm.address}
@@ -1220,12 +1220,12 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
                                 : 'border-gray-200 focus:ring-opacity-30'
                             }`}
                             rows={2}
-                            placeholder="সম্পূর্ণ ঠিকানা লিখুন"
+                            placeholder="???????? ?????? ?????"
                           />
                         </div>
                         <div>
                           <label className={`block text-sm font-semibold mb-1.5 ${formTouched && (!orderForm.phone || !isBdPhoneValid()) ? 'text-red-600' : 'text-gray-700'}`}>
-                            মোবাইল নম্বর *
+                            ?????? ????? *
                           </label>
                           {isInternational ? (
                             <InternationalPhoneInput
@@ -1245,14 +1245,14 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
                         </div>
                         <div>
                           <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                            অতিরিক্ত নোট (ঐচ্ছিক)
+                            ???????? ??? (??????)
                           </label>
                           <textarea
                             value={orderForm.note}
                             onChange={(e) => setOrderForm((prev) => ({ ...prev, note: e.target.value }))}
                             className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-opacity-30 focus:border-transparent transition-all"
                             rows={2}
-                            placeholder="কোনো বিশেষ নির্দেশনা থাকলে লিখুন..."
+                            placeholder="???? ????? ????????? ????? ?????..."
                           />
                         </div>
                       </div>
@@ -1267,7 +1267,7 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
                         >
                           3
                         </span>
-                        অর্ডার সামারি
+                        ?????? ??????
                       </h3>
 
                       <div className="bg-gray-50 rounded-2xl p-4 border border-gray-100">
@@ -1275,20 +1275,20 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
                           {orderItems.map((item) => (
                             <div key={item.product.id} className="flex justify-between items-center text-sm">
                               <span className="text-gray-700 font-medium">
-                                {item.product.name} × {item.quantity}
+                                {item.product.name} � {item.quantity}
                               </span>
                               <span className="font-bold text-gray-800 whitespace-nowrap">
-                                {(item.product.price * item.quantity).toLocaleString()} ৳
+                                {(item.product.price * item.quantity).toLocaleString()} ?
                               </span>
                             </div>
                           ))}
                           {crossSellChecked && page.cross_sell_product && (
                             <div className="flex justify-between items-center text-sm">
                               <span className="text-green-700 font-medium flex items-center gap-1">
-                                🎁 {page.cross_sell_product.name}
+                                ?? {page.cross_sell_product.name}
                               </span>
                               <span className="font-bold text-green-700 whitespace-nowrap">
-                                {page.cross_sell_product.price.toLocaleString()} ৳
+                                {page.cross_sell_product.price.toLocaleString()} ?
                               </span>
                             </div>
                           )}
@@ -1297,9 +1297,9 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
                         {/* Delivery Zone */}
                         {!page.free_delivery && (Number(page.delivery_charge) > 0 || Number(page.delivery_charge_outside) > 0) && (
                           Number(page.delivery_charge) !== Number(page.delivery_charge_outside) ? (
-                            /* Different charges — show inside/outside selector */
+                            /* Different charges � show inside/outside selector */
                             <div className="mb-4">
-                              <label className="block text-sm font-semibold text-gray-700 mb-2">ডেলিভারি এলাকা</label>
+                              <label className="block text-sm font-semibold text-gray-700 mb-2">???????? ?????</label>
                               <div className="grid grid-cols-2 gap-2">
                                 <button
                                   type="button"
@@ -1315,9 +1315,9 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
                                       : {}
                                   }
                                 >
-                                  ঢাকার ভিতরে
+                                  ????? ?????
                                   <div className="text-xs mt-0.5 opacity-80">
-                                    {Number(page.delivery_charge) === 0 ? 'ফ্রি' : `${Number(page.delivery_charge).toLocaleString()} ৳`}
+                                    {Number(page.delivery_charge) === 0 ? '????' : `${Number(page.delivery_charge).toLocaleString()} ?`}
                                   </div>
                                 </button>
                                 <button
@@ -1334,29 +1334,29 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
                                       : {}
                                   }
                                 >
-                                  ঢাকার বাইরে
+                                  ????? ?????
                                   <div className="text-xs mt-0.5 opacity-80">
-                                    {Number(page.delivery_charge_outside) === 0 ? 'ফ্রি' : `${Number(page.delivery_charge_outside).toLocaleString()} ৳`}
+                                    {Number(page.delivery_charge_outside) === 0 ? '????' : `${Number(page.delivery_charge_outside).toLocaleString()} ?`}
                                   </div>
                                 </button>
                               </div>
                             </div>
                           ) : null
-                          /* Same charge — no zone selector needed, delivery charge shows in summary below */
+                          /* Same charge � no zone selector needed, delivery charge shows in summary below */
                         )}
 
                         {/* Charges */}
                         <div className="space-y-2 text-sm">
                           <div className="flex justify-between">
-                            <span className="text-gray-500">সাবটোটাল</span>
-                            <span className="font-medium text-gray-700">{getSubtotal().toLocaleString()} ৳</span>
+                            <span className="text-gray-500">????????</span>
+                            <span className="font-medium text-gray-700">{getSubtotal().toLocaleString()} ?</span>
                           </div>
                           <div className="flex justify-between">
-                            <span className="text-gray-500">ডেলিভারি চার্জ</span>
+                            <span className="text-gray-500">???????? ?????</span>
                             {page.free_delivery || getDeliveryCharge() === 0 ? (
-                              <span className="font-bold text-green-600">ফ্রি ✨</span>
+                              <span className="font-bold text-green-600">???? ?</span>
                             ) : (
-                              <span className="font-medium text-gray-700">{getDeliveryCharge().toLocaleString()} ৳</span>
+                              <span className="font-medium text-gray-700">{getDeliveryCharge().toLocaleString()} ?</span>
                             )}
                           </div>
                         </div>
@@ -1366,9 +1366,9 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
                           className="flex justify-between items-center mt-3 pt-3 border-t-2 border-dashed"
                           style={{ borderColor: `${page.primary_color}30` }}
                         >
-                          <span className="text-lg font-extrabold text-gray-800">সর্বমোট</span>
+                          <span className="text-lg font-extrabold text-gray-800">???????</span>
                           <span className="text-2xl font-extrabold" style={{ color: page.primary_color }}>
-                            {getTotal().toLocaleString()} ৳
+                            {getTotal().toLocaleString()} ?
                           </span>
                         </div>
 
@@ -1412,15 +1412,15 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
                           }}
                         >
                           {submitting ? (
-                            <span className="text-base sm:text-lg">প্রসেসিং...</span>
+                            <span className="text-base sm:text-lg">????????...</span>
                           ) : (
                             <>
                               <span className="flex items-center gap-2 text-sm sm:text-base md:text-lg leading-tight">
                                 <FaShoppingCart className="flex-shrink-0" />
-                                <span>অর্ডার কনফার্ম করুন</span>
+                                <span>?????? ??????? ????</span>
                               </span>
-                              <span className="text-base sm:text-lg md:text-xl font-extrabold sm:before:content-['—'] sm:before:mr-2 sm:before:opacity-70">
-                                {getTotal().toLocaleString()} ৳
+                              <span className="text-base sm:text-lg md:text-xl font-extrabold sm:before:content-['�'] sm:before:mr-2 sm:before:opacity-70">
+                                {getTotal().toLocaleString()} ?
                               </span>
                             </>
                           )}
@@ -1434,7 +1434,7 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
           </div>
         )}
 
-        {/* ═══════════════ FLOATING BUTTONS ═══════════════ */}
+        {/* --------------- FLOATING BUTTONS --------------- */}
         <div className="fixed bottom-6 right-6 flex flex-col gap-3 z-50">
           {page.whatsapp_number && (
             <a
@@ -1462,7 +1462,7 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
           )}
         </div>
 
-        {/* ═══════════════ FOOTER ═══════════════ */}
+        {/* --------------- FOOTER --------------- */}
         <div className="relative overflow-hidden">
           <div
             className="absolute inset-0"
@@ -1473,7 +1473,7 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
           <div className="relative py-10 text-center space-y-4">
             <div>
               <p className="text-base sm:text-lg font-semibold opacity-90 mb-2" style={{ color: page.secondary_color }}>
-                আমাদের আরো প্রোডাক্ট পেতে ভিজিট করুন
+                ?????? ??? ????????? ???? ????? ????
               </p>
               <a
                 href="https://trustcart.com.bd"
@@ -1485,14 +1485,14 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
                   color: '#1a1a2e',
                 }}
               >
-                trustcart.com.bd →
+                trustcart.com.bd ?
               </a>
             </div>
             <p
               className="text-sm font-medium opacity-70"
               style={{ color: page.secondary_color }}
             >
-              © {new Date().getFullYear()} TrustCart. All rights reserved.
+              � {new Date().getFullYear()} TrustCart. All rights reserved.
             </p>
           </div>
         </div>
