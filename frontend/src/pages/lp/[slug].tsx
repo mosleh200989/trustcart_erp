@@ -55,6 +55,10 @@ interface LandingPageData {
   primary_color: string;
   secondary_color: string;
   background_color: string;
+  btn_bg_color?: string;
+  btn_text_color?: string;
+  btn_border_color?: string;
+  btn_border_radius?: number;
   meta_title: string;
   meta_description: string;
   og_image_url: string;

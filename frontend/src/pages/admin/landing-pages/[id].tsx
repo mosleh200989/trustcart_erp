@@ -403,6 +403,10 @@ interface FormData {
   primary_color: string;
   secondary_color: string;
   background_color: string;
+  btn_bg_color: string;
+  btn_text_color: string;
+  btn_border_color: string;
+  btn_border_radius: number;
   meta_title: string;
   meta_description: string;
   og_image_url: string;
@@ -480,6 +484,10 @@ export default function LandingPageEditor() {
     primary_color: '#2d6a4f',
     secondary_color: '#FFFFFF',
     background_color: '#f0f4f0',
+    btn_bg_color: '#2d6a4f',
+    btn_text_color: '#ffffff',
+    btn_border_color: 'transparent',
+    btn_border_radius: 16,
     meta_title: '',
     meta_description: '',
     og_image_url: '',
@@ -1086,6 +1094,98 @@ export default function LandingPageEditor() {
               />
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* ── Button Style ── */}
+      <div className="border-t pt-4">
+        <h3 className="text-lg font-semibold mb-1">Button Style</h3>
+        <p className="text-xs text-gray-400 mb-3">All CTA and order buttons on this landing page will follow these settings.</p>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Button Background</label>
+            <div className="flex items-center gap-2">
+              <input
+                type="color"
+                value={form.btn_bg_color}
+                onChange={(e) => setForm((prev) => ({ ...prev, btn_bg_color: e.target.value }))}
+                className="w-10 h-10 rounded border cursor-pointer"
+              />
+              <input
+                type="text"
+                value={form.btn_bg_color}
+                onChange={(e) => setForm((prev) => ({ ...prev, btn_bg_color: e.target.value }))}
+                className="w-full border rounded-lg px-3 py-2"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Button Text Color</label>
+            <div className="flex items-center gap-2">
+              <input
+                type="color"
+                value={form.btn_text_color}
+                onChange={(e) => setForm((prev) => ({ ...prev, btn_text_color: e.target.value }))}
+                className="w-10 h-10 rounded border cursor-pointer"
+              />
+              <input
+                type="text"
+                value={form.btn_text_color}
+                onChange={(e) => setForm((prev) => ({ ...prev, btn_text_color: e.target.value }))}
+                className="w-full border rounded-lg px-3 py-2"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Border Color</label>
+            <div className="flex items-center gap-2">
+              <input
+                type="color"
+                value={form.btn_border_color === 'transparent' ? '#000000' : form.btn_border_color}
+                onChange={(e) => setForm((prev) => ({ ...prev, btn_border_color: e.target.value }))}
+                className="w-10 h-10 rounded border cursor-pointer"
+              />
+              <input
+                type="text"
+                value={form.btn_border_color}
+                onChange={(e) => setForm((prev) => ({ ...prev, btn_border_color: e.target.value }))}
+                className="w-full border rounded-lg px-3 py-2"
+                placeholder="transparent or #hex"
+              />
+            </div>
+          </div>
+        </div>
+        <div className="mb-4">
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Border Radius: <span className="font-semibold">{form.btn_border_radius}px</span>
+          </label>
+          <input
+            type="range"
+            min={0}
+            max={50}
+            value={form.btn_border_radius}
+            onChange={(e) => setForm((prev) => ({ ...prev, btn_border_radius: Number(e.target.value) }))}
+            className="w-full accent-green-600"
+          />
+          <div className="flex justify-between text-xs text-gray-400 mt-0.5"><span>0px (square)</span><span>25px</span><span>50px (pill)</span></div>
+        </div>
+        {/* Live preview */}
+        <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
+          <p className="text-xs text-gray-500 mb-2">Preview</p>
+          <button
+            type="button"
+            style={{
+              backgroundColor: form.btn_bg_color,
+              color: form.btn_text_color,
+              borderColor: form.btn_border_color,
+              borderWidth: form.btn_border_color === 'transparent' ? 0 : 2,
+              borderStyle: 'solid',
+              borderRadius: form.btn_border_radius + 'px',
+            }}
+            className="px-8 py-3 font-bold text-base shadow transition-all"
+          >
+            অর্ডার করুন
+          </button>
         </div>
       </div>
     </div>

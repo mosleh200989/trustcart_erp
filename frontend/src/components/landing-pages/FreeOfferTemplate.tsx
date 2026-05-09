@@ -59,6 +59,10 @@ interface LandingPageData {
   primary_color: string;
   secondary_color: string;
   background_color: string;
+  btn_bg_color?: string;
+  btn_text_color?: string;
+  btn_border_color?: string;
+  btn_border_radius?: number;
   meta_title: string;
   meta_description: string;
   og_image_url: string;
@@ -507,8 +511,15 @@ export default function FreeOfferTemplate({ page, trafficSource = 'landing_page'
             {page.hero_button_text && (
               <button
                 onClick={scrollToOrderForm}
-                className="group relative inline-flex items-center justify-center gap-3 px-8 sm:px-12 py-4 rounded-full text-xl md:text-2xl font-extrabold transform hover:-translate-y-1 transition-all duration-300 text-black border-2"
-                style={{ background: `linear-gradient(to right, ${secondaryColor}, ${secondaryColor}CC)`, borderColor: secondaryColor, boxShadow: `0 0 20px ${secondaryColor}4D` }}
+                className="group relative inline-flex items-center justify-center gap-3 px-8 sm:px-12 py-4 text-xl md:text-2xl font-extrabold transform hover:-translate-y-1 transition-all duration-300"
+                style={{
+                  backgroundColor: page.btn_bg_color || secondaryColor,
+                  color: page.btn_text_color || '#000000',
+                  borderColor: page.btn_border_color || 'transparent',
+                  borderWidth: page.btn_border_color && page.btn_border_color !== 'transparent' ? 2 : 0,
+                  borderStyle: 'solid',
+                  borderRadius: (page.btn_border_radius ?? 16) + 'px',
+                }}
               >
                 <FaShoppingCart />
                 {page.hero_button_text}
@@ -930,7 +941,15 @@ export default function FreeOfferTemplate({ page, trafficSource = 'landing_page'
                         <button
                           onClick={handleSubmitOrder}
                           disabled={submitting}
-                          className="w-full mt-6 py-4 rounded-lg font-bold text-lg bg-green-600 hover:bg-green-500 text-white shadow-lg disabled:opacity-50 transition-all flex justify-center items-center gap-2"
+                          className="w-full mt-6 py-4 font-bold text-lg shadow-lg disabled:opacity-50 transition-all flex justify-center items-center gap-2"
+                          style={{
+                            backgroundColor: page.btn_bg_color || '#16a34a',
+                            color: page.btn_text_color || '#ffffff',
+                            borderColor: page.btn_border_color || 'transparent',
+                            borderWidth: page.btn_border_color && page.btn_border_color !== 'transparent' ? 2 : 0,
+                            borderStyle: 'solid',
+                            borderRadius: (page.btn_border_radius ?? 16) + 'px',
+                          }}
                         >
                           {submitting ? (
                             <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
