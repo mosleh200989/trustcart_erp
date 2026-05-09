@@ -81,6 +81,7 @@ const SalesManagerLeadAssignment = () => {
   const [lifecycleFilter, setLifecycleFilter] = useState('');
   const [productFilter, setProductFilter] = useState('');
   const [segmentFilter, setSegmentFilter] = useState<'' | 'new' | 'legacy' | 'mixed'>('');
+  const [rejectedStatusFilter, setRejectedStatusFilter] = useState<'non_rejected' | 'rejected' | 'all'>('non_rejected');
   const [rowsPerPage, setRowsPerPage] = useState(200);
 
   // Selection
@@ -113,6 +114,7 @@ const SalesManagerLeadAssignment = () => {
       if (lifecycleFilter) params.set('lifecycleStage', lifecycleFilter);
       if (productFilter) params.set('productName', productFilter);
       if (segmentFilter) params.set('orderSegment', segmentFilter);
+      if (rejectedStatusFilter !== 'non_rejected') params.set('rejectedStatus', rejectedStatusFilter);
 
       const res = await api.get(`/crm/sales-manager/unassigned-leads?${params}`);
       setLeads(res.data.items || []);
@@ -125,7 +127,7 @@ const SalesManagerLeadAssignment = () => {
     } finally {
       setLoading(false);
     }
-  }, [search, assignmentStatus, tierFilter, tlFilter, lifecycleFilter, productFilter, segmentFilter, rowsPerPage, toast]);
+  }, [search, assignmentStatus, tierFilter, tlFilter, lifecycleFilter, productFilter, segmentFilter, rejectedStatusFilter, rowsPerPage, toast]);
 
   const fetchTeamLeaders = useCallback(async () => {
     try {
@@ -383,6 +385,23 @@ const SalesManagerLeadAssignment = () => {
                 {segmentFilter === 'mixed' && <FaExchangeAlt className="text-green-500" size={12} />}
               </div>
             </div>
+
+            {/* Rejected Status filter */}
+            <select
+              value={rejectedStatusFilter}
+              onChange={e => setRejectedStatusFilter(e.target.value as 'non_rejected' | 'rejected' | 'all')}
+              className={`border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 ${
+                rejectedStatusFilter === 'rejected'
+                  ? 'border-rose-400 bg-rose-50 text-rose-800'
+                  : rejectedStatusFilter === 'all'
+                  ? 'border-yellow-400 bg-yellow-50 text-yellow-800'
+                  : 'border-gray-300 text-gray-700'
+              }`}
+            >
+              <option value="all">All Customers</option>
+              <option value="non_rejected">Non-Rejected</option>
+              <option value="rejected">Rejected Only</option>
+            </select>
 
             {/* Product search — Bengali + English */}
             <div className="xl:col-span-2">

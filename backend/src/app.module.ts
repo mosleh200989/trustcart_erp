@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { ScheduleModule } from '@nestjs/schedule';
 
 // Entities
 import { Product } from './modules/products/product.entity';
@@ -227,6 +228,9 @@ import { GrnItem } from './modules/purchase/entities/grn-item.entity';
       isGlobal: true,
       envFilePath: '.env',
     }),
+
+    // Task scheduler (nightly tier sync, etc.)
+    ScheduleModule.forRoot(),
 
     // Tenant Module - must be before TypeORM (provides multi-tenant context)
     TenantModule,

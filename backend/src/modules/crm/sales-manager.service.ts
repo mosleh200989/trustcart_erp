@@ -224,11 +224,9 @@ export class SalesManagerService {
       .andWhere(
         `c.id IN (SELECT so.customer_id FROM sales_orders so WHERE LOWER(so.status::text) = 'delivered')`,
       )
-      // Rejected customers are never shown here (only visible in Rejected Customers list)
-      .andWhere(
-        `NOT EXISTS (SELECT 1 FROM customer_tiers ct2 WHERE ct2.customer_id = c.id AND ct2.tier = 'rejected')`,
-      )
-      .andWhere(`(c.customer_type IS NULL OR c.customer_type != 'rejected')`);
+      // Rejected visibility controlled by rejectedStatus query param
+      // 'non_rejected' (default) = exclude rejected; 'rejected' = only rejected; 'all' = no filter
+      ;  // (rejection filter applied below after query param is read)
 
     // Assignment status filter
     if (query.assignmentStatus === 'unassigned' || query.unassignedOnly === 'true' || query.unassignedOnly === true) {
@@ -236,6 +234,19 @@ export class SalesManagerService {
     } else if (query.assignmentStatus === 'assigned') {
       qb.where('c.assigned_supervisor_id IS NOT NULL');
     }
+
+    // Rejected status filter
+    const rejectedStatus = query.rejectedStatus || 'non_rejected';
+    if (rejectedStatus === 'non_rejected') {
+      qb.andWhere(`NOT EXISTS (SELECT 1 FROM customer_tiers ct2 WHERE ct2.customer_id = c.id AND ct2.tier = 'rejected')`)
+        .andWhere(`(c.customer_type IS NULL OR c.customer_type != 'rejected')`);
+    } else if (rejectedStatus === 'rejected') {
+      qb.andWhere(
+        `EXISTS (SELECT 1 FROM customer_tiers ct2 WHERE ct2.customer_id = c.id AND ct2.tier = 'rejected')`
+          + ` OR c.customer_type = 'rejected'`,
+      );
+    }
+    // 'all' => no rejection filter
 
     if (query.priority) {
       qb.andWhere('c.priority = :priority', { priority: query.priority });

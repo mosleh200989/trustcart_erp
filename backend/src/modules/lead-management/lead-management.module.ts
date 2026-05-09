@@ -2,6 +2,7 @@ import { Module, forwardRef } from '@nestjs/common';
 import { TenantTypeOrmModule } from '../tenant/tenant-typeorm.module';
 import { LeadManagementService } from './lead-management.service';
 import { LeadManagementController } from './lead-management.controller';
+import { TierSchedulerService } from './tier-scheduler.service';
 import { SalesModule } from '../sales/sales.module';
 import { CustomerSession } from './entities/customer-session.entity';
 import { IncompleteOrder } from './entities/incomplete-order.entity';
@@ -29,7 +30,7 @@ import { CustomerTier } from './entities/customer-tier.entity';
     forwardRef(() => SalesModule),
   ],
   controllers: [LeadManagementController],
-  providers: [LeadManagementService],
+  providers: [LeadManagementService, TierSchedulerService],
   exports: [LeadManagementService],
 })
 export class LeadManagementModule {}
