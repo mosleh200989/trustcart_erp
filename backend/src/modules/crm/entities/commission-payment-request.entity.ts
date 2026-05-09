@@ -28,6 +28,9 @@ export class CommissionPaymentRequest {
   @Column({ name: 'status', type: 'varchar', length: 20, default: 'pending' })
   status!: string; // 'pending' | 'approved' | 'paid' | 'rejected'
 
+  @Column({ name: 'commission_month', type: 'varchar', length: 7, nullable: true })
+  commissionMonth!: string | null; // 'YYYY-MM' — which month's commission this payment covers
+
   @Column({ name: 'notes', type: 'text', nullable: true })
   notes!: string | null;
 

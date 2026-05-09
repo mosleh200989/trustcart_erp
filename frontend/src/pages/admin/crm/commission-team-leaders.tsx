@@ -104,6 +104,7 @@ export default function CommissionTeamLeadersPage() {
         requestedAmount: amount,
         paymentMethod: paymentForm.paymentMethod || undefined,
         notes: paymentForm.notes || undefined,
+        commissionMonth: monthFilter,
       });
       toast.success(`Payment request of ৳${amount.toLocaleString()} created for ${paymentModal.tlName}`);
       setPaymentModal(null);
