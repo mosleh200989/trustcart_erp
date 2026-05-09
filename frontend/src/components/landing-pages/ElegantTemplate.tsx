@@ -1275,7 +1275,7 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
                           {orderItems.map((item) => (
                             <div key={item.product.id} className="flex justify-between items-center text-sm">
                               <span className="text-gray-700 font-medium">
-                                {item.product.name} × {item.quantity}
+                                {item.product.name} ï¿½ {item.quantity}
                               </span>
                               <span className="font-bold text-gray-800 whitespace-nowrap">
                                 {(item.product.price * item.quantity).toLocaleString()} ?
@@ -1297,7 +1297,7 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
                         {/* Delivery Zone */}
                         {!page.free_delivery && (Number(page.delivery_charge) > 0 || Number(page.delivery_charge_outside) > 0) && (
                           Number(page.delivery_charge) !== Number(page.delivery_charge_outside) ? (
-                            /* Different charges — show inside/outside selector */
+                            /* Different charges ï¿½ show inside/outside selector */
                             <div className="mb-4">
                               <label className="block text-sm font-semibold text-gray-700 mb-2">???????? ?????</label>
                               <div className="grid grid-cols-2 gap-2">
@@ -1342,7 +1342,7 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
                               </div>
                             </div>
                           ) : null
-                          /* Same charge — no zone selector needed, delivery charge shows in summary below */
+                          /* Same charge ï¿½ no zone selector needed, delivery charge shows in summary below */
                         )}
 
                         {/* Charges */}
@@ -1419,7 +1419,7 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
                                 <FaShoppingCart className="flex-shrink-0" />
                                 <span>?????? ??????? ????</span>
                               </span>
-                              <span className="text-base sm:text-lg md:text-xl font-extrabold sm:before:content-['—'] sm:before:mr-2 sm:before:opacity-70">
+                              <span className="text-base sm:text-lg md:text-xl font-extrabold sm:before:content-['ï¿½'] sm:before:mr-2 sm:before:opacity-70">
                                 {getTotal().toLocaleString()} ?
                               </span>
                             </>
@@ -1492,7 +1492,7 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
               className="text-sm font-medium opacity-70"
               style={{ color: page.secondary_color }}
             >
-              © {new Date().getFullYear()} TrustCart. All rights reserved.
+              ï¿½ {new Date().getFullYear()} TrustCart. All rights reserved.
             </p>
           </div>
         </div>
