@@ -62,6 +62,10 @@ interface LandingPageData {
   primary_color: string;
   secondary_color: string;
   background_color: string;
+  btn_bg_color?: string;
+  btn_text_color?: string;
+  btn_border_color?: string;
+  btn_border_radius?: number;
   meta_title: string;
   meta_description: string;
   og_image_url: string;
@@ -617,10 +621,14 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
                   <div className="mt-4">
                     <button
                       onClick={scrollToOrderForm}
-                      className="group relative w-full sm:w-auto px-8 sm:px-10 py-3.5 sm:py-4 rounded-2xl text-lg sm:text-xl md:text-2xl font-extrabold shadow-2xl hover:shadow-xl transform hover:scale-105 transition-all duration-300 elegant-glow overflow-hidden"
+                      className="group relative w-full sm:w-auto px-8 sm:px-10 py-3.5 sm:py-4 text-lg sm:text-xl md:text-2xl font-extrabold shadow-2xl hover:shadow-xl transform hover:scale-105 transition-all duration-300 elegant-glow overflow-hidden"
                       style={{
-                        background: 'linear-gradient(135deg, #FFD700 0%, #FFA500 100%)',
-                        color: '#1a1a2e',
+                        backgroundColor: page.btn_bg_color || page.primary_color,
+                        color: page.btn_text_color || '#ffffff',
+                        borderColor: page.btn_border_color || 'transparent',
+                        borderWidth: page.btn_border_color && page.btn_border_color !== 'transparent' ? 2 : 0,
+                        borderStyle: 'solid',
+                        borderRadius: (page.btn_border_radius ?? 16) + 'px',
                       }}
                     >
                       <span className="relative z-10 flex items-center justify-center gap-2">
@@ -704,10 +712,14 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
                     <div className="flex items-center justify-center md:justify-start">
                       <button
                         onClick={scrollToOrderForm}
-                        className="group relative w-full sm:w-auto px-8 sm:px-10 py-3.5 sm:py-4 rounded-2xl text-lg sm:text-xl md:text-2xl font-extrabold shadow-2xl hover:shadow-xl transform hover:scale-105 transition-all duration-300 elegant-glow overflow-hidden"
+                        className="group relative w-full sm:w-auto px-8 sm:px-10 py-3.5 sm:py-4 text-lg sm:text-xl md:text-2xl font-extrabold shadow-2xl hover:shadow-xl transform hover:scale-105 transition-all duration-300 elegant-glow overflow-hidden"
                         style={{
-                          background: 'linear-gradient(135deg, #FFD700 0%, #FFA500 100%)',
-                          color: '#1a1a2e',
+                          backgroundColor: page.btn_bg_color || page.primary_color,
+                          color: page.btn_text_color || '#ffffff',
+                          borderColor: page.btn_border_color || 'transparent',
+                          borderWidth: page.btn_border_color && page.btn_border_color !== 'transparent' ? 2 : 0,
+                          borderStyle: 'solid',
+                          borderRadius: (page.btn_border_radius ?? 16) + 'px',
                         }}
                       >
                         <span className="relative z-10 flex items-center justify-center gap-2">
@@ -1389,9 +1401,14 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
                         <button
                           onClick={handleSubmitOrder}
                           disabled={submitting || orderItems.length === 0}
-                          className="w-full mt-4 py-3 rounded-2xl font-extrabold text-white shadow-lg hover:shadow-xl transform hover:scale-[1.02] transition-all duration-300 disabled:opacity-50 disabled:transform-none flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2"
+                          className="w-full mt-4 py-3 font-extrabold text-white shadow-lg hover:shadow-xl transform hover:scale-[1.02] transition-all duration-300 disabled:opacity-50 disabled:transform-none flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2"
                           style={{
-                            background: `linear-gradient(135deg, ${page.primary_color} 0%, ${primaryDark} 100%)`,
+                            backgroundColor: page.btn_bg_color || page.primary_color,
+                            color: page.btn_text_color || '#ffffff',
+                            borderColor: page.btn_border_color || 'transparent',
+                            borderWidth: page.btn_border_color && page.btn_border_color !== 'transparent' ? 2 : 0,
+                            borderStyle: 'solid',
+                            borderRadius: (page.btn_border_radius ?? 16) + 'px',
                           }}
                         >
                           {submitting ? (

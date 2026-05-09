@@ -79,6 +79,10 @@ interface LandingPageData {
   primary_color: string;
   secondary_color: string;
   background_color: string;
+  btn_bg_color?: string;
+  btn_text_color?: string;
+  btn_border_color?: string;
+  btn_border_radius?: number;
   meta_title: string;
   meta_description: string;
   og_image_url: string;
@@ -723,10 +727,14 @@ export default function SpecialEventTemplate({
                       e.currentTarget.style.setProperty('--x', `${((e.clientX - rect.left) / rect.width) * 100}%`);
                       e.currentTarget.style.setProperty('--y', `${((e.clientY - rect.top) / rect.height) * 100}%`);
                     }}
-                    className="event-btn-ripple inline-flex items-center gap-3 px-10 py-4 rounded-full text-lg sm:text-xl font-bold shadow-lg hover:shadow-xl transform hover:scale-[1.03] transition-all duration-300"
+                    className="event-btn-ripple inline-flex items-center gap-3 px-10 py-4 text-lg sm:text-xl font-bold shadow-lg hover:shadow-xl transform hover:scale-[1.03] transition-all duration-300"
                     style={{
-                      background: `linear-gradient(135deg, ${page.primary_color}, ${primaryDark})`,
-                      color: page.secondary_color,
+                      backgroundColor: page.btn_bg_color || page.primary_color,
+                      color: page.btn_text_color || page.secondary_color,
+                      borderColor: page.btn_border_color || 'transparent',
+                      borderWidth: page.btn_border_color && page.btn_border_color !== 'transparent' ? 2 : 0,
+                      borderStyle: 'solid',
+                      borderRadius: (page.btn_border_radius ?? 16) + 'px',
                     }}
                   >
                     <FaShoppingCart className="text-base" />
@@ -1579,10 +1587,14 @@ export default function SpecialEventTemplate({
                     <button
                       onClick={handleSubmitOrder}
                       disabled={submitting}
-                      className="event-btn-ripple w-full py-4 rounded-xl text-lg font-bold shadow-xl hover:shadow-2xl transform hover:scale-[1.02] transition-all duration-300 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-3"
+                      className="event-btn-ripple w-full py-4 text-lg font-bold shadow-xl hover:shadow-2xl transform hover:scale-[1.02] transition-all duration-300 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-3"
                       style={{
-                        background: `linear-gradient(135deg, ${page.primary_color}, ${primaryDark})`,
-                        color: page.secondary_color,
+                        backgroundColor: page.btn_bg_color || page.primary_color,
+                        color: page.btn_text_color || page.secondary_color,
+                        borderColor: page.btn_border_color || 'transparent',
+                        borderWidth: page.btn_border_color && page.btn_border_color !== 'transparent' ? 2 : 0,
+                        borderStyle: 'solid',
+                        borderRadius: (page.btn_border_radius ?? 16) + 'px',
                       }}
                     >
                       {submitting ? (

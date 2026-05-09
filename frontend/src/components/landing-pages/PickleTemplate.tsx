@@ -73,6 +73,10 @@ interface LandingPageData {
   primary_color: string;
   secondary_color: string;
   background_color: string;
+  btn_bg_color?: string;
+  btn_text_color?: string;
+  btn_border_color?: string;
+  btn_border_radius?: number;
   meta_title: string;
   meta_description: string;
   og_image_url: string;
@@ -703,10 +707,14 @@ export default function PickleTemplate({
                       e.currentTarget.style.setProperty('--x', `${((e.clientX - rect.left) / rect.width) * 100}%`);
                       e.currentTarget.style.setProperty('--y', `${((e.clientY - rect.top) / rect.height) * 100}%`);
                     }}
-                    className="pickle-btn-ripple inline-flex items-center gap-3 px-10 py-4 rounded-full text-lg sm:text-xl font-bold shadow-lg hover:shadow-xl transform hover:scale-[1.03] transition-all duration-300"
+                    className="pickle-btn-ripple inline-flex items-center gap-3 px-10 py-4 text-lg sm:text-xl font-bold shadow-lg hover:shadow-xl transform hover:scale-[1.03] transition-all duration-300"
                     style={{
-                      background: `linear-gradient(135deg, ${page.primary_color}, ${primaryDark})`,
-                      color: page.secondary_color,
+                      backgroundColor: page.btn_bg_color || page.primary_color,
+                      color: page.btn_text_color || page.secondary_color,
+                      borderColor: page.btn_border_color || 'transparent',
+                      borderWidth: page.btn_border_color && page.btn_border_color !== 'transparent' ? 2 : 0,
+                      borderStyle: 'solid',
+                      borderRadius: (page.btn_border_radius ?? 16) + 'px',
                     }}
                   >
                     <FaShoppingCart className="text-base" />
@@ -1429,9 +1437,14 @@ export default function PickleTemplate({
                               `${((e.clientY - rect.top) / rect.height) * 100}%`,
                             );
                           }}
-                          className="pickle-btn-ripple w-full mt-4 sm:mt-5 py-3 sm:py-4 rounded-2xl text-sm sm:text-base font-bold text-white shadow-lg hover:shadow-xl transform hover:scale-[1.02] transition-all duration-300 disabled:opacity-50 disabled:transform-none disabled:hover:shadow-lg flex items-center justify-center gap-2"
+                          className="pickle-btn-ripple w-full mt-4 sm:mt-5 py-3 sm:py-4 text-sm sm:text-base font-bold text-white shadow-lg hover:shadow-xl transform hover:scale-[1.02] transition-all duration-300 disabled:opacity-50 disabled:transform-none disabled:hover:shadow-lg flex items-center justify-center gap-2"
                           style={{
-                            background: `linear-gradient(135deg, ${page.primary_color} 0%, ${primaryDark} 100%)`,
+                            backgroundColor: page.btn_bg_color || page.primary_color,
+                            color: page.btn_text_color || '#ffffff',
+                            borderColor: page.btn_border_color || 'transparent',
+                            borderWidth: page.btn_border_color && page.btn_border_color !== 'transparent' ? 2 : 0,
+                            borderStyle: 'solid',
+                            borderRadius: (page.btn_border_radius ?? 16) + 'px',
                           }}
                         >
                           <FaShoppingCart className="text-sm flex-shrink-0" />

@@ -84,6 +84,18 @@ export class LandingPage {
   @Column({ length: 50, default: '#1a1a2e' })
   background_color!: string;
 
+  @Column({ length: 50, default: '#2d6a4f' })
+  btn_bg_color!: string;
+
+  @Column({ length: 50, default: '#ffffff' })
+  btn_text_color!: string;
+
+  @Column({ length: 50, default: 'transparent' })
+  btn_border_color!: string;
+
+  @Column({ type: 'int', default: 16 })
+  btn_border_radius!: number;
+
   @Column({ length: 50, default: 'classic' })
   template!: string;
 
