@@ -12,7 +12,7 @@ import { FaEye, FaChartBar, FaChevronDown, FaChevronRight, FaBoxOpen } from 'rea
 import { getOrderStatusLabel, getOrderStatusColor } from '@/utils/orderStatus';
 import ThSort from '@/components/admin/ThSort';
 
-type FilterCalledStatus = 'all' | 'called_today' | 'called_week' | 'called_month' | 'not_called_today' | 'not_called_week' | 'never';
+type FilterCalledStatus = 'all' | 'called_today' | 'called_1week' | 'called_2weeks' | 'called_3weeks' | 'called_1month' | 'never';
 
 const formatLastCalled = (dateStr?: string | null): { text: string; color: string } => {
   if (!dateStr) return { text: 'Never', color: 'text-red-600' };
@@ -597,16 +597,12 @@ export default function LeadAssignmentPage() {
                 className="w-full border rounded-lg px-3 py-2"
               >
                 <option value="all">All</option>
-                <optgroup label="Called">
-                  <option value="called_today">Called Today</option>
-                  <option value="called_week">Called This Week</option>
-                  <option value="called_month">Called This Month</option>
-                </optgroup>
-                <optgroup label="Not Called">
-                  <option value="not_called_today">Not Called Today</option>
-                  <option value="not_called_week">Not Called in 7+ Days</option>
-                  <option value="never">Never Called</option>
-                </optgroup>
+                <option value="called_today">Called Today</option>
+                <option value="called_1week">Called 1 Week Ago</option>
+                <option value="called_2weeks">Called 2 Weeks Ago</option>
+                <option value="called_3weeks">Called 3 Weeks Ago</option>
+                <option value="called_1month">Called 1 Month Ago</option>
+                <option value="never">Never Called</option>
               </select>
             </div>
 
