@@ -62,6 +62,7 @@ export default function AdminProducts() {
   const [categories, setCategories] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<'add' | 'edit' | 'view'>('add');
@@ -532,11 +533,17 @@ export default function AdminProducts() {
     setFormData(updatedData);
   };
 
-  const filteredProducts = products.filter(p =>
-    p.name_en?.toLowerCase().includes(search.toLowerCase()) ||
-    p.name_bn?.includes(search) ||
-    p.sku?.toLowerCase().includes(search.toLowerCase())
-  );
+  const filteredProducts = products.filter(p => {
+    const matchesSearch =
+      !search.trim() ||
+      p.name_en?.toLowerCase().includes(search.toLowerCase()) ||
+      p.name_bn?.includes(search) ||
+      p.sku?.toLowerCase().includes(search.toLowerCase());
+    const matchesCategory =
+      !categoryFilter ||
+      p.category_name === categories.find((c) => c.id.toString() === categoryFilter)?.name_en;
+    return matchesSearch && matchesCategory;
+  });
 
   const totalPages = Math.ceil(filteredProducts.length / itemsPerPage);
   const paginatedProducts = filteredProducts.slice(
@@ -613,17 +620,31 @@ export default function AdminProducts() {
           </button>
         </div>
 
-        {/* Search */}
+        {/* Search & Category Filter */}
         <div className="mb-6 bg-white rounded-lg shadow p-4">
-          <div className="relative">
-            <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search products by name or SKU..."
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="md:col-span-2 relative">
+              <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => { setSearch(e.target.value); setCurrentPage(1); }}
+                placeholder="Search products by name or SKU..."
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div>
+              <select
+                value={categoryFilter}
+                onChange={(e) => { setCategoryFilter(e.target.value); setCurrentPage(1); }}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm text-gray-700"
+              >
+                <option value="">All Categories</option>
+                {categories.map((cat) => (
+                  <option key={cat.id} value={cat.id.toString()}>{cat.name_en}</option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
 

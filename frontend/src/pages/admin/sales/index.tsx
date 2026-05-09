@@ -25,6 +25,7 @@ const INITIAL_FILTERS = {
   endDate: '',
   productName: '',
   source: '',
+  landingPage: '',
 };
 
 interface SalesOrder {
@@ -277,6 +278,7 @@ export default function AdminSales() {
       if (f.todayOnly) params.todayOnly = 'true';
       if (f.productName.trim()) params.productName = f.productName.trim();
       if (f.source) params.source = f.source;
+      if (f.landingPage) params.landingPage = f.landingPage;
 
       const response = await apiClient.get('/sales', { params });
       const body = response.data;
@@ -1227,7 +1229,7 @@ export default function AdminSales() {
                 />
               </div>
 
-              {/* 3rd line: Product filter + Source filter */}
+              {/* 3rd line: Product filter + Source filter + Landing Page filter */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Product</label>
@@ -1245,6 +1247,17 @@ export default function AdminSales() {
                   onChange={handleFilterChange}
                   selectPlaceholder="All Sources"
                   options={sourceOptions}
+                />
+                <FormInput
+                  label="Landing Page"
+                  name="landingPage"
+                  type="select"
+                  value={filters.landingPage}
+                  onChange={handleFilterChange}
+                  selectPlaceholder="All"
+                  options={[
+                    { value: 'herbolin', label: 'Herbolin' },
+                  ]}
                 />
               </div>
             </div>

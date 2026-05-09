@@ -83,9 +83,9 @@ export default function ProductAutocomplete({ value, onChange, className }: Prod
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
     setInputValue(val);
-    if (!val.trim()) {
-      onChange('');
-    }
+    // Always propagate the typed value so the parent filter stays in sync.
+    // An empty string clears the filter; any other text triggers ILIKE search on the backend.
+    onChange(val.trim());
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
