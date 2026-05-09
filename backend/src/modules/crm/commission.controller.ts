@@ -210,7 +210,7 @@ export class CommissionController {
 
   @Post('payment-requests')
   @RequireAnyPermission('manage-payment-requests', 'approve-commissions')
-  async createPaymentRequest(@Body() body: { agentId: number; requestedAmount: number; paymentMethod?: string; notes?: string }, @Request() req: any) {
+  async createPaymentRequest(@Body() body: { agentId: number; requestedAmount: number; paymentMethod?: string; notes?: string; commissionMonth?: string }, @Request() req: any) {
     return await this.commissionService.createPaymentRequest({ ...body, requestedBy: req.user.id });
   }
 

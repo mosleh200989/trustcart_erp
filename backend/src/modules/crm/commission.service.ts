@@ -954,7 +954,7 @@ export class CommissionService {
           COALESCE(SUM(COALESCE(pr.approved_amount, pr.requested_amount)), 0) as paid_commission
         FROM commission_payment_requests pr
         WHERE pr.status = 'paid'
-          AND DATE(pr.paid_at AT TIME ZONE 'Asia/Dhaka') BETWEEN '${monthStart}' AND '${monthEnd}'
+          AND COALESCE(pr.commission_month, TO_CHAR(DATE(pr.paid_at AT TIME ZONE 'Asia/Dhaka'), 'YYYY-MM')) = '${monthStart.substring(0, 7)}'
         GROUP BY pr.agent_id
       ) paid_stats ON paid_stats.agent_id = u.id
       LEFT JOIN commission_extra_partial extra_partial ON extra_partial.agent_id = u.id AND extra_partial.month = '${monthStart.substring(0, 7)}'
@@ -1133,7 +1133,7 @@ export class CommissionService {
           COALESCE(SUM(COALESCE(pr.approved_amount, pr.requested_amount)), 0) as paid_commission
         FROM commission_payment_requests pr
         WHERE pr.status = 'paid'
-          AND DATE(pr.paid_at AT TIME ZONE 'Asia/Dhaka') BETWEEN '${monthStart}' AND '${monthEnd}'
+          AND COALESCE(pr.commission_month, TO_CHAR(DATE(pr.paid_at AT TIME ZONE 'Asia/Dhaka'), 'YYYY-MM')) = '${monthStart.substring(0, 7)}'
         GROUP BY pr.agent_id
       ) paid_stats ON paid_stats.agent_id = u.id
       WHERE (LOWER(r.name) LIKE '%sales team leader%' OR r.slug = 'sales-team-leader')
@@ -1424,14 +1424,15 @@ export class CommissionService {
     paymentMethod?: string;
     notes?: string;
     requestedBy: number;
+    commissionMonth?: string;
   }): Promise<any> {
     const sql = `
-      INSERT INTO commission_payment_requests (agent_id, requested_amount, payment_method, notes, requested_by)
-      VALUES ($1, $2, $3, $4, $5)
+      INSERT INTO commission_payment_requests (agent_id, requested_amount, payment_method, notes, requested_by, commission_month)
+      VALUES ($1, $2, $3, $4, $5, $6)
       RETURNING *
     `;
     const result = await this.dataSource.query(sql, [
-      data.agentId, data.requestedAmount, data.paymentMethod || null, data.notes || null, data.requestedBy,
+      data.agentId, data.requestedAmount, data.paymentMethod || null, data.notes || null, data.requestedBy, data.commissionMonth || null,
     ]);
     return result[0];
   }
@@ -1635,13 +1636,8 @@ export class CommissionService {
       params.push(paymentMethod);
     }
     if (month && /^\d{4}-\d{2}$/.test(month)) {
-      const [y, m] = month.split('-').map(Number);
-      const monthStart = `${y}-${String(m).padStart(2, '0')}-01`;
-      const lastDay = new Date(y, m, 0).getDate();
-      const monthEnd = `${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
-      conditions.push(`DATE(pr.paid_at AT TIME ZONE 'Asia/Dhaka') BETWEEN $${paramIdx} AND $${paramIdx + 1}`);
-      params.push(monthStart, monthEnd);
-      paramIdx += 2;
+      conditions.push(`COALESCE(pr.commission_month, TO_CHAR(DATE(pr.paid_at AT TIME ZONE 'Asia/Dhaka'), 'YYYY-MM')) = $${paramIdx++}`);
+      params.push(month);
     }
     if (search && search.trim()) {
       conditions.push(`(u.name ILIKE $${paramIdx} OR u.last_name ILIKE $${paramIdx} OR u.phone ILIKE $${paramIdx} OR pr.payment_reference ILIKE $${paramIdx})`);
