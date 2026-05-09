@@ -272,6 +272,7 @@ export class SalesService {
     todayOnly?: boolean;
     productName?: string;
     source?: string;
+    landingPage?: string;
   }) {
     const page = Math.max(1, params.page || 1);
     const limit = Math.min(500, Math.max(1, params.limit || 10));
@@ -343,6 +344,16 @@ export class SalesService {
       } else if (src === 'landing_page' || src === 'website') {
         qb.andWhere('o.order_source = :orderSource', { orderSource: src });
       }
+    }
+
+    // Landing-page slug filter (e.g. herbolin)
+    if (params.landingPage && params.landingPage.trim()) {
+      const slug = params.landingPage.trim().toLowerCase();
+      qb.andWhere("o.order_source = 'landing_page'");
+      qb.andWhere(
+        '(LOWER(o.referrer_url) LIKE :lpSlug OR LOWER(o.utm_source) LIKE :lpSlug OR LOWER(o.utm_campaign) LIKE :lpSlug)',
+        { lpSlug: `%${slug}%` },
+      );
     }
 
     qb.orderBy('o.order_date', 'DESC')
