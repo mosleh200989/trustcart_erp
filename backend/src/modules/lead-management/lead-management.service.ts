@@ -618,6 +618,132 @@ export class LeadManagementService {
     }
   }
 
+  /**
+   * Bulk auto-assign / upgrade tiers for ALL customers with delivered orders.
+   * Runs as a batch SQL operation — efficient even at scale.
+   *
+   * Rules:
+   *  - 1 delivered → new | 2 → repeat | 3 → silver | 4 → gold | 5 → platinum | 6+ → vip
+   *  - Customers with NO tier row → INSERT the correct tier (auto_assigned = true)
+   *  - Customers with auto_assigned = true tier → UPGRADE if new rank is higher
+   *  - Customers with auto_assigned = false (manually set) → SKIP (respect manual override)
+   *  - blacklist / rejected → always SKIP
+   *
+   * Returns stats: { inserted, upgraded, skipped }
+   */
+  async bulkAutoAssignTiers(): Promise<{ inserted: number; upgraded: number; skipped: number }> {
+    const tierCase = `
+      CASE
+        WHEN delivered_count >= 6 THEN 'vip'
+        WHEN delivered_count = 5  THEN 'platinum'
+        WHEN delivered_count = 4  THEN 'gold'
+        WHEN delivered_count = 3  THEN 'silver'
+        WHEN delivered_count = 2  THEN 'repeat'
+        ELSE                           'new'
+      END
+    `;
+
+    // Rank helper (higher = better tier)
+    const tierRank = `
+      CASE tier
+        WHEN 'vip'      THEN 6
+        WHEN 'platinum' THEN 5
+        WHEN 'gold'     THEN 4
+        WHEN 'silver'   THEN 3
+        WHEN 'repeat'   THEN 2
+        WHEN 'new'      THEN 1
+        ELSE                 0
+      END
+    `;
+
+    // Step 1: INSERT for customers who have delivered orders but NO tier row yet
+    const insertResult: { rowcount: string }[] = await this.sessionRepo.query(`
+      WITH delivered AS (
+        SELECT customer_id,
+               COUNT(*)::int                        AS delivered_count,
+               MAX(updated_at)                      AS last_delivery
+        FROM   sales_orders
+        WHERE  LOWER(status::text) = 'delivered'
+          AND  customer_id IS NOT NULL
+        GROUP  BY customer_id
+      ),
+      new_tiers AS (
+        SELECT d.customer_id,
+               ${tierCase} AS target_tier,
+               d.delivered_count,
+               d.last_delivery
+        FROM   delivered d
+        WHERE  NOT EXISTS (
+          SELECT 1 FROM customer_tiers ct WHERE ct.customer_id = d.customer_id
+        )
+      )
+      INSERT INTO customer_tiers (
+        customer_id, tier, is_active, auto_assigned,
+        tier_assigned_at, total_purchases, last_activity_date,
+        days_inactive, total_spent, engagement_score, notes
+      )
+      SELECT
+        n.customer_id,
+        n.target_tier,
+        true,
+        true,
+        NOW(),
+        n.delivered_count,
+        n.last_delivery,
+        0,
+        COALESCE((SELECT SUM(total_amount) FROM sales_orders WHERE customer_id = n.customer_id), 0),
+        0,
+        'Auto-assigned by nightly tier sync'
+      FROM new_tiers n
+      ON CONFLICT (customer_id) DO NOTHING
+      RETURNING customer_id
+    `);
+
+    const inserted = Array.isArray(insertResult) ? insertResult.length : 0;
+
+    // Step 2: UPGRADE customers whose auto_assigned tier is now below their delivered count
+    //         Never touch blacklist / rejected / manually set tiers
+    const upgradeResult: { rowcount: string }[] = await this.sessionRepo.query(`
+      WITH delivered AS (
+        SELECT customer_id,
+               COUNT(*)::int AS delivered_count,
+               MAX(updated_at) AS last_delivery
+        FROM   sales_orders
+        WHERE  LOWER(status::text) = 'delivered'
+          AND  customer_id IS NOT NULL
+        GROUP  BY customer_id
+      ),
+      targets AS (
+        SELECT d.customer_id,
+               ${tierCase}    AS target_tier,
+               d.delivered_count,
+               d.last_delivery
+        FROM   delivered d
+        JOIN   customer_tiers ct ON ct.customer_id = d.customer_id
+        WHERE  ct.auto_assigned = true
+          AND  ct.tier NOT IN ('blacklist', 'rejected')
+          AND  (${tierRank.replace(/tier/g, '(' + tierCase.replace(/delivered_count/g, 'd.delivered_count') + ')')})
+             > (${tierRank.replace(/tier/g, 'ct.tier')})
+      )
+      UPDATE customer_tiers ct
+      SET
+        tier             = t.target_tier,
+        auto_assigned    = true,
+        tier_assigned_at = NOW(),
+        total_purchases  = t.delivered_count,
+        last_activity_date = t.last_delivery,
+        notes = COALESCE(ct.notes, '') || ' | Upgraded by nightly tier sync at ' || NOW()::text
+      FROM targets t
+      WHERE ct.customer_id = t.customer_id
+      RETURNING ct.customer_id
+    `);
+
+    const upgraded = Array.isArray(upgradeResult) ? upgradeResult.length : 0;
+
+    const skipped = 0; // not tracked individually — skipped means no change needed
+    return { inserted, upgraded, skipped };
+  }
+
   async getInactiveCustomers(daysThreshold = 30) {
     return this.customerTierRepo.find({
       where: { isActive: false },
