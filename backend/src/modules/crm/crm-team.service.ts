@@ -56,9 +56,11 @@ export class CrmTeamService {
 
   /**
    * Apply "Called Status" filter to any QueryBuilder that has `c` aliased to the customers table.
-   * Supported values: called_today, called_week, called_month,
-   *                   not_called_today, not_called_week, never,
-   *                   (legacy: called → called_today, not_called → not_called_today)
+   * Supported values: called_today,
+   *                   called_1week (7-13 days ago), called_2weeks (14-20 days ago),
+   *                   called_3weeks (21-27 days ago), called_1month (28+ days ago),
+   *                   never,
+   *                   (legacy: called → called_today, not_called / not_called_today / not_called_week kept for backward compat)
    */
   private applyCalledStatusFilter(qb: any, calledStatus: string): void {
     if (!calledStatus || calledStatus === 'all') return;
@@ -66,29 +68,40 @@ export class CrmTeamService {
     today.setHours(0, 0, 0, 0);
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
-    const weekAgo = new Date(today);
-    weekAgo.setDate(weekAgo.getDate() - 6);   // 7-day window
-    const monthAgo = new Date(today);
-    monthAgo.setDate(monthAgo.getDate() - 29); // 30-day window
+
+    const daysAgo = (n: number) => { const d = new Date(today); d.setDate(d.getDate() - n); return d; };
 
     switch (calledStatus) {
       case 'called':
       case 'called_today':
         qb.andWhere('c.last_contact_date >= :csToday AND c.last_contact_date < :csTomorrow', { csToday: today, csTomorrow: tomorrow });
         break;
-      case 'called_week':
-        qb.andWhere('c.last_contact_date >= :csWeekAgo AND c.last_contact_date < :csTomorrow', { csWeekAgo: weekAgo, csTomorrow: tomorrow });
+      // Called ~1 week ago: 7–13 days ago
+      case 'called_1week':
+        qb.andWhere('c.last_contact_date >= :cs1wStart AND c.last_contact_date < :cs1wEnd', { cs1wStart: daysAgo(13), cs1wEnd: daysAgo(6) });
         break;
-      case 'called_month':
-        qb.andWhere('c.last_contact_date >= :csMonthAgo AND c.last_contact_date < :csTomorrow', { csMonthAgo: monthAgo, csTomorrow: tomorrow });
+      // Called ~2 weeks ago: 14–20 days ago
+      case 'called_2weeks':
+        qb.andWhere('c.last_contact_date >= :cs2wStart AND c.last_contact_date < :cs2wEnd', { cs2wStart: daysAgo(20), cs2wEnd: daysAgo(13) });
         break;
+      // Called ~3 weeks ago: 21–27 days ago
+      case 'called_3weeks':
+        qb.andWhere('c.last_contact_date >= :cs3wStart AND c.last_contact_date < :cs3wEnd', { cs3wStart: daysAgo(27), cs3wEnd: daysAgo(20) });
+        break;
+      // Called ~1 month ago: 28+ days ago
+      case 'called_1month':
+        qb.andWhere('c.last_contact_date < :cs1mEnd', { cs1mEnd: daysAgo(27) });
+        break;
+      // Legacy / backward compat
       case 'not_called':
       case 'not_called_today':
         qb.andWhere('(c.last_contact_date IS NULL OR c.last_contact_date < :csToday)', { csToday: today });
         break;
-      case 'not_called_week':
+      case 'not_called_week': {
+        const weekAgo = daysAgo(6);
         qb.andWhere('(c.last_contact_date IS NULL OR c.last_contact_date < :csWeekAgo)', { csWeekAgo: weekAgo });
         break;
+      }
       case 'never':
         qb.andWhere('c.last_contact_date IS NULL');
         break;
