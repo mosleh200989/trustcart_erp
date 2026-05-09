@@ -541,7 +541,7 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
           </div>
 
           {/* Shimmer overlay */}
-          <div className="absolute inset-0 elegant-shimmer pointer-events-none" />
+          {/* <div className="absolute inset-0 elegant-shimmer pointer-events-none" /> */}
 
           <div className="relative max-w-6xl mx-auto px-4 sm:px-6 py-16 md:py-24">
             {page.hero_layout === 'title-first' ? (
