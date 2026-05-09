@@ -839,6 +839,7 @@ export class CommissionService {
       FROM users u
       INNER JOIN roles r ON r.id = u.role_id
       WHERE (LOWER(r.name) LIKE '%sales executive%' OR r.slug = 'sales-executive')
+        AND u.status = 'active'
       ${searchCondition}
     `;
     const countResult = await this.dataSource.query(countSql, searchParam);
@@ -949,14 +950,16 @@ export class CommissionService {
       ) cross_sell_stats ON cross_sell_stats.agent_id = u.id
       LEFT JOIN (
         SELECT
-          ac.agent_id,
-          COALESCE(SUM(CASE WHEN ac.status = 'paid' THEN ac.commission_amount ELSE 0 END), 0) as paid_commission
-        FROM agent_commissions ac
-        WHERE ac.created_at >= '${this.COMMISSION_CUTOFF_DATE}'
-        GROUP BY ac.agent_id
+          pr.agent_id,
+          COALESCE(SUM(COALESCE(pr.approved_amount, pr.requested_amount)), 0) as paid_commission
+        FROM commission_payment_requests pr
+        WHERE pr.status = 'paid'
+          AND DATE(pr.paid_at AT TIME ZONE 'Asia/Dhaka') BETWEEN '${monthStart}' AND '${monthEnd}'
+        GROUP BY pr.agent_id
       ) paid_stats ON paid_stats.agent_id = u.id
       LEFT JOIN commission_extra_partial extra_partial ON extra_partial.agent_id = u.id AND extra_partial.month = '${monthStart.substring(0, 7)}'
       WHERE (LOWER(r.name) LIKE '%sales executive%' OR r.slug = 'sales-executive')
+        AND u.status = 'active'
       ${searchCondition}
       ORDER BY agent_name ASC
       LIMIT $${pIdx} OFFSET $${pIdx + 1}
@@ -1059,6 +1062,7 @@ export class CommissionService {
       FROM users u
       INNER JOIN roles r ON r.id = u.role_id
       WHERE (LOWER(r.name) LIKE '%sales team leader%' OR r.slug = 'sales-team-leader')
+        AND u.status = 'active'
       ${searchCondition}
     `;
     const countResult = await this.dataSource.query(countSql, searchParam);
@@ -1129,9 +1133,11 @@ export class CommissionService {
           COALESCE(SUM(COALESCE(pr.approved_amount, pr.requested_amount)), 0) as paid_commission
         FROM commission_payment_requests pr
         WHERE pr.status = 'paid'
+          AND DATE(pr.paid_at AT TIME ZONE 'Asia/Dhaka') BETWEEN '${monthStart}' AND '${monthEnd}'
         GROUP BY pr.agent_id
       ) paid_stats ON paid_stats.agent_id = u.id
       WHERE (LOWER(r.name) LIKE '%sales team leader%' OR r.slug = 'sales-team-leader')
+        AND u.status = 'active'
       ${searchCondition}
       ORDER BY tl_name ASC
       LIMIT $${pIdx} OFFSET $${pIdx + 1}
@@ -1607,12 +1613,11 @@ export class CommissionService {
     agentId?: number;
     paymentMethod?: string;
     search?: string;
-    startDate?: string;
-    endDate?: string;
+    month?: string;
     page?: number;
     limit?: number;
   } = {}): Promise<{ data: any[]; total: number; agents: any[]; teamLeaders: any[]; summary: any }> {
-    const { agentId, paymentMethod, search, startDate, endDate, page = 1, limit = 50 } = query;
+    const { agentId, paymentMethod, search, month, page = 1, limit = 50 } = query;
     const pageNum = Number(page) || 1;
     const limitNum = Number(limit) || 50;
     const offset = (pageNum - 1) * limitNum;
@@ -1629,13 +1634,14 @@ export class CommissionService {
       conditions.push(`pr.payment_method = $${paramIdx++}`);
       params.push(paymentMethod);
     }
-    if (startDate) {
-      conditions.push(`pr.paid_at >= $${paramIdx++}`);
-      params.push(startDate);
-    }
-    if (endDate) {
-      conditions.push(`pr.paid_at <= ($${paramIdx++}::date + INTERVAL '1 day')`);
-      params.push(endDate);
+    if (month && /^\d{4}-\d{2}$/.test(month)) {
+      const [y, m] = month.split('-').map(Number);
+      const monthStart = `${y}-${String(m).padStart(2, '0')}-01`;
+      const lastDay = new Date(y, m, 0).getDate();
+      const monthEnd = `${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+      conditions.push(`DATE(pr.paid_at AT TIME ZONE 'Asia/Dhaka') BETWEEN $${paramIdx} AND $${paramIdx + 1}`);
+      params.push(monthStart, monthEnd);
+      paramIdx += 2;
     }
     if (search && search.trim()) {
       conditions.push(`(u.name ILIKE $${paramIdx} OR u.last_name ILIKE $${paramIdx} OR u.phone ILIKE $${paramIdx} OR pr.payment_reference ILIKE $${paramIdx})`);

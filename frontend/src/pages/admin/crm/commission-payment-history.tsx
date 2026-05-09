@@ -55,8 +55,8 @@ export default function CommissionPaymentHistoryPage() {
   // Filters
   const [agentFilter, setAgentFilter] = useState('');
   const [methodFilter, setMethodFilter] = useState('');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
+  const now = new Date();
+  const [monthFilter, setMonthFilter] = useState(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`);
 
   const loadHistory = useCallback(async (page?: number, pageSize?: number) => {
     try {
@@ -66,8 +66,7 @@ export default function CommissionPaymentHistoryPage() {
       const params: any = { page: p, limit: ps };
       if (agentFilter) params.agentId = agentFilter;
       if (methodFilter) params.paymentMethod = methodFilter;
-      if (startDate) params.startDate = startDate;
-      if (endDate) params.endDate = endDate;
+      if (monthFilter) params.month = monthFilter;
       if (searchText.trim()) params.search = searchText.trim();
 
       const response = await apiClient.get('/crm/commissions/payment-history', { params });
@@ -83,11 +82,11 @@ export default function CommissionPaymentHistoryPage() {
     } finally {
       setLoading(false);
     }
-  }, [currentPage, itemsPerPage, agentFilter, methodFilter, startDate, endDate, searchText]);
+  }, [currentPage, itemsPerPage, agentFilter, methodFilter, monthFilter, searchText]);
 
   useEffect(() => {
     loadHistory(currentPage, itemsPerPage);
-  }, [currentPage, itemsPerPage, agentFilter, methodFilter, startDate, endDate]);
+  }, [currentPage, itemsPerPage, agentFilter, methodFilter, monthFilter]);
 
   const handleSearch = () => {
     setCurrentPage(1);
@@ -247,14 +246,13 @@ export default function CommissionPaymentHistoryPage() {
               </select>
             </div>
             <div>
-              <label className="block text-xs text-gray-500 mb-1">Start Date</label>
-              <input type="date" value={startDate} onChange={(e) => { setStartDate(e.target.value); setCurrentPage(1); }}
-                className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-            </div>
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">End Date</label>
-              <input type="date" value={endDate} onChange={(e) => { setEndDate(e.target.value); setCurrentPage(1); }}
-                className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              <label className="block text-xs text-gray-500 mb-1">Month</label>
+              <input
+                type="month"
+                value={monthFilter}
+                onChange={(e) => { setMonthFilter(e.target.value); setCurrentPage(1); }}
+                className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
             </div>
             <div>
               <label className="block text-xs text-gray-500 mb-1">Search</label>
