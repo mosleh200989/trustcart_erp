@@ -710,7 +710,7 @@ export default function PickleTemplate({
                     className="pickle-btn-ripple inline-flex items-center gap-3 px-10 py-4 text-lg sm:text-xl font-bold shadow-lg hover:shadow-xl transform hover:scale-[1.03] transition-all duration-300"
                     style={{
                       backgroundColor: page.btn_bg_color || page.primary_color,
-                      color: page.btn_text_color || page.secondary_color,
+                      color: page.btn_text_color || '#ffffff',
                       borderColor: page.btn_border_color || 'transparent',
                       borderWidth: page.btn_border_color && page.btn_border_color !== 'transparent' ? 2 : 0,
                       borderStyle: 'solid',
@@ -920,8 +920,12 @@ export default function PickleTemplate({
                         onClick={scrollToOrderForm}
                         className="pickle-btn-ripple inline-flex items-center gap-2 px-10 py-4 rounded-full text-lg font-bold shadow-xl hover:shadow-2xl transform hover:scale-[1.04] transition-all duration-300"
                         style={{
-                          backgroundColor: section.buttonColor || page.secondary_color,
-                          color: section.buttonTextColor || '#FFFFFF',
+                          backgroundColor: page.btn_bg_color || page.primary_color,
+                          color: page.btn_text_color || '#FFFFFF',
+                          borderColor: page.btn_border_color || 'transparent',
+                          borderWidth: page.btn_border_color && page.btn_border_color !== 'transparent' ? 1 : 0,
+                          borderStyle: 'solid',
+                          borderRadius: (page.btn_border_radius ?? 16) + 'px',
                         }}
                       >
                         {section.buttonText}

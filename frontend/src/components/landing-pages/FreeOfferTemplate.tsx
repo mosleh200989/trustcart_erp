@@ -513,8 +513,8 @@ export default function FreeOfferTemplate({ page, trafficSource = 'landing_page'
                 onClick={scrollToOrderForm}
                 className="group relative inline-flex items-center justify-center gap-3 px-8 sm:px-12 py-4 text-xl md:text-2xl font-extrabold transform hover:-translate-y-1 transition-all duration-300"
                 style={{
-                  backgroundColor: page.btn_bg_color || secondaryColor,
-                  color: page.btn_text_color || '#000000',
+                  backgroundColor: page.btn_bg_color || primaryColor,
+                  color: page.btn_text_color || '#ffffff',
                   borderColor: page.btn_border_color || 'transparent',
                   borderWidth: page.btn_border_color && page.btn_border_color !== 'transparent' ? 2 : 0,
                   borderStyle: 'solid',
@@ -548,8 +548,15 @@ export default function FreeOfferTemplate({ page, trafficSource = 'landing_page'
                   {section.buttonText && (
                     <button
                       onClick={scrollToOrderForm}
-                      className="px-10 py-4 rounded-full text-xl font-bold text-black shadow-lg transition-all"
-                      style={{ background: `linear-gradient(to right, ${secondaryColor}, ${secondaryColor}CC)` }}
+                      className="px-10 py-4 rounded-full text-xl font-bold shadow-lg transition-all"
+                      style={{
+                        backgroundColor: page.btn_bg_color || primaryColor,
+                        color: page.btn_text_color || '#FFFFFF',
+                        borderColor: page.btn_border_color || 'transparent',
+                        borderWidth: page.btn_border_color && page.btn_border_color !== 'transparent' ? 1 : 0,
+                        borderStyle: 'solid',
+                        borderRadius: (page.btn_border_radius ?? 16) + 'px',
+                      }}
                     >
                       {section.buttonText}
                     </button>
@@ -593,7 +600,15 @@ export default function FreeOfferTemplate({ page, trafficSource = 'landing_page'
                     <div className="text-center mt-10">
                       <button
                         onClick={scrollToOrderForm}
-                        className="px-8 py-3 rounded-full text-lg font-bold bg-green-600 hover:bg-green-500 text-white shadow-lg transition-all"
+                        className="px-8 py-3 rounded-full text-lg font-bold shadow-lg transition-all"
+                        style={{
+                          backgroundColor: page.btn_bg_color || primaryColor,
+                          color: page.btn_text_color || '#FFFFFF',
+                          borderColor: page.btn_border_color || 'transparent',
+                          borderWidth: page.btn_border_color && page.btn_border_color !== 'transparent' ? 1 : 0,
+                          borderStyle: 'solid',
+                          borderRadius: (page.btn_border_radius ?? 16) + 'px',
+                        }}
                       >
                         {section.buttonText}
                       </button>
@@ -631,9 +646,13 @@ export default function FreeOfferTemplate({ page, trafficSource = 'landing_page'
                       onClick={scrollToOrderForm}
                       className="px-10 py-4 rounded-full text-xl font-bold transition-all"
                       style={{
-                        backgroundColor: section.buttonColor || primaryColor,
-                        color: section.buttonTextColor || '#FFFFFF',
-                        boxShadow: `0 0 20px ${section.buttonColor || primaryColor}80`,
+                        backgroundColor: page.btn_bg_color || primaryColor,
+                        color: page.btn_text_color || '#FFFFFF',
+                        borderColor: page.btn_border_color || 'transparent',
+                        borderWidth: page.btn_border_color && page.btn_border_color !== 'transparent' ? 1 : 0,
+                        borderStyle: 'solid',
+                        borderRadius: (page.btn_border_radius ?? 16) + 'px',
+                        boxShadow: `0 0 20px ${page.btn_bg_color || primaryColor}80`,
                       }}
                     >
                       {section.buttonText}

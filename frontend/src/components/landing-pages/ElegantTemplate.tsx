@@ -389,6 +389,11 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
 
   const primaryLight = adjustColor(page.primary_color, 40);
   const primaryDark = adjustColor(page.primary_color, -30);
+  const buttonBgColor = page.btn_bg_color || page.primary_color;
+  const buttonTextColor = page.btn_text_color || '#ffffff';
+  const buttonBorderColor = page.btn_border_color || 'transparent';
+  const buttonBorderWidth = page.btn_border_color && page.btn_border_color !== 'transparent' ? 2 : 0;
+  const buttonBorderRadius = (page.btn_border_radius ?? 16) + 'px';
 
   const renderSectionButton = (section: LandingPageSection) => {
     if (!section.buttonText) return null;
@@ -398,8 +403,12 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
           href={section.buttonLink || '#'}
           className="inline-block px-8 py-3.5 rounded-2xl font-extrabold text-white shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300"
           style={{
-            backgroundColor: section.buttonColor || page.primary_color,
-            color: section.buttonTextColor || '#FFFFFF',
+            backgroundColor: buttonBgColor,
+            color: buttonTextColor,
+            borderColor: buttonBorderColor,
+            borderWidth: buttonBorderWidth,
+            borderStyle: 'solid',
+            borderRadius: buttonBorderRadius,
           }}
           onClick={(e) => {
             if (section.buttonLink === '#order-form' || !section.buttonLink) {
@@ -408,7 +417,7 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
             }
           }}
         >
-          {section.buttonText}
+          <span style={{ color: buttonTextColor }}>{section.buttonText}</span>
         </a>
       </div>
     );
@@ -623,15 +632,15 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
                       onClick={scrollToOrderForm}
                       className="group relative w-full sm:w-auto px-8 sm:px-10 py-3.5 sm:py-4 text-lg sm:text-xl md:text-2xl font-extrabold shadow-2xl hover:shadow-xl transform hover:scale-105 transition-all duration-300 elegant-glow overflow-hidden"
                       style={{
-                        backgroundColor: page.btn_bg_color || page.primary_color,
-                        color: page.btn_text_color || '#ffffff',
-                        borderColor: page.btn_border_color || 'transparent',
-                        borderWidth: page.btn_border_color && page.btn_border_color !== 'transparent' ? 2 : 0,
+                        backgroundColor: buttonBgColor,
+                        color: buttonTextColor,
+                        borderColor: buttonBorderColor,
+                        borderWidth: buttonBorderWidth,
                         borderStyle: 'solid',
-                        borderRadius: (page.btn_border_radius ?? 16) + 'px',
+                        borderRadius: buttonBorderRadius,
                       }}
                     >
-                      <span className="relative z-10 flex items-center justify-center gap-2">
+                      <span className="relative z-10 flex items-center justify-center gap-2" style={{ color: buttonTextColor }}>
                         <FaShoppingCart className="text-base sm:text-lg" />
                         {page.hero_button_text}
                       </span>
@@ -714,15 +723,15 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
                         onClick={scrollToOrderForm}
                         className="group relative w-full sm:w-auto px-8 sm:px-10 py-3.5 sm:py-4 text-lg sm:text-xl md:text-2xl font-extrabold shadow-2xl hover:shadow-xl transform hover:scale-105 transition-all duration-300 elegant-glow overflow-hidden"
                         style={{
-                          backgroundColor: page.btn_bg_color || page.primary_color,
-                          color: page.btn_text_color || '#ffffff',
-                          borderColor: page.btn_border_color || 'transparent',
-                          borderWidth: page.btn_border_color && page.btn_border_color !== 'transparent' ? 2 : 0,
+                          backgroundColor: buttonBgColor,
+                          color: buttonTextColor,
+                          borderColor: buttonBorderColor,
+                          borderWidth: buttonBorderWidth,
                           borderStyle: 'solid',
-                          borderRadius: (page.btn_border_radius ?? 16) + 'px',
+                          borderRadius: buttonBorderRadius,
                         }}
                       >
-                        <span className="relative z-10 flex items-center justify-center gap-2">
+                        <span className="relative z-10 flex items-center justify-center gap-2" style={{ color: buttonTextColor }}>
                           <FaShoppingCart className="text-base sm:text-lg" />
                           {page.hero_button_text}
                         </span>
@@ -1403,23 +1412,23 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
                           disabled={submitting || orderItems.length === 0}
                           className="w-full mt-4 py-3 font-extrabold text-white shadow-lg hover:shadow-xl transform hover:scale-[1.02] transition-all duration-300 disabled:opacity-50 disabled:transform-none flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2"
                           style={{
-                            backgroundColor: page.btn_bg_color || page.primary_color,
-                            color: page.btn_text_color || '#ffffff',
-                            borderColor: page.btn_border_color || 'transparent',
-                            borderWidth: page.btn_border_color && page.btn_border_color !== 'transparent' ? 2 : 0,
+                            backgroundColor: buttonBgColor,
+                            color: buttonTextColor,
+                            borderColor: buttonBorderColor,
+                            borderWidth: buttonBorderWidth,
                             borderStyle: 'solid',
-                            borderRadius: (page.btn_border_radius ?? 16) + 'px',
+                            borderRadius: buttonBorderRadius,
                           }}
                         >
                           {submitting ? (
-                            <span className="text-base sm:text-lg">প্রসেসিং...</span>
+                            <span className="text-base sm:text-lg" style={{ color: buttonTextColor }}>প্রসেসিং...</span>
                           ) : (
                             <>
-                              <span className="flex items-center gap-2 text-sm sm:text-base md:text-lg leading-tight">
+                              <span className="flex items-center gap-2 text-sm sm:text-base md:text-lg leading-tight" style={{ color: buttonTextColor }}>
                                 <FaShoppingCart className="flex-shrink-0" />
                                 <span>অর্ডার কনফার্ম করুন</span>
                               </span>
-                              <span className="text-base sm:text-lg md:text-xl font-extrabold sm:before:content-['—'] sm:before:mr-2 sm:before:opacity-70">
+                              <span className="text-base sm:text-lg md:text-xl font-extrabold sm:before:content-['—'] sm:before:mr-2 sm:before:opacity-70" style={{ color: buttonTextColor }}>
                                 {getTotal().toLocaleString()} ৳
                               </span>
                             </>

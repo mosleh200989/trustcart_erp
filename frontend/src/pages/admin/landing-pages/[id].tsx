@@ -1546,42 +1546,7 @@ export default function LandingPageEditor() {
                       />
                     </div>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs text-gray-500 mb-1">Button Color</label>
-                      <div className="flex gap-2">
-                        <input
-                          type="color"
-                          value={section.buttonColor || form.primary_color}
-                          onChange={(e) => updateSection(section.id, { buttonColor: e.target.value })}
-                          className="w-8 h-8 rounded cursor-pointer border"
-                        />
-                        <input
-                          type="text"
-                          value={section.buttonColor || form.primary_color}
-                          onChange={(e) => updateSection(section.id, { buttonColor: e.target.value })}
-                          className="flex-1 border rounded px-2 py-1 text-sm font-mono"
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-500 mb-1">Button Text Color</label>
-                      <div className="flex gap-2">
-                        <input
-                          type="color"
-                          value={section.buttonTextColor || '#FFFFFF'}
-                          onChange={(e) => updateSection(section.id, { buttonTextColor: e.target.value })}
-                          className="w-8 h-8 rounded cursor-pointer border"
-                        />
-                        <input
-                          type="text"
-                          value={section.buttonTextColor || '#FFFFFF'}
-                          onChange={(e) => updateSection(section.id, { buttonTextColor: e.target.value })}
-                          className="flex-1 border rounded px-2 py-1 text-sm font-mono"
-                        />
-                      </div>
-                    </div>
-                  </div>
+                  <p className="text-xs text-gray-400 italic">Button appearance is controlled by the General tab's Button Style settings.</p>
                 </div>
                 </>
                 )} {/* end: not spacer / not phone-cta */}
