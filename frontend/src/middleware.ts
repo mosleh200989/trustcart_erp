@@ -10,12 +10,32 @@ const DOMAIN_LANDING_PAGES: Record<string, string> = {
   'www.herbolin.com': 'Harbora-kosthogut',
 };
 
+/**
+ * Domain + path → landing page slug mapping.
+ * Keeps campaign URLs clean while reusing the landing page renderer.
+ */
+const DOMAIN_PATH_LANDING_PAGES: Record<string, Record<string, string>> = {
+  'herbolin.com': {
+    '/arabiankhalta': 'arabiankhalta',
+  },
+  'www.herbolin.com': {
+    '/arabiankhalta': 'arabiankhalta',
+  },
+};
+
 export function middleware(request: NextRequest) {
   const host = request.headers.get('host')?.split(':')[0] || '';
+  const pathname = request.nextUrl.pathname.replace(/\/$/, '') || '/';
+  const pathSlug = DOMAIN_PATH_LANDING_PAGES[host]?.[pathname];
+
+  if (pathSlug) {
+    return NextResponse.rewrite(new URL(`/lp/${pathSlug}`, request.url));
+  }
+
   const slug = DOMAIN_LANDING_PAGES[host];
 
   // Only rewrite root path for mapped domains
-  if (slug && request.nextUrl.pathname === '/') {
+  if (slug && pathname === '/') {
     return NextResponse.rewrite(new URL(`/lp/${slug}`, request.url));
   }
 
