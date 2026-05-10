@@ -52,6 +52,10 @@ interface LandingPageData {
   primary_color: string;
   secondary_color: string;
   background_color: string;
+  btn_bg_color?: string;
+  btn_text_color?: string;
+  btn_border_color?: string;
+  btn_border_radius?: number;
   meta_title: string;
   meta_description: string;
   og_image_url: string;
@@ -580,8 +584,12 @@ export default function LandingPageInternational() {
                       onClick={scrollToOrderForm}
                       className="px-8 py-4 rounded-full text-lg font-bold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all"
                       style={{
-                        backgroundColor: section.buttonColor || section.textColor || page.secondary_color,
-                        color: section.buttonTextColor || section.backgroundColor || page.primary_color,
+                        backgroundColor: page.btn_bg_color || page.primary_color,
+                        color: page.btn_text_color || '#ffffff',
+                        borderColor: page.btn_border_color || 'transparent',
+                        borderWidth: page.btn_border_color && page.btn_border_color !== 'transparent' ? 1 : 0,
+                        borderStyle: 'solid',
+                        borderRadius: `${page.btn_border_radius ?? 9999}px`,
                       }}
                     >
                       {section.buttonText}
@@ -918,7 +926,14 @@ export default function LandingPageInternational() {
                       onClick={handleSubmitOrder}
                       disabled={submitting || orderItems.length === 0}
                       className="w-full py-3.5 rounded-lg text-base font-bold text-white shadow-md hover:shadow-lg transition-all duration-200 disabled:opacity-50 hover:brightness-110"
-                      style={{ backgroundColor: page.primary_color }}
+                      style={{
+                        backgroundColor: page.btn_bg_color || page.primary_color,
+                        color: page.btn_text_color || '#ffffff',
+                        borderColor: page.btn_border_color || 'transparent',
+                        borderWidth: page.btn_border_color && page.btn_border_color !== 'transparent' ? 2 : 0,
+                        borderStyle: 'solid',
+                        borderRadius: `${page.btn_border_radius ?? 8}px`,
+                      }}
                     >
                       <FaShoppingCart className="inline mr-2 text-lg align-middle" />
                       {submitting ? 'Processing...' : `Confirm Order — ${getTotal().toLocaleString()} ৳`}
