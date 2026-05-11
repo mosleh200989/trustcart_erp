@@ -168,11 +168,10 @@ export class OrderManagementService {
 
       if (!latestStatus) return order;
 
-      // Only update status if both packed and sticker printed
-      const isPacked = order.isPacked === true;
+      // Only update status after sticker printing is done.
       const stickerPrinted = (order as any).stickerPrinted === true;
-      if (!isPacked || !stickerPrinted) {
-        this.logger.log(`[Steadfast Refresh] Order #${order.id} not ready (packed=${isPacked}, stickerPrinted=${stickerPrinted}) — status stays '${order.status}'`);
+      if (!stickerPrinted) {
+        this.logger.log(`[Steadfast Refresh] Order #${order.id} not ready (stickerPrinted=${stickerPrinted}) — status stays '${order.status}'`);
         return order;
       }
 
@@ -1659,18 +1658,17 @@ export class OrderManagementService {
       return { status: 'error', message: 'No status in webhook payload' };
     }
 
-    // Only update status if both packed and sticker printed
-    const isPacked = order.isPacked === true;
+    // Only update status after sticker printing is done.
     const stickerPrinted = (order as any).stickerPrinted === true;
 
     // Always update COD & delivery charge if provided (even when status hasn't changed)
     if (dto.cod_amount != null) order.codAmount = dto.cod_amount;
     if (dto.delivery_charge != null) order.deliveryCharge = dto.delivery_charge;
 
-    if (!isPacked || !stickerPrinted) {
+    if (!stickerPrinted) {
       // Save COD/charge updates but keep status as 'sent'
       await this.salesOrderRepository.save(order);
-      this.logger.log(`[Steadfast Webhook] Order #${order.id} not ready (packed=${isPacked}, stickerPrinted=${stickerPrinted}) — status stays '${order.status}', COD/charge updated`);
+      this.logger.log(`[Steadfast Webhook] Order #${order.id} not ready (stickerPrinted=${stickerPrinted}) — status stays '${order.status}', COD/charge updated`);
 
       // Still record the tracking history for audit
       await this.courierTrackingRepository.save({
@@ -1684,10 +1682,10 @@ export class OrderManagementService {
         deliveryCharge: dto.delivery_charge ?? null,
         consignmentId: dto.consignment_id != null ? String(dto.consignment_id) : null,
         rawPayload: dto,
-        remarks: `Steadfast webhook: status=${newStatus} (NOT applied — packed=${isPacked}, stickerPrinted=${stickerPrinted})`,
+        remarks: `Steadfast webhook: status=${newStatus} (NOT applied — stickerPrinted=${stickerPrinted})`,
       });
 
-      return { status: 'success', message: 'Order not ready for status update (packed/sticker not done), financial fields updated' };
+      return { status: 'success', message: 'Order not ready for status update (sticker not done), financial fields updated' };
     }
 
     const prevStatus = order.status;
@@ -2580,14 +2578,13 @@ export class OrderManagementService {
     if (dto.cod_amount != null) order.codAmount = dto.cod_amount;
     if (dto.delivery_fee != null) order.deliveryCharge = dto.delivery_fee;
 
-    // Check packed + sticker conditions
-    const isPacked = order.isPacked === true;
+    // Check sticker condition.
     const stickerPrinted = (order as any).stickerPrinted === true;
 
-    if (!isPacked || !stickerPrinted) {
+    if (!stickerPrinted) {
       await this.salesOrderRepository.save(order);
       this.logger.log(
-        `[Pathao Webhook] Order #${order.id} not ready (packed=${isPacked}, stickerPrinted=${stickerPrinted}) — status stays '${order.status}'`,
+        `[Pathao Webhook] Order #${order.id} not ready (stickerPrinted=${stickerPrinted}) — status stays '${order.status}'`,
       );
 
       await this.courierTrackingRepository.save({
@@ -2599,7 +2596,7 @@ export class OrderManagementService {
         deliveryCharge: dto.delivery_fee ?? null,
         consignmentId: dto.consignment_id != null ? String(dto.consignment_id) : null,
         rawPayload: dto,
-        remarks: `Pathao webhook: status=${newStatus} (NOT applied — packed=${isPacked}, stickerPrinted=${stickerPrinted})`,
+        remarks: `Pathao webhook: status=${newStatus} (NOT applied — stickerPrinted=${stickerPrinted})`,
       });
 
       return { status: 'success', message: 'Order not ready for status update, financial fields updated' };
@@ -2720,10 +2717,9 @@ export class OrderManagementService {
         const newStatus = this.mapPathaoStatus(rawStatus);
 
         if (String(order.status || '').trim() !== newStatus.trim()) {
-          const isPacked = order.isPacked === true;
           const stickerPrinted = (order as any).stickerPrinted === true;
 
-          if (isPacked && stickerPrinted) {
+          if (stickerPrinted) {
             const prevStatus = order.status;
             order.status = newStatus;
 
@@ -3303,14 +3299,13 @@ export class OrderManagementService {
   }
 
   /**
-   * Auto-transition: After sticker print + packed are both done,
+   * Auto-transition: After sticker print is done,
    * sync order status with the latest courier status from Steadfast.
    */
   private async autoShipIfReady(order: SalesOrder) {
-    const isPacked = order.isPacked === true;
     const stickerPrinted = (order as any).stickerPrinted === true;
 
-    if (isPacked && stickerPrinted && order.status === 'sent') {
+    if (stickerPrinted && order.status === 'sent') {
       // Fetch the latest status from Steadfast and apply it
       await this.tryRefreshSteadfastCourierStatus(order);
     }

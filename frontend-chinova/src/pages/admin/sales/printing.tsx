@@ -9,7 +9,7 @@ import InvoicePrintModal from '@/components/admin/InvoicePrintModal';
 import StickerPrintModal from '@/components/admin/StickerPrintModal';
 import ProductAutocomplete from '@/components/admin/ProductAutocomplete';
 import { useToast } from '@/contexts/ToastContext';
-import { FaPrint, FaBoxOpen, FaFileInvoice, FaTag, FaExternalLinkAlt, FaExclamationTriangle, FaTimes } from 'react-icons/fa';
+import { FaPrint, FaFileInvoice, FaTag, FaExternalLinkAlt, FaExclamationTriangle, FaTimes } from 'react-icons/fa';
 import apiClient from '@/services/api';
 import { getOrderStatusLabel, getOrderStatusColor } from '@/utils/orderStatus';
 
@@ -25,7 +25,6 @@ function getTodayDateString() {
 
 const INITIAL_FILTERS = {
   q: '',
-  isPacked: '',
   invoicePrinted: '',
   stickerPrinted: 'false',
   courierId: '',
@@ -63,7 +62,6 @@ interface PrintingOrder {
   orderDate?: string;
   createdAt?: string;
   shippedAt?: string;
-  isPacked?: boolean;
   invoicePrinted?: boolean;
   stickerPrinted?: boolean;
   status?: string;
@@ -128,7 +126,6 @@ export default function PrintingPage() {
         limit: String(ps),
       };
       if (f.q.trim()) params.q = f.q.trim();
-      if (f.isPacked) params.isPacked = f.isPacked;
       if (f.invoicePrinted) params.invoicePrinted = f.invoicePrinted;
       if (f.stickerPrinted) params.stickerPrinted = f.stickerPrinted;
       if (f.courierId.trim()) params.courierId = f.courierId.trim();
@@ -320,47 +317,6 @@ export default function PrintingPage() {
     }
   };
 
-  // ==================== MARK AS PACKED HANDLERS ====================
-
-  const handleMarkPacked = async (orderId: number) => {
-    try {
-      await apiClient.post(`/order-management/${orderId}/mark-packed`);
-      toast.success('Order marked as packed');
-      loadOrders();
-    } catch {
-      toast.error('Failed to mark as packed');
-    }
-  };
-
-  const handleUnmarkPacked = async (orderId: number) => {
-    try {
-      await apiClient.post(`/order-management/${orderId}/unmark-packed`);
-      toast.success('Order unmarked as packed');
-      loadOrders();
-    } catch {
-      toast.error('Failed to unmark packed');
-    }
-  };
-
-  const handleBulkMarkPacked = async () => {
-    const ids = selectedRowIds.map((id) => Number(id)).filter((id) => Number.isFinite(id));
-    if (ids.length === 0) { toast.warning('Select at least one order'); return; }
-    if (!confirm(`Mark ${ids.length} order(s) as packed?`)) return;
-    try {
-      const res = await apiClient.post('/order-management/bulk-mark-packed', { orderIds: ids });
-      const data = res.data;
-      if (data.failed === 0) {
-        toast.success(`${data.success} order(s) marked as packed`);
-      } else {
-        toast.warning(`Packed: ${data.success}, Failed: ${data.failed}`);
-      }
-      setSelectedRowIds([]);
-      loadOrders();
-    } catch {
-      toast.error('Failed to bulk mark as packed');
-    }
-  };
-
   const handleViewDetails = (order: PrintingOrder) => {
     setSelectedOrderId(order.id);
     setShowOrderDetails(true);
@@ -379,14 +335,6 @@ export default function PrintingPage() {
     }
     // Open sticker print modal AND mark as printed
     await proceedWithStickerPrint([orderId]);
-  };
-
-  const handlePackedCheckbox = async (orderId: number, currentlyPacked: boolean) => {
-    if (currentlyPacked) {
-      await handleUnmarkPacked(orderId);
-    } else {
-      await handleMarkPacked(orderId);
-    }
   };
 
   // ==================== COLUMNS ====================
@@ -535,25 +483,6 @@ export default function PrintingPage() {
         );
       },
     },
-    {
-      key: 'isPacked',
-      label: 'Packed',
-      render: (_: any, row: PrintingOrder) => {
-        const packed = row.isPacked ?? false;
-        return (
-          <div className="flex justify-center">
-            <input
-              type="checkbox"
-              checked={packed}
-              onChange={(e) => { e.stopPropagation(); handlePackedCheckbox(row.id, packed); }}
-              onClick={(e) => e.stopPropagation()}
-              className="w-6 h-6 accent-purple-600 cursor-pointer"
-              title={packed ? 'Click to unmark packed' : 'Click to mark as packed'}
-            />
-          </div>
-        );
-      },
-    },
   ];
 
   return (
@@ -616,17 +545,6 @@ export default function PrintingPage() {
               <FaTag /> Print Sticker
             </button>
 
-            <div className="border-l border-gray-300 h-8 mx-1" />
-
-            <button
-              type="button"
-              onClick={handleBulkMarkPacked}
-              disabled={selectedRowIds.length === 0}
-              className="px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-purple-500 to-purple-600 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:from-purple-600 hover:to-purple-700 transition-all flex items-center gap-1.5"
-              title="Mark selected orders as packed"
-            >
-              <FaBoxOpen /> Mark Packed
-            </button>
           </div>
         </div>
 
@@ -692,21 +610,8 @@ export default function PrintingPage() {
               </div>
             </div>
 
-            {/* Row 2: Packed, Invoice Printed, Sticker Printed */}
+            {/* Row 2: Invoice Printed, Sticker Printed */}
             <div className="grid grid-cols-1 md:grid-cols-6 gap-4 items-end">
-              <FormInput
-                label="Packed"
-                name="isPacked"
-                type="select"
-                value={filters.isPacked}
-                onChange={handleFilterChange}
-                selectPlaceholder="All"
-                options={[
-                  { value: 'true', label: 'Packed' },
-                  { value: 'false', label: 'Not Packed' },
-                ]}
-              />
-
               <FormInput
                 label="Invoice Printed"
                 name="invoicePrinted"
