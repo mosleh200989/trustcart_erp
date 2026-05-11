@@ -310,6 +310,9 @@ import { GrnItem } from './modules/purchase/entities/grn-item.entity';
           ],
           synchronize: false,
           logging: true,
+          extra: {
+            options: '-c timezone=Asia/Dhaka',
+          },
         };
         
         console.log('=== Database Configuration ===');

@@ -16,6 +16,7 @@ import { useRouter } from 'next/router';
 import { getTelephonySocket, type IncomingCallPayload } from '@/services/telephonySocket';
 import { useToast } from '@/contexts/ToastContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { getDhakaDateString } from '@/utils/dhakaDate';
 
 interface CallTask {
   id: number;
@@ -2059,7 +2060,7 @@ export default function AgentDashboard() {
                         type="date"
                         value={callActionFollowUpDate}
                         onChange={(e) => setCallActionFollowUpDate(e.target.value)}
-                        min={new Date().toISOString().split('T')[0]}
+                        min={getDhakaDateString()}
                         className="w-full px-3 py-2 border rounded-lg text-sm"
                         placeholder="Date"
                       />
@@ -2124,7 +2125,7 @@ export default function AgentDashboard() {
                     type="date"
                     value={leadFollowUpDate}
                     onChange={(e) => setLeadFollowUpDate(e.target.value)}
-                    min={new Date().toISOString().split('T')[0]}
+                    min={getDhakaDateString()}
                     className="w-full px-3 py-2 border rounded-lg"
                   />
                 </div>

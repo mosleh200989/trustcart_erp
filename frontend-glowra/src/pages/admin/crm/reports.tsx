@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import AdminLayout from '@/layouts/AdminLayout';
 import apiClient from '@/services/api';
+import { addDhakaDays, getDhakaDateString } from '@/utils/dhakaDate';
 
 /* ───────────── types ───────────── */
 interface TierStats {
@@ -92,16 +93,14 @@ function formatCurrency(amount: number): string {
 }
 
 function getDateRange(preset: string): { from: string; to: string } {
-  const to = new Date();
-  const from = new Date();
+  const to = getDhakaDateString();
   switch (preset) {
-    case '7d':  from.setDate(to.getDate() - 7); break;
-    case '14d': from.setDate(to.getDate() - 14); break;
-    case '30d': from.setDate(to.getDate() - 30); break;
-    case '90d': from.setDate(to.getDate() - 90); break;
-    default:    from.setDate(to.getDate() - 30);
+    case '7d': return { from: addDhakaDays(-7), to };
+    case '14d': return { from: addDhakaDays(-14), to };
+    case '30d': return { from: addDhakaDays(-30), to };
+    case '90d': return { from: addDhakaDays(-90), to };
+    default: return { from: addDhakaDays(-30), to };
   }
-  return { from: from.toISOString().split('T')[0], to: to.toISOString().split('T')[0] };
 }
 
 /* ───────────── skeleton loaders ───────────── */

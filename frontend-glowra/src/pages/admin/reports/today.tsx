@@ -31,6 +31,7 @@ import {
   FaClock,
 
 } from 'react-icons/fa';
+import { getDhakaDateString } from '@/utils/dhakaDate';
 
 /* ========== TYPES ========== */
 interface ProductRow {
@@ -160,7 +161,7 @@ const fmt = (n: number) => new Intl.NumberFormat('en-BD').format(n);
 
 /* ========== COMPONENT ========== */
 export default function TodaysReportPage() {
-  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(() => getDhakaDateString());
   const [data, setData] = useState<DailyReport | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -303,7 +304,7 @@ export default function TodaysReportPage() {
               />
             </div>
             <button
-              onClick={() => setDate(new Date().toISOString().slice(0, 10))}
+              onClick={() => setDate(getDhakaDateString())}
               className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium transition-colors"
             >
               Today

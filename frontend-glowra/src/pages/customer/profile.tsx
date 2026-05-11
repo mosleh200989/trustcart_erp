@@ -5,6 +5,7 @@ import { useToast } from '@/contexts/ToastContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { FaUser, FaEnvelope, FaPhone, FaMapMarkerAlt, FaUsers, FaEdit, FaTrash, FaSave, FaTimes, FaUserPlus } from 'react-icons/fa';
 import PhoneInput, { validateBDPhone } from '@/components/PhoneInput';
+import { getDhakaDateString } from '@/utils/dhakaDate';
 
 interface CustomerProfile {
   id: string;
@@ -22,19 +23,19 @@ const toDateInputValue = (value: any): string => {
     // Accept already-normalized YYYY-MM-DD.
     if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
     const parsed = new Date(value);
-    if (!Number.isNaN(parsed.getTime())) return parsed.toISOString().slice(0, 10);
+    if (!Number.isNaN(parsed.getTime())) return getDhakaDateString(parsed);
     return '';
   }
   const parsed = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(parsed.getTime())) return '';
-  return parsed.toISOString().slice(0, 10);
+  return getDhakaDateString(parsed);
 };
 
 const isValidIsoDate = (value: string): boolean => {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return false;
-  return parsed.toISOString().slice(0, 10) === value;
+  return getDhakaDateString(parsed) === value;
 };
 
 const normalizeOptionalIsoDate = (label: string, value: string): string | undefined => {

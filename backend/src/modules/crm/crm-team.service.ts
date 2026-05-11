@@ -10,6 +10,7 @@ import { EngagementHistory } from './entities/engagement-history.entity';
 import { DashboardConfig } from './entities/dashboard-config.entity';
 import { CustomerTier } from '../lead-management/entities/customer-tier.entity';
 import { DEFAULT_SCRIPTS, DEFAULT_TRAINING_ROLE_PLAYS } from './constants/dashboard-defaults';
+import { getDhakaDateString } from '../../common/utils/dhaka-date';
 
 /** Simple in-memory cache entry */
 interface CacheEntry<T> {
@@ -49,9 +50,9 @@ export class CrmTeamService {
   private dashboardCache = new Map<number, CacheEntry<any>>();
 
   private getDateString(date?: string | Date): string {
-    if (!date) return new Date().toISOString().split('T')[0];
+    if (!date) return getDhakaDateString();
     if (typeof date === 'string') return date;
-    return date.toISOString().split('T')[0];
+    return getDhakaDateString(date);
   }
 
   /**

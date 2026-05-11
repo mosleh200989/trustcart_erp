@@ -9,6 +9,7 @@ import { FaSearch, FaFilter, FaTimes, FaEye, FaStickyNote, FaExternalLinkAlt, Fa
 import apiClient from '@/services/api';
 import { useToast } from '@/contexts/ToastContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { getDhakaDateString } from '@/utils/dhakaDate';
 
 interface SalesOrder {
   id: number;
@@ -257,12 +258,12 @@ export default function AdminSalesLateDelivery() {
 
     const dateKey = (v: any): string => {
       if (!v) return '';
-      if (v instanceof Date && !Number.isNaN(v.getTime())) return v.toISOString().slice(0, 10);
+      if (v instanceof Date && !Number.isNaN(v.getTime())) return getDhakaDateString(v);
       const s = String(v);
       if (s.length >= 10) return s.slice(0, 10);
       const d = new Date(v);
       if (Number.isNaN(d.getTime())) return '';
-      return d.toISOString().slice(0, 10);
+      return getDhakaDateString(d);
     };
     const inDateRange = (field: any, from: string, to: string) => {
       const fromKey = dateKey(from);

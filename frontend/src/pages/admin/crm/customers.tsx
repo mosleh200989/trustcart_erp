@@ -3,6 +3,7 @@ import AdminLayout from '@/layouts/AdminLayout';
 import PageSizeSelector from '@/components/admin/PageSizeSelector';
 import Pagination from '@/components/admin/Pagination';
 import apiClient from '@/services/api';
+import { getDhakaDateString } from '@/utils/dhakaDate';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { FaFileExport, FaTags, FaTrash, FaSms, FaEnvelope, FaPlus, FaEye } from 'react-icons/fa';
@@ -162,7 +163,7 @@ export default function CustomersPage() {
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `customers-${new Date().toISOString().split('T')[0]}.csv`;
+    a.download = `customers-${getDhakaDateString()}.csv`;
     a.click();
     window.URL.revokeObjectURL(url);
   };

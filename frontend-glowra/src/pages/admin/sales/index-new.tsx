@@ -9,6 +9,7 @@ import FormInput from '@/components/admin/FormInput';
 import { FaPlus, FaSearch } from 'react-icons/fa';
 import apiClient from '@/services/api';
 import { getOrderStatusLabel, getOrderStatusColor } from '@/utils/orderStatus';
+import { getDhakaDateString } from '@/utils/dhakaDate';
 
 interface SalesOrder {
   id: number;
@@ -37,7 +38,7 @@ export default function AdminSales() {
     customer_name: '',
     total_amount: '',
     status: 'processing',
-    order_date: new Date().toISOString().split('T')[0]
+    order_date: getDhakaDateString()
   });
 
   useEffect(() => {
@@ -65,7 +66,7 @@ export default function AdminSales() {
       customer_name: '',
       total_amount: '',
       status: 'processing',
-      order_date: new Date().toISOString().split('T')[0]
+      order_date: getDhakaDateString()
     });
     setIsModalOpen(true);
   };

@@ -13,6 +13,7 @@ import { CustomersService } from '../customers/customers.service';
 import { InventoryService } from '../inventory/inventory.service';
 import { CouponService } from './coupon.service';
 import { LeadManagementService } from '../lead-management/lead-management.service';
+import { getDhakaDateString } from '../../common/utils/dhaka-date';
 
 @Injectable()
 export class SalesService {
@@ -34,6 +35,22 @@ export class SalesService {
     @Inject(forwardRef(() => LeadManagementService))
     private leadManagementService: LeadManagementService,
   ) {}
+
+  private readonly dhakaTimeZone = 'Asia/Dhaka';
+
+  private currentDhakaDateString(): string {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: this.dhakaTimeZone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(new Date());
+
+    const year = parts.find((p) => p.type === 'year')?.value;
+    const month = parts.find((p) => p.type === 'month')?.value;
+    const day = parts.find((p) => p.type === 'day')?.value;
+    return year && month && day ? `${year}-${month}-${day}` : getDhakaDateString();
+  }
 
   private normalizeOfferCode(value: any): string {
     const code = value != null ? String(value).trim() : '';
@@ -1343,7 +1360,7 @@ export class SalesService {
    */
   async getDailyReport(date: string) {
     // date is YYYY-MM-DD
-    const reportDate = date || new Date().toISOString().slice(0, 10);
+    const reportDate = date || this.currentDhakaDateString();
 
     // 1) Product-wise breakdown via sales_order_items JOIN sales_orders
     const productRows = await this.orderItemsRepository
@@ -1398,7 +1415,7 @@ export class SalesService {
     const hourlyRaw = await this.salesRepository
       .createQueryBuilder('o')
       .select([
-        'EXTRACT(HOUR FROM o.created_at) AS hour',
+        `EXTRACT(HOUR FROM o.created_at AT TIME ZONE '${this.dhakaTimeZone}') AS hour`,
         'COUNT(o.id) AS orders',
         'COALESCE(SUM(o.total_amount), 0) AS revenue',
       ])
@@ -1546,7 +1563,7 @@ export class SalesService {
     endDate?: string;
     agentId?: number;
   }) {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = this.currentDhakaDateString();
     const startDate = params.startDate || today;
     const endDate = params.endDate || today;
 
@@ -1682,7 +1699,7 @@ export class SalesService {
     const hourlyQb = this.salesRepository
       .createQueryBuilder('o')
       .select([
-        'EXTRACT(HOUR FROM o.created_at) AS hour',
+        `EXTRACT(HOUR FROM o.created_at AT TIME ZONE '${this.dhakaTimeZone}') AS hour`,
         'COUNT(o.id) AS orders',
         'COALESCE(SUM(o.total_amount), 0) AS revenue',
       ])
@@ -2092,7 +2109,7 @@ export class SalesService {
     groupBy?: 'hour' | 'day';
   }) {
     const toNum = (v: any) => parseFloat(v) || 0;
-    const today = new Date().toISOString().slice(0, 10);
+    const today = this.currentDhakaDateString();
     const startDate = params.startDate || today;
     const endDate = params.endDate || today;
     const groupBy = params.groupBy || 'day';
@@ -2102,8 +2119,8 @@ export class SalesService {
       const qb = this.salesRepository
         .createQueryBuilder('o')
         .where("o.order_source = 'landing_page'")
-        .andWhere('DATE(o.created_at) >= :startDate', { startDate })
-        .andWhere('DATE(o.created_at) <= :endDate', { endDate });
+        .andWhere(`DATE(o.created_at AT TIME ZONE '${this.dhakaTimeZone}') >= :startDate`, { startDate })
+        .andWhere(`DATE(o.created_at AT TIME ZONE '${this.dhakaTimeZone}') <= :endDate`, { endDate });
       if (params.slug) {
         qb.andWhere('o.utm_source = :slug', { slug: params.slug });
       }
@@ -2129,7 +2146,7 @@ export class SalesService {
     // 2) Hourly breakdown (useful for single-day view)
     const hourlyRaw = await buildBase()
       .select([
-        'EXTRACT(HOUR FROM o.created_at) AS hour',
+        `EXTRACT(HOUR FROM o.created_at AT TIME ZONE '${this.dhakaTimeZone}') AS hour`,
         'COUNT(o.id) AS orders',
         'COALESCE(SUM(o.total_amount), 0) AS revenue',
         `COUNT(CASE WHEN o.thank_you_offer_accepted = true THEN 1 END) AS upsell_accepted`,
@@ -2141,7 +2158,7 @@ export class SalesService {
     // 3) Daily breakdown
     const dailyRaw = await buildBase()
       .select([
-        'DATE(o.created_at) AS date',
+        `DATE(o.created_at AT TIME ZONE '${this.dhakaTimeZone}') AS date`,
         'COUNT(o.id) AS orders',
         'COALESCE(SUM(o.total_amount), 0) AS revenue',
         `COUNT(CASE WHEN o.thank_you_offer_accepted = true THEN 1 END) AS upsell_accepted`,
@@ -2200,8 +2217,8 @@ export class SalesService {
         'SUM(soi.line_total) AS total_revenue',
       ])
       .where("o.order_source = 'landing_page'")
-      .andWhere('DATE(o.created_at) >= :startDate', { startDate })
-      .andWhere('DATE(o.created_at) <= :endDate', { endDate })
+      .andWhere(`DATE(o.created_at AT TIME ZONE '${this.dhakaTimeZone}') >= :startDate`, { startDate })
+      .andWhere(`DATE(o.created_at AT TIME ZONE '${this.dhakaTimeZone}') <= :endDate`, { endDate })
       .andWhere(params.slug ? 'o.utm_source = :slug' : '1=1', params.slug ? { slug: params.slug } : {})
       .groupBy('soi.product_id')
       .addGroupBy('soi.product_name')

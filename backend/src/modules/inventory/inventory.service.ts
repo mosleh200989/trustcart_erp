@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
+import { addDhakaDays, getDhakaDateString } from '../../common/utils/dhaka-date';
 import { StockLevel } from './entities/stock-level.entity';
 import { StockBatch } from './entities/stock-batch.entity';
 import { StockAlert } from './entities/stock-alert.entity';
@@ -1767,8 +1768,8 @@ export class InventoryService {
   }
 
   async getFastSlowMovers(dateFrom?: string, dateTo?: string): Promise<any[]> {
-    const fromDate = dateFrom || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-    const toDate = dateTo || new Date().toISOString().split('T')[0];
+    const fromDate = dateFrom || addDhakaDays(-30);
+    const toDate = dateTo || getDhakaDateString();
 
     const items = await this.dataSource.query(`
       SELECT sm.product_id, p.name_en as product_name, p.sku, p.category,

@@ -283,7 +283,7 @@ const MeetingModal = ({ selectedDate, onClose, onSave }: { selectedDate: Date | 
     startDate: selectedDate ? format(selectedDate, 'yyyy-MM-dd') : '',
     startTime: '',
     endTime: '',
-    timezone: 'UTC',
+    timezone: 'Asia/Dhaka',
     location: '',
     meetingLink: '',
     agenda: '',
@@ -371,7 +371,7 @@ const MeetingModal = ({ selectedDate, onClose, onSave }: { selectedDate: Date | 
                 onChange={(e) => setFormData({ ...formData, timezone: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
               >
-                <option value="UTC">UTC</option>
+                <option value="Asia/Dhaka">Asia/Dhaka (UTC+06:00)</option>
                 <option value="EST">EST</option>
                 <option value="PST">PST</option>
                 <option value="CST">CST</option>

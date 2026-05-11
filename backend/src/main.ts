@@ -1,3 +1,5 @@
+process.env.TZ = process.env.TZ || 'Asia/Dhaka';
+
 import { NestFactory } from '@nestjs/core';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { ValidationPipe } from '@nestjs/common';

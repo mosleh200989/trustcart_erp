@@ -14,6 +14,7 @@ import Link from 'next/link';
 import { format } from 'date-fns';
 import AdminOrderDetailsModal from '@/components/AdminOrderDetailsModal';
 import apiClient from '@/services/api';
+import { getDhakaDateString } from '@/utils/dhakaDate';
 
 // CRM Task interface
 interface CrmTask {
@@ -143,7 +144,7 @@ export default function TodayTasklistPage() {
     
     try {
       setLoading(true);
-      const today = new Date().toISOString().split('T')[0];
+      const today = getDhakaDateString();
       
       // Fetch all tasks and leads in parallel
       const [todayTasksRes, allTasksRes, leadsRes] = await Promise.all([
@@ -1064,7 +1065,7 @@ export default function TodayTasklistPage() {
                   type="date"
                   value={followUpDate}
                   onChange={(e) => setFollowUpDate(e.target.value)}
-                  min={new Date().toISOString().split('T')[0]}
+                  min={getDhakaDateString()}
                   className="w-full px-3 py-2 border rounded-lg"
                 />
               </div>

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import AdminLayout from '@/layouts/AdminLayout';
 import apiClient from '@/services/api';
+import { getDhakaDateString } from '@/utils/dhakaDate';
 import { useToast } from '@/contexts/ToastContext';
 import PageSizeSelector from '@/components/admin/PageSizeSelector';
 import Pagination from '@/components/admin/Pagination';
@@ -176,7 +177,7 @@ export default function RejectedCustomersPage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `rejected-customers-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = `rejected-customers-${getDhakaDateString()}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   };
