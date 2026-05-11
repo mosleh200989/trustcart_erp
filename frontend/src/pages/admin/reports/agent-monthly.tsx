@@ -10,16 +10,6 @@ import {
   FaUserTie,
   FaGlobe,
 } from 'react-icons/fa';
-import {
-  ResponsiveContainer,
-  AreaChart,
-  Area,
-  CartesianGrid,
-  XAxis,
-  YAxis,
-  Tooltip,
-  Legend,
-} from 'recharts';
 
 /* ========== TYPES ========== */
 interface SourceSummary {
@@ -181,6 +171,37 @@ export default function AgentMonthlyReportPage() {
   };
 
   const days = data ? Array.from({ length: data.daysInMonth }, (_, i) => i + 1) : [];
+  const webDays = webData ? Array.from({ length: webData.daysInMonth }, (_, i) => i + 1) : [];
+  const webRows = webData ? [
+    {
+      key: 'website',
+      label: 'Website',
+      dailyOrders: webData.dailyChart.reduce<Record<number, number>>((acc, row) => {
+        acc[row.day] = row.website;
+        return acc;
+      }, {}),
+      ...webData.website,
+    },
+    {
+      key: 'landingPage',
+      label: 'Landing Page',
+      dailyOrders: webData.dailyChart.reduce<Record<number, number>>((acc, row) => {
+        acc[row.day] = row.landingPage;
+        return acc;
+      }, {}),
+      ...webData.landingPage,
+    },
+  ] : [];
+
+  const getSourceCancelledRatio = (row: SourceSummary) => {
+    if (row.total === 0) return '0%';
+    return ((row.cancelled / row.total) * 100).toFixed(2) + '%';
+  };
+
+  const getSourceCancelledRatioNum = (row: SourceSummary) => {
+    if (row.total === 0) return 0;
+    return (row.cancelled / row.total) * 100;
+  };
 
   return (
     <AdminLayout>
@@ -412,7 +433,7 @@ export default function AgentMonthlyReportPage() {
           </div>
         )}
 
-        {/* ── Website & Landing Page Chart ── */}
+        {/* ── Website & Landing Page Table ── */}
         <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
           <div className="px-5 py-3 border-b border-gray-100 bg-gray-50/50 flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -462,73 +483,116 @@ export default function AgentMonthlyReportPage() {
             </div>
           )}
 
-          {/* Area Chart */}
+          {/* Daily Source Table */}
           {webData && !webLoading && (
             <div className="px-4 pb-5">
-              <ResponsiveContainer width="100%" height={280}>
-                <AreaChart
-                  data={webData.dailyChart}
-                  margin={{ top: 10, right: 24, left: 0, bottom: 0 }}
-                >
-                  <defs>
-                    <linearGradient id="gradWebsite" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#0ea5e9" stopOpacity={0.25} />
-                      <stop offset="95%" stopColor="#0ea5e9" stopOpacity={0.03} />
-                    </linearGradient>
-                    <linearGradient id="gradLanding" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.25} />
-                      <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0.03} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                  <XAxis
-                    dataKey="day"
-                    tick={{ fontSize: 11, fill: '#6b7280' }}
-                    tickLine={false}
-                    axisLine={{ stroke: '#e5e7eb' }}
-                  />
-                  <YAxis
-                    allowDecimals={false}
-                    tick={{ fontSize: 11, fill: '#6b7280' }}
-                    tickLine={false}
-                    axisLine={false}
-                    width={32}
-                  />
-                  <Tooltip
-                    contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e5e7eb' }}
-                    formatter={(value: any, name: any) => [
-                      value,
-                      name === 'website' ? 'Website' : 'Landing Page',
-                    ]}
-                    labelFormatter={(label) => `Day ${label}`}
-                  />
-                  <Legend
-                    formatter={(value) => (
-                      <span style={{ fontSize: 12, color: '#374151' }}>
-                        {value === 'website' ? 'Website' : 'Landing Page'}
-                      </span>
-                    )}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="website"
-                    stroke="#0ea5e9"
-                    strokeWidth={2}
-                    fill="url(#gradWebsite)"
-                    dot={false}
-                    activeDot={{ r: 4 }}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="landingPage"
-                    stroke="#8b5cf6"
-                    strokeWidth={2}
-                    fill="url(#gradLanding)"
-                    dot={false}
-                    activeDot={{ r: 4 }}
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
+              <div className="overflow-x-auto rounded-lg border border-gray-200">
+                <table className="w-full text-sm border-collapse">
+                  <thead>
+                    <tr className="bg-slate-800 text-white">
+                      <th className="sticky left-0 z-10 bg-slate-800 px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wider whitespace-nowrap border-r border-slate-700 min-w-[150px]">
+                        Source
+                      </th>
+                      {webDays.map(d => (
+                        <th
+                          key={d}
+                          className="px-1.5 py-2.5 text-center text-xs font-semibold min-w-[36px] border-r border-slate-700/50"
+                        >
+                          {d}
+                        </th>
+                      ))}
+                      <th className="px-3 py-2.5 text-center text-xs font-semibold uppercase tracking-wider whitespace-nowrap border-l-2 border-slate-600 bg-slate-900 min-w-[60px]">
+                        Total
+                      </th>
+                      <th className="px-3 py-2.5 text-center text-xs font-semibold uppercase tracking-wider whitespace-nowrap bg-emerald-900/70 min-w-[70px]">
+                        Delivered
+                      </th>
+                      <th className="px-3 py-2.5 text-center text-xs font-semibold uppercase tracking-wider whitespace-nowrap bg-red-900/60 min-w-[72px]">
+                        Cancelled
+                      </th>
+                      <th className="px-3 py-2.5 text-center text-xs font-semibold uppercase tracking-wider whitespace-nowrap bg-amber-900/50 min-w-[90px]">
+                        Cancel %
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {webRows.map((row, idx) => {
+                      const cancelRatio = getSourceCancelledRatioNum(row);
+                      const sourceBadge = row.key === 'website'
+                        ? 'bg-sky-50 text-sky-700 border-sky-200'
+                        : 'bg-violet-50 text-violet-700 border-violet-200';
+                      return (
+                        <tr
+                          key={row.key}
+                          className={`${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'} hover:bg-sky-50/40 transition-colors`}
+                        >
+                          <td className={`sticky left-0 z-10 ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'} px-3 py-2 font-medium whitespace-nowrap border-r border-gray-200`}>
+                            <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${sourceBadge}`}>
+                              {row.label}
+                            </span>
+                          </td>
+                          {webDays.map(d => {
+                            const count = row.dailyOrders[d] || 0;
+                            return (
+                              <td
+                                key={d}
+                                className={`px-1 py-2 text-center text-xs tabular-nums border-r border-gray-100 ${getDayCellStyle(count)}`}
+                              >
+                                {count || ''}
+                              </td>
+                            );
+                          })}
+                          <td className="px-2 py-2 text-center font-bold text-sm tabular-nums text-slate-800 border-l-2 border-gray-200 bg-slate-50">
+                            {row.total || ''}
+                          </td>
+                          <td className="px-2 py-2 text-center font-semibold text-sm tabular-nums text-emerald-700 bg-emerald-50/50">
+                            {row.delivered || ''}
+                          </td>
+                          <td className="px-2 py-2 text-center font-semibold text-sm tabular-nums text-red-700 bg-red-50/40">
+                            {row.cancelled || ''}
+                          </td>
+                          <td className="px-2 py-2 text-center text-sm tabular-nums">
+                            <span className={`inline-block px-2 py-0.5 rounded text-xs font-semibold ${getCancelledBadge(cancelRatio)}`}>
+                              {getSourceCancelledRatio(row)}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                  <tfoot>
+                    <tr className="bg-slate-800 text-white font-semibold">
+                      <td className="sticky left-0 z-10 bg-slate-800 px-3 py-2.5 text-sm uppercase tracking-wider border-r border-slate-700">
+                        Total
+                      </td>
+                      {webDays.map(d => {
+                        const dayTotal = webRows.reduce((sum, row) => sum + (row.dailyOrders[d] || 0), 0);
+                        return (
+                          <td key={d} className="px-1 py-2.5 text-center text-xs tabular-nums border-r border-slate-700/30">
+                            {dayTotal || ''}
+                          </td>
+                        );
+                      })}
+                      <td className="px-2 py-2.5 text-center text-sm tabular-nums border-l-2 border-slate-600 bg-slate-900">
+                        {webRows.reduce((sum, row) => sum + row.total, 0)}
+                      </td>
+                      <td className="px-2 py-2.5 text-center text-sm tabular-nums bg-emerald-900/70">
+                        {webRows.reduce((sum, row) => sum + row.delivered, 0)}
+                      </td>
+                      <td className="px-2 py-2.5 text-center text-sm tabular-nums bg-red-900/60">
+                        {webRows.reduce((sum, row) => sum + row.cancelled, 0)}
+                      </td>
+                      <td className="px-2 py-2.5 text-center text-sm tabular-nums bg-amber-900/50">
+                        {(() => {
+                          const total = webRows.reduce((sum, row) => sum + row.total, 0);
+                          const cancelled = webRows.reduce((sum, row) => sum + row.cancelled, 0);
+                          return total ? `${((cancelled / total) * 100).toFixed(2)}%` : '0%';
+                        })()}
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
             </div>
           )}
 
