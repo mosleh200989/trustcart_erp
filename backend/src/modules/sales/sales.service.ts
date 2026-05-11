@@ -1500,43 +1500,77 @@ export class SalesService {
     // Combine both item tables because agent/admin orders are commonly stored in order_items.
     const agentProductRows = await this.salesRepository.manager.query(
       `SELECT
-         i.agent_id,
-         COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.name, ''), ' ', COALESCE(u.last_name, ''))), ''), 'Agent #' || i.agent_id::text) AS agent_name,
-         i.product_id,
-         COALESCE(NULLIF(i.product_name, ''), 'Unknown Product') AS product_name,
-         COUNT(DISTINCT i.order_id) AS total_orders,
-         COALESCE(SUM(i.quantity), 0) AS total_qty,
-         COALESCE(SUM(i.total_revenue), 0) AS total_revenue
+         normalized.agent_id,
+         normalized.agent_name,
+         normalized.product_id,
+         normalized.product_name,
+         COUNT(DISTINCT normalized.order_id) AS total_orders,
+         COALESCE(SUM(normalized.quantity), 0) AS total_qty,
+         COALESCE(SUM(normalized.total_revenue), 0) AS total_revenue
        FROM (
          SELECT
-           o.id AS order_id,
-           o.created_by AS agent_id,
-           soi.product_id AS product_id,
-           soi.product_name AS product_name,
-           soi.quantity AS quantity,
-           COALESCE(soi.line_total, soi.unit_price * soi.quantity, 0) AS total_revenue
-         FROM sales_order_items soi
-         INNER JOIN sales_orders o ON o.id = soi.sales_order_id
-         WHERE DATE(o.order_date) = $1
-           AND o.created_by IS NOT NULL
-           AND NOT EXISTS (
-             SELECT 1 FROM order_items oi_existing WHERE oi_existing.order_id = o.id
-           )
-         UNION ALL
-         SELECT
-           o.id AS order_id,
-           o.created_by AS agent_id,
-           oi.product_id AS product_id,
-           COALESCE(oi.custom_product_name, oi.product_name) AS product_name,
-           oi.quantity AS quantity,
-           COALESCE(oi.subtotal, oi.unit_price * oi.quantity, 0) AS total_revenue
-         FROM order_items oi
-         INNER JOIN sales_orders o ON o.id = oi.order_id
-         WHERE DATE(o.order_date) = $1
-           AND o.created_by IS NOT NULL
-       ) i
-       LEFT JOIN users u ON u.id = i.agent_id
-       GROUP BY i.agent_id, agent_name, i.product_id, product_name
+           i.order_id,
+           i.agent_id,
+           COALESCE(
+             NULLIF(
+               CASE
+                 WHEN regexp_replace(TRIM(CONCAT(COALESCE(u.name, ''), ' ', COALESCE(u.last_name, ''))), '[[:space:]?]+', '', 'g') = '' THEN ''
+                 ELSE TRIM(CONCAT(COALESCE(u.name, ''), ' ', COALESCE(u.last_name, '')))
+               END,
+               ''
+             ),
+             NULLIF(u.email, ''),
+             NULLIF(u.phone, ''),
+             'Agent #' || i.agent_id::text
+           ) AS agent_name,
+           i.product_id,
+           COALESCE(
+             NULLIF(
+               CASE
+                 WHEN regexp_replace(TRIM(COALESCE(i.product_name, '')), '[[:space:]?]+', '', 'g') = '' THEN ''
+                 ELSE TRIM(i.product_name)
+               END,
+               ''
+             ),
+             NULLIF(p.name_bn, ''),
+             NULLIF(p.name_en, ''),
+             CASE WHEN i.product_id IS NOT NULL THEN 'Product #' || i.product_id::text END,
+             'Unknown Product'
+           ) AS product_name,
+           i.quantity,
+           i.total_revenue
+         FROM (
+           SELECT
+             o.id AS order_id,
+             o.created_by AS agent_id,
+             soi.product_id AS product_id,
+             soi.product_name AS product_name,
+             soi.quantity AS quantity,
+             COALESCE(soi.line_total, soi.unit_price * soi.quantity, 0) AS total_revenue
+           FROM sales_order_items soi
+           INNER JOIN sales_orders o ON o.id = soi.sales_order_id
+           WHERE DATE(o.order_date) = $1
+             AND o.created_by IS NOT NULL
+             AND NOT EXISTS (
+               SELECT 1 FROM order_items oi_existing WHERE oi_existing.order_id = o.id
+             )
+           UNION ALL
+           SELECT
+             o.id AS order_id,
+             o.created_by AS agent_id,
+             oi.product_id AS product_id,
+             COALESCE(oi.custom_product_name, oi.product_name) AS product_name,
+             oi.quantity AS quantity,
+             COALESCE(oi.subtotal, oi.unit_price * oi.quantity, 0) AS total_revenue
+           FROM order_items oi
+           INNER JOIN sales_orders o ON o.id = oi.order_id
+           WHERE DATE(o.order_date) = $1
+             AND o.created_by IS NOT NULL
+         ) i
+         LEFT JOIN users u ON u.id = i.agent_id
+         LEFT JOIN products p ON p.id = i.product_id
+       ) normalized
+       GROUP BY normalized.agent_id, normalized.agent_name, normalized.product_id, normalized.product_name
        ORDER BY total_qty DESC`,
       [reportDate],
     );
@@ -2127,6 +2161,54 @@ export class SalesService {
       [startDate, endDate],
     );
 
+    // Daily and summary counts per individual landing page.
+    const landingPageDailyRaw: Array<{
+      slug: string;
+      title: string;
+      day: number;
+      order_count: string;
+    }> = await this.salesRepository.query(
+      `SELECT
+         COALESCE(NULLIF(o.utm_source, ''), 'unknown') AS slug,
+         COALESCE(lp.title, NULLIF(o.utm_campaign, ''), NULLIF(o.utm_source, ''), 'Unknown Landing Page') AS title,
+         EXTRACT(DAY FROM o.order_date)::int AS day,
+         COUNT(o.id) AS order_count
+       FROM sales_orders o
+       LEFT JOIN landing_pages lp ON lp.slug = o.utm_source
+       WHERE o.order_source = 'landing_page'
+         AND DATE(o.order_date) BETWEEN $1 AND $2
+       GROUP BY
+         COALESCE(NULLIF(o.utm_source, ''), 'unknown'),
+         COALESCE(lp.title, NULLIF(o.utm_campaign, ''), NULLIF(o.utm_source, ''), 'Unknown Landing Page'),
+         EXTRACT(DAY FROM o.order_date)
+       ORDER BY title ASC, day ASC`,
+      [startDate, endDate],
+    );
+
+    const landingPageSummaryRaw: Array<{
+      slug: string;
+      title: string;
+      total_orders: string;
+      delivered_orders: string;
+      cancelled_orders: string;
+    }> = await this.salesRepository.query(
+      `SELECT
+         COALESCE(NULLIF(o.utm_source, ''), 'unknown') AS slug,
+         COALESCE(lp.title, NULLIF(o.utm_campaign, ''), NULLIF(o.utm_source, ''), 'Unknown Landing Page') AS title,
+         COUNT(o.id) AS total_orders,
+         COUNT(CASE WHEN LOWER(o.status::text) = 'delivered' THEN 1 END) AS delivered_orders,
+         COUNT(CASE WHEN LOWER(o.status::text) IN ('cancelled', 'admin_cancelled', 'returned') THEN 1 END) AS cancelled_orders
+       FROM sales_orders o
+       LEFT JOIN landing_pages lp ON lp.slug = o.utm_source
+       WHERE o.order_source = 'landing_page'
+         AND DATE(o.order_date) BETWEEN $1 AND $2
+       GROUP BY
+         COALESCE(NULLIF(o.utm_source, ''), 'unknown'),
+         COALESCE(lp.title, NULLIF(o.utm_campaign, ''), NULLIF(o.utm_source, ''), 'Unknown Landing Page')
+       ORDER BY total_orders DESC, title ASC`,
+      [startDate, endDate],
+    );
+
     // Index daily rows
     const websiteDaily: Record<number, number> = {};
     const landingPageDaily: Record<number, number> = {};
@@ -2150,6 +2232,14 @@ export class SalesService {
       else if (r.order_source === 'landing_page') landingPageSummary = s;
     }
 
+    const landingPageDailyMap = new Map<string, Record<number, number>>();
+    for (const r of landingPageDailyRaw) {
+      const slug = r.slug || 'unknown';
+      const daily = landingPageDailyMap.get(slug) || {};
+      daily[toNum(r.day)] = toNum(r.order_count);
+      landingPageDailyMap.set(slug, daily);
+    }
+
     // One chart point per day
     const dailyChart = Array.from({ length: lastDay }, (_, i) => {
       const day = i + 1;
@@ -2167,6 +2257,14 @@ export class SalesService {
       dailyChart,
       website: websiteSummary,
       landingPage: landingPageSummary,
+      landingPages: landingPageSummaryRaw.map((r) => ({
+        slug: r.slug || 'unknown',
+        title: r.title || r.slug || 'Unknown Landing Page',
+        dailyOrders: landingPageDailyMap.get(r.slug || 'unknown') || {},
+        total: toNum(r.total_orders),
+        delivered: toNum(r.delivered_orders),
+        cancelled: toNum(r.cancelled_orders),
+      })),
     };
   }
 
