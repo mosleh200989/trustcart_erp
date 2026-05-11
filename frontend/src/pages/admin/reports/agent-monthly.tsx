@@ -25,6 +25,19 @@ interface WebsiteMonthlyData {
   dailyChart: Array<{ day: number; website: number; landingPage: number }>;
   website: SourceSummary;
   landingPage: SourceSummary;
+  landingPages?: Array<SourceSummary & {
+    slug: string;
+    title: string;
+    dailyOrders: Record<number, number>;
+  }>;
+}
+
+interface SourceMonthlyRow extends SourceSummary {
+  key: string;
+  label: string;
+  kind: 'website' | 'landingPage';
+  dailyOrders: Record<number, number>;
+  slug?: string;
 }
 
 interface AgentMonthly {
@@ -172,25 +185,38 @@ export default function AgentMonthlyReportPage() {
 
   const days = data ? Array.from({ length: data.daysInMonth }, (_, i) => i + 1) : [];
   const webDays = webData ? Array.from({ length: webData.daysInMonth }, (_, i) => i + 1) : [];
-  const webRows = webData ? [
+  const webRows: SourceMonthlyRow[] = webData ? [
     {
       key: 'website',
       label: 'Website',
+      kind: 'website' as const,
       dailyOrders: webData.dailyChart.reduce<Record<number, number>>((acc, row) => {
         acc[row.day] = row.website;
         return acc;
       }, {}),
       ...webData.website,
     },
-    {
-      key: 'landingPage',
-      label: 'Landing Page',
-      dailyOrders: webData.dailyChart.reduce<Record<number, number>>((acc, row) => {
-        acc[row.day] = row.landingPage;
-        return acc;
-      }, {}),
-      ...webData.landingPage,
-    },
+    ...((webData.landingPages && webData.landingPages.length > 0)
+      ? webData.landingPages.map((page) => ({
+        key: `landing-page-${page.slug}`,
+        label: page.title,
+        slug: page.slug,
+        kind: 'landingPage' as const,
+        dailyOrders: page.dailyOrders || {},
+        total: page.total,
+        delivered: page.delivered,
+        cancelled: page.cancelled,
+      }))
+      : [{
+        key: 'landingPage',
+        label: 'Landing Page',
+        kind: 'landingPage' as const,
+        dailyOrders: webData.dailyChart.reduce<Record<number, number>>((acc, row) => {
+          acc[row.day] = row.landingPage;
+          return acc;
+        }, {}),
+        ...webData.landingPage,
+      }]),
   ] : [];
 
   const getSourceCancelledRatio = (row: SourceSummary) => {
@@ -518,7 +544,7 @@ export default function AgentMonthlyReportPage() {
                   <tbody className="divide-y divide-gray-100">
                     {webRows.map((row, idx) => {
                       const cancelRatio = getSourceCancelledRatioNum(row);
-                      const sourceBadge = row.key === 'website'
+                      const sourceBadge = row.kind === 'website'
                         ? 'bg-sky-50 text-sky-700 border-sky-200'
                         : 'bg-violet-50 text-violet-700 border-violet-200';
                       return (
@@ -527,9 +553,14 @@ export default function AgentMonthlyReportPage() {
                           className={`${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'} hover:bg-sky-50/40 transition-colors`}
                         >
                           <td className={`sticky left-0 z-10 ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'} px-3 py-2 font-medium whitespace-nowrap border-r border-gray-200`}>
-                            <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${sourceBadge}`}>
-                              {row.label}
-                            </span>
+                            <div className="flex flex-col items-start gap-1">
+                              <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${sourceBadge}`}>
+                                {row.label}
+                              </span>
+                              {row.kind === 'landingPage' && row.slug && (
+                                <span className="text-[11px] font-normal text-gray-400">{row.slug}</span>
+                              )}
+                            </div>
                           </td>
                           {webDays.map(d => {
                             const count = row.dailyOrders[d] || 0;
