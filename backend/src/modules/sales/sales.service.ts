@@ -1398,9 +1398,19 @@ export class SalesService {
         'COALESCE(SUM(o.discount_amount), 0) AS total_discount',
         'COALESCE(AVG(o.total_amount), 0) AS avg_order_value',
         `COUNT(CASE WHEN LOWER(o.status::text) = 'pending' THEN 1 END) AS pending_orders`,
+        `COUNT(CASE WHEN LOWER(o.status::text) = 'processing' THEN 1 END) AS processing_orders`,
         `COUNT(CASE WHEN LOWER(o.status::text) = 'approved' THEN 1 END) AS approved_orders`,
+        `COUNT(CASE WHEN LOWER(o.status::text) = 'sent' THEN 1 END) AS sent_orders`,
+        `COUNT(CASE WHEN LOWER(o.status::text) = 'hold' THEN 1 END) AS hold_orders`,
+        `COUNT(CASE WHEN LOWER(o.status::text) = 'in_review' THEN 1 END) AS in_review_orders`,
+        `COUNT(CASE WHEN LOWER(o.status::text) = 'picked' THEN 1 END) AS picked_orders`,
+        `COUNT(CASE WHEN LOWER(o.status::text) = 'in_transit' THEN 1 END) AS in_transit_orders`,
+        `COUNT(CASE WHEN LOWER(o.status::text) = 'partial_delivered' THEN 1 END) AS partial_delivered_orders`,
         `COUNT(CASE WHEN LOWER(o.status::text) = 'shipped' THEN 1 END) AS shipped_orders`,
         `COUNT(CASE WHEN LOWER(o.status::text) = 'delivered' THEN 1 END) AS delivered_orders`,
+        `COUNT(CASE WHEN LOWER(o.status::text) = 'completed' THEN 1 END) AS completed_orders`,
+        `COUNT(CASE WHEN LOWER(o.status::text) = 'returned' THEN 1 END) AS returned_orders`,
+        `COUNT(CASE WHEN LOWER(o.status::text) = 'admin_cancelled' THEN 1 END) AS rejected_orders`,
         `COUNT(CASE WHEN LOWER(o.status::text) IN ('cancelled', 'admin_cancelled', 'returned') THEN 1 END) AS cancelled_orders`,
         `COUNT(CASE WHEN LOWER(o.courier_company) = 'steadfast' THEN 1 END) AS steadfast_orders`,
         `COUNT(CASE WHEN LOWER(o.courier_company) = 'pathao' THEN 1 END) AS pathao_orders`,
@@ -1486,6 +1496,29 @@ export class SalesService {
       .orderBy('total_orders', 'DESC')
       .getRawMany();
 
+    // 8) Agent + product breakdown for combined chart
+    const agentNameExpr = `COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.name, ''), ' ', COALESCE(u.last_name, ''))), ''), 'Unassigned')`;
+    const agentProductRows = await this.orderItemsRepository
+      .createQueryBuilder('soi')
+      .innerJoin('soi.salesOrder', 'o')
+      .leftJoin('users', 'u', 'u.id = o.created_by')
+      .select([
+        'o.created_by AS agent_id',
+        `${agentNameExpr} AS agent_name`,
+        'soi.product_id AS product_id',
+        'soi.product_name AS product_name',
+        'COUNT(DISTINCT o.id) AS total_orders',
+        'SUM(soi.quantity) AS total_qty',
+        'SUM(soi.line_total) AS total_revenue',
+      ])
+      .where('DATE(o.order_date) = :reportDate', { reportDate })
+      .groupBy('o.created_by')
+      .addGroupBy(agentNameExpr)
+      .addGroupBy('soi.product_id')
+      .addGroupBy('soi.product_name')
+      .orderBy('total_qty', 'DESC')
+      .getRawMany();
+
     const toNum = (v: any) => parseFloat(v) || 0;
 
     return {
@@ -1498,9 +1531,17 @@ export class SalesService {
         pendingOrders: toNum(summaryRaw?.pending_orders),
         processingOrders: toNum(summaryRaw?.processing_orders),
         approvedOrders: toNum(summaryRaw?.approved_orders),
+        sentOrders: toNum(summaryRaw?.sent_orders),
         holdOrders: toNum(summaryRaw?.hold_orders),
+        inReviewOrders: toNum(summaryRaw?.in_review_orders),
+        pickedOrders: toNum(summaryRaw?.picked_orders),
+        inTransitOrders: toNum(summaryRaw?.in_transit_orders),
+        partialDeliveredOrders: toNum(summaryRaw?.partial_delivered_orders),
         shippedOrders: toNum(summaryRaw?.shipped_orders),
         deliveredOrders: toNum(summaryRaw?.delivered_orders),
+        completedOrders: toNum(summaryRaw?.completed_orders),
+        returnedOrders: toNum(summaryRaw?.returned_orders),
+        rejectedOrders: toNum(summaryRaw?.rejected_orders),
         cancelledOrders: toNum(summaryRaw?.cancelled_orders),
         steadfastOrders: toNum(summaryRaw?.steadfast_orders),
         pathaoOrders: toNum(summaryRaw?.pathao_orders),
@@ -1546,6 +1587,15 @@ export class SalesService {
         totalRevenue: toNum(r.total_revenue),
       })),
       websiteProducts: websiteProducts.map((r: any) => ({
+        productId: toNum(r.product_id),
+        productName: r.product_name || 'Unknown Product',
+        totalOrders: toNum(r.total_orders),
+        totalQty: toNum(r.total_qty),
+        totalRevenue: toNum(r.total_revenue),
+      })),
+      agentProductBreakdown: agentProductRows.map((r: any) => ({
+        agentId: r.agent_id == null ? null : toNum(r.agent_id),
+        agentName: r.agent_name || 'Unassigned',
         productId: toNum(r.product_id),
         productName: r.product_name || 'Unknown Product',
         totalOrders: toNum(r.total_orders),
