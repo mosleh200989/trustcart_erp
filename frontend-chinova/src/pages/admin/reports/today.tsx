@@ -20,7 +20,6 @@ import {
   FaDownload,
   FaSyncAlt,
   FaBoxOpen,
-  FaTruck,
   FaLayerGroup,
   FaUserTie,
 } from 'react-icons/fa';
@@ -100,7 +99,6 @@ interface DailyReport {
 
 const PALETTE = ['#4f46e5', '#0f766e', '#d97706', '#dc2626', '#7c3aed', '#0891b2', '#16a34a', '#be185d'];
 const fmt = (n: number) => new Intl.NumberFormat('en-BD').format(Math.round(Number(n) || 0));
-const money = (n: number) => `BDT ${fmt(n)}`;
 
 const statusMeta = [
   { key: 'processingOrders', label: 'Processing', color: 'pink' },
@@ -125,7 +123,7 @@ export default function TodaysReportPage() {
   const [productSearch, setProductSearch] = useState('');
   const [sourceFilter, setSourceFilter] = useState<'all' | 'landing_page' | 'website'>('all');
   const [agentFilter, setAgentFilter] = useState('all');
-  const [agentMetric, setAgentMetric] = useState<'totalQty' | 'totalOrders' | 'totalRevenue'>('totalQty');
+  const [agentMetric, setAgentMetric] = useState<'totalQty' | 'totalOrders'>('totalQty');
   const [agentTop, setAgentTop] = useState(12);
 
   const fetchReport = useCallback(async (reportDate: string) => {
@@ -257,32 +255,17 @@ export default function TodaysReportPage() {
 
         {data && (
           <>
-            <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.4fr_0.8fr]">
-              <section className="overflow-hidden rounded-xl border border-indigo-100 bg-white shadow-sm">
-                <div className="border-b border-indigo-100 bg-gradient-to-r from-indigo-50 via-white to-cyan-50 p-5">
-                  <h2 className="flex items-center gap-2 text-lg font-bold text-gray-900"><FaBoxOpen className="text-indigo-600" /> Order Status Breakdown</h2>
-                  <p className="mt-1 text-xs text-gray-500">Cancelled includes cancelled, rejected, and returned orders.</p>
-                </div>
-                <div className="grid grid-cols-2 gap-3 p-5 md:grid-cols-3 xl:grid-cols-4">
-                  {statusCards.map((item) => (
-                    <StatusCard key={item.key} label={item.label} count={item.count} total={data.summary.totalOrders} color={item.color} />
-                  ))}
-                </div>
-              </section>
-
-              <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-                <div className="border-b border-slate-200 bg-gradient-to-r from-slate-50 to-teal-50 p-5">
-                  <h2 className="flex items-center gap-2 text-lg font-bold text-gray-900"><FaTruck className="text-teal-600" /> Courier Breakdown</h2>
-                  <p className="mt-1 text-xs text-gray-500">Courier assignment distribution for the selected date.</p>
-                </div>
-                <div className="space-y-4 p-5">
-                  <CourierBar label="Steadfast" value={data.summary.steadfastOrders} total={data.summary.totalOrders} color="bg-blue-500" />
-                  <CourierBar label="Pathao" value={data.summary.pathaoOrders} total={data.summary.totalOrders} color="bg-red-500" />
-                  <CourierBar label="RedX" value={data.summary.redxOrders} total={data.summary.totalOrders} color="bg-orange-500" />
-                  <CourierBar label="No Courier" value={data.summary.noCourierOrders} total={data.summary.totalOrders} color="bg-slate-400" />
-                </div>
-              </section>
-            </div>
+            <section className="overflow-hidden rounded-xl border border-indigo-100 bg-white shadow-sm">
+              <div className="border-b border-indigo-100 bg-gradient-to-r from-indigo-50 via-white to-cyan-50 p-5">
+                <h2 className="flex items-center gap-2 text-lg font-bold text-gray-900"><FaBoxOpen className="text-indigo-600" /> Order Status Breakdown</h2>
+                <p className="mt-1 text-xs text-gray-500">Cancelled includes cancelled, rejected, and returned orders.</p>
+              </div>
+              <div className="grid grid-cols-2 gap-3 p-5 md:grid-cols-3 xl:grid-cols-4">
+                {statusCards.map((item) => (
+                  <StatusCard key={item.key} label={item.label} count={item.count} total={data.summary.totalOrders} color={item.color} />
+                ))}
+              </div>
+            </section>
 
             <DataTableSection
               title="Product-wise Sales Breakdown"
@@ -300,7 +283,6 @@ export default function TodaysReportPage() {
                     <th className="px-4 py-3 text-center">Approved</th>
                     <th className="px-4 py-3 text-center">Delivered</th>
                     <th className="px-4 py-3 text-center">Cancelled + Returned</th>
-                    <th className="px-4 py-3 text-right">Revenue</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
@@ -314,7 +296,6 @@ export default function TodaysReportPage() {
                       <td className="px-4 py-3 text-center"><Badge color="blue" value={p.approvedOrders} /></td>
                       <td className="px-4 py-3 text-center"><Badge color="green" value={p.deliveredOrders} /></td>
                       <td className="px-4 py-3 text-center"><Badge color="red" value={p.cancelledOrders} /></td>
-                      <td className="px-4 py-3 text-right">{money(p.totalRevenue)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -340,7 +321,6 @@ export default function TodaysReportPage() {
                     <th className="min-w-[240px] px-4 py-3 text-left">Product</th>
                     <th className="px-4 py-3 text-center">Orders</th>
                     <th className="px-4 py-3 text-center">Qty</th>
-                    <th className="px-4 py-3 text-right">Revenue</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
@@ -351,7 +331,6 @@ export default function TodaysReportPage() {
                       <td className="px-4 py-3 font-medium text-gray-900">{p.productName}</td>
                       <td className="px-4 py-3 text-center font-semibold">{p.totalOrders}</td>
                       <td className="px-4 py-3 text-center">{p.totalQty}</td>
-                      <td className="px-4 py-3 text-right">{money(p.totalRevenue)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -360,36 +339,42 @@ export default function TodaysReportPage() {
 
             <ChartCard title="Agent-wise and Product-wise Sales" subtitle="Filter by agent, metric, and top result count." icon={<FaUserTie className="text-indigo-600" />}>
               <div className="mb-4 flex flex-wrap gap-3">
-                <select value={agentFilter} onChange={(e) => setAgentFilter(e.target.value)} className="rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                <select value={agentFilter} onChange={(e) => setAgentFilter(e.target.value)} className="min-w-44 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900">
                   <option value="all">All Agents</option>
                   {agents.map((agent) => <option key={agent.id} value={agent.id}>{agent.name}</option>)}
+                  {!agents.length && <option value="none" disabled>No agent sales found</option>}
                 </select>
-                <select value={agentMetric} onChange={(e) => setAgentMetric(e.target.value as any)} className="rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                <select value={agentMetric} onChange={(e) => setAgentMetric(e.target.value as any)} className="min-w-36 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900">
                   <option value="totalQty">Quantity</option>
                   <option value="totalOrders">Orders</option>
-                  <option value="totalRevenue">Revenue</option>
                 </select>
-                <select value={agentTop} onChange={(e) => setAgentTop(Number(e.target.value))} className="rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                <select value={agentTop} onChange={(e) => setAgentTop(Number(e.target.value))} className="min-w-28 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900">
                   <option value={8}>Top 8</option>
                   <option value={12}>Top 12</option>
                   <option value={20}>Top 20</option>
                 </select>
               </div>
-              <ResponsiveContainer width="100%" height={360}>
-                <BarChart data={agentProductChart} layout="vertical" margin={{ top: 5, right: 30, left: 30, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                  <XAxis type="number" />
-                  <YAxis type="category" dataKey="label" width={220} tick={{ fontSize: 11 }} />
-                  <Tooltip formatter={(value: any, name: any) => name === 'totalRevenue' ? money(Number(value)) : fmt(Number(value))} labelFormatter={(_, payload: any) => payload?.[0]?.payload?.fullLabel || ''} />
-                  <Bar dataKey={agentMetric} name={agentMetric === 'totalRevenue' ? 'Revenue' : agentMetric === 'totalOrders' ? 'Orders' : 'Quantity'} radius={[0, 6, 6, 0]}>
-                    {agentProductChart.map((_, i) => <Cell key={i} fill={PALETTE[i % PALETTE.length]} />)}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+              {agentProductChart.length ? (
+                <ResponsiveContainer width="100%" height={360}>
+                  <BarChart data={agentProductChart} layout="vertical" margin={{ top: 5, right: 30, left: 30, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                    <XAxis type="number" />
+                    <YAxis type="category" dataKey="label" width={220} tick={{ fontSize: 11 }} />
+                    <Tooltip formatter={(value: any) => fmt(Number(value))} labelFormatter={(_, payload: any) => payload?.[0]?.payload?.fullLabel || ''} />
+                    <Bar dataKey={agentMetric} name={agentMetric === 'totalOrders' ? 'Orders' : 'Quantity'} radius={[0, 6, 6, 0]}>
+                      {agentProductChart.map((_, i) => <Cell key={i} fill={PALETTE[i % PALETTE.length]} />)}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex h-64 items-center justify-center rounded-lg bg-gray-50 text-sm text-gray-500">
+                  No agent-product sales found for the selected date.
+                </div>
+              )}
             </ChartCard>
 
             <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-              <ChartCard title="Hourly Order Distribution" subtitle="Orders and revenue throughout the day.">
+              <ChartCard title="Hourly Order Distribution" subtitle="Orders throughout the day.">
                 <ResponsiveContainer width="100%" height={300}>
                   <AreaChart data={data.hourly}>
                     <defs>
@@ -400,12 +385,10 @@ export default function TodaysReportPage() {
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                     <XAxis dataKey="label" tick={{ fontSize: 11 }} interval={2} />
-                    <YAxis yAxisId="left" tick={{ fontSize: 11 }} />
-                    <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11 }} />
+                    <YAxis tick={{ fontSize: 11 }} />
                     <Tooltip />
                     <Legend />
-                    <Area yAxisId="left" type="monotone" dataKey="orders" name="Orders" stroke="#4f46e5" fill="url(#ordersGradient)" strokeWidth={2} />
-                    <Area yAxisId="right" type="monotone" dataKey="revenue" name="Revenue" stroke="#16a34a" fill="transparent" strokeWidth={2} />
+                    <Area type="monotone" dataKey="orders" name="Orders" stroke="#4f46e5" fill="url(#ordersGradient)" strokeWidth={2} />
                   </AreaChart>
                 </ResponsiveContainer>
               </ChartCard>
@@ -457,21 +440,6 @@ function StatusCard({ label, count, total, color }: { label: string; count: numb
       </div>
       <div className="mt-3 h-2 overflow-hidden rounded-full bg-gray-100">
         <div className={`h-full rounded-full bg-gradient-to-r ${colorMap[color] || colorMap.blue}`} style={{ width: `${Math.min(pct, 100)}%` }} />
-      </div>
-    </div>
-  );
-}
-
-function CourierBar({ label, value, total, color }: { label: string; value: number; total: number; color: string }) {
-  const pct = total > 0 ? Math.round((value / total) * 100) : 0;
-  return (
-    <div>
-      <div className="mb-1 flex items-center justify-between text-sm">
-        <span className="font-medium text-gray-700">{label}</span>
-        <span className="font-semibold text-gray-900">{fmt(value)} <span className="text-xs text-gray-400">({pct}%)</span></span>
-      </div>
-      <div className="h-3 overflow-hidden rounded-full bg-gray-100">
-        <div className={`h-full rounded-full ${color}`} style={{ width: `${Math.min(pct, 100)}%` }} />
       </div>
     </div>
   );

@@ -1496,28 +1496,50 @@ export class SalesService {
       .orderBy('total_orders', 'DESC')
       .getRawMany();
 
-    // 8) Agent + product breakdown for combined chart
-    const agentNameExpr = `COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.name, ''), ' ', COALESCE(u.last_name, ''))), ''), 'Unassigned')`;
-    const agentProductRows = await this.orderItemsRepository
-      .createQueryBuilder('soi')
-      .innerJoin('soi.salesOrder', 'o')
-      .leftJoin('users', 'u', 'u.id = o.created_by')
-      .select([
-        'o.created_by AS agent_id',
-        `${agentNameExpr} AS agent_name`,
-        'soi.product_id AS product_id',
-        'soi.product_name AS product_name',
-        'COUNT(DISTINCT o.id) AS total_orders',
-        'SUM(soi.quantity) AS total_qty',
-        'SUM(soi.line_total) AS total_revenue',
-      ])
-      .where('DATE(o.order_date) = :reportDate', { reportDate })
-      .groupBy('o.created_by')
-      .addGroupBy(agentNameExpr)
-      .addGroupBy('soi.product_id')
-      .addGroupBy('soi.product_name')
-      .orderBy('total_qty', 'DESC')
-      .getRawMany();
+    // 8) Agent + product breakdown for combined chart.
+    // Combine both item tables because agent/admin orders are commonly stored in order_items.
+    const agentProductRows = await this.salesRepository.manager.query(
+      `SELECT
+         i.agent_id,
+         COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.name, ''), ' ', COALESCE(u.last_name, ''))), ''), 'Agent #' || i.agent_id::text) AS agent_name,
+         i.product_id,
+         COALESCE(NULLIF(i.product_name, ''), 'Unknown Product') AS product_name,
+         COUNT(DISTINCT i.order_id) AS total_orders,
+         COALESCE(SUM(i.quantity), 0) AS total_qty,
+         COALESCE(SUM(i.total_revenue), 0) AS total_revenue
+       FROM (
+         SELECT
+           o.id AS order_id,
+           o.created_by AS agent_id,
+           soi.product_id AS product_id,
+           soi.product_name AS product_name,
+           soi.quantity AS quantity,
+           COALESCE(soi.line_total, soi.unit_price * soi.quantity, 0) AS total_revenue
+         FROM sales_order_items soi
+         INNER JOIN sales_orders o ON o.id = soi.sales_order_id
+         WHERE DATE(o.order_date) = $1
+           AND o.created_by IS NOT NULL
+           AND NOT EXISTS (
+             SELECT 1 FROM order_items oi_existing WHERE oi_existing.order_id = o.id
+           )
+         UNION ALL
+         SELECT
+           o.id AS order_id,
+           o.created_by AS agent_id,
+           oi.product_id AS product_id,
+           COALESCE(oi.custom_product_name, oi.product_name) AS product_name,
+           oi.quantity AS quantity,
+           COALESCE(oi.subtotal, oi.unit_price * oi.quantity, 0) AS total_revenue
+         FROM order_items oi
+         INNER JOIN sales_orders o ON o.id = oi.order_id
+         WHERE DATE(o.order_date) = $1
+           AND o.created_by IS NOT NULL
+       ) i
+       LEFT JOIN users u ON u.id = i.agent_id
+       GROUP BY i.agent_id, agent_name, i.product_id, product_name
+       ORDER BY total_qty DESC`,
+      [reportDate],
+    );
 
     const toNum = (v: any) => parseFloat(v) || 0;
 

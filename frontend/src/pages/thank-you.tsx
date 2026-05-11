@@ -7,7 +7,7 @@ import ElectroFooter from "@/components/ElectroFooter";
 import ElectroProductCard from "@/components/ElectroProductCard";
 import apiClient from "@/services/api";
 import { trackPurchaseWithUser, extractLocationFromAddress } from "@/utils/gtm";
-import { trackHerbolinPurchase } from "@/utils/herbolinPixel";
+import { isHerbolinLandingPageSlug, isHerbolinPixelSurface, trackHerbolinPurchase } from "@/utils/herbolinPixel";
 import { 
   FaCheckCircle, 
   FaShoppingCart, 
@@ -241,6 +241,8 @@ export default function ThankYouPage() {
   // This ensures purchase is tracked even if checkout tracking failed
   useEffect(() => {
     if (!order || !items || items.length === 0 || purchaseTrackedRef.current) return;
+    const landingPageSlug = String(order?.utm_source || order?.landingPageSlug || order?.landing_page_slug || '');
+    if (typeof window !== 'undefined' && (isHerbolinPixelSurface() || isHerbolinLandingPageSlug(landingPageSlug))) return;
     
     // Check sessionStorage to prevent duplicate tracking on page refresh
     const trackedKey = `purchase_tracked_${orderId}`;
@@ -288,7 +290,8 @@ export default function ThankYouPage() {
 
   useEffect(() => {
     if (!orderId || !order || items.length === 0 || typeof window === 'undefined') return;
-    if (!['herbolin.com', 'www.herbolin.com'].includes(window.location.hostname)) return;
+    const pageSlug = String(order?.utm_source || order?.landingPageSlug || order?.landing_page_slug || '');
+    if (!isHerbolinPixelSurface() && !isHerbolinLandingPageSlug(pageSlug)) return;
 
     const trackedKey = `herbolin_purchase_tracked_${orderId}`;
     if (sessionStorage.getItem(trackedKey)) return;
@@ -296,7 +299,7 @@ export default function ThankYouPage() {
     trackHerbolinPurchase({
       orderId: order?.orderNumber || order?.id || orderId,
       pageTitle: 'Herbolin Landing Order',
-      pageSlug: String(order?.utm_source || order?.landingPageSlug || order?.landing_page_slug || 'Harbora-kosthogut'),
+      pageSlug,
       totalAmount,
       items: items.map((item) => ({
         product_id: item.productId,
