@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import AdminLayout from '@/layouts/AdminLayout';
 import apiClient from '@/services/api';
+import { addDhakaDays, getDhakaDateString } from '@/utils/dhakaDate';
 import { FaPhone, FaUser, FaChartBar, FaHistory, FaFilter, FaSync } from 'react-icons/fa';
 
 interface Agent {
@@ -84,17 +85,13 @@ export default function TeamAgentsReportPage() {
   const [selectedAgentFilter, setSelectedAgentFilter] = useState<number | 'all'>('all');
   
   const [todayOnly, setTodayOnly] = useState(false);
-  const [dateFrom, setDateFrom] = useState(() => {
-    const d = new Date();
-    d.setDate(d.getDate() - 30);
-    return d.toISOString().split('T')[0];
-  });
-  const [dateTo, setDateTo] = useState(() => new Date().toISOString().split('T')[0]);
+  const [dateFrom, setDateFrom] = useState(() => addDhakaDays(-30));
+  const [dateTo, setDateTo] = useState(() => getDhakaDateString());
 
   const handleTodayToggle = (checked: boolean) => {
     setTodayOnly(checked);
     if (checked) {
-      const today = new Date().toISOString().split('T')[0];
+      const today = getDhakaDateString();
       setDateFrom(today);
       setDateTo(today);
     }

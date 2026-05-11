@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import apiClient from '@/services/api';
 import { FaTimes, FaCalendarAlt, FaUsers, FaShoppingCart, FaDollarSign, FaChevronDown, FaChevronUp, FaFileExport } from 'react-icons/fa';
+import { addDhakaDays, getDhakaDateString } from '@/utils/dhakaDate';
 
 interface CustomerReportEntry {
   id: number;
@@ -38,12 +39,8 @@ interface Props {
 export default function CustomerReportModal({ isOpen, onClose }: Props) {
   const [loading, setLoading] = useState(false);
   const [reportData, setReportData] = useState<ReportData | null>(null);
-  const [dateFrom, setDateFrom] = useState(() => {
-    const d = new Date();
-    d.setDate(d.getDate() - 7);
-    return d.toISOString().split('T')[0];
-  });
-  const [dateTo, setDateTo] = useState(() => new Date().toISOString().split('T')[0]);
+  const [dateFrom, setDateFrom] = useState(() => addDhakaDays(-7));
+  const [dateTo, setDateTo] = useState(() => getDhakaDateString());
   const [expandedDates, setExpandedDates] = useState<Set<string>>(new Set());
 
   useEffect(() => {

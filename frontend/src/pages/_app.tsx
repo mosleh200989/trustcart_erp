@@ -11,6 +11,7 @@ import MobileBottomNav from '@/components/MobileBottomNav';
 import { isAuthPath, setAuthReturnPath } from '@/utils/authReturnPath';
 import { initDataLayer, trackPageView } from '@/utils/gtm';
 import { initHerbolinPixel, isHerbolinHost, trackHerbolinPageView } from '@/utils/herbolinPixel';
+import { initDhakaTimezoneDefaults } from '@/utils/dhakaDate';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -49,6 +50,7 @@ export default function App({ Component, pageProps }: AppProps) {
 
   // Initialize GTM dataLayer and track page views
   useEffect(() => {
+    initDhakaTimezoneDefaults();
     // Initialize dataLayer on app load
     initDataLayer();
     initHerbolinPixel();

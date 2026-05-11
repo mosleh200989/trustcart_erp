@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
 import AdminLayout from '@/layouts/AdminLayout';
 import { wrapCustomerName } from '@/utils/wrapCustomerName';
+import { getDhakaDateString } from '@/utils/dhakaDate';
 import apiClient from '@/services/api';
 import {
   ResponsiveContainer,
@@ -94,7 +95,7 @@ function toKeyDate(value: any): string {
   if (s.length >= 10) return s.slice(0, 10);
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return '';
-  return d.toISOString().slice(0, 10);
+  return getDhakaDateString(d);
 }
 
 function safeNumber(value: any): number {

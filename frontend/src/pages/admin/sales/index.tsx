@@ -16,6 +16,7 @@ import { useToast } from '@/contexts/ToastContext';
 import { FaPlus, FaPrint, FaBoxOpen, FaFileInvoice, FaTag, FaCheck, FaTimes, FaSync, FaPhone } from 'react-icons/fa';
 import apiClient from '@/services/api';
 import { getOrderStatusLabel, getOrderStatusColor } from '@/utils/orderStatus';
+import { getDhakaDateString } from '@/utils/dhakaDate';
 
 const INITIAL_FILTERS = {
   q: '',
@@ -234,7 +235,7 @@ export default function AdminSales() {
 
   const [formData, setFormData] = useState({
     order_number: '',
-    order_date: new Date().toISOString().split('T')[0],
+    order_date: getDhakaDateString(),
     status: 'processing',
 
     customer_id: '',
@@ -389,7 +390,7 @@ export default function AdminSales() {
     setModalMode('add');
     setFormData({
       order_number: '',
-      order_date: new Date().toISOString().split('T')[0],
+      order_date: getDhakaDateString(),
       status: 'processing',
 
       customer_id: '',
@@ -435,7 +436,7 @@ export default function AdminSales() {
         : order.total_amount != null
           ? String(order.total_amount)
           : '';
-    const orderDate = order.orderDate ?? order.order_date ?? new Date().toISOString().split('T')[0];
+    const orderDate = order.orderDate ?? order.order_date ?? getDhakaDateString();
 
     setFormData({
       order_number: orderNumber,

@@ -12,6 +12,7 @@ import {
   FaWhatsapp, FaSms, FaEnvelope, FaChevronLeft, FaChevronRight
 } from 'react-icons/fa';
 import AdminOrderDetailsModal from '@/components/AdminOrderDetailsModal';
+import { getDhakaDateString } from '@/utils/dhakaDate';
 
 interface FollowUp {
   id: number;
@@ -98,7 +99,7 @@ export default function MyFollowupsPage() {
     call_reason: 'Follow-up Call',
     notes: '',
     scheduled_time: '',
-    task_date: new Date().toISOString().split('T')[0],
+    task_date: getDhakaDateString(),
   });
 
   useEffect(() => {
@@ -272,7 +273,7 @@ export default function MyFollowupsPage() {
       call_reason: 'Follow-up Call',
       notes: '',
       scheduled_time: '',
-      task_date: new Date().toISOString().split('T')[0],
+      task_date: getDhakaDateString(),
     });
     setCustomerSearch('');
     setCustomers([]);
@@ -288,7 +289,7 @@ export default function MyFollowupsPage() {
       call_reason: followUp.call_reason,
       notes: followUp.notes || '',
       scheduled_time: followUp.scheduled_time || '',
-      task_date: followUp.task_date || new Date().toISOString().split('T')[0],
+      task_date: followUp.task_date || getDhakaDateString(),
     });
     setShowEditModal(true);
   };
@@ -1273,7 +1274,7 @@ export default function MyFollowupsPage() {
                       type="date"
                       value={logCallFollowUpDate}
                       onChange={(e) => setLogCallFollowUpDate(e.target.value)}
-                      min={new Date().toISOString().split('T')[0]}
+                      min={getDhakaDateString()}
                       className="w-full px-3 py-2 border rounded-lg text-sm"
                       placeholder="Date"
                     />

@@ -4,6 +4,7 @@ import AdminLayout from '@/layouts/AdminLayout';
 import { useToast } from '@/contexts/ToastContext';
 import { purchaseOrders, suppliers, warehouses, grns } from '@/services/api';
 import apiClient from '@/services/api';
+import { getDhakaDateString } from '@/utils/dhakaDate';
 import {
   FaArrowLeft, FaSave, FaPaperPlane, FaCheck, FaTimes, FaPlus,
   FaTrash, FaTruck, FaCopy, FaFileInvoice,
@@ -91,7 +92,7 @@ export default function PurchaseOrderDetail() {
         supplier_id: data.supplier_id,
         warehouse_id: data.warehouse_id,
         expected_delivery_date: data.expected_delivery_date
-          ? new Date(data.expected_delivery_date).toISOString().slice(0, 10)
+          ? getDhakaDateString(data.expected_delivery_date)
           : '',
         priority: data.priority || 'normal',
         payment_terms: data.payment_terms || 'net_30',

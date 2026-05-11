@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import AdminLayout from '@/layouts/AdminLayout';
 import apiClient from '@/services/api';
+import { addDhakaDays, getDhakaDateString } from '@/utils/dhakaDate';
 import {
   ResponsiveContainer,
   BarChart,
@@ -138,8 +139,8 @@ const fmt = (n: number) => new Intl.NumberFormat('en-BD').format(n);
 
 /* ========== MAIN COMPONENT ========== */
 export default function AgentWiseReportPage() {
-  const [startDate, setStartDate] = useState(() => new Date().toISOString().slice(0, 10));
-  const [endDate, setEndDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [startDate, setStartDate] = useState(() => getDhakaDateString());
+  const [endDate, setEndDate] = useState(() => getDhakaDateString());
   const [selectedAgentId, setSelectedAgentId] = useState<number | null>(null);
   const [data, setData] = useState<AgentReport | null>(null);
   const [loading, setLoading] = useState(false);
@@ -187,29 +188,26 @@ export default function AgentWiseReportPage() {
 
   // Quick date presets
   const setToday = () => {
-    const t = new Date().toISOString().slice(0, 10);
+    const t = getDhakaDateString();
     setStartDate(t);
     setEndDate(t);
   };
   const setThisWeek = () => {
-    const now = new Date();
-    const day = now.getDay();
-    const diff = now.getDate() - day + (day === 0 ? -6 : 1);
-    const monday = new Date(now.setDate(diff));
-    setStartDate(monday.toISOString().slice(0, 10));
-    setEndDate(new Date().toISOString().slice(0, 10));
+    const today = getDhakaDateString();
+    const todayDate = new Date(`${today}T00:00:00+06:00`);
+    const day = todayDate.getUTCDay();
+    setStartDate(addDhakaDays(day === 0 ? -6 : 1 - day, todayDate));
+    setEndDate(today);
   };
   const setThisMonth = () => {
-    const now = new Date();
-    setStartDate(new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10));
-    setEndDate(now.toISOString().slice(0, 10));
+    const today = getDhakaDateString();
+    setStartDate(`${today.slice(0, 8)}01`);
+    setEndDate(today);
   };
   const setLast7Days = () => {
-    const now = new Date();
-    const past = new Date(now);
-    past.setDate(past.getDate() - 6);
-    setStartDate(past.toISOString().slice(0, 10));
-    setEndDate(now.toISOString().slice(0, 10));
+    const today = getDhakaDateString();
+    setStartDate(addDhakaDays(-6));
+    setEndDate(today);
   };
 
   // Sorting

@@ -5,9 +5,6 @@ import {
   ResponsiveContainer,
   BarChart,
   Bar,
-  PieChart,
-  Pie,
-  Cell,
   AreaChart,
   Area,
   CartesianGrid,
@@ -15,24 +12,20 @@ import {
   YAxis,
   Tooltip,
   Legend,
-
+  Cell,
 } from 'recharts';
 import {
   FaCalendarAlt,
-  FaShoppingCart,
-  FaTruck,
-  FaUsers,
   FaChartLine,
   FaDownload,
   FaSyncAlt,
   FaBoxOpen,
-  FaCheckCircle,
-  FaTimesCircle,
-  FaClock,
-
+  FaTruck,
+  FaLayerGroup,
+  FaUserTie,
 } from 'react-icons/fa';
+import { getDhakaDateString } from '@/utils/dhakaDate';
 
-/* ========== TYPES ========== */
 interface ProductRow {
   productId: number;
   productName: string;
@@ -40,34 +33,34 @@ interface ProductRow {
   totalQty: number;
   totalRevenue: number;
   grossAmount: number;
-  steadfastOrders: number;
-  pathaoOrders: number;
-  redxOrders: number;
-  noCourierOrders: number;
   deliveredOrders: number;
   cancelledOrders: number;
   pendingOrders: number;
   approvedOrders: number;
-  shippedOrders: number;
 }
 
 interface Summary {
   totalOrders: number;
   totalRevenue: number;
-  totalDiscount: number;
-  avgOrderValue: number;
   pendingOrders: number;
   processingOrders: number;
   approvedOrders: number;
+  sentOrders?: number;
   holdOrders: number;
+  inReviewOrders?: number;
+  pickedOrders?: number;
+  inTransitOrders?: number;
+  partialDeliveredOrders?: number;
   shippedOrders: number;
   deliveredOrders: number;
+  completedOrders?: number;
+  returnedOrders?: number;
+  rejectedOrders?: number;
   cancelledOrders: number;
   steadfastOrders: number;
   pathaoOrders: number;
   redxOrders: number;
   noCourierOrders: number;
-  uniqueCustomers: number;
 }
 
 interface HourlyItem {
@@ -77,18 +70,17 @@ interface HourlyItem {
   revenue: number;
 }
 
-interface SourceItem {
-  source: string;
-  orders: number;
-  revenue: number;
-}
-
-interface CourierStatusItem {
-  status: string;
-  orders: number;
-}
-
 interface SourceProductRow {
+  productId: number;
+  productName: string;
+  totalOrders: number;
+  totalQty: number;
+  totalRevenue: number;
+}
+
+interface AgentProductRow {
+  agentId: number | null;
+  agentName: string;
   productId: number;
   productName: string;
   totalOrders: number;
@@ -101,72 +93,40 @@ interface DailyReport {
   summary: Summary;
   products: ProductRow[];
   hourly: HourlyItem[];
-  orderSources: SourceItem[];
-  courierStatuses: CourierStatusItem[];
   landingPageProducts: SourceProductRow[];
   websiteProducts: SourceProductRow[];
+  agentProductBreakdown?: AgentProductRow[];
 }
 
-/* ========== COLORS ========== */
-const PALETTE = {
-  primary: '#6366f1',
-  primaryLight: '#818cf8',
-  secondary: '#8b5cf6',
-  success: '#22c55e',
-  successLight: '#4ade80',
-  warning: '#f59e0b',
-  warningLight: '#fbbf24',
-  danger: '#ef4444',
-  dangerLight: '#f87171',
-  info: '#06b6d4',
-  infoLight: '#22d3ee',
-  purple: '#a855f7',
-  pink: '#ec4899',
-  orange: '#f97316',
-  teal: '#14b8a6',
-  slate: '#64748b',
-};
+const PALETTE = ['#4f46e5', '#0f766e', '#d97706', '#dc2626', '#7c3aed', '#0891b2', '#16a34a', '#be185d'];
+const fmt = (n: number) => new Intl.NumberFormat('en-BD').format(Math.round(Number(n) || 0));
+const money = (n: number) => `BDT ${fmt(n)}`;
 
-const PIE_COLORS = [PALETTE.primary, PALETTE.success, PALETTE.warning, PALETTE.danger, PALETTE.info, PALETTE.purple, PALETTE.pink, PALETTE.orange, PALETTE.teal];
+const statusMeta = [
+  { key: 'processingOrders', label: 'Processing', color: 'pink' },
+  { key: 'pendingOrders', label: 'Pending', color: 'amber' },
+  { key: 'approvedOrders', label: 'Approved', color: 'blue' },
+  { key: 'sentOrders', label: 'Sent', color: 'cyan' },
+  { key: 'holdOrders', label: 'On Hold', color: 'orange' },
+  { key: 'inReviewOrders', label: 'In Review', color: 'yellow' },
+  { key: 'pickedOrders', label: 'Picked', color: 'teal' },
+  { key: 'inTransitOrders', label: 'In Transit', color: 'violet' },
+  { key: 'partialDeliveredOrders', label: 'Partial Delivered', color: 'lime' },
+  { key: 'deliveredOrders', label: 'Delivered', color: 'green' },
+  { key: 'completedOrders', label: 'Completed', color: 'emerald' },
+  { key: 'cancelledOrders', label: 'Cancelled + Returned', color: 'red' },
+] as const;
 
-const STATUS_COLORS: Record<string, string> = {
-  processing: PALETTE.pink,
-  pending: PALETTE.warning,
-  approved: PALETTE.info,
-  hold: PALETTE.orange,
-  shipped: PALETTE.purple,
-  delivered: PALETTE.success,
-  cancelled: PALETTE.danger,
-};
-
-const COURIER_COLORS: Record<string, string> = {
-  steadfast: '#2563eb',
-  pathao: '#dc2626',
-  redx: '#ea580c',
-  none: PALETTE.slate,
-};
-
-const SOURCE_LABELS: Record<string, string> = {
-  website: 'Website',
-  admin_panel: 'Admin Panel',
-  agent_dashboard: 'Agent Dashboard',
-  landing_page: 'Landing Page',
-  mobile: 'Mobile App',
-  unknown: 'Unknown',
-};
-
-/* ========== HELPERS ========== */
-const fmt = (n: number) => new Intl.NumberFormat('en-BD').format(n);
-
-/* ========== COMPONENT ========== */
 export default function TodaysReportPage() {
-  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(() => getDhakaDateString());
   const [data, setData] = useState<DailyReport | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [sortKey, setSortKey] = useState<keyof ProductRow>('totalOrders');
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
-  const [searchTerm, setSearchTerm] = useState('');
+  const [productSearch, setProductSearch] = useState('');
+  const [sourceFilter, setSourceFilter] = useState<'all' | 'landing_page' | 'website'>('all');
+  const [agentFilter, setAgentFilter] = useState('all');
+  const [agentMetric, setAgentMetric] = useState<'totalQty' | 'totalOrders' | 'totalRevenue'>('totalQty');
+  const [agentTop, setAgentTop] = useState(12);
 
   const fetchReport = useCallback(async (reportDate: string) => {
     setLoading(true);
@@ -185,498 +145,283 @@ export default function TodaysReportPage() {
     fetchReport(date);
   }, [date, fetchReport]);
 
-  const handleSort = (key: keyof ProductRow) => {
-    if (sortKey === key) {
-      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
-    } else {
-      setSortKey(key);
-      setSortDir('desc');
-    }
-  };
-
-  const sortedProducts = useMemo(() => {
-    if (!data?.products) return [];
-    let filtered = data.products;
-    if (searchTerm.trim()) {
-      const q = searchTerm.toLowerCase();
-      filtered = filtered.filter((p) => p.productName.toLowerCase().includes(q));
-    }
-    return [...filtered].sort((a, b) => {
-      const av = a[sortKey];
-      const bv = b[sortKey];
-      if (typeof av === 'number' && typeof bv === 'number') {
-        return sortDir === 'asc' ? av - bv : bv - av;
-      }
-      return sortDir === 'asc'
-        ? String(av).localeCompare(String(bv))
-        : String(bv).localeCompare(String(av));
-    });
-  }, [data?.products, sortKey, sortDir, searchTerm]);
-
-  // Chart data preparations
-  const statusPieData = useMemo(() => {
-    if (!data) return [];
-    const s = data.summary;
-    return [
-      { name: 'Processing', value: s.processingOrders, color: STATUS_COLORS.processing },
-      { name: 'Pending', value: s.pendingOrders, color: STATUS_COLORS.pending },
-      { name: 'Approved', value: s.approvedOrders, color: STATUS_COLORS.approved },
-      { name: 'On Hold', value: s.holdOrders, color: STATUS_COLORS.hold },
-      { name: 'Shipped', value: s.shippedOrders, color: STATUS_COLORS.shipped },
-      { name: 'Delivered', value: s.deliveredOrders, color: STATUS_COLORS.delivered },
-      { name: 'Cancelled', value: s.cancelledOrders, color: STATUS_COLORS.cancelled },
-    ].filter((d) => d.value > 0);
-  }, [data]);
-
-  const courierPieData = useMemo(() => {
-    if (!data) return [];
-    const s = data.summary;
-    return [
-      { name: 'Steadfast', value: s.steadfastOrders, color: COURIER_COLORS.steadfast },
-      { name: 'Pathao', value: s.pathaoOrders, color: COURIER_COLORS.pathao },
-      { name: 'RedX', value: s.redxOrders, color: COURIER_COLORS.redx },
-      { name: 'No Courier', value: s.noCourierOrders, color: COURIER_COLORS.none },
-    ].filter((d) => d.value > 0);
-  }, [data]);
-
-  const topProducts = useMemo(() => {
-    if (!data?.products) return [];
-    return [...data.products].sort((a, b) => b.totalQty - a.totalQty).slice(0, 10);
-  }, [data]);
-
-  const sourceData = useMemo(() => {
-    if (!data?.orderSources) return [];
-    return data.orderSources.map((s) => ({
-      ...s,
-      label: SOURCE_LABELS[s.source] || s.source,
+  const statusCards = useMemo(() => {
+    const summary = data?.summary;
+    if (!summary) return [];
+    return statusMeta.map((item) => ({
+      ...item,
+      count: Number(summary[item.key] || 0),
     }));
   }, [data]);
 
+  const productRows = useMemo(() => {
+    const q = productSearch.trim().toLowerCase();
+    return (data?.products || [])
+      .filter((p) => !q || p.productName.toLowerCase().includes(q))
+      .sort((a, b) => b.totalQty - a.totalQty);
+  }, [data, productSearch]);
+
+  const sourceRows = useMemo(() => {
+    const rows = [
+      ...(data?.landingPageProducts || []).map((p) => ({ ...p, source: 'landing_page' as const, sourceLabel: 'Landing Page' })),
+      ...(data?.websiteProducts || []).map((p) => ({ ...p, source: 'website' as const, sourceLabel: 'Website' })),
+    ];
+    return rows
+      .filter((row) => sourceFilter === 'all' || row.source === sourceFilter)
+      .sort((a, b) => b.totalQty - a.totalQty);
+  }, [data, sourceFilter]);
+
+  const agents = useMemo(() => {
+    const names = new Map<string, string>();
+    (data?.agentProductBreakdown || []).forEach((row) => {
+      names.set(String(row.agentId ?? 'unassigned'), row.agentName);
+    });
+    return Array.from(names.entries()).map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
+  }, [data]);
+
+  const agentProductChart = useMemo(() => {
+    const grouped = new Map<string, any>();
+    (data?.agentProductBreakdown || [])
+      .filter((row) => agentFilter === 'all' || String(row.agentId ?? 'unassigned') === agentFilter)
+      .forEach((row) => {
+        const key = `${row.agentName} - ${row.productName}`;
+        const current = grouped.get(key) || {
+          label: key.length > 34 ? `${key.slice(0, 34)}...` : key,
+          fullLabel: key,
+          totalOrders: 0,
+          totalQty: 0,
+          totalRevenue: 0,
+        };
+        current.totalOrders += row.totalOrders;
+        current.totalQty += row.totalQty;
+        current.totalRevenue += row.totalRevenue;
+        grouped.set(key, current);
+      });
+    return Array.from(grouped.values()).sort((a, b) => b[agentMetric] - a[agentMetric]).slice(0, agentTop);
+  }, [data, agentFilter, agentMetric, agentTop]);
+
   const handleExportCSV = () => {
-    if (!data?.products?.length) return;
-    const headers = ['Product Name', 'Total Orders', 'Total Qty', 'Steadfast', 'Pathao', 'RedX', 'No Courier', 'Delivered', 'Cancelled', 'Pending', 'Approved', 'Shipped'];
-    const rows = data.products.map((p) => [
-      `"${p.productName}"`, p.totalOrders, p.totalQty,
-      p.steadfastOrders, p.pathaoOrders, p.redxOrders, p.noCourierOrders,
-      p.deliveredOrders, p.cancelledOrders, p.pendingOrders, p.approvedOrders, p.shippedOrders,
+    if (!productRows.length) return;
+    const headers = ['Product Name', 'Total Orders', 'Total Qty', 'Delivered', 'Cancelled + Returned', 'Pending', 'Approved'];
+    const rows = productRows.map((p) => [
+      `"${p.productName}"`,
+      p.totalOrders,
+      p.totalQty,
+      p.deliveredOrders,
+      p.cancelledOrders,
+      p.pendingOrders,
+      p.approvedOrders,
     ].join(','));
-    const csv = [headers.join(','), ...rows].join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
+    const blob = new Blob([[headers.join(','), ...rows].join('\n')], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `daily-report-${data.date}.csv`;
+    a.download = `daily-report-${data?.date || date}.csv`;
     a.click();
     URL.revokeObjectURL(url);
-  };
-
-  const SortIcon = ({ field }: { field: keyof ProductRow }) => {
-    if (sortKey !== field) return <span className="text-gray-400 ml-1">↕</span>;
-    return <span className="text-indigo-400 ml-1">{sortDir === 'asc' ? '↑' : '↓'}</span>;
   };
 
   return (
     <AdminLayout>
       <div className="space-y-6">
-        {/* ===== HEADER ===== */}
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <h1 className="text-2xl md:text-3xl font-bold text-gray-800 flex items-center gap-3">
-              <div className="p-2 bg-indigo-600 rounded-lg">
-                <FaChartLine className="text-white" />
-              </div>
+            <h1 className="flex items-center gap-3 text-2xl font-bold text-gray-900 md:text-3xl">
+              <span className="rounded-lg bg-indigo-600 p-2 text-white"><FaChartLine /></span>
               Today&apos;s Report
             </h1>
-            <p className="text-gray-500 text-sm mt-1">
-              Product-wise order analytics &amp; performance insights
-            </p>
+            <p className="mt-1 text-sm text-gray-500">Daily order, product, source, and agent-product performance.</p>
           </div>
-
-          <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex flex-wrap items-center gap-3">
             <div className="relative">
               <FaCalendarAlt className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <input
                 type="date"
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
-                className="bg-white border border-gray-300 text-gray-900 rounded-lg pl-10 pr-4 py-2.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all hover:border-gray-400"
+                className="rounded-lg border border-gray-300 bg-white py-2.5 pl-10 pr-4 text-gray-900 outline-none transition-all focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500"
               />
             </div>
-            <button
-              onClick={() => setDate(new Date().toISOString().slice(0, 10))}
-              className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium transition-colors"
-            >
-              Today
-            </button>
-            <button
-              onClick={() => fetchReport(date)}
-              disabled={loading}
-              className="px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 disabled:opacity-50"
-            >
+            <button onClick={() => setDate(getDhakaDateString())} className="rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-indigo-700">Today</button>
+            <button onClick={() => fetchReport(date)} disabled={loading} className="flex items-center gap-2 rounded-lg bg-gray-100 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-200 disabled:opacity-50">
               <FaSyncAlt className={loading ? 'animate-spin' : ''} /> Refresh
             </button>
-            <button
-              onClick={handleExportCSV}
-              disabled={!data?.products?.length}
-              className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-2 disabled:opacity-50"
-            >
+            <button onClick={handleExportCSV} disabled={!productRows.length} className="flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50">
               <FaDownload /> Export CSV
             </button>
           </div>
         </div>
 
-        {error && (
-          <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
-            {error}
-          </div>
-        )}
-
-        {loading && !data && (
-          <div className="flex items-center justify-center h-64">
-            <div className="flex flex-col items-center gap-3">
-              <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
-              <span className="text-gray-500">Loading report...</span>
-            </div>
-          </div>
-        )}
+        {error && <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div>}
+        {loading && !data && <div className="flex h-64 items-center justify-center text-gray-500">Loading report...</div>}
 
         {data && (
           <>
-            {/* ===== KPI CARDS ===== */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <KPICard icon={<FaShoppingCart />} label="Total Orders" value={fmt(data.summary.totalOrders)} color="indigo" />
-              <KPICard icon={<FaUsers />} label="Unique Customers" value={fmt(data.summary.uniqueCustomers)} color="violet" />
-              <KPICard icon={<FaCheckCircle />} label="Delivered" value={fmt(data.summary.deliveredOrders)} color="green" />
-              <KPICard icon={<FaTimesCircle />} label="Cancelled" value={fmt(data.summary.cancelledOrders)} color="red" />
+            <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.4fr_0.8fr]">
+              <section className="overflow-hidden rounded-xl border border-indigo-100 bg-white shadow-sm">
+                <div className="border-b border-indigo-100 bg-gradient-to-r from-indigo-50 via-white to-cyan-50 p-5">
+                  <h2 className="flex items-center gap-2 text-lg font-bold text-gray-900"><FaBoxOpen className="text-indigo-600" /> Order Status Breakdown</h2>
+                  <p className="mt-1 text-xs text-gray-500">Cancelled includes cancelled, rejected, and returned orders.</p>
+                </div>
+                <div className="grid grid-cols-2 gap-3 p-5 md:grid-cols-3 xl:grid-cols-4">
+                  {statusCards.map((item) => (
+                    <StatusCard key={item.key} label={item.label} count={item.count} total={data.summary.totalOrders} color={item.color} />
+                  ))}
+                </div>
+              </section>
+
+              <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                <div className="border-b border-slate-200 bg-gradient-to-r from-slate-50 to-teal-50 p-5">
+                  <h2 className="flex items-center gap-2 text-lg font-bold text-gray-900"><FaTruck className="text-teal-600" /> Courier Breakdown</h2>
+                  <p className="mt-1 text-xs text-gray-500">Courier assignment distribution for the selected date.</p>
+                </div>
+                <div className="space-y-4 p-5">
+                  <CourierBar label="Steadfast" value={data.summary.steadfastOrders} total={data.summary.totalOrders} color="bg-blue-500" />
+                  <CourierBar label="Pathao" value={data.summary.pathaoOrders} total={data.summary.totalOrders} color="bg-red-500" />
+                  <CourierBar label="RedX" value={data.summary.redxOrders} total={data.summary.totalOrders} color="bg-orange-500" />
+                  <CourierBar label="No Courier" value={data.summary.noCourierOrders} total={data.summary.totalOrders} color="bg-slate-400" />
+                </div>
+              </section>
             </div>
 
-            {/* ===== STATUS & COURIER SUMMARY CARDS ===== */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Order Status Mini Cards */}
-              <div className="bg-white shadow-sm border border-gray-200 rounded-xl p-5">
-                <h3 className="text-gray-800 font-semibold mb-3 flex items-center gap-2">
-                  <FaBoxOpen className="text-indigo-500" /> Order Status Breakdown
-                </h3>
-                <div className="grid grid-cols-4 gap-2">
-                  <MiniStatusCard label="Processing" count={data.summary.processingOrders} total={data.summary.totalOrders} color="pink" />
-                  <MiniStatusCard label="On Hold" count={data.summary.holdOrders} total={data.summary.totalOrders} color="orange" />
-                  <MiniStatusCard label="Approved" count={data.summary.approvedOrders} total={data.summary.totalOrders} color="cyan" />
-                  <MiniStatusCard label="Cancelled" count={data.summary.cancelledOrders} total={data.summary.totalOrders} color="red" />
-                </div>
-              </div>
-
-              {/* Courier Distribution Mini Cards */}
-              <div className="bg-white shadow-sm border border-gray-200 rounded-xl p-5">
-                <h3 className="text-gray-800 font-semibold mb-3 flex items-center gap-2">
-                  <FaTruck className="text-blue-500" /> Courier Distribution
-                </h3>
-                <div className="grid grid-cols-4 gap-2">
-                  <MiniStatusCard label="Steadfast" count={data.summary.steadfastOrders} total={data.summary.totalOrders} color="blue" />
-                  <MiniStatusCard label="Pathao" count={data.summary.pathaoOrders} total={data.summary.totalOrders} color="red" />
-                  <MiniStatusCard label="RedX" count={data.summary.redxOrders} total={data.summary.totalOrders} color="orange" />
-                  <MiniStatusCard label="No Courier" count={data.summary.noCourierOrders} total={data.summary.totalOrders} color="slate" />
-                </div>
-              </div>
-            </div>
-
-            {/* ===== PRODUCT-WISE TABLE ===== */}
-            <div className="bg-white shadow-sm border border-gray-200 rounded-xl overflow-hidden">
-              <div className="p-5 border-b border-gray-200 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                <h3 className="text-gray-800 font-semibold text-lg flex items-center gap-2">
-                  <FaBoxOpen className="text-indigo-500" /> Product-wise Sales Breakdown
-                  <span className="text-sm text-gray-500 font-normal ml-2">({data.products.length} products)</span>
-                </h3>
-                <input
-                  type="text"
-                  placeholder="Search products..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="bg-white border border-gray-300 text-gray-900 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none w-full md:w-64"
-                />
-              </div>
-
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="bg-gray-50 text-gray-500 text-xs uppercase tracking-wider">
-                      <th className="text-left px-4 py-3 sticky left-0 bg-gray-50 z-10">#</th>
-                      <th
-                        className="text-left px-4 py-3 sticky left-8 bg-gray-50 z-10 cursor-pointer hover:text-indigo-600 transition-colors min-w-[200px]"
-                        onClick={() => handleSort('productName')}
-                      >
-                        Product Name <SortIcon field="productName" />
-                      </th>
-                      <th className="px-3 py-3 text-center cursor-pointer hover:text-indigo-600 transition-colors" onClick={() => handleSort('totalOrders')}>
-                        Orders <SortIcon field="totalOrders" />
-                      </th>
-                      <th className="px-3 py-3 text-center cursor-pointer hover:text-indigo-600 transition-colors" onClick={() => handleSort('totalQty')}>
-                        Qty <SortIcon field="totalQty" />
-                      </th>
-                      <th className="px-3 py-3 text-center cursor-pointer hover:text-indigo-600 transition-colors" onClick={() => handleSort('steadfastOrders')}>
-                        <span className="text-blue-600">Steadfast</span> <SortIcon field="steadfastOrders" />
-                      </th>
-                      <th className="px-3 py-3 text-center cursor-pointer hover:text-indigo-600 transition-colors" onClick={() => handleSort('pathaoOrders')}>
-                        <span className="text-red-600">Pathao</span> <SortIcon field="pathaoOrders" />
-                      </th>
-                      <th className="px-3 py-3 text-center cursor-pointer hover:text-indigo-600 transition-colors" onClick={() => handleSort('redxOrders')}>
-                        <span className="text-orange-600">RedX</span> <SortIcon field="redxOrders" />
-                      </th>
-                      <th className="px-3 py-3 text-center cursor-pointer hover:text-indigo-600 transition-colors" onClick={() => handleSort('noCourierOrders')}>
-                        No Courier <SortIcon field="noCourierOrders" />
-                      </th>
-                      <th className="px-3 py-3 text-center cursor-pointer hover:text-indigo-600 transition-colors" onClick={() => handleSort('pendingOrders')}>
-                        <span className="text-amber-600">Pending</span> <SortIcon field="pendingOrders" />
-                      </th>
-                      <th className="px-3 py-3 text-center cursor-pointer hover:text-indigo-600 transition-colors" onClick={() => handleSort('approvedOrders')}>
-                        <span className="text-cyan-600">Approved</span> <SortIcon field="approvedOrders" />
-                      </th>
-                      <th className="px-3 py-3 text-center cursor-pointer hover:text-indigo-600 transition-colors" onClick={() => handleSort('shippedOrders')}>
-                        <span className="text-purple-600">Shipped</span> <SortIcon field="shippedOrders" />
-                      </th>
-                      <th className="px-3 py-3 text-center cursor-pointer hover:text-indigo-600 transition-colors" onClick={() => handleSort('deliveredOrders')}>
-                        <span className="text-emerald-600">Delivered</span> <SortIcon field="deliveredOrders" />
-                      </th>
-                      <th className="px-3 py-3 text-center cursor-pointer hover:text-indigo-600 transition-colors" onClick={() => handleSort('cancelledOrders')}>
-                        <span className="text-red-600">Cancelled</span> <SortIcon field="cancelledOrders" />
-                      </th>
+            <DataTableSection
+              title="Product-wise Sales Breakdown"
+              icon={<FaBoxOpen className="text-indigo-600" />}
+              right={<input value={productSearch} onChange={(e) => setProductSearch(e.target.value)} placeholder="Search products..." className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 md:w-64" />}
+            >
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-50 text-xs uppercase tracking-wider text-gray-500">
+                    <th className="px-4 py-3 text-left">#</th>
+                    <th className="min-w-[240px] px-4 py-3 text-left">Product</th>
+                    <th className="px-4 py-3 text-center">Orders</th>
+                    <th className="px-4 py-3 text-center">Qty</th>
+                    <th className="px-4 py-3 text-center">Pending</th>
+                    <th className="px-4 py-3 text-center">Approved</th>
+                    <th className="px-4 py-3 text-center">Delivered</th>
+                    <th className="px-4 py-3 text-center">Cancelled + Returned</th>
+                    <th className="px-4 py-3 text-right">Revenue</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {productRows.map((p, index) => (
+                    <tr key={`${p.productId}-${index}`} className="hover:bg-gray-50">
+                      <td className="px-4 py-3 text-gray-500">{index + 1}</td>
+                      <td className="px-4 py-3 font-medium text-gray-900">{p.productName}</td>
+                      <td className="px-4 py-3 text-center font-semibold">{p.totalOrders}</td>
+                      <td className="px-4 py-3 text-center">{p.totalQty}</td>
+                      <td className="px-4 py-3 text-center"><Badge color="amber" value={p.pendingOrders} /></td>
+                      <td className="px-4 py-3 text-center"><Badge color="blue" value={p.approvedOrders} /></td>
+                      <td className="px-4 py-3 text-center"><Badge color="green" value={p.deliveredOrders} /></td>
+                      <td className="px-4 py-3 text-center"><Badge color="red" value={p.cancelledOrders} /></td>
+                      <td className="px-4 py-3 text-right">{money(p.totalRevenue)}</td>
                     </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200">
-                    {sortedProducts.length === 0 ? (
-                      <tr>
-                        <td colSpan={13} className="px-4 py-12 text-center text-gray-500">
-                          {searchTerm ? 'No products match your search' : 'No product data for this date'}
-                        </td>
-                      </tr>
-                    ) : (
-                      sortedProducts.map((p, idx) => (
-                        <tr key={p.productId || idx} className="hover:bg-gray-50 transition-colors">
-                          <td className="px-4 py-3 text-gray-500 sticky left-0 bg-white text-xs">{idx + 1}</td>
-                          <td className="px-4 py-3 text-gray-900 font-medium sticky left-8 bg-white max-w-[250px] truncate" title={p.productName}>
-                            {p.productName}
-                          </td>
-                          <td className="px-3 py-3 text-center font-semibold text-gray-900">{p.totalOrders}</td>
-                          <td className="px-3 py-3 text-center text-gray-600">{p.totalQty}</td>
-                          <td className="px-3 py-3 text-center">
-                            <CourierBadge value={p.steadfastOrders} color="blue" />
-                          </td>
-                          <td className="px-3 py-3 text-center">
-                            <CourierBadge value={p.pathaoOrders} color="red" />
-                          </td>
-                          <td className="px-3 py-3 text-center">
-                            <CourierBadge value={p.redxOrders} color="orange" />
-                          </td>
-                          <td className="px-3 py-3 text-center">
-                            <CourierBadge value={p.noCourierOrders} color="gray" />
-                          </td>
-                          <td className="px-3 py-3 text-center">
-                            <StatusBadge value={p.pendingOrders} color="amber" />
-                          </td>
-                          <td className="px-3 py-3 text-center">
-                            <StatusBadge value={p.approvedOrders} color="cyan" />
-                          </td>
-                          <td className="px-3 py-3 text-center">
-                            <StatusBadge value={p.shippedOrders} color="purple" />
-                          </td>
-                          <td className="px-3 py-3 text-center">
-                            <StatusBadge value={p.deliveredOrders} color="emerald" />
-                          </td>
-                          <td className="px-3 py-3 text-center">
-                            <StatusBadge value={p.cancelledOrders} color="red" />
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                  {sortedProducts.length > 0 && (
-                    <tfoot>
-                      <tr className="bg-gray-50 font-semibold text-gray-900 border-t-2 border-indigo-200">
-                        <td className="px-4 py-3 sticky left-0 bg-gray-50" />
-                        <td className="px-4 py-3 sticky left-8 bg-gray-50 text-indigo-600">TOTAL</td>
-                        <td className="px-3 py-3 text-center">{sortedProducts.reduce((s, p) => s + p.totalOrders, 0)}</td>
-                        <td className="px-3 py-3 text-center">{sortedProducts.reduce((s, p) => s + p.totalQty, 0)}</td>
-                        <td className="px-3 py-3 text-center text-blue-600">{sortedProducts.reduce((s, p) => s + p.steadfastOrders, 0)}</td>
-                        <td className="px-3 py-3 text-center text-red-600">{sortedProducts.reduce((s, p) => s + p.pathaoOrders, 0)}</td>
-                        <td className="px-3 py-3 text-center text-orange-600">{sortedProducts.reduce((s, p) => s + p.redxOrders, 0)}</td>
-                        <td className="px-3 py-3 text-center text-gray-500">{sortedProducts.reduce((s, p) => s + p.noCourierOrders, 0)}</td>
-                        <td className="px-3 py-3 text-center text-amber-600">{sortedProducts.reduce((s, p) => s + p.pendingOrders, 0)}</td>
-                        <td className="px-3 py-3 text-center text-cyan-600">{sortedProducts.reduce((s, p) => s + p.approvedOrders, 0)}</td>
-                        <td className="px-3 py-3 text-center text-purple-600">{sortedProducts.reduce((s, p) => s + p.shippedOrders, 0)}</td>
-                        <td className="px-3 py-3 text-center text-emerald-600">{sortedProducts.reduce((s, p) => s + p.deliveredOrders, 0)}</td>
-                        <td className="px-3 py-3 text-center text-red-600">{sortedProducts.reduce((s, p) => s + p.cancelledOrders, 0)}</td>
-                      </tr>
-                    </tfoot>
-                  )}
-                </table>
+                  ))}
+                </tbody>
+              </table>
+            </DataTableSection>
+
+            <DataTableSection
+              title="Landing Page / Website wise Sales Breakdown"
+              icon={<FaLayerGroup className="text-teal-600" />}
+              right={
+                <select value={sourceFilter} onChange={(e) => setSourceFilter(e.target.value as any)} className="rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500">
+                  <option value="all">All Sources</option>
+                  <option value="landing_page">Landing Page</option>
+                  <option value="website">Website</option>
+                </select>
+              }
+            >
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-50 text-xs uppercase tracking-wider text-gray-500">
+                    <th className="px-4 py-3 text-left">#</th>
+                    <th className="px-4 py-3 text-left">Source</th>
+                    <th className="min-w-[240px] px-4 py-3 text-left">Product</th>
+                    <th className="px-4 py-3 text-center">Orders</th>
+                    <th className="px-4 py-3 text-center">Qty</th>
+                    <th className="px-4 py-3 text-right">Revenue</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {sourceRows.map((p, index) => (
+                    <tr key={`${p.source}-${p.productId}-${index}`} className="hover:bg-gray-50">
+                      <td className="px-4 py-3 text-gray-500">{index + 1}</td>
+                      <td className="px-4 py-3"><span className={`rounded-full px-2 py-1 text-xs font-semibold ${p.source === 'website' ? 'bg-teal-50 text-teal-700' : 'bg-purple-50 text-purple-700'}`}>{p.sourceLabel}</span></td>
+                      <td className="px-4 py-3 font-medium text-gray-900">{p.productName}</td>
+                      <td className="px-4 py-3 text-center font-semibold">{p.totalOrders}</td>
+                      <td className="px-4 py-3 text-center">{p.totalQty}</td>
+                      <td className="px-4 py-3 text-right">{money(p.totalRevenue)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </DataTableSection>
+
+            <ChartCard title="Agent-wise and Product-wise Sales" subtitle="Filter by agent, metric, and top result count." icon={<FaUserTie className="text-indigo-600" />}>
+              <div className="mb-4 flex flex-wrap gap-3">
+                <select value={agentFilter} onChange={(e) => setAgentFilter(e.target.value)} className="rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                  <option value="all">All Agents</option>
+                  {agents.map((agent) => <option key={agent.id} value={agent.id}>{agent.name}</option>)}
+                </select>
+                <select value={agentMetric} onChange={(e) => setAgentMetric(e.target.value as any)} className="rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                  <option value="totalQty">Quantity</option>
+                  <option value="totalOrders">Orders</option>
+                  <option value="totalRevenue">Revenue</option>
+                </select>
+                <select value={agentTop} onChange={(e) => setAgentTop(Number(e.target.value))} className="rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                  <option value={8}>Top 8</option>
+                  <option value={12}>Top 12</option>
+                  <option value={20}>Top 20</option>
+                </select>
               </div>
-            </div>
+              <ResponsiveContainer width="100%" height={360}>
+                <BarChart data={agentProductChart} layout="vertical" margin={{ top: 5, right: 30, left: 30, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                  <XAxis type="number" />
+                  <YAxis type="category" dataKey="label" width={220} tick={{ fontSize: 11 }} />
+                  <Tooltip formatter={(value: any, name: any) => name === 'totalRevenue' ? money(Number(value)) : fmt(Number(value))} labelFormatter={(_, payload: any) => payload?.[0]?.payload?.fullLabel || ''} />
+                  <Bar dataKey={agentMetric} name={agentMetric === 'totalRevenue' ? 'Revenue' : agentMetric === 'totalOrders' ? 'Orders' : 'Quantity'} radius={[0, 6, 6, 0]}>
+                    {agentProductChart.map((_, i) => <Cell key={i} fill={PALETTE[i % PALETTE.length]} />)}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </ChartCard>
 
-            {/* ===== LANDING PAGE SALES BREAKDOWN ===== */}
-            <SourceProductTable
-              title="Landing Page wise Sales Breakdown"
-              icon={<FaChartLine className="text-purple-500" />}
-              products={data.landingPageProducts}
-              emptyMessage="No landing page orders for this date"
-            />
-
-            {/* ===== WEBSITE SALES BREAKDOWN ===== */}
-            <SourceProductTable
-              title="Website wise Sales Breakdown"
-              icon={<FaChartLine className="text-teal-500" />}
-              products={data.websiteProducts}
-              emptyMessage="No website orders for this date"
-            />
-
-            {/* ===== CHARTS SECTION ===== */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Hourly Orders Area Chart */}
-              <ChartCard title="Hourly Order Distribution" subtitle="Orders placed throughout the day">
+            <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+              <ChartCard title="Hourly Order Distribution" subtitle="Orders and revenue throughout the day.">
                 <ResponsiveContainer width="100%" height={300}>
-                  <AreaChart data={data.hourly} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                  <AreaChart data={data.hourly}>
                     <defs>
-                      <linearGradient id="gradOrders" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor={PALETTE.primary} stopOpacity={0.4} />
-                        <stop offset="95%" stopColor={PALETTE.primary} stopOpacity={0} />
-                      </linearGradient>
-                      <linearGradient id="gradRevenue" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor={PALETTE.success} stopOpacity={0.4} />
-                        <stop offset="95%" stopColor={PALETTE.success} stopOpacity={0} />
+                      <linearGradient id="ordersGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.35} />
+                        <stop offset="95%" stopColor="#4f46e5" stopOpacity={0} />
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                    <XAxis dataKey="label" stroke="#6b7280" tick={{ fontSize: 11 }} interval={2} />
-                    <YAxis yAxisId="left" stroke="#6b7280" tick={{ fontSize: 11 }} />
-                    <YAxis yAxisId="right" orientation="right" stroke="#6b7280" tick={{ fontSize: 11 }} />
-                    <Tooltip
-                      contentStyle={{ backgroundColor: '#ffffff', border: '1px solid #e5e7eb', borderRadius: '8px', color: '#111827' }}
-                      labelStyle={{ color: '#6b7280' }}
-                    />
-                    <Legend wrapperStyle={{ color: '#374151' }} />
-                    <Area yAxisId="left" type="monotone" dataKey="orders" name="Orders" stroke={PALETTE.primary} fill="url(#gradOrders)" strokeWidth={2} />
-                    <Area yAxisId="right" type="monotone" dataKey="revenue" name="Revenue (৳)" stroke={PALETTE.success} fill="url(#gradRevenue)" strokeWidth={2} />
+                    <XAxis dataKey="label" tick={{ fontSize: 11 }} interval={2} />
+                    <YAxis yAxisId="left" tick={{ fontSize: 11 }} />
+                    <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11 }} />
+                    <Tooltip />
+                    <Legend />
+                    <Area yAxisId="left" type="monotone" dataKey="orders" name="Orders" stroke="#4f46e5" fill="url(#ordersGradient)" strokeWidth={2} />
+                    <Area yAxisId="right" type="monotone" dataKey="revenue" name="Revenue" stroke="#16a34a" fill="transparent" strokeWidth={2} />
                   </AreaChart>
                 </ResponsiveContainer>
               </ChartCard>
-
-              {/* Top Products Bar Chart */}
-              <ChartCard title="Top 10 Products by Quantity Sold" subtitle="Most sold products by quantity">
+              <ChartCard title="Top Products by Quantity" subtitle="The strongest movers for the selected day.">
                 <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={topProducts} layout="vertical" margin={{ top: 5, right: 30, left: 5, bottom: 5 }}>
+                  <BarChart data={productRows.slice(0, 10)} layout="vertical" margin={{ top: 5, right: 30, left: 5, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                    <XAxis type="number" stroke="#6b7280" tick={{ fontSize: 11 }} />
-                    <YAxis
-                      dataKey="productName"
-                      type="category"
-                      width={130}
-                      stroke="#6b7280"
-                      tick={{ fontSize: 10 }}
-                      tickFormatter={(v: string) => v.length > 18 ? v.slice(0, 18) + '…' : v}
-                    />
-                    <Tooltip
-                      contentStyle={{ backgroundColor: '#ffffff', border: '1px solid #e5e7eb', borderRadius: '8px', color: '#111827' }}
-                    />
-                    <Bar dataKey="totalQty" name="Qty Sold" fill={PALETTE.primary} radius={[0, 4, 4, 0]} barSize={18}>
-                      {topProducts.map((_, i) => (
-                        <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
-                      ))}
+                    <XAxis type="number" tick={{ fontSize: 11 }} />
+                    <YAxis dataKey="productName" type="category" width={150} tick={{ fontSize: 10 }} tickFormatter={(v: string) => v.length > 20 ? `${v.slice(0, 20)}...` : v} />
+                    <Tooltip />
+                    <Bar dataKey="totalQty" name="Qty Sold" radius={[0, 6, 6, 0]}>
+                      {productRows.slice(0, 10).map((_, i) => <Cell key={i} fill={PALETTE[i % PALETTE.length]} />)}
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
               </ChartCard>
-
-              {/* Order Status Pie Chart */}
-              <ChartCard title="Order Status Distribution" subtitle="Breakdown by current status">
-                <ResponsiveContainer width="100%" height={300}>
-                  <PieChart>
-                    <Pie
-                      data={statusPieData}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={65}
-                      outerRadius={110}
-                      paddingAngle={3}
-                      dataKey="value"
-                      nameKey="name"
-                      label={({ name, percent }: any) => `${name} ${(percent * 100).toFixed(0)}%`}
-                      labelLine={{ stroke: '#6b7280' }}
-                    >
-                      {statusPieData.map((d, i) => (
-                        <Cell key={i} fill={d.color} stroke="transparent" />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      contentStyle={{ backgroundColor: '#ffffff', border: '1px solid #e5e7eb', borderRadius: '8px', color: '#111827' }}
-                    />
-                    <Legend wrapperStyle={{ color: '#374151' }} />
-                  </PieChart>
-                </ResponsiveContainer>
-              </ChartCard>
-
-              {/* Courier Distribution Pie Chart */}
-              <ChartCard title="Courier Distribution" subtitle="Orders by courier company">
-                <ResponsiveContainer width="100%" height={300}>
-                  <PieChart>
-                    <Pie
-                      data={courierPieData}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={65}
-                      outerRadius={110}
-                      paddingAngle={3}
-                      dataKey="value"
-                      nameKey="name"
-                      label={({ name, percent }: any) => `${name} ${(percent * 100).toFixed(0)}%`}
-                      labelLine={{ stroke: '#6b7280' }}
-                    >
-                      {courierPieData.map((d, i) => (
-                        <Cell key={i} fill={d.color} stroke="transparent" />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      contentStyle={{ backgroundColor: '#ffffff', border: '1px solid #e5e7eb', borderRadius: '8px', color: '#111827' }}
-                    />
-                    <Legend wrapperStyle={{ color: '#374151' }} />
-                  </PieChart>
-                </ResponsiveContainer>
-              </ChartCard>
-
-              {/* Order Source Bar Chart */}
-              <ChartCard title="Order Sources" subtitle="Where orders originated from">
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={sourceData} margin={{ top: 5, right: 30, left: 5, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                    <XAxis dataKey="label" stroke="#6b7280" tick={{ fontSize: 11 }} />
-                    <YAxis stroke="#6b7280" tick={{ fontSize: 11 }} />
-                    <Tooltip
-                      contentStyle={{ backgroundColor: '#ffffff', border: '1px solid #e5e7eb', borderRadius: '8px', color: '#111827' }}
-                    />
-                    <Legend wrapperStyle={{ color: '#374151' }} />
-                    <Bar dataKey="orders" name="Orders" fill={PALETTE.primary} radius={[4, 4, 0, 0]} barSize={40} />
-                    <Bar dataKey="revenue" name="Revenue (৳)" fill={PALETTE.success} radius={[4, 4, 0, 0]} barSize={40} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </ChartCard>
-
-              {/* Courier Status Breakdown (if courier data exists) */}
-              {data.courierStatuses.length > 0 && (
-                <ChartCard title="Courier Status Breakdown" subtitle="Delivery status of shipped orders">
-                  <ResponsiveContainer width="100%" height={300}>
-                    <BarChart data={data.courierStatuses} margin={{ top: 5, right: 30, left: 5, bottom: 5 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                      <XAxis dataKey="status" stroke="#6b7280" tick={{ fontSize: 11 }} />
-                      <YAxis stroke="#6b7280" tick={{ fontSize: 11 }} />
-                      <Tooltip
-                        contentStyle={{ backgroundColor: '#ffffff', border: '1px solid #e5e7eb', borderRadius: '8px', color: '#111827' }}
-                      />
-                      <Bar dataKey="orders" name="Orders" fill={PALETTE.info} radius={[4, 4, 0, 0]} barSize={40}>
-                        {data.courierStatuses.map((_, i) => (
-                          <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
-                        ))}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                </ChartCard>
-              )}
             </div>
           </>
         )}
@@ -685,157 +430,84 @@ export default function TodaysReportPage() {
   );
 }
 
-/* ========== SUB-COMPONENTS ========== */
-
-function KPICard({ icon, label, value, color }: { icon: React.ReactNode; label: string; value: string; color: string }) {
+function StatusCard({ label, count, total, color }: { label: string; count: number; total: number; color: string }) {
+  const pct = total > 0 ? Math.round((count / total) * 100) : 0;
   const colorMap: Record<string, string> = {
-    indigo: 'bg-indigo-50 border-indigo-200 text-indigo-600',
-    emerald: 'bg-emerald-50 border-emerald-200 text-emerald-600',
-    cyan: 'bg-cyan-50 border-cyan-200 text-cyan-600',
-    violet: 'bg-violet-50 border-violet-200 text-violet-600',
-    green: 'bg-green-50 border-green-200 text-green-600',
-    red: 'bg-red-50 border-red-200 text-red-600',
-  };
-  const classes = colorMap[color] || colorMap.indigo;
-
-  return (
-    <div className={`${classes} border rounded-xl p-4`}>
-      <div className={`text-lg mb-2 opacity-80`}>{icon}</div>
-      <div className="text-gray-900 text-lg md:text-xl font-bold truncate">{value}</div>
-      <div className="text-gray-500 text-xs mt-1">{label}</div>
-    </div>
-  );
-}
-
-function MiniStatusCard({ label, count, total, color }: { label: string; count: number; total: number; color: string }) {
-  const pct = total > 0 ? ((count / total) * 100).toFixed(0) : '0';
-  const colorClasses: Record<string, string> = {
-    amber: 'bg-amber-50 text-amber-700 border-amber-200',
-    cyan: 'bg-cyan-50 text-cyan-700 border-cyan-200',
-    purple: 'bg-purple-50 text-purple-700 border-purple-200',
-    emerald: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-    red: 'bg-red-50 text-red-700 border-red-200',
-    blue: 'bg-blue-50 text-blue-700 border-blue-200',
-    orange: 'bg-orange-50 text-orange-700 border-orange-200',
-    slate: 'bg-slate-50 text-slate-700 border-slate-200',
-    pink: 'bg-pink-50 text-pink-700 border-pink-200',
+    pink: 'from-pink-500 to-rose-500',
+    amber: 'from-amber-500 to-yellow-500',
+    blue: 'from-blue-500 to-indigo-500',
+    cyan: 'from-cyan-500 to-sky-500',
+    orange: 'from-orange-500 to-amber-500',
+    yellow: 'from-yellow-500 to-orange-500',
+    teal: 'from-teal-500 to-emerald-500',
+    violet: 'from-violet-500 to-purple-500',
+    lime: 'from-lime-500 to-green-500',
+    green: 'from-green-500 to-emerald-500',
+    emerald: 'from-emerald-500 to-teal-500',
+    red: 'from-red-500 to-rose-600',
   };
   return (
-    <div className={`${colorClasses[color] || colorClasses.amber} border rounded-lg p-2 text-center`}>
-      <div className="text-lg font-bold">{count}</div>
-      <div className="text-[10px] uppercase tracking-wide opacity-80">{label}</div>
-      <div className="text-[10px] opacity-60 mt-0.5">{pct}%</div>
-    </div>
-  );
-}
-
-function ChartCard({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
-  return (
-    <div className="bg-white shadow-sm border border-gray-200 rounded-xl overflow-hidden">
-      <div className="p-5 border-b border-gray-200">
-        <h3 className="text-gray-800 font-semibold">{title}</h3>
-        {subtitle && <p className="text-gray-500 text-xs mt-0.5">{subtitle}</p>}
+    <div className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <div className="text-2xl font-bold text-gray-900">{fmt(count)}</div>
+          <div className="mt-1 text-xs font-semibold uppercase tracking-wide text-gray-500">{label}</div>
+        </div>
+        <div className="text-xs font-bold text-gray-400">{pct}%</div>
       </div>
-      <div className="p-4">{children}</div>
+      <div className="mt-3 h-2 overflow-hidden rounded-full bg-gray-100">
+        <div className={`h-full rounded-full bg-gradient-to-r ${colorMap[color] || colorMap.blue}`} style={{ width: `${Math.min(pct, 100)}%` }} />
+      </div>
     </div>
   );
 }
 
-function CourierBadge({ value, color }: { value: number; color: string }) {
-  if (value === 0) return <span className="text-gray-400">—</span>;
-  const colorClasses: Record<string, string> = {
-    blue: 'bg-blue-50 text-blue-700',
-    red: 'bg-red-50 text-red-700',
-    orange: 'bg-orange-50 text-orange-700',
-    gray: 'bg-gray-100 text-gray-600',
-  };
+function CourierBar({ label, value, total, color }: { label: string; value: number; total: number; color: string }) {
+  const pct = total > 0 ? Math.round((value / total) * 100) : 0;
   return (
-    <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${colorClasses[color] || colorClasses.gray}`}>
-      {value}
-    </span>
+    <div>
+      <div className="mb-1 flex items-center justify-between text-sm">
+        <span className="font-medium text-gray-700">{label}</span>
+        <span className="font-semibold text-gray-900">{fmt(value)} <span className="text-xs text-gray-400">({pct}%)</span></span>
+      </div>
+      <div className="h-3 overflow-hidden rounded-full bg-gray-100">
+        <div className={`h-full rounded-full ${color}`} style={{ width: `${Math.min(pct, 100)}%` }} />
+      </div>
+    </div>
   );
 }
 
-function StatusBadge({ value, color }: { value: number; color: string }) {
-  if (value === 0) return <span className="text-gray-400">—</span>;
-  const colorClasses: Record<string, string> = {
+function DataTableSection({ title, icon, right, children }: { title: string; icon: React.ReactNode; right?: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <section className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+      <div className="flex flex-col gap-3 border-b border-gray-200 p-5 md:flex-row md:items-center md:justify-between">
+        <h2 className="flex items-center gap-2 text-lg font-bold text-gray-900">{icon} {title}</h2>
+        {right}
+      </div>
+      <div className="overflow-x-auto">{children}</div>
+    </section>
+  );
+}
+
+function ChartCard({ title, subtitle, icon, children }: { title: string; subtitle?: string; icon?: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <section className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+      <div className="border-b border-gray-200 p-5">
+        <h2 className="flex items-center gap-2 text-lg font-bold text-gray-900">{icon} {title}</h2>
+        {subtitle && <p className="mt-1 text-xs text-gray-500">{subtitle}</p>}
+      </div>
+      <div className="p-5">{children}</div>
+    </section>
+  );
+}
+
+function Badge({ value, color }: { value: number; color: 'amber' | 'blue' | 'green' | 'red' }) {
+  if (!value) return <span className="text-gray-300">-</span>;
+  const map = {
     amber: 'bg-amber-50 text-amber-700',
-    cyan: 'bg-cyan-50 text-cyan-700',
-    purple: 'bg-purple-50 text-purple-700',
-    emerald: 'bg-emerald-50 text-emerald-700',
+    blue: 'bg-blue-50 text-blue-700',
+    green: 'bg-green-50 text-green-700',
     red: 'bg-red-50 text-red-700',
   };
-  return (
-    <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${colorClasses[color] || ''}`}>
-      {value}
-    </span>
-  );
-}
-
-function SourceProductTable({
-  title,
-  icon,
-  products,
-  emptyMessage,
-}: {
-  title: string;
-  icon: React.ReactNode;
-  products: { productId: number; productName: string; totalOrders: number; totalQty: number; totalRevenue: number }[];
-  emptyMessage: string;
-}) {
-  return (
-    <div className="bg-white shadow-sm border border-gray-200 rounded-xl overflow-hidden">
-      <div className="p-5 border-b border-gray-200">
-        <h3 className="text-gray-800 font-semibold text-lg flex items-center gap-2">
-          {icon} {title}
-          <span className="text-sm text-gray-500 font-normal ml-2">({products.length} products)</span>
-        </h3>
-      </div>
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="bg-gray-50 text-gray-500 text-xs uppercase tracking-wider">
-              <th className="text-left px-4 py-3 w-10">#</th>
-              <th className="text-left px-4 py-3 min-w-[200px]">Product Name</th>
-              <th className="px-4 py-3 text-center">Orders</th>
-              <th className="px-4 py-3 text-center">Qty</th>
-              <th className="px-4 py-3 text-right">Revenue (৳)</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-200">
-            {products.length === 0 ? (
-              <tr>
-                <td colSpan={5} className="px-4 py-12 text-center text-gray-500">
-                  {emptyMessage}
-                </td>
-              </tr>
-            ) : (
-              products.map((p, idx) => (
-                <tr key={p.productId || idx} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-4 py-3 text-gray-500 text-xs">{idx + 1}</td>
-                  <td className="px-4 py-3 text-gray-900 font-medium max-w-[300px] truncate" title={p.productName}>
-                    {p.productName}
-                  </td>
-                  <td className="px-4 py-3 text-center font-semibold text-gray-900">{p.totalOrders}</td>
-                  <td className="px-4 py-3 text-center text-gray-600">{p.totalQty}</td>
-                  <td className="px-4 py-3 text-right text-gray-900">{fmt(p.totalRevenue)}</td>
-                </tr>
-              ))
-            )}
-          </tbody>
-          {products.length > 0 && (
-            <tfoot>
-              <tr className="bg-gray-50 font-semibold text-gray-900 border-t-2 border-indigo-200">
-                <td className="px-4 py-3" />
-                <td className="px-4 py-3 text-indigo-600">TOTAL</td>
-                <td className="px-4 py-3 text-center">{products.reduce((s, p) => s + p.totalOrders, 0)}</td>
-                <td className="px-4 py-3 text-center">{products.reduce((s, p) => s + p.totalQty, 0)}</td>
-                <td className="px-4 py-3 text-right">{fmt(products.reduce((s, p) => s + p.totalRevenue, 0))}</td>
-              </tr>
-            </tfoot>
-          )}
-        </table>
-      </div>
-    </div>
-  );
+  return <span className={`inline-flex min-w-7 justify-center rounded-full px-2 py-0.5 text-xs font-semibold ${map[color]}`}>{fmt(value)}</span>;
 }

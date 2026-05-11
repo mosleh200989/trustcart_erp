@@ -1,6 +1,7 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
+import { getDhakaDateString } from '../../common/utils/dhaka-date';
 import { JournalEntry } from './entities/journal-entry.entity';
 import { JournalLine } from './entities/journal-line.entity';
 
@@ -41,7 +42,7 @@ export class AccountingService {
 
     const journal = this.journalRepo.create({
       journal_number: number,
-      entry_date: new Date().toISOString().slice(0, 10),
+      entry_date: getDhakaDateString(),
       entry_type: params.entry_type,
       description: params.description,
       debit_total,

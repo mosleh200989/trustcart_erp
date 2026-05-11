@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import AdminLayout from '@/layouts/AdminLayout';
 import apiClient from '@/services/api';
+import { getDhakaDateString } from '@/utils/dhakaDate';
 import PageSizeSelector from '@/components/admin/PageSizeSelector';
 import Pagination from '@/components/admin/Pagination';
 import AdminOrderDetailsModal from '@/components/AdminOrderDetailsModal';
@@ -45,7 +46,7 @@ export default function CrmFollowupsPage() {
   const totalPages = Math.max(1, Math.ceil(totalCustomers / itemsPerPage));
   
   // Date filter states
-  const today = new Date().toISOString().split('T')[0];
+  const today = getDhakaDateString();
   const [dateFilter, setDateFilter] = useState({ startDate: '', endDate: '' });
   const [todayOnly, setTodayOnly] = useState(false);
   

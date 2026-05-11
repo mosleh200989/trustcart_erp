@@ -4,6 +4,7 @@ import PageSizeSelector from '@/components/admin/PageSizeSelector';
 import { FaPlus, FaSearch, FaTicketAlt, FaTimes, FaTrash, FaEdit, FaCheck, FaUsers, FaUpload, FaLock, FaGlobe } from 'react-icons/fa';
 import apiClient from '@/services/api';
 import { useToast } from '@/contexts/ToastContext';
+import { getDhakaDateString } from '@/utils/dhakaDate';
 
 // ─── Types ─────────────────────────────────────────────────────
 interface CouponCampaign {
@@ -225,8 +226,8 @@ export default function CouponsPage() {
       maxUses: String(g(c, 'maxUses', 'max_uses') || ''),
       perCustomerLimit: String(g(c, 'perCustomerLimit', 'per_customer_limit') || '1'),
       expiryDays: String(g(c, 'expiryDays', 'expiry_days') || '30'),
-      validFrom: g(c, 'validFrom', 'valid_from') ? new Date(g(c, 'validFrom', 'valid_from')).toISOString().split('T')[0] : '',
-      validUntil: g(c, 'validUntil', 'valid_until') ? new Date(g(c, 'validUntil', 'valid_until')).toISOString().split('T')[0] : '',
+      validFrom: g(c, 'validFrom', 'valid_from') ? getDhakaDateString(g(c, 'validFrom', 'valid_from')) : '',
+      validUntil: g(c, 'validUntil', 'valid_until') ? getDhakaDateString(g(c, 'validUntil', 'valid_until')) : '',
       isRestricted: g(c, 'isRestricted', 'is_restricted') === true,
       isActive: g(c, 'isActive', 'is_active') !== false,
     });

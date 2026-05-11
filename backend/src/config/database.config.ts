@@ -28,6 +28,7 @@ export class DatabaseConfig implements TypeOrmOptionsFactory {
         ? { rejectUnauthorized: false }
         : false,
       extra: {
+        options: '-c timezone=Asia/Dhaka',
         max: 20,
         min: 5,
         idleTimeoutMillis: 30000,

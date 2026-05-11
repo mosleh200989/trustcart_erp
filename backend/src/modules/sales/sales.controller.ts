@@ -8,6 +8,7 @@ import { SpecialOffersService } from '../special-offers/special-offers.service';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { Public } from '../../common/decorators/public.decorator';
+import { getDhakaDateString } from '../../common/utils/dhaka-date';
 import * as jwt from 'jsonwebtoken';
 
 @Controller('sales')
@@ -19,6 +20,19 @@ export class SalesController {
     private readonly customersService: CustomersService,
     private readonly specialOffersService: SpecialOffersService,
   ) {}
+
+  private getDhakaDateString(): string {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Dhaka',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(new Date());
+    const year = parts.find((p) => p.type === 'year')?.value;
+    const month = parts.find((p) => p.type === 'month')?.value;
+    const day = parts.find((p) => p.type === 'day')?.value;
+    return year && month && day ? `${year}-${month}-${day}` : getDhakaDateString();
+  }
 
   // Public endpoint: track order by tracking ID, order number, or consignment ID
   @Get('public/track/:trackingId')
@@ -211,7 +225,7 @@ export class SalesController {
   @Get('daily-report')
   @RequirePermissions('view-sales-reports')
   async getDailyReport(@Query('date') date?: string) {
-    const reportDate = date || new Date().toISOString().slice(0, 10);
+    const reportDate = date || this.getDhakaDateString();
     return this.salesService.getDailyReport(reportDate);
   }
 

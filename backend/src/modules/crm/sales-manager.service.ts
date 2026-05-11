@@ -5,6 +5,7 @@ import { Customer } from '../customers/customer.entity';
 import { SalesTeam } from './entities/sales-team.entity';
 import { User } from '../users/user.entity';
 import { CallTask } from './entities/call-task.entity';
+import { getDhakaDateString } from '../../common/utils/dhaka-date';
 
 @Injectable()
 export class SalesManagerService {
@@ -103,7 +104,7 @@ export class SalesManagerService {
       const teams = await this.salesTeamRepository.find({ where: { teamLeaderId: tl.id } });
 
       // Today's call tasks
-      const today = new Date().toISOString().split('T')[0];
+      const today = getDhakaDateString();
       const taskStats = await this.callTaskRepo.query(
         `SELECT 
            COUNT(*)::int AS total_tasks,

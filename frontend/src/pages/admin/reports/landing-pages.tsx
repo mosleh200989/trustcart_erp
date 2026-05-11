@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import AdminLayout from '@/layouts/AdminLayout';
 import apiClient from '@/services/api';
+import { addDhakaDays, getDhakaDateString } from '@/utils/dhakaDate';
 import {
   ResponsiveContainer,
   BarChart,
@@ -160,8 +161,8 @@ type ActiveTab = 'overview' | 'hourly' | 'daily' | 'upsell' | 'products' | 'page
 
 /* ========== COMPONENT ========== */
 export default function LandingPageReportsPage() {
-  const today = new Date().toISOString().slice(0, 10);
-  const weekAgo = new Date(Date.now() - 6 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const today = getDhakaDateString();
+  const weekAgo = addDhakaDays(-6);
 
   const [startDate, setStartDate] = useState(weekAgo);
   const [endDate, setEndDate] = useState(today);
@@ -307,7 +308,7 @@ export default function LandingPageReportsPage() {
               {[
                 { label: 'Today', start: today, end: today },
                 { label: '7 Days', start: weekAgo, end: today },
-                { label: '30 Days', start: new Date(Date.now() - 29 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10), end: today },
+                { label: '30 Days', start: addDhakaDays(-29), end: today },
               ].map(({ label, start, end }) => (
                 <button
                   key={label}

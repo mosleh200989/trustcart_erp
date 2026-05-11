@@ -3,6 +3,7 @@ import AdminLayout from '@/layouts/AdminLayout';
 import { FaUndo, FaSpinner, FaCheckCircle, FaTimesCircle, FaCalendarAlt, FaBarcode } from 'react-icons/fa';
 import apiClient from '@/services/api';
 import { useToast } from '@/contexts/ToastContext';
+import { getDhakaDateString } from '@/utils/dhakaDate';
 
 interface ReturnResult {
   courierOrderId: string;
@@ -13,10 +14,7 @@ interface ReturnResult {
 
 export default function CourierReturnOrdersPage() {
   const toast = useToast();
-  const [returnDate, setReturnDate] = useState(() => {
-    const now = new Date();
-    return now.toISOString().split('T')[0];
-  });
+  const [returnDate, setReturnDate] = useState(() => getDhakaDateString());
   const [courierIdsText, setCourierIdsText] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [results, setResults] = useState<ReturnResult[] | null>(null);
