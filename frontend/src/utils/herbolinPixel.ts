@@ -1,5 +1,7 @@
 const HERBOLIN_PIXEL_ID = '1433976858485362';
 const HERBOLIN_HOSTS = new Set(['herbolin.com', 'www.herbolin.com']);
+const HERBOLIN_LANDING_PAGE_SLUGS = new Set(['Harbora-kosthogut', 'arabiankhalta']);
+const HERBOLIN_PATHS = new Set(['/arabiankhalta']);
 
 let lastTrackedPageKey = '';
 
@@ -13,14 +15,34 @@ export function isHerbolinHost() {
   return typeof window !== 'undefined' && HERBOLIN_HOSTS.has(window.location.hostname);
 }
 
-function canUseHerbolinPixel() {
-  return isHerbolinHost();
+export function isHerbolinLandingPageSlug(slug?: string | null) {
+  return Boolean(slug && HERBOLIN_LANDING_PAGE_SLUGS.has(slug));
 }
 
-export function initHerbolinPixel() {
+export function isHerbolinPixelSurface() {
+  if (typeof window === 'undefined') return false;
+
+  const pathname = window.location.pathname.replace(/\/$/, '') || '/';
+  const search = new URLSearchParams(window.location.search);
+  const routeSlug = pathname.startsWith('/lp/') ? pathname.split('/').filter(Boolean).pop() : null;
+  const querySlug = search.get('landing_page') || search.get('landing_page_intl') || search.get('cartflows_step');
+
+  return (
+    isHerbolinHost() ||
+    HERBOLIN_PATHS.has(pathname) ||
+    isHerbolinLandingPageSlug(routeSlug) ||
+    isHerbolinLandingPageSlug(querySlug)
+  );
+}
+
+function canUseHerbolinPixel(slug?: string | null) {
+  return isHerbolinPixelSurface() || isHerbolinLandingPageSlug(slug);
+}
+
+export function initHerbolinPixel(slug?: string | null) {
   const fbq = (window as any).fbq;
 
-  if (!canUseHerbolinPixel() || !fbq || window.__herbolinPixelInitialized) {
+  if (!canUseHerbolinPixel(slug) || !fbq || window.__herbolinPixelInitialized) {
     return;
   }
 
@@ -62,11 +84,11 @@ interface HerbolinPurchasePayload {
 export function trackHerbolinPurchase(payload: HerbolinPurchasePayload) {
   const fbq = (window as any).fbq;
 
-  if (!canUseHerbolinPixel() || !fbq) {
+  if (!canUseHerbolinPixel(payload.pageSlug) || !fbq) {
     return;
   }
 
-  initHerbolinPixel();
+  initHerbolinPixel(payload.pageSlug);
   fbq('trackSingle', HERBOLIN_PIXEL_ID, 'Purchase', {
     currency: 'BDT',
     value: Number(payload.totalAmount || 0),

@@ -10,7 +10,7 @@ import AdminRouteGuard from '@/components/auth/AdminRouteGuard';
 import MobileBottomNav from '@/components/MobileBottomNav';
 import { isAuthPath, setAuthReturnPath } from '@/utils/authReturnPath';
 import { initDataLayer, trackPageView } from '@/utils/gtm';
-import { initHerbolinPixel, isHerbolinHost, trackHerbolinPageView } from '@/utils/herbolinPixel';
+import { initHerbolinPixel, isHerbolinPixelSurface, trackHerbolinPageView } from '@/utils/herbolinPixel';
 import { initDhakaTimezoneDefaults } from '@/utils/dhakaDate';
 
 const queryClient = new QueryClient({
@@ -31,7 +31,7 @@ function FacebookAdvancedMatching() {
   useEffect(() => {
     if (typeof window === 'undefined' || !window.fbq) return;
     if (!user) return;
-    if (isHerbolinHost()) return;
+    if (isHerbolinPixelSurface()) return;
 
     const userData: Record<string, string> = {};
     if (user.email) userData.em = user.email;

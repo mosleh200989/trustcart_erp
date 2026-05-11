@@ -35,7 +35,12 @@ export default function Document() {
         <script
           dangerouslySetInnerHTML={{
             __html: `(function(w,d,s,l,mainId,herbolinId){var hostname=w.location.hostname;
-              var containerId=(hostname==='herbolin.com'||hostname==='www.herbolin.com')?herbolinId:mainId;
+              var pathname=w.location.pathname.replace(/\\/$/,'')||'/';
+              var params=new URLSearchParams(w.location.search);
+              var routeSlug=pathname.indexOf('/lp/')===0?pathname.split('/').filter(Boolean).pop():null;
+              var querySlug=params.get('landing_page')||params.get('landing_page_intl')||params.get('cartflows_step');
+              var isHerbolinPixelSurface=hostname==='herbolin.com'||hostname==='www.herbolin.com'||pathname==='/arabiankhalta'||routeSlug==='Harbora-kosthogut'||routeSlug==='arabiankhalta'||querySlug==='Harbora-kosthogut'||querySlug==='arabiankhalta';
+              var containerId=isHerbolinPixelSurface?herbolinId:mainId;
               w[l]=w[l]||[];w[l].push({'gtm.start':
               new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
               j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
@@ -44,12 +49,17 @@ export default function Document() {
           }}
         />
         {/* End Google Tag Manager */}
-        {/* Microsoft Clarity - host-specific: TrustCart = ve56op0b59, Herbolin = wip0d992cu */}
+        {/* Microsoft Clarity - TrustCart = ve56op0b59, Herbolin/Arabian Khalta = wip0d992cu */}
         <script
           dangerouslySetInnerHTML={{
             __html: `(function(){
               var h=window.location.hostname;
-              var id=(h==='herbolin.com'||h==='www.herbolin.com')?'wip0d992cu':'ve56op0b59';
+              var p=window.location.pathname.replace(/\\/$/,'')||'/';
+              var params=new URLSearchParams(window.location.search);
+              var routeSlug=p.indexOf('/lp/')===0?p.split('/').filter(Boolean).pop():null;
+              var querySlug=params.get('landing_page')||params.get('landing_page_intl')||params.get('cartflows_step');
+              var useHerbolin=h==='herbolin.com'||h==='www.herbolin.com'||p==='/arabiankhalta'||routeSlug==='Harbora-kosthogut'||routeSlug==='arabiankhalta'||querySlug==='Harbora-kosthogut'||querySlug==='arabiankhalta';
+              var id=useHerbolin?'wip0d992cu':'ve56op0b59';
               (function(c,l,a,r,i,t,y){
                 c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
                 t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
@@ -91,7 +101,12 @@ export default function Document() {
               var priceElement = document.getElementById('price');
               var price = priceElement ? Number(priceElement.value) : 0;
               var h = window.location.hostname;
-              if (h === 'herbolin.com' || h === 'www.herbolin.com') {
+              var p = window.location.pathname.replace(/\\/$/,'') || '/';
+              var params = new URLSearchParams(window.location.search);
+              var routeSlug = p.indexOf('/lp/') === 0 ? p.split('/').filter(Boolean).pop() : null;
+              var querySlug = params.get('landing_page') || params.get('landing_page_intl') || params.get('cartflows_step');
+              var useHerbolin = h === 'herbolin.com' || h === 'www.herbolin.com' || p === '/arabiankhalta' || routeSlug === 'Harbora-kosthogut' || routeSlug === 'arabiankhalta' || querySlug === 'Harbora-kosthogut' || querySlug === 'arabiankhalta';
+              if (useHerbolin) {
                 if (window.fbq) fbq('trackSingle', '1433976858485362', 'AddToCart', { value: price, currency: 'BDT' });
               } else {
                 if (window.fbq) fbq('track', 'AddToCart', { value: price, currency: 'BDT' });
