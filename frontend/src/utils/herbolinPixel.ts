@@ -1,95 +1,156 @@
 const HERBOLIN_PIXEL_ID = '1433976858485362';
+const ARABIAN_KHALTA_PIXEL_ID = process.env.NEXT_PUBLIC_ARABIAN_KHALTA_PIXEL_ID || '2270570453772206';
+
 const HERBOLIN_HOSTS = new Set(['herbolin.com', 'www.herbolin.com']);
-const HERBOLIN_LANDING_PAGE_SLUGS = new Set(['Harbora-kosthogut', 'arabiankhalta']);
-const HERBOLIN_PATHS = new Set(['/arabiankhalta']);
+const HERBOLIN_LANDING_PAGE_SLUGS = new Set(['Harbora-kosthogut']);
+
+const ARABIAN_KHALTA_HOSTS = new Set(['arabiankhalta.com', 'www.arabiankhalta.com']);
+const ARABIAN_KHALTA_LANDING_PAGE_SLUGS = new Set(['arabiankhalta']);
+const ARABIAN_KHALTA_PATHS = new Set(['/arabiankhalta']);
 
 let lastTrackedPageKey = '';
 
 declare global {
   interface Window {
-    __herbolinPixelInitialized?: boolean;
+    __landingPagePixelsInitialized?: Record<string, boolean>;
   }
+}
+
+function currentPathname() {
+  return window.location.pathname.replace(/\/$/, '') || '/';
+}
+
+function currentRouteSlug() {
+  const pathname = currentPathname();
+  return pathname.startsWith('/lp/') ? pathname.split('/').filter(Boolean).pop() : null;
+}
+
+function currentQuerySlug() {
+  const search = new URLSearchParams(window.location.search);
+  return search.get('landing_page') || search.get('landing_page_intl') || search.get('cartflows_step');
 }
 
 export function isHerbolinHost() {
   return typeof window !== 'undefined' && HERBOLIN_HOSTS.has(window.location.hostname);
 }
 
+export function isArabianKhaltaHost() {
+  return typeof window !== 'undefined' && ARABIAN_KHALTA_HOSTS.has(window.location.hostname);
+}
+
 export function isHerbolinLandingPageSlug(slug?: string | null) {
   return Boolean(slug && HERBOLIN_LANDING_PAGE_SLUGS.has(slug));
+}
+
+export function isArabianKhaltaLandingPageSlug(slug?: string | null) {
+  return Boolean(slug && ARABIAN_KHALTA_LANDING_PAGE_SLUGS.has(slug));
+}
+
+export function isLandingPagePixelSlug(slug?: string | null) {
+  return isHerbolinLandingPageSlug(slug) || isArabianKhaltaLandingPageSlug(slug);
 }
 
 export function isHerbolinPixelSurface() {
   if (typeof window === 'undefined') return false;
 
-  const pathname = window.location.pathname.replace(/\/$/, '') || '/';
-  const search = new URLSearchParams(window.location.search);
-  const routeSlug = pathname.startsWith('/lp/') ? pathname.split('/').filter(Boolean).pop() : null;
-  const querySlug = search.get('landing_page') || search.get('landing_page_intl') || search.get('cartflows_step');
+  const routeSlug = currentRouteSlug();
+  const querySlug = currentQuerySlug();
 
   return (
     isHerbolinHost() ||
-    HERBOLIN_PATHS.has(pathname) ||
     isHerbolinLandingPageSlug(routeSlug) ||
     isHerbolinLandingPageSlug(querySlug)
   );
 }
 
-function canUseHerbolinPixel(slug?: string | null) {
-  return isHerbolinPixelSurface() || isHerbolinLandingPageSlug(slug);
+export function isArabianKhaltaPixelSurface() {
+  if (typeof window === 'undefined') return false;
+
+  const pathname = currentPathname();
+  const routeSlug = currentRouteSlug();
+  const querySlug = currentQuerySlug();
+
+  return (
+    isArabianKhaltaHost() ||
+    ARABIAN_KHALTA_PATHS.has(pathname) ||
+    isArabianKhaltaLandingPageSlug(routeSlug) ||
+    isArabianKhaltaLandingPageSlug(querySlug)
+  );
 }
 
-export function initHerbolinPixel(slug?: string | null) {
-  const fbq = (window as any).fbq;
+export function isLandingPagePixelSurface() {
+  return isHerbolinPixelSurface() || isArabianKhaltaPixelSurface();
+}
 
-  if (!canUseHerbolinPixel(slug) || !fbq || window.__herbolinPixelInitialized) {
+function getLandingPagePixelId(slug?: string | null) {
+  if (isArabianKhaltaPixelSurface() || isArabianKhaltaLandingPageSlug(slug)) {
+    return ARABIAN_KHALTA_PIXEL_ID;
+  }
+  if (isHerbolinPixelSurface() || isHerbolinLandingPageSlug(slug)) {
+    return HERBOLIN_PIXEL_ID;
+  }
+  return '';
+}
+
+export function initLandingPagePixel(slug?: string | null) {
+  const fbq = (window as any).fbq;
+  const pixelId = getLandingPagePixelId(slug);
+
+  if (!pixelId || !fbq) {
     return;
   }
 
-  fbq('init', HERBOLIN_PIXEL_ID);
-  window.__herbolinPixelInitialized = true;
-}
-
-export function trackHerbolinPageView() {
-  const fbq = (window as any).fbq;
-
-  if (!canUseHerbolinPixel() || !fbq) {
+  window.__landingPagePixelsInitialized = window.__landingPagePixelsInitialized || {};
+  if (window.__landingPagePixelsInitialized[pixelId]) {
     return;
   }
 
-  const pageKey = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+  fbq('init', pixelId);
+  window.__landingPagePixelsInitialized[pixelId] = true;
+}
+
+export function trackLandingPagePageView() {
+  const fbq = (window as any).fbq;
+  const pixelId = getLandingPagePixelId();
+
+  if (!pixelId || !fbq) {
+    return;
+  }
+
+  const pageKey = `${pixelId}:${window.location.pathname}${window.location.search}${window.location.hash}`;
   if (pageKey === lastTrackedPageKey) {
     return;
   }
 
-  initHerbolinPixel();
-  fbq('trackSingle', HERBOLIN_PIXEL_ID, 'PageView');
+  initLandingPagePixel();
+  fbq('trackSingle', pixelId, 'PageView');
   lastTrackedPageKey = pageKey;
 }
 
-interface HerbolinPurchaseItem {
+interface LandingPagePurchaseItem {
   product_id?: number | null;
   product_name: string;
   quantity: number;
 }
 
-interface HerbolinPurchasePayload {
+interface LandingPagePurchasePayload {
   orderId?: number | string | null;
   pageTitle: string;
   pageSlug: string;
   totalAmount: number;
-  items: HerbolinPurchaseItem[];
+  items: LandingPagePurchaseItem[];
 }
 
-export function trackHerbolinPurchase(payload: HerbolinPurchasePayload) {
+export function trackLandingPagePurchase(payload: LandingPagePurchasePayload) {
   const fbq = (window as any).fbq;
+  const pixelId = getLandingPagePixelId(payload.pageSlug);
 
-  if (!canUseHerbolinPixel(payload.pageSlug) || !fbq) {
+  if (!pixelId || !fbq) {
     return;
   }
 
-  initHerbolinPixel(payload.pageSlug);
-  fbq('trackSingle', HERBOLIN_PIXEL_ID, 'Purchase', {
+  initLandingPagePixel(payload.pageSlug);
+  fbq('trackSingle', pixelId, 'Purchase', {
     currency: 'BDT',
     value: Number(payload.totalAmount || 0),
     content_type: 'product',
@@ -105,3 +166,7 @@ export function trackHerbolinPurchase(payload: HerbolinPurchasePayload) {
     landing_page_slug: payload.pageSlug,
   });
 }
+
+export const initHerbolinPixel = initLandingPagePixel;
+export const trackHerbolinPageView = trackLandingPagePageView;
+export const trackHerbolinPurchase = trackLandingPagePurchase;

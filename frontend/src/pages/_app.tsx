@@ -10,7 +10,7 @@ import AdminRouteGuard from '@/components/auth/AdminRouteGuard';
 import MobileBottomNav from '@/components/MobileBottomNav';
 import { isAuthPath, setAuthReturnPath } from '@/utils/authReturnPath';
 import { initDataLayer, trackPageView } from '@/utils/gtm';
-import { initHerbolinPixel, isHerbolinPixelSurface, trackHerbolinPageView } from '@/utils/herbolinPixel';
+import { initLandingPagePixel, isLandingPagePixelSurface, trackLandingPagePageView } from '@/utils/herbolinPixel';
 import { initDhakaTimezoneDefaults } from '@/utils/dhakaDate';
 
 const queryClient = new QueryClient({
@@ -31,7 +31,7 @@ function FacebookAdvancedMatching() {
   useEffect(() => {
     if (typeof window === 'undefined' || !window.fbq) return;
     if (!user) return;
-    if (isHerbolinPixelSurface()) return;
+    if (isLandingPagePixelSurface()) return;
 
     const userData: Record<string, string> = {};
     if (user.email) userData.em = user.email;
@@ -53,18 +53,18 @@ export default function App({ Component, pageProps }: AppProps) {
     initDhakaTimezoneDefaults();
     // Initialize dataLayer on app load
     initDataLayer();
-    initHerbolinPixel();
+    initLandingPagePixel();
     
     // Track initial page view
     trackPageView(window.location.pathname);
-    trackHerbolinPageView();
+    trackLandingPagePageView();
   }, []);
 
   // Track route changes for SPA navigation
   useEffect(() => {
     const handleRouteChange = (url: string) => {
       trackPageView(url);
-      trackHerbolinPageView();
+      trackLandingPagePageView();
       // GTM handles generic FB pixel pageviews - removed direct fbq call to prevent duplication
     };
 
