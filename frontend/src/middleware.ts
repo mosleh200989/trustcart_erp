@@ -8,6 +8,8 @@ import type { NextRequest } from 'next/server';
 const DOMAIN_LANDING_PAGES: Record<string, string> = {
   'herbolin.com': 'Harbora-kosthogut',
   'www.herbolin.com': 'Harbora-kosthogut',
+  'arabiankhalta.com': 'arabiankhalta',
+  'www.arabiankhalta.com': 'arabiankhalta',
 };
 
 /**

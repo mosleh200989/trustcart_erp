@@ -7,7 +7,7 @@ import ElectroFooter from "@/components/ElectroFooter";
 import ElectroProductCard from "@/components/ElectroProductCard";
 import apiClient from "@/services/api";
 import { trackPurchaseWithUser, extractLocationFromAddress } from "@/utils/gtm";
-import { isHerbolinLandingPageSlug, isHerbolinPixelSurface, trackHerbolinPurchase } from "@/utils/herbolinPixel";
+import { isLandingPagePixelSlug, isLandingPagePixelSurface, trackLandingPagePurchase } from "@/utils/herbolinPixel";
 import { 
   FaCheckCircle, 
   FaShoppingCart, 
@@ -242,7 +242,7 @@ export default function ThankYouPage() {
   useEffect(() => {
     if (!order || !items || items.length === 0 || purchaseTrackedRef.current) return;
     const landingPageSlug = String(order?.utm_source || order?.landingPageSlug || order?.landing_page_slug || '');
-    if (typeof window !== 'undefined' && (isHerbolinPixelSurface() || isHerbolinLandingPageSlug(landingPageSlug))) return;
+    if (typeof window !== 'undefined' && (isLandingPagePixelSurface() || isLandingPagePixelSlug(landingPageSlug))) return;
     
     // Check sessionStorage to prevent duplicate tracking on page refresh
     const trackedKey = `purchase_tracked_${orderId}`;
@@ -291,14 +291,14 @@ export default function ThankYouPage() {
   useEffect(() => {
     if (!orderId || !order || items.length === 0 || typeof window === 'undefined') return;
     const pageSlug = String(order?.utm_source || order?.landingPageSlug || order?.landing_page_slug || '');
-    if (!isHerbolinPixelSurface() && !isHerbolinLandingPageSlug(pageSlug)) return;
+    if (!isLandingPagePixelSurface() && !isLandingPagePixelSlug(pageSlug)) return;
 
     const trackedKey = `herbolin_purchase_tracked_${orderId}`;
     if (sessionStorage.getItem(trackedKey)) return;
 
-    trackHerbolinPurchase({
+    trackLandingPagePurchase({
       orderId: order?.orderNumber || order?.id || orderId,
-      pageTitle: 'Herbolin Landing Order',
+      pageTitle: 'Landing Page Order',
       pageSlug,
       totalAmount,
       items: items.map((item) => ({

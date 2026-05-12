@@ -29,6 +29,8 @@ export function buildTenantRegistry(configService: ConfigService): TenantConfig[
         'herbolin.com',
         'www.herbolin.com',
         'api.herbolin.com',
+        'arabiankhalta.com',
+        'www.arabiankhalta.com',
         'localhost:3000',   // local frontend dev
         'localhost:3001',   // local backend dev
       ],
