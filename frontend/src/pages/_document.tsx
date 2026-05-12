@@ -33,6 +33,50 @@ export default function Document() {
           rel="stylesheet"
           href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css"
         />
+        {/* Arabian Khalta must never initialize the Herbolin Meta pixel, even from GTM/cached scripts. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(w){
+              var HERBOLIN_PIXEL_ID='1433976858485362';
+              function isArabianKhaltaSurface(){
+                var h=w.location.hostname;
+                var p=w.location.pathname.replace(/\\/$/,'')||'/';
+                var params=new URLSearchParams(w.location.search);
+                var routeSlug=p.indexOf('/lp/')===0?p.split('/').filter(Boolean).pop():null;
+                var querySlug=params.get('landing_page')||params.get('landing_page_intl')||params.get('cartflows_step');
+                return h==='arabiankhalta.com'||h==='www.arabiankhalta.com'||p==='/arabiankhalta'||routeSlug==='arabiankhalta'||querySlug==='arabiankhalta';
+              }
+              if(!isArabianKhaltaSurface())return;
+              w.__blockedMetaPixelIds=w.__blockedMetaPixelIds||{};
+              w.__blockedMetaPixelIds[HERBOLIN_PIXEL_ID]=true;
+              function shouldBlock(args){
+                var a=Array.prototype.slice.call(args||[]);
+                return a.indexOf(HERBOLIN_PIXEL_ID)!==-1;
+              }
+              function wrapFbq(fn){
+                if(!fn||fn.__tcArabianPixelGuard)return fn;
+                var guarded=function(){
+                  if(shouldBlock(arguments))return;
+                  return fn.apply(this,arguments);
+                };
+                guarded.__tcArabianPixelGuard=true;
+                for(var key in fn){try{guarded[key]=fn[key];}catch(e){}}
+                return guarded;
+              }
+              var current=w.fbq;
+              try{
+                Object.defineProperty(w,'fbq',{
+                  configurable:true,
+                  get:function(){return current;},
+                  set:function(next){current=wrapFbq(next);}
+                });
+                if(current)w.fbq=current;
+              }catch(e){
+                if(w.fbq)w.fbq=wrapFbq(w.fbq);
+              }
+            })(window);`,
+          }}
+        />
         {/* Google Tag Manager */}
         <script
           dangerouslySetInnerHTML={{
