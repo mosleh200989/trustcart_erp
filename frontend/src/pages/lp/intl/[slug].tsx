@@ -37,6 +37,7 @@ interface LandingPageProduct {
   compare_price?: number;
   product_id?: number;
   is_default: boolean;
+  allow_quantity_selector?: boolean;
 }
 
 interface LandingPageData {
@@ -207,7 +208,7 @@ export default function LandingPageInternational() {
   const updateQuantity = (productId: string, delta: number) => {
     setOrderItems((prev) =>
       prev.map((item) =>
-        item.product.id === productId
+        item.product.id === productId && item.product.allow_quantity_selector !== false
           ? { ...item, quantity: Math.max(1, item.quantity + delta) }
           : item
       )
@@ -730,7 +731,7 @@ export default function LandingPageInternational() {
                                     </span>
                                   )}
                                 </div>
-                                {isSelected && (
+                                {isSelected && product.allow_quantity_selector !== false && (
                                   <div className="flex items-center gap-3 mt-2" onClick={(e) => e.stopPropagation()}>
                                     <button
                                       onClick={() => updateQuantity(product.id, -1)}

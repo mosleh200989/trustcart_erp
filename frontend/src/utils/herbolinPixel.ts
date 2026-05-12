@@ -53,8 +53,18 @@ export function isLandingPagePixelSlug(slug?: string | null) {
 export function isHerbolinPixelSurface() {
   if (typeof window === 'undefined') return false;
 
+  const pathname = currentPathname();
   const routeSlug = currentRouteSlug();
   const querySlug = currentQuerySlug();
+
+  if (
+    isArabianKhaltaHost() ||
+    ARABIAN_KHALTA_PATHS.has(pathname) ||
+    isArabianKhaltaLandingPageSlug(routeSlug) ||
+    isArabianKhaltaLandingPageSlug(querySlug)
+  ) {
+    return false;
+  }
 
   return (
     isHerbolinHost() ||

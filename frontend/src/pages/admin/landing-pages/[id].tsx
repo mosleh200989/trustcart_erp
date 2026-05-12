@@ -373,6 +373,7 @@ interface LandingPageProduct {
   product_id?: number;
   variant_name?: string;
   is_default: boolean;
+  allow_quantity_selector?: boolean;
   is_featured?: boolean;
   featured_label?: string;
 }
@@ -696,6 +697,7 @@ export default function LandingPageEditor() {
           compare_price: 0,
           qty: 1,
           is_default: prev.products.length === 0,
+          allow_quantity_selector: true,
         },
       ],
     }));
@@ -1606,6 +1608,19 @@ export default function LandingPageEditor() {
                     className="accent-orange-500"
                   />
                   <span className="text-orange-600">⭐ Featured</span>
+                </label>
+                <label className="flex items-center gap-2 text-sm text-gray-700">
+                  <span className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={product.allow_quantity_selector !== false}
+                      onChange={(e) => updateProduct(product.id, { allow_quantity_selector: e.target.checked })}
+                      className="sr-only peer"
+                    />
+                    <span className="w-10 h-5 bg-gray-200 rounded-full peer peer-checked:bg-green-500 transition-colors" />
+                    <span className="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform peer-checked:translate-x-5" />
+                  </span>
+                  Qty +/-
                 </label>
                 <button
                   onClick={() => removeProduct(product.id)}
