@@ -22,8 +22,6 @@ import {
 import {
   FaCalendarAlt,
   FaShoppingCart,
-  FaUsers,
-  FaChartLine,
   FaSyncAlt,
   FaGlobe,
   FaCheckCircle,
@@ -37,54 +35,49 @@ import {
 /* ========== TYPES ========== */
 interface LPSummary {
   totalOrders: number;
-  totalRevenue: number;
-  avgOrderValue: number;
   upsellAccepted: number;
   upsellRate: number;
+  crossSellQty: number;
+  crossSellOrders: number;
   pendingOrders: number;
   approvedOrders: number;
   shippedOrders: number;
   deliveredOrders: number;
   cancelledOrders: number;
-  uniqueCustomers: number;
 }
 
 interface HourlyItem {
   hour: number;
   label: string;
   orders: number;
-  revenue: number;
   upsellAccepted: number;
+  crossSellQty: number;
+  crossSellOrders: number;
 }
 
 interface DailyItem {
   date: string;
   orders: number;
-  revenue: number;
   upsellAccepted: number;
+  crossSellQty: number;
+  crossSellOrders: number;
 }
 
 interface PerPageItem {
   slug: string;
   title: string;
   orders: number;
-  revenue: number;
   upsellAccepted: number;
   upsellRate: number;
+  crossSellQty: number;
+  crossSellOrders: number;
   deliveredOrders: number;
   cancelledOrders: number;
-}
-
-interface TrafficSource {
-  source: string;
-  orders: number;
-  revenue: number;
 }
 
 interface StatusBreakdown {
   status: string;
   orders: number;
-  revenue: number;
 }
 
 interface ProductRow {
@@ -92,7 +85,6 @@ interface ProductRow {
   productName: string;
   totalOrders: number;
   totalQty: number;
-  totalRevenue: number;
 }
 
 interface LPReport {
@@ -103,9 +95,9 @@ interface LPReport {
   hourly: HourlyItem[];
   daily: DailyItem[];
   perPage: PerPageItem[];
-  trafficSources: TrafficSource[];
   statusBreakdown: StatusBreakdown[];
   products: ProductRow[];
+  crossSellProducts: ProductRow[];
 }
 
 interface LandingPage {
@@ -149,7 +141,6 @@ const STATUS_COLORS: Record<string, string> = {
 
 /* ========== HELPERS ========== */
 const fmt = (n: number) => new Intl.NumberFormat('en-BD').format(Math.round(n));
-const fmtDec = (n: number) => new Intl.NumberFormat('en-BD', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(n);
 const fmtDate = (d: string) => {
   const dt = new Date(d);
   return `${dt.getDate()}/${dt.getMonth() + 1}`;
@@ -173,7 +164,7 @@ export default function LandingPageReportsPage() {
   const [error, setError] = useState('');
   const [landingPages, setLandingPages] = useState<LandingPage[]>([]);
   const [productSearch, setProductSearch] = useState('');
-  const [productSort, setProductSort] = useState<'totalOrders' | 'totalRevenue' | 'totalQty'>('totalOrders');
+  const [productSort, setProductSort] = useState<'totalOrders' | 'totalQty'>('totalOrders');
 
   // Fetch landing page list for slug dropdown
   useEffect(() => {
@@ -221,6 +212,14 @@ export default function LandingPageReportsPage() {
     ];
   }, [data]);
 
+  const crossSellPieData = useMemo(() => {
+    if (!data) return [];
+    return [
+      { name: 'Cross-Sell Orders', value: data.summary.crossSellOrders },
+      { name: 'Without Cross-Sell', value: Math.max(data.summary.totalOrders - data.summary.crossSellOrders, 0) },
+    ];
+  }, [data]);
+
   const statusPieData = useMemo(() => {
     if (!data) return [];
     return data.statusBreakdown.filter((s) => s.orders > 0).map((s) => ({
@@ -233,7 +232,7 @@ export default function LandingPageReportsPage() {
     { id: 'overview', label: 'Overview' },
     { id: 'hourly', label: 'Hourly' },
     { id: 'daily', label: 'Daily Trend' },
-    { id: 'upsell', label: 'Upsell Analysis' },
+    { id: 'upsell', label: 'Upsell & Cross-Sell' },
     { id: 'products', label: 'Products' },
     { id: 'pages', label: 'Per Page' },
   ];
@@ -341,14 +340,13 @@ export default function LandingPageReportsPage() {
         {!loading && data && (
           <>
             {/* Summary Cards */}
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
               {[
                 { icon: FaShoppingCart, label: 'Total Orders', value: fmt(data.summary.totalOrders), color: 'text-indigo-600', bg: 'bg-indigo-50 dark:bg-indigo-900/20' },
-                { icon: FaChartLine, label: 'Total Revenue', value: '৳' + fmt(data.summary.totalRevenue), color: 'text-green-600', bg: 'bg-green-50 dark:bg-green-900/20' },
-                { icon: FaTag, label: 'Avg Order Value', value: '৳' + fmt(data.summary.avgOrderValue), color: 'text-orange-500', bg: 'bg-orange-50 dark:bg-orange-900/20' },
-                { icon: FaTrophy, label: 'Upsell Rate', value: data.summary.upsellRate + '%', color: 'text-purple-600', bg: 'bg-purple-50 dark:bg-purple-900/20' },
+                { icon: FaTag, label: 'Cross Sell Qty', value: fmt(data.summary.crossSellQty), color: 'text-pink-600', bg: 'bg-pink-50 dark:bg-pink-900/20' },
+                { icon: FaTrophy, label: 'Upsell Qty', value: fmt(data.summary.upsellAccepted), color: 'text-purple-600', bg: 'bg-purple-50 dark:bg-purple-900/20' },
                 { icon: FaCheckCircle, label: 'Delivered', value: fmt(data.summary.deliveredOrders), color: 'text-teal-600', bg: 'bg-teal-50 dark:bg-teal-900/20' },
-                { icon: FaUsers, label: 'Unique Customers', value: fmt(data.summary.uniqueCustomers), color: 'text-pink-600', bg: 'bg-pink-50 dark:bg-pink-900/20' },
+                { icon: FaTimesCircle, label: 'Cancelled / Returned', value: fmt(data.summary.cancelledOrders), color: 'text-red-500', bg: 'bg-red-50 dark:bg-red-900/20' },
               ].map(({ icon: Icon, label, value, color, bg }) => (
                 <div key={label} className={`${bg} rounded-xl p-4 border border-gray-100 dark:border-gray-700 shadow-sm`}>
                   <div className={`${color} text-2xl mb-2`}><Icon /></div>
@@ -365,7 +363,7 @@ export default function LandingPageReportsPage() {
                 { label: 'Approved', value: data.summary.approvedOrders, color: 'text-blue-500' },
                 { label: 'Shipped', value: data.summary.shippedOrders, color: 'text-purple-600' },
                 { label: 'Delivered', value: data.summary.deliveredOrders, color: 'text-green-600' },
-                { label: 'Cancelled', value: data.summary.cancelledOrders, color: 'text-red-500' },
+                { label: 'Cancelled / Returned', value: data.summary.cancelledOrders, color: 'text-red-500' },
               ].map(({ label, value, color }) => (
                 <div key={label} className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700 flex items-center justify-between">
                   <span className="text-xs text-gray-500 dark:text-gray-400">{label}</span>
@@ -396,10 +394,10 @@ export default function LandingPageReportsPage() {
                 {/* OVERVIEW TAB */}
                 {activeTab === 'overview' && (
                   <div className="space-y-6">
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
                       {/* Upsell Pie */}
                       <div>
-                        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Upsell (Thank You Offer) Acceptance</h3>
+                        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Upsell Quantity</h3>
                         <ResponsiveContainer width="100%" height={240}>
                           <PieChart>
                             <Pie
@@ -412,6 +410,28 @@ export default function LandingPageReportsPage() {
                               labelLine={false}
                             >
                               <Cell fill={PALETTE.purple} />
+                              <Cell fill={PALETTE.slate} />
+                            </Pie>
+                            <Tooltip formatter={(v: number | undefined) => [fmt(v ?? 0), 'Orders']} />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      </div>
+
+                      {/* Cross-sell Pie */}
+                      <div>
+                        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Cross-Sell Orders</h3>
+                        <ResponsiveContainer width="100%" height={240}>
+                          <PieChart>
+                            <Pie
+                              data={crossSellPieData}
+                              cx="50%" cy="50%"
+                              innerRadius={60} outerRadius={90}
+                              paddingAngle={4}
+                              dataKey="value"
+                              label={({ name, percent }) => `${name}: ${((percent ?? 0) * 100).toFixed(0)}%`}
+                              labelLine={false}
+                            >
+                              <Cell fill={PALETTE.pink} />
                               <Cell fill={PALETTE.slate} />
                             </Pie>
                             <Tooltip formatter={(v: number | undefined) => [fmt(v ?? 0), 'Orders']} />
@@ -445,18 +465,17 @@ export default function LandingPageReportsPage() {
                       </div>
                     </div>
 
-                    {/* Traffic Sources */}
                     <div>
-                      <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Traffic Sources</h3>
-                      <ResponsiveContainer width="100%" height={200}>
-                        <BarChart data={data.trafficSources} margin={{ top: 0, right: 10, left: 0, bottom: 0 }}>
+                      <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Cross-Sell Trend</h3>
+                      <ResponsiveContainer width="100%" height={240}>
+                        <BarChart data={data.daily} margin={{ top: 0, right: 10, left: 0, bottom: 0 }}>
                           <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                          <XAxis dataKey="source" tick={{ fontSize: 11 }} />
+                          <XAxis dataKey="date" tickFormatter={fmtDate} tick={{ fontSize: 11 }} />
                           <YAxis tick={{ fontSize: 11 }} />
-                          <Tooltip formatter={(v: number | undefined, name: string | undefined) => [name === 'revenue' ? '৳' + fmt(v ?? 0) : fmt(v ?? 0), name === 'revenue' ? 'Revenue' : 'Orders']} />
+                          <Tooltip labelFormatter={(l) => l} formatter={(v: number | undefined, name: string | undefined) => [fmt(v ?? 0), name ?? '']} />
                           <Legend />
-                          <Bar dataKey="orders" name="Orders" fill={PALETTE.primary} radius={[4, 4, 0, 0]} />
-                          <Bar dataKey="revenue" name="Revenue (৳)" fill={PALETTE.teal} radius={[4, 4, 0, 0]} yAxisId={1} hide />
+                          <Bar dataKey="crossSellQty" name="Cross-Sell Qty" fill={PALETTE.pink} radius={[4, 4, 0, 0]} />
+                          <Bar dataKey="crossSellOrders" name="Cross-Sell Orders" fill={PALETTE.orange} radius={[4, 4, 0, 0]} />
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
@@ -472,17 +491,11 @@ export default function LandingPageReportsPage() {
                         <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                         <XAxis dataKey="label" tick={{ fontSize: 10 }} />
                         <YAxis yAxisId="left" tick={{ fontSize: 11 }} />
-                        <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11 }} />
-                        <Tooltip
-                          formatter={(v: number | undefined, name: string | undefined) => [
-                            name === 'Revenue' ? '৳' + fmt(v ?? 0) : fmt(v ?? 0),
-                            name ?? '',
-                          ]}
-                        />
+                        <Tooltip formatter={(v: number | undefined, name: string | undefined) => [fmt(v ?? 0), name ?? '']} />
                         <Legend />
                         <Bar yAxisId="left" dataKey="orders" name="Orders" fill={PALETTE.primary} radius={[3, 3, 0, 0]} />
                         <Bar yAxisId="left" dataKey="upsellAccepted" name="Upsell Accepted" fill={PALETTE.purple} radius={[3, 3, 0, 0]} />
-                        <Bar yAxisId="right" dataKey="revenue" name="Revenue" fill={PALETTE.teal} radius={[3, 3, 0, 0]} />
+                        <Bar yAxisId="left" dataKey="crossSellQty" name="Cross-Sell Qty" fill={PALETTE.pink} radius={[3, 3, 0, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
 
@@ -493,8 +506,8 @@ export default function LandingPageReportsPage() {
                           <tr>
                             <th className="px-4 py-3">Hour</th>
                             <th className="px-4 py-3 text-right">Orders</th>
-                            <th className="px-4 py-3 text-right">Revenue</th>
                             <th className="px-4 py-3 text-right">Upsells</th>
+                            <th className="px-4 py-3 text-right">Cross-Sell Qty</th>
                             <th className="px-4 py-3 text-right">Upsell Rate</th>
                           </tr>
                         </thead>
@@ -503,8 +516,8 @@ export default function LandingPageReportsPage() {
                             <tr key={h.hour} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
                               <td className="px-4 py-2 font-medium text-gray-700 dark:text-gray-200">{h.label}</td>
                               <td className="px-4 py-2 text-right">{fmt(h.orders)}</td>
-                              <td className="px-4 py-2 text-right text-green-600">৳{fmt(h.revenue)}</td>
                               <td className="px-4 py-2 text-right text-purple-600">{fmt(h.upsellAccepted)}</td>
+                              <td className="px-4 py-2 text-right text-pink-600">{fmt(h.crossSellQty)}</td>
                               <td className="px-4 py-2 text-right">
                                 {h.orders > 0 ? Math.round((h.upsellAccepted / h.orders) * 100) : 0}%
                               </td>
@@ -526,30 +539,23 @@ export default function LandingPageReportsPage() {
                             <stop offset="5%" stopColor={PALETTE.primary} stopOpacity={0.2} />
                             <stop offset="95%" stopColor={PALETTE.primary} stopOpacity={0} />
                           </linearGradient>
-                          <linearGradient id="revenueGrad" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor={PALETTE.teal} stopOpacity={0.2} />
-                            <stop offset="95%" stopColor={PALETTE.teal} stopOpacity={0} />
-                          </linearGradient>
                           <linearGradient id="upsellGrad" x1="0" y1="0" x2="0" y2="1">
                             <stop offset="5%" stopColor={PALETTE.purple} stopOpacity={0.2} />
                             <stop offset="95%" stopColor={PALETTE.purple} stopOpacity={0} />
+                          </linearGradient>
+                          <linearGradient id="crossSellGrad" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor={PALETTE.pink} stopOpacity={0.2} />
+                            <stop offset="95%" stopColor={PALETTE.pink} stopOpacity={0} />
                           </linearGradient>
                         </defs>
                         <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                         <XAxis dataKey="date" tickFormatter={fmtDate} tick={{ fontSize: 11 }} />
                         <YAxis yAxisId="left" tick={{ fontSize: 11 }} />
-                        <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11 }} />
-                        <Tooltip
-                          labelFormatter={(l) => l}
-                          formatter={(v: number | undefined, name: string | undefined) => [
-                            name === 'Revenue' ? '৳' + fmt(v ?? 0) : fmt(v ?? 0),
-                            name ?? '',
-                          ]}
-                        />
+                        <Tooltip labelFormatter={(l) => l} formatter={(v: number | undefined, name: string | undefined) => [fmt(v ?? 0), name ?? '']} />
                         <Legend />
                         <Area yAxisId="left" type="monotone" dataKey="orders" name="Orders" stroke={PALETTE.primary} fill="url(#ordersGrad)" strokeWidth={2} />
                         <Area yAxisId="left" type="monotone" dataKey="upsellAccepted" name="Upsell Accepted" stroke={PALETTE.purple} fill="url(#upsellGrad)" strokeWidth={2} />
-                        <Area yAxisId="right" type="monotone" dataKey="revenue" name="Revenue" stroke={PALETTE.teal} fill="url(#revenueGrad)" strokeWidth={2} />
+                        <Area yAxisId="left" type="monotone" dataKey="crossSellQty" name="Cross-Sell Qty" stroke={PALETTE.pink} fill="url(#crossSellGrad)" strokeWidth={2} />
                       </AreaChart>
                     </ResponsiveContainer>
 
@@ -560,8 +566,8 @@ export default function LandingPageReportsPage() {
                           <tr>
                             <th className="px-4 py-3">Date</th>
                             <th className="px-4 py-3 text-right">Orders</th>
-                            <th className="px-4 py-3 text-right">Revenue</th>
                             <th className="px-4 py-3 text-right">Upsells</th>
+                            <th className="px-4 py-3 text-right">Cross-Sell Qty</th>
                             <th className="px-4 py-3 text-right">Upsell Rate</th>
                           </tr>
                         </thead>
@@ -570,8 +576,8 @@ export default function LandingPageReportsPage() {
                             <tr key={d.date} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
                               <td className="px-4 py-2 font-medium text-gray-700 dark:text-gray-200">{d.date}</td>
                               <td className="px-4 py-2 text-right">{fmt(d.orders)}</td>
-                              <td className="px-4 py-2 text-right text-green-600">৳{fmt(d.revenue)}</td>
                               <td className="px-4 py-2 text-right text-purple-600">{fmt(d.upsellAccepted)}</td>
+                              <td className="px-4 py-2 text-right text-pink-600">{fmt(d.crossSellQty)}</td>
                               <td className="px-4 py-2 text-right">
                                 {d.orders > 0 ? Math.round((d.upsellAccepted / d.orders) * 100) : 0}%
                               </td>
@@ -582,8 +588,8 @@ export default function LandingPageReportsPage() {
                           <tr>
                             <td className="px-4 py-2 text-gray-700 dark:text-gray-200">Total</td>
                             <td className="px-4 py-2 text-right">{fmt(data.summary.totalOrders)}</td>
-                            <td className="px-4 py-2 text-right text-green-600">৳{fmt(data.summary.totalRevenue)}</td>
                             <td className="px-4 py-2 text-right text-purple-600">{fmt(data.summary.upsellAccepted)}</td>
+                            <td className="px-4 py-2 text-right text-pink-600">{fmt(data.summary.crossSellQty)}</td>
                             <td className="px-4 py-2 text-right">{data.summary.upsellRate}%</td>
                           </tr>
                         </tfoot>
@@ -595,10 +601,10 @@ export default function LandingPageReportsPage() {
                 {/* UPSELL ANALYSIS TAB */}
                 {activeTab === 'upsell' && (
                   <div className="space-y-6">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                       <div className="bg-purple-50 dark:bg-purple-900/20 rounded-xl p-4 border border-purple-100 dark:border-purple-800">
                         <div className="text-3xl font-bold text-purple-700 dark:text-purple-300">{fmt(data.summary.upsellAccepted)}</div>
-                        <div className="text-sm text-purple-600 dark:text-purple-400 mt-1">Upsells Accepted</div>
+                        <div className="text-sm text-purple-600 dark:text-purple-400 mt-1">Upsell Qty</div>
                       </div>
                       <div className="bg-gray-50 dark:bg-gray-700 rounded-xl p-4 border border-gray-200 dark:border-gray-600">
                         <div className="text-3xl font-bold text-gray-700 dark:text-gray-200">
@@ -606,16 +612,19 @@ export default function LandingPageReportsPage() {
                         </div>
                         <div className="text-sm text-gray-500 dark:text-gray-400 mt-1">Upsells Declined</div>
                       </div>
-                      <div className="bg-indigo-50 dark:bg-indigo-900/20 rounded-xl p-4 border border-indigo-100 dark:border-indigo-800">
-                        <div className="text-3xl font-bold text-indigo-700 dark:text-indigo-300">{data.summary.upsellRate}%</div>
-                        <div className="text-sm text-indigo-600 dark:text-indigo-400 mt-1">Upsell Acceptance Rate</div>
+                      <div className="bg-pink-50 dark:bg-pink-900/20 rounded-xl p-4 border border-pink-100 dark:border-pink-800">
+                        <div className="text-3xl font-bold text-pink-700 dark:text-pink-300">{fmt(data.summary.crossSellQty)}</div>
+                        <div className="text-sm text-pink-600 dark:text-pink-400 mt-1">Cross-Sell Qty</div>
+                      </div>
+                      <div className="bg-orange-50 dark:bg-orange-900/20 rounded-xl p-4 border border-orange-100 dark:border-orange-800">
+                        <div className="text-3xl font-bold text-orange-700 dark:text-orange-300">{fmt(data.summary.crossSellOrders)}</div>
+                        <div className="text-sm text-orange-600 dark:text-orange-400 mt-1">Cross-Sell Orders</div>
                       </div>
                     </div>
 
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                      {/* Upsell acceptance pie */}
                       <div>
-                        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Acceptance vs Decline</h3>
+                        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Upsell Acceptance</h3>
                         <ResponsiveContainer width="100%" height={280}>
                           <PieChart>
                             <Pie
@@ -633,9 +642,8 @@ export default function LandingPageReportsPage() {
                         </ResponsiveContainer>
                       </div>
 
-                      {/* Upsell trend over days */}
                       <div>
-                        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Daily Upsell Trend</h3>
+                        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Daily Upsell & Cross-Sell Trend</h3>
                         <ResponsiveContainer width="100%" height={280}>
                           <LineChart data={data.daily} margin={{ top: 0, right: 10, left: 0, bottom: 0 }}>
                             <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
@@ -645,10 +653,28 @@ export default function LandingPageReportsPage() {
                             <Legend />
                             <Line type="monotone" dataKey="orders" name="Total Orders" stroke={PALETTE.primary} strokeWidth={2} dot={false} />
                             <Line type="monotone" dataKey="upsellAccepted" name="Upsell Accepted" stroke={PALETTE.purple} strokeWidth={2} dot={false} />
+                            <Line type="monotone" dataKey="crossSellQty" name="Cross-Sell Qty" stroke={PALETTE.pink} strokeWidth={2} dot={false} />
                           </LineChart>
                         </ResponsiveContainer>
                       </div>
                     </div>
+
+                    {(data.crossSellProducts || []).length > 0 && (
+                      <div>
+                        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Top Cross-Sell Products</h3>
+                        <ResponsiveContainer width="100%" height={260}>
+                          <BarChart data={(data.crossSellProducts || []).slice(0, 10)} margin={{ top: 0, right: 10, left: 0, bottom: 60 }}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                            <XAxis dataKey="productName" tick={{ fontSize: 10 }} angle={-35} textAnchor="end" interval={0} />
+                            <YAxis tick={{ fontSize: 11 }} />
+                            <Tooltip formatter={(v: number | undefined, name: string | undefined) => [fmt(v ?? 0), name ?? '']} />
+                            <Legend />
+                            <Bar dataKey="totalQty" name="Cross-Sell Qty" fill={PALETTE.pink} radius={[4, 4, 0, 0]} />
+                            <Bar dataKey="totalOrders" name="Cross-Sell Orders" fill={PALETTE.orange} radius={[4, 4, 0, 0]} />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -669,7 +695,6 @@ export default function LandingPageReportsPage() {
                         className="border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                       >
                         <option value="totalOrders">Sort by Orders</option>
-                        <option value="totalRevenue">Sort by Revenue</option>
                         <option value="totalQty">Sort by Quantity</option>
                       </select>
                     </div>
@@ -690,7 +715,7 @@ export default function LandingPageReportsPage() {
                             interval={0}
                           />
                           <YAxis tick={{ fontSize: 11 }} />
-                          <Tooltip formatter={(v: number | undefined, name: string | undefined) => [name === 'Revenue' ? '৳' + fmt(v ?? 0) : fmt(v ?? 0), name ?? '']} />
+                          <Tooltip formatter={(v: number | undefined, name: string | undefined) => [fmt(v ?? 0), name ?? '']} />
                           <Legend />
                           <Bar dataKey="totalOrders" name="Orders" fill={PALETTE.primary} radius={[4, 4, 0, 0]} />
                           <Bar dataKey="totalQty" name="Qty Sold" fill={PALETTE.teal} radius={[4, 4, 0, 0]} />
@@ -706,7 +731,6 @@ export default function LandingPageReportsPage() {
                             <th className="px-4 py-3">Product</th>
                             <th className="px-4 py-3 text-right">Orders</th>
                             <th className="px-4 py-3 text-right">Qty Sold</th>
-                            <th className="px-4 py-3 text-right">Revenue</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
@@ -716,12 +740,11 @@ export default function LandingPageReportsPage() {
                               <td className="px-4 py-2 font-medium text-gray-700 dark:text-gray-200">{p.productName}</td>
                               <td className="px-4 py-2 text-right">{fmt(p.totalOrders)}</td>
                               <td className="px-4 py-2 text-right">{fmt(p.totalQty)}</td>
-                              <td className="px-4 py-2 text-right text-green-600">৳{fmt(p.totalRevenue)}</td>
                             </tr>
                           ))}
                           {sortedProducts.length === 0 && (
                             <tr>
-                              <td colSpan={5} className="px-4 py-8 text-center text-gray-400">No products found</td>
+                              <td colSpan={4} className="px-4 py-8 text-center text-gray-400">No products found</td>
                             </tr>
                           )}
                         </tbody>
@@ -750,10 +773,11 @@ export default function LandingPageReportsPage() {
                             interval={0}
                           />
                           <YAxis tick={{ fontSize: 11 }} />
-                          <Tooltip formatter={(v: number | undefined, name: string | undefined) => [(name ?? '').includes('Revenue') ? '৳' + fmt(v ?? 0) : fmt(v ?? 0), name ?? '']} />
+                          <Tooltip formatter={(v: number | undefined, name: string | undefined) => [fmt(v ?? 0), name ?? '']} />
                           <Legend />
                           <Bar dataKey="orders" name="Orders" fill={PALETTE.primary} radius={[4, 4, 0, 0]} />
                           <Bar dataKey="upsellAccepted" name="Upsell Accepted" fill={PALETTE.purple} radius={[4, 4, 0, 0]} />
+                          <Bar dataKey="crossSellQty" name="Cross-Sell Qty" fill={PALETTE.pink} radius={[4, 4, 0, 0]} />
                         </BarChart>
                       </ResponsiveContainer>
                     )}
@@ -765,8 +789,8 @@ export default function LandingPageReportsPage() {
                             <th className="px-4 py-3">Landing Page</th>
                             <th className="px-4 py-3">Slug</th>
                             <th className="px-4 py-3 text-right">Orders</th>
-                            <th className="px-4 py-3 text-right">Revenue</th>
                             <th className="px-4 py-3 text-right">Upsells</th>
+                            <th className="px-4 py-3 text-right">Cross-Sell Qty</th>
                             <th className="px-4 py-3 text-right">Upsell Rate</th>
                             <th className="px-4 py-3 text-right">Delivered</th>
                             <th className="px-4 py-3 text-right">Cancelled</th>
@@ -778,8 +802,8 @@ export default function LandingPageReportsPage() {
                               <td className="px-4 py-2 font-medium text-gray-700 dark:text-gray-200 max-w-[140px] truncate" title={p.title}>{p.title}</td>
                               <td className="px-4 py-2 text-gray-500 dark:text-gray-400 font-mono text-xs">{p.slug}</td>
                               <td className="px-4 py-2 text-right">{fmt(p.orders)}</td>
-                              <td className="px-4 py-2 text-right text-green-600">৳{fmt(p.revenue)}</td>
                               <td className="px-4 py-2 text-right text-purple-600">{fmt(p.upsellAccepted)}</td>
+                              <td className="px-4 py-2 text-right text-pink-600">{fmt(p.crossSellQty)}</td>
                               <td className="px-4 py-2 text-right">
                                 <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${p.upsellRate >= 30 ? 'bg-green-100 text-green-700' : p.upsellRate >= 15 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
                                   {p.upsellRate}%

@@ -101,8 +101,9 @@ const PALETTE = ['#4f46e5', '#0f766e', '#d97706', '#dc2626', '#7c3aed', '#0891b2
 const fmt = (n: number) => new Intl.NumberFormat('en-BD').format(Math.round(Number(n) || 0));
 
 const hasReadableText = (value?: string | null) => Boolean(value && value.replace(/[\s?]+/g, '').length > 0);
+const isDeletedAgentLabel = (value?: string | null) => /^deleted\+/i.test(String(value || '').trim());
 const agentLabel = (row: Pick<AgentProductRow, 'agentId' | 'agentName'>) =>
-  hasReadableText(row.agentName) ? row.agentName : `Agent #${row.agentId ?? 'Unassigned'}`;
+  hasReadableText(row.agentName) && !isDeletedAgentLabel(row.agentName) ? row.agentName : `Agent #${row.agentId ?? 'Unassigned'}`;
 const productLabel = (row: Pick<AgentProductRow, 'productId' | 'productName'>) =>
   hasReadableText(row.productName) ? row.productName : `Product #${row.productId || 'Unknown'}`;
 
@@ -177,7 +178,7 @@ export default function TodaysReportPage() {
 
   const agents = useMemo(() => {
     const names = new Map<string, string>();
-    (data?.agentProductBreakdown || []).forEach((row) => {
+    (data?.agentProductBreakdown || []).filter((row) => !isDeletedAgentLabel(row.agentName)).forEach((row) => {
       names.set(String(row.agentId ?? 'unassigned'), agentLabel(row));
     });
     return Array.from(names.entries()).map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
@@ -186,6 +187,7 @@ export default function TodaysReportPage() {
   const agentProductChart = useMemo(() => {
     const grouped = new Map<string, any>();
     (data?.agentProductBreakdown || [])
+      .filter((row) => !isDeletedAgentLabel(row.agentName))
       .filter((row) => agentFilter === 'all' || String(row.agentId ?? 'unassigned') === agentFilter)
       .forEach((row) => {
         const key = `${agentLabel(row)} - ${productLabel(row)}`;

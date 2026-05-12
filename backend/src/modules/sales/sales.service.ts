@@ -1521,6 +1521,7 @@ export class SalesService {
          SELECT
            i.order_id,
            i.agent_id,
+           COALESCE(u.is_deleted, false) AS agent_is_deleted,
            COALESCE(
              NULLIF(
                CASE
@@ -1529,8 +1530,6 @@ export class SalesService {
                END,
                ''
              ),
-             NULLIF(u.email, ''),
-             NULLIF(u.phone, ''),
              'Agent #' || i.agent_id::text
            ) AS agent_name,
            i.product_id,
@@ -1580,6 +1579,8 @@ export class SalesService {
          LEFT JOIN users u ON u.id = i.agent_id
          LEFT JOIN products p ON p.id = i.product_id
        ) normalized
+       WHERE normalized.agent_is_deleted = false
+         AND normalized.agent_name !~* '^deleted\\+'
        GROUP BY normalized.agent_id, normalized.agent_name, normalized.product_id, normalized.product_name
        ORDER BY total_qty DESC`,
       [reportDate],
@@ -2292,8 +2293,6 @@ export class SalesService {
     const today = this.currentDhakaDateString();
     const startDate = params.startDate || today;
     const endDate = params.endDate || today;
-    const groupBy = params.groupBy || 'day';
-
     // Build base query conditions
     const buildBase = () => {
       const qb = this.salesRepository
@@ -2307,19 +2306,63 @@ export class SalesService {
       return qb;
     };
 
+    const buildCrossSellBase = () => {
+      const qb = this.orderItemsRepository2
+        .createQueryBuilder('oi')
+        .innerJoin('sales_orders', 'o', 'o.id = oi.order_id')
+        .where("o.order_source = 'landing_page'")
+        .andWhere('oi.is_cross_sell = true')
+        .andWhere(`DATE(o.created_at AT TIME ZONE '${this.dhakaTimeZone}') >= :startDate`, { startDate })
+        .andWhere(`DATE(o.created_at AT TIME ZONE '${this.dhakaTimeZone}') <= :endDate`, { endDate });
+      if (params.slug) {
+        qb.andWhere('o.utm_source = :slug', { slug: params.slug });
+      }
+      return qb;
+    };
+
+    const buildCheckoutCrossSellBase = () => {
+      const qb = this.orderItemsRepository
+        .createQueryBuilder('soi')
+        .innerJoin('soi.salesOrder', 'o')
+        .innerJoin('landing_pages', 'lp', 'lp.slug = o.utm_source')
+        .where("o.order_source = 'landing_page'")
+        .andWhere('lp.cross_sell_product IS NOT NULL')
+        .andWhere(`DATE(o.created_at AT TIME ZONE '${this.dhakaTimeZone}') >= :startDate`, { startDate })
+        .andWhere(`DATE(o.created_at AT TIME ZONE '${this.dhakaTimeZone}') <= :endDate`, { endDate })
+        .andWhere(`(
+          ((lp.cross_sell_product->>'product_id') ~ '^[0-9]+$' AND soi.product_id = (lp.cross_sell_product->>'product_id')::int)
+          OR LOWER(COALESCE(soi.product_name, '')) = LOWER(COALESCE(lp.cross_sell_product->>'name', ''))
+        )`);
+      if (params.slug) {
+        qb.andWhere('o.utm_source = :slug', { slug: params.slug });
+      }
+      return qb;
+    };
+
     // 1) Overall summary
     const summaryRaw = await buildBase()
       .select([
         'COUNT(o.id) AS total_orders',
-        'COALESCE(SUM(o.total_amount), 0) AS total_revenue',
-        'COALESCE(AVG(o.total_amount), 0) AS avg_order_value',
         `COUNT(CASE WHEN o.thank_you_offer_accepted = true THEN 1 END) AS upsell_accepted`,
         `COUNT(CASE WHEN LOWER(o.status::text) = 'pending' THEN 1 END) AS pending_orders`,
         `COUNT(CASE WHEN LOWER(o.status::text) = 'approved' THEN 1 END) AS approved_orders`,
         `COUNT(CASE WHEN LOWER(o.status::text) = 'shipped' THEN 1 END) AS shipped_orders`,
         `COUNT(CASE WHEN LOWER(o.status::text) = 'delivered' THEN 1 END) AS delivered_orders`,
         `COUNT(CASE WHEN LOWER(o.status::text) IN ('cancelled', 'admin_cancelled', 'returned') THEN 1 END) AS cancelled_orders`,
-        'COUNT(DISTINCT o.customer_phone) AS unique_customers',
+      ])
+      .getRawOne();
+
+    const crossSellSummaryRaw = await buildCrossSellBase()
+      .select([
+        'COALESCE(SUM(oi.quantity), 0) AS cross_sell_qty',
+        'COUNT(DISTINCT oi.order_id) AS cross_sell_orders',
+      ])
+      .getRawOne();
+
+    const checkoutCrossSellSummaryRaw = await buildCheckoutCrossSellBase()
+      .select([
+        'COALESCE(SUM(soi.quantity), 0) AS cross_sell_qty',
+        'COUNT(DISTINCT o.id) AS cross_sell_orders',
       ])
       .getRawOne();
 
@@ -2328,8 +2371,27 @@ export class SalesService {
       .select([
         `EXTRACT(HOUR FROM o.created_at AT TIME ZONE '${this.dhakaTimeZone}') AS hour`,
         'COUNT(o.id) AS orders',
-        'COALESCE(SUM(o.total_amount), 0) AS revenue',
         `COUNT(CASE WHEN o.thank_you_offer_accepted = true THEN 1 END) AS upsell_accepted`,
+      ])
+      .groupBy('hour')
+      .orderBy('hour', 'ASC')
+      .getRawMany();
+
+    const hourlyCrossSellRaw = await buildCrossSellBase()
+      .select([
+        `EXTRACT(HOUR FROM o.created_at AT TIME ZONE '${this.dhakaTimeZone}') AS hour`,
+        'COALESCE(SUM(oi.quantity), 0) AS cross_sell_qty',
+        'COUNT(DISTINCT oi.order_id) AS cross_sell_orders',
+      ])
+      .groupBy('hour')
+      .orderBy('hour', 'ASC')
+      .getRawMany();
+
+    const hourlyCheckoutCrossSellRaw = await buildCheckoutCrossSellBase()
+      .select([
+        `EXTRACT(HOUR FROM o.created_at AT TIME ZONE '${this.dhakaTimeZone}') AS hour`,
+        'COALESCE(SUM(soi.quantity), 0) AS cross_sell_qty',
+        'COUNT(DISTINCT o.id) AS cross_sell_orders',
       ])
       .groupBy('hour')
       .orderBy('hour', 'ASC')
@@ -2340,8 +2402,27 @@ export class SalesService {
       .select([
         `DATE(o.created_at AT TIME ZONE '${this.dhakaTimeZone}') AS date`,
         'COUNT(o.id) AS orders',
-        'COALESCE(SUM(o.total_amount), 0) AS revenue',
         `COUNT(CASE WHEN o.thank_you_offer_accepted = true THEN 1 END) AS upsell_accepted`,
+      ])
+      .groupBy('date')
+      .orderBy('date', 'ASC')
+      .getRawMany();
+
+    const dailyCrossSellRaw = await buildCrossSellBase()
+      .select([
+        `DATE(o.created_at AT TIME ZONE '${this.dhakaTimeZone}') AS date`,
+        'COALESCE(SUM(oi.quantity), 0) AS cross_sell_qty',
+        'COUNT(DISTINCT oi.order_id) AS cross_sell_orders',
+      ])
+      .groupBy('date')
+      .orderBy('date', 'ASC')
+      .getRawMany();
+
+    const dailyCheckoutCrossSellRaw = await buildCheckoutCrossSellBase()
+      .select([
+        `DATE(o.created_at AT TIME ZONE '${this.dhakaTimeZone}') AS date`,
+        'COALESCE(SUM(soi.quantity), 0) AS cross_sell_qty',
+        'COUNT(DISTINCT o.id) AS cross_sell_orders',
       ])
       .groupBy('date')
       .orderBy('date', 'ASC')
@@ -2353,7 +2434,6 @@ export class SalesService {
         `COALESCE(o.utm_source, 'unknown') AS slug`,
         `COALESCE(o.utm_campaign, 'unknown') AS title`,
         'COUNT(o.id) AS orders',
-        'COALESCE(SUM(o.total_amount), 0) AS revenue',
         `COUNT(CASE WHEN o.thank_you_offer_accepted = true THEN 1 END) AS upsell_accepted`,
         `COUNT(CASE WHEN LOWER(o.status::text) = 'delivered' THEN 1 END) AS delivered_orders`,
         `COUNT(CASE WHEN LOWER(o.status::text) IN ('cancelled', 'admin_cancelled', 'returned') THEN 1 END) AS cancelled_orders`,
@@ -2363,29 +2443,35 @@ export class SalesService {
       .orderBy('orders', 'DESC')
       .getRawMany();
 
-    // 5) Traffic source breakdown
-    const trafficRaw = await buildBase()
+    const perPageCrossSellRaw = await buildCrossSellBase()
       .select([
-        `COALESCE(o.traffic_source, 'direct') AS source`,
-        'COUNT(o.id) AS orders',
-        'COALESCE(SUM(o.total_amount), 0) AS revenue',
+        `COALESCE(o.utm_source, 'unknown') AS slug`,
+        'COALESCE(SUM(oi.quantity), 0) AS cross_sell_qty',
+        'COUNT(DISTINCT oi.order_id) AS cross_sell_orders',
       ])
-      .groupBy('source')
-      .orderBy('orders', 'DESC')
+      .groupBy('slug')
       .getRawMany();
 
-    // 6) Status breakdown
+    const perPageCheckoutCrossSellRaw = await buildCheckoutCrossSellBase()
+      .select([
+        `COALESCE(o.utm_source, 'unknown') AS slug`,
+        'COALESCE(SUM(soi.quantity), 0) AS cross_sell_qty',
+        'COUNT(DISTINCT o.id) AS cross_sell_orders',
+      ])
+      .groupBy('slug')
+      .getRawMany();
+
+    // 5) Status breakdown
     const statusRaw = await buildBase()
       .select([
         `COALESCE(o.status, 'unknown') AS status`,
         'COUNT(o.id) AS orders',
-        'COALESCE(SUM(o.total_amount), 0) AS revenue',
       ])
       .groupBy('status')
       .orderBy('orders', 'DESC')
       .getRawMany();
 
-    // 7) Product-wise breakdown from order items
+    // 6) Product-wise breakdown from checkout order items
     const productRaw = await this.orderItemsRepository
       .createQueryBuilder('soi')
       .innerJoin('soi.salesOrder', 'o')
@@ -2394,7 +2480,6 @@ export class SalesService {
         'soi.product_name AS product_name',
         'COUNT(DISTINCT o.id) AS total_orders',
         'SUM(soi.quantity) AS total_qty',
-        'SUM(soi.line_total) AS total_revenue',
       ])
       .where("o.order_source = 'landing_page'")
       .andWhere(`DATE(o.created_at AT TIME ZONE '${this.dhakaTimeZone}') >= :startDate`, { startDate })
@@ -2405,8 +2490,60 @@ export class SalesService {
       .orderBy('total_orders', 'DESC')
       .getRawMany();
 
+    // 7) Cross-sell product breakdown from managed order items
+    const crossSellProductRaw = await buildCrossSellBase()
+      .select([
+        'oi.product_id AS product_id',
+        'oi.product_name AS product_name',
+        'COUNT(DISTINCT o.id) AS total_orders',
+        'SUM(oi.quantity) AS total_qty',
+      ])
+      .groupBy('oi.product_id')
+      .addGroupBy('oi.product_name')
+      .orderBy('total_qty', 'DESC')
+      .getRawMany();
+
+    const checkoutCrossSellProductRaw = await buildCheckoutCrossSellBase()
+      .select([
+        'soi.product_id AS product_id',
+        'soi.product_name AS product_name',
+        'COUNT(DISTINCT o.id) AS total_orders',
+        'SUM(soi.quantity) AS total_qty',
+      ])
+      .groupBy('soi.product_id')
+      .addGroupBy('soi.product_name')
+      .orderBy('total_qty', 'DESC')
+      .getRawMany();
+
     const totalOrders = toNum(summaryRaw?.total_orders);
     const upsellAccepted = toNum(summaryRaw?.upsell_accepted);
+    const crossSellQty = toNum(crossSellSummaryRaw?.cross_sell_qty) + toNum(checkoutCrossSellSummaryRaw?.cross_sell_qty);
+    const crossSellOrders = toNum(crossSellSummaryRaw?.cross_sell_orders) + toNum(checkoutCrossSellSummaryRaw?.cross_sell_orders);
+    const mergeCrossSellRows = (rows: any[], keyFn: (r: any) => string | number) => {
+      const map = new Map<string | number, { cross_sell_qty: number; cross_sell_orders: number }>();
+      for (const r of rows) {
+        const key = keyFn(r);
+        const current = map.get(key) || { cross_sell_qty: 0, cross_sell_orders: 0 };
+        current.cross_sell_qty += toNum(r.cross_sell_qty);
+        current.cross_sell_orders += toNum(r.cross_sell_orders);
+        map.set(key, current);
+      }
+      return map;
+    };
+    const dateKey = (value: any) => value instanceof Date ? value.toISOString().slice(0, 10) : String(value).slice(0, 10);
+    const crossSellByHour = mergeCrossSellRows([...hourlyCrossSellRaw, ...hourlyCheckoutCrossSellRaw], (r) => toNum(r.hour));
+    const crossSellByDate = mergeCrossSellRows([...dailyCrossSellRaw, ...dailyCheckoutCrossSellRaw], (r) => dateKey(r.date));
+    const crossSellBySlug = mergeCrossSellRows([...perPageCrossSellRaw, ...perPageCheckoutCrossSellRaw], (r) => String(r.slug));
+    const crossSellProductMap = new Map<string, { productId: number; productName: string; totalOrders: number; totalQty: number }>();
+    for (const r of [...crossSellProductRaw, ...checkoutCrossSellProductRaw]) {
+      const productId = toNum(r.product_id);
+      const productName = r.product_name || 'Unknown';
+      const key = `${productId}:${productName}`;
+      const current = crossSellProductMap.get(key) || { productId, productName, totalOrders: 0, totalQty: 0 };
+      current.totalOrders += toNum(r.total_orders);
+      current.totalQty += toNum(r.total_qty);
+      crossSellProductMap.set(key, current);
+    }
 
     return {
       startDate,
@@ -2414,64 +2551,67 @@ export class SalesService {
       slug: params.slug || null,
       summary: {
         totalOrders,
-        totalRevenue: toNum(summaryRaw?.total_revenue),
-        avgOrderValue: toNum(summaryRaw?.avg_order_value),
         upsellAccepted,
         upsellRate: totalOrders > 0 ? Math.round((upsellAccepted / totalOrders) * 100) : 0,
+        crossSellQty,
+        crossSellOrders,
         pendingOrders: toNum(summaryRaw?.pending_orders),
         approvedOrders: toNum(summaryRaw?.approved_orders),
         shippedOrders: toNum(summaryRaw?.shipped_orders),
         deliveredOrders: toNum(summaryRaw?.delivered_orders),
         cancelledOrders: toNum(summaryRaw?.cancelled_orders),
-        uniqueCustomers: toNum(summaryRaw?.unique_customers),
       },
       hourly: Array.from({ length: 24 }, (_, i) => {
         const found = hourlyRaw.find((r: any) => toNum(r.hour) === i);
+        const crossSell = crossSellByHour.get(i);
         return {
           hour: i,
           label: `${i.toString().padStart(2, '0')}:00`,
           orders: toNum(found?.orders),
-          revenue: toNum(found?.revenue),
           upsellAccepted: toNum(found?.upsell_accepted),
+          crossSellQty: toNum(crossSell?.cross_sell_qty),
+          crossSellOrders: toNum(crossSell?.cross_sell_orders),
         };
       }),
-      daily: dailyRaw.map((r: any) => ({
-        date: r.date instanceof Date ? r.date.toISOString().slice(0, 10) : String(r.date).slice(0, 10),
-        orders: toNum(r.orders),
-        revenue: toNum(r.revenue),
-        upsellAccepted: toNum(r.upsell_accepted),
-      })),
+      daily: dailyRaw.map((r: any) => {
+        const date = r.date instanceof Date ? r.date.toISOString().slice(0, 10) : String(r.date).slice(0, 10);
+        const crossSell = crossSellByDate.get(date);
+        return {
+          date,
+          orders: toNum(r.orders),
+          upsellAccepted: toNum(r.upsell_accepted),
+          crossSellQty: toNum(crossSell?.cross_sell_qty),
+          crossSellOrders: toNum(crossSell?.cross_sell_orders),
+        };
+      }),
       perPage: perPageRaw.map((r: any) => {
         const ord = toNum(r.orders);
         const ups = toNum(r.upsell_accepted);
+        const crossSell = crossSellBySlug.get(String(r.slug));
         return {
           slug: r.slug,
           title: r.title,
           orders: ord,
-          revenue: toNum(r.revenue),
           upsellAccepted: ups,
           upsellRate: ord > 0 ? Math.round((ups / ord) * 100) : 0,
+          crossSellQty: toNum(crossSell?.cross_sell_qty),
+          crossSellOrders: toNum(crossSell?.cross_sell_orders),
           deliveredOrders: toNum(r.delivered_orders),
           cancelledOrders: toNum(r.cancelled_orders),
         };
       }),
-      trafficSources: trafficRaw.map((r: any) => ({
-        source: r.source,
-        orders: toNum(r.orders),
-        revenue: toNum(r.revenue),
-      })),
       statusBreakdown: statusRaw.map((r: any) => ({
         status: r.status,
         orders: toNum(r.orders),
-        revenue: toNum(r.revenue),
       })),
       products: productRaw.map((r: any) => ({
         productId: toNum(r.product_id),
         productName: r.product_name || 'Unknown',
         totalOrders: toNum(r.total_orders),
         totalQty: toNum(r.total_qty),
-        totalRevenue: toNum(r.total_revenue),
       })),
+      crossSellProducts: Array.from(crossSellProductMap.values())
+        .sort((a, b) => b.totalQty - a.totalQty),
     };
   }
 }
