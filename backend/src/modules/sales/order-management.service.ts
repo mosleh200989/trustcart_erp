@@ -2752,9 +2752,6 @@ export class OrderManagementService {
     order.packedBy = userId;
     await this.salesOrderRepository.save(order);
 
-    // Auto-ship: if all 3 printing actions are done, move to shipped
-    await this.autoShipIfReady(order);
-
     await this.activityLogRepository.save(
       this.activityLogRepository.create({
         orderId,
@@ -2921,34 +2918,12 @@ export class OrderManagementService {
   // ==================== PRODUCT NAMES (for filter dropdowns) ====================
 
   async getDistinctProductNames(): Promise<{ name_en: string; name_bn: string | null }[]> {
-    // Fetch distinct product names (with Bengali) from both item tables via products join
-    const [oiRows, soiRows] = await Promise.all([
-      this.orderItemRepository.query(`
-        SELECT DISTINCT oi.product_name AS name_en, p.name_bn AS name_bn
-        FROM order_items oi
-        LEFT JOIN products p ON p.id = oi.product_id
-        WHERE oi.product_name IS NOT NULL AND oi.product_name != ''
-      `),
-      this.salesOrderItemRepository.query(`
-        SELECT DISTINCT soi.product_name AS name_en, p.name_bn AS name_bn
-        FROM sales_order_items soi
-        LEFT JOIN products p ON p.id = soi.product_id
-        WHERE soi.product_name IS NOT NULL AND soi.product_name != ''
-      `),
-    ]);
-
-    const seen = new Map<string, string | null>();
-    for (const row of [...oiRows, ...soiRows]) {
-      const en = (row.name_en || '').trim();
-      if (!en) continue;
-      if (!seen.has(en)) {
-        seen.set(en, row.name_bn ? row.name_bn.trim() : null);
-      }
-    }
-
-    return Array.from(seen.entries())
-      .map(([name_en, name_bn]) => ({ name_en, name_bn }))
-      .sort((a, b) => a.name_en.localeCompare(b.name_en));
+    return this.orderItemRepository.query(`
+      SELECT DISTINCT p.id, p.name_en, p.name_bn
+      FROM products p
+      WHERE p.name_en IS NOT NULL AND TRIM(p.name_en) != ''
+      ORDER BY p.name_en ASC
+    `);
   }
 
   // ==================== PRINTING MODULE ====================
@@ -3021,13 +2996,23 @@ export class OrderManagementService {
       const pName = `%${params.productName.trim().toLowerCase()}%`;
       qb.andWhere(
         `(o.id IN (
-          SELECT oi.order_id FROM order_items oi WHERE oi.product_name ILIKE :pName
+          SELECT oi.order_id
+          FROM order_items oi
+          LEFT JOIN products p ON p.id = oi.product_id
+          WHERE (
+            p.id IS NOT NULL AND (p.name_en ILIKE :pName OR p.name_bn ILIKE :pName OR p.sku ILIKE :pName)
+          ) OR (
+            p.id IS NULL AND oi.product_name ILIKE :pName
+          )
           UNION
-          SELECT oi2.order_id FROM order_items oi2 JOIN products p ON p.id = oi2.product_id WHERE p.name_en ILIKE :pName OR p.name_bn ILIKE :pName
-          UNION
-          SELECT soi.sales_order_id FROM sales_order_items soi WHERE soi.product_name ILIKE :pName
-          UNION
-          SELECT soi2.sales_order_id FROM sales_order_items soi2 JOIN products p2 ON p2.id = soi2.product_id WHERE p2.name_en ILIKE :pName OR p2.name_bn ILIKE :pName
+          SELECT soi.sales_order_id
+          FROM sales_order_items soi
+          LEFT JOIN products p2 ON p2.id = soi.product_id
+          WHERE (
+            p2.id IS NOT NULL AND (p2.name_en ILIKE :pName OR p2.name_bn ILIKE :pName OR p2.sku ILIKE :pName)
+          ) OR (
+            p2.id IS NULL AND soi.product_name ILIKE :pName
+          )
         ))`,
         { pName },
       );
@@ -3221,9 +3206,6 @@ export class OrderManagementService {
     (order as any).invoicePrintedAt = new Date();
     await this.salesOrderRepository.save(order);
 
-    // Auto-ship: if all 3 printing actions are done, move to shipped
-    await this.autoShipIfReady(order);
-
     if (userId) {
       await this.activityLogRepository.save(
         this.activityLogRepository.create({
@@ -3249,7 +3231,7 @@ export class OrderManagementService {
     (order as any).stickerPrintedAt = new Date();
     await this.salesOrderRepository.save(order);
 
-    // Auto-ship: if all 3 printing actions are done, move to shipped
+    // Once the sticker is printed, courier webhook/polling status can be applied.
     await this.autoShipIfReady(order);
 
     if (userId) {
@@ -3299,8 +3281,8 @@ export class OrderManagementService {
   }
 
   /**
-   * Auto-transition: After sticker print is done,
-   * sync order status with the latest courier status from Steadfast.
+   * Auto-transition: after sticker print is done, sync the order status with
+   * the latest courier status. Packed status is intentionally not part of this gate.
    */
   private async autoShipIfReady(order: SalesOrder) {
     const stickerPrinted = (order as any).stickerPrinted === true;

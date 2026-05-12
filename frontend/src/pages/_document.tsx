@@ -42,7 +42,7 @@ export default function Document() {
               var routeSlug=pathname.indexOf('/lp/')===0?pathname.split('/').filter(Boolean).pop():null;
               var querySlug=params.get('landing_page')||params.get('landing_page_intl')||params.get('cartflows_step');
               var isArabianKhaltaSurface=hostname==='arabiankhalta.com'||hostname==='www.arabiankhalta.com'||pathname==='/arabiankhalta'||routeSlug==='arabiankhalta'||querySlug==='arabiankhalta';
-              var isHerbolinPixelSurface=hostname==='herbolin.com'||hostname==='www.herbolin.com'||routeSlug==='Harbora-kosthogut'||querySlug==='Harbora-kosthogut';
+              var isHerbolinPixelSurface=!isArabianKhaltaSurface&&(hostname==='herbolin.com'||hostname==='www.herbolin.com'||routeSlug==='Harbora-kosthogut'||querySlug==='Harbora-kosthogut');
               var containerId=isArabianKhaltaSurface?arabianId:(isHerbolinPixelSurface?herbolinId:mainId);
               if(!containerId)return;
               w[l]=w[l]||[];w[l].push({'gtm.start':
@@ -62,7 +62,8 @@ export default function Document() {
               var params=new URLSearchParams(window.location.search);
               var routeSlug=p.indexOf('/lp/')===0?p.split('/').filter(Boolean).pop():null;
               var querySlug=params.get('landing_page')||params.get('landing_page_intl')||params.get('cartflows_step');
-              var useHerbolin=h==='herbolin.com'||h==='www.herbolin.com'||routeSlug==='Harbora-kosthogut'||querySlug==='Harbora-kosthogut';
+              var isArabianKhalta=h==='arabiankhalta.com'||h==='www.arabiankhalta.com'||p==='/arabiankhalta'||routeSlug==='arabiankhalta'||querySlug==='arabiankhalta';
+              var useHerbolin=!isArabianKhalta&&(h==='herbolin.com'||h==='www.herbolin.com'||routeSlug==='Harbora-kosthogut'||querySlug==='Harbora-kosthogut');
               var id=useHerbolin?'wip0d992cu':'ve56op0b59';
               (function(c,l,a,r,i,t,y){
                 c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
@@ -110,7 +111,7 @@ export default function Document() {
               var routeSlug = p.indexOf('/lp/') === 0 ? p.split('/').filter(Boolean).pop() : null;
               var querySlug = params.get('landing_page') || params.get('landing_page_intl') || params.get('cartflows_step');
               var useArabianKhalta = h === 'arabiankhalta.com' || h === 'www.arabiankhalta.com' || p === '/arabiankhalta' || routeSlug === 'arabiankhalta' || querySlug === 'arabiankhalta';
-              var useHerbolin = h === 'herbolin.com' || h === 'www.herbolin.com' || routeSlug === 'Harbora-kosthogut' || querySlug === 'Harbora-kosthogut';
+              var useHerbolin = !useArabianKhalta && (h === 'herbolin.com' || h === 'www.herbolin.com' || routeSlug === 'Harbora-kosthogut' || querySlug === 'Harbora-kosthogut');
               if (useArabianKhalta && '${ARABIAN_KHALTA_PIXEL_ID}') {
                 if (window.fbq) fbq('trackSingle', '${ARABIAN_KHALTA_PIXEL_ID}', 'AddToCart', { value: price, currency: 'BDT' });
               } else if (useHerbolin) {

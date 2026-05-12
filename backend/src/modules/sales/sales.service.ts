@@ -337,13 +337,23 @@ export class SalesService {
       const pName = `%${params.productName.trim().toLowerCase()}%`;
       qb.andWhere(
         `(o.id IN (
-          SELECT oi.order_id FROM order_items oi WHERE oi.product_name ILIKE :pName
+          SELECT oi.order_id
+          FROM order_items oi
+          LEFT JOIN products p ON p.id = oi.product_id
+          WHERE (
+            p.id IS NOT NULL AND (p.name_en ILIKE :pName OR p.name_bn ILIKE :pName OR p.sku ILIKE :pName)
+          ) OR (
+            p.id IS NULL AND oi.product_name ILIKE :pName
+          )
           UNION
-          SELECT oi2.order_id FROM order_items oi2 JOIN products p ON p.id = oi2.product_id WHERE p.name_en ILIKE :pName OR p.name_bn ILIKE :pName
-          UNION
-          SELECT soi.sales_order_id FROM sales_order_items soi WHERE soi.product_name ILIKE :pName
-          UNION
-          SELECT soi2.sales_order_id FROM sales_order_items soi2 JOIN products p2 ON p2.id = soi2.product_id WHERE p2.name_en ILIKE :pName OR p2.name_bn ILIKE :pName
+          SELECT soi.sales_order_id
+          FROM sales_order_items soi
+          LEFT JOIN products p2 ON p2.id = soi.product_id
+          WHERE (
+            p2.id IS NOT NULL AND (p2.name_en ILIKE :pName OR p2.name_bn ILIKE :pName OR p2.sku ILIKE :pName)
+          ) OR (
+            p2.id IS NULL AND soi.product_name ILIKE :pName
+          )
         ))`,
         { pName },
       );

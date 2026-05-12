@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import apiClient from '@/services/api';
 
 interface ProductOption {
+  id?: number;
   name_en: string;
   name_bn: string | null;
 }
@@ -156,7 +157,7 @@ export default function ProductAutocomplete({ value, onChange, className }: Prod
         >
           {filteredProducts.map((product, idx) => (
             <li
-              key={product.name_en}
+              key={product.id || product.name_en}
               onClick={() => selectProduct(product)}
               onMouseEnter={() => setHighlightIndex(idx)}
               className={`px-3 py-2 text-sm cursor-pointer ${
