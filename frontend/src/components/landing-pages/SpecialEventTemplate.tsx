@@ -63,6 +63,7 @@ interface LandingPageProduct {
   qty?: number;
   product_id?: number;
   is_default: boolean;
+  allow_quantity_selector?: boolean;
   is_featured?: boolean;
   featured_label?: string;
 }
@@ -319,7 +320,7 @@ export default function SpecialEventTemplate({
   const updateQuantity = (productId: string, delta: number) => {
     setOrderItems((prev) =>
       prev.map((item) =>
-        item.product.id === productId ? { ...item, quantity: Math.max(1, item.quantity + delta) } : item,
+        item.product.id === productId && item.product.allow_quantity_selector !== false ? { ...item, quantity: Math.max(1, item.quantity + delta) } : item,
       ),
     );
   };
@@ -1429,7 +1430,7 @@ export default function SpecialEventTemplate({
                                     </div>
                                   </div>
                                 </div>
-                                {isSelected && (
+                                {isSelected && product.allow_quantity_selector !== false && (
                                   <div className="flex items-center justify-center gap-4 mt-3 pt-3 border-t border-white/10"
                                     onClick={(e) => e.stopPropagation()}
                                   >

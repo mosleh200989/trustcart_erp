@@ -57,6 +57,7 @@ interface LandingPageProduct {
   qty?: number;
   product_id?: number;
   is_default: boolean;
+  allow_quantity_selector?: boolean;
   is_featured?: boolean;
   featured_label?: string;
 }
@@ -358,7 +359,7 @@ export default function GheeTemplate({
   const updateQuantity = (productId: string, delta: number) => {
     setOrderItems((prev) =>
       prev.map((item) =>
-        item.product.id === productId ? { ...item, quantity: Math.max(1, item.quantity + delta) } : item,
+        item.product.id === productId && item.product.allow_quantity_selector !== false ? { ...item, quantity: Math.max(1, item.quantity + delta) } : item,
       ),
     );
   };
@@ -1163,7 +1164,7 @@ export default function GheeTemplate({
                               }
                               onClick={() => toggleProduct(product)}
                             >
-                              {isSelected && (
+                                {isSelected && (
                                 <div
                                   className="absolute left-0 top-2 bottom-2 w-1.5 rounded-r-full"
                                   style={{ backgroundColor: page.primary_color }}
@@ -1224,7 +1225,7 @@ export default function GheeTemplate({
                                       </span>
                                     )}
                                   </div>
-                                  {isSelected && (
+                                  {isSelected && product.allow_quantity_selector !== false && (
                                     <div
                                       className="flex items-center gap-3 mt-2.5"
                                       onClick={(e) => e.stopPropagation()}

@@ -33,6 +33,7 @@ export interface LandingPageProduct {
   sku?: string;
   product_id?: number; // link to actual product
   is_default: boolean;
+  allow_quantity_selector?: boolean;
 }
 
 export interface CrossSellProduct {
