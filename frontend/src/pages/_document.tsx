@@ -9,6 +9,8 @@ declare global {
   interface Window {
     fbq: any;
     _fbq: any;
+    __landingPagePixelsInitialized?: Record<string, boolean>;
+    __arabianKhaltaPixelPageViewTracked?: boolean;
   }
 }
 
@@ -74,9 +76,19 @@ export default function Document({ isArabianKhaltaSurface }: TrustCartDocumentPr
                 var a=Array.prototype.slice.call(args||[]);
                 var command=a[0];
                 var pixelId=null;
-                if(command==='init')pixelId=a[1];
-                if(command==='trackSingle'||command==='trackSingleCustom')pixelId=a[1];
-                return pixelId&&String(pixelId)!==ARABIAN_KHALTA_PIXEL_ID;
+              if(command==='init')pixelId=a[1];
+              if(command==='trackSingle'||command==='trackSingleCustom')pixelId=a[1];
+              return pixelId&&String(pixelId)!==ARABIAN_KHALTA_PIXEL_ID;
+              }
+              function shouldBlockSrc(src){
+                if(!src||src.indexOf('facebook.com/tr')===-1)return false;
+                var match=src.match(/[?&]id=([^&]+)/);
+                return match&&decodeURIComponent(match[1])!==ARABIAN_KHALTA_PIXEL_ID;
+              }
+              function shouldBlockNode(node){
+                var src='';
+                try{src=node&&(node.src||(node.getAttribute&&node.getAttribute('src')))||'';}catch(e){}
+                return shouldBlockSrc(src);
               }
               function wrapFbq(fn){
                 if(!fn||fn.__tcArabianPixelGuard)return fn;
@@ -99,49 +111,71 @@ export default function Document({ isArabianKhaltaSurface }: TrustCartDocumentPr
               }catch(e){
                 if(w.fbq)w.fbq=wrapFbq(w.fbq);
               }
+              try{
+                var appendChild=Node.prototype.appendChild;
+                var insertBefore=Node.prototype.insertBefore;
+                Node.prototype.appendChild=function(node){
+                  if(shouldBlockNode(node))return node;
+                  return appendChild.apply(this,arguments);
+                };
+                Node.prototype.insertBefore=function(node,ref){
+                  if(shouldBlockNode(node))return node;
+                  return insertBefore.apply(this,arguments);
+                };
+              }catch(e){}
+              try{
+                var srcDescriptor=Object.getOwnPropertyDescriptor(HTMLImageElement.prototype,'src');
+                if(srcDescriptor&&srcDescriptor.set&&srcDescriptor.get){
+                  Object.defineProperty(HTMLImageElement.prototype,'src',{
+                    configurable:true,
+                    get:function(){return srcDescriptor.get.call(this);},
+                    set:function(value){
+                      if(shouldBlockSrc(String(value||'')))return;
+                      return srcDescriptor.set.call(this,value);
+                    }
+                  });
+                }
+              }catch(e){}
             })(window);`,
           }}
         />
-        {/* Google Tag Manager */}
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `(function(w,d,s,l,mainId,herbolinId){var hostname=w.location.hostname;
-              var pathname=w.location.pathname.replace(/\\/$/,'')||'/';
-              var params=new URLSearchParams(w.location.search);
-              var routeSlug=pathname.indexOf('/lp/')===0?pathname.split('/').filter(Boolean).pop():null;
-              var querySlug=params.get('landing_page')||params.get('landing_page_intl')||params.get('cartflows_step');
-              var isArabianKhaltaSurface=hostname==='arabiankhalta.com'||hostname==='www.arabiankhalta.com'||pathname==='/arabiankhalta'||routeSlug==='arabiankhalta'||querySlug==='arabiankhalta';
-              if(isArabianKhaltaSurface)return;
-              var isHerbolinPixelSurface=!isArabianKhaltaSurface&&(hostname==='herbolin.com'||hostname==='www.herbolin.com'||routeSlug==='Harbora-kosthogut'||querySlug==='Harbora-kosthogut');
-              var containerId=isHerbolinPixelSurface?herbolinId:mainId;
-              if(!containerId)return;
-              w[l]=w[l]||[];w[l].push({'gtm.start':
-              new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
-              j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
-              'https://www.googletagmanager.com/gtm.js?id='+containerId+dl;f.parentNode.insertBefore(j,f);
-              })(window,document,'script','dataLayer','${MAIN_TRUSTCART_GTM_ID}','${HERBOLIN_GTM_ID}');`,
-          }}
-        />
-        {/* End Google Tag Manager */}
-        {/* Google Tag Manager - Arabian Khalta only */}
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `(function(w,d,s,l,i){
-              var h=w.location.hostname;
-              var p=w.location.pathname.replace(/\\/$/,'')||'/';
-              var params=new URLSearchParams(w.location.search);
-              var routeSlug=p.indexOf('/lp/')===0?p.split('/').filter(Boolean).pop():null;
-              var querySlug=params.get('landing_page')||params.get('landing_page_intl')||params.get('cartflows_step');
-              var isArabianKhaltaSurface=h==='arabiankhalta.com'||h==='www.arabiankhalta.com'||p==='/arabiankhalta'||routeSlug==='arabiankhalta'||querySlug==='arabiankhalta';
-              if(!isArabianKhaltaSurface)return;
-              w[l]=w[l]||[];w[l].push({'gtm.start':
-              new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
-              j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
-              'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
-              })(window,document,'script','dataLayer','${ARABIAN_KHALTA_GTM_ID}');`,
-          }}
-        />
-        {/* End Google Tag Manager - Arabian Khalta only */}
+        {isArabianKhaltaSurface ? (
+          <>
+            {/* Google Tag Manager - Arabian Khalta only */}
+            <script
+              dangerouslySetInnerHTML={{
+                __html: `(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+                  new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+                  j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+                  'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+                  })(window,document,'script','dataLayer','${ARABIAN_KHALTA_GTM_ID}');`,
+              }}
+            />
+            {/* End Google Tag Manager - Arabian Khalta only */}
+          </>
+        ) : (
+          <>
+            {/* Google Tag Manager */}
+            <script
+              dangerouslySetInnerHTML={{
+                __html: `(function(w,d,s,l,mainId,herbolinId){var hostname=w.location.hostname;
+                  var pathname=w.location.pathname.replace(/\\/$/,'')||'/';
+                  var params=new URLSearchParams(w.location.search);
+                  var routeSlug=pathname.indexOf('/lp/')===0?pathname.split('/').filter(Boolean).pop():null;
+                  var querySlug=params.get('landing_page')||params.get('landing_page_intl')||params.get('cartflows_step');
+                  var isHerbolinPixelSurface=hostname==='herbolin.com'||hostname==='www.herbolin.com'||routeSlug==='Harbora-kosthogut'||querySlug==='Harbora-kosthogut';
+                  var containerId=isHerbolinPixelSurface?herbolinId:mainId;
+                  if(!containerId)return;
+                  w[l]=w[l]||[];w[l].push({'gtm.start':
+                  new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+                  j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+                  'https://www.googletagmanager.com/gtm.js?id='+containerId+dl;f.parentNode.insertBefore(j,f);
+                  })(window,document,'script','dataLayer','${MAIN_TRUSTCART_GTM_ID}','${HERBOLIN_GTM_ID}');`,
+              }}
+            />
+            {/* End Google Tag Manager */}
+          </>
+        )}
         {/* Microsoft Clarity - TrustCart/Arabian Khalta = ve56op0b59, Herbolin = wip0d992cu */}
         <script
           dangerouslySetInnerHTML={{
@@ -174,7 +208,7 @@ export default function Document({ isArabianKhaltaSurface }: TrustCartDocumentPr
           }}
         />
         {/* End Google Analytics */}
-        {/* Meta (Facebook) Pixel - Managed by host-specific GTM container */}
+        {/* Meta (Facebook) Pixel */}
         <script
           dangerouslySetInnerHTML={{
             __html: `!function(f,b,e,v,n,t,s)
@@ -184,14 +218,23 @@ export default function Document({ isArabianKhaltaSurface }: TrustCartDocumentPr
               n.queue=[];t=b.createElement(e);t.async=!0;
               t.src=v;s=b.getElementsByTagName(e)[0];
               s.parentNode.insertBefore(t,s)}(window, document,'script',
-              'https://connect.facebook.net/en_US/fbevents.js');`,
+              'https://connect.facebook.net/en_US/fbevents.js');
+              ${isArabianKhaltaSurface ? `fbq('init', '${ARABIAN_KHALTA_PIXEL_ID}');
+              fbq('track', 'PageView');
+              window.__landingPagePixelsInitialized = window.__landingPagePixelsInitialized || {};
+              window.__landingPagePixelsInitialized['${ARABIAN_KHALTA_PIXEL_ID}'] = true;
+              window.__arabianKhaltaPixelPageViewTracked = true;` : ''}`,
           }}
         />
-        {/* End Meta Pixel - Now managed by host-specific GTM */}
+        {/* End Meta Pixel */}
         {/* Global AddToCart Tracker for Custom Landing Pages */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `function trackCart(){
+            __html: isArabianKhaltaSurface ? `function trackCart(){
+              var priceElement = document.getElementById('price');
+              var price = priceElement ? Number(priceElement.value) : 0;
+              if (window.fbq) fbq('trackSingle', '${ARABIAN_KHALTA_PIXEL_ID}', 'AddToCart', { value: price, currency: 'BDT' });
+            }` : `function trackCart(){
               var priceElement = document.getElementById('price');
               var price = priceElement ? Number(priceElement.value) : 0;
               var h = window.location.hostname;

@@ -13,6 +13,7 @@ let lastTrackedPageKey = '';
 declare global {
   interface Window {
     __landingPagePixelsInitialized?: Record<string, boolean>;
+    __arabianKhaltaPixelPageViewTracked?: boolean;
   }
 }
 
@@ -133,7 +134,15 @@ export function trackLandingPagePageView() {
   }
 
   initLandingPagePixel();
+  if (pixelId === ARABIAN_KHALTA_PIXEL_ID && window.__arabianKhaltaPixelPageViewTracked) {
+    lastTrackedPageKey = pageKey;
+    return;
+  }
+
   fbq('trackSingle', pixelId, 'PageView');
+  if (pixelId === ARABIAN_KHALTA_PIXEL_ID) {
+    window.__arabianKhaltaPixelPageViewTracked = true;
+  }
   lastTrackedPageKey = pageKey;
 }
 
