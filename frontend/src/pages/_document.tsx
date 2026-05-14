@@ -2,8 +2,8 @@ import NextDocument, { DocumentContext, DocumentInitialProps, Head, Html, Main, 
 
 const MAIN_TRUSTCART_GTM_ID = 'GTM-TSC7TFV6';
 const HERBOLIN_GTM_ID = 'GTM-PK5G5DWZ';
-const ARABIAN_KHALTA_GTM_ID = process.env.NEXT_PUBLIC_ARABIAN_KHALTA_GTM_ID || 'GTM-M3LZQX5X';
-const ARABIAN_KHALTA_PIXEL_ID = process.env.NEXT_PUBLIC_ARABIAN_KHALTA_PIXEL_ID || '2270570453772206';
+const ARABIAN_KHALTA_GTM_ID = 'GTM-M3LZQX5X';
+const ARABIAN_KHALTA_PIXEL_ID = '2270570453772206';
 
 declare global {
   interface Window {
@@ -55,11 +55,11 @@ export default function Document({ isArabianKhaltaSurface }: TrustCartDocumentPr
           rel="stylesheet"
           href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css"
         />
-        {/* Arabian Khalta must never initialize the Herbolin Meta pixel, even from GTM/cached scripts. */}
+        {/* Arabian Khalta must only initialize its own Meta pixel, even from GTM/cached scripts. */}
         <script
           dangerouslySetInnerHTML={{
             __html: `(function(w){
-              var HERBOLIN_PIXEL_ID='1433976858485362';
+              var ARABIAN_KHALTA_PIXEL_ID='${ARABIAN_KHALTA_PIXEL_ID}';
               function isArabianKhaltaSurface(){
                 var h=w.location.hostname;
                 var p=w.location.pathname.replace(/\\/$/,'')||'/';
@@ -69,11 +69,14 @@ export default function Document({ isArabianKhaltaSurface }: TrustCartDocumentPr
                 return h==='arabiankhalta.com'||h==='www.arabiankhalta.com'||p==='/arabiankhalta'||routeSlug==='arabiankhalta'||querySlug==='arabiankhalta';
               }
               if(!isArabianKhaltaSurface())return;
-              w.__blockedMetaPixelIds=w.__blockedMetaPixelIds||{};
-              w.__blockedMetaPixelIds[HERBOLIN_PIXEL_ID]=true;
+              w.__allowedMetaPixelId=ARABIAN_KHALTA_PIXEL_ID;
               function shouldBlock(args){
                 var a=Array.prototype.slice.call(args||[]);
-                return a.indexOf(HERBOLIN_PIXEL_ID)!==-1;
+                var command=a[0];
+                var pixelId=null;
+                if(command==='init')pixelId=a[1];
+                if(command==='trackSingle'||command==='trackSingleCustom')pixelId=a[1];
+                return pixelId&&String(pixelId)!==ARABIAN_KHALTA_PIXEL_ID;
               }
               function wrapFbq(fn){
                 if(!fn||fn.__tcArabianPixelGuard)return fn;
