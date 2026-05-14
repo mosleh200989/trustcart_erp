@@ -305,11 +305,7 @@ export default function Document({ isArabianKhaltaSurface }: TrustCartDocumentPr
         {/* Global AddToCart Tracker for Custom Landing Pages */}
         <script
           dangerouslySetInnerHTML={{
-            __html: isArabianKhaltaSurface ? `function trackCart(){
-              var priceElement = document.getElementById('price');
-              var price = priceElement ? Number(priceElement.value) : 0;
-              if (window.fbq) fbq('trackSingle', '${ARABIAN_KHALTA_PIXEL_ID}', 'AddToCart', { value: price, currency: 'BDT' });
-            }` : `function trackCart(){
+            __html: `function trackCart(){
               var priceElement = document.getElementById('price');
               var price = priceElement ? Number(priceElement.value) : 0;
               var h = window.location.hostname;
@@ -318,11 +314,8 @@ export default function Document({ isArabianKhaltaSurface }: TrustCartDocumentPr
               var routeSlug = p.indexOf('/lp/') === 0 ? p.split('/').filter(Boolean).pop() : null;
               var querySlug = params.get('landing_page') || params.get('landing_page_intl') || params.get('cartflows_step');
               var useArabianKhalta = h === 'arabiankhalta.com' || h === 'www.arabiankhalta.com' || p === '/arabiankhalta' || routeSlug === 'arabiankhalta' || querySlug === 'arabiankhalta';
-              var useHerbolin = !useArabianKhalta && (h === 'herbolin.com' || h === 'www.herbolin.com' || routeSlug === 'Harbora-kosthogut' || querySlug === 'Harbora-kosthogut');
-              if (useArabianKhalta && '${ARABIAN_KHALTA_PIXEL_ID}') {
+              if (useArabianKhalta) {
                 if (window.fbq) fbq('trackSingle', '${ARABIAN_KHALTA_PIXEL_ID}', 'AddToCart', { value: price, currency: 'BDT' });
-              } else if (useHerbolin) {
-                if (window.fbq) fbq('trackSingle', '1433976858485362', 'AddToCart', { value: price, currency: 'BDT' });
               } else {
                 if (window.fbq) fbq('track', 'AddToCart', { value: price, currency: 'BDT' });
               }

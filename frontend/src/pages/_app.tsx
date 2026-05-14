@@ -10,7 +10,6 @@ import AdminRouteGuard from '@/components/auth/AdminRouteGuard';
 import MobileBottomNav from '@/components/MobileBottomNav';
 import { isAuthPath, setAuthReturnPath } from '@/utils/authReturnPath';
 import { initDataLayer, trackPageView } from '@/utils/gtm';
-import { initLandingPagePixel, isLandingPagePixelSurface, trackLandingPagePageView } from '@/utils/herbolinPixel';
 import { initDhakaTimezoneDefaults } from '@/utils/dhakaDate';
 
 const queryClient = new QueryClient({
@@ -24,6 +23,28 @@ const queryClient = new QueryClient({
   },
 });
 
+function isLandingPagePixelUrl() {
+  if (typeof window === 'undefined') return false;
+
+  const hostname = window.location.hostname;
+  const pathname = window.location.pathname.replace(/\/$/, '') || '/';
+  const params = new URLSearchParams(window.location.search);
+  const routeSlug = pathname.startsWith('/lp/') ? pathname.split('/').filter(Boolean).pop() : null;
+  const querySlug = params.get('landing_page') || params.get('landing_page_intl') || params.get('cartflows_step');
+
+  return (
+    hostname === 'arabiankhalta.com' ||
+    hostname === 'www.arabiankhalta.com' ||
+    hostname === 'herbolin.com' ||
+    hostname === 'www.herbolin.com' ||
+    pathname === '/arabiankhalta' ||
+    routeSlug === 'arabiankhalta' ||
+    routeSlug === 'Harbora-kosthogut' ||
+    querySlug === 'arabiankhalta' ||
+    querySlug === 'Harbora-kosthogut'
+  );
+}
+
 /** Re-init FB Pixel with Advanced Matching when user logs in */
 function FacebookAdvancedMatching() {
   const { user } = useAuth();
@@ -31,7 +52,7 @@ function FacebookAdvancedMatching() {
   useEffect(() => {
     if (typeof window === 'undefined' || !window.fbq) return;
     if (!user) return;
-    if (isLandingPagePixelSurface()) return;
+    if (isLandingPagePixelUrl()) return;
 
     const userData: Record<string, string> = {};
     if (user.email) userData.em = user.email;
@@ -45,6 +66,15 @@ function FacebookAdvancedMatching() {
   return null;
 }
 
+function trackLandingPageViewIfNeeded() {
+  if (!isLandingPagePixelUrl()) return Promise.resolve();
+
+  return import('@/utils/herbolinPixel').then(({ initLandingPagePixel, trackLandingPagePageView }) => {
+    initLandingPagePixel();
+    trackLandingPagePageView();
+  });
+}
+
 export default function App({ Component, pageProps }: AppProps) {
   const router = useRouter();
 
@@ -53,18 +83,17 @@ export default function App({ Component, pageProps }: AppProps) {
     initDhakaTimezoneDefaults();
     // Initialize dataLayer on app load
     initDataLayer();
-    initLandingPagePixel();
     
     // Track initial page view
     trackPageView(window.location.pathname);
-    trackLandingPagePageView();
+    trackLandingPageViewIfNeeded();
   }, []);
 
   // Track route changes for SPA navigation
   useEffect(() => {
     const handleRouteChange = (url: string) => {
       trackPageView(url);
-      trackLandingPagePageView();
+      trackLandingPageViewIfNeeded();
       // GTM handles generic FB pixel pageviews - removed direct fbq call to prevent duplication
     };
 
