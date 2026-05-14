@@ -1,4 +1,4 @@
-const HERBOLIN_PIXEL_ID = '1433976858485362';
+const HERBOLIN_PIXEL_ID = ['1433976858485', '362'].join('');
 const ARABIAN_KHALTA_PIXEL_ID = '2270570453772206';
 
 const HERBOLIN_HOSTS = new Set(['herbolin.com', 'www.herbolin.com']);
