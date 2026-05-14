@@ -1,8 +1,8 @@
-import { Html, Head, Main, NextScript } from 'next/document';
+import NextDocument, { DocumentContext, DocumentInitialProps, Head, Html, Main, NextScript } from 'next/document';
 
 const MAIN_TRUSTCART_GTM_ID = 'GTM-TSC7TFV6';
 const HERBOLIN_GTM_ID = 'GTM-PK5G5DWZ';
-const ARABIAN_KHALTA_GTM_ID = process.env.NEXT_PUBLIC_ARABIAN_KHALTA_GTM_ID || '';
+const ARABIAN_KHALTA_GTM_ID = process.env.NEXT_PUBLIC_ARABIAN_KHALTA_GTM_ID || 'GTM-M3LZQX5X';
 const ARABIAN_KHALTA_PIXEL_ID = process.env.NEXT_PUBLIC_ARABIAN_KHALTA_PIXEL_ID || '2270570453772206';
 
 declare global {
@@ -12,7 +12,29 @@ declare global {
   }
 }
 
-export default function Document() {
+interface TrustCartDocumentProps extends DocumentInitialProps {
+  isArabianKhaltaSurface: boolean;
+}
+
+function isArabianKhaltaDocumentSurface(ctx: DocumentContext) {
+  const host = String(ctx.req?.headers.host || '').split(':')[0].toLowerCase();
+  const rawPath = ctx.asPath || ctx.pathname || '';
+  const [pathnamePart, queryPart = ''] = rawPath.split('?');
+  const pathname = pathnamePart.replace(/\/$/, '') || '/';
+  const params = new URLSearchParams(queryPart);
+  const routeSlug = pathname.indexOf('/lp/') === 0 ? pathname.split('/').filter(Boolean).pop() : null;
+  const querySlug = params.get('landing_page') || params.get('landing_page_intl') || params.get('cartflows_step');
+
+  return (
+    host === 'arabiankhalta.com' ||
+    host === 'www.arabiankhalta.com' ||
+    pathname === '/arabiankhalta' ||
+    routeSlug === 'arabiankhalta' ||
+    querySlug === 'arabiankhalta'
+  );
+}
+
+export default function Document({ isArabianKhaltaSurface }: TrustCartDocumentProps) {
   return (
     <Html lang="en">
       <Head>
@@ -168,6 +190,29 @@ export default function Document() {
         />
       </Head>
       <body>
+        {isArabianKhaltaSurface && (
+          <>
+            {/* Google Tag Manager (noscript) - Arabian Khalta only */}
+            <noscript>
+              <iframe
+                src={`https://www.googletagmanager.com/ns.html?id=${ARABIAN_KHALTA_GTM_ID}`}
+                height="0"
+                width="0"
+                style={{ display: 'none', visibility: 'hidden' }}
+              />
+            </noscript>
+            {/* Meta Pixel (noscript) - Arabian Khalta only */}
+            <noscript>
+              <img
+                height="1"
+                width="1"
+                style={{ display: 'none' }}
+                src={`https://www.facebook.com/tr?id=${ARABIAN_KHALTA_PIXEL_ID}&ev=PageView&noscript=1`}
+                alt=""
+              />
+            </noscript>
+          </>
+        )}
         <Main />
         <NextScript />
         {/* Bootstrap Bundle JS (includes Popper) */}
@@ -176,3 +221,12 @@ export default function Document() {
     </Html>
   );
 }
+
+Document.getInitialProps = async (ctx: DocumentContext): Promise<TrustCartDocumentProps> => {
+  const initialProps = await NextDocument.getInitialProps(ctx);
+
+  return {
+    ...initialProps,
+    isArabianKhaltaSurface: isArabianKhaltaDocumentSurface(ctx),
+  };
+};
