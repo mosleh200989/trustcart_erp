@@ -2,7 +2,7 @@ import NextDocument, { DocumentContext, DocumentInitialProps, Head, Html, Main, 
 
 const MAIN_TRUSTCART_GTM_ID = 'GTM-TSC7TFV6';
 const HERBOLIN_GTM_ID = 'GTM-PK5G5DWZ';
-const ARABIAN_KHALTA_GTM_ID = 'GTM-M3LZQX5X';
+const ARABIAN_KHALTA_GTM_ID = 'GTM-KVLD23CH';
 const ARABIAN_KHALTA_PIXEL_ID = '2270570453772206';
 
 declare global {
@@ -105,23 +105,43 @@ export default function Document({ isArabianKhaltaSurface }: TrustCartDocumentPr
         {/* Google Tag Manager */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(w,d,s,l,mainId,herbolinId,arabianId){var hostname=w.location.hostname;
+            __html: `(function(w,d,s,l,mainId,herbolinId){var hostname=w.location.hostname;
               var pathname=w.location.pathname.replace(/\\/$/,'')||'/';
               var params=new URLSearchParams(w.location.search);
               var routeSlug=pathname.indexOf('/lp/')===0?pathname.split('/').filter(Boolean).pop():null;
               var querySlug=params.get('landing_page')||params.get('landing_page_intl')||params.get('cartflows_step');
               var isArabianKhaltaSurface=hostname==='arabiankhalta.com'||hostname==='www.arabiankhalta.com'||pathname==='/arabiankhalta'||routeSlug==='arabiankhalta'||querySlug==='arabiankhalta';
+              if(isArabianKhaltaSurface)return;
               var isHerbolinPixelSurface=!isArabianKhaltaSurface&&(hostname==='herbolin.com'||hostname==='www.herbolin.com'||routeSlug==='Harbora-kosthogut'||querySlug==='Harbora-kosthogut');
-              var containerId=isArabianKhaltaSurface?arabianId:(isHerbolinPixelSurface?herbolinId:mainId);
+              var containerId=isHerbolinPixelSurface?herbolinId:mainId;
               if(!containerId)return;
               w[l]=w[l]||[];w[l].push({'gtm.start':
               new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
               j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
               'https://www.googletagmanager.com/gtm.js?id='+containerId+dl;f.parentNode.insertBefore(j,f);
-              })(window,document,'script','dataLayer','${MAIN_TRUSTCART_GTM_ID}','${HERBOLIN_GTM_ID}','${ARABIAN_KHALTA_GTM_ID}');`,
+              })(window,document,'script','dataLayer','${MAIN_TRUSTCART_GTM_ID}','${HERBOLIN_GTM_ID}');`,
           }}
         />
         {/* End Google Tag Manager */}
+        {/* Google Tag Manager - Arabian Khalta only */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(w,d,s,l,i){
+              var h=w.location.hostname;
+              var p=w.location.pathname.replace(/\\/$/,'')||'/';
+              var params=new URLSearchParams(w.location.search);
+              var routeSlug=p.indexOf('/lp/')===0?p.split('/').filter(Boolean).pop():null;
+              var querySlug=params.get('landing_page')||params.get('landing_page_intl')||params.get('cartflows_step');
+              var isArabianKhaltaSurface=h==='arabiankhalta.com'||h==='www.arabiankhalta.com'||p==='/arabiankhalta'||routeSlug==='arabiankhalta'||querySlug==='arabiankhalta';
+              if(!isArabianKhaltaSurface)return;
+              w[l]=w[l]||[];w[l].push({'gtm.start':
+              new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+              j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+              'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+              })(window,document,'script','dataLayer','${ARABIAN_KHALTA_GTM_ID}');`,
+          }}
+        />
+        {/* End Google Tag Manager - Arabian Khalta only */}
         {/* Microsoft Clarity - TrustCart/Arabian Khalta = ve56op0b59, Herbolin = wip0d992cu */}
         <script
           dangerouslySetInnerHTML={{
