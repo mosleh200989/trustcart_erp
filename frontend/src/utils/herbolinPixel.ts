@@ -1,5 +1,5 @@
 const HERBOLIN_PIXEL_ID = '1433976858485362';
-const ARABIAN_KHALTA_PIXEL_ID = process.env.NEXT_PUBLIC_ARABIAN_KHALTA_PIXEL_ID || '2270570453772206';
+const ARABIAN_KHALTA_PIXEL_ID = '2270570453772206';
 
 const HERBOLIN_HOSTS = new Set(['herbolin.com', 'www.herbolin.com']);
 const HERBOLIN_LANDING_PAGE_SLUGS = new Set(['Harbora-kosthogut']);
