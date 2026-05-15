@@ -418,6 +418,8 @@ export class OrderManagementController {
       courierNotes?: string;
       riderInstructions?: string;
       internalNotes?: string;
+      lateDeliveryNote?: string | null;
+      cancelledOrderNote?: string | null;
     },
     @Req() req: Request
   ) {

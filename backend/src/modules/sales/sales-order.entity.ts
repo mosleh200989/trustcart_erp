@@ -65,6 +65,12 @@ export class SalesOrder {
   @Column({ name: 'internal_notes', type: 'text', nullable: true })
   internalNotes: string;
 
+  @Column({ name: 'late_delivery_note', type: 'text', nullable: true })
+  lateDeliveryNote: string | null;
+
+  @Column({ name: 'cancelled_order_note', type: 'text', nullable: true })
+  cancelledOrderNote: string | null;
+
   @Column({ name: 'cancel_reason', type: 'varchar', length: 255, nullable: true })
   cancelReason: string;
 

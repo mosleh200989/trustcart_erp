@@ -97,6 +97,8 @@ export class SalesService {
       courier_notes: order.courierNotes,
       rider_instructions: order.riderInstructions,
       internal_notes: order.internalNotes,
+      late_delivery_note: order.lateDeliveryNote,
+      cancelled_order_note: order.cancelledOrderNote,
       cancel_reason: order.cancelReason,
       approved_by: order.approvedBy,
       approved_at: order.approvedAt,
@@ -674,7 +676,7 @@ export class SalesService {
   async findCancelledOrders() {
     const qb = this.salesRepository.createQueryBuilder('o');
     qb.where('LOWER(o.status::text) IN (:...cancelledStatuses)', {
-      cancelledStatuses: ['cancelled', 'admin_cancelled'],
+      cancelledStatuses: ['cancelled', 'returned'],
     })
       .orderBy('COALESCE(o.cancelled_at, o.updated_at, o.created_at)', 'DESC');
 
