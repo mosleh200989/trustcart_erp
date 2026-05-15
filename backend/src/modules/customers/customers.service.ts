@@ -158,8 +158,9 @@ export class CustomersService {
     tier?: string;
     agentId?: number | 'unassigned';
     teamLeaderId?: number | 'unassigned';
+    landingPageSlug?: string;
   }) {
-    const { page = 1, limit = 10, search, tier, agentId, teamLeaderId } = options;
+    const { page = 1, limit = 10, search, tier, agentId, teamLeaderId, landingPageSlug } = options;
     const skip = (page - 1) * limit;
 
     const qb = this.customersRepository.createQueryBuilder('c')
@@ -177,6 +178,7 @@ export class CustomersService {
         'c.city as city',
         'c.status as status',
         'c.is_active as "isActive"',
+        'c.source as source',
         'c.company_name as company',
         'c.lifecycle_stage as "lifecycleStage"',
         'c.assigned_to as "assignedTo"',
@@ -186,6 +188,34 @@ export class CustomersService {
         'COALESCE(SUM(so.total_amount), 0) as "totalSpent"',
         "TRIM(COALESCE(u.name, '') || ' ' || COALESCE(u.last_name, '')) as \"agentName\"",
         "TRIM(COALESCE(sup.name, '') || ' ' || COALESCE(sup.last_name, '')) as \"teamLeaderName\"",
+        `CASE
+          WHEN EXISTS (SELECT 1 FROM sales_orders so_seg WHERE so_seg.customer_id = c.id AND so_seg.sales_order_number LIKE 'SO-%')
+            AND EXISTS (SELECT 1 FROM sales_orders so_seg WHERE so_seg.customer_id = c.id AND so_seg.sales_order_number LIKE 'LEG-%') THEN 'mixed'
+          WHEN EXISTS (SELECT 1 FROM sales_orders so_seg WHERE so_seg.customer_id = c.id AND so_seg.sales_order_number LIKE 'LEG-%') THEN 'legacy'
+          WHEN EXISTS (SELECT 1 FROM sales_orders so_seg WHERE so_seg.customer_id = c.id AND so_seg.sales_order_number LIKE 'SO-%') THEN 'new'
+          ELSE 'unsegmented'
+        END as segment`,
+        `(SELECT so_latest.order_source FROM sales_orders so_latest WHERE so_latest.customer_id = c.id ORDER BY so_latest.created_at DESC LIMIT 1) as "sourceType"`,
+        `(SELECT COALESCE(
+            CASE
+              WHEN so_latest.order_source IN ('admin_panel', 'agent_dashboard') THEN TRIM(COALESCE(creator.name, '') || ' ' || COALESCE(creator.last_name, ''))
+              WHEN so_latest.order_source = 'landing_page' THEN COALESCE(lp.title, NULLIF(so_latest.utm_campaign, ''), NULLIF(so_latest.utm_source, ''))
+              ELSE NULLIF(so_latest.order_source, '')
+            END,
+            NULLIF(c.source, ''),
+            'Unknown'
+          )
+          FROM sales_orders so_latest
+          LEFT JOIN users creator ON creator.id = so_latest.created_by
+          LEFT JOIN landing_pages lp ON lp.slug = so_latest.utm_source
+          WHERE so_latest.customer_id = c.id
+          ORDER BY so_latest.created_at DESC
+          LIMIT 1) as "sourceLabel"`,
+        `(SELECT so_latest.utm_source
+          FROM sales_orders so_latest
+          WHERE so_latest.customer_id = c.id AND so_latest.order_source = 'landing_page'
+          ORDER BY so_latest.created_at DESC
+          LIMIT 1) as "landingPageSlug"`,
       ])
       .addSelect('(SELECT ct2.tier FROM customer_tiers ct2 WHERE ct2.customer_id = c.id LIMIT 1)', 'tier')
       .where('c.is_deleted = :deleted', { deleted: false })
@@ -217,6 +247,19 @@ export class CustomersService {
       qb.andWhere('c.assigned_supervisor_id = :teamLeaderId', { teamLeaderId });
     }
 
+    if (landingPageSlug) {
+      qb.andWhere(
+        `EXISTS (
+          SELECT 1
+          FROM sales_orders so_lp
+          WHERE so_lp.customer_id = c.id
+            AND so_lp.order_source = 'landing_page'
+            AND so_lp.utm_source = :landingPageSlug
+        )`,
+        { landingPageSlug },
+      );
+    }
+
     qb.orderBy('c.created_at', 'DESC');
 
     // Count query
@@ -239,6 +282,19 @@ export class CustomersService {
       countQb.andWhere('c.assigned_supervisor_id IS NULL');
     } else if (teamLeaderId) {
       countQb.andWhere('c.assigned_supervisor_id = :teamLeaderId', { teamLeaderId });
+    }
+
+    if (landingPageSlug) {
+      countQb.andWhere(
+        `EXISTS (
+          SELECT 1
+          FROM sales_orders so_lp
+          WHERE so_lp.customer_id = c.id
+            AND so_lp.order_source = 'landing_page'
+            AND so_lp.utm_source = :landingPageSlug
+        )`,
+        { landingPageSlug },
+      );
     }
 
     if (search) {
