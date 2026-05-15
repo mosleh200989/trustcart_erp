@@ -155,7 +155,7 @@ export default function LandingPageReportsPage() {
   const today = getDhakaDateString();
   const weekAgo = addDhakaDays(-6);
 
-  const [startDate, setStartDate] = useState(weekAgo);
+  const [startDate, setStartDate] = useState(today);
   const [endDate, setEndDate] = useState(today);
   const [selectedSlug, setSelectedSlug] = useState('Harbora-kosthogut');
   const [activeTab, setActiveTab] = useState<ActiveTab>('overview');
