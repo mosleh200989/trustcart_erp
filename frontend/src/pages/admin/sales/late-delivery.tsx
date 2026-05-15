@@ -28,6 +28,10 @@ interface SalesOrder {
   shipped_at?: string | null;
   deliveredAt?: string | null;
   delivered_at?: string | null;
+  cancelledAt?: string | null;
+  cancelled_at?: string | null;
+  updatedAt?: string | null;
+  updated_at?: string | null;
 
   courierCompany?: string | null;
   courier_company?: string | null;
@@ -78,6 +82,31 @@ const INITIAL_FILTERS = {
   shippedTo: '',
   status: '',
 };
+
+type SalesFollowupMode = 'late-delivery' | 'cancelled-orders';
+
+const MODE_CONFIG = {
+  'late-delivery': {
+    title: 'Late Delivery',
+    description: 'Orders shipped but not delivered within the SLA',
+    endpoint: '/sales/late-deliveries',
+    dateColumnLabel: 'Sent At',
+    dateFromLabel: 'Shipped From',
+    dateToLabel: 'Shipped To',
+    emptyLoadMessage: 'Failed to load late deliveries:',
+    dateField: (row: SalesOrder) => row.shippedAt ?? row.shipped_at ?? null,
+  },
+  'cancelled-orders': {
+    title: 'Cancelled Orders',
+    description: 'Cancelled and rejected sales orders that need follow-up notes',
+    endpoint: '/sales/cancelled-orders',
+    dateColumnLabel: 'Cancelled At',
+    dateFromLabel: 'Cancelled From',
+    dateToLabel: 'Cancelled To',
+    emptyLoadMessage: 'Failed to load cancelled orders:',
+    dateField: (row: SalesOrder) => row.cancelledAt ?? row.cancelled_at ?? row.updatedAt ?? row.updated_at ?? row.createdAt ?? row.created_at ?? row.order_date ?? row.orderDate ?? null,
+  },
+} as const;
 
 function formatDateTime(raw: any) {
   if (!raw) return { date: '-', time: '' };
@@ -134,7 +163,8 @@ function parseNoteMeta(fullNote: string | null | undefined): { date: string; age
   return { date: match[1].trim(), agent: match[2].trim() };
 }
 
-export default function AdminSalesLateDelivery() {
+export function SalesFollowupOrdersPage({ mode = 'late-delivery' }: { mode?: SalesFollowupMode }) {
+  const config = MODE_CONFIG[mode];
   const toast = useToast();
   const { user: authUser } = useAuth();
   const [orders, setOrders] = useState<SalesOrder[]>([]);
@@ -180,10 +210,10 @@ export default function AdminSalesLateDelivery() {
   const load = async () => {
     setLoading(true);
     try {
-      const res = await apiClient.get('/sales/late-deliveries');
+      const res = await apiClient.get(config.endpoint);
       setOrders(Array.isArray(res.data) ? res.data : []);
     } catch (e) {
-      console.error('Failed to load late deliveries:', e);
+      console.error(config.emptyLoadMessage, e);
       setOrders([]);
     } finally {
       setLoading(false);
@@ -280,7 +310,7 @@ export default function AdminSalesLateDelivery() {
       const customerName = o.customerName ?? o.customer_name ?? '';
       const customerPhone = o.customerPhone ?? o.customer_phone ?? '';
       const courierCompany = o.courierCompany ?? o.courier_company ?? '';
-      const shippedAt = o.shippedAt ?? o.shipped_at ?? null;
+      const relevantDate = config.dateField(o);
 
       // Always-visible search bar
       const sq = normalize(searchQuery);
@@ -307,11 +337,11 @@ export default function AdminSalesLateDelivery() {
 
       if (filters.status && normalize(o.status) !== normalize(filters.status)) return false;
       if (!includes(courierCompany, filters.courierCompany)) return false;
-      if (!inDateRange(shippedAt, filters.shippedFrom, filters.shippedTo)) return false;
+      if (!inDateRange(relevantDate, filters.shippedFrom, filters.shippedTo)) return false;
 
       return true;
     });
-  }, [orders, filters, searchQuery]);
+  }, [orders, filters, searchQuery, config]);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -379,11 +409,11 @@ export default function AdminSalesLateDelivery() {
     },
     {
       key: 'shippedAt',
-      label: 'Sent At',
+      label: config.dateColumnLabel,
       render: (_: any, row: SalesOrder) => {
-        const raw = row.shippedAt ?? row.shipped_at;
+        const raw = config.dateField(row);
         const { date, time } = formatDateTime(raw);
-        const days = getDaysSinceShipped(raw);
+        const days = mode === 'late-delivery' ? getDaysSinceShipped(raw) : null;
         return (
           <div>
             <div>{date}</div>
@@ -563,9 +593,9 @@ export default function AdminSalesLateDelivery() {
         {/* Header */}
         <div className="flex justify-between items-center mb-6">
           <div>
-            <h1 className="text-3xl font-bold text-gray-800">Late Delivery</h1>
+            <h1 className="text-3xl font-bold text-gray-800">{config.title}</h1>
             <p className="text-gray-600 mt-1">
-              Orders shipped but not delivered within the SLA
+              {config.description}
               {!loading && <span className="ml-2 text-sm font-medium text-gray-500">({filtered.length} order{filtered.length !== 1 ? 's' : ''})</span>}
             </p>
           </div>
@@ -663,8 +693,8 @@ export default function AdminSalesLateDelivery() {
                   onChange={handleFilterChange}
                   options={COURIER_COMPANY_OPTIONS}
                 />
-                <FormInput label="Shipped From" name="shippedFrom" type="date" value={filters.shippedFrom} onChange={handleFilterChange} />
-                <FormInput label="Shipped To" name="shippedTo" type="date" value={filters.shippedTo} onChange={handleFilterChange} />
+                <FormInput label={config.dateFromLabel} name="shippedFrom" type="date" value={filters.shippedFrom} onChange={handleFilterChange} />
+                <FormInput label={config.dateToLabel} name="shippedTo" type="date" value={filters.shippedTo} onChange={handleFilterChange} />
               </div>
             </div>
           </div>
@@ -705,4 +735,8 @@ export default function AdminSalesLateDelivery() {
       </div>
     </AdminLayout>
   );
+}
+
+export default function AdminSalesLateDelivery() {
+  return <SalesFollowupOrdersPage mode="late-delivery" />;
 }

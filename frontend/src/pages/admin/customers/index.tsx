@@ -18,7 +18,26 @@ interface Customer {
   city?: string;
   status: string;
   created_at: string;
+  createdAt?: string;
+  isActive?: boolean;
 }
+
+const normalizeCustomer = (customer: any): Customer => {
+  const status = customer?.status || (customer?.isActive === false ? 'inactive' : 'active');
+
+  return {
+    id: Number(customer?.id),
+    name: customer?.name || '',
+    email: customer?.email || '',
+    phone: customer?.phone || '',
+    address: customer?.address || '',
+    city: customer?.city || customer?.district || '',
+    status,
+    created_at: customer?.created_at || customer?.createdAt || '',
+    createdAt: customer?.createdAt,
+    isActive: customer?.isActive,
+  };
+};
 
 export default function AdminCustomers() {
   const toast = useToast();
@@ -52,8 +71,15 @@ export default function AdminCustomers() {
 
   const loadCustomers = async () => {
     try {
-      const response = await apiClient.get('/customers');
-      setCustomers(Array.isArray(response.data) ? response.data : []);
+      setLoading(true);
+      const response = await apiClient.get('/customers', { params: { limit: 500 } });
+      const rows = Array.isArray(response.data)
+        ? response.data
+        : Array.isArray(response.data?.items)
+          ? response.data.items
+          : [];
+
+      setCustomers(rows.map(normalizeCustomer).filter((customer: Customer) => Number.isFinite(customer.id)));
     } catch (error) {
       console.error('Failed to load customers:', error);
       setCustomers([]);
@@ -81,12 +107,12 @@ export default function AdminCustomers() {
     setModalMode('edit');
     setSelectedCustomer(customer);
     setFormData({
-      name: customer.name,
-      email: customer.email,
-      phone: customer.phone,
+      name: customer.name || '',
+      email: customer.email || '',
+      phone: customer.phone || '',
       address: customer.address || '',
       city: customer.city || '',
-      status: customer.status
+      status: customer.status || 'active'
     });
     setIsModalOpen(true);
   };
@@ -148,11 +174,11 @@ export default function AdminCustomers() {
     try {
       if (modalMode === 'add') {
         const response = await apiClient.post('/customers', formData);
-        setCustomers([...customers, response.data]);
+        setCustomers([...customers, normalizeCustomer(response.data)]);
         toast.success('Customer added successfully');
       } else if (modalMode === 'edit' && selectedCustomer) {
         const response = await apiClient.put(`/customers/${selectedCustomer.id}`, formData);
-        setCustomers(customers.map(c => c.id === selectedCustomer.id ? response.data : c));
+        setCustomers(customers.map(c => c.id === selectedCustomer.id ? normalizeCustomer(response.data) : c));
         toast.success('Customer updated successfully');
       }
       setIsModalOpen(false);
@@ -166,11 +192,14 @@ export default function AdminCustomers() {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const filteredCustomers = customers.filter(c =>
-    c.name?.toLowerCase().includes(search.toLowerCase()) ||
-    c.email?.toLowerCase().includes(search.toLowerCase()) ||
-    c.phone?.includes(search)
-  );
+  const filteredCustomers = customers.filter(c => {
+    const query = search.trim().toLowerCase();
+    if (!query) return true;
+
+    return [c.name, c.email, c.phone].some((value) =>
+      String(value || '').toLowerCase().includes(query)
+    );
+  });
 
   const totalPages = Math.ceil(filteredCustomers.length / itemsPerPage);
   const paginatedCustomers = filteredCustomers.slice(
@@ -189,9 +218,9 @@ export default function AdminCustomers() {
       label: 'Status',
       render: (value: string) => (
         <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
-          value === 'active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+          (value || 'active') === 'active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
         }`}>
-          {value}
+          {value || 'active'}
         </span>
       )
     }

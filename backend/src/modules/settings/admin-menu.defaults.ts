@@ -44,6 +44,12 @@ export const DEFAULT_ADMIN_MENU: AdminMenuSeedNode[] = [
         path: '/admin/sales/late-delivery',
         requiredPermissions: ['view-sales-orders'],
       },
+      {
+        title: 'Cancelled Orders',
+        icon: 'FaShoppingCart',
+        path: '/admin/sales/cancelled-orders',
+        requiredPermissions: ['view-sales-orders'],
+      },
     ],
   },
   {

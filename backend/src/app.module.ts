@@ -96,6 +96,7 @@ import { CommissionSettings } from './modules/crm/entities/commission-settings.e
 import { CommissionSlab } from './modules/crm/entities/commission-slab.entity';
 import { CommissionPaymentRequest } from './modules/crm/entities/commission-payment-request.entity';
 import { DashboardConfig } from './modules/crm/entities/dashboard-config.entity';
+import { CrmNotification } from './modules/crm/entities/crm-notification.entity';
 
 // Lead Management Entities
 import { CustomerTier } from './modules/lead-management/entities/customer-tier.entity';
@@ -269,7 +270,7 @@ import { GrnItem } from './modules/purchase/entities/grn-item.entity';
             Deal, DealStage, Activity, Task, Quote, Meeting, EmailTracking,
             CustomDealStage, SalesPipeline, ActivityTemplate, CustomerSegment, SegmentMember,
             EmailTemplate, AutomationWorkflow, WorkflowExecution, QuoteTemplate, SalesForecast, SalesQuota,
-            AgentCommission, CommissionSettings, CommissionSlab, CommissionPaymentRequest, DashboardConfig,
+            AgentCommission, CommissionSettings, CommissionSlab, CommissionPaymentRequest, DashboardConfig, CrmNotification,
             // Lead Management entities
             CustomerTier,
             IncompleteOrder,

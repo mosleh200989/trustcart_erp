@@ -55,6 +55,7 @@ const menuItems: MenuItem[] = [
       { title: 'Printing', icon: FaPrint, path: '/admin/sales/printing', requiredPermissions: ['view-printing'] },
       { title: 'Incomplete Order', icon: FaShoppingCart, path: '/admin/sales/incomplete-orders', requiredPermissions: ['view-incomplete-orders'] },
       { title: 'Late Delivery', icon: FaShoppingCart, path: '/admin/sales/late-delivery', requiredPermissions: ['view-late-delivery'] },
+      { title: 'Cancelled Orders', icon: FaShoppingCart, path: '/admin/sales/cancelled-orders', requiredPermissions: ['view-sales-orders'] },
       { title: 'Sent Courier Orders', icon: FaShoppingCart, path: '/admin/sales/sent-courier-orders', requiredPermissions: ['view-sent-courier-orders'] },
       { title: 'Courier Returns', icon: FaShoppingCart, path: '/admin/sales/courier-returns', requiredPermissions: ['view-courier-returns', 'manage-courier-returns'] },
       { title: 'Coupons', icon: FaTags, path: '/admin/sales/coupons', requiredPermissions: ['view-sales-orders'] },

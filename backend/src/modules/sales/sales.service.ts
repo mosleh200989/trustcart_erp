@@ -671,6 +671,30 @@ export class SalesService {
     return orders.map((order) => this.toAdminListDto(order));
   }
 
+  async findCancelledOrders() {
+    const qb = this.salesRepository.createQueryBuilder('o');
+    qb.where('LOWER(o.status::text) IN (:...cancelledStatuses)', {
+      cancelledStatuses: ['cancelled', 'admin_cancelled'],
+    })
+      .orderBy('COALESCE(o.cancelled_at, o.updated_at, o.created_at)', 'DESC');
+
+    const orders = await qb.getMany();
+
+    const orderIds = orders.map((o) => o.id);
+    const itemsByOrderId = await this.batchFetchOrderItems(orderIds);
+    for (const order of orders) {
+      (order as any)._items = itemsByOrderId.get(order.id) || [];
+    }
+
+    const creatorIds = [...new Set(orders.map(o => o.createdBy).filter((id): id is number => id != null))];
+    const creatorMap = await this.getUserNameMap(creatorIds);
+    for (const order of orders) {
+      (order as any).createdByName = order.createdBy ? (creatorMap.get(order.createdBy) ?? null) : null;
+    }
+
+    return orders.map((order) => this.toAdminListDto(order));
+  }
+
   async findForCustomer(customerId: number) {
     const orders = await this.salesRepository.find({
       where: { customerId },
@@ -2429,36 +2453,39 @@ export class SalesService {
       .getRawMany();
 
     // 4) Per-landing-page breakdown (by utm_source = slug)
+    const landingPageSlugExpr = `COALESCE(o.utm_source, 'unknown')`;
+    const landingPageTitleExpr = `COALESCE(o.utm_campaign, 'unknown')`;
+
     const perPageRaw = await buildBase()
       .select([
-        `COALESCE(o.utm_source, 'unknown') AS slug`,
-        `COALESCE(o.utm_campaign, 'unknown') AS title`,
+        `${landingPageSlugExpr} AS slug`,
+        `${landingPageTitleExpr} AS title`,
         'COUNT(o.id) AS orders',
         `COUNT(CASE WHEN o.thank_you_offer_accepted = true THEN 1 END) AS upsell_accepted`,
         `COUNT(CASE WHEN LOWER(o.status::text) = 'delivered' THEN 1 END) AS delivered_orders`,
         `COUNT(CASE WHEN LOWER(o.status::text) IN ('cancelled', 'admin_cancelled', 'returned') THEN 1 END) AS cancelled_orders`,
       ])
-      .groupBy('slug')
-      .addGroupBy('title')
+      .groupBy(landingPageSlugExpr)
+      .addGroupBy(landingPageTitleExpr)
       .orderBy('orders', 'DESC')
       .getRawMany();
 
     const perPageCrossSellRaw = await buildCrossSellBase()
       .select([
-        `COALESCE(o.utm_source, 'unknown') AS slug`,
+        `${landingPageSlugExpr} AS slug`,
         'COALESCE(SUM(oi.quantity), 0) AS cross_sell_qty',
         'COUNT(DISTINCT oi.order_id) AS cross_sell_orders',
       ])
-      .groupBy('slug')
+      .groupBy(landingPageSlugExpr)
       .getRawMany();
 
     const perPageCheckoutCrossSellRaw = await buildCheckoutCrossSellBase()
       .select([
-        `COALESCE(o.utm_source, 'unknown') AS slug`,
+        `${landingPageSlugExpr} AS slug`,
         'COALESCE(SUM(soi.quantity), 0) AS cross_sell_qty',
         'COUNT(DISTINCT o.id) AS cross_sell_orders',
       ])
-      .groupBy('slug')
+      .groupBy(landingPageSlugExpr)
       .getRawMany();
 
     // 5) Status breakdown
