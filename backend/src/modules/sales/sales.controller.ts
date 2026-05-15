@@ -181,6 +181,12 @@ export class SalesController {
     return this.salesService.findLateDeliveries({ thresholdDays: days });
   }
 
+  @Get('cancelled-orders')
+  @RequirePermissions('view-sales-orders')
+  async findCancelledOrders() {
+    return this.salesService.findCancelledOrders();
+  }
+
   @Get('sent-courier-orders')
   @RequirePermissions('view-sent-courier-orders')
   async findSentCourierOrders(
