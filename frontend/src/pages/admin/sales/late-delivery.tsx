@@ -43,6 +43,8 @@ interface SalesOrder {
   notes?: string | null;
   courier_notes?: string | null;
   internal_notes?: string | null;
+  late_delivery_note?: string | null;
+  cancelled_order_note?: string | null;
   rider_instructions?: string | null;
 
   order_source?: string | null;
@@ -61,6 +63,11 @@ const STATUS_OPTIONS = [
   { value: 'in_review', label: 'In Review' },
 ];
 
+const CANCELLED_STATUS_OPTIONS = [
+  { value: 'cancelled', label: 'Cancelled' },
+  { value: 'returned', label: 'Returned' },
+];
+
 const COURIER_COMPANY_OPTIONS = [
   { value: 'steadfast', label: 'Steadfast' },
   { value: 'pathao', label: 'Pathao' },
@@ -73,6 +80,11 @@ const MANUAL_STATUS_OPTIONS = [
   { value: 'delivered', label: 'Delivered' },
   { value: 'cancelled', label: 'Cancelled' },
   { value: 'admin_cancelled', label: 'Order Rejected' },
+];
+
+const CANCELLED_MANUAL_STATUS_OPTIONS = [
+  { value: 'cancelled', label: 'Cancelled' },
+  { value: 'returned', label: 'Returned' },
 ];
 
 const INITIAL_FILTERS = {
@@ -94,17 +106,25 @@ const MODE_CONFIG = {
     dateFromLabel: 'Shipped From',
     dateToLabel: 'Shipped To',
     emptyLoadMessage: 'Failed to load late deliveries:',
+    notePayloadKey: 'lateDeliveryNote',
+    noteField: (row: SalesOrder) => row.late_delivery_note || row.internal_notes || '',
     dateField: (row: SalesOrder) => row.shippedAt ?? row.shipped_at ?? null,
+    statusOptions: STATUS_OPTIONS,
+    manualStatusOptions: MANUAL_STATUS_OPTIONS,
   },
   'cancelled-orders': {
     title: 'Cancelled Orders',
-    description: 'Cancelled and rejected sales orders that need follow-up notes',
+    description: 'Cancelled and returned sales orders that need follow-up notes',
     endpoint: '/sales/cancelled-orders',
     dateColumnLabel: 'Cancelled At',
     dateFromLabel: 'Cancelled From',
     dateToLabel: 'Cancelled To',
     emptyLoadMessage: 'Failed to load cancelled orders:',
+    notePayloadKey: 'cancelledOrderNote',
+    noteField: (row: SalesOrder) => row.cancelled_order_note || '',
     dateField: (row: SalesOrder) => row.cancelledAt ?? row.cancelled_at ?? row.updatedAt ?? row.updated_at ?? row.createdAt ?? row.created_at ?? row.order_date ?? row.orderDate ?? null,
+    statusOptions: CANCELLED_STATUS_OPTIONS,
+    manualStatusOptions: CANCELLED_MANUAL_STATUS_OPTIONS,
   },
 } as const;
 
@@ -239,12 +259,12 @@ export function SalesFollowupOrdersPage({ mode = 'late-delivery' }: { mode?: Sal
       const agentName = authUser?.name || 'Agent';
       const formattedNote = noteText.trim() ? formatNoteWithMeta(noteText, agentName) : '';
       await apiClient.put(`/order-management/${orderId}/notes`, {
-        internalNotes: formattedNote || null,
+        [config.notePayloadKey]: formattedNote || null,
       });
 
       setOrders((prev) =>
         prev.map((o) =>
-          o.id === orderId ? { ...o, internal_notes: formattedNote || null } : o,
+          o.id === orderId ? { ...o, [config.notePayloadKey === 'lateDeliveryNote' ? 'late_delivery_note' : 'cancelled_order_note']: formattedNote || null } : o,
         ),
       );
       setEditingNotes((prev) => {
@@ -259,7 +279,7 @@ export function SalesFollowupOrdersPage({ mode = 'late-delivery' }: { mode?: Sal
     } finally {
       setSavingNotes((prev) => ({ ...prev, [orderId]: false }));
     }
-  }, [editingNotes, toast, authUser]);
+  }, [editingNotes, toast, authUser, config.notePayloadKey]);
 
   // Handle status change
   const handleStatusChange = useCallback(async (orderId: number, newStatus: string) => {
@@ -481,10 +501,10 @@ export function SalesFollowupOrdersPage({ mode = 'late-delivery' }: { mode?: Sal
             disabled={isSaving}
             className={`text-xs font-semibold rounded-lg px-2 py-1.5 border cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-400 ${getOrderStatusColor(currentStatus)} ${isSaving ? 'opacity-50' : ''}`}
           >
-            {!MANUAL_STATUS_OPTIONS.find((o) => o.value === currentStatus) && (
+            {!config.manualStatusOptions.find((o) => o.value === currentStatus) && (
               <option value={currentStatus}>{getOrderStatusLabel(currentStatus)}</option>
             )}
-            {MANUAL_STATUS_OPTIONS.map((opt) => (
+            {config.manualStatusOptions.map((opt) => (
               <option key={opt.value} value={opt.value}>{opt.label}</option>
             ))}
           </select>
@@ -496,7 +516,7 @@ export function SalesFollowupOrdersPage({ mode = 'late-delivery' }: { mode?: Sal
       label: 'Notes',
       className: 'min-w-[220px]',
       render: (_: any, row: SalesOrder) => {
-        const fullNote = row.internal_notes || '';
+        const fullNote = config.noteField(row) || '';
         const meta = parseNoteMeta(fullNote);
         const isEditing = editingNotes[row.id] !== undefined;
         const isSaving = savingNotes[row.id] || false;
@@ -683,7 +703,7 @@ export function SalesFollowupOrdersPage({ mode = 'late-delivery' }: { mode?: Sal
                   type="select"
                   value={filters.status}
                   onChange={handleFilterChange}
-                  options={STATUS_OPTIONS}
+                  options={config.statusOptions}
                 />
                 <FormInput
                   label="Courier Company"

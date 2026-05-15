@@ -1201,6 +1201,8 @@ export class OrderManagementService {
     courierNotes?: string;
     riderInstructions?: string;
     internalNotes?: string;
+    lateDeliveryNote?: string | null;
+    cancelledOrderNote?: string | null;
     userId: number;
     userName: string;
     ipAddress?: string;
@@ -1225,6 +1227,14 @@ export class OrderManagementService {
     if (data.internalNotes !== undefined) {
       order.internalNotes = data.internalNotes;
       changes.internalNotes = data.internalNotes;
+    }
+    if (data.lateDeliveryNote !== undefined) {
+      order.lateDeliveryNote = data.lateDeliveryNote;
+      changes.lateDeliveryNote = data.lateDeliveryNote;
+    }
+    if (data.cancelledOrderNote !== undefined) {
+      order.cancelledOrderNote = data.cancelledOrderNote;
+      changes.cancelledOrderNote = data.cancelledOrderNote;
     }
 
     const updatedOrder = await this.salesOrderRepository.save(order);
