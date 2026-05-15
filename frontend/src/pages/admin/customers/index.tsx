@@ -5,7 +5,7 @@ import PageSizeSelector from '@/components/admin/PageSizeSelector';
 import { useToast } from '@/contexts/ToastContext';
 import Modal from '@/components/admin/Modal';
 import FormInput from '@/components/admin/FormInput';
-import { FaPlus, FaSearch } from 'react-icons/fa';
+import { FaFilter, FaPlus, FaSearch } from 'react-icons/fa';
 import apiClient from '@/services/api';
 import PhoneInput, { validateBDPhone } from '@/components/PhoneInput';
 
@@ -20,7 +20,37 @@ interface Customer {
   created_at: string;
   createdAt?: string;
   isActive?: boolean;
+  tier?: string;
+  segment?: string;
+  source?: string;
+  sourceType?: string;
+  sourceLabel?: string;
+  landingPageSlug?: string;
+  assignedTo?: number | null;
+  assignedSupervisorId?: number | null;
+  agentName?: string | null;
+  teamLeaderName?: string | null;
 }
+
+interface Agent {
+  id: number;
+  name: string;
+  lastName?: string;
+  status?: string;
+}
+
+interface LandingPageOption {
+  id: number;
+  title: string;
+  slug: string;
+}
+
+const titleCase = (value: string) =>
+  value
+    .split(/[_\s-]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
 
 const normalizeCustomer = (customer: any): Customer => {
   const status = customer?.status || (customer?.isActive === false ? 'inactive' : 'active');
@@ -36,6 +66,16 @@ const normalizeCustomer = (customer: any): Customer => {
     created_at: customer?.created_at || customer?.createdAt || '',
     createdAt: customer?.createdAt,
     isActive: customer?.isActive,
+    tier: customer?.tier || '',
+    segment: customer?.segment || '',
+    source: customer?.source || '',
+    sourceType: customer?.sourceType || '',
+    sourceLabel: customer?.sourceLabel || '',
+    landingPageSlug: customer?.landingPageSlug || '',
+    assignedTo: customer?.assignedTo ?? null,
+    assignedSupervisorId: customer?.assignedSupervisorId ?? null,
+    agentName: customer?.agentName || null,
+    teamLeaderName: customer?.teamLeaderName || null,
   };
 };
 
@@ -50,6 +90,10 @@ export default function AdminCustomers() {
   const [modalMode, setModalMode] = useState<'add' | 'edit' | 'view'>('add');
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [itemsPerPage, setItemsPerPage] = useState(50);
+  const [agents, setAgents] = useState<Agent[]>([]);
+  const [landingPages, setLandingPages] = useState<LandingPageOption[]>([]);
+  const [agentFilter, setAgentFilter] = useState('');
+  const [landingPageFilter, setLandingPageFilter] = useState('');
 
   const [formData, setFormData] = useState({
     name: '',
@@ -61,18 +105,56 @@ export default function AdminCustomers() {
   });
 
   useEffect(() => {
-    loadCustomers();
+    loadFilterOptions();
   }, []);
+
+  useEffect(() => {
+    loadCustomers();
+  }, [agentFilter, landingPageFilter]);
 
   // Clear selection when navigating to a different page
   useEffect(() => {
     setSelectedCustomerIds([]);
   }, [currentPage]);
 
+  const loadFilterOptions = async () => {
+    const [agentResult, landingPageResult] = await Promise.allSettled([
+      apiClient.get('/crm/team/all-agents'),
+      apiClient.get('/landing-pages'),
+    ]);
+
+    if (agentResult.status === 'fulfilled') {
+      const rows = Array.isArray(agentResult.value.data) ? agentResult.value.data : [];
+      setAgents(rows.filter((agent: Agent) => String(agent.status || 'active').toLowerCase() === 'active'));
+    } else {
+      try {
+        const fallback = await apiClient.get('/crm/team/available-agents');
+        const rows = Array.isArray(fallback.data) ? fallback.data : [];
+        setAgents(rows.filter((agent: Agent) => String(agent.status || 'active').toLowerCase() === 'active'));
+      } catch (error) {
+        console.error('Failed to load agents:', error);
+        setAgents([]);
+      }
+    }
+
+    if (landingPageResult.status === 'fulfilled') {
+      setLandingPages(Array.isArray(landingPageResult.value.data) ? landingPageResult.value.data : []);
+    } else {
+      console.error('Failed to load landing pages:', landingPageResult.reason);
+      setLandingPages([]);
+    }
+  };
+
   const loadCustomers = async () => {
     try {
       setLoading(true);
-      const response = await apiClient.get('/customers', { params: { limit: 500 } });
+      const response = await apiClient.get('/customers', {
+        params: {
+          limit: 500,
+          ...(agentFilter ? { agentId: agentFilter } : {}),
+          ...(landingPageFilter ? { landingPageSlug: landingPageFilter } : {}),
+        },
+      });
       const rows = Array.isArray(response.data)
         ? response.data
         : Array.isArray(response.data?.items)
@@ -196,7 +278,7 @@ export default function AdminCustomers() {
     const query = search.trim().toLowerCase();
     if (!query) return true;
 
-    return [c.name, c.email, c.phone].some((value) =>
+    return [c.name, c.email, c.phone, c.tier, c.segment, c.sourceLabel, c.agentName, c.teamLeaderName].some((value) =>
       String(value || '').toLowerCase().includes(query)
     );
   });
@@ -210,20 +292,62 @@ export default function AdminCustomers() {
   const columns = [
     { key: 'id', label: 'ID' },
     { key: 'name', label: 'Name' },
-    { key: 'email', label: 'Email' },
     { key: 'phone', label: 'Phone' },
-    { key: 'city', label: 'City' },
-    { 
-      key: 'status', 
-      label: 'Status',
+    {
+      key: 'tier',
+      label: 'Tier',
       render: (value: string) => (
-        <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
-          (value || 'active') === 'active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-        }`}>
-          {value || 'active'}
+        <span className="inline-flex rounded-full bg-indigo-50 px-2 py-1 text-xs font-semibold text-indigo-700">
+          {value ? titleCase(value) : 'No Tier'}
         </span>
       )
-    }
+    },
+    {
+      key: 'segment',
+      label: 'Segment',
+      render: (value: string) => {
+        const colors: Record<string, string> = {
+          new: 'bg-blue-50 text-blue-700',
+          legacy: 'bg-amber-50 text-amber-700',
+          mixed: 'bg-green-50 text-green-700',
+        };
+
+        return (
+          <span className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${colors[value] || 'bg-gray-100 text-gray-600'}`}>
+            {value ? titleCase(value) : 'Unsegmented'}
+          </span>
+        );
+      }
+    },
+    {
+      key: 'sourceLabel',
+      label: 'Source',
+      render: (value: string, row: Customer) => {
+        const sourceName = value || row.source || 'Unknown';
+        const sourceType = row.sourceType || row.source || '';
+
+        return (
+          <div>
+            <div className="font-medium text-gray-900">{sourceName}</div>
+            {sourceType && (
+              <div className="text-xs text-gray-500">{titleCase(sourceType)}</div>
+            )}
+          </div>
+        );
+      }
+    },
+    {
+      key: 'agentName',
+      label: 'Assigned',
+      render: (_value: string, row: Customer) => (
+        <div>
+          <div className="font-medium text-gray-900">{row.agentName || 'Unassigned'}</div>
+          <div className="text-xs text-gray-500">
+            TL: {row.teamLeaderName || 'Unassigned'}
+          </div>
+        </div>
+      )
+    },
   ];
 
   return (
@@ -244,15 +368,55 @@ export default function AdminCustomers() {
         </div>
 
         <div className="mb-6 bg-white rounded-lg shadow p-4">
-          <div className="relative">
-            <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => { setSearch(e.target.value); setSelectedCustomerIds([]); }}
-              placeholder="Search customers by name, email or phone..."
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1fr_220px_260px]">
+            <div className="relative">
+              <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => { setSearch(e.target.value); setSelectedCustomerIds([]); setCurrentPage(1); }}
+                placeholder="Search by name, phone, tier, segment, source or assignment..."
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div className="relative">
+              <FaFilter className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={13} />
+              <select
+                value={agentFilter}
+                onChange={(e) => {
+                  setAgentFilter(e.target.value);
+                  setCurrentPage(1);
+                  setSelectedCustomerIds([]);
+                }}
+                className="w-full appearance-none rounded-lg border border-gray-300 bg-white py-2 pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">All Agents</option>
+                {agents.map((agent) => (
+                  <option key={agent.id} value={agent.id}>
+                    {[agent.name, agent.lastName].filter(Boolean).join(' ')}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="relative">
+              <FaFilter className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={13} />
+              <select
+                value={landingPageFilter}
+                onChange={(e) => {
+                  setLandingPageFilter(e.target.value);
+                  setCurrentPage(1);
+                  setSelectedCustomerIds([]);
+                }}
+                className="w-full appearance-none rounded-lg border border-gray-300 bg-white py-2 pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">All Landing Pages</option>
+                {landingPages.map((page) => (
+                  <option key={page.id} value={page.slug}>
+                    {page.title || page.slug}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
 
