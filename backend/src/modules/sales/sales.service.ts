@@ -2041,7 +2041,7 @@ export class SalesService {
   /**
    * Individual Monthly Order Report
    * Returns per-agent, per-day order counts for a given month/year,
-   * along with total, delivered, cancelled, and cancelled ratio.
+   * along with total, delivered, partial delivered, cancelled, and cancelled ratio.
    */
   async getAgentMonthlyReport(params: { month: number; year: number }) {
     const { month, year } = params;
@@ -2086,6 +2086,7 @@ export class SalesService {
         'u.last_name AS agent_last_name',
         'COUNT(o.id) AS total_orders',
         `COUNT(CASE WHEN LOWER(o.status::text) = 'delivered' THEN 1 END) AS delivered_orders`,
+        `COUNT(CASE WHEN LOWER(o.status::text) = 'partial_delivered' THEN 1 END) AS partial_delivered_orders`,
         `COUNT(CASE WHEN LOWER(o.status::text) IN ('cancelled', 'admin_cancelled', 'returned') THEN 1 END) AS cancelled_orders`,
       ])
       .where('o.created_by IS NOT NULL')
@@ -2107,6 +2108,7 @@ export class SalesService {
       dailyOrders: Record<number, number>; // day -> count
       total: number;
       delivered: number;
+      partialDelivered: number;
       cancelled: number;
     }>();
 
@@ -2119,6 +2121,7 @@ export class SalesService {
         dailyOrders: {},
         total: toNum(r.total_orders),
         delivered: toNum(r.delivered_orders),
+        partialDelivered: toNum(r.partial_delivered_orders),
         cancelled: toNum(r.cancelled_orders),
       });
     }
@@ -2140,6 +2143,7 @@ export class SalesService {
     // Grand totals
     const grandTotal = agents.reduce((s, a) => s + a.total, 0);
     const grandDelivered = agents.reduce((s, a) => s + a.delivered, 0);
+    const grandPartialDelivered = agents.reduce((s, a) => s + a.partialDelivered, 0);
     const grandCancelled = agents.reduce((s, a) => s + a.cancelled, 0);
 
     return {
@@ -2149,6 +2153,7 @@ export class SalesService {
       agents,
       grandTotal,
       grandDelivered,
+      grandPartialDelivered,
       grandCancelled,
       grandCancelledRatio: grandTotal > 0
         ? parseFloat(((grandCancelled / grandTotal) * 100).toFixed(2))
@@ -2179,18 +2184,22 @@ export class SalesService {
         [startDate, endDate],
       );
 
-    // Summary (total / delivered / cancelled) per source
+    // Summary (total / delivered / partial delivered / rejected / cancelled with returned) per source
     const summaryRaw: Array<{
       order_source: string;
       total_orders: string;
       delivered_orders: string;
+      partial_delivered_orders: string;
+      rejected_orders: string;
       cancelled_orders: string;
     }> = await this.salesRepository.query(
       `SELECT
          order_source,
          COUNT(id) AS total_orders,
          COUNT(CASE WHEN LOWER(status::text) = 'delivered' THEN 1 END) AS delivered_orders,
-         COUNT(CASE WHEN LOWER(status::text) IN ('cancelled', 'admin_cancelled', 'returned') THEN 1 END) AS cancelled_orders
+         COUNT(CASE WHEN LOWER(status::text) = 'partial_delivered' THEN 1 END) AS partial_delivered_orders,
+         COUNT(CASE WHEN LOWER(status::text) = 'admin_cancelled' THEN 1 END) AS rejected_orders,
+         COUNT(CASE WHEN LOWER(status::text) IN ('cancelled', 'returned') THEN 1 END) AS cancelled_orders
        FROM sales_orders
        WHERE order_source IN ('website', 'landing_page')
          AND DATE(order_date) BETWEEN $1 AND $2
@@ -2227,6 +2236,8 @@ export class SalesService {
       title: string;
       total_orders: string;
       delivered_orders: string;
+      partial_delivered_orders: string;
+      rejected_orders: string;
       cancelled_orders: string;
     }> = await this.salesRepository.query(
       `SELECT
@@ -2234,7 +2245,9 @@ export class SalesService {
          COALESCE(lp.title, NULLIF(o.utm_campaign, ''), NULLIF(o.utm_source, ''), 'Unknown Landing Page') AS title,
          COUNT(o.id) AS total_orders,
          COUNT(CASE WHEN LOWER(o.status::text) = 'delivered' THEN 1 END) AS delivered_orders,
-         COUNT(CASE WHEN LOWER(o.status::text) IN ('cancelled', 'admin_cancelled', 'returned') THEN 1 END) AS cancelled_orders
+         COUNT(CASE WHEN LOWER(o.status::text) = 'partial_delivered' THEN 1 END) AS partial_delivered_orders,
+         COUNT(CASE WHEN LOWER(o.status::text) = 'admin_cancelled' THEN 1 END) AS rejected_orders,
+         COUNT(CASE WHEN LOWER(o.status::text) IN ('cancelled', 'returned') THEN 1 END) AS cancelled_orders
        FROM sales_orders o
        LEFT JOIN landing_pages lp ON lp.slug = o.utm_source
        WHERE o.order_source = 'landing_page'
@@ -2257,12 +2270,14 @@ export class SalesService {
     }
 
     // Build summary objects
-    let websiteSummary = { total: 0, delivered: 0, cancelled: 0 };
-    let landingPageSummary = { total: 0, delivered: 0, cancelled: 0 };
+    let websiteSummary = { total: 0, delivered: 0, partialDelivered: 0, rejected: 0, cancelled: 0 };
+    let landingPageSummary = { total: 0, delivered: 0, partialDelivered: 0, rejected: 0, cancelled: 0 };
     for (const r of summaryRaw) {
       const s = {
         total: toNum(r.total_orders),
         delivered: toNum(r.delivered_orders),
+        partialDelivered: toNum(r.partial_delivered_orders),
+        rejected: toNum(r.rejected_orders),
         cancelled: toNum(r.cancelled_orders),
       };
       if (r.order_source === 'website') websiteSummary = s;
@@ -2300,6 +2315,8 @@ export class SalesService {
         dailyOrders: landingPageDailyMap.get(r.slug || 'unknown') || {},
         total: toNum(r.total_orders),
         delivered: toNum(r.delivered_orders),
+        partialDelivered: toNum(r.partial_delivered_orders),
+        rejected: toNum(r.rejected_orders),
         cancelled: toNum(r.cancelled_orders),
       })),
     };

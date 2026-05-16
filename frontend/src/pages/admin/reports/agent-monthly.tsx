@@ -15,6 +15,8 @@ import {
 interface SourceSummary {
   total: number;
   delivered: number;
+  partialDelivered: number;
+  rejected: number;
   cancelled: number;
 }
 
@@ -46,6 +48,7 @@ interface AgentMonthly {
   dailyOrders: Record<number, number>;
   total: number;
   delivered: number;
+  partialDelivered: number;
   cancelled: number;
 }
 
@@ -56,6 +59,7 @@ interface MonthlyReportData {
   agents: AgentMonthly[];
   grandTotal: number;
   grandDelivered: number;
+  grandPartialDelivered: number;
   grandCancelled: number;
   grandCancelledRatio: number;
 }
@@ -155,12 +159,13 @@ export default function AgentMonthlyReportPage() {
   const exportCSV = () => {
     if (!data) return;
     const days = Array.from({ length: data.daysInMonth }, (_, i) => i + 1);
-    const headers = ['Name', ...days.map(String), 'Total', 'Delivered', 'Cancelled', 'Cancelled Ratio'];
+    const headers = ['Name', ...days.map(String), 'Total', 'Delivered', 'Partial Delivered', 'Cancelled', 'Cancelled Ratio'];
     const rows = data.agents.map(a => [
       a.agentName,
       ...days.map(d => a.dailyOrders[d] || ''),
       a.total,
       a.delivered,
+      a.partialDelivered,
       a.cancelled,
       getCancelledRatio(a),
     ]);
@@ -170,6 +175,7 @@ export default function AgentMonthlyReportPage() {
       ...days.map(d => data.agents.reduce((s, a) => s + (a.dailyOrders[d] || 0), 0) || ''),
       data.grandTotal,
       data.grandDelivered,
+      data.grandPartialDelivered,
       data.grandCancelled,
       data.grandCancelledRatio + '%',
     ]);
@@ -205,6 +211,8 @@ export default function AgentMonthlyReportPage() {
         dailyOrders: page.dailyOrders || {},
         total: page.total,
         delivered: page.delivered,
+        partialDelivered: page.partialDelivered,
+        rejected: page.rejected,
         cancelled: page.cancelled,
       }))
       : [{
@@ -369,6 +377,9 @@ export default function AgentMonthlyReportPage() {
                     <th className="px-3 py-2.5 text-center text-xs font-semibold uppercase tracking-wider whitespace-nowrap bg-emerald-900/70 min-w-[70px]">
                       Delivered
                     </th>
+                    <th className="px-3 py-2.5 text-center text-xs font-semibold uppercase tracking-wider whitespace-nowrap bg-lime-900/70 min-w-[96px]">
+                      Partial Delivered
+                    </th>
                     <th className="px-3 py-2.5 text-center text-xs font-semibold uppercase tracking-wider whitespace-nowrap bg-red-900/60 min-w-[72px]">
                       Cancelled
                     </th>
@@ -380,7 +391,7 @@ export default function AgentMonthlyReportPage() {
                 <tbody className="divide-y divide-gray-100">
                   {data.agents.length === 0 && (
                     <tr>
-                      <td colSpan={days.length + 5} className="text-center py-12 text-gray-400">
+                      <td colSpan={days.length + 6} className="text-center py-12 text-gray-400">
                         No agent data found for this month.
                       </td>
                     </tr>
@@ -411,6 +422,9 @@ export default function AgentMonthlyReportPage() {
                         </td>
                         <td className="px-2 py-2 text-center font-semibold text-sm tabular-nums text-emerald-700 bg-emerald-50/50">
                           {agent.delivered || ''}
+                        </td>
+                        <td className="px-2 py-2 text-center font-semibold text-sm tabular-nums text-lime-700 bg-lime-50/60">
+                          {agent.partialDelivered || ''}
                         </td>
                         <td className="px-2 py-2 text-center font-semibold text-sm tabular-nums text-red-700 bg-red-50/40">
                           {agent.cancelled || ''}
@@ -444,6 +458,9 @@ export default function AgentMonthlyReportPage() {
                       </td>
                       <td className="px-2 py-2.5 text-center text-sm tabular-nums bg-emerald-900/70">
                         {data.grandDelivered}
+                      </td>
+                      <td className="px-2 py-2.5 text-center text-sm tabular-nums bg-lime-900/70">
+                        {data.grandPartialDelivered}
                       </td>
                       <td className="px-2 py-2.5 text-center text-sm tabular-nums bg-red-900/60">
                         {data.grandCancelled}
@@ -533,8 +550,14 @@ export default function AgentMonthlyReportPage() {
                       <th className="px-3 py-2.5 text-center text-xs font-semibold uppercase tracking-wider whitespace-nowrap bg-emerald-900/70 min-w-[70px]">
                         Delivered
                       </th>
+                      <th className="px-3 py-2.5 text-center text-xs font-semibold uppercase tracking-wider whitespace-nowrap bg-rose-900/70 min-w-[72px]">
+                        Rejected
+                      </th>
+                      <th className="px-3 py-2.5 text-center text-xs font-semibold uppercase tracking-wider whitespace-nowrap bg-lime-900/70 min-w-[96px]">
+                        Partial Delivered
+                      </th>
                       <th className="px-3 py-2.5 text-center text-xs font-semibold uppercase tracking-wider whitespace-nowrap bg-red-900/60 min-w-[72px]">
-                        Cancelled
+                        Cancelled + Returned
                       </th>
                       <th className="px-3 py-2.5 text-center text-xs font-semibold uppercase tracking-wider whitespace-nowrap bg-amber-900/50 min-w-[90px]">
                         Cancel %
@@ -579,6 +602,12 @@ export default function AgentMonthlyReportPage() {
                           <td className="px-2 py-2 text-center font-semibold text-sm tabular-nums text-emerald-700 bg-emerald-50/50">
                             {row.delivered || ''}
                           </td>
+                          <td className="px-2 py-2 text-center font-semibold text-sm tabular-nums text-rose-700 bg-rose-50/60">
+                            {row.rejected || ''}
+                          </td>
+                          <td className="px-2 py-2 text-center font-semibold text-sm tabular-nums text-lime-700 bg-lime-50/60">
+                            {row.partialDelivered || ''}
+                          </td>
                           <td className="px-2 py-2 text-center font-semibold text-sm tabular-nums text-red-700 bg-red-50/40">
                             {row.cancelled || ''}
                           </td>
@@ -609,6 +638,12 @@ export default function AgentMonthlyReportPage() {
                       </td>
                       <td className="px-2 py-2.5 text-center text-sm tabular-nums bg-emerald-900/70">
                         {webRows.reduce((sum, row) => sum + row.delivered, 0)}
+                      </td>
+                      <td className="px-2 py-2.5 text-center text-sm tabular-nums bg-rose-900/70">
+                        {webRows.reduce((sum, row) => sum + row.rejected, 0)}
+                      </td>
+                      <td className="px-2 py-2.5 text-center text-sm tabular-nums bg-lime-900/70">
+                        {webRows.reduce((sum, row) => sum + row.partialDelivered, 0)}
                       </td>
                       <td className="px-2 py-2.5 text-center text-sm tabular-nums bg-red-900/60">
                         {webRows.reduce((sum, row) => sum + row.cancelled, 0)}
