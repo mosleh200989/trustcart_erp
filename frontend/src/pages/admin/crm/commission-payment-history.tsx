@@ -2,8 +2,9 @@ import { useEffect, useState, useCallback } from 'react';
 import AdminLayout from '@/layouts/AdminLayout';
 import DataTable from '@/components/admin/DataTable';
 import PageSizeSelector from '@/components/admin/PageSizeSelector';
+import Modal from '@/components/admin/Modal';
 import { useToast } from '@/contexts/ToastContext';
-import { FaSearch } from 'react-icons/fa';
+import { FaCalendarAlt, FaSearch } from 'react-icons/fa';
 import apiClient from '@/services/api';
 
 interface PaymentRecord {
@@ -13,6 +14,7 @@ interface PaymentRecord {
   agentPhone: string;
   requestedAmount: number;
   approvedAmount: number | null;
+  commissionMonth: string | null;
   paymentMethod: string | null;
   paymentReference: string | null;
   notes: string | null;
@@ -48,6 +50,10 @@ export default function CommissionPaymentHistoryPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(50);
   const [searchText, setSearchText] = useState('');
+  const [monthEditRecord, setMonthEditRecord] = useState<PaymentRecord | null>(null);
+  const [monthEditValue, setMonthEditValue] = useState('');
+  const [monthEditNote, setMonthEditNote] = useState('');
+  const [savingMonth, setSavingMonth] = useState(false);
 
   // Summary
   const [summary, setSummary] = useState({ totalPayments: 0, totalPaidAmount: 0 });
@@ -93,6 +99,51 @@ export default function CommissionPaymentHistoryPage() {
     loadHistory(1, itemsPerPage);
   };
 
+  const getEffectiveMonth = (record: PaymentRecord) => {
+    if (record.commissionMonth) return record.commissionMonth;
+    if (!record.paidAt) return '';
+    const d = new Date(record.paidAt);
+    if (Number.isNaN(d.getTime())) return '';
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  };
+
+  const formatMonth = (month: string | null) => {
+    if (!month || !/^\d{4}-\d{2}$/.test(month)) return '-';
+    const [year, monthNum] = month.split('-').map(Number);
+    return new Date(year, monthNum - 1, 1).toLocaleDateString('en-US', {
+      month: 'long',
+      year: 'numeric',
+    });
+  };
+
+  const openMonthEditor = (record: PaymentRecord) => {
+    setMonthEditRecord(record);
+    setMonthEditValue(getEffectiveMonth(record));
+    setMonthEditNote('');
+  };
+
+  const saveCommissionMonth = async () => {
+    if (!monthEditRecord || !monthEditValue) return;
+
+    try {
+      setSavingMonth(true);
+      await apiClient.put(`/crm/commissions/payment-requests/${monthEditRecord.id}/month`, {
+        commissionMonth: monthEditValue,
+        adminNotes: monthEditNote.trim() || undefined,
+      });
+      toast.success('Commission month updated');
+      setMonthEditRecord(null);
+      setMonthEditValue('');
+      setMonthEditNote('');
+      loadHistory(currentPage, itemsPerPage);
+    } catch (error: any) {
+      console.error('Failed to update commission month:', error);
+      toast.error(error?.response?.data?.message || 'Failed to update commission month');
+    } finally {
+      setSavingMonth(false);
+    }
+  };
+
   const formatDate = (dateStr: string | null) => {
     if (!dateStr) return '-';
     const d = new Date(dateStr);
@@ -120,6 +171,19 @@ export default function CommissionPaymentHistoryPage() {
         <div>
           <div className="text-sm font-medium">{row.agentName || '-'}</div>
           <div className="text-xs text-gray-400">{row.agentPhone}</div>
+        </div>
+      ),
+    },
+    {
+      key: 'commissionMonth',
+      label: 'Commission Month',
+      sortable: true,
+      render: (_: any, row: PaymentRecord) => (
+        <div>
+          <div className="text-sm font-medium text-gray-800">{formatMonth(getEffectiveMonth(row))}</div>
+          {!row.commissionMonth && (
+            <div className="text-[11px] text-gray-400">From payment date</div>
+          )}
         </div>
       ),
     },
@@ -175,6 +239,21 @@ export default function CommissionPaymentHistoryPage() {
           {row.adminNotes && <div className="text-xs text-blue-600 truncate" title={row.adminNotes}>Admin: {row.adminNotes}</div>}
           {!row.notes && !row.adminNotes && <span className="text-xs text-gray-400">-</span>}
         </div>
+      ),
+    },
+    {
+      key: 'actions',
+      label: 'Action',
+      sortable: false,
+      render: (_: any, row: PaymentRecord) => (
+        <button
+          type="button"
+          onClick={() => openMonthEditor(row)}
+          className="inline-flex items-center gap-1.5 rounded border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-medium text-indigo-700 hover:bg-indigo-100"
+        >
+          <FaCalendarAlt size={11} />
+          Change Month
+        </button>
       ),
     },
   ];
@@ -285,6 +364,63 @@ export default function CommissionPaymentHistoryPage() {
           totalPages={totalPages}
           onPageChange={(p) => setCurrentPage(p)}
         />
+
+        <Modal
+          isOpen={!!monthEditRecord}
+          onClose={() => !savingMonth && setMonthEditRecord(null)}
+          title="Change Commission Month"
+          size="sm"
+          footer={
+            <>
+              <button
+                type="button"
+                onClick={() => setMonthEditRecord(null)}
+                disabled={savingMonth}
+                className="px-4 py-2 text-sm text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={saveCommissionMonth}
+                disabled={savingMonth || !monthEditValue}
+                className="px-4 py-2 text-sm text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-50"
+              >
+                {savingMonth ? 'Saving...' : 'Save Month'}
+              </button>
+            </>
+          }
+        >
+          <div className="space-y-4">
+            <div className="rounded-lg bg-gray-50 p-3 text-sm text-gray-700">
+              <div className="font-medium">{monthEditRecord?.agentName || '-'}</div>
+              <div className="text-xs text-gray-500">
+                Current month: {formatMonth(monthEditRecord ? getEffectiveMonth(monthEditRecord) : null)}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Correct Commission Month</label>
+              <input
+                type="month"
+                value={monthEditValue}
+                onChange={(e) => setMonthEditValue(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Admin Note</label>
+              <textarea
+                value={monthEditNote}
+                onChange={(e) => setMonthEditNote(e.target.value)}
+                rows={3}
+                placeholder="Example: Corrected May payment to April commission."
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+          </div>
+        </Modal>
       </div>
     </AdminLayout>
   );

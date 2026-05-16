@@ -1610,6 +1610,37 @@ export class CommissionService {
     return { success: true };
   }
 
+  async updatePaymentRequestMonth(id: number, commissionMonth: string, adminUserId: number, adminNotes?: string): Promise<any> {
+    if (!Number.isFinite(id)) throw new BadRequestException('Invalid payment request id');
+    if (!commissionMonth || !/^\d{4}-\d{2}$/.test(commissionMonth)) {
+      throw new BadRequestException('Commission month must be in YYYY-MM format');
+    }
+
+    const rows = await this.dataSource.query(`SELECT * FROM commission_payment_requests WHERE id = $1`, [id]);
+    if (!rows.length) throw new NotFoundException('Payment request not found');
+
+    const previousMonth = rows[0].commission_month || null;
+    const noteParts = [
+      adminNotes?.trim(),
+      `Commission month updated from ${previousMonth || 'payment date month'} to ${commissionMonth} by user #${adminUserId}`,
+    ].filter(Boolean);
+
+    await this.dataSource.query(
+      `UPDATE commission_payment_requests
+       SET commission_month = $1,
+           admin_notes = CASE
+             WHEN $2::text IS NULL OR $2::text = '' THEN admin_notes
+             WHEN admin_notes IS NULL OR admin_notes = '' THEN $2::text
+             ELSE admin_notes || E'\n' || $2::text
+           END,
+           updated_at = NOW()
+       WHERE id = $3`,
+      [commissionMonth, noteParts.join(' | '), id],
+    );
+
+    return { success: true, id, previousMonth, commissionMonth };
+  }
+
   async getPaymentHistory(query: {
     agentId?: number;
     paymentMethod?: string;
@@ -1711,6 +1742,7 @@ export class CommissionService {
         agentPhone: r.agent_phone || '',
         requestedAmount: parseFloat(r.requested_amount || '0'),
         approvedAmount: r.approved_amount ? parseFloat(r.approved_amount) : null,
+        commissionMonth: r.commission_month,
         paymentMethod: r.payment_method,
         paymentReference: r.payment_reference,
         notes: r.notes,
