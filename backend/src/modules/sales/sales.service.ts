@@ -2374,7 +2374,9 @@ export class SalesService {
         `COUNT(CASE WHEN LOWER(o.status::text) = 'approved' THEN 1 END) AS approved_orders`,
         `COUNT(CASE WHEN LOWER(o.status::text) = 'shipped' THEN 1 END) AS shipped_orders`,
         `COUNT(CASE WHEN LOWER(o.status::text) = 'delivered' THEN 1 END) AS delivered_orders`,
-        `COUNT(CASE WHEN LOWER(o.status::text) IN ('cancelled', 'admin_cancelled', 'returned') THEN 1 END) AS cancelled_orders`,
+        `COUNT(CASE WHEN LOWER(o.status::text) IN ('cancelled', 'returned') THEN 1 END) AS cancelled_orders`,
+        `COUNT(CASE WHEN LOWER(o.status::text) IN ('cancelled', 'returned') THEN 1 END) AS cancelled_returned_orders`,
+        `COUNT(CASE WHEN LOWER(o.status::text) = 'admin_cancelled' THEN 1 END) AS rejected_orders`,
       ])
       .getRawOne();
 
@@ -2465,7 +2467,9 @@ export class SalesService {
         'COUNT(o.id) AS orders',
         `COUNT(CASE WHEN o.thank_you_offer_accepted = true THEN 1 END) AS upsell_accepted`,
         `COUNT(CASE WHEN LOWER(o.status::text) = 'delivered' THEN 1 END) AS delivered_orders`,
-        `COUNT(CASE WHEN LOWER(o.status::text) IN ('cancelled', 'admin_cancelled', 'returned') THEN 1 END) AS cancelled_orders`,
+        `COUNT(CASE WHEN LOWER(o.status::text) IN ('cancelled', 'returned') THEN 1 END) AS cancelled_orders`,
+        `COUNT(CASE WHEN LOWER(o.status::text) IN ('cancelled', 'returned') THEN 1 END) AS cancelled_returned_orders`,
+        `COUNT(CASE WHEN LOWER(o.status::text) = 'admin_cancelled' THEN 1 END) AS rejected_orders`,
       ])
       .groupBy(landingPageSlugExpr)
       .addGroupBy(landingPageTitleExpr)
@@ -2589,6 +2593,8 @@ export class SalesService {
         shippedOrders: toNum(summaryRaw?.shipped_orders),
         deliveredOrders: toNum(summaryRaw?.delivered_orders),
         cancelledOrders: toNum(summaryRaw?.cancelled_orders),
+        cancelledReturnedOrders: toNum(summaryRaw?.cancelled_returned_orders),
+        rejectedOrders: toNum(summaryRaw?.rejected_orders),
       },
       hourly: Array.from({ length: 24 }, (_, i) => {
         const found = hourlyRaw.find((r: any) => toNum(r.hour) === i);
@@ -2627,6 +2633,8 @@ export class SalesService {
           crossSellOrders: toNum(crossSell?.cross_sell_orders),
           deliveredOrders: toNum(r.delivered_orders),
           cancelledOrders: toNum(r.cancelled_orders),
+          cancelledReturnedOrders: toNum(r.cancelled_returned_orders),
+          rejectedOrders: toNum(r.rejected_orders),
         };
       }),
       statusBreakdown: statusRaw.map((r: any) => ({
