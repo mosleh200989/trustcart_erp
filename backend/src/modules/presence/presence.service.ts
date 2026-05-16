@@ -1,9 +1,13 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
+import axios from 'axios';
+import jwt from 'jsonwebtoken';
+import * as fs from 'fs';
 import { User } from '../users/user.entity';
 import { UserPresenceEvent } from './entities/user-presence-event.entity';
 import { UserPresenceState, UserPresenceStatus } from './entities/user-presence-status.entity';
+import { PresenceSettings } from './entities/presence-settings.entity';
 
 function parseDate(value: any): Date | null {
   if (!value) return null;
@@ -30,6 +34,8 @@ export class PresenceService {
     private readonly eventRepo: Repository<UserPresenceEvent>,
     @InjectRepository(User)
     private readonly userRepo: Repository<User>,
+    @InjectRepository(PresenceSettings)
+    private readonly settingsRepo: Repository<PresenceSettings>,
   ) {}
 
   private getRange(params?: { from?: string; to?: string; rangeDays?: number }) {
@@ -84,6 +90,46 @@ export class PresenceService {
     const status = await this.getOrCreateStatus(Number(userId));
     status.lastSeenAt = new Date();
     return this.statusRepo.save(status);
+  }
+
+  async getSettings() {
+    let settings = await this.settingsRepo.findOne({ where: { id: 1 } });
+    if (settings) return settings;
+
+    settings = this.settingsRepo.create({
+      id: 1,
+      officeStartTime: '09:00',
+      officeEndTime: '18:00',
+      timezone: 'Asia/Dhaka',
+      attendanceKey: '1HS4-6TSSmYRj-D6_ntJ9OyQITNfVyJRMZUN-d-ZN6C8',
+      googleSpreadsheetId: '1HS4-6TSSmYRj-D6_ntJ9OyQITNfVyJRMZUN-d-ZN6C8',
+      summarySheetName: 'May-26',
+      eventsSheetName: '',
+      settingsSheetName: 'Attendance key',
+    });
+    return this.settingsRepo.save(settings);
+  }
+
+  async updateSettings(input: Partial<PresenceSettings>) {
+    const settings = await this.getSettings();
+    const timePattern = /^([01]\d|2[0-3]):[0-5]\d$/;
+    const nextOfficeStart = input.officeStartTime ?? settings.officeStartTime;
+    const nextOfficeEnd = input.officeEndTime ?? settings.officeEndTime;
+
+    if (!timePattern.test(String(nextOfficeStart))) throw new BadRequestException('Office start time must be HH:mm');
+    if (!timePattern.test(String(nextOfficeEnd))) throw new BadRequestException('Office end time must be HH:mm');
+
+    settings.officeStartTime = String(nextOfficeStart);
+    settings.officeEndTime = String(nextOfficeEnd);
+    settings.timezone = String(input.timezone ?? settings.timezone ?? 'Asia/Dhaka');
+    settings.attendanceKey = input.attendanceKey == null ? settings.attendanceKey : String(input.attendanceKey || '').trim() || null;
+    settings.googleSpreadsheetId =
+      input.googleSpreadsheetId == null ? settings.googleSpreadsheetId : String(input.googleSpreadsheetId || '').trim() || null;
+    settings.summarySheetName = String(input.summarySheetName ?? settings.summarySheetName ?? this.getDefaultMonthSheetName()).trim() || this.getDefaultMonthSheetName();
+    settings.eventsSheetName = String(input.eventsSheetName ?? settings.eventsSheetName ?? '').trim();
+    settings.settingsSheetName = String(input.settingsSheetName ?? settings.settingsSheetName ?? 'Attendance key').trim() || 'Attendance key';
+
+    return this.settingsRepo.save(settings);
   }
 
   async getDashboard(params?: { from?: string; to?: string; rangeDays?: number; userId?: number }) {
@@ -205,5 +251,287 @@ export class PresenceService {
     });
 
     return { rangeDays, from, to, totals, items };
+  }
+
+  async getEvents(params?: { from?: string; to?: string; rangeDays?: number; userId?: number }) {
+    const { from, to, rangeDays } = this.getRange(params);
+    const qb = this.eventRepo
+      .createQueryBuilder('e')
+      .where('e.occurredAt >= :from AND e.occurredAt <= :to', { from, to });
+
+    if (params?.userId != null) qb.andWhere('e.userId = :userId', { userId: Number(params.userId) });
+
+    const events = await qb.orderBy('e.occurredAt', 'DESC').take(1000).getMany();
+    const userIds = Array.from(new Set(events.map((e) => Number(e.userId))));
+    const users = userIds.length ? await this.userRepo.find({ where: { id: In(userIds) } as any }) : [];
+    const userById = new Map(users.map((u) => [Number(u.id), u]));
+
+    return {
+      rangeDays,
+      from,
+      to,
+      items: events.map((event) => {
+        const user = userById.get(Number(event.userId));
+        return {
+          id: event.id,
+          userId: event.userId,
+          name: user ? [user.name, user.lastName].filter(Boolean).join(' ').trim() || user.email : `User #${event.userId}`,
+          email: user?.email || null,
+          state: event.state,
+          source: event.source,
+          occurredAt: event.occurredAt,
+        };
+      }),
+    };
+  }
+
+  private async getGoogleAccessToken() {
+    let serviceAccountJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+    const serviceAccountFile = process.env.GOOGLE_SERVICE_ACCOUNT_FILE || process.env.GOOGLE_APPLICATION_CREDENTIALS;
+    let clientEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
+    let privateKey = process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY;
+
+    if (!serviceAccountJson && serviceAccountFile) {
+      serviceAccountJson = fs.readFileSync(serviceAccountFile, 'utf8');
+    }
+
+    if (serviceAccountJson) {
+      const parsed = JSON.parse(serviceAccountJson);
+      clientEmail = parsed.client_email;
+      privateKey = parsed.private_key;
+    }
+
+    privateKey = privateKey?.replace(/\\n/g, '\n');
+    if (!clientEmail || !privateKey) {
+      throw new BadRequestException('Google service account credentials are missing');
+    }
+
+    const now = Math.floor(Date.now() / 1000);
+    const assertion = jwt.sign(
+      {
+        iss: clientEmail,
+        scope: 'https://www.googleapis.com/auth/spreadsheets',
+        aud: 'https://oauth2.googleapis.com/token',
+        exp: now + 3600,
+        iat: now,
+      },
+      privateKey,
+      { algorithm: 'RS256' },
+    );
+
+    const res = await axios.post(
+      'https://oauth2.googleapis.com/token',
+      new URLSearchParams({
+        grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+        assertion,
+      }),
+      { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } },
+    );
+
+    return res.data?.access_token as string;
+  }
+
+  private async ensureSheets(spreadsheetId: string, accessToken: string, sheetNames: string[]) {
+    const meta = await axios.get(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    const existing = new Set((meta.data?.sheets || []).map((s: any) => String(s.properties?.title || '')));
+    const requests = sheetNames
+      .filter((title) => title && !existing.has(title))
+      .map((title) => ({ addSheet: { properties: { title } } }));
+
+    if (requests.length === 0) return;
+
+    await axios.post(
+      `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}:batchUpdate`,
+      { requests },
+      { headers: { Authorization: `Bearer ${accessToken}` } },
+    );
+  }
+
+  private async replaceSheetValues(spreadsheetId: string, accessToken: string, sheetName: string, values: any[][]) {
+    const encodedRange = encodeURIComponent(`'${sheetName}'!A:Z`);
+    await axios.post(
+      `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodedRange}:clear`,
+      {},
+      { headers: { Authorization: `Bearer ${accessToken}` } },
+    );
+
+    const updateRange = encodeURIComponent(`'${sheetName}'!A1`);
+    await axios.put(
+      `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${updateRange}?valueInputOption=USER_ENTERED`,
+      { values },
+      { headers: { Authorization: `Bearer ${accessToken}` } },
+    );
+  }
+
+  private getDefaultMonthSheetName(date = new Date()) {
+    return date.toLocaleString('en-US', { month: 'short', timeZone: 'Asia/Dhaka' }) + '-' + String(date.getFullYear()).slice(-2);
+  }
+
+  private getDaysInSheetMonth(sheetName: string, timezone: string) {
+    const now = new Date();
+    const match = String(sheetName || '').match(/^([A-Za-z]{3})-(\d{2})$/);
+    const monthNames = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+    const monthIndex = match ? monthNames.indexOf(match[1].toLowerCase()) : Number(now.toLocaleString('en-US', { month: 'numeric', timeZone: timezone })) - 1;
+    const year = match ? 2000 + Number(match[2]) : Number(now.toLocaleString('en-US', { year: 'numeric', timeZone: timezone }));
+    const days = new Date(year, monthIndex + 1, 0).getDate();
+    return { year, monthIndex, days };
+  }
+
+  private getDhakaDateKey(date: Date, timezone: string) {
+    return date.toLocaleDateString('en-CA', { timeZone: timezone });
+  }
+
+  private dateKeyForMonthDay(year: number, monthIndex: number, day: number) {
+    const month = String(monthIndex + 1).padStart(2, '0');
+    return `${year}-${month}-${String(day).padStart(2, '0')}`;
+  }
+
+  private timeToMinutes(value: string) {
+    const [h, m] = String(value || '09:00').split(':').map((x) => Number(x));
+    return (Number.isFinite(h) ? h : 9) * 60 + (Number.isFinite(m) ? m : 0);
+  }
+
+  private buildAttendanceGrid(settings: PresenceSettings, dashboard: any, events: any) {
+    const timezone = settings.timezone || 'Asia/Dhaka';
+    const sheetName = settings.summarySheetName || this.getDefaultMonthSheetName();
+    const { year, monthIndex, days } = this.getDaysInSheetMonth(sheetName, timezone);
+    const todayKey = this.getDhakaDateKey(new Date(), timezone);
+    const officeStartMinutes = this.timeToMinutes(settings.officeStartTime);
+    const eventsByUserDay = new Map<string, any[]>();
+
+    for (const event of events.items || []) {
+      if (event.state !== 'online') continue;
+      const occurredAt = new Date(event.occurredAt);
+      const dayKey = this.getDhakaDateKey(occurredAt, timezone);
+      const key = `${event.userId}:${dayKey}`;
+      const list = eventsByUserDay.get(key) || [];
+      list.push(event);
+      eventsByUserDay.set(key, list);
+    }
+
+    const rows: any[][] = [
+      [
+        '',
+        "\n  Enter P for Present, L for Late, W for Weekly off day, and U for Excused absence. Use the 'Attendance key' tab to customise. \n",
+      ],
+      ['Date', ...Array.from({ length: days }, (_, idx) => `${idx + 1}/${monthIndex + 1}`)],
+      [
+        'Office Shift',
+        ...Array.from({ length: days }, (_, idx) =>
+          new Date(year, monthIndex, idx + 1).toLocaleDateString('en-US', { weekday: 'short' }),
+        ),
+      ],
+    ];
+
+    for (const user of dashboard.items || []) {
+      const row = [user.name || `User #${user.userId}`];
+      for (let day = 1; day <= days; day += 1) {
+        const dayKey = this.dateKeyForMonthDay(year, monthIndex, day);
+        if (dayKey > todayKey) {
+          row.push('');
+          continue;
+        }
+
+        const onlineEvents = (eventsByUserDay.get(`${user.userId}:${dayKey}`) || []).sort(
+          (a, b) => new Date(a.occurredAt).getTime() - new Date(b.occurredAt).getTime(),
+        );
+
+        if (onlineEvents.length === 0) {
+          row.push('A');
+          continue;
+        }
+
+        const firstOnline = new Date(onlineEvents[0].occurredAt);
+        const firstMinutes =
+          Number(firstOnline.toLocaleString('en-US', { hour: '2-digit', hour12: false, timeZone: timezone })) * 60 +
+          Number(firstOnline.toLocaleString('en-US', { minute: '2-digit', timeZone: timezone }));
+
+        row.push(firstMinutes > officeStartMinutes ? 'L' : 'P');
+      }
+      rows.push(row);
+    }
+
+    return rows;
+  }
+
+  async syncGoogleSheet() {
+    const settings = await this.getSettings();
+    const spreadsheetId = settings.googleSpreadsheetId || settings.attendanceKey;
+    if (!spreadsheetId) throw new BadRequestException('Google Spreadsheet ID or attendance key is required');
+
+    const dashboard = await this.getDashboard({ rangeDays: 30 });
+    const events = await this.getEvents({ rangeDays: 30 });
+    const accessToken = await this.getGoogleAccessToken();
+    const sheetNames = [settings.summarySheetName, settings.settingsSheetName, settings.eventsSheetName].filter(Boolean);
+
+    try {
+      await this.ensureSheets(spreadsheetId, accessToken, sheetNames);
+
+      await this.replaceSheetValues(spreadsheetId, accessToken, settings.settingsSheetName, [
+        ['', 'SETTINGS'],
+        ['', 'ATTENDANCE KEY'],
+        ['', 'Change the attendance key by updating the values below.'],
+        ['', "Add classes by duplicating the monthly sheet tab. New tabs will reference this same attendance key."],
+        [],
+        ['', 'ATTENDANCE KEY'],
+        ['', 'P', 'Present'],
+        ['', 'L', 'Late'],
+        ['', 'W', 'Weekly off day'],
+        ['', 'U', 'Excused absence'],
+        ['', 'A', 'Unexcused absence'],
+        [],
+        ['', 'OFFICE SETTINGS'],
+        ['', 'Office Start Time', settings.officeStartTime],
+        ['', 'Office End Time', settings.officeEndTime],
+        ['', 'Timezone', settings.timezone],
+        ['', 'Attendance Key', settings.attendanceKey || ''],
+        ['', 'Spreadsheet ID', spreadsheetId],
+        ['', 'Last Synced At', new Date().toISOString()],
+      ]);
+
+      await this.replaceSheetValues(spreadsheetId, accessToken, settings.summarySheetName, this.buildAttendanceGrid(settings, dashboard, events));
+
+      if (settings.eventsSheetName) {
+        await this.replaceSheetValues(spreadsheetId, accessToken, settings.eventsSheetName, [
+          ['Date', 'Time', 'User ID', 'Name', 'Email', 'Status', 'Source'],
+          ...events.items
+            .slice()
+            .reverse()
+            .map((event) => {
+              const occurredAt = new Date(event.occurredAt);
+              return [
+                occurredAt.toLocaleDateString('en-CA', { timeZone: settings.timezone }),
+                occurredAt.toLocaleTimeString('en-GB', { timeZone: settings.timezone, hour12: false }),
+                event.userId,
+                event.name,
+                event.email || '',
+                event.state,
+                event.source,
+              ];
+            }),
+        ]);
+      }
+
+      settings.lastSyncedAt = new Date();
+      settings.lastSyncStatus = 'success';
+      settings.lastSyncMessage = `Synced ${dashboard.items.length} users and ${events.items.length} events`;
+      await this.settingsRepo.save(settings);
+
+      return {
+        status: 'success',
+        spreadsheetId,
+        syncedAt: settings.lastSyncedAt,
+        users: dashboard.items.length,
+        events: events.items.length,
+      };
+    } catch (err: any) {
+      settings.lastSyncedAt = new Date();
+      settings.lastSyncStatus = 'failed';
+      settings.lastSyncMessage = err?.response?.data?.error?.message || err?.message || 'Google Sheets sync failed';
+      await this.settingsRepo.save(settings);
+      throw err;
+    }
   }
 }
