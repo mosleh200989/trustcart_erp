@@ -54,6 +54,16 @@ function formatDateTime(value?: string | null) {
   return d.toLocaleString();
 }
 
+function getTodayRangeParams() {
+  const from = new Date();
+  from.setHours(0, 0, 0, 0);
+  return {
+    from: from.toISOString(),
+    to: new Date().toISOString(),
+    rangeDays: 1,
+  };
+}
+
 export default function PresencePage() {
   const { hasPermission } = useAuth();
   const [rangeDays, setRangeDays] = useState(7);
@@ -65,6 +75,7 @@ export default function PresencePage() {
   const [history, setHistory] = useState<any[]>([]);
   const [settings, setSettings] = useState<any>(null);
   const [message, setMessage] = useState('');
+  const [toggleLoading, setToggleLoading] = useState(false);
 
   const canViewOffice = hasPermission('view-presence');
   const canManageSettings = hasPermission('manage-presence-settings');
@@ -73,9 +84,10 @@ export default function PresencePage() {
   const load = async () => {
     setLoading(true);
     try {
+      const params = canViewOffice ? { rangeDays } : getTodayRangeParams();
       const [summaryRes, historyRes, settingsRes] = await Promise.all([
-        apiClient.get(canViewOffice ? '/presence/dashboard' : '/presence/me/summary', { params: { rangeDays } }),
-        apiClient.get(canViewOffice ? '/presence/history' : '/presence/me/history', { params: { rangeDays } }),
+        apiClient.get(canViewOffice ? '/presence/dashboard' : '/presence/me/summary', { params }),
+        apiClient.get(canViewOffice ? '/presence/history' : '/presence/me/history', { params }),
         canManageSettings ? apiClient.get('/presence/settings').catch(() => null) : Promise.resolve(null),
       ]);
       setDashboard(summaryRes.data);
@@ -122,6 +134,23 @@ export default function PresencePage() {
     }
   };
 
+  const myPresence = dashboard?.items?.[0] || null;
+  const myState = myPresence?.currentState === 'online' ? 'online' : 'offline';
+
+  const toggleMyPresence = async () => {
+    const next = myState === 'online' ? 'offline' : 'online';
+    setToggleLoading(true);
+    setMessage('');
+    try {
+      await apiClient.post('/presence/me', { state: next });
+      await load();
+    } catch (err: any) {
+      setMessage(err?.response?.data?.message || 'Failed to update your status.');
+    } finally {
+      setToggleLoading(false);
+    }
+  };
+
   const filteredRows = useMemo(() => {
     const q = search.trim().toLowerCase();
     return (dashboard?.items || []).filter((row) => {
@@ -161,16 +190,22 @@ export default function PresencePage() {
           </div>
 
           <div className="flex flex-col sm:flex-row gap-3">
-            <select
-              value={rangeDays}
-              onChange={(e) => setRangeDays(Number(e.target.value))}
-              className="border border-gray-300 rounded-lg px-3 py-2 bg-white text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            >
-              <option value={1}>Last 24 hours</option>
-              <option value={7}>Last 7 days</option>
-              <option value={30}>Last 30 days</option>
-              <option value={90}>Last 90 days</option>
-            </select>
+            {canViewOffice ? (
+              <select
+                value={rangeDays}
+                onChange={(e) => setRangeDays(Number(e.target.value))}
+                className="border border-gray-300 rounded-lg px-3 py-2 bg-white text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value={1}>Last 24 hours</option>
+                <option value={7}>Last 7 days</option>
+                <option value={30}>Last 30 days</option>
+                <option value={90}>Last 90 days</option>
+              </select>
+            ) : (
+              <div className="border border-gray-200 rounded-lg px-3 py-2 bg-white text-sm text-gray-600">
+                Today only
+              </div>
+            )}
             <button
               onClick={load}
               disabled={loading}
@@ -198,100 +233,127 @@ export default function PresencePage() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-          <Stat title="Total Users" value={totals.users} tone="blue" icon={<FaUsers />} />
-          <Stat title="Online Now" value={totals.onlineNow} tone="green" icon={<FaCircle />} />
-          <Stat title="Offline Now" value={totals.offlineNow} tone="gray" icon={<FaCircle />} />
-          <Stat title="Online Time" value={secondsToHuman(totals.onlineSeconds)} tone="indigo" icon={<FaUserClock />} />
-        </div>
-
-        <div className="bg-white border border-gray-200 rounded-lg shadow-sm">
-          <div className="p-4 border-b border-gray-200 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
-            <div>
-              <h2 className="text-lg font-bold text-gray-900">User Presence</h2>
-              <p className="text-sm text-gray-500">
-                {canViewOffice
-                  ? `Showing ${filteredRows.length} of ${dashboard?.items?.length || 0} users`
-                  : 'Only your own timing is visible on this page'}
-              </p>
-            </div>
-            {canViewOffice && (
-              <div className="flex flex-col sm:flex-row gap-3">
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search user, email, phone"
-                className="border border-gray-300 rounded-lg px-3 py-2 text-sm min-w-[240px] focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              />
-              <select
-                value={stateFilter}
-                onChange={(e) => setStateFilter(e.target.value as any)}
-                className="border border-gray-300 rounded-lg px-3 py-2 bg-white text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+        {canViewOffice ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+            <Stat title="Total Users" value={totals.users} tone="blue" icon={<FaUsers />} />
+            <Stat title="Online Now" value={totals.onlineNow} tone="green" icon={<FaCircle />} />
+            <Stat title="Offline Now" value={totals.offlineNow} tone="gray" icon={<FaCircle />} />
+            <Stat title="Online Time" value={secondsToHuman(totals.onlineSeconds)} tone="indigo" icon={<FaUserClock />} />
+          </div>
+        ) : (
+          <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6">
+            <div className="grid grid-cols-1 lg:grid-cols-[1.2fr_2fr] gap-6 items-stretch">
+              <button
+                onClick={toggleMyPresence}
+                disabled={toggleLoading}
+                className={`min-h-[180px] rounded-lg text-white flex flex-col items-center justify-center gap-3 shadow-lg transition-all ${
+                  myState === 'online'
+                    ? 'bg-gradient-to-br from-green-500 to-green-700 hover:from-green-600 hover:to-green-800'
+                    : 'bg-gradient-to-br from-gray-600 to-gray-800 hover:from-gray-700 hover:to-gray-900'
+                } ${toggleLoading ? 'opacity-75 cursor-wait' : ''}`}
               >
-                <option value="all">All statuses</option>
-                <option value="online">Online only</option>
-                <option value="offline">Offline only</option>
-              </select>
+                <span className="text-sm font-semibold uppercase tracking-wide">{toggleLoading ? 'Updating' : 'My Status'}</span>
+                <span className="text-4xl font-black">{myState === 'online' ? 'Online' : 'Offline'}</span>
+                <span className="text-sm opacity-90">{myState === 'online' ? 'Click to go offline' : 'Click to go online'}</span>
+              </button>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+                <Stat title="Today Online" value={secondsToHuman(myPresence?.seconds?.online)} tone="green" icon={<FaUserClock />} />
+                <Stat title="Today Offline" value={secondsToHuman(myPresence?.seconds?.offline)} tone="gray" icon={<FaUserClock />} />
+                <Stat title="Online Count" value={myPresence?.onlineCount || 0} tone="blue" icon={<FaCircle />} />
+                <Stat title="Offline Count" value={myPresence?.offlineCount || 0} tone="indigo" icon={<FaCircle />} />
               </div>
-            )}
+            </div>
           </div>
+        )}
 
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">User</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Status</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase">Online Count</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase">Offline Count</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase">Online Time</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase">Offline Time</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Last Changed</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Last Seen</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-100">
-                {filteredRows.map((row) => (
-                  <tr key={row.userId} className="hover:bg-gray-50">
-                    <td className="px-4 py-3">
-                      <div className="font-semibold text-gray-900">{row.name}</div>
-                      <div className="text-xs text-gray-500">{row.email || row.phone || `User #${row.userId}`}</div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className={`inline-flex items-center gap-2 px-2.5 py-1 rounded-full text-xs font-semibold border ${
-                        row.currentState === 'online'
-                          ? 'bg-green-50 text-green-700 border-green-200'
-                          : 'bg-gray-50 text-gray-700 border-gray-200'
-                      }`}>
-                        <span className={`w-2 h-2 rounded-full ${row.currentState === 'online' ? 'bg-green-500' : 'bg-gray-400'}`} />
-                        {row.currentState === 'online' ? 'Online' : 'Offline'}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-sm text-gray-700 text-right">{row.onlineCount}</td>
-                    <td className="px-4 py-3 text-sm text-gray-700 text-right">{row.offlineCount}</td>
-                    <td className="px-4 py-3 text-sm text-gray-900 text-right font-semibold">{secondsToHuman(row.seconds?.online)}</td>
-                    <td className="px-4 py-3 text-sm text-gray-700 text-right">{secondsToHuman(row.seconds?.offline)}</td>
-                    <td className="px-4 py-3 text-sm text-gray-600">{formatDateTime(row.lastChangedAt)}</td>
-                    <td className="px-4 py-3 text-sm text-gray-600">{formatDateTime(row.lastSeenAt)}</td>
-                  </tr>
-                ))}
+        {canViewOffice && (
+          <div className="bg-white border border-gray-200 rounded-lg shadow-sm">
+            <div className="p-4 border-b border-gray-200 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-bold text-gray-900">User Presence</h2>
+                <p className="text-sm text-gray-500">
+                  Showing {filteredRows.length} of {dashboard?.items?.length || 0} users
+                </p>
+              </div>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search user, email, phone"
+                  className="border border-gray-300 rounded-lg px-3 py-2 text-sm min-w-[240px] focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+                <select
+                  value={stateFilter}
+                  onChange={(e) => setStateFilter(e.target.value as any)}
+                  className="border border-gray-300 rounded-lg px-3 py-2 bg-white text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="all">All statuses</option>
+                  <option value="online">Online only</option>
+                  <option value="offline">Offline only</option>
+                </select>
+              </div>
+            </div>
 
-                {!loading && filteredRows.length === 0 && (
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
                   <tr>
-                    <td colSpan={8} className="px-4 py-10 text-center text-gray-500">
-                      No presence records match the current filters.
-                    </td>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">User</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Status</th>
+                    <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase">Online Count</th>
+                    <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase">Offline Count</th>
+                    <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase">Online Time</th>
+                    <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase">Offline Time</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Last Changed</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Last Seen</th>
                   </tr>
-                )}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-100">
+                  {filteredRows.map((row) => (
+                    <tr key={row.userId} className="hover:bg-gray-50">
+                      <td className="px-4 py-3">
+                        <div className="font-semibold text-gray-900">{row.name}</div>
+                        <div className="text-xs text-gray-500">{row.email || row.phone || `User #${row.userId}`}</div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`inline-flex items-center gap-2 px-2.5 py-1 rounded-full text-xs font-semibold border ${
+                          row.currentState === 'online'
+                            ? 'bg-green-50 text-green-700 border-green-200'
+                            : 'bg-gray-50 text-gray-700 border-gray-200'
+                        }`}>
+                          <span className={`w-2 h-2 rounded-full ${row.currentState === 'online' ? 'bg-green-500' : 'bg-gray-400'}`} />
+                          {row.currentState === 'online' ? 'Online' : 'Offline'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-700 text-right">{row.onlineCount}</td>
+                      <td className="px-4 py-3 text-sm text-gray-700 text-right">{row.offlineCount}</td>
+                      <td className="px-4 py-3 text-sm text-gray-900 text-right font-semibold">{secondsToHuman(row.seconds?.online)}</td>
+                      <td className="px-4 py-3 text-sm text-gray-700 text-right">{secondsToHuman(row.seconds?.offline)}</td>
+                      <td className="px-4 py-3 text-sm text-gray-600">{formatDateTime(row.lastChangedAt)}</td>
+                      <td className="px-4 py-3 text-sm text-gray-600">{formatDateTime(row.lastSeenAt)}</td>
+                    </tr>
+                  ))}
+
+                  {!loading && filteredRows.length === 0 && (
+                    <tr>
+                      <td colSpan={8} className="px-4 py-10 text-center text-gray-500">
+                        No presence records match the current filters.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
+        )}
 
         <div className="bg-white border border-gray-200 rounded-lg shadow-sm">
           <div className="p-4 border-b border-gray-200">
             <h2 className="text-lg font-bold text-gray-900">{canViewOffice ? 'Office History' : 'My History'}</h2>
-            <p className="text-sm text-gray-500">Online/offline transitions for the selected period.</p>
+            <p className="text-sm text-gray-500">
+              {canViewOffice ? 'Online/offline transitions for the selected period.' : 'Your online/offline periods from today.'}
+            </p>
           </div>
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
@@ -299,7 +361,9 @@ export default function PresencePage() {
                 <tr>
                   {canViewOffice && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">User</th>}
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Status</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Time</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Started</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Ended</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase">Duration</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Source</th>
                 </tr>
               </thead>
@@ -322,13 +386,23 @@ export default function PresencePage() {
                         {event.state === 'online' ? 'Online' : 'Offline'}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-700">{formatDateTime(event.occurredAt)}</td>
+                    <td className="px-4 py-3 text-sm text-gray-700">{formatDateTime(event.startedAt || event.occurredAt)}</td>
+                    <td className="px-4 py-3 text-sm text-gray-700">
+                      {event.isCurrentPeriod ? (
+                        <span className="inline-flex items-center px-2 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-semibold">
+                          Now
+                        </span>
+                      ) : (
+                        formatDateTime(event.endedAt)
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-900 text-right font-semibold">{secondsToHuman(event.durationSeconds)}</td>
                     <td className="px-4 py-3 text-sm text-gray-600 capitalize">{event.source || '-'}</td>
                   </tr>
                 ))}
                 {!loading && history.length === 0 && (
                   <tr>
-                    <td colSpan={canViewOffice ? 4 : 3} className="px-4 py-8 text-center text-gray-500">
+                    <td colSpan={canViewOffice ? 6 : 5} className="px-4 py-8 text-center text-gray-500">
                       No history found for the selected period.
                     </td>
                   </tr>

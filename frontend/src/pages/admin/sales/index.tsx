@@ -143,7 +143,7 @@ export default function AdminSales() {
   const [showOrderDetails, setShowOrderDetails] = useState(false);
   const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
   const [selectedRowIds, setSelectedRowIds] = useState<Array<number | string>>([]);
-  const [bulkAction, setBulkAction] = useState<'delete' | 'processing' | 'completed' | 'cancelled' | 'admin_cancelled' | ''>('');
+  const [bulkAction, setBulkAction] = useState<'delete' | 'processing' | 'approved' | 'completed' | 'cancelled' | 'admin_cancelled' | ''>('');
   const [itemsPerPage, setItemsPerPage] = useState(50);
 
   // Print & Pack state
@@ -1119,6 +1119,7 @@ export default function AdminSales() {
               <option value="">Bulk Actions</option>
               <option value="delete">Delete Selected</option>
               <option value="processing">Mark as Processing</option>
+              <option value="approved">Mark as Approved</option>
               <option value="completed">Mark as Completed</option>
               <option value="admin_cancelled">Mark as Order Rejected</option>
             </select>

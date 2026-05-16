@@ -255,24 +255,49 @@ export class PresenceService {
 
   async getEvents(params?: { from?: string; to?: string; rangeDays?: number; userId?: number }) {
     const { from, to, rangeDays } = this.getRange(params);
+    const explicitUserId = params?.userId != null ? Number(params.userId) : null;
     const qb = this.eventRepo
       .createQueryBuilder('e')
       .where('e.occurredAt >= :from AND e.occurredAt <= :to', { from, to });
 
-    if (params?.userId != null) qb.andWhere('e.userId = :userId', { userId: Number(params.userId) });
+    if (explicitUserId != null) qb.andWhere('e.userId = :userId', { userId: explicitUserId });
 
-    const events = await qb.orderBy('e.occurredAt', 'DESC').take(1000).getMany();
-    const userIds = Array.from(new Set(events.map((e) => Number(e.userId))));
+    const events = await qb.orderBy('e.occurredAt', 'ASC').take(1000).getMany();
+    const baselineRows =
+      explicitUserId != null
+        ? await this.eventRepo.query(
+            `SELECT id, user_id as "userId", state, source, occurred_at as "occurredAt", created_at as "createdAt"
+             FROM user_presence_events
+             WHERE user_id = $1 AND occurred_at < $2
+             ORDER BY occurred_at DESC
+             LIMIT 1`,
+            [explicitUserId, from],
+          )
+        : [];
+    const userIds = Array.from(new Set([...events.map((e) => Number(e.userId)), ...(explicitUserId != null ? [explicitUserId] : [])]));
     const users = userIds.length ? await this.userRepo.find({ where: { id: In(userIds) } as any }) : [];
     const userById = new Map(users.map((u) => [Number(u.id), u]));
+    const eventsByUser = new Map<number, UserPresenceEvent[]>();
 
-    return {
-      rangeDays,
-      from,
-      to,
-      items: events.map((event) => {
-        const user = userById.get(Number(event.userId));
-        return {
+    for (const event of [...(baselineRows || []), ...events]) {
+      const list = eventsByUser.get(Number(event.userId)) || [];
+      list.push(event);
+      eventsByUser.set(Number(event.userId), list);
+    }
+
+    const items: any[] = [];
+    for (const [userId, userEvents] of eventsByUser.entries()) {
+      const ordered = userEvents.slice().sort((a, b) => new Date(a.occurredAt).getTime() - new Date(b.occurredAt).getTime());
+      const user = userById.get(userId);
+
+      ordered.forEach((event, idx) => {
+        const occurredAt = new Date(event.occurredAt);
+        const startedAt = occurredAt < from ? from : occurredAt;
+        const endedAt = idx < ordered.length - 1 ? new Date(ordered[idx + 1].occurredAt) : to;
+        const durationSeconds = Math.max(0, Math.floor((endedAt.getTime() - startedAt.getTime()) / 1000));
+        const isCurrentPeriod = idx === ordered.length - 1;
+
+        items.push({
           id: event.id,
           userId: event.userId,
           name: user ? [user.name, user.lastName].filter(Boolean).join(' ').trim() || user.email : `User #${event.userId}`,
@@ -280,8 +305,21 @@ export class PresenceService {
           state: event.state,
           source: event.source,
           occurredAt: event.occurredAt,
-        };
-      }),
+          startedAt,
+          endedAt,
+          durationSeconds,
+          isCurrentPeriod,
+        });
+      });
+    }
+
+    items.sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime());
+
+    return {
+      rangeDays,
+      from,
+      to,
+      items,
     };
   }
 
