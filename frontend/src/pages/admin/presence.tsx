@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import AdminLayout from '@/layouts/AdminLayout';
 import apiClient from '@/services/api';
+import { useAuth } from '@/contexts/AuthContext';
 import { FaCircle, FaSyncAlt, FaUserClock, FaUsers } from 'react-icons/fa';
 
 type PresenceRow = {
@@ -54,20 +55,36 @@ function formatDateTime(value?: string | null) {
 }
 
 export default function PresencePage() {
+  const { hasPermission } = useAuth();
   const [rangeDays, setRangeDays] = useState(7);
   const [search, setSearch] = useState('');
   const [stateFilter, setStateFilter] = useState<'all' | 'online' | 'offline'>('all');
   const [loading, setLoading] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const [dashboard, setDashboard] = useState<PresenceDashboard | null>(null);
+  const [history, setHistory] = useState<any[]>([]);
+  const [settings, setSettings] = useState<any>(null);
+  const [message, setMessage] = useState('');
+
+  const canViewOffice = hasPermission('view-presence');
+  const canManageSettings = hasPermission('manage-presence-settings');
+  const canSyncSheet = hasPermission('sync-presence-sheet');
 
   const load = async () => {
     setLoading(true);
     try {
-      const res = await apiClient.get('/presence/dashboard', { params: { rangeDays } });
-      setDashboard(res.data);
+      const [summaryRes, historyRes, settingsRes] = await Promise.all([
+        apiClient.get(canViewOffice ? '/presence/dashboard' : '/presence/me/summary', { params: { rangeDays } }),
+        apiClient.get(canViewOffice ? '/presence/history' : '/presence/me/history', { params: { rangeDays } }),
+        canManageSettings ? apiClient.get('/presence/settings').catch(() => null) : Promise.resolve(null),
+      ]);
+      setDashboard(summaryRes.data);
+      setHistory(Array.isArray(historyRes.data?.items) ? historyRes.data.items : []);
+      if (settingsRes?.data) setSettings(settingsRes.data);
     } catch (err) {
       console.error('Failed to load presence dashboard', err);
       setDashboard(null);
+      setHistory([]);
     } finally {
       setLoading(false);
     }
@@ -78,7 +95,32 @@ export default function PresencePage() {
     const iv = setInterval(load, 60000);
     return () => clearInterval(iv);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rangeDays]);
+  }, [rangeDays, canViewOffice, canManageSettings]);
+
+  const saveSettings = async () => {
+    setMessage('');
+    try {
+      const res = await apiClient.post('/presence/settings', settings);
+      setSettings(res.data);
+      setMessage('Settings saved successfully.');
+    } catch (err: any) {
+      setMessage(err?.response?.data?.message || 'Failed to save settings.');
+    }
+  };
+
+  const syncSheet = async () => {
+    setMessage('');
+    setSyncing(true);
+    try {
+      const res = await apiClient.post('/presence/sync/google-sheet');
+      setMessage(`Google Sheet synced: ${res.data?.users || 0} users, ${res.data?.events || 0} events.`);
+      await load();
+    } catch (err: any) {
+      setMessage(err?.response?.data?.message || err?.response?.data?.error || 'Google Sheet sync failed.');
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   const filteredRows = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -112,7 +154,9 @@ export default function PresencePage() {
             </div>
             <h1 className="text-3xl font-bold text-gray-900 mt-2">Online and Offline Dashboard</h1>
             <p className="text-gray-600 mt-1">
-              Monitor every admin user's current availability, transition counters, and total online/offline time.
+              {canViewOffice
+                ? "Monitor every admin user's current availability, transition counters, and total online/offline time."
+                : 'View your own availability, online/offline buttons, and personal history.'}
             </p>
           </div>
 
@@ -135,8 +179,24 @@ export default function PresencePage() {
               <FaSyncAlt className={loading ? 'animate-spin' : ''} />
               Refresh
             </button>
+            {canSyncSheet && (
+              <button
+                onClick={syncSheet}
+                disabled={syncing}
+                className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-green-600 text-white text-sm font-semibold hover:bg-green-700 disabled:opacity-60"
+              >
+                <FaSyncAlt className={syncing ? 'animate-spin' : ''} />
+                Sync Sheet
+              </button>
+            )}
           </div>
         </div>
+
+        {message && (
+          <div className="bg-white border border-blue-100 text-blue-800 rounded-lg px-4 py-3 text-sm shadow-sm">
+            {message}
+          </div>
+        )}
 
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
           <Stat title="Total Users" value={totals.users} tone="blue" icon={<FaUsers />} />
@@ -150,10 +210,13 @@ export default function PresencePage() {
             <div>
               <h2 className="text-lg font-bold text-gray-900">User Presence</h2>
               <p className="text-sm text-gray-500">
-                Showing {filteredRows.length} of {dashboard?.items?.length || 0} users
+                {canViewOffice
+                  ? `Showing ${filteredRows.length} of ${dashboard?.items?.length || 0} users`
+                  : 'Only your own timing is visible on this page'}
               </p>
             </div>
-            <div className="flex flex-col sm:flex-row gap-3">
+            {canViewOffice && (
+              <div className="flex flex-col sm:flex-row gap-3">
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
@@ -169,7 +232,8 @@ export default function PresencePage() {
                 <option value="online">Online only</option>
                 <option value="offline">Offline only</option>
               </select>
-            </div>
+              </div>
+            )}
           </div>
 
           <div className="overflow-x-auto">
@@ -223,8 +287,114 @@ export default function PresencePage() {
             </table>
           </div>
         </div>
+
+        <div className="bg-white border border-gray-200 rounded-lg shadow-sm">
+          <div className="p-4 border-b border-gray-200">
+            <h2 className="text-lg font-bold text-gray-900">{canViewOffice ? 'Office History' : 'My History'}</h2>
+            <p className="text-sm text-gray-500">Online/offline transitions for the selected period.</p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  {canViewOffice && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">User</th>}
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Status</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Time</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Source</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-100">
+                {history.map((event) => (
+                  <tr key={event.id} className="hover:bg-gray-50">
+                    {canViewOffice && (
+                      <td className="px-4 py-3">
+                        <div className="font-semibold text-gray-900">{event.name}</div>
+                        <div className="text-xs text-gray-500">{event.email || `User #${event.userId}`}</div>
+                      </td>
+                    )}
+                    <td className="px-4 py-3">
+                      <span className={`inline-flex items-center gap-2 px-2.5 py-1 rounded-full text-xs font-semibold border ${
+                        event.state === 'online'
+                          ? 'bg-green-50 text-green-700 border-green-200'
+                          : 'bg-gray-50 text-gray-700 border-gray-200'
+                      }`}>
+                        <span className={`w-2 h-2 rounded-full ${event.state === 'online' ? 'bg-green-500' : 'bg-gray-400'}`} />
+                        {event.state === 'online' ? 'Online' : 'Offline'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-700">{formatDateTime(event.occurredAt)}</td>
+                    <td className="px-4 py-3 text-sm text-gray-600 capitalize">{event.source || '-'}</td>
+                  </tr>
+                ))}
+                {!loading && history.length === 0 && (
+                  <tr>
+                    <td colSpan={canViewOffice ? 4 : 3} className="px-4 py-8 text-center text-gray-500">
+                      No history found for the selected period.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {canManageSettings && settings && (
+          <div className="bg-white border border-gray-200 rounded-lg shadow-sm">
+            <div className="p-4 border-b border-gray-200 flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-bold text-gray-900">Presence Settings</h2>
+                <p className="text-sm text-gray-500">Office timing and Google Sheet attendance sync configuration.</p>
+              </div>
+              <button
+                onClick={saveSettings}
+                className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700"
+              >
+                Save Settings
+              </button>
+            </div>
+            <div className="p-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+              <Field label="Office Start Time">
+                <input type="time" value={settings.officeStartTime || ''} onChange={(e) => setSettings({ ...settings, officeStartTime: e.target.value })} className="w-full border rounded-lg px-3 py-2" />
+              </Field>
+              <Field label="Office End Time">
+                <input type="time" value={settings.officeEndTime || ''} onChange={(e) => setSettings({ ...settings, officeEndTime: e.target.value })} className="w-full border rounded-lg px-3 py-2" />
+              </Field>
+              <Field label="Timezone">
+                <input value={settings.timezone || ''} onChange={(e) => setSettings({ ...settings, timezone: e.target.value })} className="w-full border rounded-lg px-3 py-2" />
+              </Field>
+              <Field label="Attendance Key">
+                <input value={settings.attendanceKey || ''} onChange={(e) => setSettings({ ...settings, attendanceKey: e.target.value })} className="w-full border rounded-lg px-3 py-2" />
+              </Field>
+              <Field label="Spreadsheet ID">
+                <input value={settings.googleSpreadsheetId || ''} onChange={(e) => setSettings({ ...settings, googleSpreadsheetId: e.target.value })} className="w-full border rounded-lg px-3 py-2" />
+              </Field>
+              <Field label="Attendance Key Sheet Name">
+                <input value={settings.settingsSheetName || ''} onChange={(e) => setSettings({ ...settings, settingsSheetName: e.target.value })} className="w-full border rounded-lg px-3 py-2" />
+              </Field>
+              <Field label="Attendance Sheet Name">
+                <input value={settings.summarySheetName || ''} onChange={(e) => setSettings({ ...settings, summarySheetName: e.target.value })} className="w-full border rounded-lg px-3 py-2" />
+              </Field>
+              <Field label="Events Sheet Name (optional)">
+                <input value={settings.eventsSheetName || ''} onChange={(e) => setSettings({ ...settings, eventsSheetName: e.target.value })} className="w-full border rounded-lg px-3 py-2" />
+              </Field>
+              <div className="md:col-span-2 xl:col-span-3 text-sm text-gray-600">
+                Last sync: {formatDateTime(settings.lastSyncedAt)} {settings.lastSyncStatus ? `(${settings.lastSyncStatus})` : ''}
+                {settings.lastSyncMessage ? ` - ${settings.lastSyncMessage}` : ''}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </AdminLayout>
+  );
+}
+
+function Field({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <label className="block">
+      <span className="block text-sm font-semibold text-gray-700 mb-1">{label}</span>
+      {children}
+    </label>
   );
 }
 
