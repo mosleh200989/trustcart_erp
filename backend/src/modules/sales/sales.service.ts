@@ -1398,32 +1398,61 @@ export class SalesService {
     // date is YYYY-MM-DD
     const reportDate = date || this.currentDhakaDateString();
 
-    // 1) Product-wise breakdown via sales_order_items JOIN sales_orders
-    const productRows = await this.orderItemsRepository
-      .createQueryBuilder('soi')
-      .innerJoin('soi.salesOrder', 'o')
-      .select([
-        'soi.product_id AS product_id',
-        'soi.product_name AS product_name',
-        'COUNT(DISTINCT o.id) AS total_orders',
-        'SUM(soi.quantity) AS total_qty',
-        'SUM(soi.line_total) AS total_revenue',
-        'SUM(soi.unit_price * soi.quantity) AS gross_amount',
-        `COUNT(DISTINCT CASE WHEN LOWER(o.courier_company) = 'steadfast' THEN o.id END) AS steadfast_orders`,
-        `COUNT(DISTINCT CASE WHEN LOWER(o.courier_company) = 'pathao' THEN o.id END) AS pathao_orders`,
-        `COUNT(DISTINCT CASE WHEN LOWER(o.courier_company) = 'redx' THEN o.id END) AS redx_orders`,
-        `COUNT(DISTINCT CASE WHEN o.courier_company IS NULL OR o.courier_company = '' THEN o.id END) AS no_courier_orders`,
-        `COUNT(DISTINCT CASE WHEN LOWER(o.status::text) = 'delivered' THEN o.id END) AS delivered_orders`,
-        `COUNT(DISTINCT CASE WHEN LOWER(o.status::text) IN ('cancelled', 'admin_cancelled', 'returned') THEN o.id END) AS cancelled_orders`,
-        `COUNT(DISTINCT CASE WHEN LOWER(o.status::text) = 'pending' THEN o.id END) AS pending_orders`,
-        `COUNT(DISTINCT CASE WHEN LOWER(o.status::text) = 'approved' THEN o.id END) AS approved_orders`,
-        `COUNT(DISTINCT CASE WHEN LOWER(o.status::text) = 'shipped' THEN o.id END) AS shipped_orders`,
-      ])
-      .where('DATE(o.order_date) = :reportDate', { reportDate })
-      .groupBy('soi.product_id')
-      .addGroupBy('soi.product_name')
-      .orderBy('total_orders', 'DESC')
-      .getRawMany();
+    // 1) Product-wise breakdown for agent/admin orders only.
+    // Combine both item tables because agent/admin orders may be stored in either.
+    const productRows = await this.salesRepository.manager.query(
+      `SELECT
+         product_id,
+         product_name,
+         COUNT(DISTINCT order_id) AS total_orders,
+         COALESCE(SUM(quantity), 0) AS total_qty,
+         COALESCE(SUM(total_revenue), 0) AS total_revenue,
+         COALESCE(SUM(gross_amount), 0) AS gross_amount,
+         COUNT(DISTINCT CASE WHEN courier_company = 'steadfast' THEN order_id END) AS steadfast_orders,
+         COUNT(DISTINCT CASE WHEN courier_company = 'pathao' THEN order_id END) AS pathao_orders,
+         COUNT(DISTINCT CASE WHEN courier_company = 'redx' THEN order_id END) AS redx_orders,
+         COUNT(DISTINCT CASE WHEN courier_company IS NULL OR courier_company = '' THEN order_id END) AS no_courier_orders,
+         COUNT(DISTINCT CASE WHEN status = 'delivered' THEN order_id END) AS delivered_orders,
+         COUNT(DISTINCT CASE WHEN status IN ('cancelled', 'returned') THEN order_id END) AS cancelled_orders,
+         COUNT(DISTINCT CASE WHEN status = 'pending' THEN order_id END) AS pending_orders,
+         COUNT(DISTINCT CASE WHEN status = 'approved' THEN order_id END) AS approved_orders,
+         COUNT(DISTINCT CASE WHEN status = 'shipped' THEN order_id END) AS shipped_orders
+       FROM (
+         SELECT
+           o.id AS order_id,
+           LOWER(o.status::text) AS status,
+           LOWER(COALESCE(o.courier_company, '')) AS courier_company,
+           soi.product_id,
+           COALESCE(NULLIF(soi.product_name, ''), 'Unknown Product') AS product_name,
+           soi.quantity,
+           COALESCE(soi.line_total, 0) AS total_revenue,
+           COALESCE(soi.unit_price * soi.quantity, 0) AS gross_amount
+         FROM sales_order_items soi
+         INNER JOIN sales_orders o ON o.id = soi.sales_order_id
+         WHERE DATE(o.order_date) = $1
+           AND o.order_source IN ('admin_panel', 'agent_dashboard')
+           AND NOT EXISTS (
+             SELECT 1 FROM order_items oi_existing WHERE oi_existing.order_id = o.id
+           )
+         UNION ALL
+         SELECT
+           o.id AS order_id,
+           LOWER(o.status::text) AS status,
+           LOWER(COALESCE(o.courier_company, '')) AS courier_company,
+           oi.product_id,
+           COALESCE(NULLIF(COALESCE(oi.custom_product_name, oi.product_name), ''), 'Unknown Product') AS product_name,
+           oi.quantity,
+           COALESCE(oi.subtotal, oi.unit_price * oi.quantity, 0) AS total_revenue,
+           COALESCE(oi.unit_price * oi.quantity, 0) AS gross_amount
+         FROM order_items oi
+         INNER JOIN sales_orders o ON o.id = oi.order_id
+         WHERE DATE(o.order_date) = $1
+           AND o.order_source IN ('admin_panel', 'agent_dashboard')
+       ) normalized
+       GROUP BY product_id, product_name
+       ORDER BY total_orders DESC`,
+      [reportDate],
+    );
 
     // 2) Overall summary for the date
     const summaryRaw = await this.salesRepository
@@ -1455,6 +1484,7 @@ export class SalesService {
         'COUNT(DISTINCT o.customer_id) AS unique_customers',
       ])
       .where('DATE(o.order_date) = :reportDate', { reportDate })
+      .andWhere("o.order_source IN ('website', 'landing_page')")
       .getRawOne();
 
     // 3) Hourly distribution for the chart (use created_at which is timestamp; order_date is date-only)
@@ -1586,6 +1616,7 @@ export class SalesService {
            INNER JOIN sales_orders o ON o.id = soi.sales_order_id
            WHERE DATE(o.order_date) = $1
              AND o.created_by IS NOT NULL
+             AND o.order_source IN ('admin_panel', 'agent_dashboard')
              AND NOT EXISTS (
                SELECT 1 FROM order_items oi_existing WHERE oi_existing.order_id = o.id
              )
@@ -1601,6 +1632,7 @@ export class SalesService {
            INNER JOIN sales_orders o ON o.id = oi.order_id
            WHERE DATE(o.order_date) = $1
              AND o.created_by IS NOT NULL
+             AND o.order_source IN ('admin_panel', 'agent_dashboard')
          ) i
          LEFT JOIN users u ON u.id = i.agent_id
          LEFT JOIN products p ON p.id = i.product_id
@@ -1730,7 +1762,8 @@ export class SalesService {
         `COUNT(CASE WHEN LOWER(o.status::text) = 'approved' THEN 1 END) AS approved_orders`,
         `COUNT(CASE WHEN LOWER(o.status::text) = 'shipped' THEN 1 END) AS shipped_orders`,
         `COUNT(CASE WHEN LOWER(o.status::text) = 'delivered' THEN 1 END) AS delivered_orders`,
-        `COUNT(CASE WHEN LOWER(o.status::text) IN ('cancelled', 'admin_cancelled', 'returned') THEN 1 END) AS cancelled_orders`,
+        `COUNT(CASE WHEN LOWER(o.status::text) = 'admin_cancelled' THEN 1 END) AS rejected_orders`,
+        `COUNT(CASE WHEN LOWER(o.status::text) IN ('cancelled', 'returned') THEN 1 END) AS cancelled_orders`,
       ])
       .where('o.created_by IS NOT NULL')
       .andWhere('o.order_source IN (:...agentSources)', { agentSources: ['admin_panel', 'agent_dashboard'] })
@@ -1981,6 +2014,7 @@ export class SalesService {
         approvedOrders: toNum(r.approved_orders),
         shippedOrders: toNum(r.shipped_orders),
         deliveredOrders: toNum(r.delivered_orders),
+        rejectedOrders: toNum(r.rejected_orders),
         cancelledOrders: toNum(r.cancelled_orders),
         conversionRate: convRateMap.get(toNum(r.agent_id)) || 0,
         cancelRate: toNum(r.total_orders) > 0

@@ -87,6 +87,17 @@ interface AgentProductRow {
   totalRevenue: number;
 }
 
+interface CombinedProductRow {
+  key: string;
+  source: 'agent' | 'landing_page' | 'website';
+  sourceLabel: string;
+  ownerLabel: string;
+  productName: string;
+  totalOrders: number;
+  totalQty: number;
+  totalRevenue: number;
+}
+
 interface DailyReport {
   date: string;
   summary: Summary;
@@ -107,21 +118,6 @@ const agentLabel = (row: Pick<AgentProductRow, 'agentId' | 'agentName'>) =>
 const productLabel = (row: Pick<AgentProductRow, 'productId' | 'productName'>) =>
   hasReadableText(row.productName) ? row.productName : `Product #${row.productId || 'Unknown'}`;
 
-const statusMeta = [
-  { key: 'processingOrders', label: 'Processing', color: 'pink' },
-  { key: 'pendingOrders', label: 'Pending', color: 'amber' },
-  { key: 'approvedOrders', label: 'Approved', color: 'blue' },
-  { key: 'sentOrders', label: 'Sent', color: 'cyan' },
-  { key: 'holdOrders', label: 'On Hold', color: 'orange' },
-  { key: 'inReviewOrders', label: 'In Review', color: 'yellow' },
-  { key: 'pickedOrders', label: 'Picked', color: 'teal' },
-  { key: 'inTransitOrders', label: 'In Transit', color: 'violet' },
-  { key: 'partialDeliveredOrders', label: 'Partial Delivered', color: 'lime' },
-  { key: 'deliveredOrders', label: 'Delivered', color: 'green' },
-  { key: 'completedOrders', label: 'Completed', color: 'emerald' },
-  { key: 'cancelledOrders', label: 'Cancelled + Returned', color: 'red' },
-] as const;
-
 export default function TodaysReportPage() {
   const [date, setDate] = useState(() => getDhakaDateString());
   const [data, setData] = useState<DailyReport | null>(null);
@@ -129,9 +125,6 @@ export default function TodaysReportPage() {
   const [error, setError] = useState('');
   const [productSearch, setProductSearch] = useState('');
   const [sourceFilter, setSourceFilter] = useState<'all' | 'landing_page' | 'website'>('all');
-  const [agentFilter, setAgentFilter] = useState('all');
-  const [agentMetric, setAgentMetric] = useState<'totalQty' | 'totalOrders'>('totalQty');
-  const [agentTop, setAgentTop] = useState(12);
 
   const fetchReport = useCallback(async (reportDate: string) => {
     setLoading(true);
@@ -150,13 +143,17 @@ export default function TodaysReportPage() {
     fetchReport(date);
   }, [date, fetchReport]);
 
-  const statusCards = useMemo(() => {
+  const summaryCards = useMemo(() => {
     const summary = data?.summary;
     if (!summary) return [];
-    return statusMeta.map((item) => ({
-      ...item,
-      count: Number(summary[item.key] || 0),
-    }));
+    const remaining = Math.max(Number(summary.totalOrders || 0) - Number(summary.approvedOrders || 0), 0);
+    return [
+      { key: 'total', label: 'Total Orders', count: Number(summary.totalOrders || 0), color: 'indigo' },
+      { key: 'approved', label: 'Approved', count: Number(summary.approvedOrders || 0), color: 'blue' },
+      { key: 'rejected', label: 'Rejected', count: Number(summary.rejectedOrders || 0), color: 'red' },
+      { key: 'hold', label: 'On Hold', count: Number(summary.holdOrders || 0), color: 'orange' },
+      { key: 'remaining', label: 'Total - Approved', count: remaining, color: 'violet' },
+    ];
   }, [data]);
 
   const productRows = useMemo(() => {
@@ -176,35 +173,41 @@ export default function TodaysReportPage() {
       .sort((a, b) => b.totalQty - a.totalQty);
   }, [data, sourceFilter]);
 
-  const agents = useMemo(() => {
-    const names = new Map<string, string>();
-    (data?.agentProductBreakdown || []).filter((row) => !isDeletedAgentLabel(row.agentName)).forEach((row) => {
-      names.set(String(row.agentId ?? 'unassigned'), agentLabel(row));
-    });
-    return Array.from(names.entries()).map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
-  }, [data]);
-
-  const agentProductChart = useMemo(() => {
-    const grouped = new Map<string, any>();
-    (data?.agentProductBreakdown || [])
+  const combinedProductRows = useMemo<CombinedProductRow[]>(() => {
+    const agentRows = (data?.agentProductBreakdown || [])
       .filter((row) => !isDeletedAgentLabel(row.agentName))
-      .filter((row) => agentFilter === 'all' || String(row.agentId ?? 'unassigned') === agentFilter)
-      .forEach((row) => {
-        const key = `${agentLabel(row)} - ${productLabel(row)}`;
-        const current = grouped.get(key) || {
-          label: key.length > 34 ? `${key.slice(0, 34)}...` : key,
-          fullLabel: key,
-          totalOrders: 0,
-          totalQty: 0,
-          totalRevenue: 0,
-        };
-        current.totalOrders += row.totalOrders;
-        current.totalQty += row.totalQty;
-        current.totalRevenue += row.totalRevenue;
-        grouped.set(key, current);
-      });
-    return Array.from(grouped.values()).sort((a, b) => b[agentMetric] - a[agentMetric]).slice(0, agentTop);
-  }, [data, agentFilter, agentMetric, agentTop]);
+      .map((row) => ({
+        key: `agent-${row.agentId ?? 'unassigned'}-${row.productId}-${row.productName}`,
+        source: 'agent' as const,
+        sourceLabel: 'Agent',
+        ownerLabel: agentLabel(row),
+        productName: productLabel(row),
+        totalOrders: row.totalOrders,
+        totalQty: row.totalQty,
+        totalRevenue: row.totalRevenue,
+      }));
+    const landingRows = (data?.landingPageProducts || []).map((row) => ({
+      key: `landing-${row.productId}-${row.productName}`,
+      source: 'landing_page' as const,
+      sourceLabel: 'Landing Page',
+      ownerLabel: 'Landing Page',
+      productName: row.productName,
+      totalOrders: row.totalOrders,
+      totalQty: row.totalQty,
+      totalRevenue: row.totalRevenue,
+    }));
+    const websiteRows = (data?.websiteProducts || []).map((row) => ({
+      key: `website-${row.productId}-${row.productName}`,
+      source: 'website' as const,
+      sourceLabel: 'Website',
+      ownerLabel: 'Website',
+      productName: row.productName,
+      totalOrders: row.totalOrders,
+      totalQty: row.totalQty,
+      totalRevenue: row.totalRevenue,
+    }));
+    return [...agentRows, ...landingRows, ...websiteRows].sort((a, b) => b.totalQty - a.totalQty);
+  }, [data]);
 
   const handleExportCSV = () => {
     if (!productRows.length) return;
@@ -265,11 +268,11 @@ export default function TodaysReportPage() {
           <>
             <section className="overflow-hidden rounded-xl border border-indigo-100 bg-white shadow-sm">
               <div className="border-b border-indigo-100 bg-gradient-to-r from-indigo-50 via-white to-cyan-50 p-5">
-                <h2 className="flex items-center gap-2 text-lg font-bold text-gray-900"><FaBoxOpen className="text-indigo-600" /> Order Status Breakdown</h2>
-                <p className="mt-1 text-xs text-gray-500">Cancelled includes cancelled, rejected, and returned orders.</p>
+                <h2 className="flex items-center gap-2 text-lg font-bold text-gray-900"><FaBoxOpen className="text-indigo-600" /> Website &amp; Landing Page Order Snapshot</h2>
+                <p className="mt-1 text-xs text-gray-500">Agent-created orders are excluded from these headline cards.</p>
               </div>
-              <div className="grid grid-cols-2 gap-3 p-5 md:grid-cols-3 xl:grid-cols-4">
-                {statusCards.map((item) => (
+              <div className="grid grid-cols-2 gap-3 p-5 md:grid-cols-3 xl:grid-cols-5">
+                {summaryCards.map((item) => (
                   <StatusCard key={item.key} label={item.label} count={item.count} total={data.summary.totalOrders} color={item.color} />
                 ))}
               </div>
@@ -280,6 +283,9 @@ export default function TodaysReportPage() {
               icon={<FaBoxOpen className="text-indigo-600" />}
               right={<input value={productSearch} onChange={(e) => setProductSearch(e.target.value)} placeholder="Search products..." className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 md:w-64" />}
             >
+              <div className="border-b border-gray-100 bg-gray-50/70 px-4 py-2 text-xs text-gray-500">
+                Agent/admin order sources only. Website and landing page orders are excluded here.
+              </div>
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-gray-50 text-xs uppercase tracking-wider text-gray-500">
@@ -345,41 +351,49 @@ export default function TodaysReportPage() {
               </table>
             </DataTableSection>
 
-            <ChartCard title="Agent-wise and Product-wise Sales" subtitle="Filter by agent, metric, and top result count." icon={<FaUserTie className="text-indigo-600" />}>
-              <div className="mb-4 flex flex-wrap gap-3">
-                <select value={agentFilter} onChange={(e) => setAgentFilter(e.target.value)} className="min-w-44 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900">
-                  <option value="all">All Agents</option>
-                  {agents.map((agent) => <option key={agent.id} value={agent.id}>{agent.name}</option>)}
-                  {!agents.length && <option value="none" disabled>No agent sales found</option>}
-                </select>
-                <select value={agentMetric} onChange={(e) => setAgentMetric(e.target.value as any)} className="min-w-36 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900">
-                  <option value="totalQty">Quantity</option>
-                  <option value="totalOrders">Orders</option>
-                </select>
-                <select value={agentTop} onChange={(e) => setAgentTop(Number(e.target.value))} className="min-w-28 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900">
-                  <option value={8}>Top 8</option>
-                  <option value={12}>Top 12</option>
-                  <option value={20}>Top 20</option>
-                </select>
-              </div>
-              {agentProductChart.length ? (
-                <ResponsiveContainer width="100%" height={360}>
-                  <BarChart data={agentProductChart} layout="vertical" margin={{ top: 5, right: 30, left: 30, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                    <XAxis type="number" />
-                    <YAxis type="category" dataKey="label" width={220} tick={{ fontSize: 11 }} />
-                    <Tooltip formatter={(value: any) => fmt(Number(value))} labelFormatter={(_, payload: any) => payload?.[0]?.payload?.fullLabel || ''} />
-                    <Bar dataKey={agentMetric} name={agentMetric === 'totalOrders' ? 'Orders' : 'Quantity'} radius={[0, 6, 6, 0]}>
-                      {agentProductChart.map((_, i) => <Cell key={i} fill={PALETTE[i % PALETTE.length]} />)}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              ) : (
-                <div className="flex h-64 items-center justify-center rounded-lg bg-gray-50 text-sm text-gray-500">
-                  No agent-product sales found for the selected date.
-                </div>
-              )}
-            </ChartCard>
+            <DataTableSection
+              title="Agent-wise and Product-wise Sales"
+              icon={<FaUserTie className="text-indigo-600" />}
+              right={<span className="rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700">Agent + Landing Page + Website</span>}
+            >
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-50 text-xs uppercase tracking-wider text-gray-500">
+                    <th className="px-4 py-3 text-left">#</th>
+                    <th className="px-4 py-3 text-left">Source</th>
+                    <th className="min-w-[180px] px-4 py-3 text-left">Owner</th>
+                    <th className="min-w-[240px] px-4 py-3 text-left">Product</th>
+                    <th className="px-4 py-3 text-center">Orders</th>
+                    <th className="px-4 py-3 text-center">Qty</th>
+                    <th className="px-4 py-3 text-right">Revenue</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {combinedProductRows.map((row, index) => (
+                    <tr key={`${row.key}-${index}`} className="hover:bg-gray-50">
+                      <td className="px-4 py-3 text-gray-500">{index + 1}</td>
+                      <td className="px-4 py-3">
+                        <span className={`rounded-full px-2 py-1 text-xs font-semibold ${
+                          row.source === 'agent' ? 'bg-indigo-50 text-indigo-700' : row.source === 'website' ? 'bg-teal-50 text-teal-700' : 'bg-purple-50 text-purple-700'
+                        }`}>
+                          {row.sourceLabel}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 font-medium text-gray-800">{row.ownerLabel}</td>
+                      <td className="px-4 py-3 font-medium text-gray-900">{row.productName}</td>
+                      <td className="px-4 py-3 text-center font-semibold">{row.totalOrders}</td>
+                      <td className="px-4 py-3 text-center">{row.totalQty}</td>
+                      <td className="px-4 py-3 text-right">{fmt(row.totalRevenue)}</td>
+                    </tr>
+                  ))}
+                  {combinedProductRows.length === 0 && (
+                    <tr>
+                      <td colSpan={7} className="px-4 py-12 text-center text-gray-500">No combined product sales found for this date.</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </DataTableSection>
 
             <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
               <ChartCard title="Hourly Order Distribution" subtitle="Orders throughout the day.">

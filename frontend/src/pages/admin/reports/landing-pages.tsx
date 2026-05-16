@@ -134,16 +134,30 @@ const STATUS_COLORS: Record<string, string> = {
   processing: PALETTE.pink,
   shipped: PALETTE.purple,
   delivered: PALETTE.success,
+  partial_delivered: PALETTE.teal,
   cancelled: PALETTE.danger,
   admin_cancelled: PALETTE.danger,
   rejected: PALETTE.danger,
   returned: PALETTE.orange,
 };
 
+const STATUS_STYLES: Record<string, { border: string; bg: string; text: string; bar: string }> = {
+  pending: { border: 'border-yellow-200', bg: 'bg-yellow-50 dark:bg-yellow-900/20', text: 'text-yellow-700 dark:text-yellow-300', bar: 'bg-yellow-500' },
+  approved: { border: 'border-sky-200', bg: 'bg-sky-50 dark:bg-sky-900/20', text: 'text-sky-700 dark:text-sky-300', bar: 'bg-sky-500' },
+  processing: { border: 'border-pink-200', bg: 'bg-pink-50 dark:bg-pink-900/20', text: 'text-pink-700 dark:text-pink-300', bar: 'bg-pink-500' },
+  shipped: { border: 'border-purple-200', bg: 'bg-purple-50 dark:bg-purple-900/20', text: 'text-purple-700 dark:text-purple-300', bar: 'bg-purple-500' },
+  delivered: { border: 'border-emerald-200', bg: 'bg-emerald-50 dark:bg-emerald-900/20', text: 'text-emerald-700 dark:text-emerald-300', bar: 'bg-emerald-500' },
+  partial_delivered: { border: 'border-teal-200', bg: 'bg-teal-50 dark:bg-teal-900/20', text: 'text-teal-700 dark:text-teal-300', bar: 'bg-teal-500' },
+  cancelled: { border: 'border-red-200', bg: 'bg-red-50 dark:bg-red-900/20', text: 'text-red-700 dark:text-red-300', bar: 'bg-red-500' },
+  admin_cancelled: { border: 'border-rose-200', bg: 'bg-rose-50 dark:bg-rose-900/20', text: 'text-rose-700 dark:text-rose-300', bar: 'bg-rose-500' },
+  returned: { border: 'border-orange-200', bg: 'bg-orange-50 dark:bg-orange-900/20', text: 'text-orange-700 dark:text-orange-300', bar: 'bg-orange-500' },
+};
+
 /* ========== HELPERS ========== */
 const fmt = (n: number) => new Intl.NumberFormat('en-BD').format(Math.round(n));
 const capitalize = (s: string) => s ? s.charAt(0).toUpperCase() + s.slice(1).replace(/_/g, ' ') : s;
 const statusLabel = (s: string) => s === 'admin_cancelled' ? 'Rejected' : capitalize(s);
+const statusStyle = (s: string) => STATUS_STYLES[s] || { border: 'border-gray-200', bg: 'bg-gray-50 dark:bg-gray-700/40', text: 'text-gray-700 dark:text-gray-300', bar: 'bg-gray-400' };
 
 type ActiveTab = 'overview' | 'hourly' | 'products';
 
@@ -233,6 +247,31 @@ export default function LandingPageReportsPage() {
       name: statusLabel(s.status),
       value: s.orders,
     }));
+  }, [data]);
+
+  const statusOverviewData = useMemo(() => {
+    if (!data) return [];
+    const preferredOrder = [
+      'pending',
+      'approved',
+      'processing',
+      'shipped',
+      'delivered',
+      'partial_delivered',
+      'admin_cancelled',
+      'cancelled',
+      'returned',
+    ];
+    return data.statusBreakdown
+      .filter((s) => s.orders > 0)
+      .sort((a, b) => {
+        const aIndex = preferredOrder.indexOf(a.status);
+        const bIndex = preferredOrder.indexOf(b.status);
+        if (aIndex !== -1 || bIndex !== -1) {
+          return (aIndex === -1 ? preferredOrder.length : aIndex) - (bIndex === -1 ? preferredOrder.length : bIndex);
+        }
+        return b.orders - a.orders;
+      });
   }, [data]);
 
   const TABS: { id: ActiveTab; label: string }[] = [
@@ -452,6 +491,35 @@ export default function LandingPageReportsPage() {
                             <Legend />
                           </PieChart>
                         </ResponsiveContainer>
+                      </div>
+                    </div>
+
+                    <div>
+                      <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Order Status Overview</h3>
+                      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
+                        {statusOverviewData.map((status) => {
+                          const style = statusStyle(status.status);
+                          const percent = data.summary.totalOrders > 0 ? Math.round((status.orders / data.summary.totalOrders) * 100) : 0;
+                          return (
+                            <div key={status.status} className={`${style.bg} ${style.border} rounded-lg border p-3`}>
+                              <div className="flex items-center justify-between gap-3">
+                                <span className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                                  {statusLabel(status.status)}
+                                </span>
+                                <span className={`text-lg font-bold ${style.text}`}>{fmt(status.orders)}</span>
+                              </div>
+                              <div className="mt-3 h-1.5 rounded-full bg-white/70 dark:bg-gray-800 overflow-hidden">
+                                <div className={`h-full rounded-full ${style.bar}`} style={{ width: `${Math.min(percent, 100)}%` }} />
+                              </div>
+                              <div className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">{percent}% of orders</div>
+                            </div>
+                          );
+                        })}
+                        {statusOverviewData.length === 0 && (
+                          <div className="col-span-full rounded-lg border border-gray-200 dark:border-gray-700 p-4 text-sm text-gray-400 text-center">
+                            No status data available for this period.
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
