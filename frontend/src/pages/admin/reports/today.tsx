@@ -101,6 +101,7 @@ interface CombinedProductRow {
 interface DailyReport {
   date: string;
   summary: Summary;
+  agentSummary?: Summary;
   products: ProductRow[];
   hourly: HourlyItem[];
   landingPageProducts: SourceProductRow[];
@@ -144,15 +145,42 @@ export default function TodaysReportPage() {
   }, [date, fetchReport]);
 
   const summaryCards = useMemo(() => {
-    const summary = data?.summary;
+    const buildCards = (summary?: Summary) => {
+      if (!summary) return [];
+      const remaining = Math.max(
+        Number(summary.totalOrders || 0) -
+        Number(summary.approvedOrders || 0) -
+        Number(summary.rejectedOrders || 0) -
+        Number(summary.holdOrders || 0),
+        0,
+      );
+      return [
+        { key: 'total', label: 'Total Orders', count: Number(summary.totalOrders || 0), color: 'indigo' },
+        { key: 'approved', label: 'Approved', count: Number(summary.approvedOrders || 0), color: 'blue' },
+        { key: 'rejected', label: 'Rejected', count: Number(summary.rejectedOrders || 0), color: 'red' },
+        { key: 'hold', label: 'On Hold', count: Number(summary.holdOrders || 0), color: 'orange' },
+        { key: 'remaining', label: 'In Progress', count: remaining, color: 'violet' },
+      ];
+    };
+    return buildCards(data?.summary);
+  }, [data]);
+
+  const agentSummaryCards = useMemo(() => {
+    const summary = data?.agentSummary;
     if (!summary) return [];
-    const remaining = Math.max(Number(summary.totalOrders || 0) - Number(summary.approvedOrders || 0), 0);
+    const remaining = Math.max(
+      Number(summary.totalOrders || 0) -
+      Number(summary.approvedOrders || 0) -
+      Number(summary.rejectedOrders || 0) -
+      Number(summary.holdOrders || 0),
+      0,
+    );
     return [
       { key: 'total', label: 'Total Orders', count: Number(summary.totalOrders || 0), color: 'indigo' },
       { key: 'approved', label: 'Approved', count: Number(summary.approvedOrders || 0), color: 'blue' },
       { key: 'rejected', label: 'Rejected', count: Number(summary.rejectedOrders || 0), color: 'red' },
       { key: 'hold', label: 'On Hold', count: Number(summary.holdOrders || 0), color: 'orange' },
-      { key: 'remaining', label: 'Total - Approved', count: remaining, color: 'violet' },
+      { key: 'remaining', label: 'In Progress', count: remaining, color: 'violet' },
     ];
   }, [data]);
 
@@ -174,19 +202,20 @@ export default function TodaysReportPage() {
   }, [data, sourceFilter]);
 
   const combinedProductRows = useMemo<CombinedProductRow[]>(() => {
-    const agentRows = (data?.agentProductBreakdown || [])
+    const rows: CombinedProductRow[] = [];
+    (data?.agentProductBreakdown || [])
       .filter((row) => !isDeletedAgentLabel(row.agentName))
-      .map((row) => ({
+      .forEach((row) => rows.push({
         key: `agent-${row.agentId ?? 'unassigned'}-${row.productId}-${row.productName}`,
         source: 'agent' as const,
         sourceLabel: 'Agent',
-        ownerLabel: agentLabel(row),
+        ownerLabel: 'Agent Orders',
         productName: productLabel(row),
         totalOrders: row.totalOrders,
         totalQty: row.totalQty,
         totalRevenue: row.totalRevenue,
       }));
-    const landingRows = (data?.landingPageProducts || []).map((row) => ({
+    (data?.landingPageProducts || []).forEach((row) => rows.push({
       key: `landing-${row.productId}-${row.productName}`,
       source: 'landing_page' as const,
       sourceLabel: 'Landing Page',
@@ -196,7 +225,7 @@ export default function TodaysReportPage() {
       totalQty: row.totalQty,
       totalRevenue: row.totalRevenue,
     }));
-    const websiteRows = (data?.websiteProducts || []).map((row) => ({
+    (data?.websiteProducts || []).forEach((row) => rows.push({
       key: `website-${row.productId}-${row.productName}`,
       source: 'website' as const,
       sourceLabel: 'Website',
@@ -206,7 +235,25 @@ export default function TodaysReportPage() {
       totalQty: row.totalQty,
       totalRevenue: row.totalRevenue,
     }));
-    return [...agentRows, ...landingRows, ...websiteRows].sort((a, b) => b.totalQty - a.totalQty);
+    const grouped = new Map<string, CombinedProductRow>();
+    rows.forEach((row) => {
+      const key = row.productName.toLowerCase();
+      const current = grouped.get(key) || {
+        ...row,
+        key,
+        source: 'agent' as const,
+        sourceLabel: 'All Sources',
+        ownerLabel: 'Combined',
+        totalOrders: 0,
+        totalQty: 0,
+        totalRevenue: 0,
+      };
+      current.totalOrders += row.totalOrders;
+      current.totalQty += row.totalQty;
+      current.totalRevenue += row.totalRevenue;
+      grouped.set(key, current);
+    });
+    return Array.from(grouped.values()).sort((a, b) => b.totalQty - a.totalQty);
   }, [data]);
 
   const handleExportCSV = () => {
@@ -271,10 +318,23 @@ export default function TodaysReportPage() {
                 <h2 className="flex items-center gap-2 text-lg font-bold text-gray-900"><FaBoxOpen className="text-indigo-600" /> Website &amp; Landing Page Order Snapshot</h2>
                 <p className="mt-1 text-xs text-gray-500">Agent-created orders are excluded from these headline cards.</p>
               </div>
-              <div className="grid grid-cols-2 gap-3 p-5 md:grid-cols-3 xl:grid-cols-5">
-                {summaryCards.map((item) => (
-                  <StatusCard key={item.key} label={item.label} count={item.count} total={data.summary.totalOrders} color={item.color} />
-                ))}
+              <div className="space-y-5 p-5">
+                <div>
+                  <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Website + Landing Page</div>
+                  <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
+                    {summaryCards.map((item) => (
+                      <StatusCard key={item.key} label={item.label} count={item.count} total={data.summary.totalOrders} color={item.color} />
+                    ))}
+                  </div>
+                </div>
+                <div className="border-t border-gray-100 pt-5">
+                  <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Agent Orders</div>
+                  <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
+                    {agentSummaryCards.map((item) => (
+                      <StatusCard key={item.key} label={item.label} count={item.count} total={data.agentSummary?.totalOrders || 0} color={item.color} />
+                    ))}
+                  </div>
+                </div>
               </div>
             </section>
 
@@ -360,8 +420,6 @@ export default function TodaysReportPage() {
                 <thead>
                   <tr className="bg-gray-50 text-xs uppercase tracking-wider text-gray-500">
                     <th className="px-4 py-3 text-left">#</th>
-                    <th className="px-4 py-3 text-left">Source</th>
-                    <th className="min-w-[180px] px-4 py-3 text-left">Owner</th>
                     <th className="min-w-[240px] px-4 py-3 text-left">Product</th>
                     <th className="px-4 py-3 text-center">Orders</th>
                     <th className="px-4 py-3 text-center">Qty</th>
@@ -372,14 +430,6 @@ export default function TodaysReportPage() {
                   {combinedProductRows.map((row, index) => (
                     <tr key={`${row.key}-${index}`} className="hover:bg-gray-50">
                       <td className="px-4 py-3 text-gray-500">{index + 1}</td>
-                      <td className="px-4 py-3">
-                        <span className={`rounded-full px-2 py-1 text-xs font-semibold ${
-                          row.source === 'agent' ? 'bg-indigo-50 text-indigo-700' : row.source === 'website' ? 'bg-teal-50 text-teal-700' : 'bg-purple-50 text-purple-700'
-                        }`}>
-                          {row.sourceLabel}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 font-medium text-gray-800">{row.ownerLabel}</td>
                       <td className="px-4 py-3 font-medium text-gray-900">{row.productName}</td>
                       <td className="px-4 py-3 text-center font-semibold">{row.totalOrders}</td>
                       <td className="px-4 py-3 text-center">{row.totalQty}</td>
@@ -388,7 +438,7 @@ export default function TodaysReportPage() {
                   ))}
                   {combinedProductRows.length === 0 && (
                     <tr>
-                      <td colSpan={7} className="px-4 py-12 text-center text-gray-500">No combined product sales found for this date.</td>
+                      <td colSpan={5} className="px-4 py-12 text-center text-gray-500">No combined product sales found for this date.</td>
                     </tr>
                   )}
                 </tbody>

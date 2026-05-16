@@ -1177,6 +1177,10 @@ export class SalesService {
         }
 
         becameDelivered = from !== 'delivered' && to === 'delivered';
+
+        if (to === 'approved' && !current.approvedAt) {
+          updateSalesDto.approvedAt = new Date();
+        }
       }
     }
 
@@ -1423,12 +1427,13 @@ export class SalesService {
            LOWER(o.status::text) AS status,
            LOWER(COALESCE(o.courier_company, '')) AS courier_company,
            soi.product_id,
-           COALESCE(NULLIF(soi.product_name, ''), 'Unknown Product') AS product_name,
+           COALESCE(NULLIF(p.name_en, ''), NULLIF(p.name_bn, ''), NULLIF(soi.product_name, ''), 'Unknown Product') AS product_name,
            soi.quantity,
            COALESCE(soi.line_total, 0) AS total_revenue,
            COALESCE(soi.unit_price * soi.quantity, 0) AS gross_amount
          FROM sales_order_items soi
          INNER JOIN sales_orders o ON o.id = soi.sales_order_id
+         LEFT JOIN products p ON p.id = soi.product_id
          WHERE DATE(o.order_date) = $1
            AND o.order_source IN ('admin_panel', 'agent_dashboard')
            AND NOT EXISTS (
@@ -1440,12 +1445,13 @@ export class SalesService {
            LOWER(o.status::text) AS status,
            LOWER(COALESCE(o.courier_company, '')) AS courier_company,
            oi.product_id,
-           COALESCE(NULLIF(COALESCE(oi.custom_product_name, oi.product_name), ''), 'Unknown Product') AS product_name,
+           COALESCE(NULLIF(p.name_en, ''), NULLIF(p.name_bn, ''), NULLIF(oi.product_name, ''), NULLIF(oi.custom_product_name, ''), 'Unknown Product') AS product_name,
            oi.quantity,
            COALESCE(oi.subtotal, oi.unit_price * oi.quantity, 0) AS total_revenue,
            COALESCE(oi.unit_price * oi.quantity, 0) AS gross_amount
          FROM order_items oi
          INNER JOIN sales_orders o ON o.id = oi.order_id
+         LEFT JOIN products p ON p.id = oi.product_id
          WHERE DATE(o.order_date) = $1
            AND o.order_source IN ('admin_panel', 'agent_dashboard')
        ) normalized
@@ -1454,17 +1460,18 @@ export class SalesService {
       [reportDate],
     );
 
-    // 2) Overall summary for the date
-    const summaryRaw = await this.salesRepository
-      .createQueryBuilder('o')
-      .select([
+    const approvedEverCondition = `(
+          o.approved_at IS NOT NULL
+          OR LOWER(o.status::text) IN ('approved', 'sent', 'picked', 'in_transit', 'partial_delivered', 'shipped', 'delivered', 'completed')
+        )`;
+    const dailySummarySelect = [
         'COUNT(o.id) AS total_orders',
         'COALESCE(SUM(o.total_amount), 0) AS total_revenue',
         'COALESCE(SUM(o.discount_amount), 0) AS total_discount',
         'COALESCE(AVG(o.total_amount), 0) AS avg_order_value',
         `COUNT(CASE WHEN LOWER(o.status::text) = 'pending' THEN 1 END) AS pending_orders`,
         `COUNT(CASE WHEN LOWER(o.status::text) = 'processing' THEN 1 END) AS processing_orders`,
-        `COUNT(CASE WHEN LOWER(o.status::text) = 'approved' THEN 1 END) AS approved_orders`,
+        `COUNT(CASE WHEN ${approvedEverCondition} THEN 1 END) AS approved_orders`,
         `COUNT(CASE WHEN LOWER(o.status::text) = 'sent' THEN 1 END) AS sent_orders`,
         `COUNT(CASE WHEN LOWER(o.status::text) = 'hold' THEN 1 END) AS hold_orders`,
         `COUNT(CASE WHEN LOWER(o.status::text) = 'in_review' THEN 1 END) AS in_review_orders`,
@@ -1482,9 +1489,21 @@ export class SalesService {
         `COUNT(CASE WHEN LOWER(o.courier_company) = 'redx' THEN 1 END) AS redx_orders`,
         `COUNT(CASE WHEN o.courier_company IS NULL OR o.courier_company = '' THEN 1 END) AS no_courier_orders`,
         'COUNT(DISTINCT o.customer_id) AS unique_customers',
-      ])
+    ];
+
+    // 2) Overall summary for website and landing page orders only
+    const summaryRaw = await this.salesRepository
+      .createQueryBuilder('o')
+      .select(dailySummarySelect)
       .where('DATE(o.order_date) = :reportDate', { reportDate })
       .andWhere("o.order_source IN ('website', 'landing_page')")
+      .getRawOne();
+
+    const agentSummaryRaw = await this.salesRepository
+      .createQueryBuilder('o')
+      .select(dailySummarySelect)
+      .where('DATE(o.order_date) = :reportDate', { reportDate })
+      .andWhere("o.order_source IN ('admin_panel', 'agent_dashboard')")
       .getRawOne();
 
     // 3) Hourly distribution for the chart (use created_at which is timestamp; order_date is date-only)
@@ -1532,15 +1551,16 @@ export class SalesService {
       .innerJoin('soi.salesOrder', 'o')
       .select([
         'soi.product_id AS product_id',
-        'soi.product_name AS product_name',
+        `COALESCE(NULLIF(p.name_en, ''), NULLIF(p.name_bn, ''), NULLIF(soi.product_name, ''), 'Unknown Product') AS product_name`,
         'COUNT(DISTINCT o.id) AS total_orders',
         'SUM(soi.quantity) AS total_qty',
         'SUM(soi.line_total) AS total_revenue',
       ])
+      .leftJoin('products', 'p', 'p.id = soi.product_id')
       .where('DATE(o.order_date) = :reportDate', { reportDate })
       .andWhere("o.order_source = 'landing_page'")
       .groupBy('soi.product_id')
-      .addGroupBy('soi.product_name')
+      .addGroupBy(`COALESCE(NULLIF(p.name_en, ''), NULLIF(p.name_bn, ''), NULLIF(soi.product_name, ''), 'Unknown Product')`)
       .orderBy('total_orders', 'DESC')
       .getRawMany();
 
@@ -1550,15 +1570,16 @@ export class SalesService {
       .innerJoin('soi.salesOrder', 'o')
       .select([
         'soi.product_id AS product_id',
-        'soi.product_name AS product_name',
+        `COALESCE(NULLIF(p.name_en, ''), NULLIF(p.name_bn, ''), NULLIF(soi.product_name, ''), 'Unknown Product') AS product_name`,
         'COUNT(DISTINCT o.id) AS total_orders',
         'SUM(soi.quantity) AS total_qty',
         'SUM(soi.line_total) AS total_revenue',
       ])
+      .leftJoin('products', 'p', 'p.id = soi.product_id')
       .where('DATE(o.order_date) = :reportDate', { reportDate })
       .andWhere("o.order_source = 'website'")
       .groupBy('soi.product_id')
-      .addGroupBy('soi.product_name')
+      .addGroupBy(`COALESCE(NULLIF(p.name_en, ''), NULLIF(p.name_bn, ''), NULLIF(soi.product_name, ''), 'Unknown Product')`)
       .orderBy('total_orders', 'DESC')
       .getRawMany();
 
@@ -1597,8 +1618,8 @@ export class SalesService {
                END,
                ''
              ),
-             NULLIF(p.name_bn, ''),
              NULLIF(p.name_en, ''),
+             NULLIF(p.name_bn, ''),
              CASE WHEN i.product_id IS NOT NULL THEN 'Product #' || i.product_id::text END,
              'Unknown Product'
            ) AS product_name,
@@ -1646,34 +1667,37 @@ export class SalesService {
 
     const toNum = (v: any) => parseFloat(v) || 0;
 
+    const mapSummary = (raw: any) => ({
+      totalOrders: toNum(raw?.total_orders),
+      totalRevenue: toNum(raw?.total_revenue),
+      totalDiscount: toNum(raw?.total_discount),
+      avgOrderValue: toNum(raw?.avg_order_value),
+      pendingOrders: toNum(raw?.pending_orders),
+      processingOrders: toNum(raw?.processing_orders),
+      approvedOrders: toNum(raw?.approved_orders),
+      sentOrders: toNum(raw?.sent_orders),
+      holdOrders: toNum(raw?.hold_orders),
+      inReviewOrders: toNum(raw?.in_review_orders),
+      pickedOrders: toNum(raw?.picked_orders),
+      inTransitOrders: toNum(raw?.in_transit_orders),
+      partialDeliveredOrders: toNum(raw?.partial_delivered_orders),
+      shippedOrders: toNum(raw?.shipped_orders),
+      deliveredOrders: toNum(raw?.delivered_orders),
+      completedOrders: toNum(raw?.completed_orders),
+      returnedOrders: toNum(raw?.returned_orders),
+      rejectedOrders: toNum(raw?.rejected_orders),
+      cancelledOrders: toNum(raw?.cancelled_orders),
+      steadfastOrders: toNum(raw?.steadfast_orders),
+      pathaoOrders: toNum(raw?.pathao_orders),
+      redxOrders: toNum(raw?.redx_orders),
+      noCourierOrders: toNum(raw?.no_courier_orders),
+      uniqueCustomers: toNum(raw?.unique_customers),
+    });
+
     return {
       date: reportDate,
-      summary: {
-        totalOrders: toNum(summaryRaw?.total_orders),
-        totalRevenue: toNum(summaryRaw?.total_revenue),
-        totalDiscount: toNum(summaryRaw?.total_discount),
-        avgOrderValue: toNum(summaryRaw?.avg_order_value),
-        pendingOrders: toNum(summaryRaw?.pending_orders),
-        processingOrders: toNum(summaryRaw?.processing_orders),
-        approvedOrders: toNum(summaryRaw?.approved_orders),
-        sentOrders: toNum(summaryRaw?.sent_orders),
-        holdOrders: toNum(summaryRaw?.hold_orders),
-        inReviewOrders: toNum(summaryRaw?.in_review_orders),
-        pickedOrders: toNum(summaryRaw?.picked_orders),
-        inTransitOrders: toNum(summaryRaw?.in_transit_orders),
-        partialDeliveredOrders: toNum(summaryRaw?.partial_delivered_orders),
-        shippedOrders: toNum(summaryRaw?.shipped_orders),
-        deliveredOrders: toNum(summaryRaw?.delivered_orders),
-        completedOrders: toNum(summaryRaw?.completed_orders),
-        returnedOrders: toNum(summaryRaw?.returned_orders),
-        rejectedOrders: toNum(summaryRaw?.rejected_orders),
-        cancelledOrders: toNum(summaryRaw?.cancelled_orders),
-        steadfastOrders: toNum(summaryRaw?.steadfast_orders),
-        pathaoOrders: toNum(summaryRaw?.pathao_orders),
-        redxOrders: toNum(summaryRaw?.redx_orders),
-        noCourierOrders: toNum(summaryRaw?.no_courier_orders),
-        uniqueCustomers: toNum(summaryRaw?.unique_customers),
-      },
+      summary: mapSummary(summaryRaw),
+      agentSummary: mapSummary(agentSummaryRaw),
       products: productRows.map((r: any) => ({
         productId: toNum(r.product_id),
         productName: r.product_name || 'Unknown Product',
