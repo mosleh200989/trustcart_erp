@@ -242,6 +242,21 @@ export class CommissionController {
     return await this.commissionService.rejectPaymentRequest(Number(id), req.user.id, body.adminNotes);
   }
 
+  @Put('payment-requests/:id/month')
+  @RequireAnyPermission('manage-payment-requests', 'approve-commissions')
+  async updatePaymentRequestMonth(
+    @Param('id') id: string,
+    @Body() body: { commissionMonth: string; adminNotes?: string },
+    @Request() req: any,
+  ) {
+    return await this.commissionService.updatePaymentRequestMonth(
+      Number(id),
+      body.commissionMonth,
+      req.user.id,
+      body.adminNotes,
+    );
+  }
+
   @Get('payment-history')
   @RequireAnyPermission('view-payment-history', 'view-commission-reports')
   async getPaymentHistory(@Query() query: any) {
