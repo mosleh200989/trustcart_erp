@@ -9,10 +9,6 @@ import {
   PieChart,
   Pie,
   Cell,
-  AreaChart,
-  Area,
-  LineChart,
-  Line,
   CartesianGrid,
   XAxis,
   YAxis,
@@ -44,6 +40,8 @@ interface LPSummary {
   shippedOrders: number;
   deliveredOrders: number;
   cancelledOrders: number;
+  cancelledReturnedOrders?: number;
+  rejectedOrders?: number;
 }
 
 interface HourlyItem {
@@ -73,6 +71,8 @@ interface PerPageItem {
   crossSellOrders: number;
   deliveredOrders: number;
   cancelledOrders: number;
+  cancelledReturnedOrders?: number;
+  rejectedOrders?: number;
 }
 
 interface StatusBreakdown {
@@ -136,19 +136,16 @@ const STATUS_COLORS: Record<string, string> = {
   delivered: PALETTE.success,
   cancelled: PALETTE.danger,
   admin_cancelled: PALETTE.danger,
+  rejected: PALETTE.danger,
   returned: PALETTE.orange,
 };
 
 /* ========== HELPERS ========== */
 const fmt = (n: number) => new Intl.NumberFormat('en-BD').format(Math.round(n));
-const fmtDate = (d: string) => {
-  const dt = new Date(d);
-  return `${dt.getDate()}/${dt.getMonth() + 1}`;
-};
-
 const capitalize = (s: string) => s ? s.charAt(0).toUpperCase() + s.slice(1).replace(/_/g, ' ') : s;
+const statusLabel = (s: string) => s === 'admin_cancelled' ? 'Rejected' : capitalize(s);
 
-type ActiveTab = 'overview' | 'hourly' | 'daily' | 'upsell' | 'products' | 'pages';
+type ActiveTab = 'overview' | 'hourly' | 'products';
 
 /* ========== COMPONENT ========== */
 export default function LandingPageReportsPage() {
@@ -196,13 +193,23 @@ export default function LandingPageReportsPage() {
   }, [fetchReport]);
 
   const sortedProducts = useMemo(() => {
-    if (!data?.products) return [];
-    let rows = [...data.products];
+    if (!data?.crossSellProducts) return [];
+    let rows = [...data.crossSellProducts];
     if (productSearch.trim()) {
       rows = rows.filter((p) => p.productName.toLowerCase().includes(productSearch.toLowerCase()));
     }
     return rows.sort((a, b) => b[productSort] - a[productSort]);
-  }, [data?.products, productSearch, productSort]);
+  }, [data?.crossSellProducts, productSearch, productSort]);
+
+  const rejectedOrders = useMemo(() => {
+    if (!data) return 0;
+    return data.summary.rejectedOrders ?? data.statusBreakdown.find((s) => s.status === 'admin_cancelled')?.orders ?? 0;
+  }, [data]);
+
+  const cancelledReturnedOrders = useMemo(() => {
+    if (!data) return 0;
+    return data.summary.cancelledReturnedOrders ?? Math.max(data.summary.cancelledOrders - rejectedOrders, 0);
+  }, [data, rejectedOrders]);
 
   const upsellPieData = useMemo(() => {
     if (!data) return [];
@@ -223,7 +230,7 @@ export default function LandingPageReportsPage() {
   const statusPieData = useMemo(() => {
     if (!data) return [];
     return data.statusBreakdown.filter((s) => s.orders > 0).map((s) => ({
-      name: capitalize(s.status),
+      name: statusLabel(s.status),
       value: s.orders,
     }));
   }, [data]);
@@ -231,10 +238,7 @@ export default function LandingPageReportsPage() {
   const TABS: { id: ActiveTab; label: string }[] = [
     { id: 'overview', label: 'Overview' },
     { id: 'hourly', label: 'Hourly' },
-    { id: 'daily', label: 'Daily Trend' },
-    { id: 'upsell', label: 'Upsell & Cross-Sell' },
     { id: 'products', label: 'Products' },
-    { id: 'pages', label: 'Per Page' },
   ];
 
   return (
@@ -340,13 +344,14 @@ export default function LandingPageReportsPage() {
         {!loading && data && (
           <>
             {/* Summary Cards */}
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
               {[
                 { icon: FaShoppingCart, label: 'Total Orders', value: fmt(data.summary.totalOrders), color: 'text-indigo-600', bg: 'bg-indigo-50 dark:bg-indigo-900/20' },
                 { icon: FaTag, label: 'Cross Sell Qty', value: fmt(data.summary.crossSellQty), color: 'text-pink-600', bg: 'bg-pink-50 dark:bg-pink-900/20' },
                 { icon: FaTrophy, label: 'Upsell Qty', value: fmt(data.summary.upsellAccepted), color: 'text-purple-600', bg: 'bg-purple-50 dark:bg-purple-900/20' },
                 { icon: FaCheckCircle, label: 'Delivered', value: fmt(data.summary.deliveredOrders), color: 'text-teal-600', bg: 'bg-teal-50 dark:bg-teal-900/20' },
-                { icon: FaTimesCircle, label: 'Cancelled / Returned', value: fmt(data.summary.cancelledOrders), color: 'text-red-500', bg: 'bg-red-50 dark:bg-red-900/20' },
+                { icon: FaTimesCircle, label: 'Cancelled / Returned', value: fmt(cancelledReturnedOrders), color: 'text-red-500', bg: 'bg-red-50 dark:bg-red-900/20' },
+                { icon: FaTimesCircle, label: 'Rejected', value: fmt(rejectedOrders), color: 'text-rose-600', bg: 'bg-rose-50 dark:bg-rose-900/20' },
               ].map(({ icon: Icon, label, value, color, bg }) => (
                 <div key={label} className={`${bg} rounded-xl p-4 border border-gray-100 dark:border-gray-700 shadow-sm`}>
                   <div className={`${color} text-2xl mb-2`}><Icon /></div>
@@ -357,13 +362,14 @@ export default function LandingPageReportsPage() {
             </div>
 
             {/* Order Status Row */}
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
               {[
                 { label: 'Pending', value: data.summary.pendingOrders, color: 'text-yellow-600' },
                 { label: 'Approved', value: data.summary.approvedOrders, color: 'text-blue-500' },
                 { label: 'Shipped', value: data.summary.shippedOrders, color: 'text-purple-600' },
                 { label: 'Delivered', value: data.summary.deliveredOrders, color: 'text-green-600' },
-                { label: 'Cancelled / Returned', value: data.summary.cancelledOrders, color: 'text-red-500' },
+                { label: 'Cancelled / Returned', value: cancelledReturnedOrders, color: 'text-red-500' },
+                { label: 'Rejected', value: rejectedOrders, color: 'text-rose-600' },
               ].map(({ label, value, color }) => (
                 <div key={label} className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700 flex items-center justify-between">
                   <span className="text-xs text-gray-500 dark:text-gray-400">{label}</span>
@@ -464,21 +470,6 @@ export default function LandingPageReportsPage() {
                         </ResponsiveContainer>
                       </div>
                     </div>
-
-                    <div>
-                      <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Cross-Sell Trend</h3>
-                      <ResponsiveContainer width="100%" height={240}>
-                        <BarChart data={data.daily} margin={{ top: 0, right: 10, left: 0, bottom: 0 }}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                          <XAxis dataKey="date" tickFormatter={fmtDate} tick={{ fontSize: 11 }} />
-                          <YAxis tick={{ fontSize: 11 }} />
-                          <Tooltip labelFormatter={(l) => l} formatter={(v: number | undefined, name: string | undefined) => [fmt(v ?? 0), name ?? '']} />
-                          <Legend />
-                          <Bar dataKey="crossSellQty" name="Cross-Sell Qty" fill={PALETTE.pink} radius={[4, 4, 0, 0]} />
-                          <Bar dataKey="crossSellOrders" name="Cross-Sell Orders" fill={PALETTE.orange} radius={[4, 4, 0, 0]} />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </div>
                   </div>
                 )}
 
@@ -528,163 +519,13 @@ export default function LandingPageReportsPage() {
                     </div>
                   </div>
                 )}
-
-                {/* DAILY TREND TAB */}
-                {activeTab === 'daily' && (
-                  <div className="space-y-4">
-                    <ResponsiveContainer width="100%" height={320}>
-                      <AreaChart data={data.daily} margin={{ top: 0, right: 10, left: 0, bottom: 0 }}>
-                        <defs>
-                          <linearGradient id="ordersGrad" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor={PALETTE.primary} stopOpacity={0.2} />
-                            <stop offset="95%" stopColor={PALETTE.primary} stopOpacity={0} />
-                          </linearGradient>
-                          <linearGradient id="upsellGrad" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor={PALETTE.purple} stopOpacity={0.2} />
-                            <stop offset="95%" stopColor={PALETTE.purple} stopOpacity={0} />
-                          </linearGradient>
-                          <linearGradient id="crossSellGrad" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor={PALETTE.pink} stopOpacity={0.2} />
-                            <stop offset="95%" stopColor={PALETTE.pink} stopOpacity={0} />
-                          </linearGradient>
-                        </defs>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                        <XAxis dataKey="date" tickFormatter={fmtDate} tick={{ fontSize: 11 }} />
-                        <YAxis yAxisId="left" tick={{ fontSize: 11 }} />
-                        <Tooltip labelFormatter={(l) => l} formatter={(v: number | undefined, name: string | undefined) => [fmt(v ?? 0), name ?? '']} />
-                        <Legend />
-                        <Area yAxisId="left" type="monotone" dataKey="orders" name="Orders" stroke={PALETTE.primary} fill="url(#ordersGrad)" strokeWidth={2} />
-                        <Area yAxisId="left" type="monotone" dataKey="upsellAccepted" name="Upsell Accepted" stroke={PALETTE.purple} fill="url(#upsellGrad)" strokeWidth={2} />
-                        <Area yAxisId="left" type="monotone" dataKey="crossSellQty" name="Cross-Sell Qty" stroke={PALETTE.pink} fill="url(#crossSellGrad)" strokeWidth={2} />
-                      </AreaChart>
-                    </ResponsiveContainer>
-
-                    {/* Daily table */}
-                    <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
-                      <table className="w-full text-sm text-left">
-                        <thead className="bg-gray-50 dark:bg-gray-700 text-xs uppercase text-gray-500 dark:text-gray-400">
-                          <tr>
-                            <th className="px-4 py-3">Date</th>
-                            <th className="px-4 py-3 text-right">Orders</th>
-                            <th className="px-4 py-3 text-right">Upsells</th>
-                            <th className="px-4 py-3 text-right">Cross-Sell Qty</th>
-                            <th className="px-4 py-3 text-right">Upsell Rate</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-                          {[...data.daily].reverse().map((d) => (
-                            <tr key={d.date} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
-                              <td className="px-4 py-2 font-medium text-gray-700 dark:text-gray-200">{d.date}</td>
-                              <td className="px-4 py-2 text-right">{fmt(d.orders)}</td>
-                              <td className="px-4 py-2 text-right text-purple-600">{fmt(d.upsellAccepted)}</td>
-                              <td className="px-4 py-2 text-right text-pink-600">{fmt(d.crossSellQty)}</td>
-                              <td className="px-4 py-2 text-right">
-                                {d.orders > 0 ? Math.round((d.upsellAccepted / d.orders) * 100) : 0}%
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                        <tfoot className="bg-gray-50 dark:bg-gray-700 font-semibold">
-                          <tr>
-                            <td className="px-4 py-2 text-gray-700 dark:text-gray-200">Total</td>
-                            <td className="px-4 py-2 text-right">{fmt(data.summary.totalOrders)}</td>
-                            <td className="px-4 py-2 text-right text-purple-600">{fmt(data.summary.upsellAccepted)}</td>
-                            <td className="px-4 py-2 text-right text-pink-600">{fmt(data.summary.crossSellQty)}</td>
-                            <td className="px-4 py-2 text-right">{data.summary.upsellRate}%</td>
-                          </tr>
-                        </tfoot>
-                      </table>
-                    </div>
-                  </div>
-                )}
-
-                {/* UPSELL ANALYSIS TAB */}
-                {activeTab === 'upsell' && (
-                  <div className="space-y-6">
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                      <div className="bg-purple-50 dark:bg-purple-900/20 rounded-xl p-4 border border-purple-100 dark:border-purple-800">
-                        <div className="text-3xl font-bold text-purple-700 dark:text-purple-300">{fmt(data.summary.upsellAccepted)}</div>
-                        <div className="text-sm text-purple-600 dark:text-purple-400 mt-1">Upsell Qty</div>
-                      </div>
-                      <div className="bg-gray-50 dark:bg-gray-700 rounded-xl p-4 border border-gray-200 dark:border-gray-600">
-                        <div className="text-3xl font-bold text-gray-700 dark:text-gray-200">
-                          {fmt(data.summary.totalOrders - data.summary.upsellAccepted)}
-                        </div>
-                        <div className="text-sm text-gray-500 dark:text-gray-400 mt-1">Upsells Declined</div>
-                      </div>
-                      <div className="bg-pink-50 dark:bg-pink-900/20 rounded-xl p-4 border border-pink-100 dark:border-pink-800">
-                        <div className="text-3xl font-bold text-pink-700 dark:text-pink-300">{fmt(data.summary.crossSellQty)}</div>
-                        <div className="text-sm text-pink-600 dark:text-pink-400 mt-1">Cross-Sell Qty</div>
-                      </div>
-                      <div className="bg-orange-50 dark:bg-orange-900/20 rounded-xl p-4 border border-orange-100 dark:border-orange-800">
-                        <div className="text-3xl font-bold text-orange-700 dark:text-orange-300">{fmt(data.summary.crossSellOrders)}</div>
-                        <div className="text-sm text-orange-600 dark:text-orange-400 mt-1">Cross-Sell Orders</div>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                      <div>
-                        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Upsell Acceptance</h3>
-                        <ResponsiveContainer width="100%" height={280}>
-                          <PieChart>
-                            <Pie
-                              data={upsellPieData}
-                              cx="50%" cy="50%"
-                              outerRadius={100}
-                              dataKey="value"
-                              label={({ name, value, percent }) => `${name}: ${fmt(value)} (${((percent ?? 0) * 100).toFixed(0)}%)`}
-                            >
-                              <Cell fill={PALETTE.purple} />
-                              <Cell fill={PALETTE.slate} />
-                            </Pie>
-                            <Tooltip formatter={(v: number | undefined) => [fmt(v ?? 0), 'Orders']} />
-                          </PieChart>
-                        </ResponsiveContainer>
-                      </div>
-
-                      <div>
-                        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Daily Upsell & Cross-Sell Trend</h3>
-                        <ResponsiveContainer width="100%" height={280}>
-                          <LineChart data={data.daily} margin={{ top: 0, right: 10, left: 0, bottom: 0 }}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                            <XAxis dataKey="date" tickFormatter={fmtDate} tick={{ fontSize: 10 }} />
-                            <YAxis tick={{ fontSize: 11 }} />
-                            <Tooltip labelFormatter={(l) => l} formatter={(v: number | undefined, name: string | undefined) => [fmt(v ?? 0), name ?? '']} />
-                            <Legend />
-                            <Line type="monotone" dataKey="orders" name="Total Orders" stroke={PALETTE.primary} strokeWidth={2} dot={false} />
-                            <Line type="monotone" dataKey="upsellAccepted" name="Upsell Accepted" stroke={PALETTE.purple} strokeWidth={2} dot={false} />
-                            <Line type="monotone" dataKey="crossSellQty" name="Cross-Sell Qty" stroke={PALETTE.pink} strokeWidth={2} dot={false} />
-                          </LineChart>
-                        </ResponsiveContainer>
-                      </div>
-                    </div>
-
-                    {(data.crossSellProducts || []).length > 0 && (
-                      <div>
-                        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Top Cross-Sell Products</h3>
-                        <ResponsiveContainer width="100%" height={260}>
-                          <BarChart data={(data.crossSellProducts || []).slice(0, 10)} margin={{ top: 0, right: 10, left: 0, bottom: 60 }}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                            <XAxis dataKey="productName" tick={{ fontSize: 10 }} angle={-35} textAnchor="end" interval={0} />
-                            <YAxis tick={{ fontSize: 11 }} />
-                            <Tooltip formatter={(v: number | undefined, name: string | undefined) => [fmt(v ?? 0), name ?? '']} />
-                            <Legend />
-                            <Bar dataKey="totalQty" name="Cross-Sell Qty" fill={PALETTE.pink} radius={[4, 4, 0, 0]} />
-                            <Bar dataKey="totalOrders" name="Cross-Sell Orders" fill={PALETTE.orange} radius={[4, 4, 0, 0]} />
-                          </BarChart>
-                        </ResponsiveContainer>
-                      </div>
-                    )}
-                  </div>
-                )}
-
                 {/* PRODUCTS TAB */}
                 {activeTab === 'products' && (
                   <div className="space-y-4">
                     <div className="flex flex-wrap gap-3 items-center">
                       <input
                         type="text"
-                        placeholder="Search products..."
+                        placeholder="Search cross-sell products..."
                         value={productSearch}
                         onChange={(e) => setProductSearch(e.target.value)}
                         className="border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 w-56"
@@ -699,38 +540,14 @@ export default function LandingPageReportsPage() {
                       </select>
                     </div>
 
-                    {/* Product chart */}
-                    {sortedProducts.length > 0 && (
-                      <ResponsiveContainer width="100%" height={250}>
-                        <BarChart
-                          data={sortedProducts.slice(0, 10)}
-                          margin={{ top: 0, right: 10, left: 0, bottom: 60 }}
-                        >
-                          <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                          <XAxis
-                            dataKey="productName"
-                            tick={{ fontSize: 10 }}
-                            angle={-35}
-                            textAnchor="end"
-                            interval={0}
-                          />
-                          <YAxis tick={{ fontSize: 11 }} />
-                          <Tooltip formatter={(v: number | undefined, name: string | undefined) => [fmt(v ?? 0), name ?? '']} />
-                          <Legend />
-                          <Bar dataKey="totalOrders" name="Orders" fill={PALETTE.primary} radius={[4, 4, 0, 0]} />
-                          <Bar dataKey="totalQty" name="Qty Sold" fill={PALETTE.teal} radius={[4, 4, 0, 0]} />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    )}
-
                     <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
                       <table className="w-full text-sm text-left">
                         <thead className="bg-gray-50 dark:bg-gray-700 text-xs uppercase text-gray-500 dark:text-gray-400">
                           <tr>
                             <th className="px-4 py-3">#</th>
                             <th className="px-4 py-3">Product</th>
-                            <th className="px-4 py-3 text-right">Orders</th>
-                            <th className="px-4 py-3 text-right">Qty Sold</th>
+                            <th className="px-4 py-3 text-right">Cross-Sell Orders</th>
+                            <th className="px-4 py-3 text-right">Cross-Sell Qty</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
@@ -744,7 +561,7 @@ export default function LandingPageReportsPage() {
                           ))}
                           {sortedProducts.length === 0 && (
                             <tr>
-                              <td colSpan={4} className="px-4 py-8 text-center text-gray-400">No products found</td>
+                              <td colSpan={4} className="px-4 py-8 text-center text-gray-400">No cross-sell products found</td>
                             </tr>
                           )}
                         </tbody>
@@ -753,76 +570,6 @@ export default function LandingPageReportsPage() {
                   </div>
                 )}
 
-                {/* PER PAGE TAB */}
-                {activeTab === 'pages' && (
-                  <div className="space-y-4">
-                    <p className="text-sm text-gray-500">Breakdown by landing page slug (utm_source)</p>
-
-                    {data.perPage.length > 0 && (
-                      <ResponsiveContainer width="100%" height={250}>
-                        <BarChart
-                          data={data.perPage.slice(0, 10)}
-                          margin={{ top: 0, right: 10, left: 0, bottom: 60 }}
-                        >
-                          <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                          <XAxis
-                            dataKey="slug"
-                            tick={{ fontSize: 10 }}
-                            angle={-35}
-                            textAnchor="end"
-                            interval={0}
-                          />
-                          <YAxis tick={{ fontSize: 11 }} />
-                          <Tooltip formatter={(v: number | undefined, name: string | undefined) => [fmt(v ?? 0), name ?? '']} />
-                          <Legend />
-                          <Bar dataKey="orders" name="Orders" fill={PALETTE.primary} radius={[4, 4, 0, 0]} />
-                          <Bar dataKey="upsellAccepted" name="Upsell Accepted" fill={PALETTE.purple} radius={[4, 4, 0, 0]} />
-                          <Bar dataKey="crossSellQty" name="Cross-Sell Qty" fill={PALETTE.pink} radius={[4, 4, 0, 0]} />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    )}
-
-                    <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
-                      <table className="w-full text-sm text-left">
-                        <thead className="bg-gray-50 dark:bg-gray-700 text-xs uppercase text-gray-500 dark:text-gray-400">
-                          <tr>
-                            <th className="px-4 py-3">Landing Page</th>
-                            <th className="px-4 py-3">Slug</th>
-                            <th className="px-4 py-3 text-right">Orders</th>
-                            <th className="px-4 py-3 text-right">Upsells</th>
-                            <th className="px-4 py-3 text-right">Cross-Sell Qty</th>
-                            <th className="px-4 py-3 text-right">Upsell Rate</th>
-                            <th className="px-4 py-3 text-right">Delivered</th>
-                            <th className="px-4 py-3 text-right">Cancelled</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-                          {data.perPage.map((p) => (
-                            <tr key={p.slug} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
-                              <td className="px-4 py-2 font-medium text-gray-700 dark:text-gray-200 max-w-[140px] truncate" title={p.title}>{p.title}</td>
-                              <td className="px-4 py-2 text-gray-500 dark:text-gray-400 font-mono text-xs">{p.slug}</td>
-                              <td className="px-4 py-2 text-right">{fmt(p.orders)}</td>
-                              <td className="px-4 py-2 text-right text-purple-600">{fmt(p.upsellAccepted)}</td>
-                              <td className="px-4 py-2 text-right text-pink-600">{fmt(p.crossSellQty)}</td>
-                              <td className="px-4 py-2 text-right">
-                                <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${p.upsellRate >= 30 ? 'bg-green-100 text-green-700' : p.upsellRate >= 15 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
-                                  {p.upsellRate}%
-                                </span>
-                              </td>
-                              <td className="px-4 py-2 text-right text-green-600">{fmt(p.deliveredOrders)}</td>
-                              <td className="px-4 py-2 text-right text-red-500">{fmt(p.cancelledOrders)}</td>
-                            </tr>
-                          ))}
-                          {data.perPage.length === 0 && (
-                            <tr>
-                              <td colSpan={8} className="px-4 py-8 text-center text-gray-400">No data for this period</td>
-                            </tr>
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                )}
               </div>
             </div>
           </>
