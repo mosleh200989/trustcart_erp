@@ -71,6 +71,8 @@ import { CustomerProductReminder } from './modules/loyalty/entities/customer-pro
 
 // Telephony Entities
 import { TelephonyCall } from './modules/telephony/entities/telephony-call.entity';
+import { UserPresenceStatus } from './modules/presence/entities/user-presence-status.entity';
+import { UserPresenceEvent } from './modules/presence/entities/user-presence-event.entity';
 
 // CRM Entities
 import { Deal } from './modules/crm/entities/deal.entity';
@@ -177,6 +179,7 @@ import { LandingPagesModule } from './modules/landing-pages/landing-pages.module
 import { LandingPage } from './modules/landing-pages/landing-page.entity';
 import { LandingPageOrder } from './modules/landing-pages/landing-page-order.entity';
 import { PaymentModule } from './modules/payment/payment.module';
+import { PresenceModule } from './modules/presence/presence.module';
 
 // Audit Log Module
 import { AuditLogModule } from './modules/audit-log/audit-log.module';
@@ -276,6 +279,9 @@ import { GrnItem } from './modules/purchase/entities/grn-item.entity';
             IncompleteOrder,
             // Telephony entities
             TelephonyCall,
+            // Presence entities
+            UserPresenceStatus,
+            UserPresenceEvent,
 
             // Tagging entities
             CustomerTag,
@@ -365,6 +371,7 @@ import { GrnItem } from './modules/purchase/entities/grn-item.entity';
     LandingPagesModule,
     SitemapFeedModule,
     PaymentModule,
+    PresenceModule,
     CartModule,
     AuditLogModule,
   ],

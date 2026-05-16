@@ -84,6 +84,11 @@ const menuItems: MenuItem[] = [
     requiredPermissions: ['view-customers']
   },
   {
+    title: 'Presence',
+    icon: FaUser,
+    path: '/admin/presence',
+  },
+  {
     title: 'Loyalty',
     icon: FaGift,
     requiredPermissions: ['view-mlm-reports', 'manage-mlm-settings'],
@@ -467,6 +472,21 @@ function ensureManageModulesLink(items: MenuItem[]): MenuItem[] {
   ];
 }
 
+function ensurePresenceLink(items: MenuItem[]): MenuItem[] {
+  const exists = (arr: MenuItem[]): boolean =>
+    arr.some((x) => x.path === '/admin/presence' || (x.children ? exists(x.children) : false));
+  if (exists(items)) return items;
+
+  return [
+    ...items,
+    {
+      title: 'Presence',
+      icon: FaUser,
+      path: '/admin/presence',
+    },
+  ];
+}
+
 function stripQuery(path: string) {
   return path.split('?')[0];
 }
@@ -558,6 +578,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [alertCount, setAlertCount] = useState(0);
   const [showAlertDropdown, setShowAlertDropdown] = useState(false);
   const [recentAlerts, setRecentAlerts] = useState<any[]>([]);
+  const [presenceState, setPresenceState] = useState<'online' | 'offline'>('offline');
+  const [presenceLoading, setPresenceLoading] = useState(false);
   const alertRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const { user, roles, isLoading, hasAnyPermission, logout } = useAuth();
@@ -598,6 +620,49 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   useEffect(() => {
     let cancelled = false;
+
+    const loadPresence = async () => {
+      try {
+        const res = await apiClient.get('/presence/me');
+        const state = res.data?.state === 'online' ? 'online' : 'offline';
+        if (!cancelled) setPresenceState(state);
+      } catch {
+        if (!cancelled) setPresenceState('offline');
+      }
+    };
+
+    const heartbeat = async () => {
+      try {
+        await apiClient.post('/presence/heartbeat');
+      } catch {}
+    };
+
+    loadPresence();
+    heartbeat();
+    const iv = setInterval(heartbeat, 60000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(iv);
+    };
+  }, []);
+
+  const togglePresence = useCallback(async () => {
+    const next = presenceState === 'online' ? 'offline' : 'online';
+    setPresenceState(next);
+    setPresenceLoading(true);
+    try {
+      const res = await apiClient.post('/presence/me', { state: next });
+      setPresenceState(res.data?.state === 'online' ? 'online' : 'offline');
+    } catch {
+      setPresenceState(presenceState);
+    } finally {
+      setPresenceLoading(false);
+    }
+  }, [presenceState]);
+
+  useEffect(() => {
+    let cancelled = false;
     (async () => {
       try {
         const res = await apiClient.get('/settings/admin-menu', { params: { includeInactive: false } });
@@ -632,7 +697,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   const effectiveMenuItems = useMemo(() => {
     const base = dbMenuItems && dbMenuItems.length > 0 ? dbMenuItems : menuItems;
-    return flattenSingleChildMenus(ensureManageModulesLink(base));
+    return flattenSingleChildMenus(ensureManageModulesLink(ensurePresenceLink(base)));
   }, [dbMenuItems]);
 
   const panelTitle = useMemo(() => {
@@ -691,7 +756,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     );
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      await apiClient.post('/presence/me', { state: 'offline' });
+    } catch {}
     logout();
     router.push('/admin/login');
   };
@@ -780,6 +848,19 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               </div>
               {/* CRM Notifications Bell */}
               <CrmNotifications />
+              <button
+                onClick={togglePresence}
+                disabled={presenceLoading}
+                title={presenceState === 'online' ? 'Set yourself offline' : 'Set yourself online'}
+                className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-semibold transition-all shadow-sm ${
+                  presenceState === 'online'
+                    ? 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100'
+                    : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'
+                } ${presenceLoading ? 'opacity-70 cursor-wait' : ''}`}
+              >
+                <span className={`w-2.5 h-2.5 rounded-full ${presenceState === 'online' ? 'bg-green-500' : 'bg-gray-400'}`} />
+                {presenceState === 'online' ? 'Online' : 'Offline'}
+              </button>
               <span className="text-sm text-gray-700 font-medium">
                 {isLoading ? 'Loading…' : (user?.email || user?.phone || 'User')}
               </span>
