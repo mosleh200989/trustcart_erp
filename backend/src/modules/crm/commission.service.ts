@@ -1086,7 +1086,7 @@ export class CommissionService {
       LEFT JOIN (
         SELECT
           ath.team_leader_id as tl_id,
-          COUNT(so.id) as agent_orders
+          COUNT(DISTINCT so.id) as agent_orders
         FROM sales_orders so
         INNER JOIN agent_tl_history ath ON ath.agent_id = so.created_by
           AND ath.valid_from <= so.created_at
@@ -1094,19 +1094,21 @@ export class CommissionService {
         WHERE so.created_by IS NOT NULL
           AND so.order_source IN ('admin_panel', 'agent_dashboard')
           AND so.status = 'delivered'
-          AND DATE(so.created_at AT TIME ZONE 'Asia/Dhaka') BETWEEN '${monthStart}' AND '${monthEnd}'
+          AND DATE(COALESCE(so.delivered_at, so.created_at) AT TIME ZONE 'Asia/Dhaka') BETWEEN '${monthStart}' AND '${monthEnd}'
         GROUP BY ath.team_leader_id
       ) agent_order_stats ON agent_order_stats.tl_id = u.id
       LEFT JOIN (
         SELECT
           so.created_by as tl_id,
-          COUNT(so.id) as own_orders,
+          COUNT(DISTINCT so.id) as own_orders,
           COALESCE(SUM(pq.total_qty), 0) as own_product_qty
         FROM sales_orders so
         LEFT JOIN (
           SELECT sub.order_id, SUM(sub.qty) as total_qty FROM (
             SELECT soi.sales_order_id as order_id, COALESCE(SUM(soi.quantity), 0) as qty
-            FROM sales_order_items soi GROUP BY soi.sales_order_id
+            FROM sales_order_items soi
+            WHERE soi.sales_order_id NOT IN (SELECT DISTINCT oi2.order_id FROM order_items oi2)
+            GROUP BY soi.sales_order_id
             UNION ALL
             SELECT oi.order_id as order_id, COALESCE(SUM(oi.quantity), 0) as qty
             FROM order_items oi GROUP BY oi.order_id
@@ -1114,7 +1116,7 @@ export class CommissionService {
         ) pq ON pq.order_id = so.id
         WHERE so.order_source IN ('admin_panel', 'agent_dashboard')
           AND so.status = 'delivered'
-          AND DATE(so.created_at AT TIME ZONE 'Asia/Dhaka') BETWEEN '${monthStart}' AND '${monthEnd}'
+          AND DATE(COALESCE(so.delivered_at, so.created_at) AT TIME ZONE 'Asia/Dhaka') BETWEEN '${monthStart}' AND '${monthEnd}'
         GROUP BY so.created_by
       ) own_order_stats ON own_order_stats.tl_id = u.id
       LEFT JOIN (
@@ -1124,7 +1126,7 @@ export class CommissionService {
         WHERE oi.is_cross_sell = true
           AND oi.added_by IS NOT NULL
           AND so.status = 'delivered'
-          AND DATE(so.created_at AT TIME ZONE 'Asia/Dhaka') BETWEEN '${monthStart}' AND '${monthEnd}'
+          AND DATE(COALESCE(so.delivered_at, so.created_at) AT TIME ZONE 'Asia/Dhaka') BETWEEN '${monthStart}' AND '${monthEnd}'
         GROUP BY oi.added_by
       ) own_cross_sell_stats ON own_cross_sell_stats.tl_id = u.id
       LEFT JOIN (
@@ -1252,8 +1254,8 @@ export class CommissionService {
     // Query 1: Daily orders by agents under this TL (supervision)
     const supervisionSql = `
       SELECT
-        DATE(so.created_at AT TIME ZONE 'Asia/Dhaka') as order_date,
-        COUNT(so.id) as order_count,
+        DATE(COALESCE(so.delivered_at, so.created_at) AT TIME ZONE 'Asia/Dhaka') as order_date,
+        COUNT(DISTINCT so.id) as order_count,
         COUNT(DISTINCT so.created_by) as agent_count
       FROM sales_orders so
       INNER JOIN agent_tl_history ath ON ath.agent_id = so.created_by
@@ -1263,8 +1265,8 @@ export class CommissionService {
       WHERE so.created_by != $1
         AND so.order_source IN ('admin_panel', 'agent_dashboard')
         AND so.status = 'delivered'
-        AND DATE(so.created_at AT TIME ZONE 'Asia/Dhaka') BETWEEN $2 AND $3
-      GROUP BY DATE(so.created_at AT TIME ZONE 'Asia/Dhaka')
+        AND DATE(COALESCE(so.delivered_at, so.created_at) AT TIME ZONE 'Asia/Dhaka') BETWEEN $2 AND $3
+      GROUP BY DATE(COALESCE(so.delivered_at, so.created_at) AT TIME ZONE 'Asia/Dhaka')
       ORDER BY order_date ASC
     `;
     const supervisionRows = await this.dataSource.query(supervisionSql, [teamLeaderId, startDate, endDate]);
@@ -1272,14 +1274,16 @@ export class CommissionService {
     // Query 2: Daily orders created BY the TL themselves (own sales)
     const ownSalesSql = `
       SELECT
-        DATE(so.created_at AT TIME ZONE 'Asia/Dhaka') as order_date,
-        COUNT(so.id) as order_count,
+        DATE(COALESCE(so.delivered_at, so.created_at) AT TIME ZONE 'Asia/Dhaka') as order_date,
+        COUNT(DISTINCT so.id) as order_count,
         COALESCE(SUM(pq.total_qty), 0) as total_product_qty
       FROM sales_orders so
       LEFT JOIN (
         SELECT sub.order_id, SUM(sub.qty) as total_qty FROM (
           SELECT soi.sales_order_id as order_id, COALESCE(SUM(soi.quantity), 0) as qty
-          FROM sales_order_items soi GROUP BY soi.sales_order_id
+          FROM sales_order_items soi
+          WHERE soi.sales_order_id NOT IN (SELECT DISTINCT oi2.order_id FROM order_items oi2)
+          GROUP BY soi.sales_order_id
           UNION ALL
           SELECT oi.order_id as order_id, COALESCE(SUM(oi.quantity), 0) as qty
           FROM order_items oi GROUP BY oi.order_id
@@ -1288,8 +1292,8 @@ export class CommissionService {
       WHERE so.created_by = $1
         AND so.order_source IN ('admin_panel', 'agent_dashboard')
         AND so.status = 'delivered'
-        AND DATE(so.created_at AT TIME ZONE 'Asia/Dhaka') BETWEEN $2 AND $3
-      GROUP BY DATE(so.created_at AT TIME ZONE 'Asia/Dhaka')
+        AND DATE(COALESCE(so.delivered_at, so.created_at) AT TIME ZONE 'Asia/Dhaka') BETWEEN $2 AND $3
+      GROUP BY DATE(COALESCE(so.delivered_at, so.created_at) AT TIME ZONE 'Asia/Dhaka')
       ORDER BY order_date ASC
     `;
     const ownSalesRows = await this.dataSource.query(ownSalesSql, [teamLeaderId, startDate, endDate]);
@@ -1297,15 +1301,15 @@ export class CommissionService {
     // Cross-sell counts for TL: items added by TL to any order with is_cross_sell = true
     const tlCrossSellSql = `
       SELECT
-        DATE(so.created_at AT TIME ZONE 'Asia/Dhaka') as order_date,
+        DATE(COALESCE(so.delivered_at, so.created_at) AT TIME ZONE 'Asia/Dhaka') as order_date,
         COUNT(*) as cross_sell_qty
       FROM order_items oi
       INNER JOIN sales_orders so ON so.id = oi.order_id
       WHERE oi.added_by = $1
         AND oi.is_cross_sell = true
         AND so.status = 'delivered'
-        AND DATE(so.created_at AT TIME ZONE 'Asia/Dhaka') BETWEEN $2 AND $3
-      GROUP BY DATE(so.created_at AT TIME ZONE 'Asia/Dhaka')
+        AND DATE(COALESCE(so.delivered_at, so.created_at) AT TIME ZONE 'Asia/Dhaka') BETWEEN $2 AND $3
+      GROUP BY DATE(COALESCE(so.delivered_at, so.created_at) AT TIME ZONE 'Asia/Dhaka')
     `;
     const tlCrossSellRows = await this.dataSource.query(tlCrossSellSql, [teamLeaderId, startDate, endDate]);
     const tlCrossSellByDate = new Map<string, number>(
