@@ -59,6 +59,7 @@ interface AgentRow {
   approvedOrders: number;
   shippedOrders: number;
   deliveredOrders: number;
+  rejectedOrders: number;
   cancelledOrders: number;
   conversionRate: number;
   cancelRate: number;
@@ -290,15 +291,15 @@ export default function AgentWiseReportPage() {
     const headers = [
       'Agent Name', 'Total Orders',
       'Products Qty', 'Upsell Qty', 'Cross-Sell Qty',
-      'Cancelled / Returned',
-      'Conversion %', 'Cancel %',
+      'Delivered', 'Rejected', 'Cancelled / Returned',
+      'Cancel %',
     ];
     const rows = data.agents.map((a) =>
       [
         `"${a.agentName}"`, a.totalOrders,
         a.productsQty, a.upsellQty,
         a.crossSellQty,
-        a.cancelledOrders, a.conversionRate, a.cancelRate,
+        a.deliveredOrders, a.rejectedOrders, a.cancelledOrders, a.cancelRate,
       ].join(','),
     );
     const csv = [headers.join(','), ...rows].join('\n');
@@ -418,12 +419,12 @@ export default function AgentWiseReportPage() {
         {data && (
           <>
             {/* ===== KPI CARDS ===== */}
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-              <KPICard icon={<FaUsers />} label="Active Agents" value={fmt(data.summary.activeAgents)} color="violet" />
+            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
+              <KPICard icon={<FaUserTie />} label="Active Agents" value={fmt(data.summary.activeAgents)} color="violet" />
               <KPICard icon={<FaShoppingCart />} label="Total Orders" value={fmt(data.summary.totalOrders)} color="indigo" />
               <KPICard icon={<FaArrowUp />} label="Upsell Qty" value={fmt(data.summary.totalUpsellQty)} color="amber" />
               <KPICard icon={<FaExchangeAlt />} label="Cross-Sell Qty" value={fmt(data.summary.totalCrossSellQty)} color="pink" />
-              <KPICard icon={<FaUsers />} label="Unique Customers" value={fmt(data.summary.totalUniqueCustomers)} color="teal" />
+              <KPICard icon={<FaCheckCircle />} label="Delivered" value={fmt(data.agents.reduce((s, a) => s + a.deliveredOrders, 0))} color="emerald" />
             </div>
 
             {/* ===== TAB NAVIGATION ===== */}
@@ -491,18 +492,21 @@ export default function AgentWiseReportPage() {
                           <th className="px-3 py-3 text-center cursor-pointer hover:text-violet-600" onClick={() => handleSort('crossSellQty')}>
                             <span className="text-pink-600">Cross-Sell Qty</span> <SortIcon field="crossSellQty" />
                           </th>
+                          <th className="px-3 py-3 text-center cursor-pointer hover:text-violet-600" onClick={() => handleSort('deliveredOrders')}>
+                            <span className="text-emerald-600">Delivered</span> <SortIcon field="deliveredOrders" />
+                          </th>
+                          <th className="px-3 py-3 text-center cursor-pointer hover:text-violet-600" onClick={() => handleSort('rejectedOrders')}>
+                            <span className="text-rose-600">Rejected</span> <SortIcon field="rejectedOrders" />
+                          </th>
                           <th className="px-3 py-3 text-center cursor-pointer hover:text-violet-600" onClick={() => handleSort('cancelledOrders')}>
                             <span className="text-red-600">Cancelled / Returned</span> <SortIcon field="cancelledOrders" />
-                          </th>
-                          <th className="px-3 py-3 text-center cursor-pointer hover:text-violet-600" onClick={() => handleSort('conversionRate')}>
-                            Conv % <SortIcon field="conversionRate" />
                           </th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-200">
                         {sortedAgents.length === 0 ? (
                           <tr>
-                            <td colSpan={9} className="px-4 py-16 text-center text-gray-500">
+                            <td colSpan={10} className="px-4 py-16 text-center text-gray-500">
                               No agent data for the selected period
                             </td>
                           </tr>
@@ -539,10 +543,9 @@ export default function AgentWiseReportPage() {
                                 <td className="px-3 py-3 text-center font-medium text-gray-700">{a.productsQty}</td>
                                 <td className="px-3 py-3 text-center font-medium text-amber-600">{a.upsellQty}</td>
                                 <td className="px-3 py-3 text-center font-medium text-pink-600">{a.crossSellQty}</td>
+                                <td className="px-3 py-3 text-center font-medium text-emerald-600">{a.deliveredOrders}</td>
+                                <td className="px-3 py-3 text-center font-medium text-rose-600">{a.rejectedOrders}</td>
                                 <td className="px-3 py-3 text-center font-medium text-red-600">{a.cancelledOrders}</td>
-                                <td className="px-3 py-3 text-center">
-                                  <ConversionBadge value={a.conversionRate} />
-                                </td>
                               </tr>
                             );
                           })
@@ -558,8 +561,9 @@ export default function AgentWiseReportPage() {
                             <td className="px-3 py-3 text-center">{sortedAgents.reduce((s, a) => s + a.productsQty, 0)}</td>
                             <td className="px-3 py-3 text-center text-amber-600">{sortedAgents.reduce((s, a) => s + a.upsellQty, 0)}</td>
                             <td className="px-3 py-3 text-center text-pink-600">{sortedAgents.reduce((s, a) => s + a.crossSellQty, 0)}</td>
+                            <td className="px-3 py-3 text-center text-emerald-600">{sortedAgents.reduce((s, a) => s + a.deliveredOrders, 0)}</td>
+                            <td className="px-3 py-3 text-center text-rose-600">{sortedAgents.reduce((s, a) => s + a.rejectedOrders, 0)}</td>
                             <td className="px-3 py-3 text-center text-red-600">{sortedAgents.reduce((s, a) => s + a.cancelledOrders, 0)}</td>
-                            <td className="px-3 py-3 text-center">—</td>
                           </tr>
                         </tfoot>
                       )}
