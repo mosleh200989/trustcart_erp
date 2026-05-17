@@ -74,6 +74,7 @@ interface LandingPageData {
   slug: string;
   description: string;
   hero_image_url: string;
+  hero_background_image_url?: string;
   hero_title: string;
   hero_subtitle: string;
   hero_button_text: string;
@@ -160,6 +161,7 @@ export default function SpecialEventTemplate({
   const heroTextRef = useRef<HTMLDivElement>(null);
   const sectionsRef = useRef<HTMLDivElement>(null);
   const toast = useToast();
+  const heroBackgroundImage = page.hero_background_image_url?.trim();
 
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
   const [orderForm, setOrderForm] = useState({ name: '', phone: '', address: '', note: '' });
@@ -632,17 +634,31 @@ export default function SpecialEventTemplate({
         </div>
 
         {/* ═══════════════════ HERO ═══════════════════ */}
-        <div ref={heroRef} className="relative overflow-hidden event-grain" style={{ minHeight: '85vh' }}>
-          <div
-            className="absolute inset-0"
-            style={{
-              background: `linear-gradient(160deg, #1A0A00 0%, #2D0A00 30%, ${page.primary_color}25 60%, #1A0A00 100%)`,
-            }}
-          />
-          <div className="event-hero-pattern" />
+        <div
+          ref={heroRef}
+          className="relative overflow-hidden event-grain"
+          style={{
+            minHeight: '85vh',
+            ...(heroBackgroundImage ? {
+              backgroundImage: `url(${JSON.stringify(heroBackgroundImage)})`,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+              backgroundRepeat: 'no-repeat',
+            } : {}),
+          }}
+        >
+          {!heroBackgroundImage && (
+            <div
+              className="absolute inset-0"
+              style={{
+                background: `linear-gradient(160deg, #1A0A00 0%, #2D0A00 30%, ${page.primary_color}25 60%, #1A0A00 100%)`,
+              }}
+            />
+          )}
+          {!heroBackgroundImage && <div className="event-hero-pattern" />}
 
           {/* Decorative fire elements */}
-          <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          {!heroBackgroundImage && <div className="absolute inset-0 overflow-hidden pointer-events-none">
             <div className="absolute -top-24 -right-24 w-96 h-96 rounded-full opacity-[0.08]"
               style={{ background: `radial-gradient(circle, ${page.primary_color}, transparent)` }}
             />
@@ -652,7 +668,7 @@ export default function SpecialEventTemplate({
             <div className="absolute top-1/3 right-1/4 w-48 h-48 rounded-full opacity-[0.05]"
               style={{ background: `radial-gradient(circle, #EF4444, transparent)` }}
             />
-          </div>
+          </div>}
 
           <div className="relative max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16 md:py-24">
             <div className="flex flex-col-reverse md:flex-row items-center gap-12 md:gap-16 lg:gap-20">

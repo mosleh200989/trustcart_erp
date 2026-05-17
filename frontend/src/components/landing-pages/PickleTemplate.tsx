@@ -68,6 +68,7 @@ interface LandingPageData {
   slug: string;
   description: string;
   hero_image_url: string;
+  hero_background_image_url?: string;
   hero_title: string;
   hero_subtitle: string;
   hero_button_text: string;
@@ -128,6 +129,7 @@ export default function PickleTemplate({
   const heroTextRef = useRef<HTMLDivElement>(null);
   const sectionsRef = useRef<HTMLDivElement>(null);
   const toast = useToast();
+  const heroBackgroundImage = page.hero_background_image_url?.trim();
 
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
   const [orderForm, setOrderForm] = useState({ name: '', phone: '', address: '', note: '' });
@@ -616,23 +618,37 @@ export default function PickleTemplate({
         </div>
 
         {/* ═══════════════════ HERO ═══════════════════ */}
-        <div ref={heroRef} className="relative overflow-hidden pickle-grain" style={{ minHeight: '80vh' }}>
-          <div
-            className="absolute inset-0"
-            style={{
-              background: `linear-gradient(160deg, #FFF5F0 0%, #FFE8DE 35%, ${page.primary_color}12 70%, #FFF0E8 100%)`,
-            }}
-          />
-          <div className="pickle-hero-pattern" />
+        <div
+          ref={heroRef}
+          className="relative overflow-hidden pickle-grain"
+          style={{
+            minHeight: '80vh',
+            ...(heroBackgroundImage ? {
+              backgroundImage: `url(${JSON.stringify(heroBackgroundImage)})`,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+              backgroundRepeat: 'no-repeat',
+            } : {}),
+          }}
+        >
+          {!heroBackgroundImage && (
+            <div
+              className="absolute inset-0"
+              style={{
+                background: `linear-gradient(160deg, #FFF5F0 0%, #FFE8DE 35%, ${page.primary_color}12 70%, #FFF0E8 100%)`,
+              }}
+            />
+          )}
+          {!heroBackgroundImage && <div className="pickle-hero-pattern" />}
 
-          <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          {!heroBackgroundImage && <div className="absolute inset-0 overflow-hidden pointer-events-none">
             <div className="absolute -top-24 -right-24 w-80 h-80 rounded-full opacity-[0.06]"
               style={{ background: `radial-gradient(circle, ${page.primary_color}, transparent)` }}
             />
             <div className="absolute bottom-0 left-0 w-96 h-96 rounded-full opacity-[0.04]"
               style={{ background: `radial-gradient(circle, ${page.primary_color}, transparent)` }}
             />
-          </div>
+          </div>}
 
           <div className="relative max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16 md:py-24">
             <div className="flex flex-col-reverse md:flex-row items-center gap-12 md:gap-16 lg:gap-20">

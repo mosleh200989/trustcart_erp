@@ -57,6 +57,7 @@ interface LandingPageData {
   slug: string;
   description: string;
   hero_image_url: string;
+  hero_background_image_url?: string;
   hero_title: string;
   hero_subtitle: string;
   hero_button_text: string;
@@ -395,6 +396,7 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
   const buttonBorderColor = page.btn_border_color || 'transparent';
   const buttonBorderWidth = page.btn_border_color && page.btn_border_color !== 'transparent' ? 2 : 0;
   const buttonBorderRadius = (page.btn_border_radius ?? 16) + 'px';
+  const heroBackgroundImage = page.hero_background_image_url?.trim();
 
   const renderSectionButton = (section: LandingPageSection) => {
     if (!section.buttonText) return null;
@@ -525,17 +527,30 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
       <div className="min-h-screen elegant-landing" style={{ backgroundColor: page.background_color }}>
 
         {/* ═══════════════ HERO SECTION ═══════════════ */}
-        <div className="relative overflow-hidden" style={{ minHeight: '85vh' }}>
+        <div
+          className="relative overflow-hidden"
+          style={{
+            minHeight: '85vh',
+            ...(heroBackgroundImage ? {
+              backgroundImage: `url(${JSON.stringify(heroBackgroundImage)})`,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+              backgroundRepeat: 'no-repeat',
+            } : {}),
+          }}
+        >
           {/* Gradient Background */}
-          <div
-            className="absolute inset-0"
-            style={{
-              background: `linear-gradient(135deg, ${page.primary_color} 0%, ${primaryDark} 50%, ${adjustColor(page.primary_color, -60)} 100%)`,
-            }}
-          />
+          {!heroBackgroundImage && (
+            <div
+              className="absolute inset-0"
+              style={{
+                background: `linear-gradient(135deg, ${page.primary_color} 0%, ${primaryDark} 50%, ${adjustColor(page.primary_color, -60)} 100%)`,
+              }}
+            />
+          )}
 
           {/* Decorative circles */}
-          <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          {!heroBackgroundImage && <div className="absolute inset-0 overflow-hidden pointer-events-none">
             <div
               className="absolute -top-32 -right-32 w-96 h-96 rounded-full opacity-10"
               style={{ backgroundColor: page.secondary_color }}
@@ -548,7 +563,7 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
               className="absolute top-1/3 right-1/4 w-64 h-64 rounded-full opacity-5"
               style={{ backgroundColor: page.secondary_color, transform: `translateY(${scrollY * 0.1}px)` }}
             />
-          </div>
+          </div>}
 
           {/* Shimmer overlay */}
           {/* <div className="absolute inset-0 elegant-shimmer pointer-events-none" /> */}

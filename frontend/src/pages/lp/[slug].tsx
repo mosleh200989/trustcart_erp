@@ -424,7 +424,12 @@ export default function LandingPagePublic() {
         {/* ─── Hero Section ─── */}
         <div
           className="relative overflow-hidden"
-          style={{ backgroundColor: page.primary_color }}
+          style={page.hero_background_image_url ? {
+            backgroundImage: `url(${JSON.stringify(page.hero_background_image_url)})`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            backgroundRepeat: 'no-repeat',
+          } : { backgroundColor: page.primary_color }}
         >
           <div className="max-w-5xl mx-auto px-4 py-12 md:py-20">
             <div className="flex flex-col md:flex-row items-center gap-8">
