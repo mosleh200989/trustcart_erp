@@ -77,6 +77,41 @@ export class SalesService {
     (LOWER(o.status::text) <> 'processing')
   `;
 
+  private getAssignedOrdersAccess(user: any) {
+    const roleSlug = String(user?.roleSlug || '').toLowerCase();
+    const userId = Number(user?.id);
+    return {
+      userId,
+      roleSlug,
+      isAdmin: roleSlug === 'super-admin' || roleSlug === 'admin',
+      isTeamLeader: roleSlug === 'sales-team-leader',
+      isSalesExecutive: roleSlug === 'sales-executive',
+    };
+  }
+
+  private async assertAgentAssignableToUser(agentId: number, user: any) {
+    const access = this.getAssignedOrdersAccess(user);
+    const rows: Array<{ id: number; team_leader_id: number | null; role_slug: string | null }> =
+      await this.salesRepository.manager.query(
+        `SELECT u.id, u.team_leader_id, r.slug AS role_slug
+         FROM users u
+         LEFT JOIN roles r ON r.id = u.role_id
+         WHERE u.id = $1
+           AND u.is_deleted = false
+           AND u.status = 'active'
+         LIMIT 1`,
+        [agentId],
+      );
+
+    const agent = rows[0];
+    if (!agent || agent.role_slug !== 'sales-executive') {
+      throw new BadRequestException('Selected agent is not an active Sales Executive');
+    }
+    if (access.isAdmin) return;
+    if (access.isTeamLeader && Number(agent.team_leader_id) === access.userId) return;
+    throw new BadRequestException('You can only assign orders to your own agents');
+  }
+
   private toAdminListDto(order: SalesOrder) {
     const customerName = (order as any).customerName ?? null;
     const customerEmail = (order as any).customerEmail ?? null;
@@ -534,7 +569,10 @@ export class SalesService {
     endDate?: string;
     assignment?: string;
     todayOnly?: boolean;
+    teamLeaderId?: number;
+    agentId?: number;
   }, user: any) {
+    const access = this.getAssignedOrdersAccess(user);
     const page = Math.max(1, params.page || 1);
     const limit = Math.min(500, Math.max(1, params.limit || 50));
     const skip = (page - 1) * limit;
@@ -543,6 +581,21 @@ export class SalesService {
 
     qb.where('o.order_source IN (:...webSources)', { webSources: this.webOrderSources });
     qb.andWhere(`NOT ${this.approvedForMainOrdersSql}`);
+
+    if (access.isSalesExecutive) {
+      qb.andWhere('o.assigned_to = :currentAgentId', { currentAgentId: access.userId });
+    } else if (access.isTeamLeader) {
+      qb.andWhere(
+        `(o.assigned_to IS NULL OR o.assigned_to IN (
+          SELECT u.id FROM users u
+          WHERE u.team_leader_id = :currentTeamLeaderId
+            AND u.is_deleted = false
+        ))`,
+        { currentTeamLeaderId: access.userId },
+      );
+    } else if (!access.isAdmin) {
+      qb.andWhere('o.assigned_to = :fallbackUserId', { fallbackUserId: access.userId });
+    }
 
     if (params.q && params.q.trim()) {
       const q = `%${params.q.trim().toLowerCase()}%`;
@@ -572,6 +625,35 @@ export class SalesService {
       qb.andWhere('o.assigned_to IS NOT NULL');
     } else if (params.assignment === 'unassigned') {
       qb.andWhere('o.assigned_to IS NULL');
+    }
+    if (access.isAdmin && Number.isFinite(Number(params.teamLeaderId)) && Number(params.teamLeaderId) > 0) {
+      qb.andWhere(
+        `o.assigned_to IN (
+          SELECT u.id FROM users u
+          WHERE u.team_leader_id = :filterTeamLeaderId
+            AND u.is_deleted = false
+        )`,
+        { filterTeamLeaderId: Number(params.teamLeaderId) },
+      );
+    }
+    if (Number.isFinite(Number(params.agentId)) && Number(params.agentId) > 0) {
+      const agentId = Number(params.agentId);
+      if (access.isSalesExecutive) {
+        qb.andWhere('o.assigned_to = :filterAgentId', { filterAgentId: access.userId });
+      } else if (access.isTeamLeader) {
+        qb.andWhere(
+          `o.assigned_to = :filterAgentId
+           AND EXISTS (
+             SELECT 1 FROM users u
+             WHERE u.id = :filterAgentId
+               AND u.team_leader_id = :currentTeamLeaderId
+               AND u.is_deleted = false
+           )`,
+          { filterAgentId: agentId, currentTeamLeaderId: access.userId },
+        );
+      } else {
+        qb.andWhere('o.assigned_to = :filterAgentId', { filterAgentId: agentId });
+      }
     }
 
     qb.orderBy('o.order_date', 'DESC').addOrderBy('o.created_at', 'DESC');
@@ -637,24 +719,99 @@ export class SalesService {
     ]);
   }
 
-  async getAssignmentAgents(user: any) {
+  async getAssignmentAgents(user: any, params?: { teamLeaderId?: number }) {
+    const access = this.getAssignedOrdersAccess(user);
+    if (access.isSalesExecutive) {
+      const rows: Array<{ id: number; name: string; last_name: string | null; email: string; team_leader_id: number | null }> =
+        await this.salesRepository.manager.query(
+          `SELECT id, name, last_name, email, team_leader_id
+           FROM users
+           WHERE id = $1
+             AND is_deleted = false
+             AND status = 'active'`,
+          [access.userId],
+        );
+
+      return rows.map((agent) => ({
+        id: Number(agent.id),
+        name: `${agent.name || ''} ${agent.last_name || ''}`.trim() || agent.email,
+        email: agent.email,
+        teamLeaderId: agent.team_leader_id,
+        inMyTeam: true,
+      }));
+    }
+    if (!access.isAdmin && !access.isTeamLeader) return [];
+
+    const queryParams: any[] = [];
+    const whereParts = [
+      `u.is_deleted = false`,
+      `u.status = 'active'`,
+      `r.slug = 'sales-executive'`,
+    ];
+
+    if (access.isTeamLeader) {
+      queryParams.push(access.userId);
+      whereParts.push(`u.team_leader_id = $${queryParams.length}`);
+    } else if (access.isAdmin && Number.isFinite(Number(params?.teamLeaderId)) && Number(params?.teamLeaderId) > 0) {
+      queryParams.push(Number(params?.teamLeaderId));
+      whereParts.push(`u.team_leader_id = $${queryParams.length}`);
+    }
+
     const rows: Array<{ id: number; name: string; last_name: string | null; email: string; team_leader_id: number | null }> =
       await this.salesRepository.manager.query(
         `SELECT u.id, u.name, u.last_name, u.email, u.team_leader_id
          FROM users u
          LEFT JOIN roles r ON r.id = u.role_id
-         WHERE u.is_deleted = false
-           AND u.status = 'active'
-           AND (u.team_leader_id = $1 OR r.slug = 'sales-executive')
-         ORDER BY CASE WHEN u.team_leader_id = $1 THEN 0 ELSE 1 END, u.name ASC`,
-        [Number(user?.id)],
+         WHERE ${whereParts.join(' AND ')}
+         ORDER BY u.name ASC, u.last_name ASC`,
+        queryParams,
       );
 
     return rows.map((agent) => ({
       id: Number(agent.id),
       name: `${agent.name || ''} ${agent.last_name || ''}`.trim() || agent.email,
       email: agent.email,
-      inMyTeam: Number(agent.team_leader_id) === Number(user?.id),
+      teamLeaderId: agent.team_leader_id,
+      inMyTeam: Number(agent.team_leader_id) === access.userId,
+    }));
+  }
+
+  async getAssignmentTeamLeaders(user: any) {
+    const access = this.getAssignedOrdersAccess(user);
+    if (access.isSalesExecutive) return [];
+    if (!access.isAdmin && !access.isTeamLeader) return [];
+    if (access.isTeamLeader) {
+      const rows: Array<{ id: number; name: string; last_name: string | null; email: string }> =
+        await this.salesRepository.manager.query(
+          `SELECT id, name, last_name, email
+           FROM users
+           WHERE id = $1
+             AND is_deleted = false
+             AND status = 'active'`,
+          [access.userId],
+        );
+      return rows.map((row) => ({
+        id: Number(row.id),
+        name: `${row.name || ''} ${row.last_name || ''}`.trim() || row.email,
+        email: row.email,
+      }));
+    }
+
+    const rows: Array<{ id: number; name: string; last_name: string | null; email: string }> =
+      await this.salesRepository.manager.query(
+        `SELECT u.id, u.name, u.last_name, u.email
+         FROM users u
+         LEFT JOIN roles r ON r.id = u.role_id
+         WHERE u.is_deleted = false
+           AND u.status = 'active'
+           AND r.slug = 'sales-team-leader'
+         ORDER BY u.name ASC, u.last_name ASC`,
+      );
+
+    return rows.map((row) => ({
+      id: Number(row.id),
+      name: `${row.name || ''} ${row.last_name || ''}`.trim() || row.email,
+      email: row.email,
     }));
   }
 
@@ -664,8 +821,7 @@ export class SalesService {
       throw new BadRequestException('Agent is required');
     }
 
-    const agent = await this.salesRepository.manager.getRepository(User).findOne({ where: { id: agentId, isDeleted: false, status: 'active' as any } });
-    if (!agent) throw new BadRequestException('Selected agent is not active');
+    await this.assertAgentAssignableToUser(agentId, user);
 
     const saved = await this.salesRepository.manager.transaction(async (manager) => {
       const orderQb = manager.createQueryBuilder(SalesOrder, 'o').where('o.id = :orderId', { orderId }).setLock('pessimistic_write');
@@ -701,6 +857,7 @@ export class SalesService {
   }
 
   async unassignWebOrder(orderId: number, body: { expectedAssignedTo?: number | null }, user: any) {
+    const access = this.getAssignedOrdersAccess(user);
     const saved = await this.salesRepository.manager.transaction(async (manager) => {
       const orderQb = manager.createQueryBuilder(SalesOrder, 'o').where('o.id = :orderId', { orderId }).setLock('pessimistic_write');
       this.selectAssignedOrderColumns(orderQb);
@@ -708,6 +865,21 @@ export class SalesService {
       if (!order) throw new NotFoundException('Order not found');
       if (!this.webOrderSources.includes(order.orderSource)) {
         throw new BadRequestException('Only website and landing page orders can be unassigned here');
+      }
+      if (access.isTeamLeader && order.assignedTo) {
+        const allowedRows: Array<{ id: number }> = await manager.query(
+          `SELECT id FROM users
+           WHERE id = $1
+             AND team_leader_id = $2
+             AND is_deleted = false
+           LIMIT 1`,
+          [order.assignedTo, access.userId],
+        );
+        if (allowedRows.length === 0) {
+          throw new BadRequestException('You can only unassign orders from your own agents');
+        }
+      } else if (!access.isAdmin && !access.isTeamLeader) {
+        throw new BadRequestException('You do not have permission to unassign this order');
       }
 
       const expected =

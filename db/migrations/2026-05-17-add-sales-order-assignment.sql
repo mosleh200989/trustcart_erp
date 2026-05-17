@@ -22,6 +22,13 @@ WHERE r.slug IN ('super-admin', 'admin', 'sales-team-leader')
   AND p.slug IN ('view-assigned-orders', 'manage-assigned-orders')
 ON CONFLICT DO NOTHING;
 
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.id, p.id
+FROM roles r, permissions p
+WHERE r.slug = 'sales-executive'
+  AND p.slug = 'view-assigned-orders'
+ON CONFLICT DO NOTHING;
+
 WITH sales_parent AS (
   SELECT id
   FROM admin_menu_items

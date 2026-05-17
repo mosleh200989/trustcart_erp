@@ -17,6 +17,8 @@ const INITIAL_FILTERS = {
   startDate: '',
   endDate: '',
   assignment: '',
+  teamLeaderId: '',
+  agentId: '',
   todayOnly: false,
 };
 
@@ -44,7 +46,14 @@ interface AgentOption {
   id: number;
   name: string;
   email?: string;
+  teamLeaderId?: number | null;
   inMyTeam?: boolean;
+}
+
+interface TeamLeaderOption {
+  id: number;
+  name: string;
+  email?: string;
 }
 
 function formatDate(value?: string | null) {
@@ -61,9 +70,10 @@ function formatDate(value?: string | null) {
 
 export default function AssignedOrdersPage() {
   const toast = useToast();
-  const { hasPermission } = useAuth();
+  const { hasPermission, user, roles } = useAuth();
   const [orders, setOrders] = useState<AssignedOrder[]>([]);
   const [agents, setAgents] = useState<AgentOption[]>([]);
+  const [teamLeaders, setTeamLeaders] = useState<TeamLeaderOption[]>([]);
   const [filters, setFilters] = useState(INITIAL_FILTERS);
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
@@ -79,6 +89,15 @@ export default function AssignedOrdersPage() {
 
   const canViewAssignedOrders = hasPermission('view-assigned-orders');
   const canManageAssignedOrders = hasPermission('manage-assigned-orders');
+  const roleSlugs = useMemo(() => {
+    const slugs = new Set<string>();
+    roles?.forEach((role: any) => role?.slug && slugs.add(String(role.slug)));
+    if ((user as any)?.roleSlug) slugs.add(String((user as any).roleSlug));
+    return slugs;
+  }, [roles, user]);
+  const isSalesExecutive = roleSlugs.has('sales-executive');
+  const isTeamLeader = roleSlugs.has('sales-team-leader');
+  const canUseTeamLeaderFilter = !isSalesExecutive && !isTeamLeader;
 
   const loadOrders = useCallback(async (page = currentPage, pageSize = itemsPerPage, nextFilters = filters) => {
     if (!canViewAssignedOrders) {
@@ -96,6 +115,8 @@ export default function AssignedOrdersPage() {
       if (nextFilters.startDate) params.startDate = nextFilters.startDate;
       if (nextFilters.endDate) params.endDate = nextFilters.endDate;
       if (nextFilters.assignment) params.assignment = nextFilters.assignment;
+      if (nextFilters.teamLeaderId) params.teamLeaderId = nextFilters.teamLeaderId;
+      if (nextFilters.agentId) params.agentId = nextFilters.agentId;
       if (nextFilters.todayOnly) params.todayOnly = 'true';
 
       const response = await apiClient.get('/sales/assigned-orders', { params });
@@ -116,12 +137,24 @@ export default function AssignedOrdersPage() {
   const loadAgents = useCallback(async () => {
     if (!canViewAssignedOrders) return;
     try {
-      const response = await apiClient.get('/sales/assignment-agents');
+      const params: Record<string, string> = {};
+      if (filters.teamLeaderId) params.teamLeaderId = filters.teamLeaderId;
+      const response = await apiClient.get('/sales/assignment-agents', { params });
       setAgents(Array.isArray(response.data) ? response.data : []);
     } catch (error: any) {
       toast.error(error?.response?.data?.message || 'Failed to load agents');
     }
-  }, [canViewAssignedOrders, toast]);
+  }, [canViewAssignedOrders, filters.teamLeaderId, toast]);
+
+  const loadTeamLeaders = useCallback(async () => {
+    if (!canViewAssignedOrders || isSalesExecutive) return;
+    try {
+      const response = await apiClient.get('/sales/assignment-team-leaders');
+      setTeamLeaders(Array.isArray(response.data) ? response.data : []);
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || 'Failed to load team leaders');
+    }
+  }, [canViewAssignedOrders, isSalesExecutive, toast]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -134,10 +167,18 @@ export default function AssignedOrdersPage() {
     loadAgents();
   }, [loadAgents]);
 
+  useEffect(() => {
+    loadTeamLeaders();
+  }, [loadTeamLeaders]);
+
   const handleFilterChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const target = e.target as HTMLInputElement;
     const value = target.type === 'checkbox' ? target.checked : target.value;
-    setFilters((prev) => ({ ...prev, [target.name]: value }));
+    setFilters((prev) => ({
+      ...prev,
+      [target.name]: value,
+      ...(target.name === 'teamLeaderId' ? { agentId: '' } : {}),
+    }));
     setCurrentPage(1);
     setSelectedRowIds([]);
   };
@@ -427,33 +468,35 @@ export default function AssignedOrdersPage() {
           </button>
         </div>
 
-        <div className="mb-4 rounded-lg bg-white p-4 shadow">
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div className="text-sm text-gray-700">
-              Selected: <span className="font-semibold">{selectedRowIds.length}</span>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={openBulkAssignmentModal}
-                disabled={!canManageAssignedOrders || selectedRowIds.length === 0}
-                className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <FaUserCheck />
-                Bulk Assign
-              </button>
-              <button
-                type="button"
-                onClick={bulkUnassignOrders}
-                disabled={!canManageAssignedOrders || selectedRowIds.length === 0}
-                className="inline-flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <FaUserSlash />
-                Bulk Unassign
-              </button>
+        {canManageAssignedOrders && (
+          <div className="mb-4 rounded-lg bg-white p-4 shadow">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div className="text-sm text-gray-700">
+                Selected: <span className="font-semibold">{selectedRowIds.length}</span>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={openBulkAssignmentModal}
+                  disabled={selectedRowIds.length === 0}
+                  className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <FaUserCheck />
+                  Bulk Assign
+                </button>
+                <button
+                  type="button"
+                  onClick={bulkUnassignOrders}
+                  disabled={selectedRowIds.length === 0}
+                  className="inline-flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <FaUserSlash />
+                  Bulk Unassign
+                </button>
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-3">
           <div className="rounded-lg bg-white p-4 shadow">
@@ -497,7 +540,7 @@ export default function AssignedOrdersPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-5">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-6">
             <div className="md:col-span-2">
               <FormInput
                 label="Search"
@@ -507,6 +550,34 @@ export default function AssignedOrdersPage() {
                 placeholder="Order, customer, phone, address"
               />
             </div>
+            {canUseTeamLeaderFilter && (
+              <FormInput
+                label="Team Leader"
+                name="teamLeaderId"
+                type="select"
+                value={filters.teamLeaderId}
+                onChange={handleFilterChange}
+                selectPlaceholder="All"
+                options={teamLeaders.map((teamLeader) => ({
+                  value: teamLeader.id,
+                  label: teamLeader.name,
+                }))}
+              />
+            )}
+            {!isSalesExecutive && (
+              <FormInput
+                label="Agent"
+                name="agentId"
+                type="select"
+                value={filters.agentId}
+                onChange={handleFilterChange}
+                selectPlaceholder="All"
+                options={agents.map((agent) => ({
+                  value: agent.id,
+                  label: agent.inMyTeam || !canUseTeamLeaderFilter ? agent.name : `${agent.name} (other team)`,
+                }))}
+              />
+            )}
             <div>
               <label htmlFor="todayOnly" className="block text-sm font-medium text-gray-700">
                 Today Only
@@ -557,11 +628,11 @@ export default function AssignedOrdersPage() {
         <DataTable
           columns={columns}
           data={orders}
-          selection={{
+          selection={canManageAssignedOrders ? {
             selectedRowIds,
             onChange: setSelectedRowIds,
             getRowId: (row: AssignedOrder) => row.id,
-          }}
+          } : undefined}
           loading={loading}
           currentPage={currentPage}
           totalPages={totalPages}
@@ -625,7 +696,7 @@ export default function AssignedOrdersPage() {
               selectPlaceholder="Select agent"
               options={agents.map((agent) => ({
                 value: agent.id,
-                label: agent.inMyTeam ? agent.name : `${agent.name} (other team)`,
+                label: agent.inMyTeam || !canUseTeamLeaderFilter ? agent.name : `${agent.name} (other team)`,
               }))}
             />
 
