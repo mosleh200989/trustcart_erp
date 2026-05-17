@@ -70,7 +70,7 @@ function formatDate(value?: string | null) {
 
 export default function AssignedOrdersPage() {
   const toast = useToast();
-  const { hasPermission, user, roles } = useAuth();
+  const { hasAnyPermission, hasPermission, user, roles } = useAuth();
   const [orders, setOrders] = useState<AssignedOrder[]>([]);
   const [agents, setAgents] = useState<AgentOption[]>([]);
   const [teamLeaders, setTeamLeaders] = useState<TeamLeaderOption[]>([]);
@@ -87,17 +87,29 @@ export default function AssignedOrdersPage() {
   const [selectedAgentId, setSelectedAgentId] = useState('');
   const [savingAssignment, setSavingAssignment] = useState(false);
 
-  const canViewAssignedOrders = hasPermission('view-assigned-orders');
-  const canManageAssignedOrders = hasPermission('manage-assigned-orders');
   const roleSlugs = useMemo(() => {
     const slugs = new Set<string>();
     roles?.forEach((role: any) => role?.slug && slugs.add(String(role.slug)));
     if ((user as any)?.roleSlug) slugs.add(String((user as any).roleSlug));
     return slugs;
   }, [roles, user]);
+  const canViewAssignedOrders = hasAnyPermission([
+    'view-assigned-orders',
+    'view-own-assigned-orders',
+    'view-team-assigned-orders',
+    'view-all-assigned-orders',
+  ]);
+  const canManageAssignedOrders = hasPermission('manage-assigned-orders');
+  const canViewAllAssignedOrders = hasPermission('view-all-assigned-orders') || (hasPermission('view-assigned-orders') && (
+    roleSlugs.has('super-admin') || roleSlugs.has('admin') || roleSlugs.has('sales-manager')
+  ));
+  const canViewTeamAssignedOrders = hasPermission('view-team-assigned-orders') || canManageAssignedOrders || (
+    hasPermission('view-assigned-orders') && roleSlugs.has('sales-team-leader')
+  );
   const isSalesExecutive = roleSlugs.has('sales-executive');
   const isTeamLeader = roleSlugs.has('sales-team-leader');
-  const canUseTeamLeaderFilter = !isSalesExecutive && !isTeamLeader;
+  const canUseTeamLeaderFilter = canViewAllAssignedOrders;
+  const canUseAgentFilter = canViewAllAssignedOrders || canViewTeamAssignedOrders;
 
   const loadOrders = useCallback(async (page = currentPage, pageSize = itemsPerPage, nextFilters = filters) => {
     if (!canViewAssignedOrders) {
@@ -564,7 +576,7 @@ export default function AssignedOrdersPage() {
                 }))}
               />
             )}
-            {!isSalesExecutive && (
+            {canUseAgentFilter && (
               <FormInput
                 label="Agent"
                 name="agentId"

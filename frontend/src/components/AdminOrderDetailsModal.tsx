@@ -1099,11 +1099,25 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
 
   if (!order) return null;
 
-  const itemsSubtotal = items.reduce((sum, item) => sum + Number(item.subtotal || 0), 0);
-  const totalAmount = Number(order.totalAmount || 0);
-  const discountAmount = Number(order.discountAmount || order.discount_amount || 0);
+  const roundMoney = (value: number) => Math.round(value * 100) / 100;
+  const getItemSubtotal = (item: any) => {
+    const explicitSubtotal = Number(item?.subtotal ?? item?.lineTotal ?? item?.line_total);
+    if (Number.isFinite(explicitSubtotal) && explicitSubtotal > 0) {
+      return roundMoney(explicitSubtotal);
+    }
+
+    const quantity = Number(item?.quantity || 0);
+    const unitPrice = Number(item?.unitPrice ?? item?.unit_price ?? 0);
+    return roundMoney(quantity * unitPrice);
+  };
+  const itemsSubtotal = roundMoney(items.reduce((sum, item) => sum + getItemSubtotal(item), 0));
+  const discountAmount = Number(order.discountAmount ?? order.discount_amount ?? 0);
   // Use the deliveryCharge computed by the backend (getOrderDetails always returns it)
   const deliveryCharge = Number(order.deliveryCharge ?? order.delivery_charge ?? 0);
+  const totalAmount = roundMoney(Math.max(
+    0,
+    Number(order.computedTotalAmount ?? order.computed_total_amount ?? (itemsSubtotal + deliveryCharge - discountAmount))
+  ));
   const totalQuantity = items.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
 
   const canHoldOrCancel = !['picked', 'in_transit', 'delivered'].includes(order.status);
@@ -1507,7 +1521,7 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                             `৳${parseFloat(item.unitPrice).toFixed(2)}`
                           )}
                         </td>
-                        <td className="border p-3 text-right font-semibold">৳{parseFloat(item.subtotal).toFixed(2)}</td>
+                        <td className="border p-3 text-right font-semibold">৳{getItemSubtotal(item).toFixed(2)}</td>
                         <td className="border p-3 text-center">
                           <div className="flex gap-2 justify-center">
                             {editingItem === item.id ? (
@@ -1591,7 +1605,7 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                     </tr>
                     <tr className="bg-gray-100 font-bold">
                       <td colSpan={3} className="border p-3 text-right">Total Amount:</td>
-                      <td className="border p-3 text-right text-xl text-blue-600">৳{parseFloat(order.totalAmount || 0).toFixed(2)}</td>
+                      <td className="border p-3 text-right text-xl text-blue-600">৳{totalAmount.toFixed(2)}</td>
                       <td className="border p-3"></td>
                     </tr>
                   </tfoot>

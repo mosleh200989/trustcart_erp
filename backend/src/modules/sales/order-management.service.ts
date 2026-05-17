@@ -46,6 +46,45 @@ export class OrderManagementService {
     return name.length ? name : null;
   }
 
+  private roundMoney(value: any): number {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return 0;
+    return Math.round(n * 100) / 100;
+  }
+
+  private getItemSubtotal(item: any): number {
+    const explicitSubtotal = Number(item?.subtotal ?? item?.lineTotal ?? item?.line_total);
+    if (Number.isFinite(explicitSubtotal) && explicitSubtotal > 0) {
+      return this.roundMoney(explicitSubtotal);
+    }
+
+    const quantity = Number(item?.quantity || 0);
+    const unitPrice = Number(item?.unitPrice ?? item?.unit_price ?? 0);
+    return this.roundMoney(quantity * unitPrice);
+  }
+
+  private getStoredDeliveryCharge(order: SalesOrder): number | null {
+    if ((order as any).deliveryCharge == null) return null;
+    const deliveryCharge = Number((order as any).deliveryCharge);
+    return Number.isFinite(deliveryCharge) ? this.roundMoney(deliveryCharge) : null;
+  }
+
+  private resolveDeliveryCharge(order: SalesOrder, itemsSubtotal: number, discountAmount: number): number {
+    const storedDeliveryCharge = this.getStoredDeliveryCharge(order);
+    if (storedDeliveryCharge != null && storedDeliveryCharge > 0) {
+      return storedDeliveryCharge;
+    }
+
+    return this.roundMoney(Math.max(0, Number(order.totalAmount || 0) - itemsSubtotal + discountAmount));
+  }
+
+  private computePayableTotal(order: SalesOrder, items: any[]): number {
+    const itemsSubtotal = this.roundMoney(items.reduce((sum: number, item: any) => sum + this.getItemSubtotal(item), 0));
+    const discountAmount = this.roundMoney(order.discountAmount || 0);
+    const deliveryCharge = this.resolveDeliveryCharge(order, itemsSubtotal, discountAmount);
+    return this.roundMoney(Math.max(0, itemsSubtotal + deliveryCharge - discountAmount));
+  }
+
   private async enrichActivityLogs(logs: OrderActivityLog[]): Promise<any[]> {
     const performerIds = Array.from(
       new Set(logs.map((l) => (l.performedBy != null ? Number(l.performedBy) : NaN)).filter((n) => Number.isFinite(n))),
@@ -282,7 +321,7 @@ export class OrderManagementService {
       throw new BadRequestException('Shipping address is required to send to Steadfast');
     }
 
-    const codAmount = Math.max(0, Number(order.totalAmount || 0) - Number(order.discountAmount || 0));
+    const codAmount = this.computePayableTotal(order, items);
     if (!Number.isFinite(codAmount)) {
       throw new BadRequestException('Invalid COD amount');
     }
@@ -549,10 +588,10 @@ export class OrderManagementService {
     try {
       if (order) {
         const allItems = await this.orderItemRepository.find({ where: { orderId: data.orderId } });
-        const newItemsSubtotal = allItems.reduce((sum, item) => sum + Number(item.subtotal || 0), 0);
+        const newItemsSubtotal = allItems.reduce((sum, item) => sum + this.getItemSubtotal(item), 0);
         const discountAmount = Number(order.discountAmount || 0);
-        const dc = Number(order.deliveryCharge || 0);
-        order.totalAmount = newItemsSubtotal + dc - discountAmount;
+        const dc = this.resolveDeliveryCharge(order, newItemsSubtotal, discountAmount);
+        order.totalAmount = this.roundMoney(Math.max(0, newItemsSubtotal + dc - discountAmount));
         await this.salesOrderRepository.save(order);
       }
     } catch (e) {
@@ -679,10 +718,10 @@ export class OrderManagementService {
       const order = await this.salesOrderRepository.findOne({ where: { id: item.orderId } });
       if (order) {
         const allItems = await this.orderItemRepository.find({ where: { orderId: item.orderId } });
-        const newItemsSubtotal = allItems.reduce((sum, it) => sum + Number(it.subtotal || 0), 0);
+        const newItemsSubtotal = allItems.reduce((sum, it) => sum + this.getItemSubtotal(it), 0);
         const discountAmount = Number(order.discountAmount || 0);
-        const dc = Number(order.deliveryCharge || 0);
-        order.totalAmount = newItemsSubtotal + dc - discountAmount;
+        const dc = this.resolveDeliveryCharge(order, newItemsSubtotal, discountAmount);
+        order.totalAmount = this.roundMoney(Math.max(0, newItemsSubtotal + dc - discountAmount));
         await this.salesOrderRepository.save(order);
       }
     } catch (e) {
@@ -746,18 +785,19 @@ export class OrderManagementService {
     const items = await this.orderItemRepository.find({ where: { orderId: data.orderId } });
     let subtotal = 0;
     if (items.length > 0) {
-      subtotal = items.reduce((sum, item) => sum + Number(item.subtotal || 0), 0);
+      subtotal = items.reduce((sum, item) => sum + this.getItemSubtotal(item), 0);
     } else {
       const salesItems = await this.salesOrderItemRepository.find({ where: { salesOrderId: data.orderId } });
-      subtotal = salesItems.reduce((sum, item) => sum + Number(item.lineTotal || 0), 0);
+      subtotal = salesItems.reduce((sum, item) => sum + this.getItemSubtotal(item), 0);
     }
 
     const discountAmount = Number(order.discountAmount || 0);
     const newDeliveryCharge = Number(data.deliveryCharge || 0);
-    const oldDeliveryCharge = Math.max(0, Number(order.totalAmount || 0) - subtotal + discountAmount);
+    const oldTotalAmount = Number(order.totalAmount || 0);
+    const oldDeliveryCharge = this.resolveDeliveryCharge(order, subtotal, discountAmount);
 
     // Recalculate total: subtotal + deliveryCharge - discount
-    order.totalAmount = subtotal + newDeliveryCharge - discountAmount;
+    order.totalAmount = this.roundMoney(Math.max(0, subtotal + newDeliveryCharge - discountAmount));
     order.deliveryCharge = newDeliveryCharge as any;
 
     const updatedOrder = await this.salesOrderRepository.save(order);
@@ -766,7 +806,7 @@ export class OrderManagementService {
       orderId: data.orderId,
       actionType: 'delivery_charge_updated',
       actionDescription: `Delivery charge updated from ৳${oldDeliveryCharge.toFixed(2)} to ৳${newDeliveryCharge.toFixed(2)}`,
-      oldValue: { deliveryCharge: oldDeliveryCharge, totalAmount: Number(order.totalAmount) },
+      oldValue: { deliveryCharge: oldDeliveryCharge, totalAmount: oldTotalAmount },
       newValue: { deliveryCharge: newDeliveryCharge, totalAmount: updatedOrder.totalAmount },
       performedBy: data.userId,
       performedByName: data.userName,
@@ -792,19 +832,20 @@ export class OrderManagementService {
     const items = await this.orderItemRepository.find({ where: { orderId: data.orderId } });
     let subtotal = 0;
     if (items.length > 0) {
-      subtotal = items.reduce((sum, item) => sum + Number(item.subtotal || 0), 0);
+      subtotal = items.reduce((sum, item) => sum + this.getItemSubtotal(item), 0);
     } else {
       const salesItems = await this.salesOrderItemRepository.find({ where: { salesOrderId: data.orderId } });
-      subtotal = salesItems.reduce((sum, item) => sum + Number(item.lineTotal || 0), 0);
+      subtotal = salesItems.reduce((sum, item) => sum + this.getItemSubtotal(item), 0);
     }
 
     const oldDiscount = Number(order.discountAmount || 0);
     const newDiscount = Number(data.discountAmount || 0);
-    const currentDeliveryCharge = Math.max(0, Number(order.totalAmount || 0) - subtotal + oldDiscount);
+    const oldTotalAmount = Number(order.totalAmount || 0);
+    const currentDeliveryCharge = this.resolveDeliveryCharge(order, subtotal, oldDiscount);
 
     // Update discount and recalculate total
     order.discountAmount = newDiscount as any;
-    order.totalAmount = subtotal + currentDeliveryCharge - newDiscount;
+    order.totalAmount = this.roundMoney(Math.max(0, subtotal + currentDeliveryCharge - newDiscount));
 
     const updatedOrder = await this.salesOrderRepository.save(order);
 
@@ -812,7 +853,7 @@ export class OrderManagementService {
       orderId: data.orderId,
       actionType: 'discount_updated',
       actionDescription: `Discount updated from ৳${oldDiscount.toFixed(2)} to ৳${newDiscount.toFixed(2)}`,
-      oldValue: { discountAmount: oldDiscount, totalAmount: Number(order.totalAmount) },
+      oldValue: { discountAmount: oldDiscount, totalAmount: oldTotalAmount },
       newValue: { discountAmount: newDiscount, totalAmount: updatedOrder.totalAmount },
       performedBy: data.userId,
       performedByName: data.userName,
@@ -1434,12 +1475,12 @@ export class OrderManagementService {
 
     // Always compute reliable deliveryCharge for the response.
     // Use the DB column if it has a real value; otherwise derive from totalAmount.
-    const allItemsSubtotal = items.reduce((sum: number, i: any) => sum + Number(i.subtotal || 0), 0);
-    const oDiscount = Number(orderWithCourierSync.discountAmount || 0);
-    let resolvedDeliveryCharge = Number(orderWithCourierSync.deliveryCharge || 0);
-    if (resolvedDeliveryCharge === 0 && Number(orderWithCourierSync.totalAmount || 0) > allItemsSubtotal) {
-      resolvedDeliveryCharge = Math.max(0, Number(orderWithCourierSync.totalAmount || 0) - allItemsSubtotal + oDiscount);
-    }
+    const allItemsSubtotal = this.roundMoney(items.reduce((sum: number, i: any) => sum + this.getItemSubtotal(i), 0));
+    const oDiscount = this.roundMoney(orderWithCourierSync.discountAmount || 0);
+    const storedTotalAmount = this.roundMoney(orderWithCourierSync.totalAmount || 0);
+    const resolvedDeliveryCharge = this.resolveDeliveryCharge(orderWithCourierSync, allItemsSubtotal, oDiscount);
+    const computedTotalAmount = this.roundMoney(Math.max(0, allItemsSubtotal + resolvedDeliveryCharge - oDiscount));
+    const financialMismatch = Math.abs(storedTotalAmount - computedTotalAmount) >= 0.01;
 
     const orderHistory = orderHistoryRows.map((o) => ({
       id: o.id,
@@ -1487,6 +1528,12 @@ export class OrderManagementService {
     return {
       ...orderWithCourierSync,
       deliveryCharge: resolvedDeliveryCharge,
+      itemsSubtotal: allItemsSubtotal,
+      subtotalAmount: allItemsSubtotal,
+      storedTotalAmount,
+      computedTotalAmount,
+      totalAmount: computedTotalAmount,
+      financialMismatch,
       items,
       activityLogs,
       courierTracking,
@@ -2345,7 +2392,7 @@ export class OrderManagementService {
       }
     }
 
-    const codAmount = Math.max(0, Number(order.totalAmount || 0) - Number(order.discountAmount || 0));
+    const codAmount = this.computePayableTotal(order, items);
     if (!Number.isFinite(codAmount)) {
       throw new BadRequestException('Invalid COD amount');
     }

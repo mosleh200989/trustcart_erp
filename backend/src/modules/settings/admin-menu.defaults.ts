@@ -32,7 +32,12 @@ export const DEFAULT_ADMIN_MENU: AdminMenuSeedNode[] = [
     icon: 'FaShoppingCart',
     children: [
       { title: 'Orders', icon: 'FaShoppingCart', path: '/admin/sales', requiredPermissions: ['view-sales-orders'] },
-      { title: 'Assigned Orders', icon: 'FaClipboardList', path: '/admin/sales/assigned-orders', requiredPermissions: ['view-assigned-orders'] },
+      {
+        title: 'Assigned Orders',
+        icon: 'FaClipboardList',
+        path: '/admin/sales/assigned-orders',
+        requiredPermissions: ['view-assigned-orders', 'view-own-assigned-orders', 'view-team-assigned-orders', 'view-all-assigned-orders'],
+      },
       {
         title: 'Incomplete Order',
         icon: 'FaShoppingCart',

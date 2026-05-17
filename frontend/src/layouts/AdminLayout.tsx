@@ -52,7 +52,7 @@ const menuItems: MenuItem[] = [
     icon: FaShoppingCart,
     children: [
       { title: 'Orders', icon: FaShoppingCart, path: '/admin/sales', requiredPermissions: ['view-sales-orders'] },
-      { title: 'Assigned Orders', icon: FaClipboardList, path: '/admin/sales/assigned-orders', requiredPermissions: ['view-assigned-orders'] },
+      { title: 'Assigned Orders', icon: FaClipboardList, path: '/admin/sales/assigned-orders', requiredPermissions: ['view-assigned-orders', 'view-own-assigned-orders', 'view-team-assigned-orders', 'view-all-assigned-orders'] },
       { title: 'Printing', icon: FaPrint, path: '/admin/sales/printing', requiredPermissions: ['view-printing'] },
       { title: 'Incomplete Order', icon: FaShoppingCart, path: '/admin/sales/incomplete-orders', requiredPermissions: ['view-incomplete-orders'] },
       { title: 'Late Delivery', icon: FaShoppingCart, path: '/admin/sales/late-delivery', requiredPermissions: ['view-late-delivery'] },
@@ -569,7 +569,7 @@ function ensureAssignedOrdersLink(items: MenuItem[]): MenuItem[] {
     title: 'Assigned Orders',
     icon: FaClipboardList,
     path: '/admin/sales/assigned-orders',
-    requiredPermissions: ['view-assigned-orders'],
+    requiredPermissions: ['view-assigned-orders', 'view-own-assigned-orders', 'view-team-assigned-orders', 'view-all-assigned-orders'],
   };
 
   if (sales) {
