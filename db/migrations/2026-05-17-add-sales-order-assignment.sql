@@ -11,7 +11,10 @@ CREATE INDEX IF NOT EXISTS idx_sales_orders_source_approval ON sales_orders(orde
 
 INSERT INTO permissions (name, slug, module, action, description)
 VALUES
-  ('View Assigned Orders', 'view-assigned-orders', 'sales', 'read', 'View website and landing page orders waiting for assignment'),
+  ('View Assigned Orders', 'view-assigned-orders', 'sales', 'read', 'Legacy access to Assigned Orders; kept for backward compatibility'),
+  ('View Own Assigned Orders', 'view-own-assigned-orders', 'sales', 'read', 'View only orders assigned to self in Assigned Orders'),
+  ('View Team Assigned Orders', 'view-team-assigned-orders', 'sales', 'read', 'View unassigned orders and orders assigned to own team agents'),
+  ('View All Assigned Orders', 'view-all-assigned-orders', 'sales', 'read', 'View all website and landing page orders in Assigned Orders without assignment rights'),
   ('Manage Assigned Orders', 'manage-assigned-orders', 'sales', 'update', 'Assign, reassign, and unassign website and landing page orders')
 ON CONFLICT (slug) DO NOTHING;
 
@@ -19,14 +22,35 @@ INSERT INTO role_permissions (role_id, permission_id)
 SELECT r.id, p.id
 FROM roles r, permissions p
 WHERE r.slug IN ('super-admin', 'admin', 'sales-team-leader')
-  AND p.slug IN ('view-assigned-orders', 'manage-assigned-orders')
+  AND p.slug IN (
+    'view-assigned-orders',
+    'view-all-assigned-orders',
+    'view-team-assigned-orders',
+    'manage-assigned-orders'
+  )
 ON CONFLICT DO NOTHING;
 
 INSERT INTO role_permissions (role_id, permission_id)
 SELECT r.id, p.id
 FROM roles r, permissions p
 WHERE r.slug = 'sales-executive'
-  AND p.slug = 'view-assigned-orders'
+  AND p.slug IN ('view-assigned-orders', 'view-own-assigned-orders')
+ON CONFLICT DO NOTHING;
+
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT DISTINCT r.id, p.id
+FROM roles r
+CROSS JOIN permissions p
+LEFT JOIN role_permissions dashboard_perm
+  ON dashboard_perm.role_id = r.id
+LEFT JOIN permissions dashboard
+  ON dashboard.id = dashboard_perm.permission_id
+  AND dashboard.slug = 'view-sales-manager-dashboard'
+WHERE (
+    r.slug IN ('sales-manager', 'sales-management', 'sales-manager-dashboard')
+    OR dashboard.id IS NOT NULL
+  )
+  AND p.slug IN ('view-assigned-orders', 'view-all-assigned-orders')
 ON CONFLICT DO NOTHING;
 
 WITH sales_parent AS (
@@ -63,7 +87,7 @@ SELECT
   sales_parent.id,
   COALESCE((SELECT sort_order FROM orders_item), 1) + 1,
   TRUE,
-  ARRAY['view-assigned-orders']::text[],
+  ARRAY['view-assigned-orders', 'view-own-assigned-orders', 'view-team-assigned-orders', 'view-all-assigned-orders']::text[],
   NOW(),
   NOW()
 FROM sales_parent
@@ -74,7 +98,7 @@ WHERE NOT EXISTS (
 );
 
 UPDATE admin_menu_items
-SET required_permissions = ARRAY['view-assigned-orders']::text[],
+SET required_permissions = ARRAY['view-assigned-orders', 'view-own-assigned-orders', 'view-team-assigned-orders', 'view-all-assigned-orders']::text[],
     icon = 'FaClipboardList',
     updated_at = NOW()
 WHERE path = '/admin/sales/assigned-orders';

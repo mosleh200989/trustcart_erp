@@ -6,7 +6,7 @@ import { CustomersService } from '../customers/customers.service';
 import { CancelSalesOrderDto } from './dto/cancel-sales-order.dto';
 import { SpecialOffersService } from '../special-offers/special-offers.service';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
-import { RequirePermissions } from '../../common/decorators/permissions.decorator';
+import { RequireAnyPermission, RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import { getDhakaDateString } from '../../common/utils/dhaka-date';
 import * as jwt from 'jsonwebtoken';
@@ -136,7 +136,7 @@ export class SalesController {
   }
 
   @Get('assigned-orders')
-  @RequirePermissions('view-assigned-orders')
+  @RequireAnyPermission('view-assigned-orders', 'view-own-assigned-orders', 'view-team-assigned-orders', 'view-all-assigned-orders')
   async findAssignedOrders(
     @Req() req: any,
     @Query('page') page?: string,
@@ -165,7 +165,7 @@ export class SalesController {
   }
 
   @Get('assignment-agents')
-  @RequirePermissions('view-assigned-orders')
+  @RequireAnyPermission('view-assigned-orders', 'view-own-assigned-orders', 'view-team-assigned-orders', 'view-all-assigned-orders', 'manage-assigned-orders')
   async getAssignmentAgents(@Req() req: any, @Query('teamLeaderId') teamLeaderId?: string) {
     return this.salesService.getAssignmentAgents(req.user, {
       teamLeaderId: teamLeaderId ? parseInt(teamLeaderId, 10) : undefined,
@@ -173,7 +173,7 @@ export class SalesController {
   }
 
   @Get('assignment-team-leaders')
-  @RequirePermissions('view-assigned-orders')
+  @RequireAnyPermission('view-assigned-orders', 'view-team-assigned-orders', 'view-all-assigned-orders', 'manage-assigned-orders')
   async getAssignmentTeamLeaders(@Req() req: any) {
     return this.salesService.getAssignmentTeamLeaders(req.user);
   }
