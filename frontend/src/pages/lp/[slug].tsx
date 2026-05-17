@@ -63,6 +63,11 @@ interface LandingPageData {
   order_form_text_color?: string;
   order_form_accent_color?: string;
   order_form_border_color?: string;
+  footer_bg_color?: string;
+  footer_text_color?: string;
+  footer_link_bg_color?: string;
+  footer_link_text_color?: string;
+  footer_border_color?: string;
   btn_bg_color?: string;
   btn_text_color?: string;
   btn_border_color?: string;
@@ -421,6 +426,9 @@ export default function LandingPagePublic() {
   const orderFormTextColor = page.order_form_text_color || '#374151';
   const orderFormAccentColor = page.order_form_accent_color || page.primary_color;
   const orderFormBorderColor = page.order_form_border_color || '#e5e7eb';
+  const footerBgColor = page.footer_bg_color || page.primary_color;
+  const footerTextColor = page.footer_text_color || page.secondary_color;
+  const footerBorderColor = page.footer_border_color || page.primary_color;
 
   return (
     <>
@@ -996,9 +1004,9 @@ export default function LandingPagePublic() {
         <div
           className="py-6 text-center text-sm"
           style={{
-            backgroundColor: page.primary_color,
-            color: page.secondary_color,
-            opacity: 0.8,
+            backgroundColor: footerBgColor,
+            color: footerTextColor,
+            borderTop: `1px solid ${footerBorderColor}`,
           }}
         >
           <p>© {new Date().getFullYear()} All rights reserved.</p>

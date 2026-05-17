@@ -87,6 +87,11 @@ interface LandingPageData {
   order_form_text_color?: string;
   order_form_accent_color?: string;
   order_form_border_color?: string;
+  footer_bg_color?: string;
+  footer_text_color?: string;
+  footer_link_bg_color?: string;
+  footer_link_text_color?: string;
+  footer_border_color?: string;
   btn_bg_color?: string;
   btn_text_color?: string;
   btn_border_color?: string;
@@ -174,6 +179,9 @@ export default function SpecialEventTemplate({
   const orderFormTextColor = page.order_form_text_color || '#d1d5db';
   const orderFormAccentColor = page.order_form_accent_color || page.primary_color;
   const orderFormBorderColor = page.order_form_border_color || 'rgba(255,255,255,0.12)';
+  const footerBgColor = page.footer_bg_color || '#0A0500';
+  const footerTextColor = page.footer_text_color || '#4b5563';
+  const footerBorderColor = page.footer_border_color || 'rgba(255,255,255,0.05)';
 
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
   const [orderForm, setOrderForm] = useState({ name: '', phone: '', address: '', note: '' });
@@ -1670,8 +1678,8 @@ export default function SpecialEventTemplate({
         )}
 
         {/* ═══════════════════ FOOTER ═══════════════════ */}
-        <div className="py-8 px-4 text-center border-t border-white/5" style={{ backgroundColor: '#0A0500' }}>
-          <p className="text-gray-600 text-sm">
+        <div className="py-8 px-4 text-center border-t" style={{ backgroundColor: footerBgColor, borderColor: footerBorderColor }}>
+          <p className="text-sm" style={{ color: footerTextColor }}>
             © {new Date().getFullYear()} TrustCart — সকল অধিকার সংরক্ষিত
           </p>
         </div>

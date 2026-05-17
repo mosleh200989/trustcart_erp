@@ -67,6 +67,11 @@ interface LandingPageData {
   order_form_text_color?: string;
   order_form_accent_color?: string;
   order_form_border_color?: string;
+  footer_bg_color?: string;
+  footer_text_color?: string;
+  footer_link_bg_color?: string;
+  footer_link_text_color?: string;
+  footer_border_color?: string;
   btn_bg_color?: string;
   btn_text_color?: string;
   btn_border_color?: string;
@@ -140,6 +145,9 @@ export default function FreeOfferTemplate({ page, trafficSource = 'landing_page'
   const orderFormTextColor = page.order_form_text_color || '#d1d5db';
   const orderFormAccentColor = page.order_form_accent_color || secondaryColor;
   const orderFormBorderColor = page.order_form_border_color || '#374151';
+  const footerBgColor = page.footer_bg_color || '#000000';
+  const footerTextColor = page.footer_text_color || '#6b7280';
+  const footerBorderColor = page.footer_border_color || '#111827';
 
   // Order form state
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
@@ -1026,7 +1034,7 @@ export default function FreeOfferTemplate({ page, trafficSource = 'landing_page'
         )}
 
         {/* Footer */}
-        <div className="py-6 text-center text-gray-500 text-sm border-t border-gray-900 bg-black">
+        <div className="py-6 text-center text-sm border-t" style={{ backgroundColor: footerBgColor, color: footerTextColor, borderColor: footerBorderColor }}>
           &copy; {new Date().getFullYear()} TrustCart. All rights reserved.
         </div>
       </div>

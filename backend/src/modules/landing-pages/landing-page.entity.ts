@@ -106,6 +106,21 @@ export class LandingPage {
   @Column({ length: 50, default: '#e5e7eb' })
   order_form_border_color!: string;
 
+  @Column({ length: 50, default: '#111827' })
+  footer_bg_color!: string;
+
+  @Column({ length: 50, default: '#ffffff' })
+  footer_text_color!: string;
+
+  @Column({ length: 50, default: '#f59e0b' })
+  footer_link_bg_color!: string;
+
+  @Column({ length: 50, default: '#111827' })
+  footer_link_text_color!: string;
+
+  @Column({ length: 50, default: '#1f2937' })
+  footer_border_color!: string;
+
   @Column({ length: 50, default: '#2d6a4f' })
   btn_bg_color!: string;
 

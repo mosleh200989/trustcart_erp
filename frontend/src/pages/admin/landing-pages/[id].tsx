@@ -414,6 +414,11 @@ interface FormData {
   order_form_text_color: string;
   order_form_accent_color: string;
   order_form_border_color: string;
+  footer_bg_color: string;
+  footer_text_color: string;
+  footer_link_bg_color: string;
+  footer_link_text_color: string;
+  footer_border_color: string;
   btn_bg_color: string;
   btn_text_color: string;
   btn_border_color: string;
@@ -472,7 +477,7 @@ export default function LandingPageEditor() {
   const { id } = router.query;
   const isEditing = id && id !== 'create';
 
-  const [activeTab, setActiveTab] = useState<'general' | 'sections' | 'products' | 'order-form' | 'settings' | 'seo'>('general');
+  const [activeTab, setActiveTab] = useState<'general' | 'sections' | 'products' | 'order-form' | 'footer' | 'settings' | 'seo'>('general');
   const [saving, setSaving] = useState(false);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
 
@@ -502,6 +507,11 @@ export default function LandingPageEditor() {
     order_form_text_color: '#374151',
     order_form_accent_color: '#2d6a4f',
     order_form_border_color: '#e5e7eb',
+    footer_bg_color: '#111827',
+    footer_text_color: '#ffffff',
+    footer_link_bg_color: '#f59e0b',
+    footer_link_text_color: '#111827',
+    footer_border_color: '#1f2937',
     btn_bg_color: '#2d6a4f',
     btn_text_color: '#ffffff',
     btn_border_color: 'transparent',
@@ -539,6 +549,11 @@ export default function LandingPageEditor() {
           order_form_text_color: data.order_form_text_color || '#374151',
           order_form_accent_color: data.order_form_accent_color || data.primary_color || '#2d6a4f',
           order_form_border_color: data.order_form_border_color || '#e5e7eb',
+          footer_bg_color: data.footer_bg_color || '#111827',
+          footer_text_color: data.footer_text_color || '#ffffff',
+          footer_link_bg_color: data.footer_link_bg_color || data.primary_color || '#f59e0b',
+          footer_link_text_color: data.footer_link_text_color || '#111827',
+          footer_border_color: data.footer_border_color || '#1f2937',
           hero_background_image_url: data.hero_background_image_url || '',
           start_date: data.start_date ? data.start_date.split('T')[0] : '',
           end_date: data.end_date ? data.end_date.split('T')[0] : '',
@@ -579,11 +594,15 @@ export default function LandingPageEditor() {
       };
 
       if (isEditing) {
-        await apiClient.put(`/landing-pages/${id}`, payload);
+        const res = await apiClient.put(`/landing-pages/${id}`, payload);
+        setForm((prev) => ({ ...prev, ...res.data, start_date: prev.start_date, end_date: prev.end_date }));
       } else {
-        await apiClient.post('/landing-pages', payload);
+        const res = await apiClient.post('/landing-pages', payload);
+        const newId = res.data?.id;
+        if (newId) {
+          router.replace(`/admin/landing-pages/${newId}`);
+        }
       }
-      router.push('/admin/landing-pages');
     } catch (err: any) {
       console.error('Save error:', err);
       alert(err?.response?.data?.message || 'Failed to save landing page');
@@ -2139,16 +2158,22 @@ export default function LandingPageEditor() {
   );
 
   // ─── Tab: SEO ───
+  type ColorFormField =
+    | 'order_form_bg_color'
+    | 'order_form_card_bg_color'
+    | 'order_form_title_color'
+    | 'order_form_text_color'
+    | 'order_form_accent_color'
+    | 'order_form_border_color'
+    | 'footer_bg_color'
+    | 'footer_text_color'
+    | 'footer_link_bg_color'
+    | 'footer_link_text_color'
+    | 'footer_border_color';
+
   const renderColorControl = (
     label: string,
-    field: keyof Pick<FormData,
-      'order_form_bg_color' |
-      'order_form_card_bg_color' |
-      'order_form_title_color' |
-      'order_form_text_color' |
-      'order_form_accent_color' |
-      'order_form_border_color'
-    >,
+    field: ColorFormField,
     description?: string,
   ) => (
     <div>
@@ -2205,6 +2230,35 @@ export default function LandingPageEditor() {
     </div>
   );
 
+  const renderFooterTab = () => (
+    <div className="space-y-6">
+      <div>
+        <h3 className="text-lg font-semibold mb-3">Footer Colors</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {renderColorControl('Footer Background', 'footer_bg_color', 'Main footer background color.')}
+          {renderColorControl('Footer Text Color', 'footer_text_color', 'Footer message and copyright text.')}
+          {renderColorControl('Link Button Background', 'footer_link_bg_color', 'Background color for the website link button.')}
+          {renderColorControl('Link Button Text', 'footer_link_text_color', 'Text color for the website link button.')}
+          {renderColorControl('Footer Border Color', 'footer_border_color', 'Top border/divider color.')}
+        </div>
+      </div>
+
+      <div
+        className="rounded-xl border p-6 text-center space-y-4"
+        style={{ backgroundColor: form.footer_bg_color, borderColor: form.footer_border_color, color: form.footer_text_color }}
+      >
+        <p className="font-semibold">আমাদের আরো প্রোডাক্ট পেতে ভিজিট করুন</p>
+        <span
+          className="inline-flex items-center px-6 py-2.5 rounded-full font-bold text-sm"
+          style={{ backgroundColor: form.footer_link_bg_color, color: form.footer_link_text_color }}
+        >
+          trustcart.com.bd
+        </span>
+        <p className="text-sm opacity-75">© {new Date().getFullYear()} TrustCart. All rights reserved.</p>
+      </div>
+    </div>
+  );
+
   const renderSeoTab = () => (
     <div className="space-y-4">
       <h3 className="text-lg font-semibold mb-3">SEO & Social Sharing</h3>
@@ -2244,6 +2298,7 @@ export default function LandingPageEditor() {
     { key: 'sections', label: 'Page Sections' },
     { key: 'products', label: 'Products' },
     { key: 'order-form', label: 'Order Form' },
+    { key: 'footer', label: 'Footer' },
     { key: 'settings', label: 'Settings' },
     { key: 'seo', label: 'SEO' },
   ] as const;
@@ -2307,6 +2362,7 @@ export default function LandingPageEditor() {
           {activeTab === 'sections' && renderSectionsTab()}
           {activeTab === 'products' && renderProductsTab()}
           {activeTab === 'order-form' && renderOrderFormTab()}
+          {activeTab === 'footer' && renderFooterTab()}
           {activeTab === 'settings' && renderSettingsTab()}
           {activeTab === 'seo' && renderSeoTab()}
         </div>

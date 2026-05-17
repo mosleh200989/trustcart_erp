@@ -71,6 +71,45 @@ export class SalesService {
     return map;
   }
 
+  private roundMoney(value: any): number {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return 0;
+    return Math.round(n * 100) / 100;
+  }
+
+  private getItemSubtotal(item: any): number {
+    const explicitSubtotal = Number(item?.subtotal ?? item?.lineTotal ?? item?.line_total);
+    if (Number.isFinite(explicitSubtotal) && explicitSubtotal > 0) {
+      return this.roundMoney(explicitSubtotal);
+    }
+
+    const quantity = Number(item?.quantity || 0);
+    const unitPrice = Number(item?.unitPrice ?? item?.unit_price ?? 0);
+    return this.roundMoney(quantity * unitPrice);
+  }
+
+  private getStoredDeliveryCharge(order: SalesOrder): number | null {
+    if ((order as any).deliveryCharge == null) return null;
+    const deliveryCharge = Number((order as any).deliveryCharge);
+    return Number.isFinite(deliveryCharge) ? this.roundMoney(deliveryCharge) : null;
+  }
+
+  private resolveDeliveryCharge(order: SalesOrder, itemsSubtotal: number, discountAmount: number): number {
+    const storedDeliveryCharge = this.getStoredDeliveryCharge(order);
+    if (storedDeliveryCharge != null && storedDeliveryCharge > 0) {
+      return storedDeliveryCharge;
+    }
+
+    return this.roundMoney(Math.max(0, Number(order.totalAmount || 0) - itemsSubtotal + discountAmount));
+  }
+
+  private computePayableTotal(order: SalesOrder, items: any[]): number {
+    const itemsSubtotal = this.roundMoney(items.reduce((sum: number, item: any) => sum + this.getItemSubtotal(item), 0));
+    const discountAmount = this.roundMoney(order.discountAmount || 0);
+    const deliveryCharge = this.resolveDeliveryCharge(order, itemsSubtotal, discountAmount);
+    return this.roundMoney(Math.max(0, itemsSubtotal + deliveryCharge - discountAmount));
+  }
+
   private readonly webOrderSources = ['website', 'landing_page'];
 
   private readonly approvedForMainOrdersSql = `
@@ -151,6 +190,8 @@ export class SalesService {
     const customerName = (order as any).customerName ?? null;
     const customerEmail = (order as any).customerEmail ?? null;
     const customerPhone = (order as any).customerPhone ?? null;
+    const items = (order as any)._items || [];
+    const computedTotalAmount = this.computePayableTotal(order, items);
 
     return {
       id: order.id,
@@ -163,7 +204,10 @@ export class SalesService {
       customer_email: customerEmail,
       customer_phone: customerPhone,
 
-      total_amount: parseFloat(order.totalAmount?.toString() || '0'),
+      totalAmount: computedTotalAmount,
+      total_amount: computedTotalAmount,
+      computedTotalAmount,
+      storedTotalAmount: parseFloat(order.totalAmount?.toString() || '0'),
       status: order.status,
 
       order_date: order.orderDate || order.createdAt,
@@ -213,7 +257,7 @@ export class SalesService {
       assigned_at: order.assignedAt ?? null,
       order_source: order.orderSource || null,
       order_source_display: this.computeOrderSourceDisplay(order),
-      items: ((order as any)._items || []).map((i: any) => ({
+      items: items.map((i: any) => ({
         productName: i.productName || i.product_name || 'Unknown',
         productNameBn: i.productNameBn || null,
         variantName: i.variantName || null,
@@ -228,19 +272,19 @@ export class SalesService {
    * Fetch items for a batch of order IDs from BOTH tables (sales_order_items + order_items),
    * with a fallback to the products table for missing product names.
    */
-  private async batchFetchOrderItems(orderIds: number[]): Promise<Map<number, { productName: string; productNameBn?: string | null; variantName?: string | null; quantity: number; customProductName?: string | null; itemId?: number; source?: string }[]>> {
-    const map = new Map<number, { productName: string; productNameBn?: string | null; variantName?: string | null; quantity: number; customProductName?: string | null; itemId?: number; source?: string }[]>();
+  private async batchFetchOrderItems(orderIds: number[]): Promise<Map<number, { productName: string; productNameBn?: string | null; variantName?: string | null; quantity: number; unitPrice?: number; subtotal?: number; customProductName?: string | null; itemId?: number; source?: string }[]>> {
+    const map = new Map<number, { productName: string; productNameBn?: string | null; variantName?: string | null; quantity: number; unitPrice?: number; subtotal?: number; customProductName?: string | null; itemId?: number; source?: string }[]>();
     if (orderIds.length === 0) return map;
 
     // Query both item tables — prefer order_items (admin/migrated) when they exist,
     // fall back to sales_order_items (checkout/landing-page) for orders not yet migrated.
-    const rows: { order_id: number; item_id: number; product_name: string | null; custom_product_name: string | null; product_id: number | null; quantity: number; source: string; variant_name: string | null }[] =
+    const rows: { order_id: number; item_id: number; product_name: string | null; custom_product_name: string | null; product_id: number | null; quantity: number; unit_price: number | null; subtotal: number | null; source: string; variant_name: string | null }[] =
       await this.salesRepository.manager.query(
-        `SELECT oi.id AS item_id, oi.order_id, oi.product_name, oi.custom_product_name, oi.product_id, oi.quantity, oi.variant_name, 'order_items' AS source
+        `SELECT oi.id AS item_id, oi.order_id, oi.product_name, oi.custom_product_name, oi.product_id, oi.quantity, oi.unit_price, oi.subtotal, oi.variant_name, 'order_items' AS source
          FROM order_items oi
          WHERE oi.order_id = ANY($1)
          UNION ALL
-         SELECT soi.id AS item_id, soi.sales_order_id AS order_id, soi.product_name, soi.custom_product_name, soi.product_id, soi.quantity, NULL AS variant_name, 'sales_order_items' AS source
+         SELECT soi.id AS item_id, soi.sales_order_id AS order_id, soi.product_name, soi.custom_product_name, soi.product_id, soi.quantity, soi.unit_price, soi.line_total AS subtotal, NULL AS variant_name, 'sales_order_items' AS source
          FROM sales_order_items soi
          WHERE soi.sales_order_id = ANY($1)
            AND soi.sales_order_id NOT IN (SELECT DISTINCT oi2.order_id FROM order_items oi2 WHERE oi2.order_id = ANY($1))`,
@@ -293,7 +337,17 @@ export class SalesService {
       // If there's a custom name override, don't send Bengali name — the custom name IS the display name
       const nameBn = customName ? null : (r.product_id ? productNameBnMap.get(r.product_id) || null : null);
       const arr = map.get(r.order_id) || [];
-      arr.push({ productName: displayName, productNameBn: nameBn, variantName: r.variant_name || null, quantity: Number(r.quantity) || 0, customProductName: customName, itemId: r.item_id, source: r.source });
+      arr.push({
+        productName: displayName,
+        productNameBn: nameBn,
+        variantName: r.variant_name || null,
+        quantity: Number(r.quantity) || 0,
+        unitPrice: Number(r.unit_price) || 0,
+        subtotal: this.getItemSubtotal(r),
+        customProductName: customName,
+        itemId: r.item_id,
+        source: r.source,
+      });
       map.set(r.order_id, arr);
     }
 
@@ -727,6 +781,8 @@ export class SalesService {
       'o.orderDate',
       'o.status',
       'o.totalAmount',
+      'o.discountAmount',
+      'o.deliveryCharge',
       'o.shippingAddress',
       'o.courierNotes',
       'o.riderInstructions',
