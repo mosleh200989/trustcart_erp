@@ -64,6 +64,12 @@ interface LandingPageData {
   primary_color: string;
   secondary_color: string;
   background_color: string;
+  order_form_bg_color?: string;
+  order_form_card_bg_color?: string;
+  order_form_title_color?: string;
+  order_form_text_color?: string;
+  order_form_accent_color?: string;
+  order_form_border_color?: string;
   btn_bg_color?: string;
   btn_text_color?: string;
   btn_border_color?: string;
@@ -397,6 +403,12 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
   const buttonBorderWidth = page.btn_border_color && page.btn_border_color !== 'transparent' ? 2 : 0;
   const buttonBorderRadius = (page.btn_border_radius ?? 16) + 'px';
   const heroBackgroundImage = page.hero_background_image_url?.trim();
+  const orderFormBgColor = page.order_form_bg_color || '#f9fafb';
+  const orderFormCardBgColor = page.order_form_card_bg_color || '#ffffff';
+  const orderFormTitleColor = page.order_form_title_color || '#1f2937';
+  const orderFormTextColor = page.order_form_text_color || '#374151';
+  const orderFormAccentColor = page.order_form_accent_color || page.primary_color;
+  const orderFormBorderColor = page.order_form_border_color || '#e5e7eb';
 
   const renderSectionButton = (section: LandingPageSection) => {
     if (!section.buttonText) return null;
@@ -1046,8 +1058,8 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
 
         {/* ═══════════════ ORDER FORM ═══════════════ */}
         {page.show_order_form && (
-          <div ref={orderFormRef} className="py-10 md:py-14 px-2 sm:px-3">
-            <div className="max-w-2xl mx-auto">
+          <div ref={orderFormRef} className="py-10 md:py-14 px-2 sm:px-3" style={{ backgroundColor: orderFormBgColor, color: orderFormTextColor }}>
+            <div className="max-w-2xl mx-auto" style={{ color: orderFormTextColor }}>
               {submitted ? (
                 <div className="text-center py-10">
                   <div
@@ -1063,22 +1075,22 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
                   <p className="text-gray-400 mt-2">আমাদের একজন কাস্টমার প্রতিনিধি আপনাকে কল করে আবার কনফার্ম করবে</p>
                 </div>
               ) : (
-                <div className="bg-white rounded-3xl shadow-2xl overflow-hidden border border-gray-100">
+                <div className="rounded-3xl shadow-2xl overflow-hidden border" style={{ backgroundColor: orderFormCardBgColor, borderColor: orderFormBorderColor }}>
                   {/* Form header */}
                   <div
                     className="px-4 py-4 text-center"
                     style={{
-                      background: `linear-gradient(135deg, ${page.primary_color} 0%, ${primaryDark} 100%)`,
+                      background: orderFormAccentColor,
                     }}
                   >
                     <h2
                       className="text-xl sm:text-2xl font-extrabold"
-                      style={{ color: page.secondary_color }}
+                      style={{ color: orderFormTitleColor }}
                     >
                       অর্ডার করতে ফর্মটি পূরণ করুন
                     </h2>
                     {page.delivery_note && (
-                      <p className="mt-1.5 text-sm opacity-80" style={{ color: page.secondary_color }}>
+                      <p className="mt-1.5 text-sm opacity-80" style={{ color: orderFormTextColor }}>
                         {page.delivery_note}
                       </p>
                     )}
@@ -1087,10 +1099,10 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
                   <div className="p-4 sm:p-6">
                     {/* Product Selection */}
                     <div className="mb-6">
-                      <h3 className="font-bold text-gray-800 mb-3 text-lg flex items-center gap-2">
+                      <h3 className="font-bold mb-3 text-lg flex items-center gap-2" style={{ color: orderFormTitleColor }}>
                         <span
                           className="w-7 h-7 rounded-full flex items-center justify-center text-white text-sm font-bold"
-                          style={{ backgroundColor: page.primary_color }}
+                          style={{ backgroundColor: orderFormAccentColor }}
                         >
                           1
                         </span>
@@ -1115,9 +1127,9 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
                               style={
                                 isSelected
                                   ? {
-                                      borderColor: page.primary_color,
-                                      boxShadow: `0 4px 20px ${page.primary_color}50`,
-                                      background: `linear-gradient(135deg, ${page.primary_color}28 0%, ${page.primary_color}18 100%)`,
+                                      borderColor: orderFormAccentColor,
+                                      boxShadow: `0 4px 20px ${orderFormAccentColor}50`,
+                                      background: `${orderFormAccentColor}18`,
                                     }
                                   : {}
                               }
@@ -1125,7 +1137,7 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
                             >
                               {/* Selected accent bar */}
                               {isSelected && (
-                                <div className="absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl" style={{ backgroundColor: page.primary_color }} />
+                                <div className="absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl" style={{ backgroundColor: orderFormAccentColor }} />
                               )}
                               {isFeatured && (
                                 <div className="absolute -top-3 right-4 bg-gradient-to-r from-orange-500 to-red-500 text-white text-xs font-bold px-4 py-1 rounded-full shadow-lg">
@@ -1138,7 +1150,7 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
                                   className={`flex-shrink-0 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${
                                     isSelected ? 'border-transparent' : 'border-gray-300'
                                   }`}
-                                  style={isSelected ? { backgroundColor: page.primary_color } : {}}
+                                  style={isSelected ? { backgroundColor: orderFormAccentColor } : {}}
                                 >
                                   {isSelected && <FaCheckCircle className="text-white text-sm" />}
                                 </div>
@@ -1167,7 +1179,7 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
                                     )}
                                     <span
                                       className="text-base sm:text-xl font-extrabold px-2 sm:px-3 py-0.5 rounded-lg text-white"
-                                      style={{ backgroundColor: page.primary_color }}
+                                      style={{ backgroundColor: orderFormAccentColor }}
                                     >
                                       {product.price.toLocaleString()} ৳
                                     </span>
@@ -1189,7 +1201,7 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
                                       <button
                                         onClick={() => updateQuantity(product.id, 1)}
                                         className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center text-white hover:opacity-90 transition-opacity"
-                                        style={{ backgroundColor: page.primary_color }}
+                                        style={{ backgroundColor: orderFormAccentColor }}
                                       >
                                         <FaPlus className="text-xs" />
                                       </button>
@@ -1205,10 +1217,10 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
 
                     {/* Customer Info */}
                     <div className="mb-6">
-                      <h3 className="font-bold text-gray-800 mb-3 text-lg flex items-center gap-2">
+                      <h3 className="font-bold mb-3 text-lg flex items-center gap-2" style={{ color: orderFormTitleColor }}>
                         <span
                           className="w-7 h-7 rounded-full flex items-center justify-center text-white text-sm font-bold"
-                          style={{ backgroundColor: page.primary_color }}
+                          style={{ backgroundColor: orderFormAccentColor }}
                         >
                           2
                         </span>
@@ -1228,7 +1240,7 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
                                 ? 'border-red-400 bg-red-50'
                                 : 'border-gray-200 focus:ring-opacity-30'
                             }`}
-                            style={{ ...(formTouched && !orderForm.name ? {} : { '--tw-ring-color': page.primary_color } as any) }}
+                            style={{ ...(formTouched && !orderForm.name ? {} : { '--tw-ring-color': orderFormAccentColor } as any) }}
                             placeholder="আপনার নাম লিখুন"
                           />
                         </div>
@@ -1285,17 +1297,17 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
 
                     {/* Order Summary */}
                     <div>
-                      <h3 className="font-bold text-gray-800 mb-3 text-lg flex items-center gap-2">
+                      <h3 className="font-bold mb-3 text-lg flex items-center gap-2" style={{ color: orderFormTitleColor }}>
                         <span
                           className="w-7 h-7 rounded-full flex items-center justify-center text-white text-sm font-bold"
-                          style={{ backgroundColor: page.primary_color }}
+                          style={{ backgroundColor: orderFormAccentColor }}
                         >
                           3
                         </span>
                         অর্ডার সামারি
                       </h3>
 
-                      <div className="bg-gray-50 rounded-2xl p-4 border border-gray-100">
+                      <div className="rounded-2xl p-4 border" style={{ backgroundColor: orderFormBgColor, borderColor: orderFormBorderColor }}>
                         <div className="space-y-2 border-b border-gray-200 pb-3 mb-3">
                           {orderItems.map((item) => (
                             <div key={item.product.id} className="flex justify-between items-center text-sm">
@@ -1336,7 +1348,7 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
                                   }`}
                                   style={
                                     deliveryZone === 'inside'
-                                      ? { backgroundColor: page.primary_color, borderColor: page.primary_color }
+                                      ? { backgroundColor: orderFormAccentColor, borderColor: orderFormAccentColor }
                                       : {}
                                   }
                                 >
@@ -1355,7 +1367,7 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
                                   }`}
                                   style={
                                     deliveryZone === 'outside'
-                                      ? { backgroundColor: page.primary_color, borderColor: page.primary_color }
+                                      ? { backgroundColor: orderFormAccentColor, borderColor: orderFormAccentColor }
                                       : {}
                                   }
                                 >
@@ -1389,10 +1401,10 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
                         {/* Total */}
                         <div
                           className="flex justify-between items-center mt-3 pt-3 border-t-2 border-dashed"
-                          style={{ borderColor: `${page.primary_color}30` }}
+                          style={{ borderColor: `${orderFormAccentColor}30` }}
                         >
                           <span className="text-lg font-extrabold text-gray-800">সর্বমোট</span>
-                          <span className="text-2xl font-extrabold" style={{ color: page.primary_color }}>
+                          <span className="text-2xl font-extrabold" style={{ color: orderFormAccentColor }}>
                             {getTotal().toLocaleString()} ৳
                           </span>
                         </div>
@@ -1407,11 +1419,11 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
                           <div className="mt-3 flex items-center gap-2 text-sm text-gray-600">
                             <div
                               className="w-5 h-5 rounded-full border-2 flex items-center justify-center"
-                              style={{ borderColor: page.primary_color }}
+                              style={{ borderColor: orderFormAccentColor }}
                             >
                               <div
                                 className="w-2.5 h-2.5 rounded-full"
-                                style={{ backgroundColor: page.primary_color }}
+                                style={{ backgroundColor: orderFormAccentColor }}
                               />
                             </div>
                             <span className="font-medium">Cash on Delivery</span>

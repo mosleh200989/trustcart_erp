@@ -15,10 +15,17 @@ export class CloudinaryService {
   async uploadImage(
     file: Express.Multer.File,
     folder: string = 'trustcart',
-    options: { maxWidth?: number; maxHeight?: number } = {},
+    options: { maxWidth?: number; maxHeight?: number; preserveOriginal?: boolean } = {},
   ): Promise<UploadApiResponse> {
     const maxWidth = options.maxWidth ?? 1000;
     const maxHeight = options.maxHeight ?? 1000;
+    const transformation = options.preserveOriginal
+      ? undefined
+      : [
+          { width: maxWidth, height: maxHeight, crop: 'limit' },
+          { quality: 'auto' },
+          { fetch_format: 'auto' },
+        ];
 
     return new Promise((resolve, reject) => {
       cloudinary.uploader
@@ -26,11 +33,7 @@ export class CloudinaryService {
           {
             folder: folder,
             resource_type: 'auto',
-            transformation: [
-              { width: maxWidth, height: maxHeight, crop: 'limit' },
-              { quality: 'auto' },
-              { fetch_format: 'auto' },
-            ],
+            transformation,
           },
           (error: UploadApiErrorResponse | undefined, result: UploadApiResponse | undefined) => {
             if (error) return reject(error);
@@ -44,10 +47,17 @@ export class CloudinaryService {
   async uploadBase64Image(
     base64Data: string,
     folder: string = 'trustcart',
-    options: { maxWidth?: number; maxHeight?: number } = {},
+    options: { maxWidth?: number; maxHeight?: number; preserveOriginal?: boolean } = {},
   ): Promise<UploadApiResponse> {
     const maxWidth = options.maxWidth ?? 1000;
     const maxHeight = options.maxHeight ?? 1000;
+    const transformation = options.preserveOriginal
+      ? undefined
+      : [
+          { width: maxWidth, height: maxHeight, crop: 'limit' },
+          { quality: 'auto' },
+          { fetch_format: 'auto' },
+        ];
 
     return new Promise((resolve, reject) => {
       cloudinary.uploader.upload(
@@ -55,11 +65,7 @@ export class CloudinaryService {
         {
           folder: folder,
           resource_type: 'auto',
-          transformation: [
-            { width: maxWidth, height: maxHeight, crop: 'limit' },
-            { quality: 'auto' },
-            { fetch_format: 'auto' },
-          ],
+          transformation,
         },
         (error: UploadApiErrorResponse | undefined, result: UploadApiResponse | undefined) => {
           if (error) return reject(error);

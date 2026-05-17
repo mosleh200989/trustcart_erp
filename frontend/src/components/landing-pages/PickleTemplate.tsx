@@ -75,6 +75,12 @@ interface LandingPageData {
   primary_color: string;
   secondary_color: string;
   background_color: string;
+  order_form_bg_color?: string;
+  order_form_card_bg_color?: string;
+  order_form_title_color?: string;
+  order_form_text_color?: string;
+  order_form_accent_color?: string;
+  order_form_border_color?: string;
   btn_bg_color?: string;
   btn_text_color?: string;
   btn_border_color?: string;
@@ -130,6 +136,12 @@ export default function PickleTemplate({
   const sectionsRef = useRef<HTMLDivElement>(null);
   const toast = useToast();
   const heroBackgroundImage = page.hero_background_image_url?.trim();
+  const orderFormBgColor = page.order_form_bg_color || '#FFF8F5';
+  const orderFormCardBgColor = page.order_form_card_bg_color || '#ffffff';
+  const orderFormTitleColor = page.order_form_title_color || '#3D1308';
+  const orderFormTextColor = page.order_form_text_color || '#6B3A2A';
+  const orderFormAccentColor = page.order_form_accent_color || page.primary_color;
+  const orderFormBorderColor = page.order_form_border_color || '#f4d5ca';
 
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
   const [orderForm, setOrderForm] = useState({ name: '', phone: '', address: '', note: '' });
@@ -1059,7 +1071,7 @@ export default function PickleTemplate({
           <div
             ref={orderFormRef}
             className="py-16 md:py-24 px-4 sm:px-6"
-            style={{ backgroundColor: '#FFF0E8' }}
+            style={{ backgroundColor: orderFormBgColor, color: orderFormTextColor }}
           >
             <div className="max-w-xl mx-auto">
               {submitted ? (
@@ -1076,17 +1088,17 @@ export default function PickleTemplate({
                   </p>
                 </div>
               ) : (
-                <div className="bg-white rounded-[2rem] shadow-[0_30px_80px_-20px_rgba(100,40,15,0.2),0_0_0_1px_rgba(100,40,15,0.05)] overflow-hidden border-[4px] border-white relative z-10 transition-all duration-500 hover:shadow-[0_40px_100px_-20px_rgba(100,40,15,0.25)]">
+                <div className="rounded-[2rem] shadow-[0_30px_80px_-20px_rgba(100,40,15,0.2),0_0_0_1px_rgba(100,40,15,0.05)] overflow-hidden border-[4px] relative z-10 transition-all duration-500 hover:shadow-[0_40px_100px_-20px_rgba(100,40,15,0.25)]" style={{ backgroundColor: orderFormCardBgColor, borderColor: orderFormBorderColor }}>
                   {/* Header */}
                   <div
                     className="px-6 py-6 text-center pickle-grain relative overflow-hidden"
                     style={{
-                      background: `linear-gradient(135deg, ${page.primary_color}, ${primaryDark})`,
+                      background: `linear-gradient(135deg, ${orderFormAccentColor}, ${adjustColor(orderFormAccentColor, -30)})`,
                     }}
                   >
                     <h2
                       className="pickle-heading text-2xl sm:text-3xl font-extrabold relative z-10 drop-shadow-md"
-                      style={{ color: page.secondary_color }}
+                      style={{ color: orderFormTitleColor }}
                     >
                       অর্ডার করুন
                     </h2>

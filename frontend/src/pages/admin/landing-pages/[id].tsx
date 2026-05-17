@@ -408,6 +408,12 @@ interface FormData {
   primary_color: string;
   secondary_color: string;
   background_color: string;
+  order_form_bg_color: string;
+  order_form_card_bg_color: string;
+  order_form_title_color: string;
+  order_form_text_color: string;
+  order_form_accent_color: string;
+  order_form_border_color: string;
   btn_bg_color: string;
   btn_text_color: string;
   btn_border_color: string;
@@ -466,7 +472,7 @@ export default function LandingPageEditor() {
   const { id } = router.query;
   const isEditing = id && id !== 'create';
 
-  const [activeTab, setActiveTab] = useState<'general' | 'sections' | 'products' | 'settings' | 'seo'>('general');
+  const [activeTab, setActiveTab] = useState<'general' | 'sections' | 'products' | 'order-form' | 'settings' | 'seo'>('general');
   const [saving, setSaving] = useState(false);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
 
@@ -490,6 +496,12 @@ export default function LandingPageEditor() {
     primary_color: '#2d6a4f',
     secondary_color: '#FFFFFF',
     background_color: '#f0f4f0',
+    order_form_bg_color: '#ffffff',
+    order_form_card_bg_color: '#ffffff',
+    order_form_title_color: '#1f2937',
+    order_form_text_color: '#374151',
+    order_form_accent_color: '#2d6a4f',
+    order_form_border_color: '#e5e7eb',
     btn_bg_color: '#2d6a4f',
     btn_text_color: '#ffffff',
     btn_border_color: 'transparent',
@@ -521,6 +533,12 @@ export default function LandingPageEditor() {
         const data = res.data;
         setForm({
           ...data,
+          order_form_bg_color: data.order_form_bg_color || '#ffffff',
+          order_form_card_bg_color: data.order_form_card_bg_color || '#ffffff',
+          order_form_title_color: data.order_form_title_color || '#1f2937',
+          order_form_text_color: data.order_form_text_color || '#374151',
+          order_form_accent_color: data.order_form_accent_color || data.primary_color || '#2d6a4f',
+          order_form_border_color: data.order_form_border_color || '#e5e7eb',
           hero_background_image_url: data.hero_background_image_url || '',
           start_date: data.start_date ? data.start_date.split('T')[0] : '',
           end_date: data.end_date ? data.end_date.split('T')[0] : '',
@@ -2121,6 +2139,72 @@ export default function LandingPageEditor() {
   );
 
   // ─── Tab: SEO ───
+  const renderColorControl = (
+    label: string,
+    field: keyof Pick<FormData,
+      'order_form_bg_color' |
+      'order_form_card_bg_color' |
+      'order_form_title_color' |
+      'order_form_text_color' |
+      'order_form_accent_color' |
+      'order_form_border_color'
+    >,
+    description?: string,
+  ) => (
+    <div>
+      <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
+      <div className="flex gap-2">
+        <input
+          type="color"
+          value={form[field] || '#000000'}
+          onChange={(e) => setForm((prev) => ({ ...prev, [field]: e.target.value }))}
+          className="w-10 h-10 rounded cursor-pointer border"
+        />
+        <input
+          type="text"
+          value={form[field] || ''}
+          onChange={(e) => setForm((prev) => ({ ...prev, [field]: e.target.value }))}
+          className="flex-1 border rounded-lg px-3 py-2"
+        />
+      </div>
+      {description && <p className="text-xs text-gray-400 mt-1">{description}</p>}
+    </div>
+  );
+
+  const renderOrderFormTab = () => (
+    <div className="space-y-6">
+      <div>
+        <h3 className="text-lg font-semibold mb-3">Order Form Colors</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {renderColorControl('Section Background', 'order_form_bg_color', 'Outer background behind the order form.')}
+          {renderColorControl('Card Background', 'order_form_card_bg_color', 'Background for form/product/summary cards.')}
+          {renderColorControl('Title Color', 'order_form_title_color', 'Main order form headings and section titles.')}
+          {renderColorControl('Font Color', 'order_form_text_color', 'Labels, product text, and summary text.')}
+          {renderColorControl('Accent Color', 'order_form_accent_color', 'Selected states, badges, totals, and small accents.')}
+          {renderColorControl('Border Color', 'order_form_border_color', 'Card/input borders and dividers.')}
+        </div>
+      </div>
+
+      <div className="border rounded-xl p-4" style={{ backgroundColor: form.order_form_bg_color }}>
+        <div
+          className="rounded-lg p-4 border"
+          style={{
+            backgroundColor: form.order_form_card_bg_color,
+            borderColor: form.order_form_border_color,
+            color: form.order_form_text_color,
+          }}
+        >
+          <h4 className="font-bold mb-2" style={{ color: form.order_form_title_color }}>Order Form Preview</h4>
+          <p className="text-sm mb-3">This preview shows how the order form color scheme will read on the landing page.</p>
+          <div className="flex items-center justify-between border-t pt-3" style={{ borderColor: form.order_form_border_color }}>
+            <span className="font-medium">Total</span>
+            <span className="font-extrabold" style={{ color: form.order_form_accent_color }}>৳ 1,250</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
   const renderSeoTab = () => (
     <div className="space-y-4">
       <h3 className="text-lg font-semibold mb-3">SEO & Social Sharing</h3>
@@ -2159,6 +2243,7 @@ export default function LandingPageEditor() {
     { key: 'general', label: 'General' },
     { key: 'sections', label: 'Page Sections' },
     { key: 'products', label: 'Products' },
+    { key: 'order-form', label: 'Order Form' },
     { key: 'settings', label: 'Settings' },
     { key: 'seo', label: 'SEO' },
   ] as const;
@@ -2221,6 +2306,7 @@ export default function LandingPageEditor() {
           {activeTab === 'general' && renderGeneralTab()}
           {activeTab === 'sections' && renderSectionsTab()}
           {activeTab === 'products' && renderProductsTab()}
+          {activeTab === 'order-form' && renderOrderFormTab()}
           {activeTab === 'settings' && renderSettingsTab()}
           {activeTab === 'seo' && renderSeoTab()}
         </div>

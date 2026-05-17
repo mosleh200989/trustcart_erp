@@ -88,6 +88,24 @@ export class LandingPage {
   @Column({ length: 50, default: '#1a1a2e' })
   background_color!: string;
 
+  @Column({ length: 50, default: '#ffffff' })
+  order_form_bg_color!: string;
+
+  @Column({ length: 50, default: '#ffffff' })
+  order_form_card_bg_color!: string;
+
+  @Column({ length: 50, default: '#1f2937' })
+  order_form_title_color!: string;
+
+  @Column({ length: 50, default: '#374151' })
+  order_form_text_color!: string;
+
+  @Column({ length: 50, default: '#2d6a4f' })
+  order_form_accent_color!: string;
+
+  @Column({ length: 50, default: '#e5e7eb' })
+  order_form_border_color!: string;
+
   @Column({ length: 50, default: '#2d6a4f' })
   btn_bg_color!: string;
 

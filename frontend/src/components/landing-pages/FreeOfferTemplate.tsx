@@ -61,6 +61,12 @@ interface LandingPageData {
   primary_color: string;
   secondary_color: string;
   background_color: string;
+  order_form_bg_color?: string;
+  order_form_card_bg_color?: string;
+  order_form_title_color?: string;
+  order_form_text_color?: string;
+  order_form_accent_color?: string;
+  order_form_border_color?: string;
   btn_bg_color?: string;
   btn_text_color?: string;
   btn_border_color?: string;
@@ -128,6 +134,12 @@ export default function FreeOfferTemplate({ page, trafficSource = 'landing_page'
     const b = Math.min(255, parseInt(hex.substring(4, 6), 16) + 25);
     return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
   })();
+  const orderFormBgColor = page.order_form_bg_color || bgColor;
+  const orderFormCardBgColor = page.order_form_card_bg_color || cardBg;
+  const orderFormTitleColor = page.order_form_title_color || '#ffffff';
+  const orderFormTextColor = page.order_form_text_color || '#d1d5db';
+  const orderFormAccentColor = page.order_form_accent_color || secondaryColor;
+  const orderFormBorderColor = page.order_form_border_color || '#374151';
 
   // Order form state
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
@@ -731,8 +743,8 @@ export default function FreeOfferTemplate({ page, trafficSource = 'landing_page'
 
         {/* ═══════════════ ORDER FORM SECTION ═══════════════ */}
         {page.show_order_form && (
-          <div ref={orderFormRef} className="py-10 sm:py-12 px-4 border-t border-gray-800" style={{ backgroundColor: bgColor }}>
-            <div className="max-w-4xl mx-auto dark-glass p-6 sm:p-10 rounded-2xl shadow-2xl">
+          <div ref={orderFormRef} className="py-10 sm:py-12 px-4 border-t" style={{ backgroundColor: orderFormBgColor, borderColor: orderFormBorderColor, color: orderFormTextColor }}>
+            <div className="max-w-4xl mx-auto p-6 sm:p-10 rounded-2xl shadow-2xl border" style={{ backgroundColor: orderFormCardBgColor, borderColor: orderFormBorderColor, color: orderFormTextColor }}>
               
               {submitted ? (
                 <div className="text-center py-12">
@@ -743,7 +755,7 @@ export default function FreeOfferTemplate({ page, trafficSource = 'landing_page'
               ) : (
                 <>
                   <div className="text-center mb-8">
-                    <h2 className="text-2xl sm:text-3xl font-extrabold text-white mb-3">
+                    <h2 className="text-2xl sm:text-3xl font-extrabold mb-3" style={{ color: orderFormTitleColor }}>
                       বিলিং এবং শিপিং তথ্য
                     </h2>
                     <p className="text-gray-400">অর্ডার কনফার্ম করতে নিচের ফর্মটি সঠিক তথ্য দিয়ে পূরণ করুন</p>
@@ -754,8 +766,8 @@ export default function FreeOfferTemplate({ page, trafficSource = 'landing_page'
                     <div className="md:col-span-3 space-y-6">
                       
                       {/* Product Selection */}
-                      <div className="p-5 rounded-xl border border-gray-700" style={{ backgroundColor: cardBg }}>
-                        <h3 className="font-semibold text-white mb-4 text-lg border-b border-gray-700 pb-2">প্রোডাক্ট নির্বাচন করুন</h3>
+                      <div className="p-5 rounded-xl border" style={{ backgroundColor: orderFormCardBgColor, borderColor: orderFormBorderColor }}>
+                        <h3 className="font-semibold mb-4 text-lg border-b pb-2" style={{ color: orderFormTitleColor, borderColor: orderFormBorderColor }}>প্রোডাক্ট নির্বাচন করুন</h3>
                         <div className="space-y-3">
                           {(page.products || []).map((product) => {
                             const orderItem = orderItems.find((i) => i.product.id === product.id);
@@ -842,8 +854,8 @@ export default function FreeOfferTemplate({ page, trafficSource = 'landing_page'
                       </div>
 
                       {/* Customer Info Form */}
-                      <div className="p-5 rounded-xl border border-gray-700 space-y-4" style={{ backgroundColor: cardBg }}>
-                        <h3 className="font-semibold text-white mb-2 text-lg border-b border-gray-700 pb-2">ডেলিভারি ঠিকানা</h3>
+                      <div className="p-5 rounded-xl border space-y-4" style={{ backgroundColor: orderFormCardBgColor, borderColor: orderFormBorderColor }}>
+                        <h3 className="font-semibold mb-2 text-lg border-b pb-2" style={{ color: orderFormTitleColor, borderColor: orderFormBorderColor }}>ডেলিভারি ঠিকানা</h3>
                         <div>
                           <label className="block text-sm font-medium text-gray-300 mb-1">আপনার নাম *</label>
                           <input
@@ -884,8 +896,8 @@ export default function FreeOfferTemplate({ page, trafficSource = 'landing_page'
 
                     {/* Right: Order Summary */}
                     <div className="md:col-span-2">
-                      <div className="rounded-xl p-5 border border-gray-700 sticky top-24" style={{ backgroundColor: cardBg }}>
-                        <h3 className="font-bold text-lg text-white border-b border-gray-700 pb-3 mb-4">আপনার অর্ডার</h3>
+                      <div className="rounded-xl p-5 border sticky top-24" style={{ backgroundColor: orderFormCardBgColor, borderColor: orderFormBorderColor }}>
+                        <h3 className="font-bold text-lg border-b pb-3 mb-4" style={{ color: orderFormTitleColor, borderColor: orderFormBorderColor }}>আপনার অর্ডার</h3>
                         
                         <div className="mb-4">
                           {orderItems.map((item) => (
@@ -972,7 +984,7 @@ export default function FreeOfferTemplate({ page, trafficSource = 'landing_page'
                             <span>ডেলিভারি চার্জ</span>
                             <span>৳ {getDeliveryCharge()}</span>
                           </div>
-                          <div className="flex justify-between text-lg font-bold pt-2 border-t border-gray-700" style={{ color: secondaryColor }}>
+                          <div className="flex justify-between text-lg font-bold pt-2 border-t" style={{ color: orderFormAccentColor, borderColor: orderFormBorderColor }}>
                             <span>সর্বমোট</span>
                             <span>৳ {getTotal()}</span>
                           </div>
