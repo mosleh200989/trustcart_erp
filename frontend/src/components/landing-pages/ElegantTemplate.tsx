@@ -70,6 +70,11 @@ interface LandingPageData {
   order_form_text_color?: string;
   order_form_accent_color?: string;
   order_form_border_color?: string;
+  footer_bg_color?: string;
+  footer_text_color?: string;
+  footer_link_bg_color?: string;
+  footer_link_text_color?: string;
+  footer_border_color?: string;
   btn_bg_color?: string;
   btn_text_color?: string;
   btn_border_color?: string;
@@ -409,6 +414,11 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
   const orderFormTextColor = page.order_form_text_color || '#374151';
   const orderFormAccentColor = page.order_form_accent_color || page.primary_color;
   const orderFormBorderColor = page.order_form_border_color || '#e5e7eb';
+  const footerBgColor = page.footer_bg_color || page.primary_color;
+  const footerTextColor = page.footer_text_color || page.secondary_color;
+  const footerLinkBgColor = page.footer_link_bg_color || '#FFD700';
+  const footerLinkTextColor = page.footer_link_text_color || '#1a1a2e';
+  const footerBorderColor = page.footer_border_color || page.primary_color;
 
   const renderSectionButton = (section: LandingPageSection) => {
     if (!section.buttonText) return null;
@@ -1500,16 +1510,16 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
         </div>
 
         {/* ═══════════════ FOOTER ═══════════════ */}
-        <div className="relative overflow-hidden">
-          <div
+        <div className="relative overflow-hidden border-t" style={{ backgroundColor: footerBgColor, borderColor: footerBorderColor }}>
+          {!page.footer_bg_color && <div
             className="absolute inset-0"
             style={{
               background: `linear-gradient(135deg, ${page.primary_color} 0%, ${adjustColor(page.primary_color, -50)} 100%)`,
             }}
-          />
+          />}
           <div className="relative py-10 text-center space-y-4">
             <div>
-              <p className="text-base sm:text-lg font-semibold opacity-90 mb-2" style={{ color: page.secondary_color }}>
+              <p className="text-base sm:text-lg font-semibold opacity-90 mb-2" style={{ color: footerTextColor }}>
                 আমাদের আরো প্রোডাক্ট পেতে ভিজিট করুন
               </p>
               <a
@@ -1518,8 +1528,8 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full font-bold text-sm sm:text-base shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300"
                 style={{
-                  background: 'linear-gradient(135deg, #FFD700 0%, #FFA500 100%)',
-                  color: '#1a1a2e',
+                  background: footerLinkBgColor,
+                  color: footerLinkTextColor,
                 }}
               >
                 trustcart.com.bd →
@@ -1527,7 +1537,7 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
             </div>
             <p
               className="text-sm font-medium opacity-70"
-              style={{ color: page.secondary_color }}
+              style={{ color: footerTextColor }}
             >
               © {new Date().getFullYear()} TrustCart. All rights reserved.
             </p>

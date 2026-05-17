@@ -81,6 +81,11 @@ interface LandingPageData {
   order_form_text_color?: string;
   order_form_accent_color?: string;
   order_form_border_color?: string;
+  footer_bg_color?: string;
+  footer_text_color?: string;
+  footer_link_bg_color?: string;
+  footer_link_text_color?: string;
+  footer_border_color?: string;
   btn_bg_color?: string;
   btn_text_color?: string;
   btn_border_color?: string;
@@ -142,6 +147,11 @@ export default function PickleTemplate({
   const orderFormTextColor = page.order_form_text_color || '#6B3A2A';
   const orderFormAccentColor = page.order_form_accent_color || page.primary_color;
   const orderFormBorderColor = page.order_form_border_color || '#f4d5ca';
+  const footerBgColor = page.footer_bg_color || '#3D1308';
+  const footerTextColor = page.footer_text_color || '#fee2e2';
+  const footerLinkBgColor = page.footer_link_bg_color || page.primary_color;
+  const footerLinkTextColor = page.footer_link_text_color || page.secondary_color;
+  const footerBorderColor = page.footer_border_color || '#5f1f11';
 
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
   const [orderForm, setOrderForm] = useState({ name: '', phone: '', address: '', note: '' });
@@ -1525,10 +1535,10 @@ export default function PickleTemplate({
         </div>
 
         {/* ═══════════════════ FOOTER ═══════════════════ */}
-        <div style={{ backgroundColor: '#3D1308' }}>
+        <div style={{ backgroundColor: footerBgColor, borderTop: `1px solid ${footerBorderColor}` }}>
           <div className="py-10 text-center space-y-4">
             <div>
-              <p className="text-sm sm:text-base font-medium text-red-100/80 mb-2">
+              <p className="text-sm sm:text-base font-medium mb-2" style={{ color: footerTextColor }}>
                 আমাদের আরো প্রোডাক্ট পেতে ভিজিট করুন
               </p>
               <a
@@ -1537,14 +1547,14 @@ export default function PickleTemplate({
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full font-bold text-sm hover:opacity-90 transition-opacity duration-300"
                 style={{
-                  backgroundColor: page.primary_color,
-                  color: page.secondary_color,
+                  backgroundColor: footerLinkBgColor,
+                  color: footerLinkTextColor,
                 }}
               >
                 trustcart.com.bd →
               </a>
             </div>
-            <p className="text-xs font-medium text-red-200/40">
+            <p className="text-xs font-medium opacity-60" style={{ color: footerTextColor }}>
               © {new Date().getFullYear()} TrustCart. All rights reserved.
             </p>
           </div>
