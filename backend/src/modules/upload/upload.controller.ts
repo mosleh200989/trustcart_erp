@@ -3,6 +3,7 @@ import {
   Post,
   Delete,
   Body,
+  Query,
   UseInterceptors,
   UploadedFile,
   BadRequestException,
@@ -16,12 +17,20 @@ export class UploadController {
 
   @Post('image')
   @UseInterceptors(FileInterceptor('file'))
-  async uploadImage(@UploadedFile() file: Express.Multer.File) {
+  async uploadImage(
+    @UploadedFile() file: Express.Multer.File,
+    @Query('preset') preset?: string,
+  ) {
     if (!file) {
       throw new BadRequestException('No file uploaded');
     }
 
-    const result = await this.cloudinaryService.uploadImage(file, 'trustcart/products');
+    const isHeroBackground = preset === 'hero-background';
+    const result = await this.cloudinaryService.uploadImage(
+      file,
+      isHeroBackground ? 'trustcart/landing-page-backgrounds' : 'trustcart/products',
+      isHeroBackground ? { maxWidth: 2400, maxHeight: 1600 } : {},
+    );
     return {
       url: result.secure_url,
       public_id: result.public_id,
@@ -31,13 +40,18 @@ export class UploadController {
   }
 
   @Post('image/base64')
-  async uploadBase64Image(@Body() body: { image: string; folder?: string }) {
+  async uploadBase64Image(@Body() body: { image: string; folder?: string; preset?: string }) {
     if (!body.image) {
       throw new BadRequestException('No image data provided');
     }
 
-    const folder = body.folder || 'trustcart/products';
-    const result = await this.cloudinaryService.uploadBase64Image(body.image, folder);
+    const isHeroBackground = body.preset === 'hero-background';
+    const folder = body.folder || (isHeroBackground ? 'trustcart/landing-page-backgrounds' : 'trustcart/products');
+    const result = await this.cloudinaryService.uploadBase64Image(
+      body.image,
+      folder,
+      isHeroBackground ? { maxWidth: 2400, maxHeight: 1600 } : {},
+    );
     
     return {
       url: result.secure_url,

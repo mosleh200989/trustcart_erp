@@ -147,6 +147,8 @@ export class SalesController {
     @Query('endDate') endDate?: string,
     @Query('assignment') assignment?: string,
     @Query('todayOnly') todayOnly?: string,
+    @Query('teamLeaderId') teamLeaderId?: string,
+    @Query('agentId') agentId?: string,
   ) {
     return this.salesService.findAssignedOrdersPaginated({
       page: page ? parseInt(page, 10) : 1,
@@ -157,13 +159,23 @@ export class SalesController {
       endDate: endDate || '',
       assignment: assignment || '',
       todayOnly: todayOnly === 'true',
+      teamLeaderId: teamLeaderId ? parseInt(teamLeaderId, 10) : undefined,
+      agentId: agentId ? parseInt(agentId, 10) : undefined,
     }, req.user);
   }
 
   @Get('assignment-agents')
   @RequirePermissions('view-assigned-orders')
-  async getAssignmentAgents(@Req() req: any) {
-    return this.salesService.getAssignmentAgents(req.user);
+  async getAssignmentAgents(@Req() req: any, @Query('teamLeaderId') teamLeaderId?: string) {
+    return this.salesService.getAssignmentAgents(req.user, {
+      teamLeaderId: teamLeaderId ? parseInt(teamLeaderId, 10) : undefined,
+    });
+  }
+
+  @Get('assignment-team-leaders')
+  @RequirePermissions('view-assigned-orders')
+  async getAssignmentTeamLeaders(@Req() req: any) {
+    return this.salesService.getAssignmentTeamLeaders(req.user);
   }
 
   @Put('assigned-orders/:id/assign')

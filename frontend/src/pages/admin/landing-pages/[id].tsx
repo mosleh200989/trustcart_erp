@@ -17,6 +17,7 @@ function ImageUploadField({
   className = '',
   inputClassName = 'w-full border rounded-lg px-3 py-2',
   labelClassName = 'block text-sm font-medium text-gray-700 mb-1',
+  uploadPreset,
 }: {
   label: string;
   value: string;
@@ -26,6 +27,7 @@ function ImageUploadField({
   className?: string;
   inputClassName?: string;
   labelClassName?: string;
+  uploadPreset?: string;
 }) {
   const [uploading, setUploading] = useState(false);
 
@@ -36,7 +38,8 @@ function ImageUploadField({
     try {
       const formData = new FormData();
       formData.append('file', file);
-      const res = await apiClient.post('/upload/image', formData, {
+      const endpoint = uploadPreset ? `/upload/image?preset=${encodeURIComponent(uploadPreset)}` : '/upload/image';
+      const res = await apiClient.post(endpoint, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
       const url = res.data?.url;
@@ -1017,8 +1020,9 @@ export default function LandingPageEditor() {
                 value={form.hero_background_image_url || ''}
                 onChange={(url) => setForm((prev) => ({ ...prev, hero_background_image_url: url }))}
                 placeholder="/hero-bg.jpg or https://..."
+                uploadPreset="hero-background"
               />
-              <p className="text-xs text-gray-400 mt-1">Used as the hero section background for all templates.</p>
+              <p className="text-xs text-gray-400 mt-1">Used as the hero section background for all templates. Upload a wide image, ideally 1920px or wider.</p>
             </div>
           </div>
           <div className="space-y-3">

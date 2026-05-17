@@ -15,7 +15,11 @@ export class CloudinaryService {
   async uploadImage(
     file: Express.Multer.File,
     folder: string = 'trustcart',
+    options: { maxWidth?: number; maxHeight?: number } = {},
   ): Promise<UploadApiResponse> {
+    const maxWidth = options.maxWidth ?? 1000;
+    const maxHeight = options.maxHeight ?? 1000;
+
     return new Promise((resolve, reject) => {
       cloudinary.uploader
         .upload_stream(
@@ -23,7 +27,7 @@ export class CloudinaryService {
             folder: folder,
             resource_type: 'auto',
             transformation: [
-              { width: 1000, height: 1000, crop: 'limit' },
+              { width: maxWidth, height: maxHeight, crop: 'limit' },
               { quality: 'auto' },
               { fetch_format: 'auto' },
             ],
@@ -40,7 +44,11 @@ export class CloudinaryService {
   async uploadBase64Image(
     base64Data: string,
     folder: string = 'trustcart',
+    options: { maxWidth?: number; maxHeight?: number } = {},
   ): Promise<UploadApiResponse> {
+    const maxWidth = options.maxWidth ?? 1000;
+    const maxHeight = options.maxHeight ?? 1000;
+
     return new Promise((resolve, reject) => {
       cloudinary.uploader.upload(
         base64Data,
@@ -48,7 +56,7 @@ export class CloudinaryService {
           folder: folder,
           resource_type: 'auto',
           transformation: [
-            { width: 1000, height: 1000, crop: 'limit' },
+            { width: maxWidth, height: maxHeight, crop: 'limit' },
             { quality: 'auto' },
             { fetch_format: 'auto' },
           ],
