@@ -1011,17 +1011,15 @@ export default function LandingPageEditor() {
               onChange={(url) => setForm((prev) => ({ ...prev, hero_image_url: url }))}
               placeholder="/seed-mix.jpg or https://..."
             />
-            {form.template === 'free-offer' && (
-              <div className="mt-4">
-                <ImageUploadField
-                  label="Hero Background Image URL"
-                  value={form.hero_background_image_url || ''}
-                  onChange={(url) => setForm((prev) => ({ ...prev, hero_background_image_url: url }))}
-                  placeholder="/hero-bg.jpg or https://..."
-                />
-                <p className="text-xs text-gray-400 mt-1">Used as the Free Offer hero section background.</p>
-              </div>
-            )}
+            <div className="mt-4">
+              <ImageUploadField
+                label="Hero Background Image URL"
+                value={form.hero_background_image_url || ''}
+                onChange={(url) => setForm((prev) => ({ ...prev, hero_background_image_url: url }))}
+                placeholder="/hero-bg.jpg or https://..."
+              />
+              <p className="text-xs text-gray-400 mt-1">Used as the hero section background for all templates.</p>
+            </div>
           </div>
           <div className="space-y-3">
             <div>
