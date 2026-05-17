@@ -453,24 +453,18 @@ export default function FreeOfferTemplate({ page, trafficSource = 'landing_page'
             backgroundRepeat: 'no-repeat',
           } : undefined}
         >
-          {heroBackgroundImage && (
-            <div
-              className="absolute inset-0"
-              style={{ background: `linear-gradient(180deg, ${bgColor}E6 0%, ${bgColor}CC 48%, ${bgColor}F2 100%)` }}
-            />
-          )}
           <div className="relative z-10 max-w-4xl mx-auto text-center">
             {/* Title-first layout (default for FreeOffer) or image-first */}
             {page.hero_layout === 'image-first' ? (
               <>
                 {/* Image first */}
                 {page.hero_image_url && (
-                  <div className="mb-10 relative inline-block">
-                    <div className="absolute inset-0 rounded-2xl blur-xl opacity-20" style={{ backgroundColor: secondaryColor }}></div>
+                  <div className="mb-8 sm:mb-10 relative block -mx-4 sm:mx-0 sm:inline-block">
+                    <div className="absolute inset-0 rounded-none sm:rounded-2xl blur-xl opacity-20" style={{ backgroundColor: secondaryColor }}></div>
                     <img
                       src={page.hero_image_url}
                       alt={page.title}
-                      className="relative w-full max-w-lg mx-auto rounded-2xl" style={{ boxShadow: `0 0 40px ${secondaryColor}26`, border: `1px solid ${secondaryColor}4D` }}
+                      className="relative w-full max-w-none sm:max-w-lg sm:mx-auto rounded-none sm:rounded-2xl" style={{ boxShadow: `0 0 40px ${secondaryColor}26`, border: `1px solid ${secondaryColor}4D` }}
                     />
                   </div>
                 )}
@@ -504,12 +498,12 @@ export default function FreeOfferTemplate({ page, trafficSource = 'landing_page'
                 )}
 
                 {page.hero_image_url && (
-                  <div className="mb-10 relative inline-block">
-                    <div className="absolute inset-0 rounded-2xl blur-xl opacity-20" style={{ backgroundColor: secondaryColor }}></div>
+                  <div className="mb-8 sm:mb-10 relative block -mx-4 sm:mx-0 sm:inline-block">
+                    <div className="absolute inset-0 rounded-none sm:rounded-2xl blur-xl opacity-20" style={{ backgroundColor: secondaryColor }}></div>
                     <img
                       src={page.hero_image_url}
                       alt={page.title}
-                      className="relative w-full max-w-lg mx-auto rounded-2xl" style={{ boxShadow: `0 0 40px ${secondaryColor}26`, border: `1px solid ${secondaryColor}4D` }}
+                      className="relative w-full max-w-none sm:max-w-lg sm:mx-auto rounded-none sm:rounded-2xl" style={{ boxShadow: `0 0 40px ${secondaryColor}26`, border: `1px solid ${secondaryColor}4D` }}
                     />
                   </div>
                 )}
@@ -547,7 +541,7 @@ export default function FreeOfferTemplate({ page, trafficSource = 'landing_page'
 
         {/* ═══════════════ DYNAMIC SECTIONS ═══════════════ */}
         {visibleSections.map((section, sIdx) => (
-          <div key={section.id} className="py-12 px-4 border-t border-gray-800">
+          <div key={section.id} className="py-8 px-4 border-t border-gray-800">
             <div className="max-w-4xl mx-auto">
               
               {section.type === 'hero' && (
@@ -581,20 +575,30 @@ export default function FreeOfferTemplate({ page, trafficSource = 'landing_page'
                 </div>
               )}
 
-              {section.type === 'images' && (
-                <div className="mb-8">
-                  {section.title && (
-                    <h2 className="text-2xl md:text-3xl font-bold mb-6 text-center" style={{ color: section.textColor || secondaryColor }}>{section.title}</h2>
-                  )}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {(section.images || []).map((img, idx) => (
-                      <div key={idx} className="relative rounded-2xl overflow-hidden border border-gray-700 shadow-xl group">
-                        <img src={img} alt={`${page.title} image ${idx + 1}`} className="w-full h-auto object-cover transform group-hover:scale-105 transition-all duration-500" />
-                      </div>
-                    ))}
+              {section.type === 'images' && (() => {
+                const images = section.images || [];
+                const hasSingleImage = images.length === 1;
+
+                return (
+                  <div className="mb-4 sm:mb-6">
+                    {section.title && (
+                      <h2 className="text-2xl md:text-3xl font-bold mb-5 text-center" style={{ color: section.textColor || secondaryColor }}>{section.title}</h2>
+                    )}
+                    <div className={hasSingleImage ? '-mx-4 md:mx-0 flex justify-center' : '-mx-4 md:mx-0 grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6'}>
+                      {images.map((img, idx) => (
+                        <div
+                          key={idx}
+                          className={`relative rounded-none md:rounded-2xl overflow-hidden border-y md:border border-gray-700 shadow-xl group ${
+                            hasSingleImage ? 'w-full md:max-w-lg' : ''
+                          }`}
+                        >
+                          <img src={img} alt={`${page.title} image ${idx + 1}`} className="w-full h-auto object-cover transform group-hover:scale-105 transition-all duration-500" />
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
 
               {section.type === 'benefits' && (
                 <div>
@@ -727,7 +731,7 @@ export default function FreeOfferTemplate({ page, trafficSource = 'landing_page'
 
         {/* ═══════════════ ORDER FORM SECTION ═══════════════ */}
         {page.show_order_form && (
-          <div ref={orderFormRef} className="py-16 px-4 border-t border-gray-800" style={{ backgroundColor: bgColor }}>
+          <div ref={orderFormRef} className="py-10 sm:py-12 px-4 border-t border-gray-800" style={{ backgroundColor: bgColor }}>
             <div className="max-w-4xl mx-auto dark-glass p-6 sm:p-10 rounded-2xl shadow-2xl">
               
               {submitted ? (
