@@ -67,6 +67,9 @@ export class LandingPage {
   @Column({ length: 500, nullable: true })
   hero_image_url!: string;
 
+  @Column({ length: 500, nullable: true })
+  hero_background_image_url!: string;
+
   @Column({ length: 255, nullable: true })
   hero_title!: string;
 

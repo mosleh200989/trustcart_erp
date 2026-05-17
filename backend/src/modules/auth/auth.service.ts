@@ -367,12 +367,25 @@ export class AuthService {
       throw new UnauthorizedException('Invalid token');
     }
 
+    let roleSlug = payload?.roleSlug ?? null;
+    try {
+      const roleRows = await this.usersRepository.query(
+        'SELECT slug FROM roles WHERE id = $1 LIMIT 1',
+        [user.roleId],
+      );
+      if (roleRows && roleRows[0]?.slug) {
+        roleSlug = roleRows[0].slug;
+      }
+    } catch (e) {
+      // Keep the token role slug if the roles table is unavailable.
+    }
+
     return {
       id: user.id,
       email: user.email,
       phone: user.phone,
       roleId: user.roleId,
-      roleSlug: payload?.roleSlug,
+      roleSlug,
       type: 'user',
       username: user.name,
     };

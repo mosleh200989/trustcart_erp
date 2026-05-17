@@ -32,6 +32,7 @@ export const DEFAULT_ADMIN_MENU: AdminMenuSeedNode[] = [
     icon: 'FaShoppingCart',
     children: [
       { title: 'Orders', icon: 'FaShoppingCart', path: '/admin/sales', requiredPermissions: ['view-sales-orders'] },
+      { title: 'Assigned Orders', icon: 'FaClipboardList', path: '/admin/sales/assigned-orders', requiredPermissions: ['view-assigned-orders'] },
       {
         title: 'Incomplete Order',
         icon: 'FaShoppingCart',
@@ -95,7 +96,25 @@ export const DEFAULT_ADMIN_MENU: AdminMenuSeedNode[] = [
     ],
   },
   { title: 'Customers', icon: 'FaUsers', path: '/admin/customers', requiredPermissions: ['view-customers'] },
-  { title: 'Presence', icon: 'FaUser', path: '/admin/presence' },
+  {
+    title: 'Presence',
+    icon: 'FaUser',
+    children: [
+      { title: 'Dashboard', icon: 'FaUser', path: '/admin/presence' },
+      {
+        title: 'History',
+        icon: 'FaHistory',
+        path: '/admin/presence/history',
+        requiredPermissions: ['view-presence', 'view-presence-history', 'manage-presence-history'],
+      },
+      {
+        title: 'Settings',
+        icon: 'FaCog',
+        path: '/admin/presence/settings',
+        requiredPermissions: ['manage-presence-settings'],
+      },
+    ],
+  },
   {
     title: 'Loyalty',
     icon: 'FaGift',

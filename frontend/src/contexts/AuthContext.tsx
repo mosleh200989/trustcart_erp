@@ -54,6 +54,7 @@ const ADMIN_ROLE_SLUGS = new Set([
 ]);
 
 const NON_ADMIN_PORTAL_ROLE_SLUGS = new Set(['customer-account', 'supplier-account']);
+const SUPERUSER_ROLE_SLUGS = new Set(['super-admin', 'admin']);
 
 function normalizeUserId(user: any): string {
   return String(user?.id ?? '');
@@ -123,58 +124,67 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const isAuthenticated = !!user && !isLoading;
 
+  const roleSlugSet = useMemo(() => {
+    return new Set(
+      [...(roles || []).map((r) => r.slug), ...(user?.roleSlug ? [user.roleSlug] : [])].filter(Boolean),
+    );
+  }, [roles, user?.roleSlug]);
+
+  const isSuperUser = useMemo(() => {
+    return [...roleSlugSet].some((slug) => SUPERUSER_ROLE_SLUGS.has(slug));
+  }, [roleSlugSet]);
+
   const permissionSet = useMemo(() => {
     return new Set((permissions || []).map((p) => p.slug));
   }, [permissions]);
 
   const hasPermission = useCallback(
     (slug: string) => {
+      if (isSuperUser) return true;
       return permissionSet.has(slug);
     },
-    [permissionSet],
+    [isSuperUser, permissionSet],
   );
 
   const hasAnyPermission = useCallback(
     (slugs: string[]) => {
+      if (isSuperUser) return true;
       if (!slugs || slugs.length === 0) return true;
       for (const s of slugs) {
         if (permissionSet.has(s)) return true;
       }
       return false;
     },
-    [permissionSet],
+    [isSuperUser, permissionSet],
   );
 
   const hasAllPermissions = useCallback(
     (slugs: string[]) => {
+      if (isSuperUser) return true;
       if (!slugs || slugs.length === 0) return true;
       for (const s of slugs) {
         if (!permissionSet.has(s)) return false;
       }
       return true;
     },
-    [permissionSet],
+    [isSuperUser, permissionSet],
   );
 
   const isAdminUser = useMemo(() => {
-    const roleSlugs = new Set(
-      [...(roles || []).map((r) => r.slug), ...(user?.roleSlug ? [user.roleSlug] : [])].filter(Boolean),
-    );
-
     // Primary rule: any authenticated backoffice/staff user can access the admin portal,
     // except explicitly customer/supplier portal accounts.
     const isStaffUser = user?.type === 'user';
-    const isExcludedPortalRole = [...roleSlugs].some((slug) => NON_ADMIN_PORTAL_ROLE_SLUGS.has(slug));
+    const isExcludedPortalRole = [...roleSlugSet].some((slug) => NON_ADMIN_PORTAL_ROLE_SLUGS.has(slug));
 
     if (isStaffUser && !isExcludedPortalRole) return true;
 
     // Fallback allowlist for setups where `type` isn't present.
-    for (const slug of roleSlugs) {
+    for (const slug of roleSlugSet) {
       if (ADMIN_ROLE_SLUGS.has(slug)) return true;
     }
 
     return false;
-  }, [roles, user?.roleSlug]);
+  }, [roleSlugSet, user?.type]);
 
   const value = useMemo<AuthContextValue>(
     () => ({

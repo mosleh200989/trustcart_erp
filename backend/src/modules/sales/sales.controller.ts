@@ -135,6 +135,49 @@ export class SalesController {
     return { items: orders, total: orders.length };
   }
 
+  @Get('assigned-orders')
+  @RequirePermissions('view-assigned-orders')
+  async findAssignedOrders(
+    @Req() req: any,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('q') q?: string,
+    @Query('status') status?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('assignment') assignment?: string,
+    @Query('todayOnly') todayOnly?: string,
+  ) {
+    return this.salesService.findAssignedOrdersPaginated({
+      page: page ? parseInt(page, 10) : 1,
+      limit: limit ? parseInt(limit, 10) : 50,
+      q: q || '',
+      status: status || '',
+      startDate: startDate || '',
+      endDate: endDate || '',
+      assignment: assignment || '',
+      todayOnly: todayOnly === 'true',
+    }, req.user);
+  }
+
+  @Get('assignment-agents')
+  @RequirePermissions('view-assigned-orders')
+  async getAssignmentAgents(@Req() req: any) {
+    return this.salesService.getAssignmentAgents(req.user);
+  }
+
+  @Put('assigned-orders/:id/assign')
+  @RequirePermissions('manage-assigned-orders')
+  async assignWebOrder(@Param('id') id: string, @Body() body: any, @Req() req: any) {
+    return this.salesService.assignWebOrder(Number(id), body, req.user);
+  }
+
+  @Put('assigned-orders/:id/unassign')
+  @RequirePermissions('manage-assigned-orders')
+  async unassignWebOrder(@Param('id') id: string, @Body() body: any, @Req() req: any) {
+    return this.salesService.unassignWebOrder(Number(id), body, req.user);
+  }
+
   @Get()
   @RequirePermissions('view-sales-orders')
   async findAll(

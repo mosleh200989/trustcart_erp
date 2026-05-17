@@ -212,9 +212,17 @@ export class RbacService {
     try {
       const result = await this.rolesRepository.query(`
         SELECT EXISTS (
-          SELECT 1 FROM user_roles ur
+          SELECT 1
+          FROM users u
+          INNER JOIN roles r ON r.id = u.role_id
+          INNER JOIN role_permissions rp ON rp.role_id = r.id
+          INNER JOIN permissions p ON rp.permission_id = p.id
+          WHERE u.id = $1 AND p.slug = $2 AND r.is_active = TRUE
+          UNION
+          SELECT 1
+          FROM user_roles ur
           INNER JOIN roles r ON r.id = ur.role_id
-          INNER JOIN role_permissions rp ON ur.role_id = rp.role_id
+          INNER JOIN role_permissions rp ON rp.role_id = r.id
           INNER JOIN permissions p ON rp.permission_id = p.id
           WHERE ur.user_id = $1 AND p.slug = $2 AND r.is_active = TRUE
         ) as has_permission
@@ -231,11 +239,15 @@ export class RbacService {
   async getUserPermissions(userId: number): Promise<Permission[]> {
     try {
       const result = await this.permissionsRepository.query(`
-        SELECT DISTINCT p.* FROM permissions p
+        SELECT DISTINCT p.*
+        FROM permissions p
         INNER JOIN role_permissions rp ON p.id = rp.permission_id
-        INNER JOIN user_roles ur ON rp.role_id = ur.role_id
-        INNER JOIN roles r ON r.id = ur.role_id
-        WHERE ur.user_id = $1 AND r.is_active = TRUE
+        INNER JOIN roles r ON r.id = rp.role_id
+        WHERE r.is_active = TRUE
+          AND (
+            r.id IN (SELECT role_id FROM users WHERE id = $1)
+            OR r.id IN (SELECT role_id FROM user_roles WHERE user_id = $1)
+          )
         ORDER BY p.module, p.action
       `, [userId]);
 
@@ -249,9 +261,13 @@ export class RbacService {
   // Get user roles
   async getUserRoles(userId: number): Promise<Role[]> {
     const result = await this.rolesRepository.query(`
-      SELECT r.* FROM roles r
-      INNER JOIN user_roles ur ON r.id = ur.role_id
-      WHERE ur.user_id = $1 AND r.is_active = TRUE
+      SELECT DISTINCT r.*
+      FROM roles r
+      WHERE r.is_active = TRUE
+        AND (
+          r.id IN (SELECT role_id FROM users WHERE id = $1)
+          OR r.id IN (SELECT role_id FROM user_roles WHERE user_id = $1)
+        )
       ORDER BY r.priority DESC
     `, [userId]);
 

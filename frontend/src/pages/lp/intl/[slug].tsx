@@ -47,6 +47,7 @@ interface LandingPageData {
   description: string;
   template?: string;
   hero_image_url: string;
+  hero_background_image_url?: string;
   hero_title: string;
   hero_subtitle: string;
   hero_button_text: string;

@@ -52,6 +52,7 @@ const menuItems: MenuItem[] = [
     icon: FaShoppingCart,
     children: [
       { title: 'Orders', icon: FaShoppingCart, path: '/admin/sales', requiredPermissions: ['view-sales-orders'] },
+      { title: 'Assigned Orders', icon: FaClipboardList, path: '/admin/sales/assigned-orders', requiredPermissions: ['view-assigned-orders'] },
       { title: 'Printing', icon: FaPrint, path: '/admin/sales/printing', requiredPermissions: ['view-printing'] },
       { title: 'Incomplete Order', icon: FaShoppingCart, path: '/admin/sales/incomplete-orders', requiredPermissions: ['view-incomplete-orders'] },
       { title: 'Late Delivery', icon: FaShoppingCart, path: '/admin/sales/late-delivery', requiredPermissions: ['view-late-delivery'] },
@@ -86,7 +87,21 @@ const menuItems: MenuItem[] = [
   {
     title: 'Presence',
     icon: FaUser,
-    path: '/admin/presence',
+    children: [
+      { title: 'Dashboard', icon: FaUser, path: '/admin/presence' },
+      {
+        title: 'History',
+        icon: FaHistory,
+        path: '/admin/presence/history',
+        requiredPermissions: ['view-presence', 'view-presence-history', 'manage-presence-history'],
+      },
+      {
+        title: 'Settings',
+        icon: FaCog,
+        path: '/admin/presence/settings',
+        requiredPermissions: ['manage-presence-settings'],
+      },
+    ],
   },
   {
     title: 'Loyalty',
@@ -435,6 +450,7 @@ const iconMap: Record<string, any> = {
   FaPhone,
   FaImage,
   FaPrint,
+  FaClipboardList,
 };
 
 function iconFromKey(key?: string | null) {
@@ -473,18 +489,98 @@ function ensureManageModulesLink(items: MenuItem[]): MenuItem[] {
 }
 
 function ensurePresenceLink(items: MenuItem[]): MenuItem[] {
-  const exists = (arr: MenuItem[]): boolean =>
-    arr.some((x) => x.path === '/admin/presence' || (x.children ? exists(x.children) : false));
-  if (exists(items)) return items;
+  const exists = (arr: MenuItem[], path: string): boolean =>
+    arr.some((x) => x.path === path || (x.children ? exists(x.children, path) : false));
+
+  const dashboardItem: MenuItem = { title: 'Dashboard', icon: FaUser, path: '/admin/presence' };
+  const historyItem: MenuItem = {
+    title: 'History',
+    icon: FaHistory,
+    path: '/admin/presence/history',
+    requiredPermissions: ['view-presence', 'view-presence-history', 'manage-presence-history'],
+  };
+  const settingsItem: MenuItem = {
+    title: 'Settings',
+    icon: FaCog,
+    path: '/admin/presence/settings',
+    requiredPermissions: ['manage-presence-settings'],
+  };
+
+  let inserted = false;
+  const next: MenuItem[] = [];
+
+  for (const item of items) {
+    const isPresenceDashboard = item.path === '/admin/presence';
+    const isPresenceHistory = item.path === '/admin/presence/history';
+    const isPresenceSettings = item.path === '/admin/presence/settings';
+    const isPresenceParent = item.title === 'Presence' && item.children && !item.path;
+
+    if (isPresenceHistory || isPresenceSettings) {
+      continue;
+    }
+
+    if (isPresenceDashboard || isPresenceParent) {
+      const children = item.children || [];
+      const hasDashboard = exists(children, '/admin/presence');
+      const mergedChildren = [
+        ...(hasDashboard ? [] : [dashboardItem]),
+        ...children.filter((child) => child.path !== '/admin/presence/history' && child.path !== '/admin/presence/settings'),
+        historyItem,
+        settingsItem,
+      ];
+      next.push({
+        ...item,
+        title: 'Presence',
+        icon: FaUser,
+        path: undefined,
+        requiredPermissions: undefined,
+        children: mergedChildren,
+      });
+      inserted = true;
+      continue;
+    }
+
+    next.push({
+      ...item,
+      children: item.children,
+    });
+  }
+
+  if (inserted) return next;
 
   return [
-    ...items,
+    ...next,
     {
       title: 'Presence',
       icon: FaUser,
-      path: '/admin/presence',
+      children: [dashboardItem, historyItem, settingsItem],
     },
   ];
+}
+
+function ensureAssignedOrdersLink(items: MenuItem[]): MenuItem[] {
+  const exists = (arr: MenuItem[]): boolean =>
+    arr.some((x) => x.path === '/admin/sales/assigned-orders' || (x.children ? exists(x.children) : false));
+  if (exists(items)) return items;
+
+  const cloned = items.map((x) => ({ ...x, children: x.children ? ensureAssignedOrdersLink(x.children) : x.children }));
+  const sales = cloned.find((x) => x.title === 'Sales');
+  const assignedOrders: MenuItem = {
+    title: 'Assigned Orders',
+    icon: FaClipboardList,
+    path: '/admin/sales/assigned-orders',
+    requiredPermissions: ['view-assigned-orders'],
+  };
+
+  if (sales) {
+    const children = sales.children || [];
+    const ordersIndex = children.findIndex((child) => child.path === '/admin/sales');
+    const nextChildren = [...children];
+    nextChildren.splice(ordersIndex >= 0 ? ordersIndex + 1 : 0, 0, assignedOrders);
+    sales.children = nextChildren;
+  }
+
+  return cloned;
 }
 
 function stripQuery(path: string) {
@@ -498,7 +594,11 @@ function isMenuPathMatch(menuPath: string, currentAsPath: string) {
   return stripQuery(menuPath) === stripQuery(currentAsPath);
 }
 
-function filterMenuItems(items: MenuItem[], hasAnyPermission: (slugs: string[]) => boolean, inheritedPermissions: string[] = []): MenuItem[] {
+function filterMenuItems(
+  items: MenuItem[],
+  hasAnyPermission: (slugs: string[]) => boolean,
+  inheritedPermissions: string[] = [],
+): MenuItem[] {
   const filtered: MenuItem[] = [];
   for (const item of items) {
     const effectivePermissions = item.requiredPermissions ?? inheritedPermissions;
@@ -697,17 +797,19 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   const effectiveMenuItems = useMemo(() => {
     const base = dbMenuItems && dbMenuItems.length > 0 ? dbMenuItems : menuItems;
-    return flattenSingleChildMenus(ensureManageModulesLink(ensurePresenceLink(base)));
+    return flattenSingleChildMenus(ensureAssignedOrdersLink(ensureManageModulesLink(ensurePresenceLink(base))));
   }, [dbMenuItems]);
 
-  const panelTitle = useMemo(() => {
+  const roleSlugs = useMemo(() => {
     const slugs = new Set<string>();
     (roles || []).forEach((r: any) => {
       if (r?.slug) slugs.add(String(r.slug));
     });
     if ((user as any)?.roleSlug) slugs.add(String((user as any).roleSlug));
-    return getPanelTitleFromRoleSlugs(slugs);
+    return slugs;
   }, [roles, user]);
+
+  const panelTitle = useMemo(() => getPanelTitleFromRoleSlugs(roleSlugs), [roleSlugs]);
 
   const visibleMenuItems = useMemo(() => {
     return filterMenuItems(effectiveMenuItems, hasAnyPermission);
