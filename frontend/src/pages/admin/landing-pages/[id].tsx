@@ -357,6 +357,8 @@ interface LandingPageSection {
   buttonLink?: string;
   buttonColor?: string;
   buttonTextColor?: string;
+  buttonBorderColor?: string;
+  buttonBorderRadius?: number;
   backgroundColor?: string;
   textColor?: string;
   paddingY?: number;
@@ -414,10 +416,16 @@ interface FormData {
   order_form_text_color: string;
   order_form_accent_color: string;
   order_form_border_color: string;
+  order_form_button_bg_color: string;
+  order_form_button_text_color: string;
+  order_form_button_border_color: string;
+  order_form_button_border_radius: number;
   footer_bg_color: string;
   footer_text_color: string;
   footer_link_bg_color: string;
   footer_link_text_color: string;
+  footer_link_border_color: string;
+  footer_link_border_radius: number;
   footer_border_color: string;
   btn_bg_color: string;
   btn_text_color: string;
@@ -465,8 +473,12 @@ const DEFAULT_SECTION: Omit<LandingPageSection, 'id' | 'order'> = {
   content: '',
   items: [],
   images: [],
-  buttonText: '',
-  backgroundColor: '#FFFFFF',
+    buttonText: '',
+    buttonColor: '',
+    buttonTextColor: '',
+    buttonBorderColor: 'transparent',
+    buttonBorderRadius: 16,
+    backgroundColor: '#FFFFFF',
   textColor: '#1a1a2e',
   paddingY: undefined,
   is_visible: true,
@@ -507,10 +519,16 @@ export default function LandingPageEditor() {
     order_form_text_color: '#374151',
     order_form_accent_color: '#2d6a4f',
     order_form_border_color: '#e5e7eb',
+    order_form_button_bg_color: '#16a34a',
+    order_form_button_text_color: '#ffffff',
+    order_form_button_border_color: 'transparent',
+    order_form_button_border_radius: 16,
     footer_bg_color: '#111827',
     footer_text_color: '#ffffff',
     footer_link_bg_color: '#f59e0b',
     footer_link_text_color: '#111827',
+    footer_link_border_color: 'transparent',
+    footer_link_border_radius: 999,
     footer_border_color: '#1f2937',
     btn_bg_color: '#2d6a4f',
     btn_text_color: '#ffffff',
@@ -549,10 +567,16 @@ export default function LandingPageEditor() {
           order_form_text_color: data.order_form_text_color || '#374151',
           order_form_accent_color: data.order_form_accent_color || data.primary_color || '#2d6a4f',
           order_form_border_color: data.order_form_border_color || '#e5e7eb',
+          order_form_button_bg_color: data.order_form_button_bg_color || data.btn_bg_color || '#16a34a',
+          order_form_button_text_color: data.order_form_button_text_color || data.btn_text_color || '#ffffff',
+          order_form_button_border_color: data.order_form_button_border_color || data.btn_border_color || 'transparent',
+          order_form_button_border_radius: data.order_form_button_border_radius ?? data.btn_border_radius ?? 16,
           footer_bg_color: data.footer_bg_color || '#111827',
           footer_text_color: data.footer_text_color || '#ffffff',
           footer_link_bg_color: data.footer_link_bg_color || data.primary_color || '#f59e0b',
           footer_link_text_color: data.footer_link_text_color || '#111827',
+          footer_link_border_color: data.footer_link_border_color || 'transparent',
+          footer_link_border_radius: data.footer_link_border_radius ?? 999,
           footer_border_color: data.footer_border_color || '#1f2937',
           hero_background_image_url: data.hero_background_image_url || '',
           start_date: data.start_date ? data.start_date.split('T')[0] : '',
@@ -1601,7 +1625,92 @@ export default function LandingPageEditor() {
                       />
                     </div>
                   </div>
-                  <p className="text-xs text-gray-400 italic">Button appearance is controlled by the General tab's Button Style settings.</p>
+                  <p className="text-xs text-gray-400 italic">Leave colors empty to use the General tab's default button style.</p>
+                  {section.buttonText && (
+                    <div className="mt-3 p-3 bg-gray-50 rounded-lg border border-gray-100">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs text-gray-500 mb-1">Button Background</label>
+                          <div className="flex gap-2">
+                            <input
+                              type="color"
+                              value={section.buttonColor || form.btn_bg_color || '#2d6a4f'}
+                              onChange={(e) => updateSection(section.id, { buttonColor: e.target.value })}
+                              className="w-9 h-9 rounded border cursor-pointer"
+                            />
+                            <input
+                              type="text"
+                              value={section.buttonColor || ''}
+                              onChange={(e) => updateSection(section.id, { buttonColor: e.target.value })}
+                              className="flex-1 border rounded px-3 py-1.5 text-sm"
+                              placeholder={form.btn_bg_color || '#2d6a4f'}
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-xs text-gray-500 mb-1">Button Text Color</label>
+                          <div className="flex gap-2">
+                            <input
+                              type="color"
+                              value={section.buttonTextColor || form.btn_text_color || '#ffffff'}
+                              onChange={(e) => updateSection(section.id, { buttonTextColor: e.target.value })}
+                              className="w-9 h-9 rounded border cursor-pointer"
+                            />
+                            <input
+                              type="text"
+                              value={section.buttonTextColor || ''}
+                              onChange={(e) => updateSection(section.id, { buttonTextColor: e.target.value })}
+                              className="flex-1 border rounded px-3 py-1.5 text-sm"
+                              placeholder={form.btn_text_color || '#ffffff'}
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-xs text-gray-500 mb-1">Button Border Color</label>
+                          <div className="flex gap-2">
+                            <input
+                              type="color"
+                              value={section.buttonBorderColor && section.buttonBorderColor !== 'transparent' ? section.buttonBorderColor : '#000000'}
+                              onChange={(e) => updateSection(section.id, { buttonBorderColor: e.target.value })}
+                              className="w-9 h-9 rounded border cursor-pointer"
+                            />
+                            <input
+                              type="text"
+                              value={section.buttonBorderColor || ''}
+                              onChange={(e) => updateSection(section.id, { buttonBorderColor: e.target.value })}
+                              className="flex-1 border rounded px-3 py-1.5 text-sm"
+                              placeholder="transparent"
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-xs text-gray-500 mb-1">Button Radius: {section.buttonBorderRadius ?? form.btn_border_radius ?? 16}px</label>
+                          <input
+                            type="range"
+                            min="0"
+                            max="48"
+                            value={section.buttonBorderRadius ?? form.btn_border_radius ?? 16}
+                            onChange={(e) => updateSection(section.id, { buttonBorderRadius: Number(e.target.value) })}
+                            className="w-full"
+                          />
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        className="mt-3 px-5 py-2 font-bold"
+                        style={{
+                          backgroundColor: section.buttonColor || form.btn_bg_color,
+                          color: section.buttonTextColor || form.btn_text_color,
+                          borderColor: section.buttonBorderColor || form.btn_border_color || 'transparent',
+                          borderWidth: section.buttonBorderColor && section.buttonBorderColor !== 'transparent' ? 2 : 0,
+                          borderStyle: 'solid',
+                          borderRadius: `${section.buttonBorderRadius ?? form.btn_border_radius ?? 16}px`,
+                        }}
+                      >
+                        {section.buttonText}
+                      </button>
+                    </div>
+                  )}
                 </div>
                 </>
                 )} {/* end: not spacer / not phone-cta */}
@@ -2165,10 +2274,14 @@ export default function LandingPageEditor() {
     | 'order_form_text_color'
     | 'order_form_accent_color'
     | 'order_form_border_color'
+    | 'order_form_button_bg_color'
+    | 'order_form_button_text_color'
+    | 'order_form_button_border_color'
     | 'footer_bg_color'
     | 'footer_text_color'
     | 'footer_link_bg_color'
     | 'footer_link_text_color'
+    | 'footer_link_border_color'
     | 'footer_border_color';
 
   const renderColorControl = (
@@ -2207,6 +2320,22 @@ export default function LandingPageEditor() {
           {renderColorControl('Font Color', 'order_form_text_color', 'Labels, product text, and summary text.')}
           {renderColorControl('Accent Color', 'order_form_accent_color', 'Selected states, badges, totals, and small accents.')}
           {renderColorControl('Border Color', 'order_form_border_color', 'Card/input borders and dividers.')}
+          {renderColorControl('Submit Button Background', 'order_form_button_bg_color')}
+          {renderColorControl('Submit Button Text', 'order_form_button_text_color')}
+          {renderColorControl('Submit Button Border', 'order_form_button_border_color')}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Submit Button Radius: <span className="font-semibold">{form.order_form_button_border_radius}px</span>
+            </label>
+            <input
+              type="range"
+              min="0"
+              max="48"
+              value={form.order_form_button_border_radius}
+              onChange={(e) => setForm((prev) => ({ ...prev, order_form_button_border_radius: Number(e.target.value) }))}
+              className="w-full"
+            />
+          </div>
         </div>
       </div>
 
@@ -2225,6 +2354,20 @@ export default function LandingPageEditor() {
             <span className="font-medium">Total</span>
             <span className="font-extrabold" style={{ color: form.order_form_accent_color }}>৳ 1,250</span>
           </div>
+          <button
+            type="button"
+            className="mt-4 w-full py-3 font-bold"
+            style={{
+              backgroundColor: form.order_form_button_bg_color,
+              color: form.order_form_button_text_color,
+              borderColor: form.order_form_button_border_color,
+              borderWidth: form.order_form_button_border_color && form.order_form_button_border_color !== 'transparent' ? 2 : 0,
+              borderStyle: 'solid',
+              borderRadius: `${form.order_form_button_border_radius}px`,
+            }}
+          >
+            Confirm Order
+          </button>
         </div>
       </div>
     </div>
@@ -2239,7 +2382,21 @@ export default function LandingPageEditor() {
           {renderColorControl('Footer Text Color', 'footer_text_color', 'Footer message and copyright text.')}
           {renderColorControl('Link Button Background', 'footer_link_bg_color', 'Background color for the website link button.')}
           {renderColorControl('Link Button Text', 'footer_link_text_color', 'Text color for the website link button.')}
+          {renderColorControl('Link Button Border', 'footer_link_border_color', 'Border color for the website link button.')}
           {renderColorControl('Footer Border Color', 'footer_border_color', 'Top border/divider color.')}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Link Button Radius: <span className="font-semibold">{form.footer_link_border_radius}px</span>
+            </label>
+            <input
+              type="range"
+              min="0"
+              max="999"
+              value={form.footer_link_border_radius}
+              onChange={(e) => setForm((prev) => ({ ...prev, footer_link_border_radius: Number(e.target.value) }))}
+              className="w-full"
+            />
+          </div>
         </div>
       </div>
 
@@ -2250,7 +2407,14 @@ export default function LandingPageEditor() {
         <p className="font-semibold">আমাদের আরো প্রোডাক্ট পেতে ভিজিট করুন</p>
         <span
           className="inline-flex items-center px-6 py-2.5 rounded-full font-bold text-sm"
-          style={{ backgroundColor: form.footer_link_bg_color, color: form.footer_link_text_color }}
+          style={{
+            backgroundColor: form.footer_link_bg_color,
+            color: form.footer_link_text_color,
+            borderColor: form.footer_link_border_color,
+            borderWidth: form.footer_link_border_color && form.footer_link_border_color !== 'transparent' ? 2 : 0,
+            borderStyle: 'solid',
+            borderRadius: `${form.footer_link_border_radius}px`,
+          }}
         >
           trustcart.com.bd
         </span>
