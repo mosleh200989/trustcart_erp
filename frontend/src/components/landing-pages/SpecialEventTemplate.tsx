@@ -81,6 +81,12 @@ interface LandingPageData {
   primary_color: string;
   secondary_color: string;
   background_color: string;
+  order_form_bg_color?: string;
+  order_form_card_bg_color?: string;
+  order_form_title_color?: string;
+  order_form_text_color?: string;
+  order_form_accent_color?: string;
+  order_form_border_color?: string;
   btn_bg_color?: string;
   btn_text_color?: string;
   btn_border_color?: string;
@@ -162,6 +168,12 @@ export default function SpecialEventTemplate({
   const sectionsRef = useRef<HTMLDivElement>(null);
   const toast = useToast();
   const heroBackgroundImage = page.hero_background_image_url?.trim();
+  const orderFormBgColor = page.order_form_bg_color || '#0A0500';
+  const orderFormCardBgColor = page.order_form_card_bg_color || '#160b05';
+  const orderFormTitleColor = page.order_form_title_color || '#ffffff';
+  const orderFormTextColor = page.order_form_text_color || '#d1d5db';
+  const orderFormAccentColor = page.order_form_accent_color || page.primary_color;
+  const orderFormBorderColor = page.order_form_border_color || 'rgba(255,255,255,0.12)';
 
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
   const [orderForm, setOrderForm] = useState({ name: '', phone: '', address: '', note: '' });
@@ -1253,7 +1265,7 @@ export default function SpecialEventTemplate({
           <div
             ref={orderFormRef}
             className="py-16 md:py-24 px-4 sm:px-6"
-            style={{ backgroundColor: '#150800' }}
+            style={{ backgroundColor: orderFormBgColor, color: orderFormTextColor }}
           >
             <div className="max-w-xl mx-auto">
               {submitted ? (

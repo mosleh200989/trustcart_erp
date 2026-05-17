@@ -29,7 +29,7 @@ export class UploadController {
     const result = await this.cloudinaryService.uploadImage(
       file,
       isHeroBackground ? 'trustcart/landing-page-backgrounds' : 'trustcart/products',
-      isHeroBackground ? { maxWidth: 2400, maxHeight: 1600 } : {},
+      isHeroBackground ? { preserveOriginal: true } : {},
     );
     return {
       url: result.secure_url,
@@ -50,7 +50,7 @@ export class UploadController {
     const result = await this.cloudinaryService.uploadBase64Image(
       body.image,
       folder,
-      isHeroBackground ? { maxWidth: 2400, maxHeight: 1600 } : {},
+      isHeroBackground ? { preserveOriginal: true } : {},
     );
     
     return {

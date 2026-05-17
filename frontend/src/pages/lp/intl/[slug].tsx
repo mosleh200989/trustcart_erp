@@ -54,6 +54,12 @@ interface LandingPageData {
   primary_color: string;
   secondary_color: string;
   background_color: string;
+  order_form_bg_color?: string;
+  order_form_card_bg_color?: string;
+  order_form_title_color?: string;
+  order_form_text_color?: string;
+  order_form_accent_color?: string;
+  order_form_border_color?: string;
   btn_bg_color?: string;
   btn_text_color?: string;
   btn_border_color?: string;
@@ -404,6 +410,12 @@ export default function LandingPageInternational() {
   const visibleSections = (page.sections || [])
     .filter((s) => s.is_visible)
     .sort((a, b) => a.order - b.order);
+  const orderFormBgColor = page.order_form_bg_color || '#ffffff';
+  const orderFormCardBgColor = page.order_form_card_bg_color || '#ffffff';
+  const orderFormTitleColor = page.order_form_title_color || '#1f2937';
+  const orderFormTextColor = page.order_form_text_color || '#374151';
+  const orderFormAccentColor = page.order_form_accent_color || page.primary_color;
+  const orderFormBorderColor = page.order_form_border_color || '#e5e7eb';
 
   return (
     <>
@@ -676,8 +688,8 @@ export default function LandingPageInternational() {
 
         {/* ─── Order Form ─── */}
         {page.show_order_form && (
-          <div ref={orderFormRef} className="py-12 px-4 bg-white">
-            <div className="max-w-2xl mx-auto">
+          <div ref={orderFormRef} className="py-12 px-4" style={{ backgroundColor: orderFormBgColor, color: orderFormTextColor }}>
+            <div className="max-w-2xl mx-auto" style={{ color: orderFormTextColor }}>
               {submitted ? (
                 <div className="text-center py-12">
                   <FaCheckCircle className="text-green-500 text-6xl mx-auto mb-4" />
@@ -687,7 +699,7 @@ export default function LandingPageInternational() {
                 </div>
               ) : (
                 <>
-                  <h2 className="text-2xl font-bold text-center mb-2" style={{ color: page.primary_color }}>
+                  <h2 className="text-2xl font-bold text-center mb-2" style={{ color: orderFormTitleColor }}>
                     Fill out the form below to place your order 👇
                   </h2>
                   {page.delivery_note && (
@@ -728,7 +740,7 @@ export default function LandingPageInternational() {
                                       {product.compare_price.toLocaleString()} ৳
                                     </span>
                                   )}
-                                  <span className="text-base sm:text-xl font-extrabold px-2 py-0.5 rounded" style={{ color: '#FFFFFF', backgroundColor: page.primary_color }}>
+                                  <span className="text-base sm:text-xl font-extrabold px-2 py-0.5 rounded" style={{ color: '#FFFFFF', backgroundColor: orderFormAccentColor }}>
                                     {product.price.toLocaleString()} ৳
                                   </span>
                                   {product.compare_price && product.compare_price > product.price && (
@@ -832,7 +844,7 @@ export default function LandingPageInternational() {
                   </div>
 
                   {/* Order Summary */}
-                  <div className="border rounded-xl p-4 mb-6 bg-gray-50">
+                  <div className="border rounded-xl p-4 mb-6" style={{ backgroundColor: orderFormCardBgColor, borderColor: orderFormBorderColor }}>
                     <h3 className="font-semibold text-gray-700 mb-3">Your Order</h3>
                     <div className="space-y-2 border-b pb-3 mb-3">
                       {orderItems.map((item) => (
@@ -911,7 +923,7 @@ export default function LandingPageInternational() {
                     {/* Total */}
                     <div className="flex justify-between text-base font-bold border-t pt-2 mb-3">
                       <span>Total</span>
-                      <span style={{ color: page.primary_color }}>{getTotal().toLocaleString()} ৳</span>
+                      <span style={{ color: orderFormAccentColor }}>{getTotal().toLocaleString()} ৳</span>
                     </div>
 
                     {page.delivery_note && (
