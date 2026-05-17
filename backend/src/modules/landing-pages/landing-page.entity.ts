@@ -17,6 +17,8 @@ export interface LandingPageSection {
   buttonLink?: string;
   buttonColor?: string;
   buttonTextColor?: string;
+  buttonBorderColor?: string;
+  buttonBorderRadius?: number;
   backgroundColor?: string;
   textColor?: string;
   order: number;
@@ -106,6 +108,18 @@ export class LandingPage {
   @Column({ length: 50, default: '#e5e7eb' })
   order_form_border_color!: string;
 
+  @Column({ length: 50, default: '#16a34a' })
+  order_form_button_bg_color!: string;
+
+  @Column({ length: 50, default: '#ffffff' })
+  order_form_button_text_color!: string;
+
+  @Column({ length: 50, default: 'transparent' })
+  order_form_button_border_color!: string;
+
+  @Column({ type: 'int', default: 16 })
+  order_form_button_border_radius!: number;
+
   @Column({ length: 50, default: '#111827' })
   footer_bg_color!: string;
 
@@ -117,6 +131,12 @@ export class LandingPage {
 
   @Column({ length: 50, default: '#111827' })
   footer_link_text_color!: string;
+
+  @Column({ length: 50, default: 'transparent' })
+  footer_link_border_color!: string;
+
+  @Column({ type: 'int', default: 999 })
+  footer_link_border_radius!: number;
 
   @Column({ length: 50, default: '#1f2937' })
   footer_border_color!: string;
