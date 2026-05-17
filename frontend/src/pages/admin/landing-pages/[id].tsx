@@ -398,6 +398,7 @@ interface FormData {
   show_hero_price: boolean;
   hero_subtitle_position: string;
   hero_image_url: string;
+  hero_background_image_url: string;
   hero_title: string;
   hero_subtitle: string;
   hero_button_text: string;
@@ -479,6 +480,7 @@ export default function LandingPageEditor() {
     show_hero_price: true,
     hero_subtitle_position: 'above-image',
     hero_image_url: '',
+    hero_background_image_url: '',
     hero_title: '',
     hero_subtitle: '',
     hero_button_text: 'অর্ডার করুন',
@@ -516,6 +518,7 @@ export default function LandingPageEditor() {
         const data = res.data;
         setForm({
           ...data,
+          hero_background_image_url: data.hero_background_image_url || '',
           start_date: data.start_date ? data.start_date.split('T')[0] : '',
           end_date: data.end_date ? data.end_date.split('T')[0] : '',
         });
@@ -1008,6 +1011,17 @@ export default function LandingPageEditor() {
               onChange={(url) => setForm((prev) => ({ ...prev, hero_image_url: url }))}
               placeholder="/seed-mix.jpg or https://..."
             />
+            {form.template === 'free-offer' && (
+              <div className="mt-4">
+                <ImageUploadField
+                  label="Hero Background Image URL"
+                  value={form.hero_background_image_url || ''}
+                  onChange={(url) => setForm((prev) => ({ ...prev, hero_background_image_url: url }))}
+                  placeholder="/hero-bg.jpg or https://..."
+                />
+                <p className="text-xs text-gray-400 mt-1">Used as the Free Offer hero section background.</p>
+              </div>
+            )}
           </div>
           <div className="space-y-3">
             <div>

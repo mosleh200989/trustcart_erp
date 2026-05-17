@@ -1,4 +1,4 @@
-import { Injectable, Inject, forwardRef } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, Inject, NotFoundException, forwardRef } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { SalesOrder } from './sales-order.entity';
@@ -71,6 +71,12 @@ export class SalesService {
     return map;
   }
 
+  private readonly webOrderSources = ['website', 'landing_page'];
+
+  private readonly approvedForMainOrdersSql = `
+    (LOWER(o.status::text) <> 'processing')
+  `;
+
   private toAdminListDto(order: SalesOrder) {
     const customerName = (order as any).customerName ?? null;
     const customerEmail = (order as any).customerEmail ?? null;
@@ -130,6 +136,11 @@ export class SalesService {
       notes: order.notes,
       created_by: order.createdBy ?? null,
       created_by_name: order.createdBy ? ((order as any).createdByName || null) : null,
+      assigned_to: order.assignedTo ?? null,
+      assigned_to_name: order.assignedTo ? ((order as any).assignedToName || null) : null,
+      assigned_by: order.assignedBy ?? null,
+      assigned_by_name: order.assignedBy ? ((order as any).assignedByName || null) : null,
+      assigned_at: order.assignedAt ?? null,
       order_source: order.orderSource || null,
       order_source_display: this.computeOrderSourceDisplay(order),
       items: ((order as any)._items || []).map((i: any) => ({
@@ -262,20 +273,26 @@ export class SalesService {
   }
 
   async findAll() {
-    const orders = await this.salesRepository.find({
-      order: { createdAt: 'DESC' }
-    });
+    const orders = await this.salesRepository
+      .createQueryBuilder('o')
+      .where(`(o.order_source IS NULL OR o.order_source NOT IN (:...webSources) OR ${this.approvedForMainOrdersSql})`, {
+        webSources: this.webOrderSources,
+      })
+      .orderBy('o.created_at', 'DESC')
+      .getMany();
 
-    // Batch-fetch creator names
-    const creatorIds = [...new Set(orders.map(o => o.createdBy).filter((id): id is number => id != null))];
-    const creatorMap = await this.getUserNameMap(creatorIds);
+    // Batch-fetch user names
+    const userIds = [...new Set(orders.flatMap(o => [o.createdBy, o.assignedTo, o.assignedBy]).filter((id): id is number => id != null))];
+    const userMap = await this.getUserNameMap(userIds);
 
     // Batch-fetch order items from both tables
     const orderIds = orders.map(o => o.id);
     const itemsByOrderId = await this.batchFetchOrderItems(orderIds);
 
     return orders.map((order) => {
-      (order as any).createdByName = order.createdBy ? (creatorMap.get(order.createdBy) ?? null) : null;
+      (order as any).createdByName = order.createdBy ? (userMap.get(order.createdBy) ?? null) : null;
+      (order as any).assignedToName = order.assignedTo ? (userMap.get(order.assignedTo) ?? null) : null;
+      (order as any).assignedByName = order.assignedBy ? (userMap.get(order.assignedBy) ?? null) : null;
       (order as any)._items = itemsByOrderId.get(order.id) || [];
       return this.toAdminListDto(order);
     });
@@ -298,6 +315,10 @@ export class SalesService {
     const skip = (page - 1) * limit;
 
     const qb = this.salesRepository.createQueryBuilder('o');
+
+    qb.andWhere(`(o.order_source IS NULL OR o.order_source NOT IN (:...webSources) OR ${this.approvedForMainOrdersSql})`, {
+      webSources: this.webOrderSources,
+    });
 
     // Global text search
     if (params.q && params.q.trim()) {
@@ -395,12 +416,14 @@ export class SalesService {
 
     const orders = await qb.getMany();
 
-    // Batch-fetch creator names
-    const creatorIds = [...new Set(orders.map(o => o.createdBy).filter((id): id is number => id != null))];
-    const creatorMap = await this.getUserNameMap(creatorIds);
+    // Batch-fetch user names
+    const userIds = [...new Set(orders.flatMap(o => [o.createdBy, o.assignedTo, o.assignedBy]).filter((id): id is number => id != null))];
+    const userMap = await this.getUserNameMap(userIds);
 
     orders.forEach((order) => {
-      (order as any).createdByName = order.createdBy ? (creatorMap.get(order.createdBy) ?? null) : null;
+      (order as any).createdByName = order.createdBy ? (userMap.get(order.createdBy) ?? null) : null;
+      (order as any).assignedToName = order.assignedTo ? (userMap.get(order.assignedTo) ?? null) : null;
+      (order as any).assignedByName = order.assignedBy ? (userMap.get(order.assignedBy) ?? null) : null;
     });
 
     // Batch-fetch order items from both tables for current page
@@ -500,6 +523,219 @@ export class SalesService {
       limit,
       totalPages: Math.ceil(total / limit),
     };
+  }
+
+  async findAssignedOrdersPaginated(params: {
+    page?: number;
+    limit?: number;
+    q?: string;
+    status?: string;
+    startDate?: string;
+    endDate?: string;
+    assignment?: string;
+    todayOnly?: boolean;
+  }, user: any) {
+    const page = Math.max(1, params.page || 1);
+    const limit = Math.min(500, Math.max(1, params.limit || 50));
+    const skip = (page - 1) * limit;
+    const qb = this.salesRepository.createQueryBuilder('o');
+    this.selectAssignedOrderColumns(qb);
+
+    qb.where('o.order_source IN (:...webSources)', { webSources: this.webOrderSources });
+    qb.andWhere(`NOT ${this.approvedForMainOrdersSql}`);
+
+    if (params.q && params.q.trim()) {
+      const q = `%${params.q.trim().toLowerCase()}%`;
+      const normalizedPhone = `%${params.q.trim().replace(/^\+88/, '').toLowerCase()}%`;
+      qb.andWhere(
+        '(CAST(o.id AS TEXT) ILIKE :q ' +
+        'OR o.sales_order_number ILIKE :q ' +
+        'OR o.customer_name ILIKE :q ' +
+        'OR o.customer_phone ILIKE :q ' +
+        "OR REPLACE(o.customer_phone, '+88', '') ILIKE :normalizedPhone " +
+        'OR o.shipping_address ILIKE :q)',
+        { q, normalizedPhone },
+      );
+    }
+
+    if (params.todayOnly) {
+      qb.andWhere('DATE(o.order_date) = CURRENT_DATE');
+    } else {
+      if (params.startDate) {
+        qb.andWhere('DATE(o.order_date) >= :startDate', { startDate: params.startDate });
+      }
+      if (params.endDate) {
+        qb.andWhere('DATE(o.order_date) <= :endDate', { endDate: params.endDate });
+      }
+    }
+    if (params.assignment === 'assigned') {
+      qb.andWhere('o.assigned_to IS NOT NULL');
+    } else if (params.assignment === 'unassigned') {
+      qb.andWhere('o.assigned_to IS NULL');
+    }
+
+    qb.orderBy('o.order_date', 'DESC').addOrderBy('o.created_at', 'DESC');
+    const total = await qb.getCount();
+    const orders = await qb.skip(skip).take(limit).getMany();
+
+    const userIds = [...new Set(orders.flatMap(o => [o.createdBy, o.assignedTo, o.assignedBy]).filter((id): id is number => id != null))];
+    const userMap = await this.getUserNameMap(userIds);
+    const itemsByOrderId = await this.batchFetchOrderItems(orders.map(o => o.id));
+
+    const data = orders.map((order) => {
+      (order as any).createdByName = order.createdBy ? (userMap.get(order.createdBy) ?? null) : null;
+      (order as any).assignedToName = order.assignedTo ? (userMap.get(order.assignedTo) ?? null) : null;
+      (order as any).assignedByName = order.assignedBy ? (userMap.get(order.assignedBy) ?? null) : null;
+      (order as any)._items = itemsByOrderId.get(order.id) || [];
+      return this.toAdminListDto(order);
+    });
+
+    return { data, total, page, limit, totalPages: Math.ceil(total / limit) };
+  }
+
+  private selectAssignedOrderColumns(qb: any) {
+    return qb.select([
+      'o.id',
+      'o.salesOrderNumber',
+      'o.customerId',
+      'o.customerName',
+      'o.customerEmail',
+      'o.customerPhone',
+      'o.orderDate',
+      'o.status',
+      'o.totalAmount',
+      'o.shippingAddress',
+      'o.courierNotes',
+      'o.riderInstructions',
+      'o.internalNotes',
+      'o.cancelReason',
+      'o.approvedBy',
+      'o.approvedAt',
+      'o.cancelledBy',
+      'o.cancelledAt',
+      'o.assignedTo',
+      'o.assignedBy',
+      'o.assignedAt',
+      'o.orderSource',
+      'o.trafficSource',
+      'o.referrerUrl',
+      'o.utmSource',
+      'o.utmMedium',
+      'o.utmCampaign',
+      'o.courierCompany',
+      'o.courierOrderId',
+      'o.trackingId',
+      'o.shippedAt',
+      'o.deliveredAt',
+      'o.thankYouOfferAccepted',
+      'o.isPacked',
+      'o.invoicePrinted',
+      'o.stickerPrinted',
+      'o.notes',
+      'o.createdBy',
+      'o.createdAt',
+    ]);
+  }
+
+  async getAssignmentAgents(user: any) {
+    const rows: Array<{ id: number; name: string; last_name: string | null; email: string; team_leader_id: number | null }> =
+      await this.salesRepository.manager.query(
+        `SELECT u.id, u.name, u.last_name, u.email, u.team_leader_id
+         FROM users u
+         LEFT JOIN roles r ON r.id = u.role_id
+         WHERE u.is_deleted = false
+           AND u.status = 'active'
+           AND (u.team_leader_id = $1 OR r.slug = 'sales-executive')
+         ORDER BY CASE WHEN u.team_leader_id = $1 THEN 0 ELSE 1 END, u.name ASC`,
+        [Number(user?.id)],
+      );
+
+    return rows.map((agent) => ({
+      id: Number(agent.id),
+      name: `${agent.name || ''} ${agent.last_name || ''}`.trim() || agent.email,
+      email: agent.email,
+      inMyTeam: Number(agent.team_leader_id) === Number(user?.id),
+    }));
+  }
+
+  async assignWebOrder(orderId: number, body: { agentId?: number; expectedAssignedTo?: number | null; allowReassign?: boolean }, user: any) {
+    const agentId = Number(body?.agentId);
+    if (!Number.isFinite(agentId) || agentId <= 0) {
+      throw new BadRequestException('Agent is required');
+    }
+
+    const agent = await this.salesRepository.manager.getRepository(User).findOne({ where: { id: agentId, isDeleted: false, status: 'active' as any } });
+    if (!agent) throw new BadRequestException('Selected agent is not active');
+
+    const saved = await this.salesRepository.manager.transaction(async (manager) => {
+      const orderQb = manager.createQueryBuilder(SalesOrder, 'o').where('o.id = :orderId', { orderId }).setLock('pessimistic_write');
+      this.selectAssignedOrderColumns(orderQb);
+      const order = await orderQb.getOne();
+      if (!order) throw new NotFoundException('Order not found');
+      if (!this.webOrderSources.includes(order.orderSource)) {
+        throw new BadRequestException('Only website and landing page orders can be assigned here');
+      }
+      if (this.normalizeOrderStatus(order.status) !== 'processing') {
+        throw new ConflictException('Only processing orders can be assigned here');
+      }
+
+      const expected =
+        body?.expectedAssignedTo === undefined || body?.expectedAssignedTo === null
+          ? null
+          : Number(body.expectedAssignedTo);
+      const current = order.assignedTo ?? null;
+      if (current !== expected) {
+        throw new ConflictException('This order assignment changed. Refresh the list before assigning again.');
+      }
+      if (current && current !== agentId && !body?.allowReassign) {
+        throw new ConflictException('This order is already assigned. Use update assignment to reassign it.');
+      }
+
+      order.assignedTo = agentId;
+      order.assignedBy = Number(user?.id);
+      order.assignedAt = new Date();
+      return manager.save(order);
+    });
+
+    return this.decorateAssignedOrder(saved);
+  }
+
+  async unassignWebOrder(orderId: number, body: { expectedAssignedTo?: number | null }, user: any) {
+    const saved = await this.salesRepository.manager.transaction(async (manager) => {
+      const orderQb = manager.createQueryBuilder(SalesOrder, 'o').where('o.id = :orderId', { orderId }).setLock('pessimistic_write');
+      this.selectAssignedOrderColumns(orderQb);
+      const order = await orderQb.getOne();
+      if (!order) throw new NotFoundException('Order not found');
+      if (!this.webOrderSources.includes(order.orderSource)) {
+        throw new BadRequestException('Only website and landing page orders can be unassigned here');
+      }
+
+      const expected =
+        body?.expectedAssignedTo === undefined || body?.expectedAssignedTo === null
+          ? null
+          : Number(body.expectedAssignedTo);
+      if ((order.assignedTo ?? null) !== expected) {
+        throw new ConflictException('This order assignment changed. Refresh the list before unassigning.');
+      }
+
+      order.assignedTo = null;
+      order.assignedBy = null;
+      order.assignedAt = null;
+      return manager.save(order);
+    });
+
+    return this.decorateAssignedOrder(saved);
+  }
+
+  private async decorateAssignedOrder(order: SalesOrder) {
+    const userIds = [order.createdBy, order.assignedTo, order.assignedBy].filter((id): id is number => id != null);
+    const userMap = await this.getUserNameMap([...new Set(userIds)]);
+    (order as any).createdByName = order.createdBy ? (userMap.get(order.createdBy) ?? null) : null;
+    (order as any).assignedToName = order.assignedTo ? (userMap.get(order.assignedTo) ?? null) : null;
+    (order as any).assignedByName = order.assignedBy ? (userMap.get(order.assignedBy) ?? null) : null;
+    const items = await this.batchFetchOrderItems([order.id]);
+    (order as any)._items = items.get(order.id) || [];
+    return this.toAdminListDto(order);
   }
 
   async getAgentOrderStats(userId: number): Promise<{ totalOrders: number; todayOrders: number; thisMonthOrders: number }> {
@@ -675,6 +911,7 @@ export class SalesService {
 
   async findCancelledOrders() {
     const qb = this.salesRepository.createQueryBuilder('o');
+
     qb.where('LOWER(o.status::text) IN (:...cancelledStatuses)', {
       cancelledStatuses: ['cancelled', 'returned'],
     })

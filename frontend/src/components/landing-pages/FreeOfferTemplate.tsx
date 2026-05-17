@@ -54,6 +54,7 @@ interface LandingPageData {
   slug: string;
   description: string;
   hero_image_url: string;
+  hero_background_image_url?: string;
   hero_title: string;
   hero_subtitle: string;
   hero_button_text: string;
@@ -111,6 +112,7 @@ export default function FreeOfferTemplate({ page, trafficSource = 'landing_page'
   const bgColor = page.background_color || '#0B0C10';
   const primaryColor = page.primary_color || '#DC2626';
   const secondaryColor = page.secondary_color || '#F5D76E';
+  const heroBackgroundImage = page.hero_background_image_url?.trim();
   // Derive a card background (slightly lighter than main bg)
   const cardBg = (() => {
     const hex = bgColor.replace('#', '');
@@ -442,8 +444,22 @@ export default function FreeOfferTemplate({ page, trafficSource = 'landing_page'
         {/* Sticky Urgency Bar Removed */}
 
         {/* ═══════════════ HERO SECTION ═══════════════ */}
-        <div className="relative pt-12 pb-16 px-4">
-          <div className="max-w-4xl mx-auto text-center">
+        <div
+          className="relative overflow-hidden pt-12 pb-16 px-4"
+          style={heroBackgroundImage ? {
+            backgroundImage: `url(${JSON.stringify(heroBackgroundImage)})`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            backgroundRepeat: 'no-repeat',
+          } : undefined}
+        >
+          {heroBackgroundImage && (
+            <div
+              className="absolute inset-0"
+              style={{ background: `linear-gradient(180deg, ${bgColor}E6 0%, ${bgColor}CC 48%, ${bgColor}F2 100%)` }}
+            />
+          )}
+          <div className="relative z-10 max-w-4xl mx-auto text-center">
             {/* Title-first layout (default for FreeOffer) or image-first */}
             {page.hero_layout === 'image-first' ? (
               <>

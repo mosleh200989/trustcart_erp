@@ -80,6 +80,15 @@ export class SalesOrder {
   @Column({ name: 'approved_at', type: 'timestamp', nullable: true })
   approvedAt: Date;
 
+  @Column({ name: 'assigned_to', type: 'int', nullable: true })
+  assignedTo: number | null;
+
+  @Column({ name: 'assigned_by', type: 'int', nullable: true })
+  assignedBy: number | null;
+
+  @Column({ name: 'assigned_at', type: 'timestamp', nullable: true })
+  assignedAt: Date | null;
+
   @Column({ name: 'cancelled_by', nullable: true })
   cancelledBy: number;
 

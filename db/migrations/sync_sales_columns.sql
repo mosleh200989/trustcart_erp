@@ -13,6 +13,8 @@ ALTER TABLE sales_orders ADD COLUMN IF NOT EXISTS shipping_address TEXT;
 ALTER TABLE sales_orders ADD COLUMN IF NOT EXISTS courier_notes TEXT;
 ALTER TABLE sales_orders ADD COLUMN IF NOT EXISTS rider_instructions TEXT;
 ALTER TABLE sales_orders ADD COLUMN IF NOT EXISTS internal_notes TEXT;
+ALTER TABLE sales_orders ADD COLUMN IF NOT EXISTS late_delivery_note TEXT;
+ALTER TABLE sales_orders ADD COLUMN IF NOT EXISTS cancelled_order_note TEXT;
 ALTER TABLE sales_orders ADD COLUMN IF NOT EXISTS cancel_reason VARCHAR(255);
 ALTER TABLE sales_orders ADD COLUMN IF NOT EXISTS approved_by INT;
 ALTER TABLE sales_orders ADD COLUMN IF NOT EXISTS approved_at TIMESTAMP;

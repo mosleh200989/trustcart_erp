@@ -990,6 +990,10 @@ export class OrderManagementService {
 
     const oldStatus = order.status;
     order.status = newStatus;
+    if (newStatus === 'approved' && !order.approvedAt) {
+      order.approvedBy = userId;
+      order.approvedAt = new Date();
+    }
     const updatedOrder = await this.salesOrderRepository.save(order);
 
     await this.logActivity({

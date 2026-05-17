@@ -3,7 +3,7 @@ import type { Request as ExpressRequest } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PresenceService } from './presence.service';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
-import { RequirePermissions } from '../../common/decorators/permissions.decorator';
+import { RequireAnyPermission, RequirePermissions } from '../../common/decorators/permissions.decorator';
 
 @Controller('presence')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -74,7 +74,7 @@ export class PresenceController {
   }
 
   @Get('history')
-  @RequirePermissions('view-presence')
+  @RequireAnyPermission('view-presence', 'view-presence-history', 'manage-presence-history')
   async history(
     @Query('from') from?: string,
     @Query('to') to?: string,
