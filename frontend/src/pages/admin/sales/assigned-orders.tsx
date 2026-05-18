@@ -19,6 +19,8 @@ const INITIAL_FILTERS = {
   assignment: '',
   teamLeaderId: '',
   agentId: '',
+  product: '',
+  landingPage: '',
   todayOnly: false,
 };
 
@@ -67,6 +69,34 @@ function formatDate(value?: string | null) {
     month: '2-digit',
     year: 'numeric',
   });
+}
+
+function formatDateTimeCell(dateValue?: string | null, timeValue?: string | null) {
+  const rawDate = dateValue || timeValue;
+  if (!rawDate) return { date: '-', time: '' };
+  const dateObj = new Date(rawDate);
+  if (Number.isNaN(dateObj.getTime())) return { date: '-', time: '' };
+  const date = dateObj.toLocaleDateString('en-GB', {
+    timeZone: 'Asia/Dhaka',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
+
+  let time = '';
+  if (timeValue) {
+    const timeObj = new Date(timeValue);
+    if (!Number.isNaN(timeObj.getTime())) {
+      time = timeObj.toLocaleTimeString('en-US', {
+        timeZone: 'Asia/Dhaka',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true,
+      });
+    }
+  }
+
+  return { date, time };
 }
 
 export default function AssignedOrdersPage() {
@@ -130,6 +160,8 @@ export default function AssignedOrdersPage() {
       if (nextFilters.assignment) params.assignment = nextFilters.assignment;
       if (nextFilters.teamLeaderId) params.teamLeaderId = nextFilters.teamLeaderId;
       if (nextFilters.agentId) params.agentId = nextFilters.agentId;
+      if (nextFilters.product.trim()) params.product = nextFilters.product.trim();
+      if (nextFilters.landingPage.trim()) params.landingPage = nextFilters.landingPage.trim();
       if (nextFilters.todayOnly) params.todayOnly = 'true';
 
       const response = await apiClient.get('/sales/assigned-orders', { params });
@@ -339,12 +371,15 @@ export default function AssignedOrdersPage() {
     {
       key: 'order_date',
       label: 'Date',
-      render: (_: any, row: AssignedOrder) => (
-        <div>
-          <div>{formatDate(row.order_date || row.created_at)}</div>
-          {row.created_at && <div className="text-xs text-gray-500">{formatDate(row.created_at)}</div>}
-        </div>
-      ),
+      render: (_: any, row: AssignedOrder) => {
+        const { date, time } = formatDateTimeCell(row.order_date || row.created_at, row.created_at);
+        return (
+          <div>
+            <div>{date}</div>
+            {time && <div className="text-xs text-gray-500">{time}</div>}
+          </div>
+        );
+      },
     },
     {
       key: 'customer_name',
@@ -602,6 +637,20 @@ export default function AssignedOrdersPage() {
                 placeholder="Order, customer, phone, address"
               />
             </div>
+            <FormInput
+              label="Product"
+              name="product"
+              value={filters.product}
+              onChange={handleFilterChange}
+              placeholder="Product name"
+            />
+            <FormInput
+              label="Landing Page"
+              name="landingPage"
+              value={filters.landingPage}
+              onChange={handleFilterChange}
+              placeholder="Slug or title"
+            />
             {canUseTeamLeaderFilter && (
               <FormInput
                 label="Team Leader"
