@@ -11,10 +11,10 @@ export class DollarConsumptionCalculation {
   @Column({ name: 'calculation_date', type: 'date' })
   calculationDate!: string;
 
-  @Column({ name: 'vendor_name', length: 160, nullable: true })
+  @Column({ name: 'vendor_name', type: 'varchar', length: 160, nullable: true })
   vendorName!: string | null;
 
-  @Column({ name: 'reference_no', length: 120, nullable: true })
+  @Column({ name: 'reference_no', type: 'varchar', length: 120, nullable: true })
   referenceNo!: string | null;
 
   @Column({ name: 'usd_amount', type: 'decimal', precision: 15, scale: 4, default: 0 })
@@ -60,10 +60,10 @@ export class DollarConsumptionCalculation {
   @Column({ type: 'text', nullable: true })
   notes!: string | null;
 
-  @Column({ name: 'created_by', nullable: true })
+  @Column({ name: 'created_by', type: 'int', nullable: true })
   createdBy!: number | null;
 
-  @Column({ name: 'updated_by', nullable: true })
+  @Column({ name: 'updated_by', type: 'int', nullable: true })
   updatedBy!: number | null;
 
   @CreateDateColumn({ name: 'created_at' })
