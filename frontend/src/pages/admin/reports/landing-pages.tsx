@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import AdminLayout from '@/layouts/AdminLayout';
 import apiClient from '@/services/api';
+import { fetchLandingPageOptions, LandingPageOption } from '@/services/landingPageOptions';
 import { addDhakaDays, getDhakaDateString } from '@/utils/dhakaDate';
 import {
   ResponsiveContainer,
@@ -100,12 +101,6 @@ interface LPReport {
   crossSellProducts: ProductRow[];
 }
 
-interface LandingPage {
-  id: number;
-  title: string;
-  slug: string;
-}
-
 /* ========== COLORS ========== */
 const PALETTE = {
   primary: '#6366f1',
@@ -168,22 +163,19 @@ export default function LandingPageReportsPage() {
 
   const [startDate, setStartDate] = useState(today);
   const [endDate, setEndDate] = useState(today);
-  const [selectedSlug, setSelectedSlug] = useState('Harbora-kosthogut');
+  const [selectedSlug, setSelectedSlug] = useState('');
   const [activeTab, setActiveTab] = useState<ActiveTab>('overview');
   const [data, setData] = useState<LPReport | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [landingPages, setLandingPages] = useState<LandingPage[]>([]);
+  const [landingPages, setLandingPages] = useState<LandingPageOption[]>([]);
   const [productSearch, setProductSearch] = useState('');
   const [productSort, setProductSort] = useState<'totalOrders' | 'totalQty'>('totalOrders');
 
   // Fetch landing page list for slug dropdown
   useEffect(() => {
-    apiClient.get('/landing-pages?limit=100&fields=id,title,slug')
-      .then(res => {
-        const rows: LandingPage[] = res.data?.data || res.data || [];
-        setLandingPages(rows.filter((p) => p.slug));
-      })
+    fetchLandingPageOptions()
+      .then(setLandingPages)
       .catch(() => {});
   }, []);
 
@@ -337,12 +329,9 @@ export default function LandingPageReportsPage() {
                 className="border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
               >
                 <option value="">All Landing Pages</option>
-                <option value="Harbora-kosthogut">herbolin.com (Harbora-kosthogut)</option>
-                {landingPages
-                  .filter((p) => p.slug !== 'Harbora-kosthogut')
-                  .map((p) => (
-                    <option key={p.id} value={p.slug}>{p.title} ({p.slug})</option>
-                  ))}
+                {landingPages.map((p) => (
+                  <option key={p.slug} value={p.value}>{p.label}</option>
+                ))}
               </select>
             </div>
             {/* Quick range buttons */}

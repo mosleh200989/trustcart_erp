@@ -17,6 +17,7 @@ import { FaPlus, FaPrint, FaBoxOpen, FaFileInvoice, FaTag, FaCheck, FaTimes, FaS
 import apiClient from '@/services/api';
 import { getOrderStatusLabel, getOrderStatusColor } from '@/utils/orderStatus';
 import { getDhakaDateString } from '@/utils/dhakaDate';
+import { fetchLandingPageOptions, LandingPageOption } from '@/services/landingPageOptions';
 
 const INITIAL_FILTERS = {
   q: '',
@@ -166,6 +167,7 @@ export default function AdminSales() {
 
   // Source filter options
   const [sourceOptions, setSourceOptions] = useState<{ value: string; label: string }[]>([]);
+  const [landingPageOptions, setLandingPageOptions] = useState<LandingPageOption[]>([]);
 
   // Inline product name editing state
   const [editingProductName, setEditingProductName] = useState<{ orderId: number; itemIndex: number } | null>(null);
@@ -328,6 +330,10 @@ export default function AdminSales() {
   useEffect(() => {
     apiClient.get('/sales/source-options')
       .then((res) => setSourceOptions(res.data))
+      .catch(() => {});
+
+    fetchLandingPageOptions()
+      .then(setLandingPageOptions)
       .catch(() => {});
   }, []);
 
@@ -1272,9 +1278,10 @@ export default function AdminSales() {
                   value={filters.landingPage}
                   onChange={handleFilterChange}
                   selectPlaceholder="All"
-                  options={[
-                    { value: 'herbolin', label: 'Herbolin' },
-                  ]}
+                  options={landingPageOptions.map((page) => ({
+                    value: page.value,
+                    label: page.label,
+                  }))}
                 />
               </div>
             </div>

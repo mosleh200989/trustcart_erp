@@ -478,6 +478,54 @@ export class SalesService {
     return options;
   }
 
+  async getLandingPageFilterOptions(): Promise<{ value: string; label: string; id: number | null; slug: string; title: string }[]> {
+    const rows: Array<{ id: number | null; slug: string; title: string }> = await this.salesRepository.query(
+      `
+      WITH page_options AS (
+        SELECT
+          id,
+          NULLIF(TRIM(slug), '') AS slug,
+          NULLIF(TRIM(title), '') AS title
+        FROM landing_pages
+        WHERE NULLIF(TRIM(slug), '') IS NOT NULL
+
+        UNION ALL
+
+        SELECT
+          NULL::integer AS id,
+          NULLIF(TRIM(o.utm_source), '') AS slug,
+          COALESCE(NULLIF(TRIM(o.utm_campaign), ''), NULLIF(TRIM(o.utm_source), '')) AS title
+        FROM sales_orders o
+        WHERE o.order_source = 'landing_page'
+          AND NULLIF(TRIM(o.utm_source), '') IS NOT NULL
+      )
+      SELECT
+        MIN(id) AS id,
+        slug,
+        COALESCE(
+          MAX(title) FILTER (WHERE title IS NOT NULL),
+          slug
+        ) AS title
+      FROM page_options
+      WHERE slug IS NOT NULL
+      GROUP BY slug
+      ORDER BY LOWER(COALESCE(MAX(title) FILTER (WHERE title IS NOT NULL), slug)) ASC
+      `,
+    );
+
+    return rows.map((row) => {
+      const slug = String(row.slug || '').trim();
+      const title = String(row.title || slug).trim();
+      return {
+        id: row.id != null ? Number(row.id) : null,
+        slug,
+        title,
+        value: slug,
+        label: title && title !== slug ? `${title} (${slug})` : slug,
+      };
+    });
+  }
+
   async findAll() {
     const orders = await this.salesRepository
       .createQueryBuilder('o')
