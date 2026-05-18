@@ -156,6 +156,7 @@ export class SalesController {
     @Query('teamLeaderId') teamLeaderId?: string,
     @Query('agentId') agentId?: string,
     @Query('product') product?: string,
+    @Query('productName') productName?: string,
     @Query('landingPage') landingPage?: string,
   ) {
     return this.salesService.findAssignedOrdersPaginated({
@@ -169,7 +170,7 @@ export class SalesController {
       todayOnly: todayOnly === 'true',
       teamLeaderId: teamLeaderId ? parseInt(teamLeaderId, 10) : undefined,
       agentId: agentId ? parseInt(agentId, 10) : undefined,
-      product: product || '',
+      product: product || productName || '',
       landingPage: landingPage || '',
     }, req.user);
   }

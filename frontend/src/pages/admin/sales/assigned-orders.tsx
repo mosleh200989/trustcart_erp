@@ -6,6 +6,7 @@ import DataTable from '@/components/admin/DataTable';
 import FormInput from '@/components/admin/FormInput';
 import Modal from '@/components/admin/Modal';
 import PageSizeSelector from '@/components/admin/PageSizeSelector';
+import ProductAutocomplete from '@/components/admin/ProductAutocomplete';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/contexts/ToastContext';
 import apiClient from '@/services/api';
@@ -19,7 +20,7 @@ const INITIAL_FILTERS = {
   assignment: '',
   teamLeaderId: '',
   agentId: '',
-  product: '',
+  productName: '',
   landingPage: '',
   todayOnly: false,
 };
@@ -160,7 +161,7 @@ export default function AssignedOrdersPage() {
       if (nextFilters.assignment) params.assignment = nextFilters.assignment;
       if (nextFilters.teamLeaderId) params.teamLeaderId = nextFilters.teamLeaderId;
       if (nextFilters.agentId) params.agentId = nextFilters.agentId;
-      if (nextFilters.product.trim()) params.product = nextFilters.product.trim();
+      if (nextFilters.productName.trim()) params.productName = nextFilters.productName.trim();
       if (nextFilters.landingPage.trim()) params.landingPage = nextFilters.landingPage.trim();
       if (nextFilters.todayOnly) params.todayOnly = 'true';
 
@@ -607,13 +608,6 @@ export default function AssignedOrdersPage() {
               <p className="text-sm text-gray-500">Showing processing website and landing page orders waiting for assignment.</p>
             </div>
             <div className="flex items-center gap-3">
-              <PageSizeSelector
-                value={itemsPerPage}
-                onChange={(size) => {
-                  setItemsPerPage(size);
-                  setCurrentPage(1);
-                }}
-              />
               <button
                 type="button"
                 onClick={() => {
@@ -637,19 +631,28 @@ export default function AssignedOrdersPage() {
                 placeholder="Order, customer, phone, address"
               />
             </div>
-            <FormInput
-              label="Product"
-              name="product"
-              value={filters.product}
-              onChange={handleFilterChange}
-              placeholder="Product name"
-            />
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700">Product</label>
+              <ProductAutocomplete
+                value={filters.productName}
+                onChange={(val) => {
+                  setFilters((prev) => ({ ...prev, productName: val }));
+                  setSelectedRowIds([]);
+                  setCurrentPage(1);
+                }}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
             <FormInput
               label="Landing Page"
               name="landingPage"
+              type="select"
               value={filters.landingPage}
               onChange={handleFilterChange}
-              placeholder="Slug or title"
+              selectPlaceholder="All"
+              options={[
+                { value: 'herbolin', label: 'Herbolin' },
+              ]}
             />
             {canUseTeamLeaderFilter && (
               <FormInput
@@ -724,6 +727,16 @@ export default function AssignedOrdersPage() {
               onChange={handleFilterChange}
             />
           </div>
+        </div>
+
+        <div className="mb-4 flex justify-end">
+          <PageSizeSelector
+            value={itemsPerPage}
+            onChange={(size) => {
+              setItemsPerPage(size);
+              setCurrentPage(1);
+            }}
+          />
         </div>
 
         <DataTable
