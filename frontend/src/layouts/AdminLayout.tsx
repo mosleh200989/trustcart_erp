@@ -858,10 +858,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     );
   };
 
-  const handleLogout = async () => {
-    try {
-      await apiClient.post('/presence/me', { state: 'offline' });
-    } catch {}
+  const handleLogout = () => {
     logout();
     router.push('/admin/login');
   };

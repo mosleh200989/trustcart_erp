@@ -544,10 +544,10 @@ export default function GheeTemplate({
   return (
     <>
       <Head>
-        <title>{page.meta_title || page.title}</title>
+        <title>{page.title}</title>
         {page.meta_description && <meta name="description" content={page.meta_description} />}
         {page.og_image_url && <meta property="og:image" content={page.og_image_url} />}
-        <meta property="og:title" content={page.meta_title || page.title} />
+        <meta property="og:title" content={page.title} />
         <meta property="og:description" content={page.meta_description || page.description} />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
@@ -727,9 +727,8 @@ export default function GheeTemplate({
                 <h1
                   className="ghee-heading text-3xl sm:text-4xl md:text-5xl lg:text-[3.4rem] font-extrabold mb-6 leading-[1.15] whitespace-pre-line"
                   style={{ color: '#2D1B07' }}
-                >
-                  {page.hero_title || page.title}
-                </h1>
+                  dangerouslySetInnerHTML={{ __html: page.hero_title || page.title }}
+                />
 
                 {page.hero_subtitle && (
                   <p className="text-base sm:text-lg md:text-xl mb-8 leading-relaxed text-[#5D4E37] whitespace-pre-line max-w-lg mx-auto md:mx-0"

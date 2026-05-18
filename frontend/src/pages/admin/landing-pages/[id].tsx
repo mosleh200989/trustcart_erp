@@ -1089,12 +1089,13 @@ export default function LandingPageEditor() {
           <div className="space-y-3">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Hero Title</label>
-              <input
-                type="text"
+              <textarea
                 value={form.hero_title}
                 onChange={(e) => setForm((prev) => ({ ...prev, hero_title: e.target.value }))}
+                rows={2}
                 className="w-full border rounded-lg px-3 py-2"
               />
+              <p className="text-xs text-gray-400 mt-1">Supports HTML: use <code className="bg-gray-100 px-1 rounded">&lt;small&gt;text&lt;/small&gt;</code> for smaller text, <code className="bg-gray-100 px-1 rounded">&lt;br /&gt;</code> for line breaks</p>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Hero Button Text</label>

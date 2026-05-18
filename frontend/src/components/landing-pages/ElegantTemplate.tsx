@@ -461,10 +461,10 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
   return (
     <>
       <Head>
-        <title>{page.meta_title || page.title}</title>
+        <title>{page.title}</title>
         {page.meta_description && <meta name="description" content={page.meta_description} />}
         {page.og_image_url && <meta property="og:image" content={page.og_image_url} />}
-        <meta property="og:title" content={page.meta_title || page.title} />
+        <meta property="og:title" content={page.title} />
         <meta property="og:description" content={page.meta_description || page.description} />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
@@ -597,9 +597,8 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
                 <h1
                   className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold mb-5 leading-tight whitespace-pre-line"
                   style={{ color: page.secondary_color }}
-                >
-                  {page.hero_title || page.title}
-                </h1>
+                  dangerouslySetInnerHTML={{ __html: page.hero_title || page.title }}
+                />
 
                 {/* Subtitle ABOVE image (default) */}
                 {page.hero_subtitle && page.hero_subtitle_position !== 'below-image' && (
@@ -721,9 +720,8 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
                   <h1
                     className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold mb-5 leading-tight whitespace-pre-line"
                     style={{ color: page.secondary_color }}
-                  >
-                    {page.hero_title || page.title}
-                  </h1>
+                    dangerouslySetInnerHTML={{ __html: page.hero_title || page.title }}
+                  />
 
                   {page.hero_subtitle && (
                     <p
