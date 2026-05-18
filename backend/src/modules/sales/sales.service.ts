@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Injectable, Inject, NotFoundException, forwardRef } from '@nestjs/common';
+import { BadRequestException, ConflictException, HttpException, HttpStatus, Injectable, Inject, NotFoundException, forwardRef } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { SalesOrder } from './sales-order.entity';
@@ -14,6 +14,7 @@ import { InventoryService } from '../inventory/inventory.service';
 import { CouponService } from './coupon.service';
 import { LeadManagementService } from '../lead-management/lead-management.service';
 import { getDhakaDateString } from '../../common/utils/dhaka-date';
+import { OrderGuardSettings } from '../settings/order-guard-settings.entity';
 
 @Injectable()
 export class SalesService {
@@ -32,6 +33,8 @@ export class SalesService {
     private customersService: CustomersService,
     private inventoryService: InventoryService,
     private couponService: CouponService,
+    @InjectRepository(OrderGuardSettings)
+    private orderGuardSettingsRepository: Repository<OrderGuardSettings>,
     @Inject(forwardRef(() => LeadManagementService))
     private leadManagementService: LeadManagementService,
   ) {}
@@ -115,6 +118,76 @@ export class SalesService {
   private readonly approvedForMainOrdersSql = `
     (LOWER(o.status::text) <> 'processing')
   `;
+
+  private normalizeClientIp(value: any): string {
+    const raw = value == null ? '' : String(value).split(',')[0].trim();
+    if (!raw) return '';
+    return raw.replace(/^::ffff:/, '');
+  }
+
+  private inferIncomingOrderSource(createSalesDto: any, createdBy: number, systemUserId: number): string {
+    const explicitSource = createSalesDto.order_source ?? createSalesDto.orderSource ?? null;
+    if (explicitSource) return String(explicitSource).trim().toLowerCase();
+
+    const trafficSource = String(createSalesDto.traffic_source ?? createSalesDto.trafficSource ?? '').trim().toLowerCase();
+    if (trafficSource === 'landing_page' || trafficSource === 'landing_page_intl') return 'landing_page';
+    if (createdBy && createdBy !== systemUserId) return 'admin_panel';
+    return 'website';
+  }
+
+  private async getOrderGuardSettings(): Promise<OrderGuardSettings> {
+    let settings = await this.orderGuardSettingsRepository.findOne({ where: { id: 1 } });
+    if (settings) return settings;
+
+    settings = this.orderGuardSettingsRepository.create({
+      id: 1,
+      isActive: true,
+      windowMinutes: 10,
+      blockNoteHtml:
+        '<p><strong>We already received an order from this connection.</strong></p><p>Please wait a few minutes before placing another order. Our team will contact you soon.</p>',
+    });
+    return this.orderGuardSettingsRepository.save(settings);
+  }
+
+  private async enforceOrderGuard(createSalesDto: any, context: { clientIp?: string } | undefined, createdBy: number, systemUserId: number) {
+    const orderSource = this.inferIncomingOrderSource(createSalesDto, createdBy, systemUserId);
+    if (!this.webOrderSources.includes(orderSource)) return { orderSource, clientIp: this.normalizeClientIp(context?.clientIp) };
+
+    const clientIp = this.normalizeClientIp(context?.clientIp ?? createSalesDto.user_ip ?? createSalesDto.userIp);
+    if (!clientIp) return { orderSource, clientIp };
+
+    const settings = await this.getOrderGuardSettings();
+    if (!settings.isActive) return { orderSource, clientIp };
+
+    const windowMinutes = Math.max(1, Number(settings.windowMinutes || 1));
+    const since = new Date(Date.now() - windowMinutes * 60 * 1000);
+    const recentOrder = await this.salesRepository
+      .createQueryBuilder('o')
+      .select(['o.id', 'o.createdAt'])
+      .where('o.user_ip = :clientIp', { clientIp })
+      .andWhere('LOWER(o.order_source::text) IN (:...sources)', { sources: this.webOrderSources })
+      .andWhere('o.created_at >= :since', { since })
+      .orderBy('o.created_at', 'DESC')
+      .getOne();
+
+    if (!recentOrder) return { orderSource, clientIp };
+
+    const retryAt = new Date(recentOrder.createdAt).getTime() + windowMinutes * 60 * 1000;
+    const retryAfterSeconds = Math.max(1, Math.ceil((retryAt - Date.now()) / 1000));
+    throw new HttpException(
+      {
+        statusCode: HttpStatus.TOO_MANY_REQUESTS,
+        code: 'ORDER_GUARD_BLOCKED',
+        message: 'Duplicate order blocked',
+        orderGuard: {
+          noteHtml: settings.blockNoteHtml,
+          windowMinutes,
+          retryAfterSeconds,
+        },
+      },
+      HttpStatus.TOO_MANY_REQUESTS,
+    );
+  }
 
   private async getAssignedOrdersAccess(user: any) {
     const roleSlug = String(user?.roleSlug || '').toLowerCase();
@@ -1341,7 +1414,7 @@ export class SalesService {
     };
   }
 
-  async create(createSalesDto: any) {
+  async create(createSalesDto: any, context?: { clientIp?: string }) {
     // Map incoming payload (including web checkout orders) to existing sales_orders schema
     const sales = new SalesOrder();
 
@@ -1355,6 +1428,7 @@ export class SalesService {
           ? Number(createSalesDto.createdBy)
           : null;
     sales.createdBy = Number.isFinite(providedCreatedBy as any) ? (providedCreatedBy as number) : systemUserId;
+    const guardedSource = await this.enforceOrderGuard(createSalesDto, context, sales.createdBy, systemUserId);
 
     // Customer identifier (nullable, foreign key to customers.id in DB)
     if (createSalesDto.customer_id != null) {
@@ -1554,8 +1628,9 @@ export class SalesService {
     sales.notes = notesText || null;
 
     // Tracking fields (sent from checkout)
-    if (createSalesDto.user_ip != null) sales.userIp = String(createSalesDto.user_ip);
-    if (createSalesDto.userIp != null) sales.userIp = String(createSalesDto.userIp);
+    if (guardedSource.clientIp) sales.userIp = guardedSource.clientIp;
+    else if (createSalesDto.user_ip != null) sales.userIp = String(createSalesDto.user_ip);
+    else if (createSalesDto.userIp != null) sales.userIp = String(createSalesDto.userIp);
 
     if (createSalesDto.geo_location != null) sales.geoLocation = createSalesDto.geo_location;
     if (createSalesDto.geoLocation != null) sales.geoLocation = createSalesDto.geoLocation;

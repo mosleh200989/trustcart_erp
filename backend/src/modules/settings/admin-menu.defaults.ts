@@ -359,9 +359,15 @@ export const DEFAULT_ADMIN_MENU: AdminMenuSeedNode[] = [
   {
     title: 'Settings',
     icon: 'FaCog',
-    requiredPermissions: ['manage-system-settings', 'view-system-settings'],
+    requiredPermissions: ['manage-system-settings', 'view-system-settings', 'view-order-guard', 'manage-order-guard'],
     children: [
       { title: 'Courier Configuration', icon: 'FaCog', path: '/admin/settings/courier-configuration' },
+      {
+        title: 'Order Guard',
+        icon: 'FaShieldAlt',
+        path: '/admin/settings/order-guard',
+        requiredPermissions: ['view-order-guard', 'manage-order-guard'],
+      },
       {
         title: 'Manage Modules',
         icon: 'FaCog',

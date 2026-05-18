@@ -51,6 +51,7 @@ import { DealOfTheDay } from './modules/products/deal-of-the-day.entity';
 import { HotDeal } from './modules/products/hot-deal.entity';
 import { CourierConfiguration } from './modules/settings/courier-configuration.entity';
 import { AdminMenuItem } from './modules/settings/admin-menu-item.entity';
+import { OrderGuardSettings } from './modules/settings/order-guard-settings.entity';
 
 // Tagging Entities
 import { CustomerTag } from './modules/tagging/customer-tag.entity';
@@ -267,6 +268,7 @@ import { GrnItem } from './modules/purchase/entities/grn-item.entity';
             HotDeal,
             CourierConfiguration,
             AdminMenuItem,
+            OrderGuardSettings,
             // Loyalty entities
             CustomerMembership, CustomerWallet, WalletTransaction, CustomerReferral, MonthlyGroceryList, GroceryListItem, PriceLock,
             CustomerPoints, PointTransaction, ProductConsumptionProfile, CustomerProductReminder,

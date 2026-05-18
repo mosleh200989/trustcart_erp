@@ -4,6 +4,7 @@ import Head from 'next/head';
 import apiClient from '@/services/api';
 import PhoneInput from '@/components/PhoneInput';
 import { useToast } from '@/contexts/ToastContext';
+import { getOrderGuardNoteHtml, isOrderGuardBlocked } from '@/utils/orderGuard';
 import { FaPhone, FaWhatsapp, FaShoppingCart, FaMinus, FaPlus, FaCheckCircle, FaTruck } from 'react-icons/fa';
 import ElegantTemplate from '@/components/landing-pages/ElegantTemplate';
 import GheeTemplate from '@/components/landing-pages/GheeTemplate';
@@ -93,6 +94,7 @@ export default function LandingPagePublic() {
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [formTouched, setFormTouched] = useState(false);
+  const [orderGuardNoteHtml, setOrderGuardNoteHtml] = useState('');
 
   // Incomplete order tracking
   const sessionIdRef = useRef<string>('');
@@ -242,6 +244,7 @@ export default function LandingPagePublic() {
 
   const handleSubmitOrder = async () => {
     setFormTouched(true);
+    setOrderGuardNoteHtml('');
     if (!orderForm.name || !orderForm.phone || !orderForm.address) {
       toast.warning('অনুগ্রহ করে সব তথ্য পূরণ করুন');
       return;
@@ -314,6 +317,11 @@ export default function LandingPagePublic() {
       }
     } catch (err: any) {
       console.error('Order submission error:', err);
+      if (isOrderGuardBlocked(err)) {
+        setOrderGuardNoteHtml(getOrderGuardNoteHtml(err));
+        orderFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        return;
+      }
       const status = err?.response?.status;
       const savedId = err?.response?.data?.id || err?.response?.data?.data?.id;
       if (savedId) {
@@ -868,6 +876,12 @@ export default function LandingPagePublic() {
                     <div className="text-xs text-gray-400 mb-4">
                       Your personal data will be used to process your order.
                     </div>
+                    {orderGuardNoteHtml && (
+                      <div
+                        className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"
+                        dangerouslySetInnerHTML={{ __html: orderGuardNoteHtml }}
+                      />
+                    )}
                     <button
                       onClick={handleSubmitOrder}
                       disabled={submitting || orderItems.length === 0}

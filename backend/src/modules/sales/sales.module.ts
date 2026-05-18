@@ -29,6 +29,7 @@ import { CouponCampaign } from './entities/coupon-campaign.entity';
 import { CampaignCustomer } from './entities/campaign-customer.entity';
 import { CouponService } from './coupon.service';
 import { CouponController } from './coupon.controller';
+import { OrderGuardSettings } from '../settings/order-guard-settings.entity';
 
 @Module({
   imports: [
@@ -44,6 +45,7 @@ import { CouponController } from './coupon.controller';
       User,
       CouponCampaign,
       CampaignCustomer,
+      OrderGuardSettings,
     ]),
     CustomersModule,
     SpecialOffersModule,
