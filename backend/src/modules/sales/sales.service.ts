@@ -801,8 +801,9 @@ export class SalesService {
           WHERE soi.sales_order_id = o.id
             AND (
               LOWER(COALESCE(soi.product_name, '')) LIKE :assignedProduct
-              OR LOWER(COALESCE(p.name, '')) LIKE :assignedProduct
+              OR LOWER(COALESCE(p.name_en, '')) LIKE :assignedProduct
               OR LOWER(COALESCE(p.name_bn, '')) LIKE :assignedProduct
+              OR LOWER(COALESCE(p.sku, '')) LIKE :assignedProduct
             )
         )
         OR EXISTS (
@@ -813,8 +814,9 @@ export class SalesService {
             AND (
               LOWER(COALESCE(oi.product_name, '')) LIKE :assignedProduct
               OR LOWER(COALESCE(oi.custom_product_name, '')) LIKE :assignedProduct
-              OR LOWER(COALESCE(p2.name, '')) LIKE :assignedProduct
+              OR LOWER(COALESCE(p2.name_en, '')) LIKE :assignedProduct
               OR LOWER(COALESCE(p2.name_bn, '')) LIKE :assignedProduct
+              OR LOWER(COALESCE(p2.sku, '')) LIKE :assignedProduct
             )
         )`,
         { assignedProduct: product },
