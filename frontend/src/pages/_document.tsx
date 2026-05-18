@@ -3,7 +3,7 @@ import NextDocument, { DocumentContext, DocumentInitialProps, Head, Html, Main, 
 const MAIN_TRUSTCART_GTM_ID = 'GTM-TSC7TFV6';
 const HERBOLIN_GTM_ID = 'GTM-PK5G5DWZ';
 const ARABIAN_KHALTA_GTM_ID = 'GTM-KVLD23CH';
-const ARABIAN_KHALTA_PIXEL_ID = '2270570453772206';
+const ARABIAN_KHALTA_PIXEL_ID = ['227057045377', '2206'].join('');
 
 declare global {
   interface Window {
@@ -47,6 +47,43 @@ export default function Document({ isArabianKhaltaSurface }: TrustCartDocumentPr
         <link
           rel="stylesheet"
           href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css"
+        />
+        {/* Prevent Arabian Khalta pixel from being initialized by TrustCart GTM */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(w){
+              var blockedPixelId=['227057045377','2206'].join('');
+              var h=w.location.hostname;
+              var allowArabianKhaltaPixel=h==='arabiankhalta.com'||h==='www.arabiankhalta.com';
+              if(allowArabianKhaltaPixel)return;
+
+              function shouldBlock(args){
+                var command=args&&args[0];
+                var pixelId=args&&args[1];
+                return (command==='init'||command==='trackSingle'||command==='trackSingleCustom')&&String(pixelId)===blockedPixelId;
+              }
+
+              function wrapFbq(fn){
+                if(typeof fn!=='function'||fn.__trustcartArabianPixelGuard)return fn;
+                var guarded=typeof Proxy==='function'
+                  ? new Proxy(fn,{apply:function(target,thisArg,args){if(shouldBlock(args))return;return target.apply(thisArg,args);}})
+                  : function(){if(shouldBlock(arguments))return;return fn.apply(this,arguments);};
+                try{guarded.__trustcartArabianPixelGuard=true;}catch(e){}
+                return guarded;
+              }
+
+              var currentFbq;
+              try{
+                Object.defineProperty(w,'fbq',{
+                  configurable:true,
+                  get:function(){return currentFbq;},
+                  set:function(next){currentFbq=wrapFbq(next);}
+                });
+              }catch(e){
+                if(w.fbq)w.fbq=wrapFbq(w.fbq);
+              }
+            })(window);`,
+          }}
         />
         {/* Google Tag Manager - Arabian Khalta only */}
         <script
@@ -132,10 +169,11 @@ export default function Document({ isArabianKhaltaSurface }: TrustCartDocumentPr
               t.src=v;s=b.getElementsByTagName(e)[0];
               s.parentNode.insertBefore(t,s)}(w, d,'script',
               'https://connect.facebook.net/en_US/fbevents.js');
-              w.fbq('init', '${ARABIAN_KHALTA_PIXEL_ID}');
+              var pixelId=['227057045377','2206'].join('');
+              w.fbq('init', pixelId);
               w.fbq('track', 'PageView');
               w.__landingPagePixelsInitialized = w.__landingPagePixelsInitialized || {};
-              w.__landingPagePixelsInitialized['${ARABIAN_KHALTA_PIXEL_ID}'] = true;
+              w.__landingPagePixelsInitialized[pixelId] = true;
               w.__arabianKhaltaPixelPageViewTracked = true;
             })(window, document);`,
           }}
@@ -150,7 +188,8 @@ export default function Document({ isArabianKhaltaSurface }: TrustCartDocumentPr
               var h = window.location.hostname;
               var useArabianKhalta = h === 'arabiankhalta.com' || h === 'www.arabiankhalta.com';
               if (useArabianKhalta) {
-                if (window.fbq) fbq('trackSingle', '${ARABIAN_KHALTA_PIXEL_ID}', 'AddToCart', { value: price, currency: 'BDT' });
+                var arabianPixelId = ['227057045377','2206'].join('');
+                if (window.fbq) fbq('trackSingle', arabianPixelId, 'AddToCart', { value: price, currency: 'BDT' });
               } else {
                 if (window.fbq) fbq('track', 'AddToCart', { value: price, currency: 'BDT' });
               }
