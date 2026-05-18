@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { FaEye, FaSync, FaUserCheck, FaUserEdit, FaUserSlash } from 'react-icons/fa';
+import { FaEye, FaPhone, FaSync, FaUserCheck, FaUserEdit, FaUserSlash } from 'react-icons/fa';
 import AdminLayout from '@/layouts/AdminLayout';
 import AdminOrderDetailsModal from '@/components/AdminOrderDetailsModal';
 import DataTable from '@/components/admin/DataTable';
@@ -28,6 +28,7 @@ interface AssignedOrder {
   order_number?: string;
   customer_name?: string;
   customer_phone?: string;
+  customerTotalOrders?: number;
   total_amount?: number;
   status: string;
   order_date?: string;
@@ -349,12 +350,51 @@ export default function AssignedOrdersPage() {
       key: 'customer_name',
       label: 'Customer',
       className: 'min-w-[190px] !whitespace-normal',
-      render: (_: any, row: AssignedOrder) => (
-        <div>
-          <div className="font-medium text-gray-900">{wrapCustomerName(row.customer_name || 'Guest')}</div>
-          {row.customer_phone && <div className="text-xs text-gray-500">{row.customer_phone}</div>}
-        </div>
-      ),
+      render: (_: any, row: AssignedOrder) => {
+        const phone = row.customer_phone || '';
+        return (
+          <div>
+            <div className="font-medium text-gray-900">{wrapCustomerName(row.customer_name || 'Guest')}</div>
+            {phone && (
+              <div className="mt-0.5 flex items-center gap-1 text-xs text-gray-600">
+                <FaPhone className="text-[10px]" />
+                <a
+                  href={`tel:${phone}`}
+                  className="text-blue-600 hover:text-blue-800 hover:underline"
+                  title="Call via microSIP"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {phone}
+                </a>
+                <button
+                  type="button"
+                  className="p-0.5 text-gray-400 hover:text-gray-600"
+                  title="Copy number"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigator.clipboard.writeText(phone);
+                    toast.success('Phone number copied');
+                  }}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path d="M8 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z" /><path d="M6 3a2 2 0 00-2 2v11a2 2 0 002 2h8a2 2 0 002-2V5a2 2 0 00-2-2 3 3 0 01-3 3H9a3 3 0 01-3-3z" /></svg>
+                </button>
+              </div>
+            )}
+          </div>
+        );
+      },
+    },
+    {
+      key: 'customerTotalOrders',
+      label: 'Total Orders',
+      render: (_: any, row: AssignedOrder) => {
+        const count = row.customerTotalOrders ?? 0;
+        return (
+          <span className="inline-flex min-w-[28px] items-center justify-center rounded-full bg-indigo-100 px-1.5 py-0.5 text-xs font-semibold text-indigo-700">
+            {count}
+          </span>
+        );
+      },
     },
     {
       key: 'items',

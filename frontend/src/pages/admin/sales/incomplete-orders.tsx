@@ -4,7 +4,7 @@ import DataTable from '@/components/admin/DataTable';
 import { wrapCustomerName } from '@/utils/wrapCustomerName';
 import PageSizeSelector from '@/components/admin/PageSizeSelector';
 import FormInput from '@/components/admin/FormInput';
-import { FaSearch, FaFilter, FaExclamationTriangle, FaShoppingCart, FaGlobe, FaCheckCircle, FaTimesCircle, FaRedo, FaEye, FaPhone, FaMapMarkerAlt, FaEdit, FaPaperPlane } from 'react-icons/fa';
+import { FaSearch, FaFilter, FaExclamationTriangle, FaShoppingCart, FaGlobe, FaCheckCircle, FaTimesCircle, FaRedo, FaEye, FaPhone, FaMapMarkerAlt, FaEdit } from 'react-icons/fa';
 import apiClient from '@/services/api';
 
 interface IncompleteOrder {
@@ -79,7 +79,7 @@ const INITIAL_FILTERS = {
   landingPageSlug: '',
   abandonedStage: '',
   recovered: '',
-  convertedToOrder: '',
+  convertedToOrder: 'false',
   createdFrom: '',
   createdTo: '',
 };
@@ -107,7 +107,6 @@ export default function AdminSalesIncompleteOrders() {
   const [editingOrder, setEditingOrder] = useState<IncompleteOrder | null>(null);
   const [editForm, setEditForm] = useState({ name: '', phone: '', email: '', address: '', note: '', deliveryZone: '', totalAmount: '' });
   const [savingEdit, setSavingEdit] = useState(false);
-  const [convertingId, setConvertingId] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -207,37 +206,6 @@ export default function AdminSalesIncompleteOrders() {
       alert('Failed to save changes.');
     } finally {
       setSavingEdit(false);
-    }
-  };
-
-  const handleConvertToOrder = async (row: IncompleteOrder) => {
-    const converted = getVal<boolean>(row, 'convertedToOrder', 'converted_to_order' as any, false);
-    if (converted || row.recovered) {
-      alert('This order has already been converted.');
-      return;
-    }
-    if (!confirm(`Convert incomplete order #${row.id} (${row.name || 'Unknown'}) to a real order?`)) return;
-    try {
-      setConvertingId(row.id);
-      await apiClient.post(`/lead-management/incomplete-order/${row.id}/convert-to-order`);
-      // Update local state
-      setResponse(prev => {
-        if (!prev) return prev;
-        return {
-          ...prev,
-          data: prev.data.map(item =>
-            item.id === row.id
-              ? { ...item, convertedToOrder: true, converted_to_order: true, recovered: true }
-              : item
-          ),
-        };
-      });
-      alert(`Order #${row.id} successfully converted!`);
-    } catch (e: any) {
-      console.error('Failed to convert order:', e);
-      alert(e?.response?.data?.message || 'Failed to convert to order.');
-    } finally {
-      setConvertingId(null);
     }
   };
 
@@ -407,8 +375,6 @@ export default function AdminSalesIncompleteOrders() {
       label: '',
       render: (_: any, row: IncompleteOrder) => {
         const isDone = row.contactedDone ?? row.contacted_done ?? false;
-        const isConverted = getVal<boolean>(row, 'convertedToOrder', 'converted_to_order' as any, false) || row.recovered;
-        const isConverting = convertingId === row.id;
         return (
           <div className="flex items-center gap-1">
             <button
@@ -452,20 +418,6 @@ export default function AdminSalesIncompleteOrders() {
             >
               <FaEdit />
             </button>
-            {!isConverted && (
-              <button
-                onClick={() => handleConvertToOrder(row)}
-                disabled={isConverting}
-                className={`p-2 rounded-lg transition-colors ${
-                  isConverting
-                    ? 'text-gray-300 cursor-not-allowed'
-                    : 'text-gray-500 hover:text-orange-600 hover:bg-orange-50'
-                }`}
-                title="Convert to Order"
-              >
-                <FaPaperPlane className={isConverting ? 'animate-pulse' : ''} />
-              </button>
-            )}
           </div>
         );
       },

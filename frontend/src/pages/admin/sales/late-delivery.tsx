@@ -111,6 +111,7 @@ const MODE_CONFIG = {
     dateField: (row: SalesOrder) => row.shippedAt ?? row.shipped_at ?? null,
     statusOptions: STATUS_OPTIONS,
     manualStatusOptions: MANUAL_STATUS_OPTIONS,
+    allowStatusUpdate: true,
   },
   'cancelled-orders': {
     title: 'Cancelled Orders',
@@ -125,6 +126,7 @@ const MODE_CONFIG = {
     dateField: (row: SalesOrder) => row.cancelledAt ?? row.cancelled_at ?? row.updatedAt ?? row.updated_at ?? row.createdAt ?? row.created_at ?? row.order_date ?? row.orderDate ?? null,
     statusOptions: CANCELLED_STATUS_OPTIONS,
     manualStatusOptions: CANCELLED_MANUAL_STATUS_OPTIONS,
+    allowStatusUpdate: false,
   },
 } as const;
 
@@ -493,6 +495,14 @@ export function SalesFollowupOrdersPage({ mode = 'late-delivery' }: { mode?: Sal
       render: (_: any, row: SalesOrder) => {
         const currentStatus = row.status || '';
         const isSaving = savingStatus[row.id] || false;
+        if (!config.allowStatusUpdate) {
+          return (
+            <span className={`inline-flex items-center rounded-lg px-2 py-1.5 text-xs font-semibold ${getOrderStatusColor(currentStatus)}`}>
+              {getOrderStatusLabel(currentStatus)}
+            </span>
+          );
+        }
+
         return (
           <select
             value={currentStatus}

@@ -201,11 +201,12 @@ export class SalesController {
     @Query('endDate') endDate?: string,
     @Query('todayOnly') todayOnly?: string,
     @Query('productName') productName?: string,
+    @Query('sourceGroup') sourceGroup?: string,
     @Query('source') source?: string,
     @Query('landingPage') landingPage?: string,
   ) {
     // If pagination params are provided, use the paginated method
-    if (page || limit || q || status || startDate || endDate || todayOnly || productName || source || landingPage) {
+    if (page || limit || q || status || startDate || endDate || todayOnly || productName || sourceGroup || source || landingPage) {
       return this.salesService.findAllPaginated({
         page: page ? parseInt(page, 10) : 1,
         limit: limit ? parseInt(limit, 10) : 10,
@@ -215,6 +216,7 @@ export class SalesController {
         endDate: endDate || '',
         todayOnly: todayOnly === 'true',
         productName: productName || '',
+        sourceGroup: sourceGroup || '',
         source: source || '',
         landingPage: landingPage || '',
       });

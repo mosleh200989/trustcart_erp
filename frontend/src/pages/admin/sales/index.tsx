@@ -25,6 +25,7 @@ const INITIAL_FILTERS = {
   startDate: '',
   endDate: '',
   productName: '',
+  sourceGroup: '',
   source: '',
   landingPage: '',
 };
@@ -278,6 +279,7 @@ export default function AdminSales() {
       if (f.endDate) params.endDate = f.endDate;
       if (f.todayOnly) params.todayOnly = 'true';
       if (f.productName.trim()) params.productName = f.productName.trim();
+      if (f.sourceGroup) params.sourceGroup = f.sourceGroup;
       if (f.source) params.source = f.source;
       if (f.landingPage) params.landingPage = f.landingPage;
 
@@ -1230,8 +1232,8 @@ export default function AdminSales() {
                 />
               </div>
 
-              {/* 3rd line: Product filter + Source filter + Landing Page filter */}
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+              {/* 3rd line: Product filter + source filters + Landing Page filter */}
+              <div className="grid grid-cols-1 md:grid-cols-4 xl:grid-cols-5 gap-4 items-end">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Product</label>
                   <ProductAutocomplete
@@ -1240,6 +1242,18 @@ export default function AdminSales() {
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
                 </div>
+                <FormInput
+                  label="Order Type"
+                  name="sourceGroup"
+                  type="select"
+                  value={filters.sourceGroup}
+                  onChange={handleFilterChange}
+                  selectPlaceholder="All"
+                  options={[
+                    { value: 'agent_wise', label: 'Agent-wise' },
+                    { value: 'landing_page', label: 'Landing Page' },
+                  ]}
+                />
                 <FormInput
                   label="Source"
                   name="source"

@@ -426,10 +426,10 @@ export default function FreeOfferTemplate({ page, trafficSource = 'landing_page'
   return (
     <>
       <Head>
-        <title>{page.meta_title || page.title}</title>
+        <title>{page.title}</title>
         {page.meta_description && <meta name="description" content={page.meta_description} />}
         {page.og_image_url && <meta property="og:image" content={page.og_image_url} />}
-        <meta property="og:title" content={page.meta_title || page.title} />
+        <meta property="og:title" content={page.title} />
         <meta property="og:description" content={page.meta_description || page.description} />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
@@ -489,9 +489,10 @@ export default function FreeOfferTemplate({ page, trafficSource = 'landing_page'
                   </div>
                 )}
 
-                <h1 className="text-3xl sm:text-4xl md:text-5xl font-extrabold mb-6 leading-tight">
-                  {page.hero_title || page.title}
-                </h1>
+                <h1
+                  className="text-3xl sm:text-4xl md:text-5xl font-extrabold mb-6 leading-tight"
+                  dangerouslySetInnerHTML={{ __html: page.hero_title || page.title }}
+                />
                 
                 {page.hero_subtitle && (
                   <p
@@ -504,9 +505,10 @@ export default function FreeOfferTemplate({ page, trafficSource = 'landing_page'
             ) : (
               <>
                 {/* Title first (default) */}
-                <h1 className="text-3xl sm:text-4xl md:text-5xl font-extrabold mb-6 leading-tight">
-                  {page.hero_title || page.title}
-                </h1>
+                <h1
+                  className="text-3xl sm:text-4xl md:text-5xl font-extrabold mb-6 leading-tight"
+                  dangerouslySetInnerHTML={{ __html: page.hero_title || page.title }}
+                />
                 
                 {/* Subtitle ABOVE image (default) */}
                 {page.hero_subtitle && page.hero_subtitle_position !== 'below-image' && (

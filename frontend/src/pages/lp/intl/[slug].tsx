@@ -428,10 +428,10 @@ export default function LandingPageInternational() {
   return (
     <>
       <Head>
-        <title>{page.meta_title || page.title}</title>
+        <title>{page.title}</title>
         {page.meta_description && <meta name="description" content={page.meta_description} />}
         {page.og_image_url && <meta property="og:image" content={page.og_image_url} />}
-        <meta property="og:title" content={page.meta_title || page.title} />
+        <meta property="og:title" content={page.title} />
         <meta property="og:description" content={page.meta_description || page.description} />
       </Head>
 
@@ -461,16 +461,14 @@ export default function LandingPageInternational() {
                 <h1
                   className="text-3xl md:text-4xl font-bold mb-4"
                   style={{ color: page.secondary_color }}
-                >
-                  {page.hero_title || page.title}
-                </h1>
+                  dangerouslySetInnerHTML={{ __html: page.hero_title || page.title }}
+                />
                 {page.hero_subtitle && (
                   <p
                     className="text-lg mb-6 opacity-90"
                     style={{ color: page.secondary_color }}
-                  >
-                    {page.hero_subtitle}
-                  </p>
+                    dangerouslySetInnerHTML={{ __html: page.hero_subtitle }}
+                  />
                 )}
 
                 {page.free_delivery && (

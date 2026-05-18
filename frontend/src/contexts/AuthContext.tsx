@@ -68,6 +68,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = useCallback(() => {
     if (typeof window !== 'undefined') {
+      const token = localStorage.getItem(AUTH_TOKEN_KEY);
+      if (token) {
+        void apiClient.post('/presence/me', { state: 'offline' }).catch(() => {});
+      }
       localStorage.removeItem(AUTH_TOKEN_KEY);
     }
     setUser(null);
