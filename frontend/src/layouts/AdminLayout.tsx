@@ -8,7 +8,7 @@ import apiClient, { stockAlerts } from '@/services/api';
 import { 
   FaTachometerAlt, FaBoxes, FaShoppingCart, FaUsers, FaWarehouse, 
   FaShoppingBag, FaUserTie, FaBook, FaBullseye, FaHandshake, 
-  FaHeadset, FaUser, FaCog, FaBars, FaTimes, FaBell, FaChevronDown, FaChartBar, FaTags, FaGift, FaPhone, FaMoneyBillWave, FaImage, FaList, FaRocket, FaPrint, FaBan, FaHistory, FaTruck, FaClipboardList, FaExchangeAlt, FaSlidersH, FaClipboardCheck, FaBarcode, FaChartLine, FaFileImport, FaMap, FaSearch, FaRecycle, FaShieldAlt
+  FaHeadset, FaUser, FaCog, FaBars, FaTimes, FaBell, FaChevronDown, FaChartBar, FaTags, FaGift, FaPhone, FaMoneyBillWave, FaImage, FaList, FaRocket, FaPrint, FaBan, FaHistory, FaTruck, FaClipboardList, FaExchangeAlt, FaSlidersH, FaClipboardCheck, FaBarcode, FaChartLine, FaFileImport, FaMap, FaSearch, FaRecycle, FaShieldAlt, FaCalculator
 } from 'react-icons/fa';
 
 interface MenuItem {
@@ -304,8 +304,11 @@ const menuItems: MenuItem[] = [
   {
     title: 'Accounting',
     icon: FaBook,
-    path: '/admin/accounting',
-    requiredPermissions: ['view-financial-reports', 'view-ledgers', 'view-invoices']
+    requiredPermissions: ['view-financial-reports', 'view-ledgers', 'view-invoices', 'view-dollar-consumption', 'manage-dollar-consumption'],
+    children: [
+      { title: 'Overview', icon: FaBook, path: '/admin/accounting', requiredPermissions: ['view-financial-reports', 'view-ledgers', 'view-invoices'] },
+      { title: 'Dollar Consumption', icon: FaCalculator, path: '/admin/accounting/dollar-consumption', requiredPermissions: ['view-dollar-consumption', 'manage-dollar-consumption'] },
+    ],
   },
   {
     title: 'Projects',
@@ -453,6 +456,7 @@ const iconMap: Record<string, any> = {
   FaPrint,
   FaClipboardList,
   FaShieldAlt,
+  FaCalculator,
 };
 
 function iconFromKey(key?: string | null) {

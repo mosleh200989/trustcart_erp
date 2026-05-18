@@ -287,8 +287,21 @@ export const DEFAULT_ADMIN_MENU: AdminMenuSeedNode[] = [
   {
     title: 'Accounting',
     icon: 'FaBook',
-    path: '/admin/accounting',
-    requiredPermissions: ['view-financial-reports', 'view-ledgers', 'view-invoices'],
+    requiredPermissions: ['view-financial-reports', 'view-ledgers', 'view-invoices', 'view-dollar-consumption', 'manage-dollar-consumption'],
+    children: [
+      {
+        title: 'Overview',
+        icon: 'FaBook',
+        path: '/admin/accounting',
+        requiredPermissions: ['view-financial-reports', 'view-ledgers', 'view-invoices'],
+      },
+      {
+        title: 'Dollar Consumption',
+        icon: 'FaCalculator',
+        path: '/admin/accounting/dollar-consumption',
+        requiredPermissions: ['view-dollar-consumption', 'manage-dollar-consumption'],
+      },
+    ],
   },
   { title: 'Projects', icon: 'FaBullseye', path: '/admin/projects' },
   { title: 'Tasks', icon: 'FaBullseye', path: '/admin/tasks' },

@@ -1,9 +1,10 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 import { getDhakaDateString } from '../../common/utils/dhaka-date';
 import { JournalEntry } from './entities/journal-entry.entity';
 import { JournalLine } from './entities/journal-line.entity';
+import { DollarConsumptionCalculation } from './entities/dollar-consumption-calculation.entity';
 
 interface CreateJournalParams {
   entry_type: string;
@@ -32,8 +33,143 @@ export class AccountingService {
     private journalRepo: Repository<JournalEntry>,
     @InjectRepository(JournalLine)
     private lineRepo: Repository<JournalLine>,
+    @InjectRepository(DollarConsumptionCalculation)
+    private dollarConsumptionRepo: Repository<DollarConsumptionCalculation>,
     private dataSource: DataSource,
   ) {}
+
+  private roundMoney(value: any, scale = 2): number {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return 0;
+    const factor = Math.pow(10, scale);
+    return Math.round(n * factor) / factor;
+  }
+
+  private normalizeDollarLine(item: any, fallbackRate: number) {
+    const usdAmount = this.roundMoney(item?.usdAmount ?? item?.usd_amount, 4);
+    const exchangeRate = this.roundMoney(item?.exchangeRate ?? item?.exchange_rate ?? fallbackRate, 4);
+    const bdtAmount = this.roundMoney(item?.bdtAmount ?? item?.bdt_amount ?? usdAmount * exchangeRate);
+    const bankCharge = this.roundMoney(item?.bankCharge ?? item?.bank_charge);
+    const vatAmount = this.roundMoney(item?.vatAmount ?? item?.vat_amount);
+    const taxAmount = this.roundMoney(item?.taxAmount ?? item?.tax_amount);
+    const otherCost = this.roundMoney(item?.otherCost ?? item?.other_cost);
+    const totalBdt = this.roundMoney(bdtAmount + bankCharge + vatAmount + taxAmount + otherCost);
+
+    return {
+      description: String(item?.description || '').trim(),
+      usdAmount,
+      exchangeRate,
+      bdtAmount,
+      bankCharge,
+      vatAmount,
+      taxAmount,
+      otherCost,
+      totalBdt,
+    };
+  }
+
+  private prepareDollarConsumptionPayload(dto: any) {
+    const title = String(dto?.title || '').trim();
+    if (!title) throw new BadRequestException('Title is required');
+
+    const calculationDate = String(dto?.calculationDate ?? dto?.calculation_date ?? getDhakaDateString()).slice(0, 10);
+    const fallbackRate = this.roundMoney(dto?.exchangeRate ?? dto?.exchange_rate, 4);
+    const inputLines = Array.isArray(dto?.lineItems ?? dto?.line_items) ? (dto?.lineItems ?? dto?.line_items) : [];
+    const lineItems = inputLines.length > 0
+      ? inputLines.map((item: any) => this.normalizeDollarLine(item, fallbackRate))
+      : [this.normalizeDollarLine(dto, fallbackRate)];
+
+    const usdAmount = this.roundMoney(lineItems.reduce((sum: number, item: any) => sum + item.usdAmount, 0), 4);
+    const weightedBdt = this.roundMoney(lineItems.reduce((sum: number, item: any) => sum + item.bdtAmount, 0));
+    const bankCharge = this.roundMoney(lineItems.reduce((sum: number, item: any) => sum + item.bankCharge, 0));
+    const vatAmount = this.roundMoney(lineItems.reduce((sum: number, item: any) => sum + item.vatAmount, 0));
+    const taxAmount = this.roundMoney(lineItems.reduce((sum: number, item: any) => sum + item.taxAmount, 0));
+    const otherCost = this.roundMoney(lineItems.reduce((sum: number, item: any) => sum + item.otherCost, 0));
+    const totalBdt = this.roundMoney(weightedBdt + bankCharge + vatAmount + taxAmount + otherCost);
+    const exchangeRate = usdAmount > 0 ? this.roundMoney(weightedBdt / usdAmount, 4) : fallbackRate;
+    const effectiveRate = usdAmount > 0 ? this.roundMoney(totalBdt / usdAmount, 4) : 0;
+
+    return {
+      title,
+      calculationDate,
+      vendorName: dto?.vendorName ?? dto?.vendor_name ? String(dto?.vendorName ?? dto?.vendor_name).trim() : null,
+      referenceNo: dto?.referenceNo ?? dto?.reference_no ? String(dto?.referenceNo ?? dto?.reference_no).trim() : null,
+      usdAmount,
+      exchangeRate,
+      bdtAmount: weightedBdt,
+      bankCharge,
+      vatAmount,
+      taxAmount,
+      otherCost,
+      totalBdt,
+      effectiveRate,
+      lineItems,
+      notes: dto?.notes ? String(dto.notes).trim() : null,
+    };
+  }
+
+  async findDollarConsumptions(query?: { page?: number; limit?: number; startDate?: string; endDate?: string; search?: string }) {
+    const { page = 1, limit = 30, startDate, endDate, search } = query || {};
+    const take = Math.min(Math.max(Number(limit) || 30, 1), 100);
+    const qb = this.dollarConsumptionRepo.createQueryBuilder('dc');
+
+    if (startDate) qb.andWhere('dc.calculation_date >= :startDate', { startDate });
+    if (endDate) qb.andWhere('dc.calculation_date <= :endDate', { endDate });
+    if (search) {
+      qb.andWhere('(dc.title ILIKE :search OR dc.vendor_name ILIKE :search OR dc.reference_no ILIKE :search)', {
+        search: `%${search}%`,
+      });
+    }
+
+    qb.orderBy('dc.calculation_date', 'DESC').addOrderBy('dc.id', 'DESC').skip((Math.max(Number(page) || 1, 1) - 1) * take).take(take);
+    const [data, total] = await qb.getManyAndCount();
+    return { data, total, page: Math.max(Number(page) || 1, 1), limit: take };
+  }
+
+  async getDollarConsumptionSummary() {
+    const row = await this.dollarConsumptionRepo
+      .createQueryBuilder('dc')
+      .select('COUNT(*)', 'count')
+      .addSelect('COALESCE(SUM(dc.usd_amount), 0)', 'usdAmount')
+      .addSelect('COALESCE(SUM(dc.total_bdt), 0)', 'totalBdt')
+      .addSelect('COALESCE(SUM(dc.bank_charge + dc.vat_amount + dc.tax_amount + dc.other_cost), 0)', 'extraCost')
+      .getRawOne();
+
+    const usdAmount = this.roundMoney(row?.usdAmount, 4);
+    const totalBdt = this.roundMoney(row?.totalBdt);
+    return {
+      count: Number(row?.count || 0),
+      usdAmount,
+      totalBdt,
+      extraCost: this.roundMoney(row?.extraCost),
+      averageEffectiveRate: usdAmount > 0 ? this.roundMoney(totalBdt / usdAmount, 4) : 0,
+    };
+  }
+
+  async findDollarConsumption(id: number) {
+    const record = await this.dollarConsumptionRepo.findOne({ where: { id } });
+    if (!record) throw new NotFoundException(`Dollar consumption calculation #${id} not found`);
+    return record;
+  }
+
+  async createDollarConsumption(dto: any, userId?: number) {
+    const payload = this.prepareDollarConsumptionPayload(dto);
+    const record = this.dollarConsumptionRepo.create({ ...payload, createdBy: userId || null, updatedBy: userId || null } as any);
+    return this.dollarConsumptionRepo.save(record as any);
+  }
+
+  async updateDollarConsumption(id: number, dto: any, userId?: number) {
+    const existing = await this.findDollarConsumption(id);
+    const payload = this.prepareDollarConsumptionPayload({ ...existing, ...dto });
+    await this.dollarConsumptionRepo.update(id, { ...payload, updatedBy: userId || null } as any);
+    return this.findDollarConsumption(id);
+  }
+
+  async deleteDollarConsumption(id: number) {
+    const existing = await this.findDollarConsumption(id);
+    await this.dollarConsumptionRepo.remove(existing);
+    return { success: true };
+  }
 
   async createJournal(params: CreateJournalParams): Promise<JournalEntry> {
     const number = await this.generateJournalNumber();
