@@ -242,6 +242,19 @@ export class SalesController {
     return this.salesService.getSourceFilterOptions();
   }
 
+  @Get('landing-page-options')
+  @RequireAnyPermission(
+    'view-sales-orders',
+    'view-assigned-orders',
+    'view-own-assigned-orders',
+    'view-team-assigned-orders',
+    'view-all-assigned-orders',
+    'view-sales-reports',
+  )
+  async getLandingPageOptions() {
+    return this.salesService.getLandingPageFilterOptions();
+  }
+
   @Get('late-deliveries')
   @RequirePermissions('view-late-delivery')
   async findLateDeliveries(@Query('thresholdDays') thresholdDays?: string) {

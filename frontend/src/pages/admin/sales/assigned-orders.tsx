@@ -10,6 +10,7 @@ import ProductAutocomplete from '@/components/admin/ProductAutocomplete';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/contexts/ToastContext';
 import apiClient from '@/services/api';
+import { fetchLandingPageOptions, LandingPageOption } from '@/services/landingPageOptions';
 import { getOrderStatusColor, getOrderStatusLabel } from '@/utils/orderStatus';
 import { wrapCustomerName } from '@/utils/wrapCustomerName';
 
@@ -118,6 +119,7 @@ export default function AssignedOrdersPage() {
   const [selectedRowIds, setSelectedRowIds] = useState<Array<number | string>>([]);
   const [selectedAgentId, setSelectedAgentId] = useState('');
   const [savingAssignment, setSavingAssignment] = useState(false);
+  const [landingPageOptions, setLandingPageOptions] = useState<LandingPageOption[]>([]);
 
   const roleSlugs = useMemo(() => {
     const slugs = new Set<string>();
@@ -216,6 +218,12 @@ export default function AssignedOrdersPage() {
   useEffect(() => {
     loadTeamLeaders();
   }, [loadTeamLeaders]);
+
+  useEffect(() => {
+    fetchLandingPageOptions()
+      .then(setLandingPageOptions)
+      .catch(() => {});
+  }, []);
 
   const handleFilterChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const target = e.target as HTMLInputElement;
@@ -650,9 +658,10 @@ export default function AssignedOrdersPage() {
               value={filters.landingPage}
               onChange={handleFilterChange}
               selectPlaceholder="All"
-              options={[
-                { value: 'herbolin', label: 'Herbolin' },
-              ]}
+              options={landingPageOptions.map((page) => ({
+                value: page.value,
+                label: page.label,
+              }))}
             />
             {canUseTeamLeaderFilter && (
               <FormInput
