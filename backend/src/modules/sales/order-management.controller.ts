@@ -392,11 +392,14 @@ export class OrderManagementController {
       status: string;
       location?: string;
       remarks?: string;
-    }
+    },
+    @Req() req: Request
   ) {
+    const userInfo = this.getUserInfo(req);
     await this.orderManagementService.updateCourierStatus({
       orderId,
       ...body,
+      ...userInfo,
     });
     return { success: true, message: 'Courier status updated' };
   }

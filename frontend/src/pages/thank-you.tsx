@@ -45,6 +45,25 @@ type ThankYouOffer = {
   context?: string;
 };
 
+const ZIP_POLY_LANDING_PAGE_SLUG = 'zip-poly';
+
+function getLandingPageSlugFromOrder(order: any) {
+  return String(order?.utm_source || order?.landingPageSlug || order?.landing_page_slug || '').trim();
+}
+
+function trackZipPolyPurchase(order: any, fallbackOrderId: string) {
+  if (typeof window === 'undefined') return;
+
+  const orderId = String(order?.id || fallbackOrderId || order?.orderNumber || '');
+  if (!orderId) return;
+
+  (window as any).dataLayer = (window as any).dataLayer || [];
+  (window as any).dataLayer.push({
+    event: 'purchase',
+    order_id: orderId,
+  });
+}
+
 // Order status steps
 const ORDER_STATUSES = [
   { key: "ordered", label: "Ordered", sublabel: "Order placed", icon: HiOutlineClipboardCheck },
@@ -241,12 +260,20 @@ export default function ThankYouPage() {
   // This ensures purchase is tracked even if checkout tracking failed
   useEffect(() => {
     if (!order || !items || items.length === 0 || purchaseTrackedRef.current) return;
-    const landingPageSlug = String(order?.utm_source || order?.landingPageSlug || order?.landing_page_slug || '');
-    if (typeof window !== 'undefined' && (isLandingPagePixelSurface() || isLandingPagePixelSlug(landingPageSlug))) return;
+    const landingPageSlug = getLandingPageSlugFromOrder(order);
     
     // Check sessionStorage to prevent duplicate tracking on page refresh
     const trackedKey = `purchase_tracked_${orderId}`;
     if (sessionStorage.getItem(trackedKey)) return;
+
+    if (landingPageSlug.toLowerCase() === ZIP_POLY_LANDING_PAGE_SLUG) {
+      trackZipPolyPurchase(order, orderId);
+      sessionStorage.setItem(trackedKey, 'true');
+      purchaseTrackedRef.current = true;
+      return;
+    }
+
+    if (typeof window !== 'undefined' && (isLandingPagePixelSurface() || isLandingPagePixelSlug(landingPageSlug))) return;
     
     // Extract user info from order
     const customerNameValue = order?.customerName ?? order?.customer_name ?? order?.customer?.name ?? undefined;
@@ -290,7 +317,7 @@ export default function ThankYouPage() {
 
   useEffect(() => {
     if (!orderId || !order || items.length === 0 || typeof window === 'undefined') return;
-    const pageSlug = String(order?.utm_source || order?.landingPageSlug || order?.landing_page_slug || '');
+    const pageSlug = getLandingPageSlugFromOrder(order);
     if (!isLandingPagePixelSurface() && !isLandingPagePixelSlug(pageSlug)) return;
 
     const trackedKey = `herbolin_purchase_tracked_${orderId}`;

@@ -183,6 +183,34 @@ export class OrderManagementService {
     return s === 'delivered' || s.includes('delivered');
   }
 
+  private async logStatusChange(data: {
+    orderId: number;
+    oldStatus: any;
+    newStatus: any;
+    actorName: string;
+    actorId?: number | null;
+    ipAddress?: string;
+    actionType?: string;
+    source?: string;
+    extraNewValue?: any;
+  }) {
+    const oldStatus = data.oldStatus == null ? null : String(data.oldStatus);
+    const newStatus = data.newStatus == null ? null : String(data.newStatus);
+    if ((oldStatus || '') === (newStatus || '')) return null;
+
+    const sourceText = data.source ? ` via ${data.source}` : '';
+    return this.logActivity({
+      orderId: data.orderId,
+      actionType: data.actionType || 'status_changed',
+      actionDescription: `Order status changed from "${oldStatus || 'null'}" to "${newStatus || 'null'}" by ${data.actorName}${sourceText}`,
+      oldValue: { status: oldStatus },
+      newValue: { status: newStatus, ...(data.extraNewValue || {}) },
+      performedBy: data.actorId || undefined,
+      performedByName: data.actorName,
+      ipAddress: data.ipAddress,
+    });
+  }
+
   private async tryRefreshSteadfastCourierStatus(order: SalesOrder): Promise<SalesOrder> {
     if (!order?.courierCompany || String(order.courierCompany).toLowerCase() !== 'steadfast') return order;
 
@@ -271,14 +299,13 @@ export class OrderManagementService {
         remarks: `Steadfast status refreshed${prevStatus ? ` (was: ${prevStatus})` : ''}`,
       });
 
-      await this.logActivity({
+      await this.logStatusChange({
         orderId: saved.id,
         actionType: 'courier_status_synced',
-        actionDescription: `Steadfast status refreshed to: ${latestStatus}`,
-        oldValue: { status: prevStatus },
-        newValue: { status: latestStatus },
-        performedBy: undefined,
-        performedByName: 'System',
+        oldStatus: prevStatus,
+        newStatus: latestStatus,
+        actorName: 'System',
+        source: 'Steadfast status refresh',
       });
 
       return saved;
@@ -390,6 +417,7 @@ export class OrderManagementService {
       throw new BadRequestException(resData?.message || 'Steadfast did not return consignment_id/tracking_code');
     }
 
+    const oldStatus = order.status;
     order.status = 'sent';
     order.shippedAt = new Date();
     order.courierCompany = 'Steadfast';
@@ -406,19 +434,20 @@ export class OrderManagementService {
       remarks: 'Consignment created in Steadfast',
     });
 
-    await this.logActivity({
+    await this.logStatusChange({
       orderId: order.id,
       actionType: 'shipped',
-      actionDescription: `Order sent to Steadfast. Consignment: ${consignmentId}, Tracking: ${trackingCode}`,
-      newValue: {
+      oldStatus,
+      newStatus: 'sent',
+      actorName: data.userName,
+      actorId: data.userId,
+      ipAddress: data.ipAddress,
+      source: 'Steadfast send',
+      extraNewValue: {
         courierCompany: 'Steadfast',
         courierOrderId: String(consignmentId),
         trackingId: String(trackingCode),
-        status: 'sent',
       },
-      performedBy: data.userId,
-      performedByName: data.userName,
-      ipAddress: data.ipAddress,
     });
 
     return {
@@ -879,20 +908,22 @@ export class OrderManagementService {
       throw new ConflictException(`Order cannot be approved — only orders with "processing" status can be approved (current status: "${order.status}")`);
     }
 
+    const oldStatus = order.status;
     order.status = 'approved';
     order.approvedBy = userId;
     order.approvedAt = new Date();
 
     const updatedOrder = await this.salesOrderRepository.save(order);
 
-    await this.logActivity({
+    await this.logStatusChange({
       orderId,
       actionType: 'approved',
-      actionDescription: `Order approved by ${userName}`,
-      newValue: { status: 'approved', approvedAt: order.approvedAt },
-      performedBy: userId,
-      performedByName: userName,
+      oldStatus,
+      newStatus: 'approved',
+      actorName: userName,
+      actorId: userId,
       ipAddress,
+      extraNewValue: { approvedAt: order.approvedAt },
     });
 
     return updatedOrder;
@@ -917,14 +948,13 @@ export class OrderManagementService {
 
     const updatedOrder = await this.salesOrderRepository.save(order);
 
-    await this.logActivity({
+    await this.logStatusChange({
       orderId,
       actionType: 'hold',
-      actionDescription: `Order put on hold by ${userName}`,
-      oldValue: { status: oldStatus },
-      newValue: { status: 'hold' },
-      performedBy: userId,
-      performedByName: userName,
+      oldStatus,
+      newStatus: 'hold',
+      actorName: userName,
+      actorId: userId,
       ipAddress,
     });
 
@@ -948,14 +978,13 @@ export class OrderManagementService {
 
     const updatedOrder = await this.salesOrderRepository.save(order);
 
-    await this.logActivity({
+    await this.logStatusChange({
       orderId,
       actionType: 'unhold',
-      actionDescription: `Order resumed from hold by ${userName}`,
-      oldValue: { status: 'hold' },
-      newValue: { status: 'processing' },
-      performedBy: userId,
-      performedByName: userName,
+      oldStatus: 'hold',
+      newStatus: 'processing',
+      actorName: userName,
+      actorId: userId,
       ipAddress,
     });
 
@@ -989,15 +1018,15 @@ export class OrderManagementService {
 
     const updatedOrder = await this.salesOrderRepository.save(order);
 
-    await this.logActivity({
+    await this.logStatusChange({
       orderId,
       actionType: 'admin_cancelled',
-      actionDescription: `Order cancelled by ${userName}. Reason: ${cancelReason}`,
-      oldValue: { status: oldStatus },
-      newValue: { status: 'admin_cancelled', cancelReason },
-      performedBy: userId,
-      performedByName: userName,
+      oldStatus,
+      newStatus: 'admin_cancelled',
+      actorName: userName,
+      actorId: userId,
       ipAddress,
+      extraNewValue: { cancelReason },
     });
 
     // Release stock reservations
@@ -1037,15 +1066,15 @@ export class OrderManagementService {
     }
     const updatedOrder = await this.salesOrderRepository.save(order);
 
-    await this.logActivity({
+    await this.logStatusChange({
       orderId,
       actionType: 'status_changed',
-      actionDescription: `Order status manually changed from "${oldStatus}" to "${newStatus}" by ${userName}`,
-      oldValue: { status: oldStatus },
-      newValue: { status: newStatus },
-      performedBy: userId,
-      performedByName: userName,
+      oldStatus,
+      newStatus,
+      actorName: userName,
+      actorId: userId,
       ipAddress,
+      source: 'manual update',
     });
 
     // Handle inventory side-effects of status changes
@@ -1090,6 +1119,7 @@ export class OrderManagementService {
     const order = await this.salesOrderRepository.findOne({ where: { id: data.orderId } });
     if (!order) throw new Error('Order not found');
 
+    const oldStatus = order.status;
     order.status = 'sent';
     order.courierCompany = data.courierCompany;
     order.courierOrderId = data.courierOrderId || '';
@@ -1107,14 +1137,16 @@ export class OrderManagementService {
       remarks: 'Order picked up by courier',
     });
 
-    await this.logActivity({
+    await this.logStatusChange({
       orderId: data.orderId,
       actionType: 'shipped',
-      actionDescription: `Order shipped via ${data.courierCompany}. Tracking: ${data.trackingId}`,
-      newValue: { courierCompany: data.courierCompany, trackingId: data.trackingId },
-      performedBy: data.userId,
-      performedByName: data.userName,
+      oldStatus,
+      newStatus: 'sent',
+      actorName: data.userName,
+      actorId: data.userId,
       ipAddress: data.ipAddress,
+      source: 'manual courier shipment',
+      extraNewValue: { courierCompany: data.courierCompany, trackingId: data.trackingId },
     });
 
     // Dispatch stock: deduct via FEFO, release reservations, record movements
@@ -1144,6 +1176,9 @@ export class OrderManagementService {
     status: string;
     location?: string;
     remarks?: string;
+    userId?: number;
+    userName?: string;
+    ipAddress?: string;
   }): Promise<void> {
     const order = await this.salesOrderRepository.findOne({ where: { id: data.orderId } });
     if (!order) throw new Error('Order not found');
@@ -1205,13 +1240,16 @@ export class OrderManagementService {
       remarks: data.remarks,
     });
 
-    await this.logActivity({
+    await this.logStatusChange({
       orderId: data.orderId,
       actionType: 'courier_status_updated',
-      actionDescription: `Status updated to: ${data.status}`,
-      newValue: { status: data.status, location: data.location },
-      performedBy: undefined,
-      performedByName: 'System',
+      oldStatus: prevStatus,
+      newStatus: data.status,
+      actorName: data.userName || 'System',
+      actorId: data.userId,
+      ipAddress: data.ipAddress,
+      source: data.userName ? 'manual courier status update' : 'system courier status update',
+      extraNewValue: { location: data.location },
     });
   }
 
@@ -2496,6 +2534,7 @@ export class OrderManagementService {
       throw new BadRequestException(resData?.message || 'Pathao did not return consignment_id');
     }
 
+    const oldStatus = order.status;
     order.status = 'sent';
     order.shippedAt = new Date();
     order.courierCompany = 'Pathao';
@@ -2513,20 +2552,21 @@ export class OrderManagementService {
       remarks: `Consignment created in Pathao. Delivery fee: ${deliveryFee ?? 'N/A'}`,
     });
 
-    await this.logActivity({
+    await this.logStatusChange({
       orderId: order.id,
       actionType: 'shipped',
-      actionDescription: `Order sent to Pathao. Consignment: ${consignmentId}`,
-      newValue: {
+      oldStatus,
+      newStatus: 'sent',
+      actorName: data.userName,
+      actorId: data.userId,
+      ipAddress: data.ipAddress,
+      source: 'Pathao send',
+      extraNewValue: {
         courierCompany: 'Pathao',
         courierOrderId: String(consignmentId),
         trackingId: String(consignmentId),
-        status: 'sent',
         deliveryFee,
       },
-      performedBy: data.userId,
-      performedByName: data.userName,
-      ipAddress: data.ipAddress,
     });
 
     return {
@@ -2789,6 +2829,14 @@ export class OrderManagementService {
             }
 
             await this.salesOrderRepository.save(order);
+            await this.logStatusChange({
+              orderId: order.id,
+              actionType: 'courier_status_synced',
+              oldStatus: prevStatus,
+              newStatus,
+              actorName: 'Pathao Sync',
+              source: 'Pathao polling sync',
+            });
           }
         }
 
@@ -3288,21 +3336,24 @@ export class OrderManagementService {
   async markStickerPrinted(orderId: number, userId?: number, userName?: string, ipAddress?: string) {
     const order = await this.salesOrderRepository.findOne({ where: { id: orderId } });
     if (!order) throw new NotFoundException(`Order #${orderId} not found`);
+    const oldStatus = order.status;
     (order as any).stickerPrinted = true;
     (order as any).stickerPrintedAt = new Date();
+    if (String(order.status || '').toLowerCase() === 'sent') {
+      order.status = 'pending';
+    }
     await this.salesOrderRepository.save(order);
-
-    // Once the sticker is printed, courier webhook/polling status can be applied.
-    await this.autoShipIfReady(order);
 
     if (userId) {
       await this.activityLogRepository.save(
         this.activityLogRepository.create({
           orderId,
           actionType: 'sticker_printed',
-          actionDescription: `Sticker marked as printed by ${userName || 'Admin'}`,
-          oldValue: { stickerPrinted: false },
-          newValue: { stickerPrinted: true },
+          actionDescription: oldStatus !== order.status
+            ? `Sticker marked as printed by ${userName || 'Admin'}; order status changed from "${oldStatus}" to "${order.status}" by ${userName || 'Admin'}`
+            : `Sticker marked as printed by ${userName || 'Admin'}`,
+          oldValue: { stickerPrinted: false, status: oldStatus },
+          newValue: { stickerPrinted: true, status: order.status },
           performedBy: userId,
           performedByName: userName || 'Admin',
           ipAddress: ipAddress || '',
@@ -3341,16 +3392,4 @@ export class OrderManagementService {
     return { total: orderIds.length, success, failed };
   }
 
-  /**
-   * Auto-transition: after sticker print is done, sync the order status with
-   * the latest courier status. Packed status is intentionally not part of this gate.
-   */
-  private async autoShipIfReady(order: SalesOrder) {
-    const stickerPrinted = (order as any).stickerPrinted === true;
-
-    if (stickerPrinted && order.status === 'sent') {
-      // Fetch the latest status from Steadfast and apply it
-      await this.tryRefreshSteadfastCourierStatus(order);
-    }
-  }
 }

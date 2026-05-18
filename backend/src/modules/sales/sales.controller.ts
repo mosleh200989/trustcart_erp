@@ -155,6 +155,8 @@ export class SalesController {
     @Query('todayOnly') todayOnly?: string,
     @Query('teamLeaderId') teamLeaderId?: string,
     @Query('agentId') agentId?: string,
+    @Query('product') product?: string,
+    @Query('landingPage') landingPage?: string,
   ) {
     return this.salesService.findAssignedOrdersPaginated({
       page: page ? parseInt(page, 10) : 1,
@@ -167,6 +169,8 @@ export class SalesController {
       todayOnly: todayOnly === 'true',
       teamLeaderId: teamLeaderId ? parseInt(teamLeaderId, 10) : undefined,
       agentId: agentId ? parseInt(agentId, 10) : undefined,
+      product: product || '',
+      landingPage: landingPage || '',
     }, req.user);
   }
 
@@ -274,14 +278,16 @@ export class SalesController {
 
   @Post('courier-returns')
   @RequirePermissions('manage-courier-returns')
-  async markCourierReturns(@Body() body: { courierOrderIds: string[]; returnDate: string }) {
+  async markCourierReturns(@Body() body: { courierOrderIds: string[]; returnDate: string }, @Req() req: any) {
     if (!body.courierOrderIds?.length) {
       throw new BadRequestException('At least one courier ID is required');
     }
     if (!body.returnDate) {
       throw new BadRequestException('Return date is required');
     }
-    return this.salesService.markCourierReturns(body.courierOrderIds, body.returnDate);
+    const userName = [req?.user?.name, req?.user?.lastName].filter(Boolean).join(' ').trim() || req?.user?.email || 'Admin';
+    const ipAddress = String(req?.headers?.['x-forwarded-for'] || req?.ip || req?.socket?.remoteAddress || '').split(',')[0].trim();
+    return this.salesService.markCourierReturns(body.courierOrderIds, body.returnDate, Number(req?.user?.id) || undefined, userName, ipAddress);
   }
 
   @Get('my-order-stats')

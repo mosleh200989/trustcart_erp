@@ -743,6 +743,8 @@ export class SalesService {
     todayOnly?: boolean;
     teamLeaderId?: number;
     agentId?: number;
+    product?: string;
+    landingPage?: string;
   }, user: any) {
     const access = await this.getAssignedOrdersAccess(user);
     const page = Math.max(1, params.page || 1);
@@ -786,6 +788,55 @@ export class SalesService {
         "OR REPLACE(o.customer_phone, '+88', '') ILIKE :normalizedPhone " +
         'OR o.shipping_address ILIKE :q)',
         { q, normalizedPhone },
+      );
+    }
+
+    if (params.product && params.product.trim()) {
+      const product = `%${params.product.trim().toLowerCase()}%`;
+      qb.andWhere(
+        `EXISTS (
+          SELECT 1
+          FROM sales_order_items soi
+          LEFT JOIN products p ON p.id = soi.product_id
+          WHERE soi.sales_order_id = o.id
+            AND (
+              LOWER(COALESCE(soi.product_name, '')) LIKE :assignedProduct
+              OR LOWER(COALESCE(p.name, '')) LIKE :assignedProduct
+              OR LOWER(COALESCE(p.name_bn, '')) LIKE :assignedProduct
+            )
+        )
+        OR EXISTS (
+          SELECT 1
+          FROM order_items oi
+          LEFT JOIN products p2 ON p2.id = oi.product_id
+          WHERE oi.order_id = o.id
+            AND (
+              LOWER(COALESCE(oi.product_name, '')) LIKE :assignedProduct
+              OR LOWER(COALESCE(oi.custom_product_name, '')) LIKE :assignedProduct
+              OR LOWER(COALESCE(p2.name, '')) LIKE :assignedProduct
+              OR LOWER(COALESCE(p2.name_bn, '')) LIKE :assignedProduct
+            )
+        )`,
+        { assignedProduct: product },
+      );
+    }
+
+    if (params.landingPage && params.landingPage.trim()) {
+      const landingPage = `%${params.landingPage.trim().toLowerCase()}%`;
+      qb.andWhere("o.order_source = 'landing_page'");
+      qb.andWhere(
+        `(
+          LOWER(COALESCE(o.utm_source, '')) LIKE :assignedLandingPage
+          OR LOWER(COALESCE(o.utm_campaign, '')) LIKE :assignedLandingPage
+          OR LOWER(COALESCE(o.referrer_url, '')) LIKE :assignedLandingPage
+          OR EXISTS (
+            SELECT 1
+            FROM landing_pages lp
+            WHERE lp.slug = o.utm_source
+              AND LOWER(COALESCE(lp.title, '')) LIKE :assignedLandingPage
+          )
+        )`,
+        { assignedLandingPage: landingPage },
       );
     }
 
@@ -1215,7 +1266,29 @@ export class SalesService {
     };
   }
 
-  async markCourierReturns(courierOrderIds: string[], returnDate: string) {
+  private async logOrderStatusActivity(orderId: number, oldStatus: any, newStatus: any, actorName: string, actorId?: number, ipAddress?: string, source?: string, extraNewValue?: any) {
+    const oldValue = oldStatus == null ? null : String(oldStatus);
+    const newValue = newStatus == null ? null : String(newStatus);
+    if ((oldValue || '') === (newValue || '')) return;
+
+    await this.salesRepository.manager.query(
+      `INSERT INTO order_activity_logs
+        (order_id, action_type, action_description, old_value, new_value, performed_by, performed_by_name, ip_address, created_at)
+       VALUES ($1, $2, $3, $4::jsonb, $5::jsonb, $6, $7, $8, NOW())`,
+      [
+        orderId,
+        'status_changed',
+        `Order status changed from "${oldValue || 'null'}" to "${newValue || 'null'}" by ${actorName}${source ? ` via ${source}` : ''}`,
+        JSON.stringify({ status: oldValue }),
+        JSON.stringify({ status: newValue, ...(extraNewValue || {}) }),
+        actorId || null,
+        actorName,
+        ipAddress || '',
+      ],
+    );
+  }
+
+  async markCourierReturns(courierOrderIds: string[], returnDate: string, userId?: number, userName = 'Admin', ipAddress?: string) {
     const results: { courierOrderId: string; orderId: number | null; success: boolean; message: string }[] = [];
 
     for (const cid of courierOrderIds) {
@@ -1231,18 +1304,14 @@ export class SalesService {
         continue;
       }
 
+      const oldStatus = order.status;
       order.status = 'returned' as any;
       (order as any).deliveredAt = new Date(returnDate);
       await this.salesRepository.save(order);
 
-      // Log activity
       try {
-        await this.salesRepository.query(
-          `INSERT INTO sales_order_activity_log (sales_order_id, action, details, created_at)
-           VALUES ($1, $2, $3, NOW())`,
-          [order.id, 'courier_return', JSON.stringify({ courierOrderId: trimmed, returnDate })],
-        );
-      } catch (_) { /* ignore if table doesn't exist */ }
+        await this.logOrderStatusActivity(order.id, oldStatus, 'returned', userName, userId, ipAddress, 'courier return bulk update', { courierOrderId: trimmed, returnDate });
+      } catch (_) { /* never block return marking on logging */ }
 
       results.push({ courierOrderId: trimmed, orderId: order.id, success: true, message: 'Marked as returned' });
     }
@@ -1901,11 +1970,18 @@ export class SalesService {
       throw new Error('Cancel reason is too long');
     }
 
+    const oldStatus = order.status;
     order.status = 'cancelled';
     order.cancelReason = cancelReason ? String(cancelReason).trim() : order.cancelReason;
     order.cancelledBy = Number(customerId);
     order.cancelledAt = new Date();
     const savedOrder = await this.salesRepository.save(order);
+
+    try {
+      await this.logOrderStatusActivity(order.id, oldStatus, 'cancelled', `Customer #${customerId}`, Number(customerId), undefined, 'customer cancellation', {
+        cancelReason: order.cancelReason || null,
+      });
+    } catch (_) { /* never block customer cancellation on logging */ }
 
     // Release stock reservations
     try {
