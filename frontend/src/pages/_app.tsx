@@ -33,14 +33,9 @@ function isLandingPagePixelUrl() {
   const querySlug = params.get('landing_page') || params.get('landing_page_intl') || params.get('cartflows_step');
 
   return (
-    hostname === 'arabiankhalta.com' ||
-    hostname === 'www.arabiankhalta.com' ||
     hostname === 'herbolin.com' ||
     hostname === 'www.herbolin.com' ||
-    pathname === '/arabiankhalta' ||
-    routeSlug === 'arabiankhalta' ||
     routeSlug === 'Harbora-kosthogut' ||
-    querySlug === 'arabiankhalta' ||
     querySlug === 'Harbora-kosthogut'
   );
 }

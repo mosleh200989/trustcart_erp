@@ -48,7 +48,7 @@ export function isArabianKhaltaLandingPageSlug(slug?: string | null) {
 }
 
 export function isLandingPagePixelSlug(slug?: string | null) {
-  return isHerbolinLandingPageSlug(slug) || isArabianKhaltaLandingPageSlug(slug);
+  return isHerbolinLandingPageSlug(slug);
 }
 
 export function isHerbolinPixelSurface() {
@@ -60,9 +60,7 @@ export function isHerbolinPixelSurface() {
 
   if (
     isArabianKhaltaHost() ||
-    ARABIAN_KHALTA_PATHS.has(pathname) ||
-    isArabianKhaltaLandingPageSlug(routeSlug) ||
-    isArabianKhaltaLandingPageSlug(querySlug)
+    ARABIAN_KHALTA_PATHS.has(pathname)
   ) {
     return false;
   }
@@ -77,16 +75,7 @@ export function isHerbolinPixelSurface() {
 export function isArabianKhaltaPixelSurface() {
   if (typeof window === 'undefined') return false;
 
-  const pathname = currentPathname();
-  const routeSlug = currentRouteSlug();
-  const querySlug = currentQuerySlug();
-
-  return (
-    isArabianKhaltaHost() ||
-    ARABIAN_KHALTA_PATHS.has(pathname) ||
-    isArabianKhaltaLandingPageSlug(routeSlug) ||
-    isArabianKhaltaLandingPageSlug(querySlug)
-  );
+  return isArabianKhaltaHost();
 }
 
 export function isLandingPagePixelSurface() {
@@ -94,7 +83,7 @@ export function isLandingPagePixelSurface() {
 }
 
 function getLandingPagePixelId(slug?: string | null) {
-  if (isArabianKhaltaPixelSurface() || isArabianKhaltaLandingPageSlug(slug)) {
+  if (isArabianKhaltaPixelSurface()) {
     return ARABIAN_KHALTA_PIXEL_ID;
   }
   if (isHerbolinPixelSurface() || isHerbolinLandingPageSlug(slug)) {
