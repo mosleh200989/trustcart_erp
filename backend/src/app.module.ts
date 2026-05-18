@@ -115,6 +115,7 @@ import { AuditLog } from './modules/audit-log/audit-log.entity';
 // Accounting Entities
 import { JournalEntry } from './modules/accounting/entities/journal-entry.entity';
 import { JournalLine } from './modules/accounting/entities/journal-line.entity';
+import { DollarConsumptionCalculation } from './modules/accounting/entities/dollar-consumption-calculation.entity';
 
 // Demand Forecast Entity
 import { DemandForecast } from './modules/inventory/entities/demand-forecast.entity';
@@ -312,7 +313,7 @@ import { GrnItem } from './modules/purchase/entities/grn-item.entity';
             // Purchase entities
             PurchaseOrder, PurchaseOrderItem, GoodsReceivedNote, GrnItem,
             // Accounting entities
-            JournalEntry, JournalLine,
+            JournalEntry, JournalLine, DollarConsumptionCalculation,
             // Demand Forecast
             DemandForecast,
             // Coupon entities
