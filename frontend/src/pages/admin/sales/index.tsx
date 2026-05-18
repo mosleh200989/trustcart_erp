@@ -50,6 +50,8 @@ interface SalesOrder {
 
   totalAmount?: number;
   total_amount?: number;
+  computedTotalAmount?: number;
+  computed_total_amount?: number;
 
   status: string;
   orderDate?: string;
@@ -923,7 +925,7 @@ export default function AdminSales() {
       key: 'totalAmount', 
       label: 'Amount',
       render: (_: any, row: SalesOrder) => {
-        const amt = row.totalAmount ?? row.total_amount ?? 0;
+        const amt = row.computedTotalAmount ?? row.computed_total_amount ?? row.totalAmount ?? row.total_amount ?? 0;
         const n = Number(amt);
         return `৳${Number.isFinite(n) ? n.toFixed(2) : '0.00'}`;
       }
