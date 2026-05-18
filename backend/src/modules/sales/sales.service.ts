@@ -264,7 +264,10 @@ export class SalesService {
     const customerEmail = (order as any).customerEmail ?? null;
     const customerPhone = (order as any).customerPhone ?? null;
     const items = (order as any)._items || [];
-    const computedTotalAmount = this.computePayableTotal(order, items);
+    const itemsSubtotal = this.roundMoney(items.reduce((sum: number, item: any) => sum + this.getItemSubtotal(item), 0));
+    const discountAmount = this.roundMoney(order.discountAmount || 0);
+    const deliveryCharge = this.resolveDeliveryCharge(order, itemsSubtotal, discountAmount);
+    const computedTotalAmount = this.roundMoney(Math.max(0, itemsSubtotal + deliveryCharge - discountAmount));
 
     return {
       id: order.id,
@@ -280,7 +283,13 @@ export class SalesService {
       totalAmount: computedTotalAmount,
       total_amount: computedTotalAmount,
       computedTotalAmount,
+      computed_total_amount: computedTotalAmount,
       storedTotalAmount: parseFloat(order.totalAmount?.toString() || '0'),
+      stored_total_amount: parseFloat(order.totalAmount?.toString() || '0'),
+      deliveryCharge,
+      delivery_charge: deliveryCharge,
+      itemsSubtotal,
+      items_subtotal: itemsSubtotal,
       status: order.status,
 
       order_date: order.orderDate || order.createdAt,

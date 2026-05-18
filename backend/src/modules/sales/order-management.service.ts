@@ -1566,11 +1566,17 @@ export class OrderManagementService {
     return {
       ...orderWithCourierSync,
       deliveryCharge: resolvedDeliveryCharge,
+      delivery_charge: resolvedDeliveryCharge,
       itemsSubtotal: allItemsSubtotal,
+      items_subtotal: allItemsSubtotal,
       subtotalAmount: allItemsSubtotal,
+      subtotal_amount: allItemsSubtotal,
       storedTotalAmount,
+      stored_total_amount: storedTotalAmount,
       computedTotalAmount,
+      computed_total_amount: computedTotalAmount,
       totalAmount: computedTotalAmount,
+      total_amount: computedTotalAmount,
       financialMismatch,
       items,
       activityLogs,
@@ -1760,14 +1766,13 @@ export class OrderManagementService {
     // Only update status after sticker printing is done.
     const stickerPrinted = (order as any).stickerPrinted === true;
 
-    // Always update COD & delivery charge if provided (even when status hasn't changed)
+    // Always update COD if provided (even when status hasn't changed).
     if (dto.cod_amount != null) order.codAmount = dto.cod_amount;
-    if (dto.delivery_charge != null) order.deliveryCharge = dto.delivery_charge;
 
     if (!stickerPrinted) {
-      // Save COD/charge updates but keep status as 'sent'
+      // Save COD updates but keep status as 'sent'
       await this.salesOrderRepository.save(order);
-      this.logger.log(`[Steadfast Webhook] Order #${order.id} not ready (stickerPrinted=${stickerPrinted}) — status stays '${order.status}', COD/charge updated`);
+      this.logger.log(`[Steadfast Webhook] Order #${order.id} not ready (stickerPrinted=${stickerPrinted}) — status stays '${order.status}', COD/tracking fields updated`);
 
       // Still record the tracking history for audit
       await this.courierTrackingRepository.save({
@@ -1784,17 +1789,17 @@ export class OrderManagementService {
         remarks: `Steadfast webhook: status=${newStatus} (NOT applied — stickerPrinted=${stickerPrinted})`,
       });
 
-      return { status: 'success', message: 'Order not ready for status update (sticker not done), financial fields updated' };
+      return { status: 'success', message: 'Order not ready for status update (sticker not done), COD/tracking fields updated' };
     }
 
     const prevStatus = order.status;
     const statusChanged = String(prevStatus || '').trim() !== newStatus.trim();
 
     if (!statusChanged) {
-      // Save COD/charge updates even if status is the same
+      // Save COD updates even if status is the same
       await this.salesOrderRepository.save(order);
-      this.logger.log(`[Steadfast Webhook] Status unchanged for order #${order.id} (${newStatus}), COD/charge updated`);
-      return { status: 'success', message: 'Status unchanged, financial fields updated' };
+      this.logger.log(`[Steadfast Webhook] Status unchanged for order #${order.id} (${newStatus}), COD/tracking fields updated`);
+      return { status: 'success', message: 'Status unchanged, COD/tracking fields updated' };
     }
 
     // Set the single unified status directly from Steadfast
@@ -2540,7 +2545,6 @@ export class OrderManagementService {
     order.courierCompany = 'Pathao';
     order.courierOrderId = String(consignmentId);
     order.trackingId = String(consignmentId);
-    if (deliveryFee != null) order.deliveryCharge = deliveryFee;
 
     await this.salesOrderRepository.save(order);
 
@@ -2549,7 +2553,9 @@ export class OrderManagementService {
       courierCompany: 'Pathao',
       trackingId: String(consignmentId),
       status: 'sent',
-      remarks: `Consignment created in Pathao. Delivery fee: ${deliveryFee ?? 'N/A'}`,
+      deliveryCharge: deliveryFee ?? null,
+      rawPayload: resData,
+      remarks: `Consignment created in Pathao. Courier delivery fee: ${deliveryFee ?? 'N/A'}`,
     });
 
     await this.logStatusChange({
@@ -2565,7 +2571,7 @@ export class OrderManagementService {
         courierCompany: 'Pathao',
         courierOrderId: String(consignmentId),
         trackingId: String(consignmentId),
-        deliveryFee,
+        courierDeliveryFee: deliveryFee,
       },
     });
 
@@ -2675,9 +2681,9 @@ export class OrderManagementService {
 
     const newStatus = this.mapPathaoStatus(rawStatus);
 
-    // Update financial fields
+    // Update courier financial fields. Courier delivery fee is an expense/audit value;
+    // never overwrite the customer-facing sales_orders.delivery_charge.
     if (dto.cod_amount != null) order.codAmount = dto.cod_amount;
-    if (dto.delivery_fee != null) order.deliveryCharge = dto.delivery_fee;
 
     // Check sticker condition.
     const stickerPrinted = (order as any).stickerPrinted === true;
@@ -2700,7 +2706,7 @@ export class OrderManagementService {
         remarks: `Pathao webhook: status=${newStatus} (NOT applied — stickerPrinted=${stickerPrinted})`,
       });
 
-      return { status: 'success', message: 'Order not ready for status update, financial fields updated' };
+      return { status: 'success', message: 'Order not ready for status update, COD/tracking fields updated' };
     }
 
     const prevStatus = order.status;
@@ -2708,7 +2714,7 @@ export class OrderManagementService {
 
     if (!statusChanged) {
       await this.salesOrderRepository.save(order);
-      return { status: 'success', message: 'Status unchanged, financial fields updated' };
+      return { status: 'success', message: 'Status unchanged, COD/tracking fields updated' };
     }
 
     order.status = newStatus;

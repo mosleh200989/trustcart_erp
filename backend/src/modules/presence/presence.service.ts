@@ -25,6 +25,14 @@ function safeState(value: any): UserPresenceState {
   return value === 'online' ? 'online' : 'offline';
 }
 
+function cleanAttendanceKey(value: any, fallback: string): string {
+  return String(value ?? fallback).trim().slice(0, 10) || fallback;
+}
+
+function cleanAttendanceLabel(value: any, fallback: string): string {
+  return String(value ?? fallback).trim().slice(0, 100) || fallback;
+}
+
 @Injectable()
 export class PresenceService {
   constructor(
@@ -102,6 +110,16 @@ export class PresenceService {
       officeEndTime: '18:00',
       timezone: 'Asia/Dhaka',
       attendanceKey: '1HS4-6TSSmYRj-D6_ntJ9OyQITNfVyJRMZUN-d-ZN6C8',
+      attendancePresentKey: 'P',
+      attendancePresentLabel: 'Present',
+      attendanceLateKey: 'L',
+      attendanceLateLabel: 'Late',
+      attendanceWeeklyOffKey: 'W',
+      attendanceWeeklyOffLabel: 'Weekly off day',
+      attendanceExcusedAbsenceKey: 'U',
+      attendanceExcusedAbsenceLabel: 'Excused absence',
+      attendanceUnexcusedAbsenceKey: 'A',
+      attendanceUnexcusedAbsenceLabel: 'Unexcused absence',
       googleSpreadsheetId: '1HS4-6TSSmYRj-D6_ntJ9OyQITNfVyJRMZUN-d-ZN6C8',
       summarySheetName: 'May-26',
       eventsSheetName: '',
@@ -123,6 +141,19 @@ export class PresenceService {
     settings.officeEndTime = String(nextOfficeEnd);
     settings.timezone = String(input.timezone ?? settings.timezone ?? 'Asia/Dhaka');
     settings.attendanceKey = input.attendanceKey == null ? settings.attendanceKey : String(input.attendanceKey || '').trim() || null;
+    settings.attendancePresentKey = cleanAttendanceKey(input.attendancePresentKey, settings.attendancePresentKey || 'P');
+    settings.attendancePresentLabel = cleanAttendanceLabel(input.attendancePresentLabel, settings.attendancePresentLabel || 'Present');
+    settings.attendanceLateKey = cleanAttendanceKey(input.attendanceLateKey, settings.attendanceLateKey || 'L');
+    settings.attendanceLateLabel = cleanAttendanceLabel(input.attendanceLateLabel, settings.attendanceLateLabel || 'Late');
+    settings.attendanceWeeklyOffKey = cleanAttendanceKey(input.attendanceWeeklyOffKey, settings.attendanceWeeklyOffKey || 'W');
+    settings.attendanceWeeklyOffLabel = cleanAttendanceLabel(input.attendanceWeeklyOffLabel, settings.attendanceWeeklyOffLabel || 'Weekly off day');
+    settings.attendanceExcusedAbsenceKey = cleanAttendanceKey(input.attendanceExcusedAbsenceKey, settings.attendanceExcusedAbsenceKey || 'U');
+    settings.attendanceExcusedAbsenceLabel = cleanAttendanceLabel(input.attendanceExcusedAbsenceLabel, settings.attendanceExcusedAbsenceLabel || 'Excused absence');
+    settings.attendanceUnexcusedAbsenceKey = cleanAttendanceKey(input.attendanceUnexcusedAbsenceKey, settings.attendanceUnexcusedAbsenceKey || 'A');
+    settings.attendanceUnexcusedAbsenceLabel = cleanAttendanceLabel(
+      input.attendanceUnexcusedAbsenceLabel,
+      settings.attendanceUnexcusedAbsenceLabel || 'Unexcused absence',
+    );
     settings.googleSpreadsheetId =
       input.googleSpreadsheetId == null ? settings.googleSpreadsheetId : String(input.googleSpreadsheetId || '').trim() || null;
     settings.summarySheetName = String(input.summarySheetName ?? settings.summarySheetName ?? this.getDefaultMonthSheetName()).trim() || this.getDefaultMonthSheetName();
@@ -477,7 +508,7 @@ export class PresenceService {
         );
 
         if (onlineEvents.length === 0) {
-          row.push('A');
+          row.push(settings.attendanceUnexcusedAbsenceKey || 'A');
           continue;
         }
 
@@ -486,7 +517,7 @@ export class PresenceService {
           Number(firstOnline.toLocaleString('en-US', { hour: '2-digit', hour12: false, timeZone: timezone })) * 60 +
           Number(firstOnline.toLocaleString('en-US', { minute: '2-digit', timeZone: timezone }));
 
-        row.push(firstMinutes > officeStartMinutes ? 'L' : 'P');
+        row.push(firstMinutes > officeStartMinutes ? settings.attendanceLateKey || 'L' : settings.attendancePresentKey || 'P');
       }
       rows.push(row);
     }
@@ -514,11 +545,11 @@ export class PresenceService {
         ['', "Add classes by duplicating the monthly sheet tab. New tabs will reference this same attendance key."],
         [],
         ['', 'ATTENDANCE KEY'],
-        ['', 'P', 'Present'],
-        ['', 'L', 'Late'],
-        ['', 'W', 'Weekly off day'],
-        ['', 'U', 'Excused absence'],
-        ['', 'A', 'Unexcused absence'],
+        ['', settings.attendancePresentKey || 'P', settings.attendancePresentLabel || 'Present'],
+        ['', settings.attendanceLateKey || 'L', settings.attendanceLateLabel || 'Late'],
+        ['', settings.attendanceWeeklyOffKey || 'W', settings.attendanceWeeklyOffLabel || 'Weekly off day'],
+        ['', settings.attendanceExcusedAbsenceKey || 'U', settings.attendanceExcusedAbsenceLabel || 'Excused absence'],
+        ['', settings.attendanceUnexcusedAbsenceKey || 'A', settings.attendanceUnexcusedAbsenceLabel || 'Unexcused absence'],
         [],
         ['', 'OFFICE SETTINGS'],
         ['', 'Office Start Time', settings.officeStartTime],
