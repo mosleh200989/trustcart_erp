@@ -71,7 +71,7 @@ export class OrderManagementService {
 
   private resolveDeliveryCharge(order: SalesOrder, itemsSubtotal: number, discountAmount: number): number {
     const storedDeliveryCharge = this.getStoredDeliveryCharge(order);
-    if (storedDeliveryCharge != null && storedDeliveryCharge > 0) {
+    if (storedDeliveryCharge != null) {
       return storedDeliveryCharge;
     }
 
@@ -574,9 +574,9 @@ export class OrderManagementService {
           migratedSubtotal += sub;
         }
 
-        // Persist deliveryCharge to DB if it was null or 0, so it's always explicit going forward
+        // Persist deliveryCharge only if it is truly missing. A saved 0 is intentional free delivery.
         const order = await this.salesOrderRepository.findOne({ where: { id: data.orderId } });
-        if (order && (!order.deliveryCharge || Number(order.deliveryCharge) === 0)) {
+        if (order && order.deliveryCharge == null) {
           const discountAmount = Number(order.discountAmount || 0);
           const derivedDeliveryCharge = Math.max(0, Number(order.totalAmount || 0) - migratedSubtotal + discountAmount);
           order.deliveryCharge = derivedDeliveryCharge as any;
@@ -704,9 +704,9 @@ export class OrderManagementService {
             migratedSubtotal += sub;
           }
 
-          // Persist deliveryCharge if needed
+          // Persist deliveryCharge only if it is truly missing. A saved 0 is intentional free delivery.
           const order = await this.salesOrderRepository.findOne({ where: { id: orderId } });
-          if (order && (!order.deliveryCharge || Number(order.deliveryCharge) === 0)) {
+          if (order && order.deliveryCharge == null) {
             const discountAmount = Number(order.discountAmount || 0);
             const derivedDeliveryCharge = Math.max(0, Number(order.totalAmount || 0) - migratedSubtotal + discountAmount);
             order.deliveryCharge = derivedDeliveryCharge as any;

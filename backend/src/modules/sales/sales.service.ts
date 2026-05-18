@@ -99,7 +99,7 @@ export class SalesService {
 
   private resolveDeliveryCharge(order: SalesOrder, itemsSubtotal: number, discountAmount: number): number {
     const storedDeliveryCharge = this.getStoredDeliveryCharge(order);
-    if (storedDeliveryCharge != null && storedDeliveryCharge > 0) {
+    if (storedDeliveryCharge != null) {
       return storedDeliveryCharge;
     }
 
@@ -1466,17 +1466,19 @@ export class SalesService {
     const order = await this.salesRepository.findOne({ where: { id: Number(id) } });
     if (!order) return null;
 
-    // Calculate subtotal from order items
-    const items = await this.orderItemsRepository.find({
+    // Calculate subtotal from order items. Prefer admin-managed items when present;
+    // otherwise fall back to checkout-created sales order items.
+    const adminItems = await this.orderItemsRepository2.find({
+      where: { orderId: order.id },
+    });
+    const items = adminItems.length > 0 ? adminItems : await this.orderItemsRepository.find({
       where: { salesOrderId: order.id },
     });
-    const subtotal = items.reduce((sum, item) => sum + Number(item.lineTotal || 0), 0);
+    const subtotal = items.reduce((sum, item) => sum + this.getItemSubtotal(item), 0);
     
-    // Calculate delivery charge: totalAmount = subtotal + deliveryCharge - discountAmount
-    // Therefore: deliveryCharge = totalAmount - subtotal + discountAmount
     const totalAmount = Number(order.totalAmount || 0);
     const discountAmount = Number(order.discountAmount || 0);
-    const deliveryCharge = Math.max(0, totalAmount - subtotal + discountAmount);
+    const deliveryCharge = this.resolveDeliveryCharge(order, subtotal, discountAmount);
 
     return {
       ...order,
