@@ -15,6 +15,8 @@ declare global {
   }
 }
 
+let lastPageViewKey = '';
+
 // ============ CORE FUNCTIONS ============
 
 /**
@@ -54,11 +56,21 @@ export const clearEcommerce = () => {
  * @param title - Optional page title
  */
 export const trackPageView = (url: string, title?: string) => {
+  const pageLocation = typeof window !== 'undefined' ? window.location.href : url;
+  const pageTitle = title || (typeof document !== 'undefined' ? document.title : '');
+  const pageViewKey = `${pageLocation}|${pageTitle}`;
+
+  if (pageViewKey === lastPageViewKey) {
+    return;
+  }
+
+  lastPageViewKey = pageViewKey;
+
   pushToDataLayer({
     event: 'page_view',
-    page_location: typeof window !== 'undefined' ? window.location.href : url,
+    page_location: pageLocation,
     page_path: url,
-    page_title: title || (typeof document !== 'undefined' ? document.title : ''),
+    page_title: pageTitle,
   });
 };
 
