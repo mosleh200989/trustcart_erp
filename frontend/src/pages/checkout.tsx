@@ -25,6 +25,7 @@ import { trackBeginCheckout, trackAddPaymentInfo } from "@/utils/gtm";
 import { initiatePayment, redirectToPaymentGateway } from "@/services/payment";
 import { useCart } from "@/contexts/CartContext";
 import { useAuth } from "@/contexts/AuthContext";
+import { getOrderGuardNoteHtml, isOrderGuardBlocked } from "@/utils/orderGuard";
 
 export default function Checkout() {
   const router = useRouter();
@@ -45,6 +46,7 @@ export default function Checkout() {
   const [couponDiscount, setCouponDiscount] = useState(0);
   const [couponMsg, setCouponMsg] = useState('');
   const [couponError, setCouponError] = useState('');
+  const [orderGuardNoteHtml, setOrderGuardNoteHtml] = useState('');
   const [couponLoading, setCouponLoading] = useState(false);
   const [couponApplied, setCouponApplied] = useState(false);
   const [formData, setFormData] = useState({
@@ -377,6 +379,7 @@ export default function Checkout() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormSubmitted(true);
+    setOrderGuardNoteHtml('');
 
     if (!validateForm()) {
       toast.warning('Please fix the errors in the form');
@@ -551,6 +554,11 @@ export default function Checkout() {
       }
     } catch (error: any) {
       console.error("Order submission error:", error);
+      if (isOrderGuardBlocked(error)) {
+        setOrderGuardNoteHtml(getOrderGuardNoteHtml(error));
+        formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        return;
+      }
       toast.error(
         "Failed to place order: " +
           (error.response?.data?.message || error.message)
@@ -584,6 +592,12 @@ export default function Checkout() {
           </h2>
 
           <form ref={formRef} onSubmit={handleSubmit}>
+            {orderGuardNoteHtml && (
+              <div
+                className="mb-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"
+                dangerouslySetInnerHTML={{ __html: orderGuardNoteHtml }}
+              />
+            )}
             {/* Cart Items (same features as Cart page) */}
             {cart.length === 0 ? (
               <div className="bg-white rounded-lg shadow-md p-6 mb-6">

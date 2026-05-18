@@ -5,6 +5,7 @@ import apiClient from '@/services/api';
 import PhoneInput from '@/components/PhoneInput';
 import InternationalPhoneInput from '@/components/InternationalPhoneInput';
 import { useToast } from '@/contexts/ToastContext';
+import { getOrderGuardNoteHtml, isOrderGuardBlocked } from '@/utils/orderGuard';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/dist/ScrollTrigger';
 import {
@@ -116,6 +117,7 @@ export default function GheeTemplate({
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [formTouched, setFormTouched] = useState(false);
+  const [orderGuardNoteHtml, setOrderGuardNoteHtml] = useState('');
 
   // Incomplete-order tracking
   const sessionIdRef = useRef<string>('');
@@ -375,6 +377,7 @@ export default function GheeTemplate({
   /* ── Order submit ── */
   const handleSubmitOrder = async () => {
     setFormTouched(true);
+    setOrderGuardNoteHtml('');
     if (!orderForm.name || !orderForm.phone || !orderForm.address) {
       toast.warning('অনুগ্রহ করে সব তথ্য পূরণ করুন');
       return;
@@ -447,6 +450,11 @@ export default function GheeTemplate({
       }
     } catch (err: any) {
       console.error('Order submission error:', err);
+      if (isOrderGuardBlocked(err)) {
+        setOrderGuardNoteHtml(getOrderGuardNoteHtml(err));
+        orderFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        return;
+      }
       const status = err?.response?.status;
       const savedId = err?.response?.data?.id || err?.response?.data?.data?.id;
       if (savedId) {
@@ -1392,6 +1400,13 @@ export default function GheeTemplate({
                         <p className="text-[10px] text-[#A99B85] mt-3">
                           Your personal data will be used to process your order.
                         </p>
+
+                        {orderGuardNoteHtml && (
+                          <div
+                            className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"
+                            dangerouslySetInnerHTML={{ __html: orderGuardNoteHtml }}
+                          />
+                        )}
 
                         {/* Submit */}
                         <button

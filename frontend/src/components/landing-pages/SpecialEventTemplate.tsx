@@ -6,6 +6,7 @@ import PhoneInput from '@/components/PhoneInput';
 import InternationalPhoneInput from '@/components/InternationalPhoneInput';
 import { useToast } from '@/contexts/ToastContext';
 import CrossSellSuggestion from '@/components/landing-pages/CrossSellSuggestion';
+import { getOrderGuardNoteHtml, isOrderGuardBlocked } from '@/utils/orderGuard';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/dist/ScrollTrigger';
 import {
@@ -188,6 +189,7 @@ export default function SpecialEventTemplate({
   const [deliveryZone, setDeliveryZone] = useState<'inside' | 'outside'>('outside');
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [orderGuardNoteHtml, setOrderGuardNoteHtml] = useState('');
   const [savedOrderId, setSavedOrderId] = useState<number | string | null>(null);
   const [formTouched, setFormTouched] = useState(false);
   const [crossSellChecked, setCrossSellChecked] = useState(false);
@@ -383,6 +385,7 @@ export default function SpecialEventTemplate({
 
   /* ── Order submit ── */
   const handleSubmitOrder = async () => {
+    setOrderGuardNoteHtml('');
     setFormTouched(true);
     if (!orderForm.name || !orderForm.phone || !orderForm.address) {
       toast.warning('অনুগ্রহ করে সব তথ্য পূরণ করুন');
@@ -465,6 +468,10 @@ export default function SpecialEventTemplate({
       toast.success('আপনার অর্ডারটি সফলভাবে গ্রহণ করা হয়েছে! ধন্যবাদ।');
     } catch (err: any) {
       console.error('Order submission error:', err);
+      if (isOrderGuardBlocked(err)) {
+        setOrderGuardNoteHtml(getOrderGuardNoteHtml(err));
+        return;
+      }
       const status = err?.response?.status;
       const savedId = err?.response?.data?.id || err?.response?.data?.data?.id;
       if (savedId) {
@@ -1626,6 +1633,13 @@ export default function SpecialEventTemplate({
                         </p>
                       )}
                     </div>
+
+                    {orderGuardNoteHtml && (
+                      <div
+                        className="rounded-xl border border-amber-300/40 bg-amber-50 px-4 py-3 text-sm text-amber-950"
+                        dangerouslySetInnerHTML={{ __html: orderGuardNoteHtml }}
+                      />
+                    )}
 
                     {/* ── Submit ── */}
                     <button

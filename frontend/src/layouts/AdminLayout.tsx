@@ -8,7 +8,7 @@ import apiClient, { stockAlerts } from '@/services/api';
 import { 
   FaTachometerAlt, FaBoxes, FaShoppingCart, FaUsers, FaWarehouse, 
   FaShoppingBag, FaUserTie, FaBook, FaBullseye, FaHandshake, 
-  FaHeadset, FaUser, FaCog, FaBars, FaTimes, FaBell, FaChevronDown, FaChartBar, FaTags, FaGift, FaPhone, FaMoneyBillWave, FaImage, FaList, FaRocket, FaPrint, FaBan, FaHistory, FaTruck, FaClipboardList, FaExchangeAlt, FaSlidersH, FaClipboardCheck, FaBarcode, FaChartLine, FaFileImport, FaMap, FaSearch, FaRecycle
+  FaHeadset, FaUser, FaCog, FaBars, FaTimes, FaBell, FaChevronDown, FaChartBar, FaTags, FaGift, FaPhone, FaMoneyBillWave, FaImage, FaList, FaRocket, FaPrint, FaBan, FaHistory, FaTruck, FaClipboardList, FaExchangeAlt, FaSlidersH, FaClipboardCheck, FaBarcode, FaChartLine, FaFileImport, FaMap, FaSearch, FaRecycle, FaShieldAlt
 } from 'react-icons/fa';
 
 interface MenuItem {
@@ -420,10 +420,11 @@ const menuItems: MenuItem[] = [
   {
     title: 'Settings',
     icon: FaCog,
-    requiredPermissions: ['manage-system-settings', 'view-system-settings'],
+    requiredPermissions: ['manage-system-settings', 'view-system-settings', 'view-order-guard', 'manage-order-guard'],
     children: [
       { title: 'Courier Configuration', icon: FaCog, path: '/admin/settings/courier-configuration' },
       { title: 'Printer Settings', icon: FaPrint, path: '/admin/settings/printer', requiredPermissions: ['manage-system-settings'] },
+      { title: 'Order Guard', icon: FaShieldAlt, path: '/admin/settings/order-guard', requiredPermissions: ['view-order-guard', 'manage-order-guard'] },
       { title: 'Manage Modules', icon: FaCog, path: '/admin/settings/manage-modules', requiredPermissions: ['manage-system-settings'] },
     ],
   },
@@ -451,6 +452,7 @@ const iconMap: Record<string, any> = {
   FaImage,
   FaPrint,
   FaClipboardList,
+  FaShieldAlt,
 };
 
 function iconFromKey(key?: string | null) {

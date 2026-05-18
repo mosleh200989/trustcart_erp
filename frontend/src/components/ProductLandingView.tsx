@@ -20,6 +20,7 @@ import apiClient from "@/services/api";
 import PhoneInput from "@/components/PhoneInput";
 import { useToast } from "@/contexts/ToastContext";
 import { SITE_NAME, canonicalUrl, productImageUrl } from "@/config/seo";
+import { getOrderGuardNoteHtml, isOrderGuardBlocked } from "@/utils/orderGuard";
 
 interface SizeVariant {
   name: string;
@@ -82,6 +83,7 @@ export default function ProductLandingView({
   });
   const [formTouched, setFormTouched] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [orderGuardNoteHtml, setOrderGuardNoteHtml] = useState('');
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
   const supportPhone = (process.env.NEXT_PUBLIC_SUPPORT_PHONE || "").trim();
@@ -148,6 +150,7 @@ export default function ProductLandingView({
   };
 
   const handleSubmitOrder = async () => {
+    setOrderGuardNoteHtml('');
     setFormTouched(true);
     if (!orderForm.name || !orderForm.phone || !orderForm.address) {
       toast.warning("Please fill in all required fields");
@@ -201,6 +204,11 @@ export default function ProductLandingView({
         toast.success("Your order has been placed successfully!");
       }
     } catch (err: any) {
+      if (isOrderGuardBlocked(err)) {
+        setOrderGuardNoteHtml(getOrderGuardNoteHtml(err));
+        orderFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        return;
+      }
       const savedId = err?.response?.data?.id || err?.response?.data?.data?.id;
       if (savedId) {
         window.location.href = `/thank-you?orderId=${savedId}`;
@@ -350,6 +358,13 @@ export default function ProductLandingView({
           <h2 className="text-2xl font-bold text-center mb-2 text-orange-600">
             অর্ডার করতে নিচের ফর্মটি পূরণ করুন 👇
           </h2>
+
+          {orderGuardNoteHtml && (
+            <div
+              className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"
+              dangerouslySetInnerHTML={{ __html: orderGuardNoteHtml }}
+            />
+          )}
 
           {/* Product / Variant Selection */}
           <div className="mb-6">

@@ -34,6 +34,12 @@ export class SalesController {
     return year && month && day ? `${year}-${month}-${day}` : getDhakaDateString();
   }
 
+  private getClientIp(req: any): string {
+    const forwarded = req?.headers?.['x-forwarded-for'];
+    const raw = Array.isArray(forwarded) ? forwarded[0] : forwarded || req?.headers?.['x-real-ip'] || req?.ip || req?.socket?.remoteAddress || '';
+    return String(raw).split(',')[0].trim().replace(/^::ffff:/, '');
+  }
+
   // Public endpoint: track order by tracking ID, order number, or consignment ID
   @Get('public/track/:trackingId')
   @Public()
@@ -426,7 +432,7 @@ export class SalesController {
       }
     }
 
-    return this.salesService.create(createSalesDto);
+    return this.salesService.create(createSalesDto, { clientIp: this.getClientIp(req) });
   }
 
   @Put('sync-customer/:customerId')
