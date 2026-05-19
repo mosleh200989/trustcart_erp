@@ -8,7 +8,7 @@ import apiClient, { stockAlerts } from '@/services/api';
 import { 
   FaTachometerAlt, FaBoxes, FaShoppingCart, FaUsers, FaWarehouse, 
   FaShoppingBag, FaUserTie, FaBook, FaBullseye, FaHandshake, 
-  FaHeadset, FaUser, FaCog, FaBars, FaTimes, FaBell, FaChevronDown, FaChartBar, FaTags, FaGift, FaPhone, FaMoneyBillWave, FaImage, FaList, FaRocket, FaPrint, FaBan, FaHistory, FaTruck, FaClipboardList, FaExchangeAlt, FaSlidersH, FaClipboardCheck, FaBarcode, FaChartLine, FaFileImport, FaMap, FaSearch, FaRecycle, FaShieldAlt, FaCalculator
+  FaHeadset, FaUser, FaUserClock, FaCog, FaBars, FaTimes, FaBell, FaChevronDown, FaChartBar, FaTags, FaGift, FaPhone, FaMoneyBillWave, FaImage, FaList, FaRocket, FaPrint, FaBan, FaHistory, FaTruck, FaClipboardList, FaExchangeAlt, FaSlidersH, FaClipboardCheck, FaBarcode, FaChartLine, FaFileImport, FaMap, FaSearch, FaRecycle, FaShieldAlt, FaCalculator
 } from 'react-icons/fa';
 
 interface MenuItem {
@@ -100,6 +100,12 @@ const menuItems: MenuItem[] = [
         icon: FaClipboardCheck,
         path: '/admin/presence/calendar',
         requiredPermissions: ['view-presence', 'view-presence-calendar', 'manage-presence-calendar'],
+      },
+      {
+        title: 'Office Time',
+        icon: FaUserClock,
+        path: '/admin/presence/office-time',
+        requiredPermissions: ['view-presence-office-time', 'manage-presence-office-time', 'manage-presence-settings'],
       },
       {
         title: 'Settings',
@@ -523,6 +529,12 @@ function ensurePresenceLink(items: MenuItem[]): MenuItem[] {
     path: '/admin/presence/calendar',
     requiredPermissions: ['view-presence', 'view-presence-calendar', 'manage-presence-calendar'],
   };
+  const officeTimeItem: MenuItem = {
+    title: 'Office Time',
+    icon: FaUserClock,
+    path: '/admin/presence/office-time',
+    requiredPermissions: ['view-presence-office-time', 'manage-presence-office-time', 'manage-presence-settings'],
+  };
 
   let inserted = false;
   const next: MenuItem[] = [];
@@ -531,10 +543,11 @@ function ensurePresenceLink(items: MenuItem[]): MenuItem[] {
     const isPresenceDashboard = item.path === '/admin/presence';
     const isPresenceHistory = item.path === '/admin/presence/history';
     const isPresenceCalendar = item.path === '/admin/presence/calendar';
+    const isPresenceOfficeTime = item.path === '/admin/presence/office-time';
     const isPresenceSettings = item.path === '/admin/presence/settings';
     const isPresenceParent = item.title === 'Presence' && item.children && !item.path;
 
-    if (isPresenceHistory || isPresenceCalendar || isPresenceSettings) {
+    if (isPresenceHistory || isPresenceCalendar || isPresenceOfficeTime || isPresenceSettings) {
       continue;
     }
 
@@ -543,9 +556,10 @@ function ensurePresenceLink(items: MenuItem[]): MenuItem[] {
       const hasDashboard = exists(children, '/admin/presence');
       const mergedChildren = [
         ...(hasDashboard ? [] : [dashboardItem]),
-        ...children.filter((child) => child.path !== '/admin/presence/history' && child.path !== '/admin/presence/calendar' && child.path !== '/admin/presence/settings'),
+        ...children.filter((child) => child.path !== '/admin/presence/history' && child.path !== '/admin/presence/calendar' && child.path !== '/admin/presence/office-time' && child.path !== '/admin/presence/settings'),
         historyItem,
         calendarItem,
+        officeTimeItem,
         settingsItem,
       ];
       next.push({
@@ -573,7 +587,7 @@ function ensurePresenceLink(items: MenuItem[]): MenuItem[] {
     {
       title: 'Presence',
       icon: FaUser,
-      children: [dashboardItem, historyItem, calendarItem, settingsItem],
+      children: [dashboardItem, historyItem, calendarItem, officeTimeItem, settingsItem],
     },
   ];
 }
@@ -691,6 +705,10 @@ function getPanelTitleFromRoleSlugs(roleSlugs: Set<string>): string {
   return 'Admin Panel';
 }
 
+const PRESENCE_IDLE_TIMEOUT_MS = 3 * 60 * 1000;
+const PRESENCE_ACTIVE_SYNC_MS = 30 * 1000;
+const PRESENCE_HEARTBEAT_MS = 60 * 1000;
+
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [expandedMenus, setExpandedMenus] = useState<string[]>([]);
@@ -701,6 +719,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [presenceState, setPresenceState] = useState<'online' | 'offline'>('offline');
   const [presenceLoading, setPresenceLoading] = useState(false);
   const alertRef = useRef<HTMLDivElement>(null);
+  const presenceStateRef = useRef<'online' | 'offline'>('offline');
+  const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastActiveSyncRef = useRef(0);
+  const suppressAutoOnlineUntilRef = useRef(0);
   const router = useRouter();
   const { user, roles, isLoading, hasAnyPermission, logout } = useAuth();
 
@@ -741,40 +763,79 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   useEffect(() => {
     let cancelled = false;
 
+    const setPresence = async (state: 'online' | 'offline') => {
+      presenceStateRef.current = state;
+      if (!cancelled) setPresenceState(state);
+      try {
+        const res = await apiClient.post('/presence/me', { state });
+        const saved = res.data?.state === 'online' ? 'online' : 'offline';
+        presenceStateRef.current = saved;
+        if (!cancelled) setPresenceState(saved);
+      } catch {}
+    };
+
+    const resetIdleTimer = () => {
+      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+      idleTimerRef.current = setTimeout(() => {
+        void setPresence('offline');
+      }, PRESENCE_IDLE_TIMEOUT_MS);
+    };
+
+    const markActive = () => {
+      resetIdleTimer();
+      const now = Date.now();
+      if (now < suppressAutoOnlineUntilRef.current) return;
+      if (presenceStateRef.current === 'online' && now - lastActiveSyncRef.current < PRESENCE_ACTIVE_SYNC_MS) return;
+      lastActiveSyncRef.current = now;
+      void setPresence('online');
+    };
+
     const loadPresence = async () => {
       try {
         const res = await apiClient.get('/presence/me');
         const state = res.data?.state === 'online' ? 'online' : 'offline';
+        presenceStateRef.current = state;
         if (!cancelled) setPresenceState(state);
       } catch {
+        presenceStateRef.current = 'offline';
         if (!cancelled) setPresenceState('offline');
       }
     };
 
     const heartbeat = async () => {
+      if (presenceStateRef.current !== 'online') return;
       try {
         await apiClient.post('/presence/heartbeat');
       } catch {}
     };
 
     loadPresence();
-    heartbeat();
-    const iv = setInterval(heartbeat, 60000);
+    markActive();
+    const activityEvents: Array<keyof WindowEventMap> = ['click', 'keydown', 'mousemove', 'scroll', 'touchstart', 'focus'];
+    activityEvents.forEach((eventName) => window.addEventListener(eventName, markActive, { passive: true }));
+    const iv = setInterval(heartbeat, PRESENCE_HEARTBEAT_MS);
 
     return () => {
       cancelled = true;
+      activityEvents.forEach((eventName) => window.removeEventListener(eventName, markActive));
+      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
       clearInterval(iv);
     };
   }, []);
 
   const togglePresence = useCallback(async () => {
     const next = presenceState === 'online' ? 'offline' : 'online';
+    if (next === 'offline') suppressAutoOnlineUntilRef.current = Date.now() + 2000;
+    presenceStateRef.current = next;
     setPresenceState(next);
     setPresenceLoading(true);
     try {
       const res = await apiClient.post('/presence/me', { state: next });
-      setPresenceState(res.data?.state === 'online' ? 'online' : 'offline');
+      const saved = res.data?.state === 'online' ? 'online' : 'offline';
+      presenceStateRef.current = saved;
+      setPresenceState(saved);
     } catch {
+      presenceStateRef.current = presenceState;
       setPresenceState(presenceState);
     } finally {
       setPresenceLoading(false);

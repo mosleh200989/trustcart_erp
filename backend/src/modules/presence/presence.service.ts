@@ -8,6 +8,8 @@ import { User } from '../users/user.entity';
 import { UserPresenceEvent } from './entities/user-presence-event.entity';
 import { UserPresenceState, UserPresenceStatus } from './entities/user-presence-status.entity';
 import { PresenceSettings } from './entities/presence-settings.entity';
+import { UserOfficeTime } from './entities/user-office-time.entity';
+import { PresenceCalendarOverride } from './entities/presence-calendar-override.entity';
 
 function parseDate(value: any): Date | null {
   if (!value) return null;
@@ -49,6 +51,10 @@ export class PresenceService {
     private readonly userRepo: Repository<User>,
     @InjectRepository(PresenceSettings)
     private readonly settingsRepo: Repository<PresenceSettings>,
+    @InjectRepository(UserOfficeTime)
+    private readonly officeTimeRepo: Repository<UserOfficeTime>,
+    @InjectRepository(PresenceCalendarOverride)
+    private readonly calendarOverrideRepo: Repository<PresenceCalendarOverride>,
   ) {}
 
   private getRange(params?: { from?: string; to?: string; rangeDays?: number }) {
@@ -380,7 +386,6 @@ export class PresenceService {
     const sheetName = String(params?.sheetName || settings.summarySheetName || this.getDefaultMonthSheetName()).trim();
     const { year, monthIndex, days } = this.getDaysInSheetMonth(sheetName, timezone);
     const todayKey = this.getDhakaDateKey(new Date(), timezone);
-    const officeStartMinutes = this.timeToMinutes(settings.officeStartTime);
     const monthStart = new Date(Date.UTC(year, monthIndex, 1, 0, 0, 0));
     const monthEnd = new Date(Date.UTC(year, monthIndex + 1, 2, 23, 59, 59));
 
@@ -407,6 +412,20 @@ export class PresenceService {
       list.push(event);
       eventsByUserDay.set(key, list);
     }
+
+    const officeTimeRows = userIds.length ? await this.officeTimeRepo.find({ where: { userId: In(userIds) } as any }) : [];
+    const officeTimeByUser = new Map(officeTimeRows.map((row) => [Number(row.userId), row]));
+    const overrides = userIds.length
+      ? await this.calendarOverrideRepo
+          .createQueryBuilder('o')
+          .where('o.userId IN (:...userIds)', { userIds })
+          .andWhere('o.dateKey >= :from AND o.dateKey <= :to', {
+            from: this.dateKeyForMonthDay(year, monthIndex, 1),
+            to: this.dateKeyForMonthDay(year, monthIndex, days),
+          })
+          .getMany()
+      : [];
+    const overrideByUserDay = new Map(overrides.map((row) => [`${row.userId}:${row.dateKey}`, row]));
 
     const order = Array.isArray(settings.calendarUserOrder) ? settings.calendarUserOrder.map((x) => Number(x)) : [];
     const orderIndex = new Map(order.map((userId, idx) => [userId, idx]));
@@ -441,12 +460,29 @@ export class PresenceService {
 
     const rows = orderedUsers.map((user, idx) => {
       const userId = Number(user.id);
+      const officeTime = officeTimeByUser.get(userId);
+      const userOfficeStart = officeTime?.officeStartTime || settings.officeStartTime;
+      const userOfficeStartMinutes = this.timeToMinutes(userOfficeStart);
       return {
         userId,
         name: [user.name, user.lastName].filter(Boolean).join(' ').trim() || user.email,
         email: user.email,
+        officeStartTime: userOfficeStart,
         insertGapAfter: settings.calendarTeamGapEvery > 0 && (idx + 1) % settings.calendarTeamGapEvery === 0 && idx < orderedUsers.length - 1,
         cells: daysList.map((day) => {
+          const override = overrideByUserDay.get(`${userId}:${day.key}`);
+          if (override) {
+            const matched = Object.values(keyConfig).find((config) => config.key === override.attendanceKey);
+            return {
+              dateKey: day.key,
+              value: override.attendanceKey,
+              label: override.attendanceLabel || matched?.label || 'Manual override',
+              color: matched?.color || '#111827',
+              isManual: true,
+              note: override.note || '',
+            };
+          }
+
           if (day.key > todayKey) return { dateKey: day.key, value: '', label: '', color: '' };
           const onlineEvents = (eventsByUserDay.get(`${userId}:${day.key}`) || []).sort(
             (a, b) => new Date(a.occurredAt).getTime() - new Date(b.occurredAt).getTime(),
@@ -459,7 +495,7 @@ export class PresenceService {
           const firstMinutes =
             Number(firstOnline.toLocaleString('en-US', { hour: '2-digit', hour12: false, timeZone: timezone })) * 60 +
             Number(firstOnline.toLocaleString('en-US', { minute: '2-digit', timeZone: timezone }));
-          const config = firstMinutes > officeStartMinutes ? keyConfig.late : keyConfig.present;
+          const config = firstMinutes > userOfficeStartMinutes ? keyConfig.late : keyConfig.present;
           return { dateKey: day.key, value: config.key, label: config.label, color: config.color };
         }),
       };
@@ -487,6 +523,83 @@ export class PresenceService {
       : [];
     settings.calendarUserOrder = next;
     return this.settingsRepo.save(settings);
+  }
+
+  async getOfficeTimes() {
+    const users = await this.userRepo.find({
+      where: { isDeleted: false, status: 'active' } as any,
+      order: { name: 'ASC', lastName: 'ASC' } as any,
+    });
+    const rows = await this.officeTimeRepo.find();
+    const byUserId = new Map(rows.map((row) => [Number(row.userId), row]));
+    const settings = await this.getSettings();
+
+    return {
+      defaultOfficeStartTime: settings.officeStartTime,
+      defaultOfficeEndTime: settings.officeEndTime,
+      items: users.map((user) => {
+        const row = byUserId.get(Number(user.id));
+        return {
+          userId: Number(user.id),
+          name: [user.name, user.lastName].filter(Boolean).join(' ').trim() || user.email,
+          email: user.email,
+          officeStartTime: row?.officeStartTime || settings.officeStartTime,
+          officeEndTime: row?.officeEndTime || settings.officeEndTime,
+          customOfficeStartTime: row?.officeStartTime || '',
+          customOfficeEndTime: row?.officeEndTime || '',
+          notes: row?.notes || '',
+        };
+      }),
+    };
+  }
+
+  async updateOfficeTime(userIdRaw: any, input: { officeStartTime?: string | null; officeEndTime?: string | null; notes?: string | null }) {
+    const userId = Number(userIdRaw);
+    if (!Number.isFinite(userId) || userId <= 0) throw new BadRequestException('Valid user ID is required');
+
+    const timePattern = /^([01]\d|2[0-3]):[0-5]\d$/;
+    const officeStartTime = String(input.officeStartTime || '').trim();
+    const officeEndTime = String(input.officeEndTime || '').trim();
+    if (officeStartTime && !timePattern.test(officeStartTime)) throw new BadRequestException('Office start time must be HH:mm');
+    if (officeEndTime && !timePattern.test(officeEndTime)) throw new BadRequestException('Office end time must be HH:mm');
+
+    let row = await this.officeTimeRepo.findOne({ where: { userId } });
+    if (!row) row = this.officeTimeRepo.create({ userId });
+    row.officeStartTime = officeStartTime || null;
+    row.officeEndTime = officeEndTime || null;
+    row.notes = String(input.notes || '').trim() || null;
+    return this.officeTimeRepo.save(row);
+  }
+
+  async updateCalendarOverride(input: { userId?: number; dateKey?: string; attendanceKey?: string; note?: string | null }, updatedBy?: number) {
+    const userId = Number(input.userId);
+    const dateKey = String(input.dateKey || '').trim();
+    const attendanceKey = String(input.attendanceKey || '').trim().slice(0, 10);
+    if (!Number.isFinite(userId) || userId <= 0) throw new BadRequestException('Valid user ID is required');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) throw new BadRequestException('Date key must be YYYY-MM-DD');
+
+    const settings = await this.getSettings();
+    const configByKey = new Map([
+      [settings.attendancePresentKey || 'P', settings.attendancePresentLabel || 'Present'],
+      [settings.attendanceLateKey || 'L', settings.attendanceLateLabel || 'Late'],
+      [settings.attendanceWeeklyOffKey || 'W', settings.attendanceWeeklyOffLabel || 'Weekly off day'],
+      [settings.attendanceExcusedAbsenceKey || 'U', settings.attendanceExcusedAbsenceLabel || 'Excused absence'],
+      [settings.attendanceUnexcusedAbsenceKey || 'A', settings.attendanceUnexcusedAbsenceLabel || 'Unexcused absence'],
+    ]);
+
+    const existing = await this.calendarOverrideRepo.findOne({ where: { userId, dateKey } });
+    if (!attendanceKey) {
+      if (existing) await this.calendarOverrideRepo.remove(existing);
+      return { deleted: true };
+    }
+    if (!configByKey.has(attendanceKey)) throw new BadRequestException('Attendance key is not configured');
+
+    const row = existing || this.calendarOverrideRepo.create({ userId, dateKey });
+    row.attendanceKey = attendanceKey;
+    row.attendanceLabel = configByKey.get(attendanceKey) || null;
+    row.note = String(input.note || '').trim() || null;
+    row.updatedBy = updatedBy || null;
+    return this.calendarOverrideRepo.save(row);
   }
 
   private async getGoogleAccessToken() {

@@ -119,6 +119,12 @@ export const DEFAULT_ADMIN_MENU: AdminMenuSeedNode[] = [
         requiredPermissions: ['view-presence', 'view-presence-calendar', 'manage-presence-calendar'],
       },
       {
+        title: 'Office Time',
+        icon: 'FaUserClock',
+        path: '/admin/presence/office-time',
+        requiredPermissions: ['view-presence-office-time', 'manage-presence-office-time', 'manage-presence-settings'],
+      },
+      {
         title: 'Settings',
         icon: 'FaCog',
         path: '/admin/presence/settings',

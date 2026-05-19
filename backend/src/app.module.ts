@@ -75,6 +75,8 @@ import { TelephonyCall } from './modules/telephony/entities/telephony-call.entit
 import { UserPresenceStatus } from './modules/presence/entities/user-presence-status.entity';
 import { UserPresenceEvent } from './modules/presence/entities/user-presence-event.entity';
 import { PresenceSettings } from './modules/presence/entities/presence-settings.entity';
+import { UserOfficeTime } from './modules/presence/entities/user-office-time.entity';
+import { PresenceCalendarOverride } from './modules/presence/entities/presence-calendar-override.entity';
 
 // CRM Entities
 import { Deal } from './modules/crm/entities/deal.entity';
@@ -287,6 +289,8 @@ import { GrnItem } from './modules/purchase/entities/grn-item.entity';
             UserPresenceStatus,
             UserPresenceEvent,
             PresenceSettings,
+            UserOfficeTime,
+            PresenceCalendarOverride,
 
             // Tagging entities
             CustomerTag,
