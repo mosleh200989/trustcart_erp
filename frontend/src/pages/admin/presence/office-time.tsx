@@ -13,6 +13,7 @@ type OfficeTimeRow = {
   officeEndTime: string;
   customOfficeStartTime: string;
   customOfficeEndTime: string;
+  telegramChatId: string;
   notes: string;
 };
 
@@ -58,7 +59,7 @@ export default function PresenceOfficeTimePage() {
       await apiClient.post(`/presence/office-times/${item.userId}`, {
         officeStartTime: item.customOfficeStartTime,
         officeEndTime: item.customOfficeEndTime,
-        notes: item.notes,
+        telegramChatId: item.telegramChatId,
       });
       setMessage('Office time saved successfully.');
       await load();
@@ -83,7 +84,7 @@ export default function PresenceOfficeTimePage() {
               Presence Module
             </div>
             <h1 className="text-3xl font-bold text-gray-900 mt-2">Office Time</h1>
-            <p className="text-gray-600 mt-1">Set employee-specific office start times for automatic Present and Late calculation.</p>
+            <p className="text-gray-600 mt-1">Set employee-specific office times and Telegram chat IDs for attendance reminders.</p>
           </div>
 
           <button
@@ -123,7 +124,7 @@ export default function PresenceOfficeTimePage() {
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Employee</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Start Time</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">End Time</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Notes</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Telegram Chat ID</th>
                   <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase">Action</th>
                 </tr>
               </thead>
@@ -158,11 +159,13 @@ export default function PresenceOfficeTimePage() {
                     </td>
                     <td className="px-4 py-3">
                       <input
-                        value={item.notes || ''}
-                        onChange={(e) => updateItem(item.userId, { notes: e.target.value })}
+                        value={item.telegramChatId || ''}
+                        onChange={(e) => updateItem(item.userId, { telegramChatId: e.target.value })}
                         disabled={!canManage}
+                        placeholder="123456789"
                         className="w-full min-w-[220px] border border-gray-300 rounded-lg px-3 py-2 text-sm disabled:bg-gray-50"
                       />
+                      <div className="text-xs text-gray-400 mt-1">Messages are sent only when this is filled.</div>
                     </td>
                     <td className="px-4 py-3 text-right">
                       <button

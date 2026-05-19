@@ -77,6 +77,7 @@ import { UserPresenceEvent } from './modules/presence/entities/user-presence-eve
 import { PresenceSettings } from './modules/presence/entities/presence-settings.entity';
 import { UserOfficeTime } from './modules/presence/entities/user-office-time.entity';
 import { PresenceCalendarOverride } from './modules/presence/entities/presence-calendar-override.entity';
+import { PresenceTelegramNotification } from './modules/presence/entities/presence-telegram-notification.entity';
 
 // CRM Entities
 import { Deal } from './modules/crm/entities/deal.entity';
@@ -291,6 +292,7 @@ import { GrnItem } from './modules/purchase/entities/grn-item.entity';
             PresenceSettings,
             UserOfficeTime,
             PresenceCalendarOverride,
+            PresenceTelegramNotification,
 
             // Tagging entities
             CustomerTag,

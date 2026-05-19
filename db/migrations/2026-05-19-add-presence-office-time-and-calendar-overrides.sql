@@ -3,10 +3,14 @@ CREATE TABLE IF NOT EXISTS user_office_times (
   user_id integer NOT NULL UNIQUE,
   office_start_time varchar(5) NULL,
   office_end_time varchar(5) NULL,
+  telegram_chat_id varchar(80) NULL,
   notes text NULL,
   created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+ALTER TABLE user_office_times
+  ADD COLUMN IF NOT EXISTS telegram_chat_id varchar(80) NULL;
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_user_office_times_user ON user_office_times(user_id);
 
