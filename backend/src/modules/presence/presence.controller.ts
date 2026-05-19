@@ -101,6 +101,25 @@ export class PresenceController {
     return this.presenceService.updateCalendarOrder(body?.userIds || []);
   }
 
+  @Post('calendar/override')
+  @RequireAnyPermission('manage-presence-calendar', 'manage-presence-settings')
+  async updateCalendarOverride(@Req() req: ExpressRequest, @Body() body: { userId?: number; dateKey?: string; attendanceKey?: string; note?: string | null }) {
+    return this.presenceService.updateCalendarOverride(body, Number((req as any).user?.id));
+  }
+
+  @Get('office-times')
+  @RequireAnyPermission('view-presence-office-time', 'manage-presence-office-time', 'manage-presence-settings')
+  async officeTimes() {
+    return this.presenceService.getOfficeTimes();
+  }
+
+  @Post('office-times/:userId')
+  @RequireAnyPermission('manage-presence-office-time', 'manage-presence-settings')
+  async updateOfficeTime(@Req() req: ExpressRequest, @Body() body: any) {
+    const userId = (req as any).params?.userId;
+    return this.presenceService.updateOfficeTime(userId, body);
+  }
+
   @Get('settings')
   @RequirePermissions('manage-presence-settings')
   async getSettings() {

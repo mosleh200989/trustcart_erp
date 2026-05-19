@@ -10,7 +10,7 @@ type CalendarRow = {
   name: string;
   email?: string | null;
   insertGapAfter?: boolean;
-  cells: Array<{ dateKey: string; value: string; label: string; color: string }>;
+  cells: Array<{ dateKey: string; value: string; label: string; color: string; isManual?: boolean; note?: string }>;
 };
 
 type CalendarData = {
@@ -28,6 +28,7 @@ export default function PresenceCalendarPage() {
   const [data, setData] = useState<CalendarData | null>(null);
   const [rows, setRows] = useState<CalendarRow[]>([]);
   const [dragUserId, setDragUserId] = useState<number | null>(null);
+  const [editingCell, setEditingCell] = useState<{ userId: number; name: string; dateKey: string; value: string; note: string } | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
@@ -85,6 +86,27 @@ export default function PresenceCalendarPage() {
       await load();
     } catch (err: any) {
       setMessage(err?.response?.data?.message || 'Failed to save calendar order.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const saveCellOverride = async () => {
+    if (!editingCell) return;
+    setSaving(true);
+    setMessage('');
+    try {
+      await apiClient.post('/presence/calendar/override', {
+        userId: editingCell.userId,
+        dateKey: editingCell.dateKey,
+        attendanceKey: editingCell.value,
+        note: editingCell.note,
+      });
+      setEditingCell(null);
+      setMessage(editingCell.value ? 'Calendar cell updated successfully.' : 'Calendar cell override cleared.');
+      await load();
+    } catch (err: any) {
+      setMessage(err?.response?.data?.message || 'Failed to update calendar cell.');
     } finally {
       setSaving(false);
     }
@@ -204,15 +226,21 @@ export default function PresenceCalendarPage() {
                       {row.cells.map((cell) => (
                         <td key={`${row.userId}-${cell.dateKey}`} className="border-b border-r border-gray-200 px-1 py-1 text-center">
                           {cell.value ? (
-                            <span
+                            <button
+                              type="button"
                               title={cell.label}
-                              className="inline-flex items-center justify-center w-9 h-8 rounded text-xs font-black text-white"
+                              onClick={() => canManageCalendar && setEditingCell({ userId: row.userId, name: row.name, dateKey: cell.dateKey, value: cell.value, note: cell.note || '' })}
+                              className={`inline-flex items-center justify-center w-9 h-8 rounded text-xs font-black text-white ${canManageCalendar ? 'cursor-pointer ring-offset-1 hover:ring-2 hover:ring-gray-400' : ''} ${cell.isManual ? 'ring-2 ring-gray-900' : ''}`}
                               style={{ backgroundColor: cell.color }}
                             >
                               {cell.value}
-                            </span>
+                            </button>
                           ) : (
-                            <span className="inline-block w-9 h-8" />
+                            <button
+                              type="button"
+                              onClick={() => canManageCalendar && setEditingCell({ userId: row.userId, name: row.name, dateKey: cell.dateKey, value: '', note: '' })}
+                              className={`inline-block w-9 h-8 rounded ${canManageCalendar ? 'hover:bg-gray-100' : ''}`}
+                            />
                           )}
                         </td>
                       ))}
@@ -235,6 +263,50 @@ export default function PresenceCalendarPage() {
             </table>
           </div>
         </div>
+
+        {editingCell && (
+          <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+            <div className="bg-white rounded-lg shadow-xl border border-gray-200 w-full max-w-md">
+              <div className="p-4 border-b border-gray-200">
+                <h2 className="text-lg font-bold text-gray-900">Edit Calendar Cell</h2>
+                <p className="text-sm text-gray-500">{editingCell.name} | {editingCell.dateKey}</p>
+              </div>
+              <div className="p-4 space-y-4">
+                <label className="block">
+                  <span className="block text-sm font-semibold text-gray-700 mb-1">Attendance Key</span>
+                  <select
+                    value={editingCell.value}
+                    onChange={(e) => setEditingCell({ ...editingCell, value: e.target.value })}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white"
+                  >
+                    <option value="">Automatic</option>
+                    {legend.map((item: any) => (
+                      <option key={`${item.key}-${item.label}`} value={item.key}>
+                        {item.key} - {item.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="block">
+                  <span className="block text-sm font-semibold text-gray-700 mb-1">Note</span>
+                  <textarea
+                    value={editingCell.note}
+                    onChange={(e) => setEditingCell({ ...editingCell, note: e.target.value })}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 min-h-[90px]"
+                  />
+                </label>
+              </div>
+              <div className="p-4 border-t border-gray-200 flex justify-end gap-3">
+                <button onClick={() => setEditingCell(null)} className="px-4 py-2 rounded-lg border border-gray-300 text-sm font-semibold text-gray-700 hover:bg-gray-50">
+                  Cancel
+                </button>
+                <button onClick={saveCellOverride} disabled={saving} className="px-4 py-2 rounded-lg bg-gray-900 text-white text-sm font-semibold hover:bg-gray-800 disabled:opacity-60">
+                  Save
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </AdminLayout>
   );
