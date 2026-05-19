@@ -96,6 +96,12 @@ const menuItems: MenuItem[] = [
         requiredPermissions: ['view-presence', 'view-presence-history', 'manage-presence-history'],
       },
       {
+        title: 'Calendar',
+        icon: FaClipboardCheck,
+        path: '/admin/presence/calendar',
+        requiredPermissions: ['view-presence', 'view-presence-calendar', 'manage-presence-calendar'],
+      },
+      {
         title: 'Settings',
         icon: FaCog,
         path: '/admin/presence/settings',
@@ -511,6 +517,12 @@ function ensurePresenceLink(items: MenuItem[]): MenuItem[] {
     path: '/admin/presence/settings',
     requiredPermissions: ['manage-presence-settings'],
   };
+  const calendarItem: MenuItem = {
+    title: 'Calendar',
+    icon: FaClipboardCheck,
+    path: '/admin/presence/calendar',
+    requiredPermissions: ['view-presence', 'view-presence-calendar', 'manage-presence-calendar'],
+  };
 
   let inserted = false;
   const next: MenuItem[] = [];
@@ -518,10 +530,11 @@ function ensurePresenceLink(items: MenuItem[]): MenuItem[] {
   for (const item of items) {
     const isPresenceDashboard = item.path === '/admin/presence';
     const isPresenceHistory = item.path === '/admin/presence/history';
+    const isPresenceCalendar = item.path === '/admin/presence/calendar';
     const isPresenceSettings = item.path === '/admin/presence/settings';
     const isPresenceParent = item.title === 'Presence' && item.children && !item.path;
 
-    if (isPresenceHistory || isPresenceSettings) {
+    if (isPresenceHistory || isPresenceCalendar || isPresenceSettings) {
       continue;
     }
 
@@ -530,8 +543,9 @@ function ensurePresenceLink(items: MenuItem[]): MenuItem[] {
       const hasDashboard = exists(children, '/admin/presence');
       const mergedChildren = [
         ...(hasDashboard ? [] : [dashboardItem]),
-        ...children.filter((child) => child.path !== '/admin/presence/history' && child.path !== '/admin/presence/settings'),
+        ...children.filter((child) => child.path !== '/admin/presence/history' && child.path !== '/admin/presence/calendar' && child.path !== '/admin/presence/settings'),
         historyItem,
+        calendarItem,
         settingsItem,
       ];
       next.push({
@@ -559,7 +573,7 @@ function ensurePresenceLink(items: MenuItem[]): MenuItem[] {
     {
       title: 'Presence',
       icon: FaUser,
-      children: [dashboardItem, historyItem, settingsItem],
+      children: [dashboardItem, historyItem, calendarItem, settingsItem],
     },
   ];
 }

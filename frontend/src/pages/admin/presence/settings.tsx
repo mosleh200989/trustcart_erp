@@ -168,11 +168,17 @@ export default function PresenceSettingsPage() {
               <Field label="Present Meaning">
                 <input value={settings.attendancePresentLabel || ''} onChange={(e) => setSettings({ ...settings, attendancePresentLabel: e.target.value })} className="w-full border rounded-lg px-3 py-2" />
               </Field>
+              <Field label="Present Color">
+                <input type="color" value={settings.attendancePresentColor || '#16a34a'} onChange={(e) => setSettings({ ...settings, attendancePresentColor: e.target.value })} className="w-full h-10 border rounded-lg px-2 py-1" />
+              </Field>
               <Field label="Late Key">
                 <input value={settings.attendanceLateKey || ''} onChange={(e) => setSettings({ ...settings, attendanceLateKey: e.target.value })} className="w-full border rounded-lg px-3 py-2" />
               </Field>
               <Field label="Late Meaning">
                 <input value={settings.attendanceLateLabel || ''} onChange={(e) => setSettings({ ...settings, attendanceLateLabel: e.target.value })} className="w-full border rounded-lg px-3 py-2" />
+              </Field>
+              <Field label="Late Color">
+                <input type="color" value={settings.attendanceLateColor || '#f59e0b'} onChange={(e) => setSettings({ ...settings, attendanceLateColor: e.target.value })} className="w-full h-10 border rounded-lg px-2 py-1" />
               </Field>
               <Field label="Weekly Off Key">
                 <input value={settings.attendanceWeeklyOffKey || ''} onChange={(e) => setSettings({ ...settings, attendanceWeeklyOffKey: e.target.value })} className="w-full border rounded-lg px-3 py-2" />
@@ -180,17 +186,36 @@ export default function PresenceSettingsPage() {
               <Field label="Weekly Off Meaning">
                 <input value={settings.attendanceWeeklyOffLabel || ''} onChange={(e) => setSettings({ ...settings, attendanceWeeklyOffLabel: e.target.value })} className="w-full border rounded-lg px-3 py-2" />
               </Field>
+              <Field label="Weekly Off Color">
+                <input type="color" value={settings.attendanceWeeklyOffColor || '#64748b'} onChange={(e) => setSettings({ ...settings, attendanceWeeklyOffColor: e.target.value })} className="w-full h-10 border rounded-lg px-2 py-1" />
+              </Field>
               <Field label="Excused Absence Key">
                 <input value={settings.attendanceExcusedAbsenceKey || ''} onChange={(e) => setSettings({ ...settings, attendanceExcusedAbsenceKey: e.target.value })} className="w-full border rounded-lg px-3 py-2" />
               </Field>
               <Field label="Excused Absence Meaning">
                 <input value={settings.attendanceExcusedAbsenceLabel || ''} onChange={(e) => setSettings({ ...settings, attendanceExcusedAbsenceLabel: e.target.value })} className="w-full border rounded-lg px-3 py-2" />
               </Field>
+              <Field label="Excused Absence Color">
+                <input type="color" value={settings.attendanceExcusedAbsenceColor || '#2563eb'} onChange={(e) => setSettings({ ...settings, attendanceExcusedAbsenceColor: e.target.value })} className="w-full h-10 border rounded-lg px-2 py-1" />
+              </Field>
               <Field label="Unexcused Absence Key">
                 <input value={settings.attendanceUnexcusedAbsenceKey || ''} onChange={(e) => setSettings({ ...settings, attendanceUnexcusedAbsenceKey: e.target.value })} className="w-full border rounded-lg px-3 py-2" />
               </Field>
               <Field label="Unexcused Absence Meaning">
                 <input value={settings.attendanceUnexcusedAbsenceLabel || ''} onChange={(e) => setSettings({ ...settings, attendanceUnexcusedAbsenceLabel: e.target.value })} className="w-full border rounded-lg px-3 py-2" />
+              </Field>
+              <Field label="Unexcused Absence Color">
+                <input type="color" value={settings.attendanceUnexcusedAbsenceColor || '#dc2626'} onChange={(e) => setSettings({ ...settings, attendanceUnexcusedAbsenceColor: e.target.value })} className="w-full h-10 border rounded-lg px-2 py-1" />
+              </Field>
+              <div className="md:col-span-2 xl:col-span-3 border-t border-gray-100 pt-4 mt-2">
+                <h3 className="text-base font-bold text-gray-900">Calendar Layout</h3>
+                <p className="text-sm text-gray-500 mt-1">Use row gaps to visually separate teams after arranging users in the Calendar sub-module.</p>
+              </div>
+              <Field label="Gap After Every Rows">
+                <input type="number" min={0} max={100} value={settings.calendarTeamGapEvery || 0} onChange={(e) => setSettings({ ...settings, calendarTeamGapEvery: Number(e.target.value) })} className="w-full border rounded-lg px-3 py-2" />
+              </Field>
+              <Field label="Gap Size (px)">
+                <input type="number" min={0} max={80} value={settings.calendarTeamGapSize || 12} onChange={(e) => setSettings({ ...settings, calendarTeamGapSize: Number(e.target.value) })} className="w-full border rounded-lg px-3 py-2" />
               </Field>
               <Field label="Spreadsheet ID">
                 <input value={settings.googleSpreadsheetId || ''} onChange={(e) => setSettings({ ...settings, googleSpreadsheetId: e.target.value })} className="w-full border rounded-lg px-3 py-2" />
