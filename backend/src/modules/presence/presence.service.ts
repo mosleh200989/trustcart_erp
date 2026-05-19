@@ -40,6 +40,8 @@ function cleanColor(value: any, fallback: string): string {
   return /^#[0-9a-fA-F]{6}$/.test(next) ? next : fallback;
 }
 
+const PRESENCE_STALE_TIMEOUT_MS = 3 * 60 * 1000;
+
 @Injectable()
 export class PresenceService {
   constructor(
@@ -78,7 +80,43 @@ export class PresenceService {
     return this.statusRepo.save(status);
   }
 
+  async expireStaleOnlineStatuses(userIds?: number[]) {
+    const cutoff = new Date(Date.now() - PRESENCE_STALE_TIMEOUT_MS);
+    const qb = this.statusRepo
+      .createQueryBuilder('status')
+      .where('status.state = :state', { state: 'online' })
+      .andWhere('(status.lastSeenAt IS NULL OR status.lastSeenAt <= :cutoff)', { cutoff });
+
+    const cleanUserIds = Array.isArray(userIds)
+      ? Array.from(new Set(userIds.map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0)))
+      : [];
+    if (cleanUserIds.length > 0) qb.andWhere('status.userId IN (:...userIds)', { userIds: cleanUserIds });
+
+    const staleStatuses = await qb.getMany();
+    for (const status of staleStatuses) {
+      const lastSeen = status.lastSeenAt ? new Date(status.lastSeenAt) : null;
+      const offlineAt = lastSeen ? new Date(lastSeen.getTime() + PRESENCE_STALE_TIMEOUT_MS) : cutoff;
+      const occurredAt = offlineAt.getTime() > Date.now() ? new Date() : offlineAt;
+
+      const event = this.eventRepo.create({
+        userId: Number(status.userId),
+        state: 'offline',
+        source: 'idle-timeout',
+        occurredAt,
+      });
+      await this.eventRepo.save(event);
+
+      status.state = 'offline';
+      status.source = 'idle-timeout';
+      status.lastChangedAt = occurredAt;
+      await this.statusRepo.save(status);
+    }
+
+    return { expired: staleStatuses.length };
+  }
+
   async getMyStatus(userId: number) {
+    await this.expireStaleOnlineStatuses([Number(userId)]);
     return this.getOrCreateStatus(Number(userId));
   }
 
@@ -139,6 +177,10 @@ export class PresenceService {
       calendarTeamGapEvery: 0,
       calendarTeamGapSize: 12,
       calendarUserOrder: null,
+      telegramRemindersEnabled: false,
+      telegramReminderLeadMinutes: 5,
+      telegramOfflineReminderMessage: 'Hi {name}, your office time starts at {startTime}. Please come online if you are starting work.',
+      telegramOnlineThankYouMessage: 'Thank you {name}. You are online on time for your {startTime} office start.',
       googleSpreadsheetId: '1HS4-6TSSmYRj-D6_ntJ9OyQITNfVyJRMZUN-d-ZN6C8',
       summarySheetName: 'May-26',
       eventsSheetName: '',
@@ -180,6 +222,14 @@ export class PresenceService {
     settings.attendanceUnexcusedAbsenceColor = cleanColor(input.attendanceUnexcusedAbsenceColor, settings.attendanceUnexcusedAbsenceColor || '#dc2626');
     settings.calendarTeamGapEvery = clampInt((input as any).calendarTeamGapEvery, 0, 100, settings.calendarTeamGapEvery || 0);
     settings.calendarTeamGapSize = clampInt((input as any).calendarTeamGapSize, 0, 80, settings.calendarTeamGapSize || 12);
+    settings.telegramRemindersEnabled = Boolean((input as any).telegramRemindersEnabled);
+    settings.telegramReminderLeadMinutes = clampInt((input as any).telegramReminderLeadMinutes, 1, 120, settings.telegramReminderLeadMinutes || 5);
+    settings.telegramOfflineReminderMessage =
+      String((input as any).telegramOfflineReminderMessage ?? settings.telegramOfflineReminderMessage ?? '').trim().slice(0, 2000) ||
+      'Hi {name}, your office time starts at {startTime}. Please come online if you are starting work.';
+    settings.telegramOnlineThankYouMessage =
+      String((input as any).telegramOnlineThankYouMessage ?? settings.telegramOnlineThankYouMessage ?? '').trim().slice(0, 2000) ||
+      'Thank you {name}. You are online on time for your {startTime} office start.';
     settings.googleSpreadsheetId =
       input.googleSpreadsheetId == null ? settings.googleSpreadsheetId : String(input.googleSpreadsheetId || '').trim() || null;
     settings.summarySheetName = String(input.summarySheetName ?? settings.summarySheetName ?? this.getDefaultMonthSheetName()).trim() || this.getDefaultMonthSheetName();
@@ -200,6 +250,7 @@ export class PresenceService {
       ? users.filter((u) => Number(u.id) === Number(params.userId))
       : users;
     const userIds = allowedUsers.map((u) => Number(u.id));
+    await this.expireStaleOnlineStatuses(userIds);
 
     const statuses = userIds.length
       ? await this.statusRepo.find({ where: { userId: In(userIds) } as any })
@@ -547,13 +598,17 @@ export class PresenceService {
           officeEndTime: row?.officeEndTime || settings.officeEndTime,
           customOfficeStartTime: row?.officeStartTime || '',
           customOfficeEndTime: row?.officeEndTime || '',
+          telegramChatId: row?.telegramChatId || '',
           notes: row?.notes || '',
         };
       }),
     };
   }
 
-  async updateOfficeTime(userIdRaw: any, input: { officeStartTime?: string | null; officeEndTime?: string | null; notes?: string | null }) {
+  async updateOfficeTime(
+    userIdRaw: any,
+    input: { officeStartTime?: string | null; officeEndTime?: string | null; telegramChatId?: string | null; notes?: string | null },
+  ) {
     const userId = Number(userIdRaw);
     if (!Number.isFinite(userId) || userId <= 0) throw new BadRequestException('Valid user ID is required');
 
@@ -567,6 +622,7 @@ export class PresenceService {
     if (!row) row = this.officeTimeRepo.create({ userId });
     row.officeStartTime = officeStartTime || null;
     row.officeEndTime = officeEndTime || null;
+    row.telegramChatId = String(input.telegramChatId || '').trim().slice(0, 80) || null;
     row.notes = String(input.notes || '').trim() || null;
     return this.officeTimeRepo.save(row);
   }

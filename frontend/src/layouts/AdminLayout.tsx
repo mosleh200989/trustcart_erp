@@ -5,6 +5,7 @@ import { useRouter } from 'next/router';
 import CrmNotifications from '@/components/CrmNotifications';
 import { useAuth } from '@/contexts/AuthContext';
 import apiClient, { stockAlerts } from '@/services/api';
+import { BACKEND_API_BASE_URL } from '@/config/backend';
 import { 
   FaTachometerAlt, FaBoxes, FaShoppingCart, FaUsers, FaWarehouse, 
   FaShoppingBag, FaUserTie, FaBook, FaBullseye, FaHandshake, 
@@ -809,15 +810,39 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       } catch {}
     };
 
+    const sendOfflineOnExit = () => {
+      if (presenceStateRef.current !== 'online') return;
+      presenceStateRef.current = 'offline';
+      try {
+        const token = localStorage.getItem('authToken');
+        if (!token) return;
+        fetch(`${BACKEND_API_BASE_URL}/presence/me`, {
+          method: 'POST',
+          keepalive: true,
+          headers: {
+            'Content-Type': 'application/json; charset=utf-8',
+            Accept: 'application/json; charset=utf-8',
+            Authorization: `Bearer ${token}`,
+            'x-tenant-id': process.env.NEXT_PUBLIC_TENANT_ID || 'trustcart',
+          },
+          body: JSON.stringify({ state: 'offline' }),
+        }).catch(() => {});
+      } catch {}
+    };
+
     loadPresence();
     markActive();
     const activityEvents: Array<keyof WindowEventMap> = ['click', 'keydown', 'mousemove', 'scroll', 'touchstart', 'focus'];
     activityEvents.forEach((eventName) => window.addEventListener(eventName, markActive, { passive: true }));
+    window.addEventListener('pagehide', sendOfflineOnExit);
+    window.addEventListener('beforeunload', sendOfflineOnExit);
     const iv = setInterval(heartbeat, PRESENCE_HEARTBEAT_MS);
 
     return () => {
       cancelled = true;
       activityEvents.forEach((eventName) => window.removeEventListener(eventName, markActive));
+      window.removeEventListener('pagehide', sendOfflineOnExit);
+      window.removeEventListener('beforeunload', sendOfflineOnExit);
       if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
       clearInterval(iv);
     };

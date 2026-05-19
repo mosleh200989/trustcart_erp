@@ -15,6 +15,9 @@ export class UserOfficeTime {
   @Column({ name: 'office_end_time', type: 'varchar', length: 5, nullable: true })
   officeEndTime!: string | null;
 
+  @Column({ name: 'telegram_chat_id', type: 'varchar', length: 80, nullable: true })
+  telegramChatId!: string | null;
+
   @Column({ name: 'notes', type: 'text', nullable: true })
   notes!: string | null;
 

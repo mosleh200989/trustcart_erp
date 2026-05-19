@@ -94,7 +94,7 @@ export default function PresenceSettingsPage() {
               Presence Module
             </div>
             <h1 className="text-3xl font-bold text-gray-900 mt-2">Presence Settings</h1>
-            <p className="text-gray-600 mt-1">Office timing, attendance key, and Google Sheet sync configuration.</p>
+            <p className="text-gray-600 mt-1">Office timing, attendance key, Telegram reminders, and Google Sheet sync configuration.</p>
           </div>
 
           <div className="flex flex-col sm:flex-row gap-3">
@@ -217,6 +217,52 @@ export default function PresenceSettingsPage() {
               <Field label="Gap Size (px)">
                 <input type="number" min={0} max={80} value={settings.calendarTeamGapSize || 12} onChange={(e) => setSettings({ ...settings, calendarTeamGapSize: Number(e.target.value) })} className="w-full border rounded-lg px-3 py-2" />
               </Field>
+              <div className="md:col-span-2 xl:col-span-3 border-t border-gray-100 pt-4 mt-2">
+                <h3 className="text-base font-bold text-gray-900">Telegram Reminders</h3>
+                <p className="text-sm text-gray-500 mt-1">Messages are sent only to employees who have a Telegram Chat ID in Office Time. Supported variables: {'{name}'}, {'{startTime}'}, {'{date}'}.</p>
+              </div>
+              <label className="md:col-span-2 xl:col-span-3 inline-flex items-center gap-3 rounded-lg border border-gray-200 px-3 py-3">
+                <input
+                  type="checkbox"
+                  checked={Boolean(settings.telegramRemindersEnabled)}
+                  onChange={(e) => setSettings({ ...settings, telegramRemindersEnabled: e.target.checked })}
+                  className="h-4 w-4"
+                />
+                <span>
+                  <span className="block text-sm font-semibold text-gray-800">Enable Telegram attendance reminders</span>
+                  <span className="block text-xs text-gray-500">Requires TELEGRAM_BOT_TOKEN in the backend .env.</span>
+                </span>
+              </label>
+              <Field label="Reminder Lead Minutes">
+                <input
+                  type="number"
+                  min={1}
+                  max={120}
+                  value={settings.telegramReminderLeadMinutes || 5}
+                  onChange={(e) => setSettings({ ...settings, telegramReminderLeadMinutes: Number(e.target.value) })}
+                  className="w-full border rounded-lg px-3 py-2"
+                />
+              </Field>
+              <Field label="Offline Reminder Message">
+                <textarea
+                  value={settings.telegramOfflineReminderMessage || ''}
+                  onChange={(e) => setSettings({ ...settings, telegramOfflineReminderMessage: e.target.value })}
+                  rows={4}
+                  className="w-full border rounded-lg px-3 py-2"
+                />
+              </Field>
+              <Field label="On-time Thank You Message">
+                <textarea
+                  value={settings.telegramOnlineThankYouMessage || ''}
+                  onChange={(e) => setSettings({ ...settings, telegramOnlineThankYouMessage: e.target.value })}
+                  rows={4}
+                  className="w-full border rounded-lg px-3 py-2"
+                />
+              </Field>
+              <div className="md:col-span-2 xl:col-span-3 border-t border-gray-100 pt-4 mt-2">
+                <h3 className="text-base font-bold text-gray-900">Google Sheet Sync</h3>
+                <p className="text-sm text-gray-500 mt-1">These fields control the spreadsheet tabs used by the sync button.</p>
+              </div>
               <Field label="Spreadsheet ID">
                 <input value={settings.googleSpreadsheetId || ''} onChange={(e) => setSettings({ ...settings, googleSpreadsheetId: e.target.value })} className="w-full border rounded-lg px-3 py-2" />
               </Field>
