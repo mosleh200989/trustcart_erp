@@ -113,6 +113,12 @@ export const DEFAULT_ADMIN_MENU: AdminMenuSeedNode[] = [
         requiredPermissions: ['view-presence', 'view-presence-history', 'manage-presence-history'],
       },
       {
+        title: 'Calendar',
+        icon: 'FaClipboardCheck',
+        path: '/admin/presence/calendar',
+        requiredPermissions: ['view-presence', 'view-presence-calendar', 'manage-presence-calendar'],
+      },
+      {
         title: 'Settings',
         icon: 'FaCog',
         path: '/admin/presence/settings',

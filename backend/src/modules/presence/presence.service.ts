@@ -33,6 +33,11 @@ function cleanAttendanceLabel(value: any, fallback: string): string {
   return String(value ?? fallback).trim().slice(0, 100) || fallback;
 }
 
+function cleanColor(value: any, fallback: string): string {
+  const next = String(value ?? fallback).trim();
+  return /^#[0-9a-fA-F]{6}$/.test(next) ? next : fallback;
+}
+
 @Injectable()
 export class PresenceService {
   constructor(
@@ -120,6 +125,14 @@ export class PresenceService {
       attendanceExcusedAbsenceLabel: 'Excused absence',
       attendanceUnexcusedAbsenceKey: 'A',
       attendanceUnexcusedAbsenceLabel: 'Unexcused absence',
+      attendancePresentColor: '#16a34a',
+      attendanceLateColor: '#f59e0b',
+      attendanceWeeklyOffColor: '#64748b',
+      attendanceExcusedAbsenceColor: '#2563eb',
+      attendanceUnexcusedAbsenceColor: '#dc2626',
+      calendarTeamGapEvery: 0,
+      calendarTeamGapSize: 12,
+      calendarUserOrder: null,
       googleSpreadsheetId: '1HS4-6TSSmYRj-D6_ntJ9OyQITNfVyJRMZUN-d-ZN6C8',
       summarySheetName: 'May-26',
       eventsSheetName: '',
@@ -154,6 +167,13 @@ export class PresenceService {
       input.attendanceUnexcusedAbsenceLabel,
       settings.attendanceUnexcusedAbsenceLabel || 'Unexcused absence',
     );
+    settings.attendancePresentColor = cleanColor(input.attendancePresentColor, settings.attendancePresentColor || '#16a34a');
+    settings.attendanceLateColor = cleanColor(input.attendanceLateColor, settings.attendanceLateColor || '#f59e0b');
+    settings.attendanceWeeklyOffColor = cleanColor(input.attendanceWeeklyOffColor, settings.attendanceWeeklyOffColor || '#64748b');
+    settings.attendanceExcusedAbsenceColor = cleanColor(input.attendanceExcusedAbsenceColor, settings.attendanceExcusedAbsenceColor || '#2563eb');
+    settings.attendanceUnexcusedAbsenceColor = cleanColor(input.attendanceUnexcusedAbsenceColor, settings.attendanceUnexcusedAbsenceColor || '#dc2626');
+    settings.calendarTeamGapEvery = clampInt((input as any).calendarTeamGapEvery, 0, 100, settings.calendarTeamGapEvery || 0);
+    settings.calendarTeamGapSize = clampInt((input as any).calendarTeamGapSize, 0, 80, settings.calendarTeamGapSize || 12);
     settings.googleSpreadsheetId =
       input.googleSpreadsheetId == null ? settings.googleSpreadsheetId : String(input.googleSpreadsheetId || '').trim() || null;
     settings.summarySheetName = String(input.summarySheetName ?? settings.summarySheetName ?? this.getDefaultMonthSheetName()).trim() || this.getDefaultMonthSheetName();
@@ -352,6 +372,121 @@ export class PresenceService {
       to,
       items,
     };
+  }
+
+  async getCalendar(params?: { sheetName?: string }) {
+    const settings = await this.getSettings();
+    const timezone = settings.timezone || 'Asia/Dhaka';
+    const sheetName = String(params?.sheetName || settings.summarySheetName || this.getDefaultMonthSheetName()).trim();
+    const { year, monthIndex, days } = this.getDaysInSheetMonth(sheetName, timezone);
+    const todayKey = this.getDhakaDateKey(new Date(), timezone);
+    const officeStartMinutes = this.timeToMinutes(settings.officeStartTime);
+    const monthStart = new Date(Date.UTC(year, monthIndex, 1, 0, 0, 0));
+    const monthEnd = new Date(Date.UTC(year, monthIndex + 1, 2, 23, 59, 59));
+
+    const users = await this.userRepo.find({
+      where: { isDeleted: false, status: 'active' } as any,
+      order: { name: 'ASC', lastName: 'ASC' } as any,
+    });
+    const userIds = users.map((u) => Number(u.id));
+    const events = userIds.length
+      ? await this.eventRepo
+          .createQueryBuilder('e')
+          .where('e.userId IN (:...userIds)', { userIds })
+          .andWhere('e.occurredAt >= :from AND e.occurredAt <= :to', { from: monthStart, to: monthEnd })
+          .orderBy('e.occurredAt', 'ASC')
+          .getMany()
+      : [];
+
+    const eventsByUserDay = new Map<string, UserPresenceEvent[]>();
+    for (const event of events) {
+      if (event.state !== 'online') continue;
+      const dayKey = this.getDhakaDateKey(new Date(event.occurredAt), timezone);
+      const key = `${event.userId}:${dayKey}`;
+      const list = eventsByUserDay.get(key) || [];
+      list.push(event);
+      eventsByUserDay.set(key, list);
+    }
+
+    const order = Array.isArray(settings.calendarUserOrder) ? settings.calendarUserOrder.map((x) => Number(x)) : [];
+    const orderIndex = new Map(order.map((userId, idx) => [userId, idx]));
+    const orderedUsers = users.slice().sort((a, b) => {
+      const ai = orderIndex.has(Number(a.id)) ? orderIndex.get(Number(a.id))! : Number.MAX_SAFE_INTEGER;
+      const bi = orderIndex.has(Number(b.id)) ? orderIndex.get(Number(b.id))! : Number.MAX_SAFE_INTEGER;
+      if (ai !== bi) return ai - bi;
+      return String(`${a.name || ''} ${a.lastName || ''}`).localeCompare(String(`${b.name || ''} ${b.lastName || ''}`));
+    });
+
+    const keyConfig = {
+      present: { key: settings.attendancePresentKey || 'P', label: settings.attendancePresentLabel || 'Present', color: settings.attendancePresentColor || '#16a34a' },
+      late: { key: settings.attendanceLateKey || 'L', label: settings.attendanceLateLabel || 'Late', color: settings.attendanceLateColor || '#f59e0b' },
+      weeklyOff: { key: settings.attendanceWeeklyOffKey || 'W', label: settings.attendanceWeeklyOffLabel || 'Weekly off day', color: settings.attendanceWeeklyOffColor || '#64748b' },
+      excusedAbsence: { key: settings.attendanceExcusedAbsenceKey || 'U', label: settings.attendanceExcusedAbsenceLabel || 'Excused absence', color: settings.attendanceExcusedAbsenceColor || '#2563eb' },
+      unexcusedAbsence: {
+        key: settings.attendanceUnexcusedAbsenceKey || 'A',
+        label: settings.attendanceUnexcusedAbsenceLabel || 'Unexcused absence',
+        color: settings.attendanceUnexcusedAbsenceColor || '#dc2626',
+      },
+    };
+
+    const daysList = Array.from({ length: days }, (_, idx) => {
+      const day = idx + 1;
+      return {
+        day,
+        key: this.dateKeyForMonthDay(year, monthIndex, day),
+        label: `${day}/${monthIndex + 1}`,
+        weekday: new Date(year, monthIndex, day).toLocaleDateString('en-US', { weekday: 'short' }),
+      };
+    });
+
+    const rows = orderedUsers.map((user, idx) => {
+      const userId = Number(user.id);
+      return {
+        userId,
+        name: [user.name, user.lastName].filter(Boolean).join(' ').trim() || user.email,
+        email: user.email,
+        insertGapAfter: settings.calendarTeamGapEvery > 0 && (idx + 1) % settings.calendarTeamGapEvery === 0 && idx < orderedUsers.length - 1,
+        cells: daysList.map((day) => {
+          if (day.key > todayKey) return { dateKey: day.key, value: '', label: '', color: '' };
+          const onlineEvents = (eventsByUserDay.get(`${userId}:${day.key}`) || []).sort(
+            (a, b) => new Date(a.occurredAt).getTime() - new Date(b.occurredAt).getTime(),
+          );
+          if (onlineEvents.length === 0) {
+            return { dateKey: day.key, value: keyConfig.unexcusedAbsence.key, label: keyConfig.unexcusedAbsence.label, color: keyConfig.unexcusedAbsence.color };
+          }
+
+          const firstOnline = new Date(onlineEvents[0].occurredAt);
+          const firstMinutes =
+            Number(firstOnline.toLocaleString('en-US', { hour: '2-digit', hour12: false, timeZone: timezone })) * 60 +
+            Number(firstOnline.toLocaleString('en-US', { minute: '2-digit', timeZone: timezone }));
+          const config = firstMinutes > officeStartMinutes ? keyConfig.late : keyConfig.present;
+          return { dateKey: day.key, value: config.key, label: config.label, color: config.color };
+        }),
+      };
+    });
+
+    return {
+      sheetName,
+      year,
+      month: monthIndex + 1,
+      timezone,
+      days: daysList,
+      keyConfig,
+      rowGap: {
+        every: settings.calendarTeamGapEvery || 0,
+        size: settings.calendarTeamGapSize || 12,
+      },
+      rows,
+    };
+  }
+
+  async updateCalendarOrder(userIds: any[]) {
+    const settings = await this.getSettings();
+    const next = Array.isArray(userIds)
+      ? Array.from(new Set(userIds.map((x) => Number(x)).filter((x) => Number.isFinite(x) && x > 0)))
+      : [];
+    settings.calendarUserOrder = next;
+    return this.settingsRepo.save(settings);
   }
 
   private async getGoogleAccessToken() {

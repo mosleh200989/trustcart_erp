@@ -89,6 +89,18 @@ export class PresenceController {
     });
   }
 
+  @Get('calendar')
+  @RequireAnyPermission('view-presence', 'view-presence-calendar', 'manage-presence-calendar')
+  async calendar(@Query('sheetName') sheetName?: string) {
+    return this.presenceService.getCalendar({ sheetName });
+  }
+
+  @Post('calendar/order')
+  @RequireAnyPermission('manage-presence-calendar', 'manage-presence-settings')
+  async updateCalendarOrder(@Body() body: { userIds?: number[] }) {
+    return this.presenceService.updateCalendarOrder(body?.userIds || []);
+  }
+
   @Get('settings')
   @RequirePermissions('manage-presence-settings')
   async getSettings() {

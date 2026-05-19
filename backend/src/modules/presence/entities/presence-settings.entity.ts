@@ -47,6 +47,30 @@ export class PresenceSettings {
   @Column({ name: 'attendance_unexcused_absence_label', type: 'varchar', length: 100, default: 'Unexcused absence' })
   attendanceUnexcusedAbsenceLabel!: string;
 
+  @Column({ name: 'attendance_present_color', type: 'varchar', length: 20, default: '#16a34a' })
+  attendancePresentColor!: string;
+
+  @Column({ name: 'attendance_late_color', type: 'varchar', length: 20, default: '#f59e0b' })
+  attendanceLateColor!: string;
+
+  @Column({ name: 'attendance_weekly_off_color', type: 'varchar', length: 20, default: '#64748b' })
+  attendanceWeeklyOffColor!: string;
+
+  @Column({ name: 'attendance_excused_absence_color', type: 'varchar', length: 20, default: '#2563eb' })
+  attendanceExcusedAbsenceColor!: string;
+
+  @Column({ name: 'attendance_unexcused_absence_color', type: 'varchar', length: 20, default: '#dc2626' })
+  attendanceUnexcusedAbsenceColor!: string;
+
+  @Column({ name: 'calendar_team_gap_every', type: 'int', default: 0 })
+  calendarTeamGapEvery!: number;
+
+  @Column({ name: 'calendar_team_gap_size', type: 'int', default: 12 })
+  calendarTeamGapSize!: number;
+
+  @Column({ name: 'calendar_user_order', type: 'jsonb', nullable: true })
+  calendarUserOrder!: number[] | null;
+
   @Column({ name: 'google_spreadsheet_id', type: 'varchar', length: 255, nullable: true })
   googleSpreadsheetId!: string | null;
 

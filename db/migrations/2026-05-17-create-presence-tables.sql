@@ -40,6 +40,14 @@ CREATE TABLE IF NOT EXISTS presence_settings (
   attendance_excused_absence_label varchar(100) NOT NULL DEFAULT 'Excused absence',
   attendance_unexcused_absence_key varchar(10) NOT NULL DEFAULT 'A',
   attendance_unexcused_absence_label varchar(100) NOT NULL DEFAULT 'Unexcused absence',
+  attendance_present_color varchar(20) NOT NULL DEFAULT '#16a34a',
+  attendance_late_color varchar(20) NOT NULL DEFAULT '#f59e0b',
+  attendance_weekly_off_color varchar(20) NOT NULL DEFAULT '#64748b',
+  attendance_excused_absence_color varchar(20) NOT NULL DEFAULT '#2563eb',
+  attendance_unexcused_absence_color varchar(20) NOT NULL DEFAULT '#dc2626',
+  calendar_team_gap_every integer NOT NULL DEFAULT 0,
+  calendar_team_gap_size integer NOT NULL DEFAULT 12,
+  calendar_user_order jsonb NULL,
   google_spreadsheet_id varchar(255) NULL,
   summary_sheet_name varchar(100) NOT NULL DEFAULT 'May-26',
   events_sheet_name varchar(100) NOT NULL DEFAULT '',
@@ -61,7 +69,15 @@ ALTER TABLE presence_settings
   ADD COLUMN IF NOT EXISTS attendance_excused_absence_key varchar(10) NOT NULL DEFAULT 'U',
   ADD COLUMN IF NOT EXISTS attendance_excused_absence_label varchar(100) NOT NULL DEFAULT 'Excused absence',
   ADD COLUMN IF NOT EXISTS attendance_unexcused_absence_key varchar(10) NOT NULL DEFAULT 'A',
-  ADD COLUMN IF NOT EXISTS attendance_unexcused_absence_label varchar(100) NOT NULL DEFAULT 'Unexcused absence';
+  ADD COLUMN IF NOT EXISTS attendance_unexcused_absence_label varchar(100) NOT NULL DEFAULT 'Unexcused absence',
+  ADD COLUMN IF NOT EXISTS attendance_present_color varchar(20) NOT NULL DEFAULT '#16a34a',
+  ADD COLUMN IF NOT EXISTS attendance_late_color varchar(20) NOT NULL DEFAULT '#f59e0b',
+  ADD COLUMN IF NOT EXISTS attendance_weekly_off_color varchar(20) NOT NULL DEFAULT '#64748b',
+  ADD COLUMN IF NOT EXISTS attendance_excused_absence_color varchar(20) NOT NULL DEFAULT '#2563eb',
+  ADD COLUMN IF NOT EXISTS attendance_unexcused_absence_color varchar(20) NOT NULL DEFAULT '#dc2626',
+  ADD COLUMN IF NOT EXISTS calendar_team_gap_every integer NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS calendar_team_gap_size integer NOT NULL DEFAULT 12,
+  ADD COLUMN IF NOT EXISTS calendar_user_order jsonb NULL;
 
 INSERT INTO presence_settings (
   id,
@@ -122,6 +138,8 @@ VALUES
   ('View Presence', 'view-presence', 'presence', 'read', 'View user presence dashboard and history'),
   ('View Presence History', 'view-presence-history', 'presence-history', 'read', 'View office-wide presence history'),
   ('Manage Presence History', 'manage-presence-history', 'presence-history', 'update', 'Manage office-wide presence history'),
+  ('View Presence Calendar', 'view-presence-calendar', 'presence-calendar', 'read', 'View presence calendar'),
+  ('Manage Presence Calendar', 'manage-presence-calendar', 'presence-calendar', 'update', 'Manage presence calendar layout'),
   ('Manage Presence Settings', 'manage-presence-settings', 'presence', 'update', 'Manage presence and attendance sync settings'),
   ('Sync Presence Sheet', 'sync-presence-sheet', 'presence', 'update', 'Sync presence data to Google Sheets')
 ON CONFLICT (slug) DO NOTHING;
@@ -130,7 +148,7 @@ INSERT INTO role_permissions (role_id, permission_id)
 SELECT r.id, p.id
 FROM roles r, permissions p
 WHERE r.slug IN ('super-admin', 'admin')
-  AND p.slug IN ('view-presence', 'view-presence-history', 'manage-presence-history', 'manage-presence-settings', 'sync-presence-sheet')
+  AND p.slug IN ('view-presence', 'view-presence-history', 'manage-presence-history', 'view-presence-calendar', 'manage-presence-calendar', 'manage-presence-settings', 'sync-presence-sheet')
 ON CONFLICT DO NOTHING;
 
 INSERT INTO admin_menu_items (
