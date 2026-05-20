@@ -189,6 +189,26 @@ export class SalesController {
     return this.salesService.getAssignmentTeamLeaders(req.user);
   }
 
+  @Get('order-assignment-agents')
+  @RequireAnyPermission('manage-order-assignment', 'manage-assigned-orders')
+  async getOrderAssignmentAgents(@Req() req: any, @Query('teamLeaderId') teamLeaderId?: string) {
+    return this.salesService.getAssignmentAgents(req.user, {
+      teamLeaderId: teamLeaderId ? parseInt(teamLeaderId, 10) : undefined,
+    });
+  }
+
+  @Put('order-assignments/bulk-assign')
+  @RequireAnyPermission('manage-order-assignment', 'manage-assigned-orders')
+  async bulkAssignOrdersForTelephony(@Body() body: { orderIds?: number[]; agentId?: number }, @Req() req: any) {
+    return this.salesService.assignOrdersForTelephony(body.orderIds || [], Number(body.agentId), req.user);
+  }
+
+  @Put('order-assignments/bulk-unassign')
+  @RequireAnyPermission('manage-order-assignment', 'manage-assigned-orders')
+  async bulkUnassignOrdersForTelephony(@Body() body: { orderIds?: number[] }, @Req() req: any) {
+    return this.salesService.unassignOrdersForTelephony(body.orderIds || [], req.user);
+  }
+
   @Put('assigned-orders/:id/assign')
   @RequirePermissions('manage-assigned-orders')
   async assignWebOrder(@Param('id') id: string, @Body() body: any, @Req() req: any) {

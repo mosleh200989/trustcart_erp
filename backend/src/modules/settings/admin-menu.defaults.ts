@@ -354,6 +354,7 @@ export const DEFAULT_ADMIN_MENU: AdminMenuSeedNode[] = [
     title: 'Telephony',
     icon: 'FaPhone',
     children: [
+      { title: 'Order Assignment', icon: 'FaPhone', path: '/admin/telephony/order-assignment', requiredPermissions: ['view-order-assignment'] },
       { title: 'PBX Call Logs', icon: 'FaPhone', path: '/admin/telephony/calls' },
       { title: 'Reports', icon: 'FaChartBar', path: '/admin/telephony/reports' },
       { title: 'Agent Dashboard', icon: 'FaPhone', path: '/admin/crm/agent-dashboard' },

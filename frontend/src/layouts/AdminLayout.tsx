@@ -395,11 +395,12 @@ const menuItems: MenuItem[] = [
   {
     title: 'Telephony',
     icon: FaPhone,
-    requiredPermissions: ['view-leads', 'manage-call-logs', 'manage-follow-ups'],
+    requiredPermissions: ['view-leads', 'manage-call-logs', 'manage-follow-ups', 'view-order-assignment'],
     children: [
       { title: 'Today Tasklist', icon: FaPhone, path: '/admin/telephony/today-tasklist' },
       { title: 'All Tasks', icon: FaList, path: '/admin/telephony/all-tasks' },
       { title: 'My Follow-ups', icon: FaPhone, path: '/admin/telephony/my-followups' },
+      { title: 'Order Assignment', icon: FaPhone, path: '/admin/telephony/order-assignment', requiredPermissions: ['view-order-assignment'] },
       { title: 'PBX Call Logs', icon: FaPhone, path: '/admin/telephony/calls', requiredPermissions: ['manage-call-logs'] },
       { title: 'Reports', icon: FaChartBar, path: '/admin/telephony/reports', requiredPermissions: ['view-crm-reports'] },
       { title: 'Agent Dashboard', icon: FaPhone, path: '/admin/crm/agent-dashboard' },

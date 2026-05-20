@@ -10,6 +10,7 @@ import { TelephonyCall, TelephonyCallStatus } from './entities/telephony-call.en
 import { TelephonyGateway } from './telephony.gateway';
 import { AgentPresenceStatus, TelephonyPresenceService } from './telephony-presence.service';
 import { TelephonyAgentPresenceEvent } from './entities/telephony-agent-presence-event.entity';
+import { SalesOrder } from '../sales/sales-order.entity';
 
 @Injectable()
 export class TelephonyService {
@@ -24,6 +25,8 @@ export class TelephonyService {
     private userRepo: Repository<User>,
     @InjectRepository(Activity)
     private activityRepo: Repository<Activity>,
+    @InjectRepository(SalesOrder)
+    private salesOrderRepo: Repository<SalesOrder>,
     private readonly customersService: CustomersService,
     private readonly telephonyGateway: TelephonyGateway,
     private readonly presenceService: TelephonyPresenceService,
@@ -183,6 +186,90 @@ export class TelephonyService {
     const call = await this.telephonyCallRepo.findOne({ where: { id } });
     if (!call) throw new NotFoundException('Call not found');
     return call;
+  }
+
+  async listMyOrderAssignments(userId: number, params?: {
+    q?: string;
+    calledStatus?: string;
+    outcome?: string;
+    suggestion?: string;
+    page?: number;
+    limit?: number;
+  }) {
+    const safeLimit = Number.isFinite(params?.limit) ? Math.max(1, Math.min(200, Number(params?.limit))) : 50;
+    const safePage = Number.isFinite(params?.page) ? Math.max(1, Number(params?.page)) : 1;
+    const skip = (safePage - 1) * safeLimit;
+    const qb = this.salesOrderRepo.createQueryBuilder('o')
+      .where('o.assigned_to = :userId', { userId })
+      .orderBy('o.assigned_at', 'DESC')
+      .addOrderBy('o.created_at', 'DESC');
+
+    if (params?.q?.trim()) {
+      const q = `%${params.q.trim().toLowerCase()}%`;
+      qb.andWhere(`(
+        LOWER(COALESCE(o.sales_order_number, '')) LIKE :q
+        OR LOWER(COALESCE(o.customer_name, '')) LIKE :q
+        OR LOWER(COALESCE(o.customer_phone, '')) LIKE :q
+        OR LOWER(COALESCE(o.shipping_address, '')) LIKE :q
+      )`, { q });
+    }
+
+    if (params?.calledStatus === 'called') {
+      qb.andWhere('o.telephony_called_at IS NOT NULL');
+    } else if (params?.calledStatus === 'not_called') {
+      qb.andWhere('o.telephony_called_at IS NULL');
+    }
+
+    if (params?.outcome && params.outcome !== 'all') {
+      qb.andWhere('o.telephony_outcome = :outcome', { outcome: params.outcome });
+    }
+
+    if (params?.suggestion && params.suggestion !== 'all') {
+      qb.andWhere('o.telephony_suggestion = :suggestion', { suggestion: params.suggestion });
+    }
+
+    const [orders, total] = await qb.skip(skip).take(safeLimit).getManyAndCount();
+
+    return {
+      data: orders.map((order) => ({
+        id: order.id,
+        salesOrderNumber: order.salesOrderNumber,
+        customerName: order.customerName,
+        customerPhone: order.customerPhone,
+        shippingAddress: order.shippingAddress,
+        status: order.status,
+        totalAmount: Number(order.totalAmount || 0),
+        orderDate: order.orderDate,
+        assignedAt: order.assignedAt,
+        calledAt: order.telephonyCalledAt,
+        callStatus: order.telephonyCallStatus || (order.telephonyCalledAt ? 'called' : 'not_called'),
+        outcome: order.telephonyOutcome,
+        suggestion: order.telephonySuggestion,
+        notes: order.telephonyNotes,
+      })),
+      total,
+      page: safePage,
+      limit: safeLimit,
+      totalPages: Math.ceil(total / safeLimit),
+    };
+  }
+
+  async updateOrderAssignmentOutcome(userId: number, orderId: number, body: {
+    outcome?: string;
+    suggestion?: string;
+    notes?: string;
+  }) {
+    const order = await this.salesOrderRepo.findOne({ where: { id: orderId, assignedTo: userId } });
+    if (!order) throw new NotFoundException('Assigned order not found');
+
+    order.telephonyCalledAt = new Date();
+    order.telephonyCallStatus = 'called';
+    order.telephonyOutcome = body.outcome || null;
+    order.telephonySuggestion = body.suggestion || null;
+    order.telephonyNotes = body.notes || null;
+    await this.salesOrderRepo.save(order);
+
+    return { success: true, orderId: order.id };
   }
 
   private setPresence(userId: number, status: AgentPresenceStatus, source: string = 'api') {

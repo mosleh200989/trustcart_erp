@@ -89,6 +89,21 @@ export class SalesOrder {
   @Column({ name: 'assigned_at', type: 'timestamp', nullable: true })
   assignedAt: Date | null;
 
+  @Column({ name: 'telephony_called_at', type: 'timestamp', nullable: true })
+  telephonyCalledAt: Date | null;
+
+  @Column({ name: 'telephony_call_status', type: 'varchar', length: 30, nullable: true })
+  telephonyCallStatus: string | null;
+
+  @Column({ name: 'telephony_outcome', type: 'varchar', length: 50, nullable: true })
+  telephonyOutcome: string | null;
+
+  @Column({ name: 'telephony_suggestion', type: 'varchar', length: 100, nullable: true })
+  telephonySuggestion: string | null;
+
+  @Column({ name: 'telephony_notes', type: 'text', nullable: true })
+  telephonyNotes: string | null;
+
   @Column({ name: 'cancelled_by', nullable: true })
   cancelledBy: number;
 
