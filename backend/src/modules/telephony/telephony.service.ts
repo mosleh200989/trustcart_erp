@@ -203,6 +203,24 @@ export class TelephonyService {
     const safePage = Number.isFinite(params?.page) ? Math.max(1, Number(params?.page)) : 1;
     const skip = (safePage - 1) * safeLimit;
     const qb = this.salesOrderRepo.createQueryBuilder('o')
+      .select([
+        'o.id',
+        'o.salesOrderNumber',
+        'o.customerId',
+        'o.customerName',
+        'o.customerPhone',
+        'o.shippingAddress',
+        'o.status',
+        'o.orderSource',
+        'o.totalAmount',
+        'o.orderDate',
+        'o.assignedAt',
+        'o.telephonyCalledAt',
+        'o.telephonyCallStatus',
+        'o.telephonyOutcome',
+        'o.telephonySuggestion',
+        'o.telephonyNotes',
+      ])
       .where('o.assigned_to = :userId', { userId })
       .orderBy('o.assigned_at', 'DESC')
       .addOrderBy('o.created_at', 'DESC');
@@ -265,7 +283,12 @@ export class TelephonyService {
     }
 
     if (params?.status && params.status !== 'all') {
-      qb.andWhere('o.status = :status', { status: params.status });
+      const statusAliases: Record<string, string> = {
+        on_hold: 'hold',
+        rejected: 'admin_cancelled',
+      };
+      const status = statusAliases[String(params.status).trim()] || String(params.status).trim();
+      qb.andWhere('o.status = :status', { status });
     }
 
     const calledStatus = String(params?.calledStatus || '').trim();
@@ -388,17 +411,23 @@ export class TelephonyService {
     suggestion?: string;
     notes?: string;
   }) {
-    const order = await this.salesOrderRepo.findOne({ where: { id: orderId, assignedTo: userId } });
-    if (!order) throw new NotFoundException('Assigned order not found');
+    const result = await this.salesOrderRepo
+      .createQueryBuilder()
+      .update(SalesOrder)
+      .set({
+        telephonyCalledAt: new Date(),
+        telephonyCallStatus: 'called',
+        telephonyOutcome: body.outcome || null,
+        telephonySuggestion: body.suggestion || null,
+        telephonyNotes: body.notes || null,
+      })
+      .where('id = :orderId', { orderId })
+      .andWhere('assigned_to = :userId', { userId })
+      .execute();
 
-    order.telephonyCalledAt = new Date();
-    order.telephonyCallStatus = 'called';
-    order.telephonyOutcome = body.outcome || null;
-    order.telephonySuggestion = body.suggestion || null;
-    order.telephonyNotes = body.notes || null;
-    await this.salesOrderRepo.save(order);
+    if (!result.affected) throw new NotFoundException('Assigned order not found');
 
-    return { success: true, orderId: order.id };
+    return { success: true, orderId };
   }
 
   private setPresence(userId: number, status: AgentPresenceStatus, source: string = 'api') {
