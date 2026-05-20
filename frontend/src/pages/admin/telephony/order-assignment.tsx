@@ -245,7 +245,7 @@ export default function TelephonyOrderAssignmentPage() {
                   <option value="partial_delivered">Partial Delivered</option>
                   <option value="cancelled">Cancelled</option>
                   <option value="admin_cancelled">Rejected</option>
-                  <option value="on_hold">On Hold</option>
+                  <option value="hold">On Hold</option>
                   <option value="returned">Returned</option>
                 </select>
               </div>
