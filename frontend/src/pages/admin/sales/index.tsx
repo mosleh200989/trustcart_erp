@@ -53,6 +53,13 @@ interface SalesOrder {
   total_amount?: number;
   computedTotalAmount?: number;
   computed_total_amount?: number;
+  assigned_to?: number | null;
+  assigned_to_name?: string | null;
+  assigned_at?: string | null;
+  telephony_called_at?: string | null;
+  telephony_call_status?: string | null;
+  telephony_outcome?: string | null;
+  telephony_suggestion?: string | null;
 
   status: string;
   orderDate?: string;
@@ -168,6 +175,8 @@ export default function AdminSales() {
   // Source filter options
   const [sourceOptions, setSourceOptions] = useState<{ value: string; label: string }[]>([]);
   const [landingPageOptions, setLandingPageOptions] = useState<LandingPageOption[]>([]);
+  const [assignmentAgents, setAssignmentAgents] = useState<{ id: number; name: string }[]>([]);
+  const [selectedAssignAgentId, setSelectedAssignAgentId] = useState('');
 
   // Inline product name editing state
   const [editingProductName, setEditingProductName] = useState<{ orderId: number; itemIndex: number } | null>(null);
@@ -334,6 +343,10 @@ export default function AdminSales() {
 
     fetchLandingPageOptions()
       .then(setLandingPageOptions)
+      .catch(() => {});
+
+    apiClient.get('/sales/order-assignment-agents')
+      .then((res) => setAssignmentAgents(Array.isArray(res.data) ? res.data : []))
       .catch(() => {});
   }, []);
 
@@ -611,6 +624,58 @@ export default function AdminSales() {
 
     setSelectedRowIds([]);
     await loadOrders();
+  };
+
+  const bulkAssignOrders = async () => {
+    const ids = selectedRowIds.map((id) => Number(id)).filter((id) => Number.isFinite(id));
+    const agentId = Number(selectedAssignAgentId);
+    if (ids.length === 0) return toast.warning('Select at least one order');
+    if (!Number.isFinite(agentId) || agentId <= 0) return toast.warning('Select an agent');
+    try {
+      const res = await apiClient.put('/sales/order-assignments/bulk-assign', { orderIds: ids, agentId });
+      toast.success(`Assigned ${res.data?.assignedCount ?? ids.length} order(s)`);
+      setSelectedRowIds([]);
+      await loadOrders();
+    } catch (e: any) {
+      toast.error(e?.response?.data?.message || 'Failed to assign orders');
+    }
+  };
+
+  const assignOrderToSelectedAgent = async (orderId: number) => {
+    const agentId = Number(selectedAssignAgentId);
+    if (!Number.isFinite(agentId) || agentId <= 0) return toast.warning('Select an agent first');
+    try {
+      await apiClient.put('/sales/order-assignments/bulk-assign', { orderIds: [orderId], agentId });
+      toast.success('Order assigned');
+      await loadOrders();
+    } catch (e: any) {
+      toast.error(e?.response?.data?.message || 'Failed to assign order');
+    }
+  };
+
+  const bulkUnassignOrders = async () => {
+    const ids = selectedRowIds.map((id) => Number(id)).filter((id) => Number.isFinite(id));
+    if (ids.length === 0) return toast.warning('Select at least one order');
+    if (!confirm(`Unassign ${ids.length} selected order(s)?`)) return;
+    try {
+      const res = await apiClient.put('/sales/order-assignments/bulk-unassign', { orderIds: ids });
+      toast.success(`Unassigned ${res.data?.unassignedCount ?? ids.length} order(s)`);
+      setSelectedRowIds([]);
+      await loadOrders();
+    } catch (e: any) {
+      toast.error(e?.response?.data?.message || 'Failed to unassign orders');
+    }
+  };
+
+  const unassignOrder = async (orderId: number) => {
+    if (!confirm('Unassign this order?')) return;
+    try {
+      await apiClient.put('/sales/order-assignments/bulk-unassign', { orderIds: [orderId] });
+      toast.success('Order unassigned');
+      await loadOrders();
+    } catch (e: any) {
+      toast.error(e?.response?.data?.message || 'Failed to unassign order');
+    }
   };
 
   // ==================== PRINT HANDLERS ====================
@@ -937,6 +1002,45 @@ export default function AdminSales() {
       }
     },
     {
+      key: 'assigned_to_name',
+      label: 'Assigned',
+      render: (_: any, row: SalesOrder) => (
+        <div className="text-xs">
+          {row.assigned_to ? (
+            <>
+              <div className="font-semibold text-gray-800">{row.assigned_to_name || `User #${row.assigned_to}`}</div>
+              {row.telephony_called_at && <div className="text-emerald-600">Called</div>}
+              {row.telephony_outcome && <div className="text-gray-500">{row.telephony_outcome.replace(/_/g, ' ')}</div>}
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  unassignOrder(row.id);
+                }}
+                className="mt-1 text-[11px] font-semibold text-red-600 hover:text-red-800"
+              >
+                Unassign
+              </button>
+            </>
+          ) : (
+            <div>
+              <span className="rounded-full bg-gray-100 px-2 py-1 font-semibold text-gray-500">Unassigned</span>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  assignOrderToSelectedAgent(row.id);
+                }}
+                className="ml-2 text-[11px] font-semibold text-blue-600 hover:text-blue-800"
+              >
+                Assign
+              </button>
+            </div>
+          )}
+        </div>
+      ),
+    },
+    {
       key: 'items',
       label: 'Products',
       className: 'min-w-[200px] !whitespace-normal',
@@ -1140,6 +1244,34 @@ export default function AdminSales() {
             >
               Apply
             </button>
+            <div className="flex items-center gap-2 border-l border-gray-200 pl-3">
+              <select
+                value={selectedAssignAgentId}
+                onChange={(e) => setSelectedAssignAgentId(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Assign to agent</option>
+                {assignmentAgents.map((agent) => (
+                  <option key={agent.id} value={agent.id}>{agent.name}</option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={bulkAssignOrders}
+                disabled={!selectedAssignAgentId || selectedRowIds.length === 0}
+                className="px-3 py-2 text-sm font-medium text-white bg-emerald-600 rounded-lg disabled:opacity-50 hover:bg-emerald-700"
+              >
+                Assign
+              </button>
+              <button
+                type="button"
+                onClick={bulkUnassignOrders}
+                disabled={selectedRowIds.length === 0}
+                className="px-3 py-2 text-sm font-medium text-gray-700 bg-gray-200 rounded-lg disabled:opacity-50 hover:bg-gray-300"
+              >
+                Unassign
+              </button>
+            </div>
           </div>
         </div>
 

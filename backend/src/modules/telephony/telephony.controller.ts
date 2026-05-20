@@ -70,6 +70,37 @@ export class TelephonyController {
     return this.telephonyService.listAgentPresence({ teamId: teamId != null ? Number(teamId) : undefined });
   }
 
+  @Get('order-assignments')
+  @UseGuards(JwtAuthGuard)
+  async listMyOrderAssignments(
+    @Req() req: ExpressRequest,
+    @Query('q') q?: string,
+    @Query('calledStatus') calledStatus?: string,
+    @Query('outcome') outcome?: string,
+    @Query('suggestion') suggestion?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.telephonyService.listMyOrderAssignments(Number((req as any).user?.id), {
+      q,
+      calledStatus,
+      outcome,
+      suggestion,
+      page: page != null ? Number(page) : undefined,
+      limit: limit != null ? Number(limit) : undefined,
+    });
+  }
+
+  @Post('order-assignments/:orderId/outcome')
+  @UseGuards(JwtAuthGuard)
+  async updateOrderAssignmentOutcome(
+    @Req() req: ExpressRequest,
+    @Param('orderId') orderId: string,
+    @Body() body: { outcome?: string; suggestion?: string; notes?: string },
+  ) {
+    return this.telephonyService.updateOrderAssignmentOutcome(Number((req as any).user?.id), Number(orderId), body);
+  }
+
   @Post('calls/initiate')
   @UseGuards(JwtAuthGuard)
   async initiateCall(@Body() body: { taskId: number; agentUserId?: number; agentPhone?: string }) {

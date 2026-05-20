@@ -194,8 +194,8 @@ export class SalesService {
     const userId = Number(user?.id);
     const permissions = await this.getAssignedOrderPermissionSet(userId);
     const has = (slug: string) => permissions.has(slug);
-    const hasManage = has('manage-assigned-orders');
-    const canViewAll = has('view-all-assigned-orders') || (has('view-assigned-orders') && ['super-admin', 'admin', 'sales-manager'].includes(roleSlug));
+    const hasManage = has('manage-assigned-orders') || has('manage-order-assignment');
+    const canViewAll = has('view-all-assigned-orders') || ((has('view-assigned-orders') || has('view-order-assignment')) && ['super-admin', 'admin', 'sales-manager'].includes(roleSlug));
     const canViewTeam = has('view-team-assigned-orders') || hasManage || (has('view-assigned-orders') && roleSlug === 'sales-team-leader');
     const canViewOwn = has('view-own-assigned-orders') || has('view-assigned-orders') || canViewTeam || canViewAll;
 
@@ -225,7 +225,9 @@ export class SalesService {
            'view-own-assigned-orders',
            'view-team-assigned-orders',
            'view-all-assigned-orders',
-           'manage-assigned-orders'
+           'manage-assigned-orders',
+           'view-order-assignment',
+           'manage-order-assignment'
          )
          AND (
            r.id IN (SELECT role_id FROM users WHERE id = $1)
@@ -337,6 +339,11 @@ export class SalesService {
       assigned_by: order.assignedBy ?? null,
       assigned_by_name: order.assignedBy ? ((order as any).assignedByName || null) : null,
       assigned_at: order.assignedAt ?? null,
+      telephony_called_at: order.telephonyCalledAt ?? null,
+      telephony_call_status: order.telephonyCallStatus ?? null,
+      telephony_outcome: order.telephonyOutcome ?? null,
+      telephony_suggestion: order.telephonySuggestion ?? null,
+      telephony_notes: order.telephonyNotes ?? null,
       order_source: order.orderSource || null,
       order_source_display: this.computeOrderSourceDisplay(order),
       items: items.map((i: any) => ({
@@ -1010,6 +1017,11 @@ export class SalesService {
       'o.assignedTo',
       'o.assignedBy',
       'o.assignedAt',
+      'o.telephonyCalledAt',
+      'o.telephonyCallStatus',
+      'o.telephonyOutcome',
+      'o.telephonySuggestion',
+      'o.telephonyNotes',
       'o.orderSource',
       'o.trafficSource',
       'o.referrerUrl',
@@ -1210,6 +1222,77 @@ export class SalesService {
     });
 
     return this.decorateAssignedOrder(saved);
+  }
+
+  async assignOrdersForTelephony(orderIds: number[], agentId: number, user: any) {
+    const ids = [...new Set((orderIds || []).map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0))];
+    if (ids.length === 0) throw new BadRequestException('At least one order is required');
+    if (!Number.isFinite(agentId) || agentId <= 0) throw new BadRequestException('Agent is required');
+
+    await this.assertAgentAssignableToUser(agentId, user);
+
+    const access = await this.getAssignedOrdersAccess(user);
+    if (!access.hasManage) throw new BadRequestException('You do not have permission to assign orders');
+
+    const updated = await this.salesRepository.manager.transaction(async (manager) => {
+      const orders = await manager
+        .createQueryBuilder(SalesOrder, 'o')
+        .where('o.id IN (:...ids)', { ids })
+        .setLock('pessimistic_write')
+        .getMany();
+
+      const now = new Date();
+      for (const order of orders) {
+        order.assignedTo = agentId;
+        order.assignedBy = Number(user?.id);
+        order.assignedAt = now;
+      }
+      return manager.save(orders);
+    });
+
+    return { success: true, assignedCount: updated.length };
+  }
+
+  async unassignOrdersForTelephony(orderIds: number[], user: any) {
+    const ids = [...new Set((orderIds || []).map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0))];
+    if (ids.length === 0) throw new BadRequestException('At least one order is required');
+
+    const access = await this.getAssignedOrdersAccess(user);
+    if (!access.hasManage) throw new BadRequestException('You do not have permission to unassign orders');
+
+    const updated = await this.salesRepository.manager.transaction(async (manager) => {
+      const orders = await manager
+        .createQueryBuilder(SalesOrder, 'o')
+        .where('o.id IN (:...ids)', { ids })
+        .setLock('pessimistic_write')
+        .getMany();
+
+      if (!access.canViewAll && access.isTeamLeader) {
+        const assignedIds = [...new Set(orders.map((order) => order.assignedTo).filter((id): id is number => id != null))];
+        if (assignedIds.length > 0) {
+          const allowedRows: Array<{ id: number }> = await manager.query(
+            `SELECT id FROM users
+             WHERE id = ANY($1)
+               AND team_leader_id = $2
+               AND is_deleted = false`,
+            [assignedIds, access.userId],
+          );
+          const allowed = new Set(allowedRows.map((row) => Number(row.id)));
+          if (assignedIds.some((id) => !allowed.has(id))) {
+            throw new BadRequestException('You can only unassign orders from your own agents');
+          }
+        }
+      }
+
+      for (const order of orders) {
+        order.assignedTo = null;
+        order.assignedBy = null;
+        order.assignedAt = null;
+      }
+      return manager.save(orders);
+    });
+
+    return { success: true, unassignedCount: updated.length };
   }
 
   private async decorateAssignedOrder(order: SalesOrder) {
