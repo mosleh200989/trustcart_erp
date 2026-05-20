@@ -314,6 +314,7 @@ export class TelephonyService {
         customerPhone: order.customerPhone,
         shippingAddress: order.shippingAddress,
         status: order.status,
+        orderSource: order.orderSource,
         totalAmount: Number(order.totalAmount || 0),
         orderDate: order.orderDate,
         assignedAt: order.assignedAt,
