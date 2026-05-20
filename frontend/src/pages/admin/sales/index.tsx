@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { FaTrash } from 'react-icons/fa';
 import AdminLayout from '@/layouts/AdminLayout';
 import { useAuth } from '@/contexts/AuthContext';
@@ -13,7 +13,7 @@ import InvoicePrintModal from '@/components/admin/InvoicePrintModal';
 import StickerPrintModal from '@/components/admin/StickerPrintModal';
 import ProductAutocomplete from '@/components/admin/ProductAutocomplete';
 import { useToast } from '@/contexts/ToastContext';
-import { FaPlus, FaPrint, FaBoxOpen, FaFileInvoice, FaTag, FaCheck, FaTimes, FaSync, FaPhone } from 'react-icons/fa';
+import { FaPlus, FaPrint, FaBoxOpen, FaFileInvoice, FaTag, FaCheck, FaTimes, FaSync, FaPhone, FaUserCheck, FaUserEdit, FaUserSlash } from 'react-icons/fa';
 import apiClient from '@/services/api';
 import { getOrderStatusLabel, getOrderStatusColor } from '@/utils/orderStatus';
 import { getDhakaDateString } from '@/utils/dhakaDate';
@@ -30,6 +30,13 @@ const INITIAL_FILTERS = {
   source: '',
   landingPage: '',
 };
+
+function formatDate(value?: string | null) {
+  if (!value) return '-';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '-';
+  return date.toLocaleDateString('en-GB', { timeZone: 'Asia/Dhaka', day: '2-digit', month: '2-digit', year: 'numeric' });
+}
 
 interface SalesOrder {
   id: number;
@@ -175,8 +182,12 @@ export default function AdminSales() {
   // Source filter options
   const [sourceOptions, setSourceOptions] = useState<{ value: string; label: string }[]>([]);
   const [landingPageOptions, setLandingPageOptions] = useState<LandingPageOption[]>([]);
-  const [assignmentAgents, setAssignmentAgents] = useState<{ id: number; name: string }[]>([]);
+  const [assignmentAgents, setAssignmentAgents] = useState<{ id: number; name: string; inMyTeam?: boolean }[]>([]);
+  const [assignmentOrder, setAssignmentOrder] = useState<SalesOrder | null>(null);
+  const [isBulkAssignmentOpen, setIsBulkAssignmentOpen] = useState(false);
   const [selectedAssignAgentId, setSelectedAssignAgentId] = useState('');
+  const [savingAssignment, setSavingAssignment] = useState(false);
+  const canManageOrderAssignment = hasPermission('manage-order-assignment') || hasPermission('manage-assigned-orders');
 
   // Inline product name editing state
   const [editingProductName, setEditingProductName] = useState<{ orderId: number; itemIndex: number } | null>(null);
@@ -626,36 +637,68 @@ export default function AdminSales() {
     await loadOrders();
   };
 
-  const bulkAssignOrders = async () => {
-    const ids = selectedRowIds.map((id) => Number(id)).filter((id) => Number.isFinite(id));
-    const agentId = Number(selectedAssignAgentId);
-    if (ids.length === 0) return toast.warning('Select at least one order');
-    if (!Number.isFinite(agentId) || agentId <= 0) return toast.warning('Select an agent');
-    try {
-      const res = await apiClient.put('/sales/order-assignments/bulk-assign', { orderIds: ids, agentId });
-      toast.success(`Assigned ${res.data?.assignedCount ?? ids.length} order(s)`);
-      setSelectedRowIds([]);
-      await loadOrders();
-    } catch (e: any) {
-      toast.error(e?.response?.data?.message || 'Failed to assign orders');
-    }
+  const selectedOrders = useMemo(() => {
+    const selectedSet = new Set(selectedRowIds.map((id) => Number(id)));
+    return orders.filter((order) => selectedSet.has(order.id));
+  }, [orders, selectedRowIds]);
+
+  const openAssignmentModal = (order: SalesOrder) => {
+    setAssignmentOrder(order);
+    setSelectedAssignAgentId(order.assigned_to ? String(order.assigned_to) : '');
   };
 
-  const assignOrderToSelectedAgent = async (orderId: number) => {
+  const openBulkAssignmentModal = () => {
+    if (!canManageOrderAssignment) {
+      toast.error('You do not have permission to assign orders');
+      return;
+    }
+    if (selectedOrders.length === 0) {
+      toast.warning('Select at least one order');
+      return;
+    }
+    setAssignmentOrder(null);
+    setSelectedAssignAgentId('');
+    setIsBulkAssignmentOpen(true);
+  };
+
+  const closeAssignmentModal = () => {
+    setAssignmentOrder(null);
+    setIsBulkAssignmentOpen(false);
+    setSelectedAssignAgentId('');
+  };
+
+  const saveAssignment = async () => {
+    if (!assignmentOrder && !isBulkAssignmentOpen) return;
     const agentId = Number(selectedAssignAgentId);
+    if (!canManageOrderAssignment) return toast.error('You do not have permission to assign orders');
     if (!Number.isFinite(agentId) || agentId <= 0) return toast.warning('Select an agent first');
+
+    const targetOrders = assignmentOrder ? [assignmentOrder] : selectedOrders;
+    setSavingAssignment(true);
     try {
-      await apiClient.put('/sales/order-assignments/bulk-assign', { orderIds: [orderId], agentId });
-      toast.success('Order assigned');
+      const res = await apiClient.put('/sales/order-assignments/bulk-assign', {
+        orderIds: targetOrders.map((order) => order.id),
+        agentId,
+      });
+      const count = res.data?.assignedCount ?? targetOrders.length;
+      toast.success(assignmentOrder
+        ? (assignmentOrder.assigned_to ? 'Assignment updated' : 'Order assigned')
+        : `Assigned ${count} order(s)`);
+      setSelectedRowIds([]);
+      closeAssignmentModal();
       await loadOrders();
     } catch (e: any) {
-      toast.error(e?.response?.data?.message || 'Failed to assign order');
+      toast.error(e?.response?.data?.message || 'Failed to save assignment');
+      await loadOrders();
+    } finally {
+      setSavingAssignment(false);
     }
   };
 
   const bulkUnassignOrders = async () => {
-    const ids = selectedRowIds.map((id) => Number(id)).filter((id) => Number.isFinite(id));
-    if (ids.length === 0) return toast.warning('Select at least one order');
+    if (!canManageOrderAssignment) return toast.error('You do not have permission to unassign orders');
+    const ids = selectedOrders.filter((order) => order.assigned_to).map((order) => order.id);
+    if (ids.length === 0) return toast.warning('Select at least one assigned order');
     if (!confirm(`Unassign ${ids.length} selected order(s)?`)) return;
     try {
       const res = await apiClient.put('/sales/order-assignments/bulk-unassign', { orderIds: ids });
@@ -668,6 +711,7 @@ export default function AdminSales() {
   };
 
   const unassignOrder = async (orderId: number) => {
+    if (!canManageOrderAssignment) return toast.error('You do not have permission to unassign orders');
     if (!confirm('Unassign this order?')) return;
     try {
       await apiClient.put('/sales/order-assignments/bulk-unassign', { orderIds: [orderId] });
@@ -1005,38 +1049,45 @@ export default function AdminSales() {
       key: 'assigned_to_name',
       label: 'Assigned',
       render: (_: any, row: SalesOrder) => (
-        <div className="text-xs">
-          {row.assigned_to ? (
-            <>
-              <div className="font-semibold text-gray-800">{row.assigned_to_name || `User #${row.assigned_to}`}</div>
-              {row.telephony_called_at && <div className="text-emerald-600">Called</div>}
-              {row.telephony_outcome && <div className="text-gray-500">{row.telephony_outcome.replace(/_/g, ' ')}</div>}
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  unassignOrder(row.id);
-                }}
-                className="mt-1 text-[11px] font-semibold text-red-600 hover:text-red-800"
-              >
-                Unassign
-              </button>
-            </>
-          ) : (
-            <div>
-              <span className="rounded-full bg-gray-100 px-2 py-1 font-semibold text-gray-500">Unassigned</span>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  assignOrderToSelectedAgent(row.id);
-                }}
-                className="ml-2 text-[11px] font-semibold text-blue-600 hover:text-blue-800"
-              >
-                Assign
-              </button>
-            </div>
-          )}
+        <div className="min-w-[150px] text-xs">
+          <div className="mb-2">
+            {row.assigned_to ? (
+              <>
+                <div className="font-semibold text-gray-800">{row.assigned_to_name || `User #${row.assigned_to}`}</div>
+                {row.assigned_at && <div className="text-gray-500">{formatDate(row.assigned_at)}</div>}
+                {row.telephony_called_at && <div className="text-emerald-600">Called</div>}
+                {row.telephony_outcome && <div className="text-gray-500">{row.telephony_outcome.replace(/_/g, ' ')}</div>}
+              </>
+            ) : (
+              <span className="inline-flex rounded-full bg-amber-100 px-2 py-1 font-semibold text-amber-700">Unassigned</span>
+            )}
+          </div>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                openAssignmentModal(row);
+              }}
+              disabled={!canManageOrderAssignment}
+              className="rounded p-1.5 text-emerald-600 hover:bg-emerald-50 hover:text-emerald-800 disabled:cursor-not-allowed disabled:opacity-35"
+              title={row.assigned_to ? 'Update assignment' : 'Assign'}
+            >
+              {row.assigned_to ? <FaUserEdit size={14} /> : <FaUserCheck size={14} />}
+            </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                unassignOrder(row.id);
+              }}
+              disabled={!row.assigned_to || !canManageOrderAssignment}
+              className="rounded p-1.5 text-red-600 hover:bg-red-50 hover:text-red-800 disabled:cursor-not-allowed disabled:opacity-35"
+              title="Unassign"
+            >
+              <FaUserSlash size={14} />
+            </button>
+          </div>
         </div>
       ),
     },
@@ -1245,31 +1296,23 @@ export default function AdminSales() {
               Apply
             </button>
             <div className="flex items-center gap-2 border-l border-gray-200 pl-3">
-              <select
-                value={selectedAssignAgentId}
-                onChange={(e) => setSelectedAssignAgentId(e.target.value)}
-                className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">Assign to agent</option>
-                {assignmentAgents.map((agent) => (
-                  <option key={agent.id} value={agent.id}>{agent.name}</option>
-                ))}
-              </select>
               <button
                 type="button"
-                onClick={bulkAssignOrders}
-                disabled={!selectedAssignAgentId || selectedRowIds.length === 0}
-                className="px-3 py-2 text-sm font-medium text-white bg-emerald-600 rounded-lg disabled:opacity-50 hover:bg-emerald-700"
+                onClick={openBulkAssignmentModal}
+                disabled={selectedRowIds.length === 0 || !canManageOrderAssignment}
+                className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50 hover:bg-emerald-700"
               >
-                Assign
+                <FaUserCheck />
+                Bulk Assign
               </button>
               <button
                 type="button"
                 onClick={bulkUnassignOrders}
-                disabled={selectedRowIds.length === 0}
-                className="px-3 py-2 text-sm font-medium text-gray-700 bg-gray-200 rounded-lg disabled:opacity-50 hover:bg-gray-300"
+                disabled={selectedRowIds.length === 0 || !canManageOrderAssignment}
+                className="inline-flex items-center gap-2 rounded-lg bg-red-600 px-3 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50 hover:bg-red-700"
               >
-                Unassign
+                <FaUserSlash />
+                Bulk Unassign
               </button>
             </div>
           </div>
@@ -1446,6 +1489,65 @@ export default function AdminSales() {
           onPageChange={setCurrentPage}
           rowClassName={(row: SalesOrder) => row.isRejectedCustomer ? 'bg-red-50 border-l-4 border-l-red-400' : ''}
         />
+
+        <Modal
+          isOpen={assignmentOrder != null || isBulkAssignmentOpen}
+          onClose={closeAssignmentModal}
+          title={isBulkAssignmentOpen ? 'Bulk Assign Orders' : assignmentOrder?.assigned_to ? 'Update Assignment' : 'Assign Order'}
+          footer={
+            <>
+              <button
+                type="button"
+                onClick={closeAssignmentModal}
+                disabled={savingAssignment}
+                className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={saveAssignment}
+                disabled={savingAssignment || !selectedAssignAgentId}
+                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {savingAssignment ? 'Saving...' : 'Save Assignment'}
+              </button>
+            </>
+          }
+        >
+          <div className="space-y-4">
+            <div className="rounded-lg bg-gray-50 p-4">
+              <div className="text-sm text-gray-500">{isBulkAssignmentOpen ? 'Selected Orders' : 'Order'}</div>
+              <div className="font-semibold text-gray-900">
+                {isBulkAssignmentOpen
+                  ? `${selectedOrders.length} order(s)`
+                  : assignmentOrder?.sales_order_number || assignmentOrder?.salesOrderNumber || assignmentOrder?.order_number || assignmentOrder?.id}
+              </div>
+              {!isBulkAssignmentOpen && (
+                <div className="mt-1 text-sm text-gray-600">
+                  Current: {assignmentOrder?.assigned_to_name || 'Unassigned'}
+                </div>
+              )}
+            </div>
+
+            <FormInput
+              label="Agent"
+              name="agentId"
+              type="select"
+              value={selectedAssignAgentId}
+              onChange={(e) => setSelectedAssignAgentId(e.target.value)}
+              selectPlaceholder="Select agent"
+              options={assignmentAgents.map((agent) => ({
+                value: agent.id,
+                label: agent.inMyTeam === false ? `${agent.name} (other team)` : agent.name,
+              }))}
+            />
+
+            <p className="text-sm text-gray-500">
+              Choose an agent and save. If assignment permissions or team ownership changed, the server will reject the action and refresh the list.
+            </p>
+          </div>
+        </Modal>
 
         <Modal
           isOpen={isModalOpen}
