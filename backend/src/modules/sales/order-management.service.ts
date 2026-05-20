@@ -13,6 +13,7 @@ import { User } from '../users/user.entity';
 import { LoyaltyService } from '../loyalty/loyalty.service';
 import { WhatsAppService } from '../messaging/whatsapp.service';
 import { InventoryService } from '../inventory/inventory.service';
+import { MetaCapiService } from './meta-capi.service';
 
 @Injectable()
 export class OrderManagementService {
@@ -38,6 +39,7 @@ export class OrderManagementService {
     @InjectRepository(User)
     private usersRepository: Repository<User>,
     private inventoryService: InventoryService,
+    private metaCapiService: MetaCapiService,
   ) {}
 
   private formatUserName(u?: Partial<User> | null): string | null {
@@ -211,6 +213,14 @@ export class OrderManagementService {
     });
   }
 
+  private async dispatchMetaCapiForStatus(orderId: number, status: string) {
+    try {
+      await this.metaCapiService.sendForStatusTransition(orderId, status);
+    } catch (err: any) {
+      this.logger.warn(`Meta CAPI dispatch failed for order #${orderId} status=${status}: ${err?.message || err}`);
+    }
+  }
+
   private async tryRefreshSteadfastCourierStatus(order: SalesOrder): Promise<SalesOrder> {
     if (!order?.courierCompany || String(order.courierCompany).toLowerCase() !== 'steadfast') return order;
 
@@ -307,6 +317,8 @@ export class OrderManagementService {
         actorName: 'System',
         source: 'Steadfast status refresh',
       });
+
+      await this.dispatchMetaCapiForStatus(saved.id, saved.status);
 
       return saved;
     } catch {
@@ -926,6 +938,8 @@ export class OrderManagementService {
       extraNewValue: { approvedAt: order.approvedAt },
     });
 
+    await this.dispatchMetaCapiForStatus(updatedOrder.id, updatedOrder.status);
+
     return updatedOrder;
   }
 
@@ -1076,6 +1090,10 @@ export class OrderManagementService {
       ipAddress,
       source: 'manual update',
     });
+
+    if (oldStatus !== newStatus) {
+      await this.dispatchMetaCapiForStatus(updatedOrder.id, newStatus);
+    }
 
     // Handle inventory side-effects of status changes
     try {
@@ -1251,6 +1269,10 @@ export class OrderManagementService {
       source: data.userName ? 'manual courier status update' : 'system courier status update',
       extraNewValue: { location: data.location },
     });
+
+    if (prevStatus !== data.status) {
+      await this.dispatchMetaCapiForStatus(saved.id, saved.status);
+    }
   }
 
   async getCourierTrackingHistory(orderId: number): Promise<CourierTrackingHistory[]> {
@@ -1849,6 +1871,8 @@ export class OrderManagementService {
       performedBy: undefined,
       performedByName: 'Steadfast Webhook',
     });
+
+    await this.dispatchMetaCapiForStatus(saved.id, saved.status);
 
     this.logger.log(
       `[Steadfast Webhook] Order #${saved.id} delivery_status: ${prevStatus || 'null'} → ${newStatus}`,
@@ -2784,6 +2808,8 @@ export class OrderManagementService {
       performedByName: 'Pathao Webhook',
     });
 
+    await this.dispatchMetaCapiForStatus(saved.id, saved.status);
+
     return { status: 'success', message: `Order #${saved.id} updated: ${prevStatus} → ${newStatus}` };
   }
 
@@ -2843,6 +2869,8 @@ export class OrderManagementService {
               actorName: 'Pathao Sync',
               source: 'Pathao polling sync',
             });
+
+            await this.dispatchMetaCapiForStatus(order.id, order.status);
           }
         }
 

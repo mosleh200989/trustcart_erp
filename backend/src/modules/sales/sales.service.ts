@@ -15,6 +15,7 @@ import { CouponService } from './coupon.service';
 import { LeadManagementService } from '../lead-management/lead-management.service';
 import { getDhakaDateString } from '../../common/utils/dhaka-date';
 import { OrderGuardSettings } from '../settings/order-guard-settings.entity';
+import { MetaCapiService } from './meta-capi.service';
 
 @Injectable()
 export class SalesService {
@@ -37,6 +38,7 @@ export class SalesService {
     private orderGuardSettingsRepository: Repository<OrderGuardSettings>,
     @Inject(forwardRef(() => LeadManagementService))
     private leadManagementService: LeadManagementService,
+    private metaCapiService: MetaCapiService,
   ) {}
 
   private readonly dhakaTimeZone = 'Asia/Dhaka';
@@ -187,6 +189,14 @@ export class SalesService {
       },
       HttpStatus.TOO_MANY_REQUESTS,
     );
+  }
+
+  private async dispatchMetaCapiForStatus(orderId: number, status: string) {
+    try {
+      await this.metaCapiService.sendForStatusTransition(orderId, status);
+    } catch (err: any) {
+      console.warn(`Meta CAPI dispatch failed for order #${orderId} status=${status}:`, err?.message || err);
+    }
   }
 
   private async getAssignedOrdersAccess(user: any) {
@@ -1888,6 +1898,22 @@ export class SalesService {
     if (createSalesDto.utm_campaign != null) sales.utmCampaign = String(createSalesDto.utm_campaign);
     if (createSalesDto.utmCampaign != null) sales.utmCampaign = String(createSalesDto.utmCampaign);
 
+    const metaAttribution = createSalesDto.meta_attribution ?? createSalesDto.metaAttribution ?? {};
+    const readMetaValue = (...keys: string[]) => {
+      for (const key of keys) {
+        const value = createSalesDto[key] ?? metaAttribution?.[key];
+        if (value != null && String(value).trim() !== '') return String(value).trim();
+      }
+      return null;
+    };
+
+    sales.metaFbp = readMetaValue('meta_fbp', 'metaFbp', 'fbp', '_fbp');
+    sales.metaFbc = readMetaValue('meta_fbc', 'metaFbc', 'fbc', '_fbc');
+    sales.metaFbclid = readMetaValue('meta_fbclid', 'metaFbclid', 'fbclid');
+    sales.metaEventSourceUrl = readMetaValue('meta_event_source_url', 'metaEventSourceUrl', 'event_source_url', 'eventSourceUrl');
+    sales.metaLandingUrl = readMetaValue('meta_landing_url', 'metaLandingUrl', 'landing_url', 'landingUrl', 'current_url', 'currentUrl');
+    sales.metaAttribution = Object.keys(metaAttribution || {}).length > 0 ? metaAttribution : null;
+
     // Save the order first
     const savedOrder = await this.salesRepository.save(sales);
 
@@ -1992,6 +2018,7 @@ export class SalesService {
   }
 
   async update(id: string, updateSalesDto: any) {
+    let shouldDispatchApproved = false;
     let becameDelivered = false;
 
     if (updateSalesDto?.status) {
@@ -2004,6 +2031,7 @@ export class SalesService {
         }
 
         becameDelivered = from !== 'delivered' && to === 'delivered';
+        shouldDispatchApproved = from !== 'approved' && to === 'approved';
 
         if (to === 'approved' && !current.approvedAt) {
           updateSalesDto.approvedAt = new Date();
@@ -2013,6 +2041,10 @@ export class SalesService {
 
     await this.salesRepository.update(id, updateSalesDto);
     const updated = await this.findOne(id);
+
+    if (updated && shouldDispatchApproved) {
+      await this.dispatchMetaCapiForStatus(updated.id, 'approved');
+    }
 
     if (becameDelivered && updated) {
       // Ensure customer record exists for lead assignment
@@ -2089,6 +2121,8 @@ export class SalesService {
           console.warn(`Auto-tier assignment failed for customer #${updated.customerId}:`, (err as any)?.message || err);
         }
       }
+
+      await this.dispatchMetaCapiForStatus(updated.id, 'delivered');
     }
 
     return updated;

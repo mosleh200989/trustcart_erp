@@ -21,6 +21,7 @@ import PhoneInput from "@/components/PhoneInput";
 import { useToast } from "@/contexts/ToastContext";
 import { SITE_NAME, canonicalUrl, productImageUrl } from "@/config/seo";
 import { getOrderGuardNoteHtml, isOrderGuardBlocked } from "@/utils/orderGuard";
+import { TrackingService } from "@/utils/tracking";
 
 interface SizeVariant {
   name: string;
@@ -193,6 +194,7 @@ export default function ProductLandingView({
         utm_source: product.slug || `product-${product.id}`,
         utm_medium: "product_landing",
         utm_campaign: product.name_en,
+        ...TrackingService.collectMetaAttribution(),
       };
 
       const res = await apiClient.post("/sales", orderPayload);

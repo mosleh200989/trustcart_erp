@@ -500,6 +500,19 @@ export default function Checkout() {
         utm_source: trackingInfo.utmSource,
         utm_medium: trackingInfo.utmMedium,
         utm_campaign: trackingInfo.utmCampaign,
+        meta_fbp: trackingInfo.metaFbp,
+        meta_fbc: trackingInfo.metaFbc,
+        meta_fbclid: trackingInfo.metaFbclid,
+        meta_event_source_url: trackingInfo.metaEventSourceUrl,
+        meta_landing_url: trackingInfo.metaLandingUrl,
+        meta_attribution: {
+          fbp: trackingInfo.metaFbp || null,
+          fbc: trackingInfo.metaFbc || null,
+          fbclid: trackingInfo.metaFbclid || null,
+          eventSourceUrl: trackingInfo.metaEventSourceUrl || null,
+          landingUrl: trackingInfo.metaLandingUrl || null,
+          capturedAt: new Date().toISOString(),
+        },
       };
 
       const response = await apiClient.post("/sales", orderData);

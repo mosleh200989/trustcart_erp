@@ -144,6 +144,24 @@ export class SalesOrder {
   @Column({ name: 'utm_campaign', type: 'varchar', length: 100, nullable: true })
   utmCampaign: string;
 
+  @Column({ name: 'meta_fbp', type: 'varchar', length: 255, nullable: true })
+  metaFbp: string | null;
+
+  @Column({ name: 'meta_fbc', type: 'varchar', length: 255, nullable: true })
+  metaFbc: string | null;
+
+  @Column({ name: 'meta_fbclid', type: 'text', nullable: true })
+  metaFbclid: string | null;
+
+  @Column({ name: 'meta_event_source_url', type: 'text', nullable: true })
+  metaEventSourceUrl: string | null;
+
+  @Column({ name: 'meta_landing_url', type: 'text', nullable: true })
+  metaLandingUrl: string | null;
+
+  @Column({ name: 'meta_attribution', type: 'jsonb', nullable: true })
+  metaAttribution: any;
+
   // Courier Integration
   @Column({ name: 'courier_company', type: 'varchar', length: 100, nullable: true })
   courierCompany: string;

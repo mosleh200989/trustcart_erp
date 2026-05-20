@@ -15,9 +15,40 @@ export interface UserTrackingInfo {
   utmSource?: string;
   utmMedium?: string;
   utmCampaign?: string;
+  metaFbp?: string;
+  metaFbc?: string;
+  metaFbclid?: string;
+  metaEventSourceUrl?: string;
+  metaLandingUrl?: string;
 }
 
 export class TrackingService {
+  static collectMetaAttribution() {
+    if (typeof window === 'undefined') return {};
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const fbclid = urlParams.get('fbclid') || undefined;
+    const fbp = this.getCookie('_fbp') || undefined;
+    const fbc = this.getCookie('_fbc') || this.buildFbcFromFbclid(fbclid) || undefined;
+    const landingUrl = window.location.href;
+
+    return {
+      meta_fbp: fbp,
+      meta_fbc: fbc,
+      meta_fbclid: fbclid,
+      meta_event_source_url: landingUrl || document.referrer || undefined,
+      meta_landing_url: landingUrl,
+      meta_attribution: {
+        fbp: fbp || null,
+        fbc: fbc || null,
+        fbclid: fbclid || null,
+        eventSourceUrl: landingUrl || document.referrer || null,
+        landingUrl: landingUrl || null,
+        capturedAt: new Date().toISOString(),
+      },
+    };
+  }
+
   static async collectTrackingInfo(): Promise<UserTrackingInfo> {
     const trackingInfo: UserTrackingInfo = {
       browserInfo: this.getBrowserInfo(),
@@ -31,6 +62,12 @@ export class TrackingService {
     trackingInfo.utmSource = urlParams.get('utm_source') || undefined;
     trackingInfo.utmMedium = urlParams.get('utm_medium') || undefined;
     trackingInfo.utmCampaign = urlParams.get('utm_campaign') || undefined;
+    const metaAttribution = this.collectMetaAttribution();
+    trackingInfo.metaFbclid = metaAttribution.meta_fbclid;
+    trackingInfo.metaFbp = metaAttribution.meta_fbp;
+    trackingInfo.metaFbc = metaAttribution.meta_fbc;
+    trackingInfo.metaLandingUrl = metaAttribution.meta_landing_url;
+    trackingInfo.metaEventSourceUrl = metaAttribution.meta_event_source_url;
 
     // Determine traffic source
     trackingInfo.trafficSource = this.determineTrafficSource(
@@ -123,6 +160,17 @@ export class TrackingService {
     if (ref.includes('youtube.com')) return 'youtube';
     
     return 'referral';
+  }
+
+  static getCookie(name: string): string | null {
+    const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const match = document.cookie.match(new RegExp(`(?:^|; )${escapedName}=([^;]*)`));
+    return match ? decodeURIComponent(match[1]) : null;
+  }
+
+  static buildFbcFromFbclid(fbclid?: string): string | null {
+    if (!fbclid) return null;
+    return `fb.1.${Date.now()}.${fbclid}`;
   }
 
   static async getGeoLocation(): Promise<{

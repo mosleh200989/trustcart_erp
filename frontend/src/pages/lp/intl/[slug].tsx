@@ -10,6 +10,7 @@ import ElegantTemplate from '@/components/landing-pages/ElegantTemplate';
 import GheeTemplate from '@/components/landing-pages/GheeTemplate';
 import PickleTemplate from '@/components/landing-pages/PickleTemplate';
 import { getOrderGuardNoteHtml, isOrderGuardBlocked } from '@/utils/orderGuard';
+import { TrackingService } from '@/utils/tracking';
 
 interface LandingPageSection {
   id: string;
@@ -327,10 +328,11 @@ export default function LandingPageInternational() {
           order_source: 'landing_page',
           traffic_source: 'landing_page_intl',
           referrer_url: window.location.href,
-          utm_source: page.slug,
-          utm_medium: 'landing_page_intl',
-          utm_campaign: page.title,
-        };
+        utm_source: page.slug,
+        utm_medium: 'landing_page_intl',
+        utm_campaign: page.title,
+        ...TrackingService.collectMetaAttribution(),
+      };
         const res = await apiClient.post('/sales', orderPayload);
         const savedOrderId = res.data?.id || res.data?.data?.id;
 
