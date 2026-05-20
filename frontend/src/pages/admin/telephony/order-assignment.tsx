@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { FaCheckCircle, FaCopy, FaPhone, FaSyncAlt } from 'react-icons/fa';
+import { FaCopy, FaPhone, FaSms, FaSyncAlt, FaWhatsapp } from 'react-icons/fa';
 import AdminLayout from '@/layouts/AdminLayout';
 import PageSizeSelector from '@/components/admin/PageSizeSelector';
 import Modal from '@/components/admin/Modal';
@@ -217,8 +217,8 @@ export default function TelephonyOrderAssignmentPage() {
                   <thead className="bg-gray-50">
                     <tr>
                       <th className="px-4 py-2 text-left text-xs font-medium uppercase text-gray-500">Order ID</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium uppercase text-gray-500">Date</th>
                       <th className="px-4 py-2 text-left text-xs font-medium uppercase text-gray-500">Customer</th>
-                      <th className="px-4 py-2 text-left text-xs font-medium uppercase text-gray-500">Phone</th>
                       <th className="px-4 py-2 text-left text-xs font-medium uppercase text-gray-500">Status</th>
                       <th className="px-4 py-2 text-left text-xs font-medium uppercase text-gray-500">Products</th>
                       <th className="px-4 py-2 text-left text-xs font-medium uppercase text-gray-500">Address</th>
@@ -231,22 +231,24 @@ export default function TelephonyOrderAssignmentPage() {
                   <tbody className="divide-y divide-gray-200">
                     {orders.map((order) => {
                       const phone = String(order.customerPhone || '').trim();
+                      const waPhone = phone.replace(/[^0-9]/g, '');
                       return (
                         <tr key={order.id} className="hover:bg-gray-50">
                           <td className="px-4 py-3">
-                            <div className="font-semibold text-gray-900">{order.salesOrderNumber || `#${order.id}`}</div>
-                            <div className="text-xs text-gray-500">ID: {order.id}</div>
+                            <div className="font-semibold text-gray-900">#{order.id}</div>
                           </td>
-                          <td className="px-4 py-3 text-sm text-gray-800">{order.customerName || '-'}</td>
+                          <td className="px-4 py-3 text-sm text-gray-700">{formatDate(order.orderDate || order.assignedAt)}</td>
                           <td className="px-4 py-3">
-                            {phone ? (
-                              <div className="flex items-center gap-1 text-sm">
-                                <a href={`tel:${phone}`} className="text-blue-600 hover:underline" title="Call">{phone}</a>
+                            <div className="font-medium text-gray-900">{order.customerName || '-'}</div>
+                            {phone && (
+                              <div className="mt-0.5 flex items-center gap-1 text-xs text-gray-600">
+                                <FaPhone className="text-[10px]" />
+                                <a href={`tel:${phone}`} className="text-blue-600 hover:text-blue-800 hover:underline" title="Call">{phone}</a>
                                 <button type="button" onClick={() => copyPhone(phone)} className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700" title="Copy number">
-                                  <FaCopy size={12} />
+                                  <FaCopy size={11} />
                                 </button>
                               </div>
-                            ) : '-'}
+                            )}
                           </td>
                           <td className="px-4 py-3">
                             <span className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${getOrderStatusColor(order.status)}`}>
@@ -272,15 +274,70 @@ export default function TelephonyOrderAssignmentPage() {
                           <td className="px-4 py-3 text-sm capitalize">{order.outcome ? order.outcome.replace(/_/g, ' ') : '-'}</td>
                           <td className="px-4 py-3 text-sm capitalize">{order.suggestion ? order.suggestion.replace(/_/g, ' ') : '-'}</td>
                           <td className="px-4 py-3">
-                            <button
-                              className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700"
-                              onClick={() => {
-                                setSelectedOrder(order);
-                                setForm({ outcome: order.outcome || '', suggestion: order.suggestion || '', notes: order.notes || '' });
-                              }}
-                            >
-                              <FaCheckCircle /> Set Outcome
-                            </button>
+                            <div className="flex flex-wrap items-center gap-1">
+                              <a
+                                href={phone ? `tel:${phone}` : undefined}
+                                aria-disabled={!phone}
+                                title={phone ? 'Call' : 'No phone'}
+                                className={`rounded border p-1.5 ${phone ? 'border-green-200 text-green-700 hover:bg-green-50' : 'cursor-not-allowed border-gray-200 text-gray-300'}`}
+                                onClick={(e) => {
+                                  if (!phone) e.preventDefault();
+                                }}
+                              >
+                                <FaPhone size={12} />
+                              </a>
+                              <a
+                                href={waPhone ? `https://wa.me/${waPhone}` : undefined}
+                                target="_blank"
+                                rel="noreferrer"
+                                aria-disabled={!waPhone}
+                                title={waPhone ? 'WhatsApp' : 'No phone'}
+                                className={`rounded border p-1.5 ${waPhone ? 'border-emerald-200 text-emerald-700 hover:bg-emerald-50' : 'cursor-not-allowed border-gray-200 text-gray-300'}`}
+                                onClick={(e) => {
+                                  if (!waPhone) e.preventDefault();
+                                }}
+                              >
+                                <FaWhatsapp size={12} />
+                              </a>
+                              <a
+                                href={phone ? `https://imoim.app/${phone}` : undefined}
+                                target="_blank"
+                                rel="noreferrer"
+                                aria-disabled={!phone}
+                                title={phone ? 'IMO' : 'No phone'}
+                                className={`rounded border p-1.5 ${phone ? 'border-indigo-200 text-indigo-700 hover:bg-indigo-50' : 'cursor-not-allowed border-gray-200 text-gray-300'}`}
+                                onClick={(e) => {
+                                  if (!phone) e.preventDefault();
+                                }}
+                              >
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                                  <circle cx="12" cy="12" r="11" stroke="currentColor" strokeWidth="2" fill="none" />
+                                  <circle cx="12" cy="10" r="4" fill="currentColor" />
+                                  <ellipse cx="12" cy="18" rx="6" ry="3" fill="currentColor" />
+                                </svg>
+                              </a>
+                              <a
+                                href={phone ? `sms:${phone}` : undefined}
+                                aria-disabled={!phone}
+                                title={phone ? 'SMS' : 'No phone'}
+                                className={`rounded border p-1.5 ${phone ? 'border-blue-200 text-blue-700 hover:bg-blue-50' : 'cursor-not-allowed border-gray-200 text-gray-300'}`}
+                                onClick={(e) => {
+                                  if (!phone) e.preventDefault();
+                                }}
+                              >
+                                <FaSms size={12} />
+                              </a>
+                              <button
+                                type="button"
+                                className="flex items-center gap-1 rounded bg-green-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-700"
+                                onClick={() => {
+                                  setSelectedOrder(order);
+                                  setForm({ outcome: order.outcome || '', suggestion: order.suggestion || '', notes: order.notes || '' });
+                                }}
+                              >
+                                <FaPhone size={10} /> Log Call
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       );
@@ -301,7 +358,7 @@ export default function TelephonyOrderAssignmentPage() {
         <Modal
           isOpen={Boolean(selectedOrder)}
           onClose={() => setSelectedOrder(null)}
-          title="Set Call Outcome"
+          title="Log Call"
           footer={<>
             <button onClick={() => setSelectedOrder(null)} className="rounded-lg border px-4 py-2 text-sm">Cancel</button>
             <button onClick={saveOutcome} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white">Save</button>
@@ -309,7 +366,7 @@ export default function TelephonyOrderAssignmentPage() {
         >
           <div className="space-y-4">
             <div className="rounded-lg bg-gray-50 p-3 text-sm">
-              <div className="font-semibold">{selectedOrder?.salesOrderNumber || selectedOrder?.id}</div>
+              <div className="font-semibold">#{selectedOrder?.id}</div>
               <div className="text-gray-600">{selectedOrder?.customerName} {selectedOrder?.customerPhone ? `- ${selectedOrder.customerPhone}` : ''}</div>
             </div>
             <select value={form.outcome} onChange={(e) => setForm((prev) => ({ ...prev, outcome: e.target.value }))} className="w-full rounded-lg border px-3 py-2 text-sm">

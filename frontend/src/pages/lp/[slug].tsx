@@ -11,6 +11,7 @@ import PickleTemplate from '@/components/landing-pages/PickleTemplate';
 import SpecialEventTemplate from '@/components/landing-pages/SpecialEventTemplate';
 import FreeOfferTemplate from '@/components/landing-pages/FreeOfferTemplate';
 import { getOrderGuardNoteHtml, isOrderGuardBlocked } from '@/utils/orderGuard';
+import { TrackingService } from '@/utils/tracking';
 
 interface LandingPageSection {
   id: string;
@@ -317,10 +318,11 @@ export default function LandingPagePublic() {
           order_source: 'landing_page',
           traffic_source: 'landing_page',
           referrer_url: window.location.href,
-          utm_source: page.slug,
-          utm_medium: 'landing_page',
-          utm_campaign: page.title,
-        };
+        utm_source: page.slug,
+        utm_medium: 'landing_page',
+        utm_campaign: page.title,
+        ...TrackingService.collectMetaAttribution(),
+      };
         const res = await apiClient.post('/sales', orderPayload);
         const savedOrderId = res.data?.id || res.data?.data?.id;
 

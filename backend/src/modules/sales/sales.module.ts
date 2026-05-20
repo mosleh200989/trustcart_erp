@@ -30,6 +30,8 @@ import { CampaignCustomer } from './entities/campaign-customer.entity';
 import { CouponService } from './coupon.service';
 import { CouponController } from './coupon.controller';
 import { OrderGuardSettings } from '../settings/order-guard-settings.entity';
+import { MetaCapiEvent } from './entities/meta-capi-event.entity';
+import { MetaCapiService } from './meta-capi.service';
 
 @Module({
   imports: [
@@ -46,6 +48,7 @@ import { OrderGuardSettings } from '../settings/order-guard-settings.entity';
       CouponCampaign,
       CampaignCustomer,
       OrderGuardSettings,
+      MetaCapiEvent,
     ]),
     CustomersModule,
     SpecialOffersModule,
@@ -57,7 +60,7 @@ import { OrderGuardSettings } from '../settings/order-guard-settings.entity';
     forwardRef(() => LeadManagementModule),
   ],
   controllers: [SalesController, OrderManagementController, FraudCheckController, CouponController],
-  providers: [SalesService, OrderManagementService, FraudCheckService, CouponService, SteadfastWebhookGuard, PathaoWebhookGuard],
-  exports: [SalesService, OrderManagementService, FraudCheckService, CouponService],
+  providers: [SalesService, OrderManagementService, FraudCheckService, CouponService, MetaCapiService, SteadfastWebhookGuard, PathaoWebhookGuard],
+  exports: [SalesService, OrderManagementService, FraudCheckService, CouponService, MetaCapiService],
 })
 export class SalesModule {}

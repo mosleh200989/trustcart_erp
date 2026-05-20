@@ -7,6 +7,7 @@ import InternationalPhoneInput from '@/components/InternationalPhoneInput';
 import { useToast } from '@/contexts/ToastContext';
 import CrossSellSuggestion from '@/components/landing-pages/CrossSellSuggestion';
 import { getOrderGuardNoteHtml, isOrderGuardBlocked } from '@/utils/orderGuard';
+import { TrackingService } from '@/utils/tracking';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/dist/ScrollTrigger';
 import {
@@ -447,6 +448,7 @@ export default function SpecialEventTemplate({
         utm_source: page.slug,
         utm_medium: 'landing_page',
         utm_campaign: page.title,
+        ...TrackingService.collectMetaAttribution(),
       };
       const res = await apiClient.post('/sales', orderPayload);
       const savedOrderId = res.data?.id || res.data?.data?.id;

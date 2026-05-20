@@ -52,6 +52,7 @@ import { HotDeal } from './modules/products/hot-deal.entity';
 import { CourierConfiguration } from './modules/settings/courier-configuration.entity';
 import { AdminMenuItem } from './modules/settings/admin-menu-item.entity';
 import { OrderGuardSettings } from './modules/settings/order-guard-settings.entity';
+import { MetaCapiEvent } from './modules/sales/entities/meta-capi-event.entity';
 
 // Tagging Entities
 import { CustomerTag } from './modules/tagging/customer-tag.entity';
@@ -263,7 +264,7 @@ import { GrnItem } from './modules/purchase/entities/grn-item.entity';
             JobPost, JobApplication, Interview,
             FamilyMember, CustomerInteraction, CustomerBehavior, CustomerDropoff, CustomerAddress,
             CallTask, RecommendationRule, EngagementHistory, MarketingCampaign,
-            SalesTeam, SalesOrder, SalesOrderItem, OrderItem, OrderActivityLog, CourierTrackingHistory, FraudCheck, SupportTicket,
+            SalesTeam, SalesOrder, SalesOrderItem, OrderItem, OrderActivityLog, CourierTrackingHistory, FraudCheck, MetaCapiEvent, SupportTicket,
 
             Offer, OfferCondition, OfferReward, OfferProduct, OfferCategory, OfferUsage, Banner, Category, SpecialOffer,
             
