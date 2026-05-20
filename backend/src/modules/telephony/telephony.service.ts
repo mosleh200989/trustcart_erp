@@ -190,6 +190,8 @@ export class TelephonyService {
 
   async listMyOrderAssignments(userId: number, params?: {
     q?: string;
+    productName?: string;
+    customerType?: string;
     calledStatus?: string;
     outcome?: string;
     suggestion?: string;
@@ -214,10 +216,83 @@ export class TelephonyService {
       )`, { q });
     }
 
-    if (params?.calledStatus === 'called') {
-      qb.andWhere('o.telephony_called_at IS NOT NULL');
-    } else if (params?.calledStatus === 'not_called') {
-      qb.andWhere('o.telephony_called_at IS NULL');
+    if (params?.productName?.trim()) {
+      const pName = `%${params.productName.trim().toLowerCase()}%`;
+      qb.andWhere(`EXISTS (
+        SELECT 1
+        FROM order_items oi
+        LEFT JOIN products p ON p.id = oi.product_id
+        WHERE oi.order_id = o.id
+          AND (
+            LOWER(COALESCE(oi.product_name, '')) LIKE :pName
+            OR LOWER(COALESCE(oi.custom_product_name, '')) LIKE :pName
+            OR LOWER(COALESCE(p.name_en, '')) LIKE :pName
+            OR LOWER(COALESCE(p.name_bn, '')) LIKE :pName
+            OR LOWER(COALESCE(p.sku, '')) LIKE :pName
+          )
+      )
+      OR EXISTS (
+        SELECT 1
+        FROM sales_order_items soi
+        LEFT JOIN products p2 ON p2.id = soi.product_id
+        WHERE soi.sales_order_id = o.id
+          AND (
+            LOWER(COALESCE(soi.product_name, '')) LIKE :pName
+            OR LOWER(COALESCE(soi.custom_product_name, '')) LIKE :pName
+            OR LOWER(COALESCE(p2.name_en, '')) LIKE :pName
+            OR LOWER(COALESCE(p2.name_bn, '')) LIKE :pName
+            OR LOWER(COALESCE(p2.sku, '')) LIKE :pName
+          )
+      )`, { pName });
+    }
+
+    if (params?.customerType && params.customerType !== 'all') {
+      qb.andWhere(`(
+        EXISTS (
+          SELECT 1
+          FROM customers c
+          WHERE c.id = o.customer_id
+            AND c.customer_type = :customerType
+        )
+        OR EXISTS (
+          SELECT 1
+          FROM customer_tiers ct
+          WHERE ct.customer_id = o.customer_id
+            AND ct.tier = :customerType
+        )
+      )`, { customerType: params.customerType });
+    }
+
+    const calledStatus = String(params?.calledStatus || '').trim();
+    if (calledStatus && calledStatus !== 'all') {
+      switch (calledStatus) {
+        case 'called':
+        case 'called_today':
+          qb.andWhere("o.telephony_called_at >= CURRENT_DATE AND o.telephony_called_at < CURRENT_DATE + INTERVAL '1 day'");
+          break;
+        case 'called_1week':
+          qb.andWhere("o.telephony_called_at >= CURRENT_DATE - INTERVAL '13 days' AND o.telephony_called_at < CURRENT_DATE - INTERVAL '6 days'");
+          break;
+        case 'called_2weeks':
+          qb.andWhere("o.telephony_called_at >= CURRENT_DATE - INTERVAL '20 days' AND o.telephony_called_at < CURRENT_DATE - INTERVAL '13 days'");
+          break;
+        case 'called_3weeks':
+          qb.andWhere("o.telephony_called_at >= CURRENT_DATE - INTERVAL '27 days' AND o.telephony_called_at < CURRENT_DATE - INTERVAL '20 days'");
+          break;
+        case 'called_1month':
+          qb.andWhere("o.telephony_called_at < CURRENT_DATE - INTERVAL '27 days'");
+          break;
+        case 'not_called':
+        case 'not_called_today':
+          qb.andWhere("(o.telephony_called_at IS NULL OR o.telephony_called_at < CURRENT_DATE)");
+          break;
+        case 'not_called_week':
+          qb.andWhere("(o.telephony_called_at IS NULL OR o.telephony_called_at < CURRENT_DATE - INTERVAL '6 days')");
+          break;
+        case 'never':
+          qb.andWhere('o.telephony_called_at IS NULL');
+          break;
+      }
     }
 
     if (params?.outcome && params.outcome !== 'all') {
@@ -229,6 +304,7 @@ export class TelephonyService {
     }
 
     const [orders, total] = await qb.skip(skip).take(safeLimit).getManyAndCount();
+    const itemsByOrderId = await this.fetchOrderItems(orders.map((order) => order.id));
 
     return {
       data: orders.map((order) => ({
@@ -246,12 +322,59 @@ export class TelephonyService {
         outcome: order.telephonyOutcome,
         suggestion: order.telephonySuggestion,
         notes: order.telephonyNotes,
+        items: itemsByOrderId.get(order.id) || [],
       })),
       total,
       page: safePage,
       limit: safeLimit,
       totalPages: Math.ceil(total / safeLimit),
     };
+  }
+
+  private async fetchOrderItems(orderIds: number[]): Promise<Map<number, Array<{ productName: string; productNameBn?: string | null; variantName?: string | null; quantity: number }>>> {
+    const map = new Map<number, Array<{ productName: string; productNameBn?: string | null; variantName?: string | null; quantity: number }>>();
+    if (orderIds.length === 0) return map;
+
+    const rows: Array<{
+      order_id: number;
+      product_name: string | null;
+      custom_product_name: string | null;
+      product_id: number | null;
+      quantity: number;
+      variant_name: string | null;
+    }> = await this.salesOrderRepo.manager.query(
+      `SELECT oi.order_id, oi.product_name, oi.custom_product_name, oi.product_id, oi.quantity, oi.variant_name
+       FROM order_items oi
+       WHERE oi.order_id = ANY($1)
+       UNION ALL
+       SELECT soi.sales_order_id AS order_id, soi.product_name, soi.custom_product_name, soi.product_id, soi.quantity, NULL AS variant_name
+       FROM sales_order_items soi
+       WHERE soi.sales_order_id = ANY($1)
+         AND soi.sales_order_id NOT IN (SELECT DISTINCT oi2.order_id FROM order_items oi2 WHERE oi2.order_id = ANY($1))`,
+      [orderIds],
+    );
+
+    const productIds = [...new Set(rows.map((row) => Number(row.product_id)).filter((id) => Number.isFinite(id) && id > 0))];
+    const productRows: Array<{ id: number; name_en: string | null; name_bn: string | null }> = productIds.length
+      ? await this.salesOrderRepo.manager.query(`SELECT id, name_en, name_bn FROM products WHERE id = ANY($1)`, [productIds])
+      : [];
+    const products = new Map(productRows.map((row) => [Number(row.id), row]));
+
+    for (const row of rows) {
+      const product = row.product_id ? products.get(Number(row.product_id)) : undefined;
+      const customName = row.custom_product_name || null;
+      const productName = customName || row.product_name || product?.name_en || 'Unknown Product';
+      const arr = map.get(Number(row.order_id)) || [];
+      arr.push({
+        productName,
+        productNameBn: customName ? null : product?.name_bn || null,
+        variantName: row.variant_name || null,
+        quantity: Number(row.quantity) || 0,
+      });
+      map.set(Number(row.order_id), arr);
+    }
+
+    return map;
   }
 
   async updateOrderAssignmentOutcome(userId: number, orderId: number, body: {

@@ -75,6 +75,8 @@ export class TelephonyController {
   async listMyOrderAssignments(
     @Req() req: ExpressRequest,
     @Query('q') q?: string,
+    @Query('productName') productName?: string,
+    @Query('customerType') customerType?: string,
     @Query('calledStatus') calledStatus?: string,
     @Query('outcome') outcome?: string,
     @Query('suggestion') suggestion?: string,
@@ -83,6 +85,8 @@ export class TelephonyController {
   ) {
     return this.telephonyService.listMyOrderAssignments(Number((req as any).user?.id), {
       q,
+      productName,
+      customerType,
       calledStatus,
       outcome,
       suggestion,

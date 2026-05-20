@@ -1,11 +1,15 @@
-import { useEffect, useMemo, useState } from 'react';
-import { FaPhone, FaSyncAlt } from 'react-icons/fa';
+import { useEffect, useState } from 'react';
+import { FaCheckCircle, FaCopy, FaPhone, FaSyncAlt } from 'react-icons/fa';
 import AdminLayout from '@/layouts/AdminLayout';
-import DataTable from '@/components/admin/DataTable';
 import PageSizeSelector from '@/components/admin/PageSizeSelector';
 import Modal from '@/components/admin/Modal';
+import ProductAutocomplete from '@/components/admin/ProductAutocomplete';
 import apiClient from '@/services/api';
 import { useToast } from '@/contexts/ToastContext';
+import { getOrderStatusColor, getOrderStatusLabel } from '@/utils/orderStatus';
+
+type FilterCalledStatus = 'all' | 'called_today' | 'called_1week' | 'called_2weeks' | 'called_3weeks' | 'called_1month' | 'never';
+type FilterOutcome = 'all' | 'positive' | 'negative' | 'neutral' | 'no_answer';
 
 type AssignedOrder = {
   id: number;
@@ -18,10 +22,10 @@ type AssignedOrder = {
   orderDate?: string;
   assignedAt?: string;
   calledAt?: string | null;
-  callStatus?: string;
   outcome?: string | null;
   suggestion?: string | null;
   notes?: string | null;
+  items?: Array<{ productName: string; productNameBn?: string | null; variantName?: string | null; quantity: number }>;
 };
 
 const OUTCOMES = [
@@ -38,6 +42,18 @@ const SUGGESTIONS = [
   { value: 'not_interested', label: 'Not interested' },
 ];
 
+function formatDate(value?: string | null) {
+  if (!value) return '-';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return '-';
+  return d.toLocaleDateString('en-GB', { timeZone: 'Asia/Dhaka', day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
+function toBackendCalledStatus(value: FilterCalledStatus) {
+  if (value === 'never') return 'never';
+  return value === 'all' ? '' : value;
+}
+
 export default function TelephonyOrderAssignmentPage() {
   const toast = useToast();
   const [orders, setOrders] = useState<AssignedOrder[]>([]);
@@ -46,21 +62,25 @@ export default function TelephonyOrderAssignmentPage() {
   const [limit, setLimit] = useState(50);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
-  const [q, setQ] = useState('');
-  const [calledStatus, setCalledStatus] = useState('');
-  const [outcome, setOutcome] = useState('');
-  const [suggestion, setSuggestion] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [productFilter, setProductFilter] = useState('');
+  const [tierFilter, setTierFilter] = useState('');
+  const [calledFilter, setCalledFilter] = useState<FilterCalledStatus>('all');
+  const [outcomeFilter, setOutcomeFilter] = useState<FilterOutcome>('all');
+  const [appliedFilters, setAppliedFilters] = useState({ searchTerm: '', productFilter: '', tierFilter: '', calledFilter: 'all' as FilterCalledStatus, outcomeFilter: 'all' as FilterOutcome });
   const [selectedOrder, setSelectedOrder] = useState<AssignedOrder | null>(null);
   const [form, setForm] = useState({ outcome: '', suggestion: '', notes: '' });
 
-  const loadOrders = async () => {
+  const loadOrders = async (nextPage = page, nextLimit = limit, filters = appliedFilters) => {
     setLoading(true);
     try {
-      const params: Record<string, string> = { page: String(page), limit: String(limit) };
-      if (q.trim()) params.q = q.trim();
+      const params: Record<string, string> = { page: String(nextPage), limit: String(nextLimit) };
+      if (filters.searchTerm.trim()) params.q = filters.searchTerm.trim();
+      if (filters.productFilter.trim()) params.productName = filters.productFilter.trim();
+      if (filters.tierFilter) params.customerType = filters.tierFilter;
+      const calledStatus = toBackendCalledStatus(filters.calledFilter);
       if (calledStatus) params.calledStatus = calledStatus;
-      if (outcome) params.outcome = outcome;
-      if (suggestion) params.suggestion = suggestion;
+      if (filters.outcomeFilter !== 'all') params.outcome = filters.outcomeFilter;
       const res = await apiClient.get('/telephony/order-assignments', { params });
       setOrders(Array.isArray(res.data?.data) ? res.data.data : []);
       setTotalPages(res.data?.totalPages || 1);
@@ -73,50 +93,23 @@ export default function TelephonyOrderAssignmentPage() {
   };
 
   useEffect(() => {
-    const timer = setTimeout(loadOrders, q.trim() ? 350 : 0);
-    return () => clearTimeout(timer);
-  }, [page, limit, q, calledStatus, outcome, suggestion]);
+    loadOrders(page, limit, appliedFilters);
+  }, [page, limit, appliedFilters]);
 
-  const columns = useMemo(() => [
-    { key: 'salesOrderNumber', label: 'Order', render: (_: any, row: AssignedOrder) => row.salesOrderNumber || `#${row.id}` },
-    {
-      key: 'customerName',
-      label: 'Customer',
-      render: (_: any, row: AssignedOrder) => (
-        <div>
-          <div className="font-semibold">{row.customerName || '-'}</div>
-          {row.customerPhone && <a className="text-xs text-blue-600 hover:underline" href={`tel:${row.customerPhone}`}>{row.customerPhone}</a>}
-        </div>
-      ),
-    },
-    { key: 'totalAmount', label: 'Amount', render: (_: any, row: AssignedOrder) => `৳${Number(row.totalAmount || 0).toFixed(2)}` },
-    {
-      key: 'callStatus',
-      label: 'Called',
-      render: (_: any, row: AssignedOrder) => row.calledAt ? (
-        <span className="rounded-full bg-emerald-100 px-2 py-1 text-xs font-semibold text-emerald-700">Called</span>
-      ) : (
-        <span className="rounded-full bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-700">Not Called</span>
-      ),
-    },
-    { key: 'outcome', label: 'Outcome', render: (_: any, row: AssignedOrder) => row.outcome ? row.outcome.replace(/_/g, ' ') : '-' },
-    { key: 'suggestion', label: 'Suggestion', render: (_: any, row: AssignedOrder) => row.suggestion ? row.suggestion.replace(/_/g, ' ') : '-' },
-    {
-      key: 'actions',
-      label: 'Action',
-      render: (_: any, row: AssignedOrder) => (
-        <button
-          className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700"
-          onClick={() => {
-            setSelectedOrder(row);
-            setForm({ outcome: row.outcome || '', suggestion: row.suggestion || '', notes: row.notes || '' });
-          }}
-        >
-          Set Outcome
-        </button>
-      ),
-    },
-  ], []);
+  const applyFilters = () => {
+    setPage(1);
+    setAppliedFilters({ searchTerm, productFilter, tierFilter, calledFilter, outcomeFilter });
+  };
+
+  const clearFilters = () => {
+    setSearchTerm('');
+    setProductFilter('');
+    setTierFilter('');
+    setCalledFilter('all');
+    setOutcomeFilter('all');
+    setPage(1);
+    setAppliedFilters({ searchTerm: '', productFilter: '', tierFilter: '', calledFilter: 'all', outcomeFilter: 'all' });
+  };
 
   const saveOutcome = async () => {
     if (!selectedOrder) return;
@@ -131,6 +124,13 @@ export default function TelephonyOrderAssignmentPage() {
     }
   };
 
+  const copyPhone = async (phone: string) => {
+    await navigator.clipboard.writeText(phone);
+    toast.success('Phone number copied');
+  };
+
+  const hasFilters = appliedFilters.searchTerm || appliedFilters.productFilter || appliedFilters.tierFilter || appliedFilters.calledFilter !== 'all' || appliedFilters.outcomeFilter !== 'all';
+
   return (
     <AdminLayout>
       <div className="space-y-5 p-4 md:p-6">
@@ -139,36 +139,164 @@ export default function TelephonyOrderAssignmentPage() {
             <h1 className="flex items-center gap-2 text-2xl font-bold text-gray-900"><FaPhone className="text-blue-600" /> Order Assignment</h1>
             <p className="text-sm text-gray-500">Orders assigned to you for telephony follow-up.</p>
           </div>
-          <button onClick={loadOrders} className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">
+          <button onClick={() => loadOrders()} className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">
             <FaSyncAlt /> Refresh
           </button>
         </div>
 
-        <div className="rounded-lg bg-white p-4 shadow">
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-5">
-            <input value={q} onChange={(e) => { setQ(e.target.value); setPage(1); }} placeholder="Search order, customer, phone, address" className="rounded-lg border px-3 py-2 text-sm md:col-span-2" />
-            <select value={calledStatus} onChange={(e) => { setCalledStatus(e.target.value); setPage(1); }} className="rounded-lg border px-3 py-2 text-sm">
-              <option value="">All Called Status</option>
-              <option value="called">Called</option>
-              <option value="not_called">Not Called</option>
-            </select>
-            <select value={outcome} onChange={(e) => { setOutcome(e.target.value); setPage(1); }} className="rounded-lg border px-3 py-2 text-sm">
-              <option value="">All Outcomes</option>
-              {OUTCOMES.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </select>
-            <select value={suggestion} onChange={(e) => { setSuggestion(e.target.value); setPage(1); }} className="rounded-lg border px-3 py-2 text-sm">
-              <option value="">All Suggestions</option>
-              {SUGGESTIONS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-            </select>
+        <div className="rounded-lg bg-white shadow">
+          <div className="border-b p-4">
+            <div className="flex flex-wrap items-end gap-4">
+              <div className="w-64">
+                <label className="mb-1 block text-xs font-medium text-gray-600">Search</label>
+                <input
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Name, phone, order, address"
+                  className="w-full rounded-lg border px-3 py-2 text-sm"
+                />
+              </div>
+              <div className="w-64">
+                <label className="mb-1 block text-xs font-medium text-gray-600">Product</label>
+                <ProductAutocomplete value={productFilter} onChange={setProductFilter} className="w-full rounded-lg border px-3 py-2 text-sm" />
+              </div>
+              <div className="w-40">
+                <label className="mb-1 block text-xs font-medium text-gray-600">Tier</label>
+                <select value={tierFilter} onChange={(e) => setTierFilter(e.target.value)} className="w-full rounded-lg border px-3 py-2 text-sm">
+                  <option value="">All Tiers</option>
+                  <option value="new">New</option>
+                  <option value="normal">Normal</option>
+                  <option value="silver">Silver</option>
+                  <option value="gold">Gold</option>
+                  <option value="platinum">Platinum</option>
+                  <option value="vip">VIP</option>
+                  <option value="repeat">Repeat</option>
+                  <option value="rejected">Rejected</option>
+                </select>
+              </div>
+              <div className="w-40">
+                <label className="mb-1 block text-xs font-medium text-gray-600">Called Status</label>
+                <select value={calledFilter} onChange={(e) => setCalledFilter(e.target.value as FilterCalledStatus)} className="w-full rounded-lg border px-3 py-2 text-sm">
+                  <option value="all">All</option>
+                  <option value="called_today">Called Today</option>
+                  <option value="called_1week">Called 1 Week Ago</option>
+                  <option value="called_2weeks">Called 2 Weeks Ago</option>
+                  <option value="called_3weeks">Called 3 Weeks Ago</option>
+                  <option value="called_1month">Called 1 Month Ago</option>
+                  <option value="never">Never Called</option>
+                </select>
+              </div>
+              <div className="w-40">
+                <label className="mb-1 block text-xs font-medium text-gray-600">Outcome</label>
+                <select value={outcomeFilter} onChange={(e) => setOutcomeFilter(e.target.value as FilterOutcome)} className="w-full rounded-lg border px-3 py-2 text-sm">
+                  <option value="all">All Outcomes</option>
+                  {OUTCOMES.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+              </div>
+              <div className="flex items-end gap-2">
+                <button onClick={applyFilters} disabled={loading} className="rounded-lg bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50">Apply Filters</button>
+                <button onClick={clearFilters} className="px-3 py-2 text-sm text-gray-600 hover:text-gray-800">Clear</button>
+              </div>
+            </div>
+          </div>
+
+          <div className="p-6">
+            <div className="mb-4 flex items-center justify-between">
+              <div className="text-sm text-gray-600">
+                Total assigned: <span className="font-semibold">{total}</span>
+                {hasFilters && <span className="ml-2 text-blue-600">(filtered)</span>}
+              </div>
+              <PageSizeSelector value={limit} onChange={(size) => { setLimit(size); setPage(1); }} options={[10, 20, 50, 100, 200]} />
+            </div>
+
+            {orders.length === 0 && !loading ? (
+              <div className="py-8 text-center text-gray-500">No assigned orders found.</div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-4 py-2 text-left text-xs font-medium uppercase text-gray-500">Order ID</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium uppercase text-gray-500">Customer</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium uppercase text-gray-500">Phone</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium uppercase text-gray-500">Status</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium uppercase text-gray-500">Products</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium uppercase text-gray-500">Address</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium uppercase text-gray-500">Last Called</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium uppercase text-gray-500">Outcome</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium uppercase text-gray-500">Suggestion</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium uppercase text-gray-500">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {orders.map((order) => {
+                      const phone = String(order.customerPhone || '').trim();
+                      return (
+                        <tr key={order.id} className="hover:bg-gray-50">
+                          <td className="px-4 py-3">
+                            <div className="font-semibold text-gray-900">{order.salesOrderNumber || `#${order.id}`}</div>
+                            <div className="text-xs text-gray-500">ID: {order.id}</div>
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-800">{order.customerName || '-'}</td>
+                          <td className="px-4 py-3">
+                            {phone ? (
+                              <div className="flex items-center gap-1 text-sm">
+                                <a href={`tel:${phone}`} className="text-blue-600 hover:underline" title="Call">{phone}</a>
+                                <button type="button" onClick={() => copyPhone(phone)} className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700" title="Copy number">
+                                  <FaCopy size={12} />
+                                </button>
+                              </div>
+                            ) : '-'}
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${getOrderStatusColor(order.status)}`}>
+                              {getOrderStatusLabel(order.status)}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="max-h-28 min-w-[220px] overflow-y-auto text-xs">
+                              {(order.items || []).length === 0 ? (
+                                <span className="text-gray-400">No items</span>
+                              ) : (order.items || []).map((item, idx) => (
+                                <div key={`${order.id}-${idx}`} className="mb-1">
+                                  <span className="font-medium">{item.productNameBn || item.productName}{item.variantName ? ` (${item.variantName})` : ''}</span>
+                                  <span className="ml-1 text-gray-500">x{item.quantity}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </td>
+                          <td className="max-w-[260px] px-4 py-3 text-sm text-gray-700">{order.shippingAddress || '-'}</td>
+                          <td className="px-4 py-3 text-sm">
+                            {order.calledAt ? <span className="text-emerald-700">{formatDate(order.calledAt)}</span> : <span className="text-gray-400">Never</span>}
+                          </td>
+                          <td className="px-4 py-3 text-sm capitalize">{order.outcome ? order.outcome.replace(/_/g, ' ') : '-'}</td>
+                          <td className="px-4 py-3 text-sm capitalize">{order.suggestion ? order.suggestion.replace(/_/g, ' ') : '-'}</td>
+                          <td className="px-4 py-3">
+                            <button
+                              className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700"
+                              onClick={() => {
+                                setSelectedOrder(order);
+                                setForm({ outcome: order.outcome || '', suggestion: order.suggestion || '', notes: order.notes || '' });
+                              }}
+                            >
+                              <FaCheckCircle /> Set Outcome
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            <div className="mt-4 flex items-center justify-between">
+              <button disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))} className="rounded border px-3 py-1.5 text-sm disabled:opacity-50">Previous</button>
+              <div className="text-sm text-gray-600">Page {page} of {totalPages}</div>
+              <button disabled={page >= totalPages} onClick={() => setPage((p) => Math.min(totalPages, p + 1))} className="rounded border px-3 py-1.5 text-sm disabled:opacity-50">Next</button>
+            </div>
           </div>
         </div>
-
-        <div className="flex items-center justify-between">
-          <div className="text-sm text-gray-600">Total assigned: <span className="font-semibold">{total}</span></div>
-          <PageSizeSelector value={limit} onChange={(size) => { setLimit(size); setPage(1); }} />
-        </div>
-
-        <DataTable columns={columns} data={orders} loading={loading} currentPage={page} totalPages={totalPages} onPageChange={setPage} />
 
         <Modal
           isOpen={Boolean(selectedOrder)}
