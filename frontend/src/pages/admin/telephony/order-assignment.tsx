@@ -18,6 +18,7 @@ type AssignedOrder = {
   customerPhone?: string;
   shippingAddress?: string;
   status: string;
+  orderSource?: string | null;
   totalAmount: number;
   orderDate?: string;
   assignedAt?: string;
@@ -52,6 +53,15 @@ function formatDate(value?: string | null) {
 function toBackendCalledStatus(value: FilterCalledStatus) {
   if (value === 'never') return 'never';
   return value === 'all' ? '' : value;
+}
+
+function formatSource(value?: string | null) {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (!normalized) return 'Unknown';
+  if (normalized === 'landing_page') return 'Landing Page';
+  if (normalized === 'website' || normalized === 'web') return 'Website';
+  if (normalized === 'agent' || normalized === 'agent_order') return 'Agent';
+  return normalized.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
 export default function TelephonyOrderAssignmentPage() {
@@ -223,8 +233,7 @@ export default function TelephonyOrderAssignmentPage() {
                       <th className="px-4 py-2 text-left text-xs font-medium uppercase text-gray-500">Products</th>
                       <th className="px-4 py-2 text-left text-xs font-medium uppercase text-gray-500">Address</th>
                       <th className="px-4 py-2 text-left text-xs font-medium uppercase text-gray-500">Last Called</th>
-                      <th className="px-4 py-2 text-left text-xs font-medium uppercase text-gray-500">Outcome</th>
-                      <th className="px-4 py-2 text-left text-xs font-medium uppercase text-gray-500">Suggestion</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium uppercase text-gray-500">Source</th>
                       <th className="px-4 py-2 text-left text-xs font-medium uppercase text-gray-500">Action</th>
                     </tr>
                   </thead>
@@ -271,8 +280,11 @@ export default function TelephonyOrderAssignmentPage() {
                           <td className="px-4 py-3 text-sm">
                             {order.calledAt ? <span className="text-emerald-700">{formatDate(order.calledAt)}</span> : <span className="text-gray-400">Never</span>}
                           </td>
-                          <td className="px-4 py-3 text-sm capitalize">{order.outcome ? order.outcome.replace(/_/g, ' ') : '-'}</td>
-                          <td className="px-4 py-3 text-sm capitalize">{order.suggestion ? order.suggestion.replace(/_/g, ' ') : '-'}</td>
+                          <td className="px-4 py-3 text-sm">
+                            <span className="inline-flex rounded-full bg-gray-100 px-2 py-1 text-xs font-semibold text-gray-700">
+                              {formatSource(order.orderSource)}
+                            </span>
+                          </td>
                           <td className="px-4 py-3">
                             <div className="flex flex-wrap items-center gap-1">
                               <a
