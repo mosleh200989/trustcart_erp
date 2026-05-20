@@ -1,15 +1,17 @@
 import { useEffect, useState } from 'react';
-import { FaCopy, FaPhone, FaSms, FaSyncAlt, FaWhatsapp } from 'react-icons/fa';
+import { FaCalendarAlt, FaCheckCircle, FaCopy, FaPhone, FaSms, FaSyncAlt, FaWhatsapp } from 'react-icons/fa';
 import AdminLayout from '@/layouts/AdminLayout';
 import PageSizeSelector from '@/components/admin/PageSizeSelector';
-import Modal from '@/components/admin/Modal';
 import ProductAutocomplete from '@/components/admin/ProductAutocomplete';
+import AdminOrderDetailsModal from '@/components/AdminOrderDetailsModal';
 import apiClient from '@/services/api';
 import { useToast } from '@/contexts/ToastContext';
 import { getOrderStatusColor, getOrderStatusLabel } from '@/utils/orderStatus';
+import { getDhakaDateString } from '@/utils/dhakaDate';
 
 type FilterCalledStatus = 'all' | 'called_today' | 'called_1week' | 'called_2weeks' | 'called_3weeks' | 'called_1month' | 'never';
-type FilterOutcome = 'all' | 'positive' | 'negative' | 'neutral' | 'no_answer';
+type FilterOutcome = 'all' | 'connected' | 'order_placed' | 'callback_requested' | 'no_answer' | 'busy' | 'not_interested';
+type CallOutcome = Exclude<FilterOutcome, 'all'> | '';
 
 type AssignedOrder = {
   id: number;
@@ -30,17 +32,12 @@ type AssignedOrder = {
 };
 
 const OUTCOMES = [
-  { value: 'positive', label: 'Positive' },
-  { value: 'negative', label: 'Negative' },
-  { value: 'neutral', label: 'Neutral' },
+  { value: 'connected', label: 'Connected - Spoke with customer' },
+  { value: 'order_placed', label: 'Order Placed' },
+  { value: 'callback_requested', label: 'Callback Requested' },
   { value: 'no_answer', label: 'No Answer' },
-];
-
-const SUGGESTIONS = [
-  { value: 'follow_up', label: 'Follow up' },
-  { value: 'send_details', label: 'Send details' },
-  { value: 'confirm_order', label: 'Confirm order' },
-  { value: 'not_interested', label: 'Not interested' },
+  { value: 'busy', label: 'Busy / Line Engaged' },
+  { value: 'not_interested', label: 'Not Interested' },
 ];
 
 function formatDate(value?: string | null) {
@@ -75,11 +72,18 @@ export default function TelephonyOrderAssignmentPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [productFilter, setProductFilter] = useState('');
   const [tierFilter, setTierFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
   const [calledFilter, setCalledFilter] = useState<FilterCalledStatus>('all');
   const [outcomeFilter, setOutcomeFilter] = useState<FilterOutcome>('all');
-  const [appliedFilters, setAppliedFilters] = useState({ searchTerm: '', productFilter: '', tierFilter: '', calledFilter: 'all' as FilterCalledStatus, outcomeFilter: 'all' as FilterOutcome });
+  const [appliedFilters, setAppliedFilters] = useState({ searchTerm: '', productFilter: '', tierFilter: '', statusFilter: '', calledFilter: 'all' as FilterCalledStatus, outcomeFilter: 'all' as FilterOutcome });
   const [selectedOrder, setSelectedOrder] = useState<AssignedOrder | null>(null);
-  const [form, setForm] = useState({ outcome: '', suggestion: '', notes: '' });
+  const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
+  const [callActionFollowUpDate, setCallActionFollowUpDate] = useState('');
+  const [callActionFollowUpTime, setCallActionFollowUpTime] = useState('');
+  const [callActionNotes, setCallActionNotes] = useState('');
+  const [callActionProductSuggestion, setCallActionProductSuggestion] = useState('');
+  const [callActionOutcome, setCallActionOutcome] = useState<CallOutcome>('');
+  const [savingCallAction, setSavingCallAction] = useState(false);
 
   const loadOrders = async (nextPage = page, nextLimit = limit, filters = appliedFilters) => {
     setLoading(true);
@@ -88,6 +92,7 @@ export default function TelephonyOrderAssignmentPage() {
       if (filters.searchTerm.trim()) params.q = filters.searchTerm.trim();
       if (filters.productFilter.trim()) params.productName = filters.productFilter.trim();
       if (filters.tierFilter) params.customerType = filters.tierFilter;
+      if (filters.statusFilter) params.status = filters.statusFilter;
       const calledStatus = toBackendCalledStatus(filters.calledFilter);
       if (calledStatus) params.calledStatus = calledStatus;
       if (filters.outcomeFilter !== 'all') params.outcome = filters.outcomeFilter;
@@ -106,31 +111,63 @@ export default function TelephonyOrderAssignmentPage() {
     loadOrders(page, limit, appliedFilters);
   }, [page, limit, appliedFilters]);
 
-  const applyFilters = () => {
-    setPage(1);
-    setAppliedFilters({ searchTerm, productFilter, tierFilter, calledFilter, outcomeFilter });
-  };
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setPage(1);
+      setAppliedFilters({ searchTerm, productFilter, tierFilter, statusFilter, calledFilter, outcomeFilter });
+    }, searchTerm.trim() || productFilter.trim() ? 400 : 0);
+    return () => clearTimeout(timer);
+  }, [searchTerm, productFilter, tierFilter, statusFilter, calledFilter, outcomeFilter]);
 
   const clearFilters = () => {
     setSearchTerm('');
     setProductFilter('');
     setTierFilter('');
+    setStatusFilter('');
     setCalledFilter('all');
     setOutcomeFilter('all');
     setPage(1);
-    setAppliedFilters({ searchTerm: '', productFilter: '', tierFilter: '', calledFilter: 'all', outcomeFilter: 'all' });
+    setAppliedFilters({ searchTerm: '', productFilter: '', tierFilter: '', statusFilter: '', calledFilter: 'all', outcomeFilter: 'all' });
   };
 
-  const saveOutcome = async () => {
+  const openCallActionModal = (order: AssignedOrder) => {
+    setSelectedOrder(order);
+    setCallActionFollowUpDate('');
+    setCallActionFollowUpTime('');
+    setCallActionNotes(order.notes || '');
+    setCallActionProductSuggestion(order.suggestion || '');
+    setCallActionOutcome((order.outcome as CallOutcome) || '');
+  };
+
+  const closeCallActionModal = () => {
+    setSelectedOrder(null);
+    setCallActionFollowUpDate('');
+    setCallActionFollowUpTime('');
+    setCallActionNotes('');
+    setCallActionProductSuggestion('');
+    setCallActionOutcome('');
+  };
+
+  const handleSubmitCallAction = async () => {
     if (!selectedOrder) return;
-    if (!form.outcome) return toast.warning('Please select an outcome');
+    if (!callActionNotes.trim()) return toast.warning('Please enter call notes');
+    if (!callActionOutcome) return toast.warning('Please select a call outcome');
+    setSavingCallAction(true);
     try {
-      await apiClient.post(`/telephony/order-assignments/${selectedOrder.id}/outcome`, form);
-      toast.success('Outcome saved');
-      setSelectedOrder(null);
+      await apiClient.post(`/telephony/order-assignments/${selectedOrder.id}/outcome`, {
+        outcome: callActionOutcome,
+        suggestion: callActionProductSuggestion || undefined,
+        notes: callActionNotes,
+        followUpDate: callActionFollowUpDate || undefined,
+        followUpTime: callActionFollowUpTime || undefined,
+      });
+      toast.success('Call log saved');
+      closeCallActionModal();
       await loadOrders();
     } catch (e: any) {
-      toast.error(e?.response?.data?.message || 'Failed to save outcome');
+      toast.error(e?.response?.data?.message || 'Failed to save call log');
+    } finally {
+      setSavingCallAction(false);
     }
   };
 
@@ -139,7 +176,7 @@ export default function TelephonyOrderAssignmentPage() {
     toast.success('Phone number copied');
   };
 
-  const hasFilters = appliedFilters.searchTerm || appliedFilters.productFilter || appliedFilters.tierFilter || appliedFilters.calledFilter !== 'all' || appliedFilters.outcomeFilter !== 'all';
+  const hasFilters = appliedFilters.searchTerm || appliedFilters.productFilter || appliedFilters.tierFilter || appliedFilters.statusFilter || appliedFilters.calledFilter !== 'all' || appliedFilters.outcomeFilter !== 'all';
 
   return (
     <AdminLayout>
@@ -197,6 +234,22 @@ export default function TelephonyOrderAssignmentPage() {
                 </select>
               </div>
               <div className="w-40">
+                <label className="mb-1 block text-xs font-medium text-gray-600">Order Status</label>
+                <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="w-full rounded-lg border px-3 py-2 text-sm">
+                  <option value="">All Statuses</option>
+                  <option value="processing">Processing</option>
+                  <option value="pending">Pending</option>
+                  <option value="approved">Approved</option>
+                  <option value="completed">Completed</option>
+                  <option value="delivered">Delivered</option>
+                  <option value="partial_delivered">Partial Delivered</option>
+                  <option value="cancelled">Cancelled</option>
+                  <option value="admin_cancelled">Rejected</option>
+                  <option value="on_hold">On Hold</option>
+                  <option value="returned">Returned</option>
+                </select>
+              </div>
+              <div className="w-40">
                 <label className="mb-1 block text-xs font-medium text-gray-600">Outcome</label>
                 <select value={outcomeFilter} onChange={(e) => setOutcomeFilter(e.target.value as FilterOutcome)} className="w-full rounded-lg border px-3 py-2 text-sm">
                   <option value="all">All Outcomes</option>
@@ -204,7 +257,6 @@ export default function TelephonyOrderAssignmentPage() {
                 </select>
               </div>
               <div className="flex items-end gap-2">
-                <button onClick={applyFilters} disabled={loading} className="rounded-lg bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50">Apply Filters</button>
                 <button onClick={clearFilters} className="px-3 py-2 text-sm text-gray-600 hover:text-gray-800">Clear</button>
               </div>
             </div>
@@ -287,6 +339,13 @@ export default function TelephonyOrderAssignmentPage() {
                           </td>
                           <td className="px-4 py-3">
                             <div className="flex flex-wrap items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => setSelectedOrderId(order.id)}
+                                className="rounded border border-gray-300 px-2 py-1 text-xs text-gray-700 hover:bg-gray-100"
+                              >
+                                View
+                              </button>
                               <a
                                 href={phone ? `tel:${phone}` : undefined}
                                 aria-disabled={!phone}
@@ -342,10 +401,7 @@ export default function TelephonyOrderAssignmentPage() {
                               <button
                                 type="button"
                                 className="flex items-center gap-1 rounded bg-green-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-700"
-                                onClick={() => {
-                                  setSelectedOrder(order);
-                                  setForm({ outcome: order.outcome || '', suggestion: order.suggestion || '', notes: order.notes || '' });
-                                }}
+                                onClick={() => openCallActionModal(order)}
                               >
                                 <FaPhone size={10} /> Log Call
                               </button>
@@ -367,31 +423,128 @@ export default function TelephonyOrderAssignmentPage() {
           </div>
         </div>
 
-        <Modal
-          isOpen={Boolean(selectedOrder)}
-          onClose={() => setSelectedOrder(null)}
-          title="Log Call"
-          footer={<>
-            <button onClick={() => setSelectedOrder(null)} className="rounded-lg border px-4 py-2 text-sm">Cancel</button>
-            <button onClick={saveOutcome} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white">Save</button>
-          </>}
-        >
-          <div className="space-y-4">
-            <div className="rounded-lg bg-gray-50 p-3 text-sm">
-              <div className="font-semibold">#{selectedOrder?.id}</div>
-              <div className="text-gray-600">{selectedOrder?.customerName} {selectedOrder?.customerPhone ? `- ${selectedOrder.customerPhone}` : ''}</div>
+        {selectedOrderId != null && (
+          <AdminOrderDetailsModal
+            orderId={selectedOrderId}
+            onClose={() => setSelectedOrderId(null)}
+            onUpdate={() => loadOrders()}
+          />
+        )}
+
+        {selectedOrder && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
+            <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-lg bg-white p-6 shadow-xl">
+              <h3 className="mb-2 flex items-center gap-2 text-xl font-bold text-gray-800">
+                <FaPhone className="text-green-600" />
+                Log Call
+              </h3>
+              <p className="mb-4 text-sm text-gray-600">
+                Customer: <strong>{selectedOrder.customerName || `Order #${selectedOrder.id}`}</strong>
+                {selectedOrder.customerPhone && <span className="ml-2 text-gray-500">({selectedOrder.customerPhone})</span>}
+              </p>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700">
+                    Call Outcome <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={callActionOutcome}
+                    onChange={(e) => setCallActionOutcome(e.target.value as CallOutcome)}
+                    className="w-full rounded-lg border px-3 py-2"
+                    required
+                  >
+                    <option value="">Select outcome...</option>
+                    {OUTCOMES.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                </div>
+
+                <div>
+                  {selectedOrder.notes && (
+                    <div className="mb-2 rounded-lg border border-blue-200 bg-blue-50 p-2">
+                      <span className="text-xs font-medium text-blue-700">Previous Call Note:</span>
+                      <p className="mt-0.5 text-sm text-blue-900">{selectedOrder.notes}</p>
+                    </div>
+                  )}
+                  <label className="mb-1 block text-sm font-medium text-gray-700">
+                    Call Notes <span className="text-red-500">*</span>
+                  </label>
+                  <textarea
+                    value={callActionNotes}
+                    onChange={(e) => setCallActionNotes(e.target.value)}
+                    rows={4}
+                    className="w-full rounded-lg border px-3 py-2"
+                    placeholder="Describe the conversation, customer feedback, interests, concerns..."
+                    required
+                  />
+                </div>
+
+                <div>
+                  {selectedOrder.suggestion && (
+                    <div className="mb-2 rounded-lg border border-amber-200 bg-amber-50 p-2">
+                      <span className="text-xs font-medium text-amber-700">Previous Product Suggestion:</span>
+                      <p className="mt-0.5 text-sm text-amber-900">{selectedOrder.suggestion}</p>
+                    </div>
+                  )}
+                  <label className="mb-1 block text-sm font-medium text-gray-700">
+                    Product Suggestion <span className="text-xs font-normal text-gray-400">(Optional)</span>
+                  </label>
+                  <textarea
+                    value={callActionProductSuggestion}
+                    onChange={(e) => setCallActionProductSuggestion(e.target.value)}
+                    rows={3}
+                    className="w-full rounded-lg border px-3 py-2"
+                    placeholder="Suggest products for this customer..."
+                  />
+                </div>
+
+                <div className="border-t pt-4">
+                  <label className="mb-2 flex items-center gap-2 text-sm font-medium text-gray-700">
+                    <FaCalendarAlt className="text-blue-500" />
+                    Schedule Next Follow-up <span className="text-xs font-normal text-gray-400">(Optional)</span>
+                  </label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <input
+                      type="date"
+                      value={callActionFollowUpDate}
+                      onChange={(e) => setCallActionFollowUpDate(e.target.value)}
+                      min={getDhakaDateString()}
+                      className="w-full rounded-lg border px-3 py-2 text-sm"
+                    />
+                    <input
+                      type="time"
+                      value={callActionFollowUpTime}
+                      onChange={(e) => setCallActionFollowUpTime(e.target.value)}
+                      className="w-full rounded-lg border px-3 py-2 text-sm"
+                    />
+                  </div>
+                  {callActionFollowUpDate && (
+                    <p className="mt-1 text-xs text-blue-600">
+                      A follow-up will be noted for {callActionFollowUpDate}
+                      {callActionFollowUpTime && ` at ${callActionFollowUpTime}`}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <div className="mt-6 flex gap-3">
+                <button
+                  onClick={handleSubmitCallAction}
+                  disabled={savingCallAction || !callActionNotes.trim() || !callActionOutcome}
+                  className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-white hover:bg-green-700 disabled:opacity-50"
+                >
+                  {savingCallAction ? 'Saving...' : <><FaCheckCircle /> Save Call Log</>}
+                </button>
+                <button
+                  onClick={closeCallActionModal}
+                  className="rounded-lg bg-gray-200 px-4 py-2 text-gray-700 hover:bg-gray-300"
+                >
+                  Cancel
+                </button>
+              </div>
             </div>
-            <select value={form.outcome} onChange={(e) => setForm((prev) => ({ ...prev, outcome: e.target.value }))} className="w-full rounded-lg border px-3 py-2 text-sm">
-              <option value="">Select outcome...</option>
-              {OUTCOMES.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </select>
-            <select value={form.suggestion} onChange={(e) => setForm((prev) => ({ ...prev, suggestion: e.target.value }))} className="w-full rounded-lg border px-3 py-2 text-sm">
-              <option value="">Select suggestion...</option>
-              {SUGGESTIONS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-            </select>
-            <textarea value={form.notes} onChange={(e) => setForm((prev) => ({ ...prev, notes: e.target.value }))} className="min-h-[100px] w-full rounded-lg border px-3 py-2 text-sm" placeholder="Notes" />
           </div>
-        </Modal>
+        )}
       </div>
     </AdminLayout>
   );

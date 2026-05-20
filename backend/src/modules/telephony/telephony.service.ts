@@ -192,6 +192,7 @@ export class TelephonyService {
     q?: string;
     productName?: string;
     customerType?: string;
+    status?: string;
     calledStatus?: string;
     outcome?: string;
     suggestion?: string;
@@ -261,6 +262,10 @@ export class TelephonyService {
             AND ct.tier = :customerType
         )
       )`, { customerType: params.customerType });
+    }
+
+    if (params?.status && params.status !== 'all') {
+      qb.andWhere('o.status = :status', { status: params.status });
     }
 
     const calledStatus = String(params?.calledStatus || '').trim();
