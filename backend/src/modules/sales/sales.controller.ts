@@ -322,6 +322,12 @@ export class SalesController {
     return this.salesService.findCancelledOrders();
   }
 
+  @Get('rejected-orders')
+  @RequirePermissions('view-sales-orders')
+  async findRejectedOrders() {
+    return this.salesService.findRejectedOrders();
+  }
+
   @Get('sent-courier-orders')
   @RequirePermissions('view-sent-courier-orders')
   async findSentCourierOrders(

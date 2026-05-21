@@ -50,6 +50,12 @@ export const DEFAULT_ADMIN_MENU: AdminMenuSeedNode[] = [
         path: '/admin/sales/cancelled-orders',
         requiredPermissions: ['view-sales-orders'],
       },
+      {
+        title: 'Rejected Orders',
+        icon: 'FaBan',
+        path: '/admin/sales/rejected-orders',
+        requiredPermissions: ['view-sales-orders'],
+      },
     ],
   },
   {
@@ -355,6 +361,9 @@ export const DEFAULT_ADMIN_MENU: AdminMenuSeedNode[] = [
     icon: 'FaPhone',
     children: [
       { title: 'Order Assignment', icon: 'FaPhone', path: '/admin/telephony/order-assignment', requiredPermissions: ['view-order-assignment'] },
+      { title: 'Incomplete Assignment', icon: 'FaPhone', path: '/admin/telephony/incomplete-assignment', requiredPermissions: ['view-order-assignment'] },
+      { title: 'Cancelled Assignment', icon: 'FaPhone', path: '/admin/telephony/cancelled-assignment', requiredPermissions: ['view-order-assignment'] },
+      { title: 'Rejected Assignment', icon: 'FaPhone', path: '/admin/telephony/rejected-assignment', requiredPermissions: ['view-order-assignment'] },
       { title: 'PBX Call Logs', icon: 'FaPhone', path: '/admin/telephony/calls' },
       { title: 'Reports', icon: 'FaChartBar', path: '/admin/telephony/reports' },
       { title: 'Agent Dashboard', icon: 'FaPhone', path: '/admin/crm/agent-dashboard' },

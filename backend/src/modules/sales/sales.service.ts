@@ -2065,9 +2065,36 @@ export class SalesService {
 
   async findCancelledOrders() {
     const qb = this.salesRepository.createQueryBuilder('o');
+    this.selectAdminOrderColumns(qb);
 
     qb.where('LOWER(o.status::text) IN (:...cancelledStatuses)', {
       cancelledStatuses: ['cancelled', 'returned'],
+    })
+      .orderBy('COALESCE(o.cancelled_at, o.updated_at, o.created_at)', 'DESC');
+
+    const orders = await qb.getMany();
+
+    const orderIds = orders.map((o) => o.id);
+    const itemsByOrderId = await this.batchFetchOrderItems(orderIds);
+    for (const order of orders) {
+      (order as any)._items = itemsByOrderId.get(order.id) || [];
+    }
+
+    const creatorIds = [...new Set(orders.map(o => o.createdBy).filter((id): id is number => id != null))];
+    const creatorMap = await this.getUserNameMap(creatorIds);
+    for (const order of orders) {
+      (order as any).createdByName = order.createdBy ? (creatorMap.get(order.createdBy) ?? null) : null;
+    }
+
+    return orders.map((order) => this.toAdminListDto(order));
+  }
+
+  async findRejectedOrders() {
+    const qb = this.salesRepository.createQueryBuilder('o');
+    this.selectAdminOrderColumns(qb);
+
+    qb.where('LOWER(o.status::text) = :rejectedStatus', {
+      rejectedStatus: 'admin_cancelled',
     })
       .orderBy('COALESCE(o.cancelled_at, o.updated_at, o.created_at)', 'DESC');
 

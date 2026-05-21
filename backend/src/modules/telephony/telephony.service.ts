@@ -189,6 +189,7 @@ export class TelephonyService {
   }
 
   async listMyOrderAssignments(userId: number, params?: {
+    assignmentType?: string;
     q?: string;
     productName?: string;
     customerType?: string;
@@ -199,6 +200,11 @@ export class TelephonyService {
     page?: number;
     limit?: number;
   }) {
+    const assignmentType = String(params?.assignmentType || 'order').trim().toLowerCase();
+    if (assignmentType === 'incomplete') {
+      return this.listMyIncompleteOrderAssignments(userId, params);
+    }
+
     const safeLimit = Number.isFinite(params?.limit) ? Math.max(1, Math.min(200, Number(params?.limit))) : 50;
     const safePage = Number.isFinite(params?.page) ? Math.max(1, Number(params?.page)) : 1;
     const skip = (safePage - 1) * safeLimit;
@@ -224,6 +230,12 @@ export class TelephonyService {
       .where('o.assigned_to = :userId', { userId })
       .orderBy('o.assigned_at', 'DESC')
       .addOrderBy('o.created_at', 'DESC');
+
+    if (assignmentType === 'cancelled') {
+      qb.andWhere("LOWER(o.status::text) IN ('cancelled', 'returned')");
+    } else if (assignmentType === 'rejected') {
+      qb.andWhere("LOWER(o.status::text) = 'admin_cancelled'");
+    }
 
     if (params?.q?.trim()) {
       const q = `%${params.q.trim().toLowerCase()}%`;
@@ -337,6 +349,7 @@ export class TelephonyService {
     return {
       data: orders.map((order) => ({
         id: order.id,
+        recordType: 'sales_order',
         salesOrderNumber: order.salesOrderNumber,
         customerName: order.customerName,
         customerPhone: order.customerPhone,
@@ -352,6 +365,146 @@ export class TelephonyService {
         suggestion: order.telephonySuggestion,
         notes: order.telephonyNotes,
         items: itemsByOrderId.get(order.id) || [],
+      })),
+      total,
+      page: safePage,
+      limit: safeLimit,
+      totalPages: Math.ceil(total / safeLimit),
+    };
+  }
+
+  private parseIncompleteOrderItems(cartData: any): Array<{ productName: string; productNameBn?: string | null; variantName?: string | null; quantity: number }> {
+    const source = Array.isArray(cartData)
+      ? cartData
+      : Array.isArray(cartData?.items)
+        ? cartData.items
+        : Array.isArray(cartData?.cart)
+          ? cartData.cart
+          : [];
+    return source.map((item: any) => ({
+      productName: item?.productName || item?.product_name || item?.name || item?.title || 'Product',
+      productNameBn: item?.productNameBn || item?.name_bn || null,
+      variantName: item?.variantName || item?.variant_name || null,
+      quantity: Number(item?.quantity || item?.qty || 1) || 1,
+    }));
+  }
+
+  private async listMyIncompleteOrderAssignments(userId: number, params?: {
+    q?: string;
+    productName?: string;
+    customerType?: string;
+    status?: string;
+    calledStatus?: string;
+    outcome?: string;
+    suggestion?: string;
+    page?: number;
+    limit?: number;
+  }) {
+    const safeLimit = Number.isFinite(params?.limit) ? Math.max(1, Math.min(200, Number(params?.limit))) : 50;
+    const safePage = Number.isFinite(params?.page) ? Math.max(1, Number(params?.page)) : 1;
+    const offset = (safePage - 1) * safeLimit;
+    const where: string[] = ['io.assigned_to = $1'];
+    const values: any[] = [userId];
+
+    const addValue = (value: any) => {
+      values.push(value);
+      return `$${values.length}`;
+    };
+
+    if (params?.q?.trim()) {
+      const token = addValue(`%${params.q.trim().toLowerCase()}%`);
+      where.push(`(
+        LOWER(COALESCE(io.name, '')) LIKE ${token}
+        OR LOWER(COALESCE(io.phone, '')) LIKE ${token}
+        OR LOWER(COALESCE(io.email, '')) LIKE ${token}
+        OR LOWER(COALESCE(io.address, '')) LIKE ${token}
+        OR CAST(io.id AS text) LIKE ${token}
+      )`);
+    }
+
+    if (params?.productName?.trim()) {
+      const token = addValue(`%${params.productName.trim().toLowerCase()}%`);
+      where.push(`LOWER(COALESCE(io.cart_data::text, '')) LIKE ${token}`);
+    }
+
+    if (params?.status && params.status !== 'all') {
+      if (params.status === 'completed') where.push('io.converted_to_order = TRUE');
+      else if (params.status === 'processing') where.push('io.converted_to_order = FALSE');
+    }
+
+    const calledStatus = String(params?.calledStatus || '').trim();
+    if (calledStatus && calledStatus !== 'all') {
+      switch (calledStatus) {
+        case 'called':
+        case 'called_today':
+          where.push("io.telephony_called_at >= CURRENT_DATE AND io.telephony_called_at < CURRENT_DATE + INTERVAL '1 day'");
+          break;
+        case 'called_1week':
+          where.push("io.telephony_called_at >= CURRENT_DATE - INTERVAL '13 days' AND io.telephony_called_at < CURRENT_DATE - INTERVAL '6 days'");
+          break;
+        case 'called_2weeks':
+          where.push("io.telephony_called_at >= CURRENT_DATE - INTERVAL '20 days' AND io.telephony_called_at < CURRENT_DATE - INTERVAL '13 days'");
+          break;
+        case 'called_3weeks':
+          where.push("io.telephony_called_at >= CURRENT_DATE - INTERVAL '27 days' AND io.telephony_called_at < CURRENT_DATE - INTERVAL '20 days'");
+          break;
+        case 'called_1month':
+          where.push("io.telephony_called_at < CURRENT_DATE - INTERVAL '27 days'");
+          break;
+        case 'not_called':
+        case 'not_called_today':
+          where.push("(io.telephony_called_at IS NULL OR io.telephony_called_at < CURRENT_DATE)");
+          break;
+        case 'not_called_week':
+          where.push("(io.telephony_called_at IS NULL OR io.telephony_called_at < CURRENT_DATE - INTERVAL '6 days')");
+          break;
+        case 'never':
+          where.push('io.telephony_called_at IS NULL');
+          break;
+      }
+    }
+
+    if (params?.outcome && params.outcome !== 'all') {
+      where.push(`io.telephony_outcome = ${addValue(params.outcome)}`);
+    }
+    if (params?.suggestion && params.suggestion !== 'all') {
+      where.push(`io.telephony_suggestion = ${addValue(params.suggestion)}`);
+    }
+
+    const whereSql = where.join(' AND ');
+    const countRows: Array<{ count: string }> = await this.salesOrderRepo.manager.query(
+      `SELECT COUNT(*)::text AS count FROM incomplete_orders io WHERE ${whereSql}`,
+      values,
+    );
+    const rows = await this.salesOrderRepo.manager.query(
+      `SELECT io.*
+       FROM incomplete_orders io
+       WHERE ${whereSql}
+       ORDER BY io.assigned_at DESC NULLS LAST, io.created_at DESC
+       LIMIT ${addValue(safeLimit)} OFFSET ${addValue(offset)}`,
+      values,
+    );
+
+    const total = Number(countRows[0]?.count || 0);
+    return {
+      data: rows.map((row: any) => ({
+        id: Number(row.id),
+        recordType: 'incomplete_order',
+        salesOrderNumber: `INC-${row.id}`,
+        customerName: row.name,
+        customerPhone: row.phone,
+        shippingAddress: row.address,
+        status: row.converted_to_order ? 'completed' : 'processing',
+        orderSource: row.source || 'incomplete',
+        totalAmount: Number(row.total_amount || 0),
+        orderDate: row.created_at,
+        assignedAt: row.assigned_at,
+        calledAt: row.telephony_called_at,
+        callStatus: row.telephony_call_status || (row.telephony_called_at ? 'called' : 'not_called'),
+        outcome: row.telephony_outcome,
+        suggestion: row.telephony_suggestion,
+        notes: row.telephony_notes || row.note,
+        items: this.parseIncompleteOrderItems(row.cart_data),
       })),
       total,
       page: safePage,
@@ -407,10 +560,29 @@ export class TelephonyService {
   }
 
   async updateOrderAssignmentOutcome(userId: number, orderId: number, body: {
+    assignmentType?: string;
     outcome?: string;
     suggestion?: string;
     notes?: string;
   }) {
+    if (String(body.assignmentType || '').toLowerCase() === 'incomplete') {
+      const result = await this.salesOrderRepo.manager.query(
+        `UPDATE incomplete_orders
+         SET telephony_called_at = NOW(),
+             telephony_call_status = 'called',
+             telephony_outcome = $3,
+             telephony_suggestion = $4,
+             telephony_notes = $5,
+             contacted_done = TRUE,
+             updated_at = NOW()
+         WHERE id = $1
+           AND assigned_to = $2`,
+        [orderId, userId, body.outcome || null, body.suggestion || null, body.notes || null],
+      );
+      if (!result?.[1]) throw new NotFoundException('Assigned incomplete order not found');
+      return { success: true, orderId };
+    }
+
     const result = await this.salesOrderRepo
       .createQueryBuilder()
       .update(SalesOrder)

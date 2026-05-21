@@ -15,6 +15,7 @@ type CallOutcome = Exclude<FilterOutcome, 'all'> | '';
 
 type AssignedOrder = {
   id: number;
+  recordType?: 'sales_order' | 'incomplete_order' | string;
   salesOrderNumber?: string;
   customerName?: string;
   customerPhone?: string;
@@ -29,6 +30,31 @@ type AssignedOrder = {
   suggestion?: string | null;
   notes?: string | null;
   items?: Array<{ productName: string; productNameBn?: string | null; variantName?: string | null; quantity: number }>;
+};
+
+type AssignmentType = 'order' | 'incomplete' | 'cancelled' | 'rejected';
+
+const PAGE_COPY: Record<AssignmentType, { title: string; description: string; empty: string }> = {
+  order: {
+    title: 'Order Assignment',
+    description: 'Orders assigned to you for telephony follow-up.',
+    empty: 'No assigned orders found.',
+  },
+  incomplete: {
+    title: 'Incomplete Assignment',
+    description: 'Incomplete orders assigned to you for recovery calls.',
+    empty: 'No assigned incomplete orders found.',
+  },
+  cancelled: {
+    title: 'Cancelled Assignment',
+    description: 'Cancelled and returned orders assigned to you for follow-up.',
+    empty: 'No assigned cancelled orders found.',
+  },
+  rejected: {
+    title: 'Rejected Assignment',
+    description: 'Rejected orders assigned to you for follow-up.',
+    empty: 'No assigned rejected orders found.',
+  },
 };
 
 const OUTCOMES = [
@@ -61,8 +87,9 @@ function formatSource(value?: string | null) {
   return normalized.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
-export default function TelephonyOrderAssignmentPage() {
+export default function TelephonyOrderAssignmentPage({ assignmentType = 'order' }: { assignmentType?: AssignmentType }) {
   const toast = useToast();
+  const pageCopy = PAGE_COPY[assignmentType] || PAGE_COPY.order;
   const [orders, setOrders] = useState<AssignedOrder[]>([]);
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(1);
@@ -89,6 +116,7 @@ export default function TelephonyOrderAssignmentPage() {
     setLoading(true);
     try {
       const params: Record<string, string> = { page: String(nextPage), limit: String(nextLimit) };
+      if (assignmentType !== 'order') params.assignmentType = assignmentType;
       if (filters.searchTerm.trim()) params.q = filters.searchTerm.trim();
       if (filters.productFilter.trim()) params.productName = filters.productFilter.trim();
       if (filters.tierFilter) params.customerType = filters.tierFilter;
@@ -155,6 +183,7 @@ export default function TelephonyOrderAssignmentPage() {
     setSavingCallAction(true);
     try {
       await apiClient.post(`/telephony/order-assignments/${selectedOrder.id}/outcome`, {
+        assignmentType,
         outcome: callActionOutcome,
         suggestion: callActionProductSuggestion || undefined,
         notes: callActionNotes,
@@ -183,8 +212,8 @@ export default function TelephonyOrderAssignmentPage() {
       <div className="space-y-5 p-4 md:p-6">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
-            <h1 className="flex items-center gap-2 text-2xl font-bold text-gray-900"><FaPhone className="text-blue-600" /> Order Assignment</h1>
-            <p className="text-sm text-gray-500">Orders assigned to you for telephony follow-up.</p>
+            <h1 className="flex items-center gap-2 text-2xl font-bold text-gray-900"><FaPhone className="text-blue-600" /> {pageCopy.title}</h1>
+            <p className="text-sm text-gray-500">{pageCopy.description}</p>
           </div>
           <button onClick={() => loadOrders()} className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">
             <FaSyncAlt /> Refresh
@@ -272,7 +301,7 @@ export default function TelephonyOrderAssignmentPage() {
             </div>
 
             {orders.length === 0 && !loading ? (
-              <div className="py-8 text-center text-gray-500">No assigned orders found.</div>
+              <div className="py-8 text-center text-gray-500">{pageCopy.empty}</div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full">
@@ -339,13 +368,15 @@ export default function TelephonyOrderAssignmentPage() {
                           </td>
                           <td className="px-4 py-3">
                             <div className="flex flex-wrap items-center gap-1">
-                              <button
-                                type="button"
-                                onClick={() => setSelectedOrderId(order.id)}
-                                className="rounded border border-gray-300 px-2 py-1 text-xs text-gray-700 hover:bg-gray-100"
-                              >
-                                View
-                              </button>
+                              {order.recordType !== 'incomplete_order' && (
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedOrderId(order.id)}
+                                  className="rounded border border-gray-300 px-2 py-1 text-xs text-gray-700 hover:bg-gray-100"
+                                >
+                                  View
+                                </button>
+                              )}
                               <a
                                 href={phone ? `tel:${phone}` : undefined}
                                 aria-disabled={!phone}
