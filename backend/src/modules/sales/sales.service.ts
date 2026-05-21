@@ -137,7 +137,36 @@ export class SalesService {
     return 'website';
   }
 
+  private async ensureOrderGuardSettingsTable() {
+    await this.orderGuardSettingsRepository.query(`
+      CREATE TABLE IF NOT EXISTS order_guard_settings (
+        id integer PRIMARY KEY DEFAULT 1,
+        is_active boolean NOT NULL DEFAULT true,
+        window_minutes integer NOT NULL DEFAULT 10,
+        block_note_html text NOT NULL DEFAULT '<p><strong>We already received an order from this connection.</strong></p><p>Please wait a few minutes before placing another order. Our team will contact you soon.</p>',
+        created_at timestamp NOT NULL DEFAULT NOW(),
+        updated_at timestamp NOT NULL DEFAULT NOW(),
+        CONSTRAINT order_guard_settings_singleton CHECK (id = 1),
+        CONSTRAINT order_guard_settings_window_positive CHECK (window_minutes > 0)
+      )
+    `);
+
+    await this.orderGuardSettingsRepository.query(`
+      INSERT INTO order_guard_settings (id, is_active, window_minutes, block_note_html, created_at, updated_at)
+      VALUES (
+        1,
+        true,
+        10,
+        '<p><strong>We already received an order from this connection.</strong></p><p>Please wait a few minutes before placing another order. Our team will contact you soon.</p>',
+        NOW(),
+        NOW()
+      )
+      ON CONFLICT (id) DO NOTHING
+    `);
+  }
+
   private async getOrderGuardSettings(): Promise<OrderGuardSettings> {
+    await this.ensureOrderGuardSettingsTable();
     let settings = await this.orderGuardSettingsRepository.findOne({ where: { id: 1 } });
     if (settings) return settings;
 
@@ -197,6 +226,516 @@ export class SalesService {
     } catch (err: any) {
       console.warn(`Meta CAPI dispatch failed for order #${orderId} status=${status}:`, err?.message || err);
     }
+  }
+
+  private normalizeAssignmentStatus(status: string | null | undefined) {
+    return String(status || '').trim().toLowerCase();
+  }
+
+  private async ensureAutomaticAssignmentSchema(manager = this.salesRepository.manager) {
+    await manager.query(`
+      CREATE TABLE IF NOT EXISTS automatic_order_assignment_settings (
+        id serial PRIMARY KEY,
+        team_leader_id integer NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+        is_enabled boolean NOT NULL DEFAULT false,
+        max_active_orders integer NOT NULL DEFAULT 10,
+        max_daily_orders integer NOT NULL DEFAULT 100,
+        updated_by integer NULL REFERENCES users(id) ON DELETE SET NULL,
+        created_at timestamp NOT NULL DEFAULT NOW(),
+        updated_at timestamp NOT NULL DEFAULT NOW()
+      )
+    `);
+    await manager.query(`
+      ALTER TABLE automatic_order_assignment_settings
+        ADD COLUMN IF NOT EXISTS max_daily_orders integer NOT NULL DEFAULT 100
+    `);
+    await manager.query(`
+      CREATE TABLE IF NOT EXISTS automatic_order_assignment_logs (
+        id serial PRIMARY KEY,
+        order_id integer NOT NULL REFERENCES sales_orders(id) ON DELETE CASCADE,
+        agent_id integer NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        team_leader_id integer NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        assigned_by integer NULL REFERENCES users(id) ON DELETE SET NULL,
+        reason varchar(100) NOT NULL DEFAULT 'online_agent_auto_assignment',
+        created_at timestamp NOT NULL DEFAULT NOW()
+      )
+    `);
+    await manager.query(`
+      CREATE TABLE IF NOT EXISTS automatic_order_assignment_agent_preferences (
+        id serial PRIMARY KEY,
+        team_leader_id integer NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        agent_id integer NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        product_id integer NULL REFERENCES products(id) ON DELETE SET NULL,
+        assignment_order_direction varchar(4) NOT NULL DEFAULT 'asc',
+        updated_by integer NULL REFERENCES users(id) ON DELETE SET NULL,
+        created_at timestamp NOT NULL DEFAULT NOW(),
+        updated_at timestamp NOT NULL DEFAULT NOW(),
+        CONSTRAINT uq_auto_assignment_agent_preference UNIQUE (team_leader_id, agent_id)
+      )
+    `);
+    await manager.query(`
+      ALTER TABLE automatic_order_assignment_agent_preferences
+        ADD COLUMN IF NOT EXISTS assignment_order_direction varchar(4) NOT NULL DEFAULT 'asc'
+    `);
+  }
+
+  private async runAutomaticAssignmentQueue(options: { orderId?: number; teamLeaderId?: number; limit?: number; reason?: string } = {}) {
+    const result = { assignedCount: 0, checkedOrders: 0, eligibleAgents: 0 };
+
+    try {
+      return await this.salesRepository.manager.transaction(async (manager) => {
+        await this.ensureAutomaticAssignmentSchema(manager);
+        const candidateParams: any[] = [];
+        const teamLeaderClause = Number.isFinite(Number(options.teamLeaderId)) && Number(options.teamLeaderId) > 0
+          ? `AND at.team_leader_id = $${candidateParams.push(Number(options.teamLeaderId))}`
+          : '';
+
+        const candidates: Array<{
+          agent_id: number;
+          team_leader_id: number;
+          max_active_orders: number | string;
+          max_daily_orders: number | string;
+          product_preference_id: number | string | null;
+          assignment_order_direction: string | null;
+          active_count: number | string;
+          assigned_today: number | string;
+        }> = await manager.query(
+          `WITH agent_team AS (
+             SELECT DISTINCT agent_id, team_leader_id
+             FROM (
+               SELECT u1.id AS agent_id, u1.team_leader_id
+               FROM users u1
+               WHERE u1.team_leader_id IS NOT NULL
+               UNION ALL
+               SELECT tm.user_id AS agent_id, tm.team_leader_id
+               FROM team_members tm
+               WHERE tm.is_active = TRUE
+             ) memberships
+             WHERE team_leader_id IS NOT NULL
+           )
+           SELECT
+             u.id AS agent_id,
+             at.team_leader_id,
+             COALESCE(s.max_active_orders, 10) AS max_active_orders,
+             COALESCE(s.max_daily_orders, 100) AS max_daily_orders,
+             pref.product_id AS product_preference_id,
+             COALESCE(pref.assignment_order_direction, 'asc') AS assignment_order_direction,
+             COUNT(DISTINCT active_orders.id)::int AS active_count,
+             COUNT(DISTINCT today_orders.id)::int AS assigned_today
+           FROM agent_team at
+           INNER JOIN users u ON u.id = at.agent_id
+           INNER JOIN roles r ON r.id = u.role_id
+           INNER JOIN automatic_order_assignment_settings s
+             ON s.team_leader_id = at.team_leader_id
+            AND s.is_enabled = TRUE
+           LEFT JOIN automatic_order_assignment_agent_preferences pref
+             ON pref.team_leader_id = at.team_leader_id
+            AND pref.agent_id = u.id
+           INNER JOIN user_presence_statuses ps
+             ON ps.user_id = u.id
+            AND LOWER(ps.state) = 'online'
+           LEFT JOIN sales_orders active_orders
+             ON active_orders.assigned_to = u.id
+            AND LOWER(active_orders.status::text) IN ('processing', 'pending', 'approved', 'hold', 'sent', 'in_review', 'in_transit', 'picked', 'shipped')
+           LEFT JOIN automatic_order_assignment_logs today_orders
+             ON today_orders.agent_id = u.id
+            AND today_orders.created_at >= CURRENT_DATE
+           WHERE u.is_deleted = FALSE
+             AND u.status = 'active'
+             AND r.slug = 'sales-executive'
+             ${teamLeaderClause}
+           GROUP BY u.id, at.team_leader_id, s.max_active_orders, s.max_daily_orders, pref.product_id, pref.assignment_order_direction
+           HAVING COUNT(DISTINCT active_orders.id) < COALESCE(s.max_active_orders, 10)
+              AND COUNT(DISTINCT today_orders.id) < COALESCE(s.max_daily_orders, 100)
+           ORDER BY COUNT(DISTINCT active_orders.id) ASC, COUNT(DISTINCT today_orders.id) ASC, u.id ASC`,
+          candidateParams,
+        );
+
+        const agents = candidates.map((candidate) => ({
+          agentId: Number(candidate.agent_id),
+          teamLeaderId: Number(candidate.team_leader_id),
+          maxActiveOrders: Number(candidate.max_active_orders || 10),
+          maxDailyOrders: Number(candidate.max_daily_orders || 100),
+          productPreferenceId: candidate.product_preference_id == null ? null : Number(candidate.product_preference_id),
+          assignmentOrderDirection: String(candidate.assignment_order_direction || 'asc').toLowerCase() === 'desc' ? 'desc' : 'asc',
+          activeCount: Number(candidate.active_count || 0),
+          assignedToday: Number(candidate.assigned_today || 0),
+        }));
+        result.eligibleAgents = agents.length;
+        if (agents.length === 0) return result;
+
+        const orderParams: any[] = [this.webOrderSources, Math.max(1, Math.min(500, Number(options.limit || 100)))];
+        let orderIdClause = '';
+        if (Number.isFinite(Number(options.orderId)) && Number(options.orderId) > 0) {
+          orderParams.push(Number(options.orderId));
+          orderIdClause = `AND id = $${orderParams.length}`;
+        }
+
+        const orders: Array<{ id: number; created_at: string | Date; product_ids: number[] | null }> = await manager.query(
+          `SELECT q.id,
+                  q.created_at,
+                  COALESCE(product_data.product_ids, ARRAY[]::integer[]) AS product_ids
+           FROM (
+             SELECT id, created_at
+             FROM sales_orders
+             WHERE assigned_to IS NULL
+               AND LOWER(COALESCE(order_source, '')) = ANY($1)
+               AND LOWER(status::text) = 'processing'
+               ${orderIdClause}
+             ORDER BY created_at ASC, id ASC
+             LIMIT $2
+             FOR UPDATE SKIP LOCKED
+           ) q
+           LEFT JOIN LATERAL (
+             SELECT ARRAY_AGG(DISTINCT product_id) FILTER (WHERE product_id IS NOT NULL) AS product_ids
+             FROM (
+               SELECT oi.product_id
+               FROM order_items oi
+               WHERE oi.order_id = q.id
+               UNION ALL
+               SELECT soi.product_id
+               FROM sales_order_items soi
+               WHERE soi.sales_order_id = q.id
+             ) products_for_order
+           ) product_data ON TRUE
+           ORDER BY q.created_at ASC, q.id ASC
+           LIMIT $2
+           `,
+          orderParams,
+        );
+        result.checkedOrders = orders.length;
+        if (orders.length === 0) return result;
+
+        const reason = String(options.reason || 'online_agent_auto_assignment').slice(0, 100);
+
+        const assignedOrderIds = new Set<number>();
+        while (assignedOrderIds.size < orders.length) {
+          agents.sort((a, b) => {
+            const loadDiff = a.activeCount - b.activeCount;
+            if (loadDiff !== 0) return loadDiff;
+            const todayDiff = a.assignedToday - b.assignedToday;
+            if (todayDiff !== 0) return todayDiff;
+            return a.agentId - b.agentId;
+          });
+
+          const agent = agents.find((item) => {
+            if (item.activeCount >= item.maxActiveOrders) return false;
+            if (item.assignedToday >= item.maxDailyOrders) return false;
+            return orders.some((order) => {
+              if (assignedOrderIds.has(Number(order.id))) return false;
+              if (!item.productPreferenceId) return true;
+              const productIds = new Set((order.product_ids || []).map((id) => Number(id)).filter((id) => Number.isFinite(id)));
+              return productIds.has(item.productPreferenceId);
+            });
+          });
+          if (!agent) break;
+
+          const matchingOrders = orders
+            .filter((order) => {
+              if (assignedOrderIds.has(Number(order.id))) return false;
+              if (!agent.productPreferenceId) return true;
+              const productIds = new Set((order.product_ids || []).map((id) => Number(id)).filter((id) => Number.isFinite(id)));
+              return productIds.has(agent.productPreferenceId);
+            })
+            .sort((a, b) => {
+              const aTime = new Date(a.created_at).getTime();
+              const bTime = new Date(b.created_at).getTime();
+              const timeDiff = agent.assignmentOrderDirection === 'desc' ? bTime - aTime : aTime - bTime;
+              if (timeDiff !== 0) return timeDiff;
+              return agent.assignmentOrderDirection === 'desc' ? Number(b.id) - Number(a.id) : Number(a.id) - Number(b.id);
+            });
+          const order = matchingOrders[0];
+          if (!order) break;
+
+          const updatedRows: Array<{ id: number }> = await manager.query(
+            `UPDATE sales_orders
+             SET assigned_to = $2,
+                 assigned_by = $3,
+                 assigned_at = NOW(),
+                 updated_at = NOW()
+             WHERE id = $1
+               AND assigned_to IS NULL
+               AND LOWER(COALESCE(order_source, '')) = ANY($4)
+               AND LOWER(status::text) = 'processing'
+             RETURNING id`,
+            [Number(order.id), agent.agentId, agent.teamLeaderId, this.webOrderSources],
+          );
+
+          if (updatedRows.length === 0) continue;
+
+          await manager.query(
+            `INSERT INTO automatic_order_assignment_logs
+               (order_id, agent_id, team_leader_id, assigned_by, reason, created_at)
+             VALUES ($1, $2, $3, $3, $4, NOW())`,
+            [Number(order.id), agent.agentId, agent.teamLeaderId, reason],
+          );
+
+          assignedOrderIds.add(Number(order.id));
+          agent.activeCount += 1;
+          agent.assignedToday += 1;
+          result.assignedCount += 1;
+        }
+
+        return result;
+      });
+    } catch (err: any) {
+      console.warn('Automatic assignment queue skipped:', err?.message || err);
+      return result;
+    }
+  }
+
+  private async tryAutoAssignIncomingOrder(orderId: number) {
+    const result = await this.runAutomaticAssignmentQueue({ limit: 100, reason: 'incoming_order_auto_assignment' });
+    if (result.checkedOrders > 0 && result.assignedCount === 0) {
+      console.warn(`Automatic assignment found no capacity after order #${orderId}: eligibleAgents=${result.eligibleAgents}`);
+    }
+    return result;
+  }
+
+  private async getAutomaticAssignmentAccess(user: any) {
+    const userId = Number(user?.id);
+    const rows: Array<{ slug: string; role_slug: string }> = await this.salesRepository.manager.query(
+      `SELECT DISTINCT p.slug, r.slug AS role_slug
+       FROM permissions p
+       INNER JOIN role_permissions rp ON rp.permission_id = p.id
+       INNER JOIN roles r ON r.id = rp.role_id
+       WHERE r.id = (SELECT role_id FROM users WHERE id = $1)
+         AND r.is_active = true
+         AND p.slug IN ('view-auto-order-assignment', 'manage-auto-order-assignment')`,
+      [userId],
+    );
+    const permissions = new Set(rows.map((row) => row.slug));
+    const roleSlug = String(user?.roleSlug || rows[0]?.role_slug || '').toLowerCase();
+    const canManage = permissions.has('manage-auto-order-assignment');
+    const canView = canManage || permissions.has('view-auto-order-assignment');
+    const canViewAll = ['super-admin', 'admin', 'sales-manager'].includes(roleSlug);
+    return { userId, roleSlug, canManage, canView, canViewAll, isTeamLeader: roleSlug === 'sales-team-leader' };
+  }
+
+  async getAutomaticAssignmentOverview(user: any, params: { teamLeaderId?: number } = {}) {
+    const access = await this.getAutomaticAssignmentAccess(user);
+    if (!access.canView) throw new BadRequestException('You do not have permission to view automatic assignment');
+    const teamLeaderId = access.canViewAll && params.teamLeaderId ? Number(params.teamLeaderId) : access.userId;
+    if (!access.canViewAll && !access.isTeamLeader) throw new BadRequestException('Only Team Leaders can view their automatic assignment report');
+    await this.ensureAutomaticAssignmentSchema();
+
+    const settingsRows = await this.salesRepository.manager.query(
+      `SELECT s.team_leader_id, s.is_enabled, s.max_active_orders, s.max_daily_orders, u.name, u.last_name, u.email
+       FROM automatic_order_assignment_settings s
+       INNER JOIN users u ON u.id = s.team_leader_id
+       WHERE s.team_leader_id = $1`,
+      [teamLeaderId],
+    );
+    const setting = settingsRows[0] || null;
+
+    const agents = await this.salesRepository.manager.query(
+      `WITH agent_team AS (
+         SELECT DISTINCT agent_id, team_leader_id
+         FROM (
+           SELECT u1.id AS agent_id, u1.team_leader_id
+           FROM users u1
+           WHERE u1.team_leader_id IS NOT NULL
+           UNION ALL
+           SELECT tm.user_id AS agent_id, tm.team_leader_id
+           FROM team_members tm
+           WHERE tm.is_active = TRUE
+         ) memberships
+         WHERE team_leader_id IS NOT NULL
+       )
+       SELECT
+         u.id,
+         CONCAT_WS(' ', u.name, u.last_name) AS name,
+         u.email,
+         COALESCE(ps.state, 'offline') AS presence_state,
+         pref.product_id AS product_preference_id,
+         COALESCE(pref.assignment_order_direction, 'asc') AS assignment_order_direction,
+         COALESCE(p.name_en, p.name_bn, p.sku) AS product_preference_name,
+         COUNT(DISTINCT o.id)::int AS active_assigned_orders,
+         COUNT(DISTINCT l.id) FILTER (WHERE l.created_at >= CURRENT_DATE)::int AS assigned_today
+       FROM agent_team at
+       INNER JOIN users u ON u.id = at.agent_id
+       LEFT JOIN user_presence_statuses ps ON ps.user_id = u.id
+       LEFT JOIN automatic_order_assignment_agent_preferences pref
+         ON pref.team_leader_id = at.team_leader_id
+        AND pref.agent_id = u.id
+       LEFT JOIN products p ON p.id = pref.product_id
+       LEFT JOIN sales_orders o
+         ON o.assigned_to = u.id
+        AND LOWER(o.status::text) IN ('processing', 'pending', 'approved', 'hold', 'sent', 'in_review', 'in_transit', 'picked', 'shipped')
+       LEFT JOIN automatic_order_assignment_logs l
+         ON l.agent_id = u.id
+        AND l.team_leader_id = at.team_leader_id
+       LEFT JOIN roles r ON r.id = u.role_id
+       WHERE at.team_leader_id = $1
+         AND u.is_deleted = FALSE
+         AND u.status = 'active'
+         AND r.slug = 'sales-executive'
+       GROUP BY u.id, u.name, u.last_name, u.email, ps.state, pref.product_id, pref.assignment_order_direction, p.name_en, p.name_bn, p.sku
+       ORDER BY presence_state DESC, active_assigned_orders ASC, name ASC`,
+      [teamLeaderId],
+    );
+
+    const recentAssignments = await this.salesRepository.manager.query(
+      `SELECT l.id, l.order_id, l.agent_id, l.team_leader_id, l.reason, l.created_at,
+              CONCAT_WS(' ', u.name, u.last_name) AS agent_name
+       FROM automatic_order_assignment_logs l
+       LEFT JOIN users u ON u.id = l.agent_id
+       WHERE l.team_leader_id = $1
+       ORDER BY l.created_at DESC
+       LIMIT 50`,
+      [teamLeaderId],
+    );
+
+    const pendingRows: Array<{ count: string }> = await this.salesRepository.manager.query(
+      `SELECT COUNT(*)::text AS count
+       FROM sales_orders
+       WHERE assigned_to IS NULL
+         AND LOWER(COALESCE(order_source, '')) = ANY($1)
+         AND LOWER(status::text) = 'processing'`,
+      [this.webOrderSources],
+    );
+
+    return {
+      teamLeaderId,
+      settings: setting ? {
+        isEnabled: Boolean(setting.is_enabled),
+        maxActiveOrders: Number(setting.max_active_orders || 10),
+        maxDailyOrders: Number(setting.max_daily_orders || 100),
+        teamLeaderName: `${setting.name || ''} ${setting.last_name || ''}`.trim() || setting.email,
+      } : { isEnabled: false, maxActiveOrders: 10, maxDailyOrders: 100, teamLeaderName: null },
+      agents: agents.map((agent: any) => ({
+        id: Number(agent.id),
+        name: agent.name || agent.email,
+        email: agent.email,
+        presenceState: agent.presence_state,
+        activeAssignedOrders: Number(agent.active_assigned_orders || 0),
+        assignedToday: Number(agent.assigned_today || 0),
+        productPreferenceId: agent.product_preference_id == null ? null : Number(agent.product_preference_id),
+        productPreferenceName: agent.product_preference_name || null,
+        assignmentOrderDirection: String(agent.assignment_order_direction || 'asc').toLowerCase() === 'desc' ? 'desc' : 'asc',
+      })),
+      recentAssignments,
+      pendingUnassignedOrders: Number(pendingRows[0]?.count || 0),
+    };
+  }
+
+  async getAutomaticAssignmentProducts(user: any) {
+    const access = await this.getAutomaticAssignmentAccess(user);
+    if (!access.canView) throw new BadRequestException('You do not have permission to view automatic assignment');
+    const rows: Array<{ id: number; name: string; sku: string | null }> = await this.salesRepository.manager.query(
+      `SELECT id, COALESCE(name_en, name_bn, sku, CONCAT('Product #', id)) AS name, sku
+       FROM products
+       WHERE COALESCE(status, 'active') = 'active'
+       ORDER BY LOWER(COALESCE(name_en, name_bn, sku, CONCAT('Product #', id))) ASC`,
+    );
+    return rows.map((row) => ({
+      id: Number(row.id),
+      name: row.name,
+      sku: row.sku,
+    }));
+  }
+
+  async getAutomaticAssignmentTeamLeaders(user: any) {
+    const access = await this.getAutomaticAssignmentAccess(user);
+    if (!access.canView) throw new BadRequestException('You do not have permission to view automatic assignment');
+
+    if (!access.canViewAll) {
+      const rows: Array<{ id: number; name: string; last_name: string | null; email: string }> = await this.salesRepository.manager.query(
+        `SELECT id, name, last_name, email
+         FROM users
+         WHERE id = $1
+           AND is_deleted = false
+           AND status = 'active'`,
+        [access.userId],
+      );
+      return rows.map((row) => ({
+        id: Number(row.id),
+        name: `${row.name || ''} ${row.last_name || ''}`.trim() || row.email,
+        email: row.email,
+      }));
+    }
+
+    const rows: Array<{ id: number; name: string; last_name: string | null; email: string }> = await this.salesRepository.manager.query(
+      `SELECT DISTINCT u.id, u.name, u.last_name, u.email
+       FROM users u
+       LEFT JOIN roles r ON r.id = u.role_id
+       LEFT JOIN team_members tm ON tm.team_leader_id = u.id AND tm.is_active = TRUE
+       LEFT JOIN users direct_agent ON direct_agent.team_leader_id = u.id AND direct_agent.is_deleted = FALSE
+       WHERE u.is_deleted = FALSE
+         AND u.status = 'active'
+         AND (
+           r.slug = 'sales-team-leader'
+           OR tm.id IS NOT NULL
+           OR direct_agent.id IS NOT NULL
+         )
+       ORDER BY u.name ASC, u.last_name ASC`,
+    );
+
+    return rows.map((row) => ({
+      id: Number(row.id),
+      name: `${row.name || ''} ${row.last_name || ''}`.trim() || row.email,
+      email: row.email,
+    }));
+  }
+
+  async updateAutomaticAssignmentSettings(user: any, body: { teamLeaderId?: number; isEnabled?: boolean; maxActiveOrders?: number; maxDailyOrders?: number; agentPreferences?: Array<{ agentId?: number; productId?: number | null; assignmentOrderDirection?: string }> }) {
+    const access = await this.getAutomaticAssignmentAccess(user);
+    if (!access.canManage) throw new BadRequestException('You do not have permission to manage automatic assignment');
+    if (!access.canViewAll && !access.isTeamLeader) throw new BadRequestException('Only Team Leaders can manage automatic assignment');
+    await this.ensureAutomaticAssignmentSchema();
+    const teamLeaderId = access.canViewAll && body.teamLeaderId ? Number(body.teamLeaderId) : access.userId;
+    const maxActiveOrders = Math.max(1, Math.min(500, Number(body.maxActiveOrders || 10)));
+    const maxDailyOrders = Math.max(1, Math.min(5000, Number(body.maxDailyOrders || 100)));
+    const isEnabled = Boolean(body.isEnabled);
+
+    await this.salesRepository.manager.query(
+      `INSERT INTO automatic_order_assignment_settings
+         (team_leader_id, is_enabled, max_active_orders, max_daily_orders, updated_by, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
+       ON CONFLICT (team_leader_id)
+       DO UPDATE SET is_enabled = EXCLUDED.is_enabled,
+                     max_active_orders = EXCLUDED.max_active_orders,
+                     max_daily_orders = EXCLUDED.max_daily_orders,
+                     updated_by = EXCLUDED.updated_by,
+                     updated_at = NOW()`,
+      [teamLeaderId, isEnabled, maxActiveOrders, maxDailyOrders, access.userId],
+    );
+
+    if (Array.isArray(body.agentPreferences)) {
+      for (const preference of body.agentPreferences) {
+        const agentId = Number(preference.agentId);
+        if (!Number.isFinite(agentId) || agentId <= 0) continue;
+        const productId = preference.productId == null || preference.productId === 0 ? null : Number(preference.productId);
+        const assignmentOrderDirection = String(preference.assignmentOrderDirection || 'asc').toLowerCase() === 'desc' ? 'desc' : 'asc';
+        await this.salesRepository.manager.query(
+          `INSERT INTO automatic_order_assignment_agent_preferences
+             (team_leader_id, agent_id, product_id, assignment_order_direction, updated_by, created_at, updated_at)
+           VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
+           ON CONFLICT (team_leader_id, agent_id)
+           DO UPDATE SET product_id = EXCLUDED.product_id,
+                         assignment_order_direction = EXCLUDED.assignment_order_direction,
+                         updated_by = EXCLUDED.updated_by,
+                         updated_at = NOW()`,
+          [teamLeaderId, agentId, Number.isFinite(productId as any) ? productId : null, assignmentOrderDirection, access.userId],
+        );
+      }
+    }
+
+    const assignmentRun = isEnabled
+      ? await this.runAutomaticAssignmentQueue({ teamLeaderId, limit: 500, reason: 'settings_queue_drain' })
+      : { assignedCount: 0, checkedOrders: 0, eligibleAgents: 0 };
+    const overview = await this.getAutomaticAssignmentOverview(user, { teamLeaderId });
+    return { ...overview, assignmentRun };
+  }
+
+  async runAutomaticAssignmentNow(user: any, body: { teamLeaderId?: number } = {}) {
+    const access = await this.getAutomaticAssignmentAccess(user);
+    if (!access.canManage) throw new BadRequestException('You do not have permission to run automatic assignment');
+    if (!access.canViewAll && !access.isTeamLeader) throw new BadRequestException('Only Team Leaders can run automatic assignment');
+    const teamLeaderId = access.canViewAll && body.teamLeaderId ? Number(body.teamLeaderId) : access.userId;
+    const assignmentRun = await this.runAutomaticAssignmentQueue({ teamLeaderId, limit: 500, reason: 'manual_queue_drain' });
+    const overview = await this.getAutomaticAssignmentOverview(user, { teamLeaderId });
+    return { ...overview, assignmentRun };
   }
 
   private async getAssignedOrdersAccess(user: any) {
@@ -544,11 +1083,10 @@ export class SalesService {
   }
 
   async findAll() {
-    const orders = await this.salesRepository
-      .createQueryBuilder('o')
-      .where(`(o.order_source IS NULL OR o.order_source NOT IN (:...webSources) OR ${this.approvedForMainOrdersSql})`, {
-        webSources: this.webOrderSources,
-      })
+    const qb = this.salesRepository.createQueryBuilder('o');
+    this.selectAdminOrderColumns(qb);
+
+    const orders = await qb
       .orderBy('o.created_at', 'DESC')
       .getMany();
 
@@ -581,16 +1119,14 @@ export class SalesService {
     sourceGroup?: string;
     source?: string;
     landingPage?: string;
+    assignment?: string;
   }) {
     const page = Math.max(1, params.page || 1);
     const limit = Math.min(500, Math.max(1, params.limit || 10));
     const skip = (page - 1) * limit;
 
     const qb = this.salesRepository.createQueryBuilder('o');
-
-    qb.andWhere(`(o.order_source IS NULL OR o.order_source NOT IN (:...webSources) OR ${this.approvedForMainOrdersSql})`, {
-      webSources: this.webOrderSources,
-    });
+    this.selectAdminOrderColumns(qb);
 
     // Global text search
     if (params.q && params.q.trim()) {
@@ -685,6 +1221,12 @@ export class SalesService {
         '(LOWER(o.referrer_url) LIKE :lpSlug OR LOWER(o.utm_source) LIKE :lpSlug OR LOWER(o.utm_campaign) LIKE :lpSlug)',
         { lpSlug: `%${slug}%` },
       );
+    }
+
+    if (params.assignment === 'assigned') {
+      qb.andWhere('o.assigned_to IS NOT NULL');
+    } else if (params.assignment === 'unassigned') {
+      qb.andWhere('o.assigned_to IS NULL');
     }
 
     qb.orderBy('o.order_date', 'DESC')
@@ -916,6 +1458,12 @@ export class SalesService {
       );
     }
 
+    if (params.assignment === 'assigned') {
+      qb.andWhere('o.assigned_to IS NOT NULL');
+    } else if (params.assignment === 'unassigned') {
+      qb.andWhere('o.assigned_to IS NULL');
+    }
+
     if (params.todayOnly) {
       qb.andWhere('DATE(o.order_date) = CURRENT_DATE');
     } else {
@@ -1004,6 +1552,16 @@ export class SalesService {
 
   private selectAssignedOrderColumns(qb: any) {
     return qb.select([
+      ...this.adminOrderColumnSelections(),
+    ]);
+  }
+
+  private selectAdminOrderColumns(qb: any) {
+    return qb.select(this.adminOrderColumnSelections());
+  }
+
+  private adminOrderColumnSelections() {
+    return [
       'o.id',
       'o.salesOrderNumber',
       'o.customerId',
@@ -1050,7 +1608,7 @@ export class SalesService {
       'o.notes',
       'o.createdBy',
       'o.createdAt',
-    ]);
+    ];
   }
 
   async getAssignmentAgents(user: any, params?: { teamLeaderId?: number }) {
@@ -1507,9 +2065,36 @@ export class SalesService {
 
   async findCancelledOrders() {
     const qb = this.salesRepository.createQueryBuilder('o');
+    this.selectAdminOrderColumns(qb);
 
     qb.where('LOWER(o.status::text) IN (:...cancelledStatuses)', {
       cancelledStatuses: ['cancelled', 'returned'],
+    })
+      .orderBy('COALESCE(o.cancelled_at, o.updated_at, o.created_at)', 'DESC');
+
+    const orders = await qb.getMany();
+
+    const orderIds = orders.map((o) => o.id);
+    const itemsByOrderId = await this.batchFetchOrderItems(orderIds);
+    for (const order of orders) {
+      (order as any)._items = itemsByOrderId.get(order.id) || [];
+    }
+
+    const creatorIds = [...new Set(orders.map(o => o.createdBy).filter((id): id is number => id != null))];
+    const creatorMap = await this.getUserNameMap(creatorIds);
+    for (const order of orders) {
+      (order as any).createdByName = order.createdBy ? (creatorMap.get(order.createdBy) ?? null) : null;
+    }
+
+    return orders.map((order) => this.toAdminListDto(order));
+  }
+
+  async findRejectedOrders() {
+    const qb = this.salesRepository.createQueryBuilder('o');
+    this.selectAdminOrderColumns(qb);
+
+    qb.where('LOWER(o.status::text) = :rejectedStatus', {
+      rejectedStatus: 'admin_cancelled',
     })
       .orderBy('COALESCE(o.cancelled_at, o.updated_at, o.created_at)', 'DESC');
 
@@ -1613,7 +2198,9 @@ export class SalesService {
   }
 
   async findOne(id: string) {
-    const order = await this.salesRepository.findOne({ where: { id: Number(id) } });
+    const qb = this.salesRepository.createQueryBuilder('o');
+    this.selectAdminOrderColumns(qb);
+    const order = await qb.where('o.id = :id', { id: Number(id) }).getOne();
     if (!order) return null;
 
     // Calculate subtotal from order items. Prefer admin-managed items when present;
@@ -2014,6 +2601,8 @@ export class SalesService {
       }
     }
 
+    await this.tryAutoAssignIncomingOrder(savedOrder.id);
+
     return savedOrder;
   }
 
@@ -2022,7 +2611,9 @@ export class SalesService {
     let becameDelivered = false;
 
     if (updateSalesDto?.status) {
-      const current = await this.salesRepository.findOne({ where: { id: Number(id) } });
+      const currentQb = this.salesRepository.createQueryBuilder('o');
+      this.selectAdminOrderColumns(currentQb);
+      const current = await currentQb.where('o.id = :id', { id: Number(id) }).getOne();
       if (current) {
         const from = this.normalizeOrderStatus(current.status);
         const to = this.normalizeOrderStatus(updateSalesDto.status);

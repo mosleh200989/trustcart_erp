@@ -10,7 +10,36 @@ export class OrderGuardSettingsService {
     private readonly repo: Repository<OrderGuardSettings>,
   ) {}
 
+  private async ensureTable() {
+    await this.repo.query(`
+      CREATE TABLE IF NOT EXISTS order_guard_settings (
+        id integer PRIMARY KEY DEFAULT 1,
+        is_active boolean NOT NULL DEFAULT true,
+        window_minutes integer NOT NULL DEFAULT 10,
+        block_note_html text NOT NULL DEFAULT '<p><strong>We already received an order from this connection.</strong></p><p>Please wait a few minutes before placing another order. Our team will contact you soon.</p>',
+        created_at timestamp NOT NULL DEFAULT NOW(),
+        updated_at timestamp NOT NULL DEFAULT NOW(),
+        CONSTRAINT order_guard_settings_singleton CHECK (id = 1),
+        CONSTRAINT order_guard_settings_window_positive CHECK (window_minutes > 0)
+      )
+    `);
+
+    await this.repo.query(`
+      INSERT INTO order_guard_settings (id, is_active, window_minutes, block_note_html, created_at, updated_at)
+      VALUES (
+        1,
+        true,
+        10,
+        '<p><strong>We already received an order from this connection.</strong></p><p>Please wait a few minutes before placing another order. Our team will contact you soon.</p>',
+        NOW(),
+        NOW()
+      )
+      ON CONFLICT (id) DO NOTHING
+    `);
+  }
+
   async getSettings(): Promise<OrderGuardSettings> {
+    await this.ensureTable();
     let settings = await this.repo.findOne({ where: { id: 1 } });
     if (settings) return settings;
 
@@ -25,6 +54,7 @@ export class OrderGuardSettingsService {
   }
 
   async updateSettings(input: Partial<OrderGuardSettings>): Promise<OrderGuardSettings> {
+    await this.ensureTable();
     const settings = await this.getSettings();
     const minutes = Number(input.windowMinutes ?? settings.windowMinutes);
 

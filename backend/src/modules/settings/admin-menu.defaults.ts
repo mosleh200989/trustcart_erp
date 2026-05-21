@@ -33,12 +33,6 @@ export const DEFAULT_ADMIN_MENU: AdminMenuSeedNode[] = [
     children: [
       { title: 'Orders', icon: 'FaShoppingCart', path: '/admin/sales', requiredPermissions: ['view-sales-orders'] },
       {
-        title: 'Assigned Orders',
-        icon: 'FaClipboardList',
-        path: '/admin/sales/assigned-orders',
-        requiredPermissions: ['view-assigned-orders', 'view-own-assigned-orders', 'view-team-assigned-orders', 'view-all-assigned-orders'],
-      },
-      {
         title: 'Incomplete Order',
         icon: 'FaShoppingCart',
         path: '/admin/sales/incomplete-orders',
@@ -54,6 +48,12 @@ export const DEFAULT_ADMIN_MENU: AdminMenuSeedNode[] = [
         title: 'Cancelled Orders',
         icon: 'FaShoppingCart',
         path: '/admin/sales/cancelled-orders',
+        requiredPermissions: ['view-sales-orders'],
+      },
+      {
+        title: 'Rejected Orders',
+        icon: 'FaBan',
+        path: '/admin/sales/rejected-orders',
         requiredPermissions: ['view-sales-orders'],
       },
     ],
@@ -326,6 +326,12 @@ export const DEFAULT_ADMIN_MENU: AdminMenuSeedNode[] = [
       { title: 'Customers', icon: 'FaUsers', path: '/admin/crm/customers' },
       { title: 'Team Dashboard', icon: 'FaTachometerAlt', path: '/admin/crm/team-dashboard' },
       { title: 'Lead Assignment', icon: 'FaUsers', path: '/admin/crm/lead-assignment' },
+      {
+        title: 'Automatic Assignment',
+        icon: 'FaUserCheck',
+        path: '/admin/crm/automatic-assignment',
+        requiredPermissions: ['view-auto-order-assignment', 'manage-auto-order-assignment'],
+      },
       { title: 'Team Data Collection', icon: 'FaBullseye', path: '/admin/crm/team-data-collection' },
       { title: 'Tier Management', icon: 'FaTachometerAlt', path: '/admin/crm/customer-tier-management' },
       { title: 'Pipeline', icon: 'FaBullseye', path: '/admin/crm/pipeline' },
@@ -355,6 +361,9 @@ export const DEFAULT_ADMIN_MENU: AdminMenuSeedNode[] = [
     icon: 'FaPhone',
     children: [
       { title: 'Order Assignment', icon: 'FaPhone', path: '/admin/telephony/order-assignment', requiredPermissions: ['view-order-assignment'] },
+      { title: 'Incomplete Assignment', icon: 'FaPhone', path: '/admin/telephony/incomplete-assignment', requiredPermissions: ['view-order-assignment'] },
+      { title: 'Cancelled Assignment', icon: 'FaPhone', path: '/admin/telephony/cancelled-assignment', requiredPermissions: ['view-order-assignment'] },
+      { title: 'Rejected Assignment', icon: 'FaPhone', path: '/admin/telephony/rejected-assignment', requiredPermissions: ['view-order-assignment'] },
       { title: 'PBX Call Logs', icon: 'FaPhone', path: '/admin/telephony/calls' },
       { title: 'Reports', icon: 'FaChartBar', path: '/admin/telephony/reports' },
       { title: 'Agent Dashboard', icon: 'FaPhone', path: '/admin/crm/agent-dashboard' },

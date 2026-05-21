@@ -87,6 +87,10 @@ const CANCELLED_MANUAL_STATUS_OPTIONS = [
   { value: 'returned', label: 'Returned' },
 ];
 
+const REJECTED_STATUS_OPTIONS = [
+  { value: 'admin_cancelled', label: 'Order Rejected' },
+];
+
 const INITIAL_FILTERS = {
   q: '',
   courierCompany: '',
@@ -95,7 +99,7 @@ const INITIAL_FILTERS = {
   status: '',
 };
 
-type SalesFollowupMode = 'late-delivery' | 'cancelled-orders';
+type SalesFollowupMode = 'late-delivery' | 'cancelled-orders' | 'rejected-orders';
 
 const MODE_CONFIG = {
   'late-delivery': {
@@ -126,6 +130,21 @@ const MODE_CONFIG = {
     dateField: (row: SalesOrder) => row.cancelledAt ?? row.cancelled_at ?? row.updatedAt ?? row.updated_at ?? row.createdAt ?? row.created_at ?? row.order_date ?? row.orderDate ?? null,
     statusOptions: CANCELLED_STATUS_OPTIONS,
     manualStatusOptions: CANCELLED_MANUAL_STATUS_OPTIONS,
+    allowStatusUpdate: false,
+  },
+  'rejected-orders': {
+    title: 'Rejected Orders',
+    description: 'Rejected sales orders that need follow-up notes',
+    endpoint: '/sales/rejected-orders',
+    dateColumnLabel: 'Rejected At',
+    dateFromLabel: 'Rejected From',
+    dateToLabel: 'Rejected To',
+    emptyLoadMessage: 'Failed to load rejected orders:',
+    notePayloadKey: 'cancelledOrderNote',
+    noteField: (row: SalesOrder) => row.cancelled_order_note || '',
+    dateField: (row: SalesOrder) => row.cancelledAt ?? row.cancelled_at ?? row.updatedAt ?? row.updated_at ?? row.createdAt ?? row.created_at ?? row.order_date ?? row.orderDate ?? null,
+    statusOptions: REJECTED_STATUS_OPTIONS,
+    manualStatusOptions: REJECTED_STATUS_OPTIONS,
     allowStatusUpdate: false,
   },
 } as const;

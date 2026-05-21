@@ -74,6 +74,7 @@ export class TelephonyController {
   @UseGuards(JwtAuthGuard)
   async listMyOrderAssignments(
     @Req() req: ExpressRequest,
+    @Query('assignmentType') assignmentType?: string,
     @Query('q') q?: string,
     @Query('productName') productName?: string,
     @Query('customerType') customerType?: string,
@@ -85,6 +86,7 @@ export class TelephonyController {
     @Query('limit') limit?: string,
   ) {
     return this.telephonyService.listMyOrderAssignments(Number((req as any).user?.id), {
+      assignmentType,
       q,
       productName,
       customerType,
@@ -102,7 +104,7 @@ export class TelephonyController {
   async updateOrderAssignmentOutcome(
     @Req() req: ExpressRequest,
     @Param('orderId') orderId: string,
-    @Body() body: { outcome?: string; suggestion?: string; notes?: string },
+    @Body() body: { assignmentType?: string; outcome?: string; suggestion?: string; notes?: string },
   ) {
     return this.telephonyService.updateOrderAssignmentOutcome(Number((req as any).user?.id), Number(orderId), body);
   }

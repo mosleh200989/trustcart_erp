@@ -15,8 +15,8 @@ interface OrderGuardSettings {
 
 export default function OrderGuardSettingsPage() {
   const toast = useToast();
-  const { hasPermission } = useAuth();
-  const canManage = hasPermission('manage-order-guard');
+  const { hasAnyPermission } = useAuth();
+  const canManage = hasAnyPermission(['manage-order-guard', 'manage-system-settings']);
   const [settings, setSettings] = useState<OrderGuardSettings | null>(null);
   const [form, setForm] = useState({ isActive: true, windowMinutes: 10, blockNoteHtml: '' });
   const [loading, setLoading] = useState(true);
