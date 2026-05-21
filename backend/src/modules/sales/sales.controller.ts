@@ -235,9 +235,10 @@ export class SalesController {
     @Query('sourceGroup') sourceGroup?: string,
     @Query('source') source?: string,
     @Query('landingPage') landingPage?: string,
+    @Query('assignment') assignment?: string,
   ) {
     // If pagination params are provided, use the paginated method
-    if (page || limit || q || status || startDate || endDate || todayOnly || productName || sourceGroup || source || landingPage) {
+    if (page || limit || q || status || startDate || endDate || todayOnly || productName || sourceGroup || source || landingPage || assignment) {
       return this.salesService.findAllPaginated({
         page: page ? parseInt(page, 10) : 1,
         limit: limit ? parseInt(limit, 10) : 10,
@@ -250,6 +251,7 @@ export class SalesController {
         sourceGroup: sourceGroup || '',
         source: source || '',
         landingPage: landingPage || '',
+        assignment: assignment || '',
       });
     }
     // Fallback for backwards compatibility (no params = return all)
@@ -273,6 +275,38 @@ export class SalesController {
   )
   async getLandingPageOptions() {
     return this.salesService.getLandingPageFilterOptions();
+  }
+
+  @Get('automatic-assignment/overview')
+  @RequireAnyPermission('view-auto-order-assignment', 'manage-auto-order-assignment')
+  async getAutomaticAssignmentOverview(@Req() req: any, @Query('teamLeaderId') teamLeaderId?: string) {
+    return this.salesService.getAutomaticAssignmentOverview(req.user, {
+      teamLeaderId: teamLeaderId ? Number(teamLeaderId) : undefined,
+    });
+  }
+
+  @Get('automatic-assignment/team-leaders')
+  @RequireAnyPermission('view-auto-order-assignment', 'manage-auto-order-assignment')
+  async getAutomaticAssignmentTeamLeaders(@Req() req: any) {
+    return this.salesService.getAutomaticAssignmentTeamLeaders(req.user);
+  }
+
+  @Get('automatic-assignment/products')
+  @RequireAnyPermission('view-auto-order-assignment', 'manage-auto-order-assignment')
+  async getAutomaticAssignmentProducts(@Req() req: any) {
+    return this.salesService.getAutomaticAssignmentProducts(req.user);
+  }
+
+  @Put('automatic-assignment/settings')
+  @RequirePermissions('manage-auto-order-assignment')
+  async updateAutomaticAssignmentSettings(@Req() req: any, @Body() body: any) {
+    return this.salesService.updateAutomaticAssignmentSettings(req.user, body);
+  }
+
+  @Post('automatic-assignment/run')
+  @RequirePermissions('manage-auto-order-assignment')
+  async runAutomaticAssignmentNow(@Req() req: any, @Body() body: any) {
+    return this.salesService.runAutomaticAssignmentNow(req.user, body);
   }
 
   @Get('late-deliveries')

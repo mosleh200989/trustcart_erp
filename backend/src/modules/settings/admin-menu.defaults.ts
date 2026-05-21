@@ -33,12 +33,6 @@ export const DEFAULT_ADMIN_MENU: AdminMenuSeedNode[] = [
     children: [
       { title: 'Orders', icon: 'FaShoppingCart', path: '/admin/sales', requiredPermissions: ['view-sales-orders'] },
       {
-        title: 'Assigned Orders',
-        icon: 'FaClipboardList',
-        path: '/admin/sales/assigned-orders',
-        requiredPermissions: ['view-assigned-orders', 'view-own-assigned-orders', 'view-team-assigned-orders', 'view-all-assigned-orders'],
-      },
-      {
         title: 'Incomplete Order',
         icon: 'FaShoppingCart',
         path: '/admin/sales/incomplete-orders',
@@ -326,6 +320,12 @@ export const DEFAULT_ADMIN_MENU: AdminMenuSeedNode[] = [
       { title: 'Customers', icon: 'FaUsers', path: '/admin/crm/customers' },
       { title: 'Team Dashboard', icon: 'FaTachometerAlt', path: '/admin/crm/team-dashboard' },
       { title: 'Lead Assignment', icon: 'FaUsers', path: '/admin/crm/lead-assignment' },
+      {
+        title: 'Automatic Assignment',
+        icon: 'FaUserCheck',
+        path: '/admin/crm/automatic-assignment',
+        requiredPermissions: ['view-auto-order-assignment', 'manage-auto-order-assignment'],
+      },
       { title: 'Team Data Collection', icon: 'FaBullseye', path: '/admin/crm/team-data-collection' },
       { title: 'Tier Management', icon: 'FaTachometerAlt', path: '/admin/crm/customer-tier-management' },
       { title: 'Pipeline', icon: 'FaBullseye', path: '/admin/crm/pipeline' },

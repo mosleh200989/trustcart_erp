@@ -9,7 +9,7 @@ import { BACKEND_API_BASE_URL } from '@/config/backend';
 import { 
   FaTachometerAlt, FaBoxes, FaShoppingCart, FaUsers, FaWarehouse, 
   FaShoppingBag, FaUserTie, FaBook, FaBullseye, FaHandshake, 
-  FaHeadset, FaUser, FaUserClock, FaCog, FaBars, FaTimes, FaBell, FaChevronDown, FaChartBar, FaTags, FaGift, FaPhone, FaMoneyBillWave, FaImage, FaList, FaRocket, FaPrint, FaBan, FaHistory, FaTruck, FaClipboardList, FaExchangeAlt, FaSlidersH, FaClipboardCheck, FaBarcode, FaChartLine, FaFileImport, FaMap, FaSearch, FaRecycle, FaShieldAlt, FaCalculator
+  FaHeadset, FaUser, FaUserClock, FaUserCheck, FaCog, FaBars, FaTimes, FaBell, FaChevronDown, FaChartBar, FaTags, FaGift, FaPhone, FaMoneyBillWave, FaImage, FaList, FaRocket, FaPrint, FaBan, FaHistory, FaTruck, FaClipboardList, FaExchangeAlt, FaSlidersH, FaClipboardCheck, FaBarcode, FaChartLine, FaFileImport, FaMap, FaSearch, FaRecycle, FaShieldAlt, FaCalculator
 } from 'react-icons/fa';
 
 interface MenuItem {
@@ -53,7 +53,6 @@ const menuItems: MenuItem[] = [
     icon: FaShoppingCart,
     children: [
       { title: 'Orders', icon: FaShoppingCart, path: '/admin/sales', requiredPermissions: ['view-sales-orders'] },
-      { title: 'Assigned Orders', icon: FaClipboardList, path: '/admin/sales/assigned-orders', requiredPermissions: ['view-assigned-orders', 'view-own-assigned-orders', 'view-team-assigned-orders', 'view-all-assigned-orders'] },
       { title: 'Printing', icon: FaPrint, path: '/admin/sales/printing', requiredPermissions: ['view-printing'] },
       { title: 'Incomplete Order', icon: FaShoppingCart, path: '/admin/sales/incomplete-orders', requiredPermissions: ['view-incomplete-orders'] },
       { title: 'Late Delivery', icon: FaShoppingCart, path: '/admin/sales/late-delivery', requiredPermissions: ['view-late-delivery'] },
@@ -363,6 +362,7 @@ const menuItems: MenuItem[] = [
       { title: 'Customers', icon: FaUsers, path: '/admin/crm/customers', requiredPermissions: ['view-customers'] },
       { title: 'Team Dashboard', icon: FaTachometerAlt, path: '/admin/crm/team-dashboard', requiredPermissions: ['view-team-performance', 'manage-team-members'] },
       { title: 'Lead Assignment', icon: FaUsers, path: '/admin/crm/lead-assignment', requiredPermissions: ['assign-leads-to-team'] },
+      { title: 'Automatic Assignment', icon: FaUserCheck, path: '/admin/crm/automatic-assignment', requiredPermissions: ['view-auto-order-assignment', 'manage-auto-order-assignment'] },
       { title: 'Team Data Collection', icon: FaBullseye, path: '/admin/crm/team-data-collection', requiredPermissions: ['view-team-performance'] },
       { title: 'Commission Settings', icon: FaMoneyBillWave, path: '/admin/crm/commission-settings', requiredPermissions: ['manage-commission-settings'] },
       { title: 'Tier Management', icon: FaTachometerAlt, path: '/admin/crm/customer-tier-management', requiredPermissions: ['view-customers'] },
@@ -592,31 +592,6 @@ function ensurePresenceLink(items: MenuItem[]): MenuItem[] {
       children: [dashboardItem, historyItem, calendarItem, officeTimeItem, settingsItem],
     },
   ];
-}
-
-function ensureAssignedOrdersLink(items: MenuItem[]): MenuItem[] {
-  const exists = (arr: MenuItem[]): boolean =>
-    arr.some((x) => x.path === '/admin/sales/assigned-orders' || (x.children ? exists(x.children) : false));
-  if (exists(items)) return items;
-
-  const cloned = items.map((x) => ({ ...x, children: x.children ? ensureAssignedOrdersLink(x.children) : x.children }));
-  const sales = cloned.find((x) => x.title === 'Sales');
-  const assignedOrders: MenuItem = {
-    title: 'Assigned Orders',
-    icon: FaClipboardList,
-    path: '/admin/sales/assigned-orders',
-    requiredPermissions: ['view-assigned-orders', 'view-own-assigned-orders', 'view-team-assigned-orders', 'view-all-assigned-orders'],
-  };
-
-  if (sales) {
-    const children = sales.children || [];
-    const ordersIndex = children.findIndex((child) => child.path === '/admin/sales');
-    const nextChildren = [...children];
-    nextChildren.splice(ordersIndex >= 0 ? ordersIndex + 1 : 0, 0, assignedOrders);
-    sales.children = nextChildren;
-  }
-
-  return cloned;
 }
 
 function stripQuery(path: string) {
@@ -904,7 +879,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   const effectiveMenuItems = useMemo(() => {
     const base = dbMenuItems && dbMenuItems.length > 0 ? dbMenuItems : menuItems;
-    return flattenSingleChildMenus(ensureAssignedOrdersLink(ensureManageModulesLink(ensurePresenceLink(base))));
+    return flattenSingleChildMenus(ensureManageModulesLink(ensurePresenceLink(base)));
   }, [dbMenuItems]);
 
   const roleSlugs = useMemo(() => {

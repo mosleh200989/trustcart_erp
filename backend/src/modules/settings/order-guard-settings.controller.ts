@@ -16,7 +16,7 @@ export class OrderGuardSettingsController {
   }
 
   @Put()
-  @RequirePermissions('manage-order-guard')
+  @RequireAnyPermission('manage-order-guard', 'manage-system-settings')
   async updateSettings(@Body() body: any) {
     return this.service.updateSettings(body);
   }

@@ -29,6 +29,7 @@ const INITIAL_FILTERS = {
   sourceGroup: '',
   source: '',
   landingPage: '',
+  assignment: '',
 };
 
 function formatDate(value?: string | null) {
@@ -306,6 +307,7 @@ export default function AdminSales() {
       if (f.sourceGroup) params.sourceGroup = f.sourceGroup;
       if (f.source) params.source = f.source;
       if (f.landingPage) params.landingPage = f.landingPage;
+      if (f.assignment) params.assignment = f.assignment;
 
       const response = await apiClient.get('/sales', { params });
       const body = response.data;
@@ -1371,7 +1373,7 @@ export default function AdminSales() {
               </div>
 
               {/* 2nd line: Status + date range (single row on desktop) */}
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+              <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
                 <FormInput
                   label="Order Status"
                   name="status"
@@ -1395,6 +1397,18 @@ export default function AdminSales() {
                     { value: 'admin_cancelled', label: 'Order Rejected' },
                     { value: 'completed', label: 'Completed' },
                     { value: 'returned', label: 'Returned' },
+                  ]}
+                />
+                <FormInput
+                  label="Assignment"
+                  name="assignment"
+                  type="select"
+                  value={filters.assignment}
+                  onChange={handleFilterChange}
+                  selectPlaceholder="All"
+                  options={[
+                    { value: 'assigned', label: 'Assigned' },
+                    { value: 'unassigned', label: 'Unassigned' },
                   ]}
                 />
 
