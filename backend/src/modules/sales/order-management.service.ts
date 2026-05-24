@@ -221,6 +221,32 @@ export class OrderManagementService {
     }
   }
 
+  private async unassignFromPrimaryLeadTeam(orderId: number): Promise<void> {
+    try {
+      await this.salesOrderRepository.query(
+        `UPDATE sales_orders so
+         SET assigned_to = NULL,
+             assigned_by = NULL,
+             assigned_at = NULL,
+             updated_at = NOW()
+         WHERE so.id = $1
+           AND so.assigned_to IS NOT NULL
+           AND EXISTS (
+             SELECT 1
+             FROM users u
+             INNER JOIN automatic_order_assignment_team_work_types twt
+               ON twt.team_id = u.team_id
+              AND twt.team_leader_id = u.team_leader_id
+              AND twt.work_type = 'primary_leads'
+             WHERE u.id = so.assigned_to
+           )`,
+        [orderId],
+      );
+    } catch (err: any) {
+      this.logger.warn(`Primary lead unassignment skipped for order #${orderId}: ${err?.message || err}`);
+    }
+  }
+
   private async tryRefreshSteadfastCourierStatus(order: SalesOrder): Promise<SalesOrder> {
     if (!order?.courierCompany || String(order.courierCompany).toLowerCase() !== 'steadfast') return order;
 
@@ -926,6 +952,7 @@ export class OrderManagementService {
     order.approvedAt = new Date();
 
     const updatedOrder = await this.salesOrderRepository.save(order);
+    await this.unassignFromPrimaryLeadTeam(updatedOrder.id);
 
     await this.logStatusChange({
       orderId,
@@ -1079,6 +1106,9 @@ export class OrderManagementService {
       order.approvedAt = new Date();
     }
     const updatedOrder = await this.salesOrderRepository.save(order);
+    if (newStatus === 'approved') {
+      await this.unassignFromPrimaryLeadTeam(updatedOrder.id);
+    }
 
     await this.logStatusChange({
       orderId,

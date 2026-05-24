@@ -237,6 +237,8 @@ export class TelephonyService {
       qb.andWhere("LOWER(o.status::text) IN ('cancelled', 'returned')");
     } else if (assignmentType === 'rejected') {
       qb.andWhere("LOWER(o.status::text) = 'admin_cancelled'");
+    } else {
+      qb.andWhere("LOWER(o.status::text) = 'processing'");
     }
 
     if (params?.q?.trim()) {
@@ -628,6 +630,51 @@ export class TelephonyService {
     }
 
     return { success: true, orderId };
+  }
+
+  async handoffUnreachableOrderAssignment(userId: number, orderId: number, body: { outcome?: string; notes?: string } = {}) {
+    const normalizedOutcome = String(body.outcome || 'no_answer').trim().toLowerCase();
+    const outcome = normalizedOutcome === 'unreachable' ? 'unreachable' : 'no_answer';
+    const notes = String(body.notes || '').trim() || (outcome === 'unreachable'
+      ? 'Customer was unreachable. Passed to unreachable follow-up queue.'
+      : 'Customer did not receive the call. Passed to unreachable follow-up queue.');
+
+    const result = await this.salesOrderRepo.manager.query(
+      `UPDATE sales_orders so
+       SET telephony_called_at = NOW(),
+           telephony_call_status = 'called',
+           telephony_outcome = $3,
+           telephony_notes = $4,
+           assigned_to = NULL,
+           assigned_by = NULL,
+           assigned_at = NULL,
+           updated_at = NOW()
+       WHERE so.id = $1
+         AND so.assigned_to = $2
+         AND LOWER(so.status::text) = 'processing'
+         AND EXISTS (
+           SELECT 1
+           FROM users u
+           INNER JOIN automatic_order_assignment_team_work_types twt
+             ON twt.team_id = u.team_id
+            AND twt.team_leader_id = u.team_leader_id
+            AND twt.work_type = 'primary_leads'
+           WHERE u.id = so.assigned_to
+         )`,
+      [orderId, userId, outcome, notes],
+    );
+
+    if (!result?.[1]) {
+      throw new NotFoundException('Processing primary-lead assignment not found');
+    }
+
+    const assignmentRun = await this.salesService.runAutomaticAssignmentQueue({
+      orderId,
+      limit: 50,
+      reason: 'unreachable_followup_handoff',
+    });
+
+    return { success: true, orderId, outcome, assignmentRun };
   }
 
   private setPresence(userId: number, status: AgentPresenceStatus, source: string = 'api') {

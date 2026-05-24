@@ -80,18 +80,47 @@ export class PresenceService {
     return this.statusRepo.save(status);
   }
 
-  private async unassignCustomersForOfflineUser(userId: number): Promise<number> {
+  private async unassignWorkForOfflineUser(userId: number): Promise<{
+    customers: number;
+    salesOrders: number;
+    incompleteOrders: number;
+  }> {
     const userIdNum = Number(userId);
-    if (!Number.isFinite(userIdNum) || userIdNum <= 0) return 0;
+    if (!Number.isFinite(userIdNum) || userIdNum <= 0) {
+      return { customers: 0, salesOrders: 0, incompleteOrders: 0 };
+    }
 
-    const result = await this.statusRepo.manager.query(
+    const customerResult = await this.statusRepo.manager.query(
       `UPDATE customers
        SET assigned_to = NULL,
            updated_at = NOW()
        WHERE assigned_to = $1`,
       [userIdNum],
     );
-    return Number(result?.[1] ?? 0);
+    const salesOrderResult = await this.statusRepo.manager.query(
+      `UPDATE sales_orders
+       SET assigned_to = NULL,
+           assigned_by = NULL,
+           assigned_at = NULL,
+           updated_at = NOW()
+       WHERE assigned_to = $1`,
+      [userIdNum],
+    );
+    const incompleteOrderResult = await this.statusRepo.manager.query(
+      `UPDATE incomplete_orders
+       SET assigned_to = NULL,
+           assigned_by = NULL,
+           assigned_at = NULL,
+           updated_at = NOW()
+       WHERE assigned_to = $1`,
+      [userIdNum],
+    );
+
+    return {
+      customers: Number(customerResult?.[1] ?? 0),
+      salesOrders: Number(salesOrderResult?.[1] ?? 0),
+      incompleteOrders: Number(incompleteOrderResult?.[1] ?? 0),
+    };
   }
 
   async expireStaleOnlineStatuses(userIds?: number[]) {
@@ -124,7 +153,7 @@ export class PresenceService {
       status.source = 'idle-timeout';
       status.lastChangedAt = occurredAt;
       await this.statusRepo.save(status);
-      await this.unassignCustomersForOfflineUser(Number(status.userId));
+      await this.unassignWorkForOfflineUser(Number(status.userId));
     }
 
     return { expired: staleStatuses.length };
@@ -157,7 +186,7 @@ export class PresenceService {
     status.lastSeenAt = now;
     const saved = await this.statusRepo.save(status);
     if (state === 'offline') {
-      await this.unassignCustomersForOfflineUser(userIdNum);
+      await this.unassignWorkForOfflineUser(userIdNum);
     }
     return saved;
   }

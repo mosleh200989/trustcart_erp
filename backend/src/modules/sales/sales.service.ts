@@ -584,6 +584,32 @@ export class SalesService {
     return result;
   }
 
+  private async unassignFromPrimaryLeadTeam(orderId: number): Promise<void> {
+    try {
+      await this.salesRepository.manager.query(
+        `UPDATE sales_orders so
+         SET assigned_to = NULL,
+             assigned_by = NULL,
+             assigned_at = NULL,
+             updated_at = NOW()
+         WHERE so.id = $1
+           AND so.assigned_to IS NOT NULL
+           AND EXISTS (
+             SELECT 1
+             FROM users u
+             INNER JOIN automatic_order_assignment_team_work_types twt
+               ON twt.team_id = u.team_id
+              AND twt.team_leader_id = u.team_leader_id
+              AND twt.work_type = 'primary_leads'
+             WHERE u.id = so.assigned_to
+           )`,
+        [orderId],
+      );
+    } catch (err: any) {
+      console.warn(`Primary lead unassignment skipped for order #${orderId}:`, err?.message || err);
+    }
+  }
+
   private async getAutomaticAssignmentAccess(user: any) {
     const userId = Number(user?.id);
     const rows: Array<{ slug: string; role_slug: string }> = await this.salesRepository.manager.query(
@@ -2991,6 +3017,9 @@ export class SalesService {
     }
 
     await this.salesRepository.update(id, updateSalesDto);
+    if (shouldDispatchApproved) {
+      await this.unassignFromPrimaryLeadTeam(Number(id));
+    }
     const updated = await this.findOne(id);
 
     if (updated && shouldDispatchApproved) {

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { FaCalendarAlt, FaCheckCircle, FaCopy, FaPhone, FaSms, FaSyncAlt, FaWhatsapp } from 'react-icons/fa';
+import { FaCalendarAlt, FaCheckCircle, FaCopy, FaPhone, FaShare, FaSms, FaSyncAlt, FaWhatsapp } from 'react-icons/fa';
 import AdminLayout from '@/layouts/AdminLayout';
 import PageSizeSelector from '@/components/admin/PageSizeSelector';
 import ProductAutocomplete from '@/components/admin/ProductAutocomplete';
@@ -112,6 +112,7 @@ export default function TelephonyOrderAssignmentPage({ assignmentType = 'order' 
   const [callActionProductSuggestion, setCallActionProductSuggestion] = useState('');
   const [callActionOutcome, setCallActionOutcome] = useState<CallOutcome>('');
   const [savingCallAction, setSavingCallAction] = useState(false);
+  const [handoffOrderId, setHandoffOrderId] = useState<number | null>(null);
 
   const loadOrders = async (nextPage = page, nextLimit = limit, filters = appliedFilters) => {
     setLoading(true);
@@ -204,6 +205,23 @@ export default function TelephonyOrderAssignmentPage({ assignmentType = 'order' 
   const copyPhone = async (phone: string) => {
     await navigator.clipboard.writeText(phone);
     toast.success('Phone number copied');
+  };
+
+  const handoffNoAnswer = async (order: AssignedOrder) => {
+    const ok = window.confirm('Pass this order to the Unreachable Follow-up team?');
+    if (!ok) return;
+    setHandoffOrderId(order.id);
+    try {
+      await apiClient.post(`/telephony/order-assignments/${order.id}/unreachable-handoff`, {
+        outcome: 'no_answer',
+      });
+      toast.success('Order passed to unreachable follow-up queue');
+      await loadOrders();
+    } catch (e: any) {
+      toast.error(e?.response?.data?.message || 'Failed to pass order');
+    } finally {
+      setHandoffOrderId(null);
+    }
   };
 
   const hasFilters = appliedFilters.searchTerm || appliedFilters.productFilter || appliedFilters.tierFilter || appliedFilters.statusFilter || appliedFilters.calledFilter !== 'all' || appliedFilters.outcomeFilter !== 'all';
@@ -437,6 +455,17 @@ export default function TelephonyOrderAssignmentPage({ assignmentType = 'order' 
                               >
                                 <FaPhone size={10} /> Log Call
                               </button>
+                              {assignmentType === 'order' && order.recordType !== 'incomplete_order' && (
+                                <button
+                                  type="button"
+                                  disabled={handoffOrderId === order.id}
+                                  className="flex items-center gap-1 rounded bg-amber-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-amber-700 disabled:opacity-50"
+                                  onClick={() => handoffNoAnswer(order)}
+                                  title="Customer did not receive the call. Pass to Unreachable Follow-up."
+                                >
+                                  <FaShare size={10} /> {handoffOrderId === order.id ? 'Passing...' : 'No Answer'}
+                                </button>
+                              )}
                             </div>
                           </td>
                         </tr>
