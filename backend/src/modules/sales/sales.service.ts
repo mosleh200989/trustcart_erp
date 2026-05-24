@@ -337,6 +337,20 @@ export class SalesService {
                WHERE tm.is_active = TRUE
              ) memberships
              WHERE team_leader_id IS NOT NULL
+           ),
+           today_assignment_counts AS (
+             SELECT
+               agent_id,
+               team_leader_id,
+               COUNT(DISTINCT CONCAT(
+                 COALESCE(record_type, 'sales_order'),
+                 ':',
+                 COALESCE(order_id, incomplete_order_id)
+               ))::int AS assigned_today
+             FROM automatic_order_assignment_logs
+             WHERE created_at >= (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Dhaka')::date
+               AND COALESCE(order_id, incomplete_order_id) IS NOT NULL
+             GROUP BY agent_id, team_leader_id
            )
            SELECT
              u.id AS agent_id,
@@ -355,10 +369,10 @@ export class SalesService {
                    WHERE configured.team_leader_id = at.team_leader_id
                  ) THEN ARRAY['primary_leads']::text[]
                  ELSE ARRAY[]::text[]
-               END
+             END
              ) AS work_types,
              COUNT(DISTINCT active_orders.id)::int AS active_count,
-             COUNT(DISTINCT today_orders.id)::int AS assigned_today
+             COALESCE(today_orders.assigned_today, 0)::int AS assigned_today
            FROM agent_team at
            INNER JOIN users u ON u.id = at.agent_id
            INNER JOIN roles r ON r.id = u.role_id
@@ -377,17 +391,17 @@ export class SalesService {
            LEFT JOIN sales_orders active_orders
              ON active_orders.assigned_to = u.id
             AND LOWER(active_orders.status::text) IN ('processing', 'pending', 'approved', 'hold', 'sent', 'in_review', 'in_transit', 'picked', 'shipped')
-           LEFT JOIN automatic_order_assignment_logs today_orders
+           LEFT JOIN today_assignment_counts today_orders
              ON today_orders.agent_id = u.id
-            AND today_orders.created_at >= CURRENT_DATE
+            AND today_orders.team_leader_id = at.team_leader_id
            WHERE u.is_deleted = FALSE
              AND u.status = 'active'
              AND r.slug = 'sales-executive'
              ${teamLeaderClause}
-           GROUP BY u.id, at.team_leader_id, at.team_id, s.max_active_orders, s.max_daily_orders, pref.product_id, pref.assignment_order_direction
+           GROUP BY u.id, at.team_leader_id, at.team_id, s.max_active_orders, s.max_daily_orders, pref.product_id, pref.assignment_order_direction, today_orders.assigned_today
            HAVING COUNT(DISTINCT active_orders.id) < COALESCE(s.max_active_orders, 10)
-              AND COUNT(DISTINCT today_orders.id) < COALESCE(s.max_daily_orders, 100)
-           ORDER BY COUNT(DISTINCT active_orders.id) ASC, COUNT(DISTINCT today_orders.id) ASC, u.id ASC`,
+              AND COALESCE(today_orders.assigned_today, 0) < COALESCE(s.max_daily_orders, 100)
+           ORDER BY COUNT(DISTINCT active_orders.id) ASC, COALESCE(today_orders.assigned_today, 0) ASC, u.id ASC`,
           candidateParams,
         );
 
@@ -675,6 +689,20 @@ export class SalesService {
            WHERE tm.is_active = TRUE
          ) memberships
          WHERE team_leader_id IS NOT NULL
+       ),
+       today_assignment_counts AS (
+         SELECT
+           agent_id,
+           team_leader_id,
+           COUNT(DISTINCT CONCAT(
+             COALESCE(record_type, 'sales_order'),
+             ':',
+             COALESCE(order_id, incomplete_order_id)
+           ))::int AS assigned_today
+         FROM automatic_order_assignment_logs
+         WHERE created_at >= (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Dhaka')::date
+           AND COALESCE(order_id, incomplete_order_id) IS NOT NULL
+         GROUP BY agent_id, team_leader_id
        )
        SELECT
          u.id,
@@ -685,7 +713,7 @@ export class SalesService {
          COALESCE(pref.assignment_order_direction, 'asc') AS assignment_order_direction,
          COALESCE(p.name_en, p.name_bn, p.sku) AS product_preference_name,
          COUNT(DISTINCT o.id)::int AS active_assigned_orders,
-         COUNT(DISTINCT l.id) FILTER (WHERE l.created_at >= CURRENT_DATE)::int AS assigned_today
+         COALESCE(l.assigned_today, 0)::int AS assigned_today
        FROM agent_team at
        INNER JOIN users u ON u.id = at.agent_id
        LEFT JOIN user_presence_statuses ps ON ps.user_id = u.id
@@ -696,7 +724,7 @@ export class SalesService {
        LEFT JOIN sales_orders o
          ON o.assigned_to = u.id
         AND LOWER(o.status::text) IN ('processing', 'pending', 'approved', 'hold', 'sent', 'in_review', 'in_transit', 'picked', 'shipped')
-       LEFT JOIN automatic_order_assignment_logs l
+       LEFT JOIN today_assignment_counts l
          ON l.agent_id = u.id
         AND l.team_leader_id = at.team_leader_id
        LEFT JOIN roles r ON r.id = u.role_id
@@ -704,7 +732,7 @@ export class SalesService {
          AND u.is_deleted = FALSE
          AND u.status = 'active'
          AND r.slug = 'sales-executive'
-       GROUP BY u.id, u.name, u.last_name, u.email, ps.state, pref.product_id, pref.assignment_order_direction, p.name_en, p.name_bn, p.sku
+       GROUP BY u.id, u.name, u.last_name, u.email, ps.state, pref.product_id, pref.assignment_order_direction, p.name_en, p.name_bn, p.sku, l.assigned_today
        ORDER BY presence_state DESC, active_assigned_orders ASC, name ASC`,
       [teamLeaderId],
     );

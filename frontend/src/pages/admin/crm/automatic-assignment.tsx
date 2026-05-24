@@ -440,7 +440,12 @@ export default function AutomaticAssignmentPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {(overview?.agents || []).map((agent) => (
+                {(overview?.agents || []).map((agent) => {
+                  const activeRemaining = Math.max(0, maxActiveOrders - agent.activeAssignedOrders);
+                  const dailyRemaining = Math.max(0, maxDailyOrders - agent.assignedToday);
+                  const dailyLimitReached = dailyRemaining <= 0;
+
+                  return (
                   <tr key={agent.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3">
                       <div className="font-medium text-gray-900">{agent.name}</div>
@@ -481,11 +486,16 @@ export default function AutomaticAssignmentPage() {
                     <td className="px-4 py-3 text-right text-sm font-semibold">{agent.activeAssignedOrders}</td>
                     <td className="px-4 py-3 text-right text-sm">{agent.assignedToday}</td>
                     <td className="px-4 py-3 text-right text-sm">
-                      <div>{Math.max(0, maxActiveOrders - agent.activeAssignedOrders)} active</div>
-                      <div className="text-xs text-gray-500">{Math.max(0, maxDailyOrders - agent.assignedToday)} today</div>
+                      <div className={activeRemaining > 0 ? 'font-semibold text-emerald-700' : 'font-semibold text-gray-500'}>
+                        {activeRemaining} active
+                      </div>
+                      <div className={`text-xs ${dailyLimitReached ? 'font-semibold text-red-600' : 'text-gray-500'}`}>
+                        {dailyRemaining} today{dailyLimitReached ? ' - daily limit reached' : ''}
+                      </div>
                     </td>
                   </tr>
-                ))}
+                );
+                })}
                 {!loading && (overview?.agents || []).length === 0 && (
                   <tr>
                     <td colSpan={7} className="px-4 py-8 text-center text-gray-500">No active sales executives found for this team.</td>
