@@ -85,6 +85,48 @@ export class InventoryService {
     });
   }
 
+  async upsertStockLevel(data: any, performedBy?: number): Promise<StockLevel> {
+    void performedBy;
+    const productId = Number(data.product_id);
+    const warehouseId = Number(data.warehouse_id);
+    if (!Number.isFinite(productId) || productId <= 0) {
+      throw new BadRequestException('Valid product_id is required');
+    }
+    if (!Number.isFinite(warehouseId) || warehouseId <= 0) {
+      throw new BadRequestException('Valid warehouse_id is required');
+    }
+
+    const quantity = Math.max(0, Number(data.quantity ?? 0));
+    const reservedQuantity = Math.max(0, Number(data.reserved_quantity ?? 0));
+    const damagedQuantity = Math.max(0, Number(data.damaged_quantity ?? 0));
+    const locationId = data.location_id ? Number(data.location_id) : null;
+    const batchId = data.batch_id ? Number(data.batch_id) : null;
+    const costPrice = data.cost_price === '' || data.cost_price == null ? null : Number(data.cost_price);
+
+    return this.dataSource.transaction(async (manager) => {
+      let level = await manager.findOne(StockLevel, {
+        where: { product_id: productId, warehouse_id: warehouseId },
+      });
+
+      if (!level) {
+        level = manager.create(StockLevel, {
+          product_id: productId,
+          warehouse_id: warehouseId,
+        });
+      }
+
+      level.variant_key = data.variant_key || null;
+      level.location_id = locationId as any;
+      level.batch_id = batchId as any;
+      level.quantity = quantity;
+      level.reserved_quantity = Math.min(reservedQuantity, quantity);
+      level.damaged_quantity = Math.min(damagedQuantity, quantity);
+      level.cost_price = costPrice as any;
+
+      return manager.save(StockLevel, level);
+    });
+  }
+
   async getStockSummary(): Promise<any[]> {
     return this.stockLevelRepo
       .createQueryBuilder('sl')
