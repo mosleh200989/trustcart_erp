@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import AdminLayout from '@/layouts/AdminLayout';
-import { reorderRules } from '@/services/api';
+import { products as productsApi, reorderRules } from '@/services/api';
 import { useToast } from '@/contexts/ToastContext';
 import {
   FaClipboardList, FaPlus, FaEdit, FaTrash, FaSync,
@@ -10,6 +10,7 @@ import {
 export default function ReorderRulesPage() {
   const toast = useToast();
   const [rules, setRules] = useState<any[]>([]);
+  const [productList, setProductList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
@@ -42,7 +43,13 @@ export default function ReorderRulesPage() {
 
   useEffect(() => {
     loadRules();
+    productsApi.listAll().then(setProductList).catch(() => setProductList([]));
   }, [loadRules]);
+
+  const productName = (productId: number) => {
+    const product = productList.find((p: any) => p.id === productId);
+    return product ? `${product.name}${product.status !== 'active' ? ` (${product.status})` : ''}` : `#${productId}`;
+  };
 
   const resetForm = () => {
     setForm({
@@ -168,7 +175,7 @@ export default function ReorderRulesPage() {
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Product ID</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Product</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Variant</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Warehouse</th>
                   <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Reorder Pt</th>
@@ -183,7 +190,7 @@ export default function ReorderRulesPage() {
               <tbody className="divide-y">
                 {rules.map((rule) => (
                   <tr key={rule.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 font-medium">{rule.product_id}</td>
+                    <td className="px-4 py-3 font-medium">{productName(rule.product_id)}</td>
                     <td className="px-4 py-3 text-gray-500">{rule.variant_key || '—'}</td>
                     <td className="px-4 py-3 text-gray-500">{rule.warehouse_id || 'All'}</td>
                     <td className="px-4 py-3 text-right">{rule.reorder_point}</td>
@@ -230,9 +237,14 @@ export default function ReorderRulesPage() {
             <form onSubmit={handleSubmit} className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Product ID *</label>
-                  <input type="number" required value={form.product_id} onChange={(e) => setForm({ ...form, product_id: e.target.value })}
-                    className="w-full border rounded-lg px-3 py-2 text-sm" />
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Product *</label>
+                  <select required value={form.product_id} onChange={(e) => setForm({ ...form, product_id: e.target.value })}
+                    className="w-full border rounded-lg px-3 py-2 text-sm">
+                    <option value="">Select product</option>
+                    {productList.map((product: any) => (
+                      <option key={product.id} value={product.id}>{product.name}{product.status !== 'active' ? ` (${product.status})` : ''}</option>
+                    ))}
+                  </select>
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Variant Key</label>

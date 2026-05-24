@@ -8,7 +8,7 @@ import apiClient, { stockAlerts } from '@/services/api';
 import { 
   FaTachometerAlt, FaBoxes, FaShoppingCart, FaUsers, FaWarehouse, 
   FaShoppingBag, FaUserTie, FaBook, FaBullseye, FaHandshake, 
-  FaHeadset, FaUser, FaCog, FaBars, FaTimes, FaBell, FaChevronDown, FaChartBar, FaTags, FaGift, FaPhone, FaMoneyBillWave, FaImage, FaList, FaRocket, FaPrint, FaBan, FaHistory, FaTruck, FaClipboardList, FaExchangeAlt, FaSlidersH, FaClipboardCheck, FaBarcode, FaChartLine, FaFileImport, FaMap, FaSearch
+  FaHeadset, FaUser, FaCog, FaBars, FaTimes, FaBell, FaChevronDown, FaChartBar, FaTags, FaGift, FaPhone, FaMoneyBillWave, FaImage, FaList, FaRocket, FaPrint, FaBan, FaHistory, FaTruck, FaClipboardList, FaSlidersH, FaClipboardCheck, FaBarcode, FaFileImport, FaSearch, FaRecycle
 } from 'react-icons/fa';
 
 interface MenuItem {
@@ -109,18 +109,18 @@ const menuItems: MenuItem[] = [
     requiredPermissions: ['view-inventory', 'view-stock-levels', 'view-stock-reports', 'view-warehouses', 'view-suppliers'],
     children: [
       { title: 'Dashboard', icon: FaTachometerAlt, path: '/admin/inventory', requiredPermissions: ['view-inventory'] },
+      { title: 'Available Products', icon: FaBoxes, path: '/admin/inventory/available-products', requiredPermissions: ['view-inventory', 'view-stock-levels'] },
+      { title: 'Report', icon: FaChartBar, path: '/admin/inventory/reports', requiredPermissions: ['view-inventory', 'view-stock-reports'] },
       { title: 'Alerts', icon: FaBell, path: '/admin/inventory/alerts', requiredPermissions: ['view-inventory'] },
-      { title: 'Reorder Rules', icon: FaClipboardList, path: '/admin/inventory/reorder-rules', requiredPermissions: ['view-inventory'] },
+      { title: 'Inventory Count', icon: FaClipboardCheck, path: '/admin/inventory/counts', requiredPermissions: ['view-inventory'] },
       { title: 'Adjustments', icon: FaSlidersH, path: '/admin/inventory/adjustments', requiredPermissions: ['view-inventory'] },
-      { title: 'Transfers', icon: FaExchangeAlt, path: '/admin/inventory/transfers', requiredPermissions: ['view-inventory'] },
-      { title: 'Inventory Counts', icon: FaClipboardCheck, path: '/admin/inventory/counts', requiredPermissions: ['view-inventory'] },
-      { title: 'Reports', icon: FaChartBar, path: '/admin/inventory/reports', requiredPermissions: ['view-inventory', 'view-stock-reports'] },
-      { title: 'Warehouses', icon: FaWarehouse, path: '/admin/inventory/warehouses', requiredPermissions: ['view-inventory', 'view-warehouses'] },
-      { title: 'Warehouse Map', icon: FaMap, path: '/admin/inventory/warehouse-map', requiredPermissions: ['view-inventory', 'view-warehouses'] },
-      { title: 'Suppliers', icon: FaTruck, path: '/admin/inventory/suppliers', requiredPermissions: ['view-inventory', 'view-suppliers'] },
-      { title: 'Forecasts', icon: FaChartLine, path: '/admin/inventory/forecasts', requiredPermissions: ['view-inventory'] },
-      { title: 'Barcode Tools', icon: FaBarcode, path: '/admin/inventory/barcode', requiredPermissions: ['view-inventory'] },
+      { title: 'Warehouse', icon: FaWarehouse, path: '/admin/inventory/warehouses', requiredPermissions: ['view-inventory', 'view-warehouses'] },
+      { title: 'Supplier', icon: FaTruck, path: '/admin/inventory/suppliers', requiredPermissions: ['view-inventory', 'view-suppliers'] },
+      { title: 'Reorder', icon: FaClipboardList, path: '/admin/inventory/reorder-rules', requiredPermissions: ['view-inventory'] },
       { title: 'Bulk Import', icon: FaFileImport, path: '/admin/inventory/import', requiredPermissions: ['manage-stock'] },
+      { title: 'Repacking', icon: FaRecycle, path: '/admin/inventory/repacking', requiredPermissions: ['view-inventory'] },
+      { title: 'Packaging Conf', icon: FaBoxes, path: '/admin/inventory/packaging-conf', requiredPermissions: ['view-inventory'] },
+      { title: 'Barcode', icon: FaBarcode, path: '/admin/inventory/barcode', requiredPermissions: ['view-inventory'] },
       { title: 'Audit Trail', icon: FaSearch, path: '/admin/inventory/audit-trail', requiredPermissions: ['view-inventory'] },
     ],
   },
@@ -421,6 +421,13 @@ const iconMap: Record<string, any> = {
   FaPhone,
   FaImage,
   FaPrint,
+  FaClipboardList,
+  FaSlidersH,
+  FaClipboardCheck,
+  FaBarcode,
+  FaFileImport,
+  FaSearch,
+  FaRecycle,
 };
 
 function iconFromKey(key?: string | null) {

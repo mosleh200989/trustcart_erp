@@ -82,6 +82,16 @@ export const products = {
       throw err;
     }
   },
+  async listAll() {
+    try {
+      const res = await apiClient.get('/products/admin/all');
+      const data = Array.isArray(res.data) ? res.data : [];
+      return data.map(transformProduct);
+    } catch (err) {
+      console.error('Error fetching all products:', err);
+      throw err;
+    }
+  },
   async get(id: string | number) {
     const res = await apiClient.get(`/products/${id}`);
     return transformProduct(res.data);
@@ -1102,6 +1112,52 @@ export const inventoryImport = {
   },
   async execute(importType: string, rows: any[]) {
     const res = await apiClient.post('/inventory/import/execute', { import_type: importType, rows });
+    return res.data;
+  },
+};
+
+export const inventoryPackagingConfigs = {
+  async list(sourceProductId?: number) {
+    const res = await apiClient.get('/inventory/repack/configs', { params: { source_product_id: sourceProductId } });
+    return Array.isArray(res.data) ? res.data : [];
+  },
+  async create(data: any) {
+    const res = await apiClient.post('/inventory/repack/configs', data);
+    return res.data;
+  },
+  async update(id: number, data: any) {
+    const res = await apiClient.put(`/inventory/repack/configs/${id}`, data);
+    return res.data;
+  },
+  async remove(id: number) {
+    const res = await apiClient.delete(`/inventory/repack/configs/${id}`);
+    return res.data;
+  },
+};
+
+export const inventoryRepackOrders = {
+  async list(params?: { status?: string; warehouse_id?: number }) {
+    const res = await apiClient.get('/inventory/repack/orders', { params });
+    return Array.isArray(res.data) ? res.data : [];
+  },
+  async get(id: number) {
+    const res = await apiClient.get(`/inventory/repack/orders/${id}`);
+    return res.data;
+  },
+  async create(data: any) {
+    const res = await apiClient.post('/inventory/repack/orders', data);
+    return res.data;
+  },
+  async start(id: number) {
+    const res = await apiClient.post(`/inventory/repack/orders/${id}/start`);
+    return res.data;
+  },
+  async complete(id: number, data: any) {
+    const res = await apiClient.post(`/inventory/repack/orders/${id}/complete`, data);
+    return res.data;
+  },
+  async cancel(id: number) {
+    const res = await apiClient.post(`/inventory/repack/orders/${id}/cancel`);
     return res.data;
   },
 };

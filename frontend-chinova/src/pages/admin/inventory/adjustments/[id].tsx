@@ -59,7 +59,7 @@ export default function AdjustmentDetailPage() {
 
   const loadLookups = async () => {
     try {
-      const [whs, prods] = await Promise.all([warehouses.list(), productsApi.list()]);
+      const [whs, prods] = await Promise.all([warehouses.list(), productsApi.listAll()]);
       setWarehouseList(whs);
       const wMap: Record<number, string> = {};
       whs.forEach((w: any) => { wMap[w.id] = w.name; });
@@ -89,7 +89,7 @@ export default function AdjustmentDetailPage() {
   };
 
   const handleSave = async () => {
-    if (!form.warehouse_id || !form.reason) { toast.error('Warehouse and reason are required'); return; }
+    if (!form.warehouse_id || !form.reason || !form.notes.trim()) { toast.error('Warehouse, reason, and notes are required'); return; }
     if (items.every(i => !i.product_id)) { toast.error('Add at least one item'); return; }
     setSaving(true);
     try {
@@ -97,7 +97,7 @@ export default function AdjustmentDetailPage() {
         warehouse_id: Number(form.warehouse_id),
         adjustment_type: form.adjustment_type,
         reason: form.reason,
-        notes: form.notes,
+        notes: form.notes.trim(),
         items: items.filter(i => i.product_id).map(i => ({
           ...i, unit_cost: i.unit_cost ? Number(i.unit_cost) : undefined,
         })),
@@ -232,8 +232,8 @@ export default function AdjustmentDetailPage() {
             </div>
           </div>
           <div className="mt-4">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
-            <textarea rows={2} value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} className="w-full border rounded-lg px-3 py-2 text-sm" />
+            <label className="block text-sm font-medium text-gray-700 mb-1">Notes *</label>
+            <textarea rows={2} required value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="Document the business reason and supporting context" />
           </div>
         </div>
 
@@ -260,7 +260,7 @@ export default function AdjustmentDetailPage() {
                   <td className="px-3 py-2">
                     <select value={item.product_id} onChange={e => updateItem(idx, 'product_id', Number(e.target.value))} className="w-full border rounded px-2 py-1 text-sm">
                       <option value={0}>Select product</option>
-                      {productList.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                      {productList.map((p: any) => <option key={p.id} value={p.id}>{p.name}{p.status !== 'active' ? ` (${p.status})` : ''}</option>)}
                     </select>
                   </td>
                   <td className="px-3 py-2"><input type="number" min="0" value={item.quantity_before || ''} onChange={e => updateItem(idx, 'quantity_before', Number(e.target.value))} className="w-full border rounded px-2 py-1 text-sm text-right" /></td>

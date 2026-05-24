@@ -223,10 +223,10 @@ export default function InventoryDashboard() {
         {/* Quick Links */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {[
-            { label: 'Stock Levels', href: '/admin/inventory/stock-levels', icon: FaBoxes },
-            { label: 'Reports', href: '/admin/inventory/reports', icon: FaChartBar },
+            { label: 'Available Products', href: '/admin/inventory/available-products', icon: FaBoxes },
+            { label: 'Report', href: '/admin/inventory/reports', icon: FaChartBar },
+            { label: 'Inventory Count', href: '/admin/inventory/counts', icon: FaClipboardList },
             { label: 'Adjustments', href: '/admin/inventory/adjustments', icon: FaClipboardList },
-            { label: 'Transfers', href: '/admin/inventory/transfers', icon: FaTruck },
           ].map((link) => (
             <Link key={link.href} href={link.href} className="flex items-center gap-3 p-4 bg-white rounded-lg border hover:bg-gray-50 transition-colors">
               <link.icon className="text-blue-500" />
