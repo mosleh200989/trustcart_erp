@@ -68,6 +68,7 @@ export default function AdminProducts() {
   const [modalMode, setModalMode] = useState<'add' | 'edit' | 'view'>('add');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [selectedProductIds, setSelectedProductIds] = useState<Array<number | string>>([]);
+  const [handledEditQuery, setHandledEditQuery] = useState<string | null>(null);
   const [bulkWorking, setBulkWorking] = useState(false);
   const [itemsPerPage, setItemsPerPage] = useState(50);
 
@@ -179,6 +180,7 @@ export default function AdminProducts() {
       
       console.log('Full product data:', fullProduct);
       console.log('Category ID from product:', fullProduct.category_id);
+      setSelectedProduct(fullProduct);
       
       setFormData({
         name_en: fullProduct.name_en || '',
@@ -267,6 +269,20 @@ export default function AdminProducts() {
       console.error('Error loading product details for view:', error);
     }
   };
+
+  useEffect(() => {
+    if (!router.isReady) return;
+    const editParam = Array.isArray(router.query.edit) ? router.query.edit[0] : router.query.edit;
+    if (!editParam || handledEditQuery === editParam) return;
+
+    const productId = Number(editParam);
+    if (!Number.isFinite(productId) || productId <= 0) return;
+
+    setHandledEditQuery(editParam);
+    void handleEdit({ id: productId } as Product);
+    void router.replace('/admin/products', undefined, { shallow: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [router.isReady, router.query.edit, handledEditQuery]);
 
   const handleDelete = async (product: Product) => {
     if (!confirm(`Are you sure you want to delete "${product.name_en}"?`)) return;
