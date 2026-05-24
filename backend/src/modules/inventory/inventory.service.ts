@@ -198,6 +198,9 @@ export class InventoryService {
   }
 
   async createAdjustment(dto: CreateStockAdjustmentDto, userId: number): Promise<StockAdjustment> {
+    if (!String(dto.notes || '').trim()) {
+      throw new BadRequestException('Adjustment notes are required');
+    }
     return this.dataSource.transaction(async (manager) => {
       const adjNumber = await this.generateAdjustmentNumber(manager);
       const adjustment = manager.create(StockAdjustment, {
@@ -206,7 +209,7 @@ export class InventoryService {
         adjustment_type: dto.adjustment_type,
         status: 'draft',
         reason: dto.reason,
-        notes: dto.notes,
+        notes: dto.notes.trim(),
         created_by: userId,
       });
       const savedAdj = await manager.save(StockAdjustment, adjustment);
@@ -241,11 +244,14 @@ export class InventoryService {
     const adj = await this.adjustmentRepo.findOne({ where: { id } });
     if (!adj) throw new NotFoundException(`Adjustment #${id} not found`);
     if (adj.status !== 'draft') throw new BadRequestException('Only draft adjustments can be edited');
+    if (dto.notes !== undefined && !String(dto.notes || '').trim()) {
+      throw new BadRequestException('Adjustment notes are required');
+    }
     Object.assign(adj, {
       warehouse_id: dto.warehouse_id ?? adj.warehouse_id,
       adjustment_type: dto.adjustment_type ?? adj.adjustment_type,
       reason: dto.reason ?? adj.reason,
-      notes: dto.notes ?? adj.notes,
+      notes: dto.notes !== undefined ? dto.notes.trim() : adj.notes,
     });
     await this.adjustmentRepo.save(adj);
     return this.getAdjustment(id);

@@ -95,11 +95,42 @@ export class PresenceService {
       return { customers: 0, salesOrders: 0, incompleteOrders: 0 };
     }
 
+    const tableRows = await this.statusRepo.manager.query(
+      `SELECT to_regclass('public.automatic_order_assignment_settings') AS table_name`,
+    );
+    if (!tableRows?.[0]?.table_name) {
+      return { customers: 0, salesOrders: 0, incompleteOrders: 0 };
+    }
+
+    const enabledRows = await this.statusRepo.manager.query(
+      `SELECT s.team_leader_id
+       FROM users u
+       INNER JOIN automatic_order_assignment_settings s
+         ON s.team_leader_id = u.team_leader_id
+        AND s.is_enabled = TRUE
+       WHERE u.id = $1
+         AND COALESCE(u.is_deleted, FALSE) = FALSE
+         AND COALESCE(u.status, 'active') = 'active'
+       LIMIT 1`,
+      [userIdNum],
+    );
+    const hasEnabledAutomaticAssignment = enabledRows.length > 0;
+
+    if (!hasEnabledAutomaticAssignment) {
+      return { customers: 0, salesOrders: 0, incompleteOrders: 0 };
+    }
+
     const customerResult = await this.statusRepo.manager.query(
-      `UPDATE customers
+      `UPDATE customers c
        SET assigned_to = NULL,
            updated_at = NOW()
-       WHERE assigned_to = $1`,
+       WHERE c.assigned_to = $1
+         AND EXISTS (
+           SELECT 1
+           FROM automatic_order_assignment_settings s
+           WHERE s.team_leader_id = c.assigned_supervisor_id
+             AND s.is_enabled = TRUE
+         )`,
       [userIdNum],
     );
     const salesOrderResult = await this.statusRepo.manager.query(

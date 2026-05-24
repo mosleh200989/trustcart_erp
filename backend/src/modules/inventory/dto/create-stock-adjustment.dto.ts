@@ -1,4 +1,4 @@
-import { IsNumber, IsOptional, IsString, IsIn, MaxLength, IsArray, ValidateNested } from 'class-validator';
+import { IsNumber, IsOptional, IsString, IsIn, MaxLength, IsArray, ValidateNested, MinLength } from 'class-validator';
 import { Type } from 'class-transformer';
 
 class AdjustmentItemDto {
@@ -47,9 +47,9 @@ export class CreateStockAdjustmentDto {
   @MaxLength(255)
   reason!: string;
 
-  @IsOptional()
   @IsString()
-  notes?: string;
+  @MinLength(1)
+  notes!: string;
 
   @IsArray()
   @ValidateNested({ each: true })

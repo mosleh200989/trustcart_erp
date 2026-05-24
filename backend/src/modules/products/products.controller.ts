@@ -5,7 +5,7 @@ import { Repository } from 'typeorm';
 import { Product } from './product.entity';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
-import { RequirePermissions } from '../../common/decorators/permissions.decorator';
+import { RequireAnyPermission, RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 
 @Controller('products')
@@ -50,7 +50,7 @@ export class ProductsController {
   }
 
   @Get('admin/all')
-  @RequirePermissions('view-products')
+  @RequireAnyPermission('view-products', 'view-inventory')
   async findAllAdmin() {
     const products = await this.productsService.findAllAdmin();
     console.log(`Admin controller returning ${products.length} products (including inactive)`);

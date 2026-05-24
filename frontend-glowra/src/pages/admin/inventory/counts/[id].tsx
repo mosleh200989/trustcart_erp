@@ -42,7 +42,7 @@ export default function InventoryCountDetailPage() {
 
   const loadLookups = async () => {
     try {
-      const [whs, prods] = await Promise.all([warehouses.list(), productsApi.list()]);
+      const [whs, prods] = await Promise.all([warehouses.list(), productsApi.listAll()]);
       setWarehouseList(whs);
       const m: Record<number, string> = {};
       whs.forEach((w: any) => { m[w.id] = w.name; });
