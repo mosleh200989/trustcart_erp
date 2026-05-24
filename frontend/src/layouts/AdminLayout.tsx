@@ -703,7 +703,7 @@ function getPanelTitleFromRoleSlugs(roleSlugs: Set<string>): string {
   return 'Admin Panel';
 }
 
-const PRESENCE_IDLE_TIMEOUT_MS = 3 * 60 * 1000;
+const PRESENCE_IDLE_TIMEOUT_MS = 30 * 60 * 1000;
 const PRESENCE_ACTIVE_SYNC_MS = 30 * 1000;
 const PRESENCE_HEARTBEAT_MS = 60 * 1000;
 

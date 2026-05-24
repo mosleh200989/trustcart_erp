@@ -41,7 +41,7 @@ function cleanColor(value: any, fallback: string): string {
   return /^#[0-9a-fA-F]{6}$/.test(next) ? next : fallback;
 }
 
-const PRESENCE_STALE_TIMEOUT_MS = 3 * 60 * 1000;
+const PRESENCE_STALE_TIMEOUT_MS = 10 * 60 * 1000;
 
 @Injectable()
 export class PresenceService {
