@@ -408,7 +408,14 @@ export class SalesService {
         result.eligibleAgents = agents.length;
         if (agents.length === 0) return result;
 
-        const orderParams: any[] = [this.webOrderSources, Math.max(1, Math.min(500, Number(options.limit || 100)))];
+        const eligibleWorkTypes = Array.from(new Set(agents.flatMap((agent) => agent.workTypes)));
+        if (eligibleWorkTypes.length === 0) return result;
+
+        const orderParams: any[] = [
+          this.webOrderSources,
+          Math.max(1, Math.min(500, Number(options.limit || 100))),
+          eligibleWorkTypes,
+        ];
         let orderIdClause = '';
         if (Number.isFinite(Number(options.orderId)) && Number(options.orderId) > 0) {
           orderParams.push(Number(options.orderId));
@@ -438,6 +445,14 @@ export class SalesService {
                  LOWER(status::text) = 'admin_cancelled'
                  OR LOWER(status::text) = 'processing'
                )
+               AND (
+                 CASE
+                   WHEN LOWER(status::text) = 'admin_cancelled' THEN 'rejected_recovery'
+                   WHEN LOWER(status::text) = 'processing'
+                    AND LOWER(COALESCE(telephony_outcome, '')) IN ('no_answer', 'unreachable') THEN 'unreachable_followup'
+                   ELSE 'primary_leads'
+                 END
+               ) = ANY($3)
                ${orderIdClause}
              UNION ALL
              SELECT id,
@@ -447,6 +462,7 @@ export class SalesService {
              FROM incomplete_orders
              WHERE assigned_to IS NULL
                AND COALESCE(converted_to_order, FALSE) = FALSE
+               AND 'incomplete_recovery' = ANY($3)
                AND ${orderIdClause ? 'FALSE' : 'TRUE'}
              ORDER BY created_at ASC, id ASC
              LIMIT $2
