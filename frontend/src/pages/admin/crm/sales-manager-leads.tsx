@@ -16,6 +16,7 @@ interface Lead {
   customerType: string;
   lifecycleStage: string;
   assigned_supervisor_id: number | null;
+  address: string | null;
   city: string | null;
   district: string | null;
   source: string | null;
@@ -80,6 +81,8 @@ const SalesManagerLeadAssignment = () => {
   const [tlFilter, setTlFilter] = useState('');
   const [lifecycleFilter, setLifecycleFilter] = useState('');
   const [productFilter, setProductFilter] = useState('');
+  const [deliveryDateFilter, setDeliveryDateFilter] = useState('');
+  const [addressFilter, setAddressFilter] = useState('');
   const [segmentFilter, setSegmentFilter] = useState<'' | 'new' | 'legacy' | 'mixed'>('');
   const [rejectedStatusFilter, setRejectedStatusFilter] = useState<'non_rejected' | 'rejected' | 'all'>('non_rejected');
   const [rowsPerPage, setRowsPerPage] = useState(200);
@@ -113,6 +116,8 @@ const SalesManagerLeadAssignment = () => {
       if (tlFilter) params.set('supervisor', tlFilter);
       if (lifecycleFilter) params.set('lifecycleStage', lifecycleFilter);
       if (productFilter) params.set('productName', productFilter);
+      if (deliveryDateFilter) params.set('deliveryDate', deliveryDateFilter);
+      if (addressFilter.trim()) params.set('address', addressFilter.trim());
       if (segmentFilter) params.set('orderSegment', segmentFilter);
       if (rejectedStatusFilter !== 'non_rejected') params.set('rejectedStatus', rejectedStatusFilter);
 
@@ -127,7 +132,7 @@ const SalesManagerLeadAssignment = () => {
     } finally {
       setLoading(false);
     }
-  }, [search, assignmentStatus, tierFilter, tlFilter, lifecycleFilter, productFilter, segmentFilter, rejectedStatusFilter, rowsPerPage, toast]);
+  }, [search, assignmentStatus, tierFilter, tlFilter, lifecycleFilter, productFilter, deliveryDateFilter, addressFilter, segmentFilter, rejectedStatusFilter, rowsPerPage, toast]);
 
   const fetchTeamLeaders = useCallback(async () => {
     try {
@@ -411,6 +416,22 @@ const SalesManagerLeadAssignment = () => {
                 className="border border-gray-300 rounded-lg px-3 py-2 text-sm w-full"
               />
             </div>
+
+            <input
+              type="date"
+              value={deliveryDateFilter}
+              onChange={e => setDeliveryDateFilter(e.target.value)}
+              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              title="Delivery Date"
+            />
+
+            <input
+              type="text"
+              placeholder="Address, city, district..."
+              value={addressFilter}
+              onChange={e => setAddressFilter(e.target.value)}
+              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+            />
           </div>
 
           <div className="flex items-center justify-between gap-3 flex-wrap">

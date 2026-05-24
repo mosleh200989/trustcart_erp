@@ -15,6 +15,11 @@ interface DashboardOverview {
   repeatRate: number;
   vipRetention30: number;
   pendingFromPreviousDays: number;
+  activeAssignedOrders: number;
+  approvedOrdersToday: number;
+  upsellToday: number;
+  crossSellToday: number;
+  rejectedOrdersToday: number;
 }
 
 interface TierStats {
@@ -183,10 +188,7 @@ const SalesTeamLeaderDashboard = () => {
           </div>
 
           {/* Quick Actions */}
-          <nav aria-label="Quick actions" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
-            <Link href="/admin/crm/leads" className="bg-blue-600 text-white text-center rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-400 focus:outline-none min-h-[48px] px-3 py-3 flex items-center justify-center">
-              View and Manage Leads
-            </Link>
+          <nav aria-label="Quick actions" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             <Link href="/admin/crm/team/followups" className="bg-yellow-600 text-white text-center rounded-lg hover:bg-yellow-700 focus:ring-2 focus:ring-yellow-400 focus:outline-none min-h-[48px] px-3 py-3 flex items-center justify-center">
               Track Follow-ups
             </Link>
@@ -197,31 +199,35 @@ const SalesTeamLeaderDashboard = () => {
               View Reports
             </Link> */}
             <Link href="/admin/crm/teams" className="bg-pink-600 text-white text-center rounded-lg hover:bg-pink-700 focus:ring-2 focus:ring-pink-400 focus:outline-none min-h-[48px] px-3 py-3 flex items-center justify-center">
-              Manage Teams
+              Manage My Teams
             </Link>
             <Link href="/admin/crm/agent-tiers" className="bg-amber-600 text-white text-center rounded-lg hover:bg-amber-700 focus:ring-2 focus:ring-amber-400 focus:outline-none min-h-[48px] px-3 py-3 flex items-center justify-center">
-              Agents Tiers
+              Agents&apos; Commission Tier
             </Link>
           </nav>
         </div>
 
         {/* Overview Cards */}
-        <div className="grid md:grid-cols-4 gap-6 mb-8" role="region" aria-label="Key metrics overview">
-          <div className="bg-white p-6 rounded-lg shadow" role="group" aria-label="Total customers">
-            <div className="text-gray-600 text-sm mb-2">Total Customers (TL Coverage)</div>
-            <div className="text-3xl font-bold text-blue-600" aria-live="polite">{dashboard?.overview?.totalCustomers ?? 0}</div>
+        <div className="grid md:grid-cols-2 xl:grid-cols-5 gap-6 mb-8" role="region" aria-label="Key metrics overview">
+          <div className="bg-white p-6 rounded-lg shadow" role="group" aria-label="Current active assigned orders">
+            <div className="text-gray-600 text-sm mb-2">Current Active Assigned Orders</div>
+            <div className="text-3xl font-bold text-blue-600" aria-live="polite">{dashboard?.overview?.activeAssignedOrders ?? 0}</div>
           </div>
-          <div className="bg-white p-6 rounded-lg shadow" role="group" aria-label="Repeat rate">
-            <div className="text-gray-600 text-sm mb-2">Repeat Rate</div>
-            <div className="text-3xl font-bold text-green-600" aria-live="polite">{dashboard?.overview?.repeatRate ?? 0}%</div>
+          <div className="bg-white p-6 rounded-lg shadow" role="group" aria-label="Approved orders today">
+            <div className="text-gray-600 text-sm mb-2">Total Approved Orders Today</div>
+            <div className="text-3xl font-bold text-green-600" aria-live="polite">{dashboard?.overview?.approvedOrdersToday ?? 0}</div>
           </div>
-          <div className="bg-white p-6 rounded-lg shadow" role="group" aria-label="VIP retention 30 days">
-            <div className="text-gray-600 text-sm mb-2">VIP/Permanent Active (30d)</div>
-            <div className="text-3xl font-bold text-purple-600" aria-live="polite">{dashboard?.overview?.vipRetention30 ?? 0}%</div>
+          <div className="bg-white p-6 rounded-lg shadow" role="group" aria-label="Upsell today">
+            <div className="text-gray-600 text-sm mb-2">Total Upsell Today</div>
+            <div className="text-3xl font-bold text-orange-600" aria-live="polite">{dashboard?.overview?.upsellToday ?? 0}</div>
           </div>
-          <div className="bg-white p-6 rounded-lg shadow" role="group" aria-label="Pending from previous days">
-            <div className="text-gray-600 text-sm mb-2">Pending From Previous Days</div>
-            <div className="text-3xl font-bold text-red-600" aria-live="polite">{dashboard?.overview?.pendingFromPreviousDays ?? 0}</div>
+          <div className="bg-white p-6 rounded-lg shadow" role="group" aria-label="Cross sell today">
+            <div className="text-gray-600 text-sm mb-2">Total Cross Sell Today</div>
+            <div className="text-3xl font-bold text-purple-600" aria-live="polite">{dashboard?.overview?.crossSellToday ?? 0}</div>
+          </div>
+          <div className="bg-white p-6 rounded-lg shadow" role="group" aria-label="Rejected orders today">
+            <div className="text-gray-600 text-sm mb-2">Total Rejected Orders Today</div>
+            <div className="text-3xl font-bold text-red-600" aria-live="polite">{dashboard?.overview?.rejectedOrdersToday ?? 0}</div>
           </div>
         </div>
 

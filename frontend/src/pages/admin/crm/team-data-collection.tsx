@@ -1,615 +1,401 @@
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/router';
+import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
+import {
+  FaChartLine,
+  FaClipboardList,
+  FaDownload,
+  FaRedo,
+  FaUsers,
+  FaUserCheck,
+} from 'react-icons/fa';
 import AdminLayout from '@/layouts/AdminLayout';
 import apiClient from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/contexts/ToastContext';
+import { getDhakaDateString } from '@/utils/dhakaDate';
 
-type TeamTab = { id: number; name: string; code: string };
+type WorkType = 'primary_leads' | 'unreachable_followup' | 'incomplete_recovery' | 'rejected_recovery';
+
+const WORK_TYPE_META: Record<WorkType, { label: string; tone: string }> = {
+  primary_leads: { label: 'Primary Leads', tone: 'bg-blue-50 text-blue-700 border-blue-200' },
+  unreachable_followup: { label: 'Unreachable Follow-up', tone: 'bg-amber-50 text-amber-700 border-amber-200' },
+  incomplete_recovery: { label: 'Incomplete Recovery', tone: 'bg-purple-50 text-purple-700 border-purple-200' },
+  rejected_recovery: { label: 'Rejected Recovery', tone: 'bg-rose-50 text-rose-700 border-rose-200' },
+};
+
+type TeamLeaderOption = { id: number; name: string; email: string };
+
+type TeamReport = {
+  teamLeaderId: number;
+  from: string;
+  to: string;
+  settings: { isEnabled: boolean; teamLeaderName: string | null };
+  summary: {
+    teams: number;
+    agents: number;
+    onlineAgents: number;
+    activeOrders: number;
+    assignedInRange: number;
+    pendingQueue: number;
+    unreachableOutcomes: number;
+  };
+  queueSummary: Array<{ workType: WorkType; count: number }>;
+  teams: Array<{
+    id: number;
+    name: string;
+    code?: string | null;
+    workTypes: WorkType[];
+    agentCount: number;
+    onlineAgents: number;
+    activeOrders: number;
+    activeSalesOrders: number;
+    activeIncompleteOrders: number;
+    assignedInRange: number;
+    salesAssignedInRange: number;
+    incompleteAssignedInRange: number;
+    unreachableOutcomes: number;
+    positiveOutcomes: number;
+  }>;
+  agents: Array<{
+    id: number;
+    name: string;
+    email: string;
+    teamName: string;
+    teamCode?: string | null;
+    presenceState: string;
+    activeOrders: number;
+    assignedInRange: number;
+    callsLogged: number;
+    positiveOutcomes: number;
+    unreachableOutcomes: number;
+  }>;
+  recentAssignments: Array<{
+    id: number;
+    order_id?: number | null;
+    incomplete_order_id?: number | null;
+    record_type?: string | null;
+    agent_name?: string | null;
+    reason: string;
+    created_at: string;
+  }>;
+};
+
+const numberFormat = new Intl.NumberFormat('en-US');
+
+function formatNumber(value: number | undefined) {
+  return numberFormat.format(Number(value || 0));
+}
+
+function formatDateTime(value?: string) {
+  if (!value) return '-';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return '-';
+  return d.toLocaleString('en-GB', {
+    timeZone: 'Asia/Dhaka',
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function workTypeLabel(workType: string) {
+  return WORK_TYPE_META[workType as WorkType]?.label || workType.replace(/_/g, ' ');
+}
 
 export default function TeamDataCollectionPage() {
-  const router = useRouter();
-  const { isAuthenticated } = useAuth();
   const toast = useToast();
-  const [activeTeam, setActiveTeam] = useState('A');
-  const [teamTabs, setTeamTabs] = useState<TeamTab[]>([]);
-  const [assignments, setAssignments] = useState<any[]>([]);
-  const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
+  const { user } = useAuth();
+  const canChooseTeamLeader = ['super-admin', 'admin', 'sales-manager'].includes(String(user?.roleSlug || '').toLowerCase());
+  const today = getDhakaDateString();
+  const [from, setFrom] = useState(today);
+  const [to, setTo] = useState(today);
+  const [teamLeaderId, setTeamLeaderId] = useState('');
+  const [teamLeaders, setTeamLeaders] = useState<TeamLeaderOption[]>([]);
+  const [report, setReport] = useState<TeamReport | null>(null);
   const [loading, setLoading] = useState(true);
-  const [showDataModal, setShowDataModal] = useState(false);
 
-  // Team A Form State
-  const [teamAData, setTeamAData] = useState({
-    gender: '',
-    profession: '',
-    productInterest: [] as string[],
-    orderProductDetails: {},
-    notes: '',
-  });
-
-  // Team B Form State
-  const [teamBData, setTeamBData] = useState({
-    dateOfBirth: '',
-    marriageDay: '',
-    productInterest: [] as string[],
-    orderProductDetails: {},
-    notes: '',
-  });
-
-  // Team C Form State
-  const [teamCData, setTeamCData] = useState({
-    productInterest: [] as string[],
-    orderProductDetails: {},
-    notes: '',
-  });
-
-  // Team D Form State
-  const [teamDData, setTeamDData] = useState({
-    healthCardNumber: '',
-    healthCardExpiry: '',
-    membershipCardNumber: '',
-    membershipCardType: '',
-    membershipExpiry: '',
-    couponCodes: [] as string[],
-    productInterest: [] as string[],
-    orderProductDetails: {},
-    notes: '',
-  });
-
-  // Team E Form State
-  const [teamEData, setTeamEData] = useState({
-    permanentMembershipNumber: '',
-    membershipTier: 'silver',
-    membershipStartDate: '',
-    membershipBenefits: {},
-    lifetimeValue: 0,
-    notes: '',
-  });
-
-  useEffect(() => {
-    loadTeams();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    fetchMyAssignments();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTeam]);
-
-  const loadTeams = async () => {
+  const loadTeamLeaders = async () => {
+    if (!canChooseTeamLeader) return;
     try {
-      if (!isAuthenticated) {
-        router.replace('/admin/login');
-        return;
-      }
-
-      const res = await apiClient.get('/crm/team/teams');
-      const all = Array.isArray((res as any)?.data) ? (res as any).data : [];
-      const allowed = new Set(['A', 'B', 'C', 'D', 'E']);
-      const normalized: TeamTab[] = all
-        .map((t: any) => ({
-          id: Number(t.id),
-          name: String(t.name || '').trim() || `Team ${String(t.code || '').trim()}`,
-          code: String(t.code || '').trim().toUpperCase(),
-        }))
-        .filter((t: TeamTab) => Number.isFinite(t.id) && allowed.has(t.code));
-
-      normalized.sort((a, b) => a.code.localeCompare(b.code));
-      setTeamTabs(normalized);
-
-      // Ensure active tab is valid
-      if (!allowed.has(String(activeTeam || '').toUpperCase())) {
-        setActiveTeam('A');
-        return;
-      }
-      if (normalized.length && !normalized.some((t) => t.code === String(activeTeam).toUpperCase())) {
-        setActiveTeam(normalized[0].code);
-        return;
-      }
-
-      // Assignments are fetched by the activeTeam effect.
-    } catch (error) {
-      console.error('Failed to load teams', error);
-      setTeamTabs([]);
+      const response = await apiClient.get('/sales/automatic-assignment/team-leaders');
+      const rows = Array.isArray(response.data) ? response.data : [];
+      setTeamLeaders(rows);
+      if (!teamLeaderId && rows.length > 0) setTeamLeaderId(String(rows[0].id));
+    } catch {
+      setTeamLeaders([]);
     }
   };
 
-  const fetchMyAssignments = async () => {
+  const loadReport = async () => {
+    setLoading(true);
     try {
-      if (!isAuthenticated) {
-        router.replace('/admin/login');
-        return;
-      }
-
-      const res = await apiClient.get('/lead-management/assignment/my', {
-        params: { teamType: activeTeam, status: 'pending' },
-      });
-      const data = Array.isArray((res as any)?.data) ? (res as any).data : [];
-      setAssignments(data);
-    } catch (error) {
-      console.error('Error fetching assignments:', error);
-      setAssignments([]);
+      const params: Record<string, string> = { from, to };
+      if (teamLeaderId) params.teamLeaderId = teamLeaderId;
+      const response = await apiClient.get('/sales/automatic-assignment/team-report', { params });
+      setReport(response.data);
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || 'Failed to load team report');
+      setReport(null);
     } finally {
       setLoading(false);
     }
   };
 
-  const openDataModal = async (assignment: any) => {
-    setSelectedCustomer(assignment);
-    setShowDataModal(true);
+  useEffect(() => {
+    loadTeamLeaders();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canChooseTeamLeader]);
 
-    // Load existing data if any
-    try {
-      const response = await apiClient.get(`/lead-management/team-${activeTeam.toLowerCase()}/${assignment.customerId}`);
-      const existingData = (response as any)?.data;
-      if (existingData) {
-          switch (activeTeam) {
-            case 'A':
-              setTeamAData(existingData);
-              break;
-            case 'B':
-              setTeamBData(existingData);
-              break;
-            case 'C':
-              setTeamCData(existingData);
-              break;
-            case 'D':
-              setTeamDData(existingData);
-              break;
-            case 'E':
-              setTeamEData(existingData);
-              break;
-          }
-      }
-    } catch (error) {
-      console.error('Error loading existing data:', error);
-    }
+  useEffect(() => {
+    loadReport();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [from, to, teamLeaderId]);
+
+  const topTeams = useMemo(() => {
+    return [...(report?.teams || [])].sort((a, b) => b.assignedInRange - a.assignedInRange).slice(0, 3);
+  }, [report?.teams]);
+
+  const exportCsv = () => {
+    if (!report) return;
+    const header = ['Team', 'Code', 'Work Types', 'Agents', 'Online', 'Active Orders', 'Assigned', 'Positive', 'Unreachable'];
+    const rows = report.teams.map((team) => [
+      team.name,
+      team.code || '',
+      team.workTypes.map(workTypeLabel).join(' + '),
+      team.agentCount,
+      team.onlineAgents,
+      team.activeOrders,
+      team.assignedInRange,
+      team.positiveOutcomes,
+      team.unreachableOutcomes,
+    ]);
+    const csv = [header, ...rows].map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `team-report-${report.from}-to-${report.to}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
   };
-
-  const handleSaveData = async () => {
-    if (!selectedCustomer) return;
-
-    try {
-      let dataToSave: any = { customerId: selectedCustomer.customerId };
-
-      switch (activeTeam) {
-        case 'A':
-          dataToSave = { ...dataToSave, ...teamAData };
-          break;
-        case 'B':
-          dataToSave = { ...dataToSave, ...teamBData };
-          break;
-        case 'C':
-          dataToSave = { ...dataToSave, ...teamCData };
-          break;
-        case 'D':
-          dataToSave = { ...dataToSave, ...teamDData };
-          break;
-        case 'E':
-          dataToSave = { ...dataToSave, ...teamEData };
-          break;
-      }
-
-      await apiClient.post(`/lead-management/team-${activeTeam.toLowerCase()}`, dataToSave);
-
-      // Mark assignment as completed
-      await apiClient.put(`/lead-management/assignment/${selectedCustomer.id}/status`, {
-        status: 'completed',
-      });
-
-      toast.success('Data saved successfully!');
-      setShowDataModal(false);
-      fetchMyAssignments();
-    } catch (error) {
-      console.error('Error saving data:', error);
-      toast.error('Failed to save data');
-    }
-  };
-
-  const renderTeamAForm = () => (
-    <div className="space-y-4">
-      <div>
-        <label className="block text-sm font-medium mb-2">Gender</label>
-        <select
-          value={teamAData.gender}
-          onChange={(e) => setTeamAData({ ...teamAData, gender: e.target.value })}
-          className="w-full border rounded-lg p-2"
-        >
-          <option value="">Select Gender</option>
-          <option value="male">Male</option>
-          <option value="female">Female</option>
-          <option value="other">Other</option>
-        </select>
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium mb-2">Profession</label>
-        <input
-          type="text"
-          value={teamAData.profession}
-          onChange={(e) => setTeamAData({ ...teamAData, profession: e.target.value })}
-          className="w-full border rounded-lg p-2"
-          placeholder="Enter profession"
-        />
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium mb-2">Product Interest (comma-separated)</label>
-        <input
-          type="text"
-          value={teamAData.productInterest.join(', ')}
-          onChange={(e) => setTeamAData({ ...teamAData, productInterest: e.target.value.split(',').map(s => s.trim()) })}
-          className="w-full border rounded-lg p-2"
-          placeholder="Electronics, Fashion, Home"
-        />
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium mb-2">Notes</label>
-        <textarea
-          value={teamAData.notes}
-          onChange={(e) => setTeamAData({ ...teamAData, notes: e.target.value })}
-          className="w-full border rounded-lg p-2"
-          rows={3}
-        />
-      </div>
-    </div>
-  );
-
-  const renderTeamBForm = () => (
-    <div className="space-y-4">
-      <div>
-        <label className="block text-sm font-medium mb-2">Date of Birth</label>
-        <input
-          type="date"
-          value={teamBData.dateOfBirth}
-          onChange={(e) => setTeamBData({ ...teamBData, dateOfBirth: e.target.value })}
-          className="w-full border rounded-lg p-2"
-        />
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium mb-2">Marriage Day</label>
-        <input
-          type="date"
-          value={teamBData.marriageDay}
-          onChange={(e) => setTeamBData({ ...teamBData, marriageDay: e.target.value })}
-          className="w-full border rounded-lg p-2"
-        />
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium mb-2">Product Interest (comma-separated)</label>
-        <input
-          type="text"
-          value={teamBData.productInterest.join(', ')}
-          onChange={(e) => setTeamBData({ ...teamBData, productInterest: e.target.value.split(',').map(s => s.trim()) })}
-          className="w-full border rounded-lg p-2"
-          placeholder="Electronics, Fashion, Home"
-        />
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium mb-2">Notes</label>
-        <textarea
-          value={teamBData.notes}
-          onChange={(e) => setTeamBData({ ...teamBData, notes: e.target.value })}
-          className="w-full border rounded-lg p-2"
-          rows={3}
-        />
-      </div>
-    </div>
-  );
-
-  const renderTeamCForm = () => (
-    <div className="space-y-4">
-      <div className="p-4 bg-blue-50 text-blue-700 rounded">
-        Team C collects family member information. Use the CDM Family Members section to add family data.
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium mb-2">Product Interest (comma-separated)</label>
-        <input
-          type="text"
-          value={teamCData.productInterest.join(', ')}
-          onChange={(e) => setTeamCData({ ...teamCData, productInterest: e.target.value.split(',').map(s => s.trim()) })}
-          className="w-full border rounded-lg p-2"
-          placeholder="Electronics, Fashion, Home"
-        />
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium mb-2">Notes</label>
-        <textarea
-          value={teamCData.notes}
-          onChange={(e) => setTeamCData({ ...teamCData, notes: e.target.value })}
-          className="w-full border rounded-lg p-2"
-          rows={3}
-        />
-      </div>
-    </div>
-  );
-
-  const renderTeamDForm = () => (
-    <div className="space-y-4">
-      <div>
-        <label className="block text-sm font-medium mb-2">Health Card Number</label>
-        <input
-          type="text"
-          value={teamDData.healthCardNumber}
-          onChange={(e) => setTeamDData({ ...teamDData, healthCardNumber: e.target.value })}
-          className="w-full border rounded-lg p-2"
-        />
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium mb-2">Health Card Expiry</label>
-        <input
-          type="date"
-          value={teamDData.healthCardExpiry}
-          onChange={(e) => setTeamDData({ ...teamDData, healthCardExpiry: e.target.value })}
-          className="w-full border rounded-lg p-2"
-        />
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium mb-2">Membership Card Number</label>
-        <input
-          type="text"
-          value={teamDData.membershipCardNumber}
-          onChange={(e) => setTeamDData({ ...teamDData, membershipCardNumber: e.target.value })}
-          className="w-full border rounded-lg p-2"
-        />
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium mb-2">Membership Card Type</label>
-        <select
-          value={teamDData.membershipCardType}
-          onChange={(e) => setTeamDData({ ...teamDData, membershipCardType: e.target.value })}
-          className="w-full border rounded-lg p-2"
-        >
-          <option value="">Select Type</option>
-          <option value="Basic">Basic</option>
-          <option value="Silver">Silver</option>
-          <option value="Gold">Gold</option>
-          <option value="Platinum">Platinum</option>
-        </select>
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium mb-2">Membership Expiry</label>
-        <input
-          type="date"
-          value={teamDData.membershipExpiry}
-          onChange={(e) => setTeamDData({ ...teamDData, membershipExpiry: e.target.value })}
-          className="w-full border rounded-lg p-2"
-        />
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium mb-2">Coupon Codes (comma-separated)</label>
-        <input
-          type="text"
-          value={teamDData.couponCodes.join(', ')}
-          onChange={(e) => setTeamDData({ ...teamDData, couponCodes: e.target.value.split(',').map(s => s.trim()) })}
-          className="w-full border rounded-lg p-2"
-          placeholder="SAVE10, DISCOUNT20"
-        />
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium mb-2">Product Interest (comma-separated)</label>
-        <input
-          type="text"
-          value={teamDData.productInterest.join(', ')}
-          onChange={(e) => setTeamDData({ ...teamDData, productInterest: e.target.value.split(',').map(s => s.trim()) })}
-          className="w-full border rounded-lg p-2"
-          placeholder="Electronics, Fashion, Home"
-        />
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium mb-2">Notes</label>
-        <textarea
-          value={teamDData.notes}
-          onChange={(e) => setTeamDData({ ...teamDData, notes: e.target.value })}
-          className="w-full border rounded-lg p-2"
-          rows={3}
-        />
-      </div>
-    </div>
-  );
-
-  const renderTeamEForm = () => (
-    <div className="space-y-4">
-      <div>
-        <label className="block text-sm font-medium mb-2">Permanent Membership Number</label>
-        <input
-          type="text"
-          value={teamEData.permanentMembershipNumber}
-          onChange={(e) => setTeamEData({ ...teamEData, permanentMembershipNumber: e.target.value })}
-          className="w-full border rounded-lg p-2"
-        />
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium mb-2">Membership Tier</label>
-        <select
-          value={teamEData.membershipTier}
-          onChange={(e) => setTeamEData({ ...teamEData, membershipTier: e.target.value })}
-          className="w-full border rounded-lg p-2"
-        >
-          <option value="silver">Silver</option>
-          <option value="gold">Gold</option>
-          <option value="platinum">Platinum</option>
-          <option value="vip">VIP</option>
-          <option value="blacklist">Black List</option>
-          <option value="rejected">Rejected</option>
-        </select>
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium mb-2">Membership Start Date</label>
-        <input
-          type="date"
-          value={teamEData.membershipStartDate}
-          onChange={(e) => setTeamEData({ ...teamEData, membershipStartDate: e.target.value })}
-          className="w-full border rounded-lg p-2"
-        />
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium mb-2">Lifetime Value (৳)</label>
-        <input
-          type="number"
-          value={teamEData.lifetimeValue}
-          onChange={(e) => setTeamEData({ ...teamEData, lifetimeValue: parseFloat(e.target.value) })}
-          className="w-full border rounded-lg p-2"
-        />
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium mb-2">Notes</label>
-        <textarea
-          value={teamEData.notes}
-          onChange={(e) => setTeamEData({ ...teamEData, notes: e.target.value })}
-          className="w-full border rounded-lg p-2"
-          rows={3}
-        />
-      </div>
-    </div>
-  );
 
   return (
     <AdminLayout>
-      <div className="p-6">
-        <div className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-800">Team Data Collection</h1>
-          <p className="text-gray-600">Collect customer information based on your team assignment</p>
-        </div>
-
-        {/* Team Tabs */}
-        <div className="mb-6">
-          <div className="flex space-x-2 border-b">
-            {(teamTabs.length ? teamTabs : [
-              { id: 0, name: 'Team A', code: 'A' },
-              { id: 1, name: 'Team B', code: 'B' },
-              { id: 2, name: 'Team C', code: 'C' },
-              { id: 3, name: 'Team D', code: 'D' },
-              { id: 4, name: 'Team E', code: 'E' },
-            ]).map((team) => (
-              <button
-                key={team.code}
-                onClick={() => {
-                  setActiveTeam(team.code);
-                  setLoading(true);
-                }}
-                className={`px-6 py-3 font-semibold ${
-                  activeTeam === team.code
-                    ? 'border-b-2 border-blue-600 text-blue-600'
-                    : 'text-gray-600 hover:text-gray-800'
-                }`}
-              >
-                {team.name}
-              </button>
-            ))}
+      <div className="space-y-6 p-4 md:p-6">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <h1 className="flex items-center gap-2 text-3xl font-bold text-gray-900">
+              <FaChartLine className="text-blue-600" />
+              Team Performance Report
+            </h1>
+            <p className="mt-1 text-sm text-gray-500">
+              All-in-one queue, team, and agent performance for Team A, Team B, Team C and future teams.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-end gap-3">
+            {canChooseTeamLeader && (
+              <div>
+                <label className="mb-1 block text-xs font-medium uppercase text-gray-500">Team Leader</label>
+                <select value={teamLeaderId} onChange={(e) => setTeamLeaderId(e.target.value)} className="rounded-lg border px-3 py-2 text-sm">
+                  {teamLeaders.map((teamLeader) => (
+                    <option key={teamLeader.id} value={teamLeader.id}>{teamLeader.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+            <div>
+              <label className="mb-1 block text-xs font-medium uppercase text-gray-500">From</label>
+              <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="rounded-lg border px-3 py-2 text-sm" />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium uppercase text-gray-500">To</label>
+              <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="rounded-lg border px-3 py-2 text-sm" />
+            </div>
+            <button onClick={loadReport} disabled={loading} className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50">
+              <FaRedo /> Refresh
+            </button>
+            <button onClick={exportCsv} disabled={!report} className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50">
+              <FaDownload /> Export
+            </button>
           </div>
         </div>
 
-        {/* Team Description */}
-        <div className="mb-4 p-4 bg-blue-50 text-blue-800 rounded-lg">
-          {activeTeam === 'A' && '📝 Team A collects: Gender, Profession, Product Interest'}
-          {activeTeam === 'B' && '📅 Team B collects: Date of Birth, Marriage Day, Product Interest'}
-          {activeTeam === 'C' && '👨‍👩‍👧‍👦 Team C collects: Family Members information, Product Interest'}
-          {activeTeam === 'D' && '💳 Team D collects: Health Card, Membership Card, Coupon, Product Interest'}
-          {activeTeam === 'E' && '⭐ Team E collects: Permanent Membership details'}
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-6">
+          {[
+            ['Teams', report?.summary.teams, 'text-blue-700'],
+            ['Agents', report?.summary.agents, 'text-gray-900'],
+            ['Online Agents', report?.summary.onlineAgents, 'text-emerald-700'],
+            ['Active Orders', report?.summary.activeOrders, 'text-indigo-700'],
+            ['Assigned in Range', report?.summary.assignedInRange, 'text-purple-700'],
+            ['Pending Queue', report?.summary.pendingQueue, 'text-amber-700'],
+          ].map(([label, value, color]) => (
+            <div key={String(label)} className="rounded-lg bg-white p-4 shadow">
+              <div className="text-sm text-gray-500">{label}</div>
+              <div className={`mt-1 text-2xl font-bold ${color}`}>{formatNumber(Number(value || 0))}</div>
+            </div>
+          ))}
         </div>
 
-        {/* Assignments Table */}
-        <div className="bg-white rounded-lg shadow">
-          <div className="px-6 py-4 border-b">
-            <h2 className="text-xl font-semibold">My Pending Assignments ({assignments.length})</h2>
-          </div>
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-4">
+          {(report?.queueSummary || []).map((queue) => {
+            const meta = WORK_TYPE_META[queue.workType];
+            return (
+              <div key={queue.workType} className={`rounded-lg border p-4 ${meta?.tone || 'bg-white text-gray-700 border-gray-200'}`}>
+                <div className="text-sm font-semibold">{meta?.label || queue.workType}</div>
+                <div className="mt-2 text-3xl font-bold">{formatNumber(queue.count)}</div>
+                <div className="mt-1 text-xs opacity-80">unassigned queue size</div>
+              </div>
+            );
+          })}
+        </div>
 
-          {loading ? (
-            <div className="p-6 text-center">Loading...</div>
-          ) : assignments.length === 0 ? (
-            <div className="p-6 text-center text-gray-500">No pending assignments for Team {activeTeam}</div>
-          ) : (
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+          <div className="rounded-lg bg-white p-5 shadow xl:col-span-2">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="flex items-center gap-2 text-lg font-semibold text-gray-900"><FaUsers className="text-blue-600" /> Team Scoreboard</h2>
+              <Link href="/admin/crm/automatic-assignment" className="text-sm font-semibold text-blue-600 hover:text-blue-800">Configure queues</Link>
+            </div>
             <div className="overflow-x-auto">
-              <table className="w-full">
+              <table className="w-full min-w-[900px]">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Customer ID</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Assigned Date</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Notes</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Action</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">Team</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">Work Type</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium uppercase text-gray-500">Agents</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium uppercase text-gray-500">Online</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium uppercase text-gray-500">Active</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium uppercase text-gray-500">Assigned</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium uppercase text-gray-500">Positive</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium uppercase text-gray-500">Unreachable</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
-                  {assignments.map((assignment) => (
-                    <tr key={assignment.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 font-medium">#{assignment.customerId}</td>
-                      <td className="px-6 py-4 text-sm">
-                        {new Date(assignment.assignedAt).toLocaleDateString()}
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className="px-2 py-1 bg-yellow-100 text-yellow-800 text-xs rounded">
-                          {assignment.status}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-sm">{assignment.notes || '-'}</td>
-                      <td className="px-6 py-4">
-                        <button
-                          onClick={() => openDataModal(assignment)}
-                          className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-                        >
-                          Collect Data
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                  {loading ? (
+                    <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-500">Loading report...</td></tr>
+                  ) : (report?.teams || []).length === 0 ? (
+                    <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-500">No teams found.</td></tr>
+                  ) : (
+                    report!.teams.map((team) => (
+                      <tr key={team.id} className="hover:bg-gray-50">
+                        <td className="px-4 py-3">
+                          <div className="font-semibold text-gray-900">{team.name}</div>
+                          <div className="text-xs text-gray-500">{team.code || `Team #${team.id}`}</div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex flex-wrap gap-1.5">
+                            {(team.workTypes || []).length ? team.workTypes.map((workType) => (
+                              <span key={workType} className={`rounded-full border px-2 py-1 text-xs font-semibold ${WORK_TYPE_META[workType]?.tone || 'border-gray-200 bg-gray-50 text-gray-600'}`}>
+                                {workTypeLabel(workType)}
+                              </span>
+                            )) : <span className="text-sm text-gray-400">Not configured</span>}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-right text-sm font-semibold">{formatNumber(team.agentCount)}</td>
+                        <td className="px-4 py-3 text-right text-sm text-emerald-700 font-semibold">{formatNumber(team.onlineAgents)}</td>
+                        <td className="px-4 py-3 text-right text-sm">{formatNumber(team.activeOrders)}</td>
+                        <td className="px-4 py-3 text-right text-sm font-semibold text-blue-700">{formatNumber(team.assignedInRange)}</td>
+                        <td className="px-4 py-3 text-right text-sm text-green-700">{formatNumber(team.positiveOutcomes)}</td>
+                        <td className="px-4 py-3 text-right text-sm text-amber-700">{formatNumber(team.unreachableOutcomes)}</td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
-          )}
-        </div>
+          </div>
 
-        {/* Data Collection Modal */}
-        {showDataModal && selectedCustomer && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg shadow-xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-              <h3 className="text-2xl font-bold mb-4">Collect Team {activeTeam} Data</h3>
-
-              <div className="mb-4 p-3 bg-gray-50 rounded">
-                <div className="font-semibold">Customer ID: #{selectedCustomer.customerId}</div>
-              </div>
-
-              {activeTeam === 'A' && renderTeamAForm()}
-              {activeTeam === 'B' && renderTeamBForm()}
-              {activeTeam === 'C' && renderTeamCForm()}
-              {activeTeam === 'D' && renderTeamDForm()}
-              {activeTeam === 'E' && renderTeamEForm()}
-
-              <div className="flex justify-end space-x-3 mt-6">
-                <button
-                  onClick={() => setShowDataModal(false)}
-                  className="px-4 py-2 border rounded-lg hover:bg-gray-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleSaveData}
-                  className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                >
-                  Save & Complete
-                </button>
-              </div>
+          <div className="rounded-lg bg-white p-5 shadow">
+            <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold text-gray-900"><FaClipboardList className="text-blue-600" /> Top Teams</h2>
+            <div className="space-y-3">
+              {topTeams.length === 0 ? (
+                <div className="rounded-lg bg-gray-50 p-4 text-sm text-gray-500">No assignment activity in this range.</div>
+              ) : topTeams.map((team, index) => (
+                <div key={team.id} className="rounded-lg border border-gray-200 p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-xs font-bold uppercase text-blue-600">Rank {index + 1}</div>
+                      <div className="font-semibold text-gray-900">{team.name}</div>
+                    </div>
+                    <div className="text-2xl font-bold text-blue-700">{formatNumber(team.assignedInRange)}</div>
+                  </div>
+                  <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-gray-600">
+                    <div>Active: <span className="font-semibold text-gray-900">{formatNumber(team.activeOrders)}</span></div>
+                    <div>Online: <span className="font-semibold text-gray-900">{formatNumber(team.onlineAgents)}</span></div>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
-        )}
+        </div>
+
+        <div className="rounded-lg bg-white shadow">
+          <div className="border-b p-4">
+            <h2 className="flex items-center gap-2 text-lg font-semibold text-gray-900"><FaUserCheck className="text-blue-600" /> Agent Performance</h2>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[920px]">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">Agent</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">Team</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-500">Presence</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium uppercase text-gray-500">Active</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium uppercase text-gray-500">Assigned</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium uppercase text-gray-500">Calls</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium uppercase text-gray-500">Positive</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium uppercase text-gray-500">Unreachable</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {(report?.agents || []).map((agent) => (
+                  <tr key={agent.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3">
+                      <div className="font-medium text-gray-900">{agent.name}</div>
+                      <div className="text-xs text-gray-500">{agent.email}</div>
+                    </td>
+                    <td className="px-4 py-3 text-sm">{agent.teamCode ? `${agent.teamCode} - ${agent.teamName}` : agent.teamName}</td>
+                    <td className="px-4 py-3">
+                      <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${agent.presenceState === 'online' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+                        {agent.presenceState === 'online' ? 'Online' : 'Offline'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-right text-sm">{formatNumber(agent.activeOrders)}</td>
+                    <td className="px-4 py-3 text-right text-sm font-semibold text-blue-700">{formatNumber(agent.assignedInRange)}</td>
+                    <td className="px-4 py-3 text-right text-sm">{formatNumber(agent.callsLogged)}</td>
+                    <td className="px-4 py-3 text-right text-sm text-green-700">{formatNumber(agent.positiveOutcomes)}</td>
+                    <td className="px-4 py-3 text-right text-sm text-amber-700">{formatNumber(agent.unreachableOutcomes)}</td>
+                  </tr>
+                ))}
+                {!loading && (report?.agents || []).length === 0 && (
+                  <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-500">No agents found for this team leader.</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div className="rounded-lg bg-white shadow">
+          <div className="border-b p-4">
+            <h2 className="text-lg font-semibold text-gray-900">Recent Automatic Assignments</h2>
+          </div>
+          <div className="divide-y divide-gray-100">
+            {(report?.recentAssignments || []).slice(0, 10).map((item) => (
+              <div key={item.id} className="flex flex-col gap-1 p-4 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <div className="font-semibold text-gray-900">
+                    {item.record_type === 'incomplete_order' ? `Incomplete #${item.incomplete_order_id}` : `Order #${item.order_id}`}
+                  </div>
+                  <div className="text-sm text-gray-500">{item.agent_name || 'Unassigned agent'} · {workTypeLabel(String(item.reason || '').split(':').pop() || '')}</div>
+                </div>
+                <div className="text-sm text-gray-500">{formatDateTime(item.created_at)}</div>
+              </div>
+            ))}
+            {!loading && (report?.recentAssignments || []).length === 0 && (
+              <div className="p-6 text-center text-gray-500">No recent automatic assignments.</div>
+            )}
+          </div>
+        </div>
       </div>
     </AdminLayout>
   );

@@ -180,6 +180,17 @@ export default function PrintingPage() {
     setSelectedRowIds([]);
   };
 
+  const getOrderSerial = useCallback((orderId: number) => {
+    const idx = orders.findIndex((o) => o.id === orderId);
+    return idx >= 0 ? (currentPage - 1) * itemsPerPage + idx + 1 : undefined;
+  }, [orders, currentPage, itemsPerPage]);
+
+  const orderSerials = orders.reduce<Record<number, number>>((acc, order) => {
+    const serial = getOrderSerial(order.id);
+    if (serial) acc[order.id] = serial;
+    return acc;
+  }, {});
+
   const activeFilterCount = Object.values(filters).filter((v) => {
     if (typeof v === 'boolean') return v;
     return String(v).trim() !== '';
@@ -348,10 +359,7 @@ export default function PrintingPage() {
     {
       key: 'serial',
       label: '#',
-      render: (_: any, row: PrintingOrder) => {
-        const idx = orders.findIndex((o) => o.id === row.id);
-        return (currentPage - 1) * itemsPerPage + idx + 1;
-      },
+      render: (_: any, row: PrintingOrder) => getOrderSerial(row.id) ?? '-',
     },
     {
       key: 'shippedAt',
@@ -394,12 +402,16 @@ export default function PrintingPage() {
         const items = row.items || [];
         if (items.length === 0) return <span className="text-gray-400 text-xs">No items</span>;
         return (
-          <div className="text-xs max-h-28 overflow-y-auto" style={{ whiteSpace: 'pre-line' }}>
+          <div className="max-h-32 overflow-y-auto space-y-1" style={{ whiteSpace: 'pre-line' }}>
             {items.map((item, idx) => (
-              <span key={idx}>
-                {item.productNameBn || item.productName}{item.variantName ? ` (${item.variantName})` : ''} <span className="text-gray-500">({item.quantity})</span>
-                {idx < items.length - 1 && <br />}
-              </span>
+              <div key={idx} className="flex items-start gap-2 text-sm leading-snug text-gray-900">
+                <span className="flex-1 font-semibold">
+                  {item.productNameBn || item.productName}{item.variantName ? ` (${item.variantName})` : ''}
+                </span>
+                <span className="inline-flex h-7 min-w-7 shrink-0 items-center justify-center rounded-full bg-rose-600 px-2 text-sm font-black text-white shadow-sm ring-2 ring-rose-100">
+                  {item.quantity}
+                </span>
+              </div>
             ))}
           </div>
         );
@@ -702,6 +714,7 @@ export default function PrintingPage() {
         {showStickerPrint && printOrderIds.length > 0 && (
           <StickerPrintModal
             orderIds={printOrderIds}
+            orderSerials={orderSerials}
             onClose={() => {
               setShowStickerPrint(false);
               setPrintOrderIds([]);

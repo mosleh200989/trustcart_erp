@@ -45,10 +45,11 @@ interface StickerData {
 
 interface StickerPrintModalProps {
   orderIds: number[];
+  orderSerials?: Record<number, number>;
   onClose: () => void;
 }
 
-export default function StickerPrintModal({ orderIds, onClose }: StickerPrintModalProps) {
+export default function StickerPrintModal({ orderIds, orderSerials = {}, onClose }: StickerPrintModalProps) {
   const [stickers, setStickers] = useState<StickerData[]>([]);
   const [printerSettings, setPrinterSettings] = useState<PrinterSetting | null>(null);
   const [loading, setLoading] = useState(true);
@@ -158,6 +159,81 @@ export default function StickerPrintModal({ orderIds, onClose }: StickerPrintMod
             font-weight: bold;
             margin-top: 2mm;
           }
+          .sticker-title-row {
+            display: grid;
+            grid-template-columns: 12mm 1fr 12mm;
+            align-items: center;
+            margin-bottom: 2px;
+          }
+          .serial-chip {
+            justify-self: start;
+            border: 1px solid #000;
+            border-radius: 2px;
+            padding: 1px 3px;
+            font-size: 8px;
+            line-height: 1.1;
+            font-weight: 700;
+          }
+          .company-title {
+            text-align: center;
+            font-size: 14px;
+            font-weight: 700;
+          }
+          .items-title {
+            font-weight: 700;
+            font-size: 10px;
+            margin-bottom: 1px;
+          }
+          .items-table {
+            width: 100%;
+            border-collapse: collapse;
+          }
+          .items-table th {
+            font-size: 9px;
+            padding: 1px 0;
+            border-bottom: 1px solid #000;
+          }
+          .items-table td {
+            padding: 2px 0;
+            vertical-align: top;
+          }
+          .item-product {
+            font-size: 11px;
+            line-height: 1.15;
+            font-weight: 700;
+          }
+          .item-qty {
+            display: inline-block;
+            min-width: 22px;
+            border: 1.5px solid #000;
+            border-radius: 999px;
+            padding: 1px 4px;
+            text-align: center;
+            font-size: 12px;
+            line-height: 1.15;
+            font-weight: 900;
+          }
+          .items-summary {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 2mm;
+            margin-top: 2mm;
+            padding-top: 1.5mm;
+            border-top: 1px solid #000;
+          }
+          .total-qty {
+            font-size: 10px;
+            font-weight: 700;
+          }
+          .cod-inline {
+            border: 2px solid #000;
+            padding: 1mm 1.5mm;
+            text-align: center;
+            font-size: 13px;
+            font-weight: 900;
+            white-space: nowrap;
+          }
           @media print {
             body { margin: 0; }
             .sticker-page { border: none; }
@@ -213,6 +289,83 @@ export default function StickerPrintModal({ orderIds, onClose }: StickerPrintMod
             <p className="text-center text-gray-500 py-16">No sticker data available</p>
           ) : (
             <div ref={printRef}>
+              <style>{`
+                .sticker-title-row {
+                  display: grid;
+                  grid-template-columns: 12mm 1fr 12mm;
+                  align-items: center;
+                  margin-bottom: 2px;
+                }
+                .serial-chip {
+                  justify-self: start;
+                  border: 1px solid #000;
+                  border-radius: 2px;
+                  padding: 1px 3px;
+                  font-size: 8px;
+                  line-height: 1.1;
+                  font-weight: 700;
+                }
+                .company-title {
+                  text-align: center;
+                  font-size: 14px;
+                  font-weight: 700;
+                }
+                .items-title {
+                  font-weight: 700;
+                  font-size: 10px;
+                  margin-bottom: 1px;
+                }
+                .items-table {
+                  width: 100%;
+                  border-collapse: collapse;
+                }
+                .items-table th {
+                  font-size: 9px;
+                  padding: 1px 0;
+                  border-bottom: 1px solid #000;
+                }
+                .items-table td {
+                  padding: 2px 0;
+                  vertical-align: top;
+                }
+                .item-product {
+                  font-size: 11px;
+                  line-height: 1.15;
+                  font-weight: 700;
+                }
+                .item-qty {
+                  display: inline-block;
+                  min-width: 22px;
+                  border: 1.5px solid #000;
+                  border-radius: 999px;
+                  padding: 1px 4px;
+                  text-align: center;
+                  font-size: 12px;
+                  line-height: 1.15;
+                  font-weight: 900;
+                }
+                .items-summary {
+                  display: flex;
+                  justify-content: space-between;
+                  align-items: center;
+                  gap: 2mm;
+                  margin-top: 2mm;
+                  padding-top: 1.5mm;
+                  border-top: 1px solid #000;
+                }
+                .total-qty {
+                  font-size: 10px;
+                  font-weight: 700;
+                }
+                .cod-inline {
+                  border: 2px solid #000;
+                  padding: 1mm 1.5mm;
+                  text-align: center;
+                  font-size: 13px;
+                  font-weight: 900;
+                  white-space: nowrap;
+                }
+              `}</style>
               {stickers.map((st, idx) => {
                 if (st.error) {
                   return (
@@ -223,6 +376,7 @@ export default function StickerPrintModal({ orderIds, onClose }: StickerPrintMod
                 }
 
                 const { order } = st;
+                const serial = orderSerials[order.id];
 
                 return (
                   <div
@@ -250,8 +404,12 @@ export default function StickerPrintModal({ orderIds, onClose }: StickerPrintMod
                       </div>
                     )}
 
-                    <div className="text-center font-bold text-lg mb-1">
-                      {printerSettings?.companyName || 'TrustCart'}
+                    <div className="sticker-title-row">
+                      <span className="serial-chip">{serial ? `SL ${serial}` : ''}</span>
+                      <div className="company-title">
+                        {printerSettings?.companyName || 'TrustCart'}
+                      </div>
+                      <span />
                     </div>
 
                     {printerSettings?.companyPhone && (
@@ -277,58 +435,33 @@ export default function StickerPrintModal({ orderIds, onClose }: StickerPrintMod
                       </div>
                     </div>
 
-                    {/* Address Box */}
-                    {order.shippingAddress && (
-                      <div
-                        style={{
-                          border: '1px solid #000',
-                          padding: '2mm',
-                          marginTop: '2mm',
-                          fontSize: '10px',
-                          minHeight: '15mm',
-                        }}
-                      >
-                        <div style={{ fontWeight: 'bold', fontSize: '9px', marginBottom: '1px' }}>Delivery Address:</div>
-                        {order.shippingAddress}
-                      </div>
-                    )}
-
-                    {/* Amount Box */}
-                    <div
-                      style={{
-                        border: '2px solid #000',
-                        padding: '2mm',
-                        textAlign: 'center',
-                        fontSize: '16px',
-                        fontWeight: 'bold',
-                        marginTop: '2mm',
-                      }}
-                    >
-                      COD: ৳{Number(order.totalAmount).toFixed(2)}
-                    </div>
-
                     {/* Items List */}
                     {st.items && st.items.length > 0 && (
                       <div style={{ marginTop: '2mm' }}>
                         <div style={{ borderTop: '1px solid #000', marginBottom: '1mm' }} />
-                        <div style={{ fontWeight: 'bold', fontSize: '9px', marginBottom: '1px' }}>Items:</div>
-                        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                        <div className="items-title">Items:</div>
+                        <table className="items-table">
                           <thead>
-                            <tr style={{ borderBottom: '1px solid #000' }}>
-                              <th style={{ textAlign: 'left', fontSize: '8px', padding: '1px 0' }}>Product</th>
-                              <th style={{ textAlign: 'right', fontSize: '8px', padding: '1px 0', width: '30px' }}>Qty</th>
+                            <tr>
+                              <th style={{ textAlign: 'left' }}>Product</th>
+                              <th style={{ textAlign: 'right', width: '34px' }}>Qty</th>
                             </tr>
                           </thead>
                           <tbody>
                             {st.items.map((item: any, i: number) => (
                               <tr key={i}>
-                                <td style={{ fontSize: '9px', padding: '1px 0' }}>{item.productNameBn || item.productName}{item.variantName ? ` (${item.variantName})` : ''}</td>
-                                <td style={{ fontSize: '9px', padding: '1px 0', textAlign: 'right' }}>{item.quantity}</td>
+                                <td className="item-product">{item.productNameBn || item.productName}{item.variantName ? ` (${item.variantName})` : ''}</td>
+                                <td style={{ textAlign: 'right' }}>
+                                  <span className="item-qty">{item.quantity}</span>
+                                </td>
                               </tr>
                             ))}
                           </tbody>
                         </table>
-                        <div style={{ fontSize: '8px', textAlign: 'right', marginTop: '1px', fontWeight: 'bold' }}>Total Qty: {st.totalQuantity}</div>
+                        <div className="items-summary">
+                          <div className="total-qty">Total Qty: {st.totalQuantity}</div>
+                          <div className="cod-inline">COD: ৳{Number(order.totalAmount).toFixed(2)}</div>
+                        </div>
                       </div>
                     )}
 

@@ -11,6 +11,7 @@ import { TelephonyGateway } from './telephony.gateway';
 import { AgentPresenceStatus, TelephonyPresenceService } from './telephony-presence.service';
 import { TelephonyAgentPresenceEvent } from './entities/telephony-agent-presence-event.entity';
 import { SalesOrder } from '../sales/sales-order.entity';
+import { SalesService } from '../sales/sales.service';
 
 @Injectable()
 export class TelephonyService {
@@ -30,6 +31,7 @@ export class TelephonyService {
     private readonly customersService: CustomersService,
     private readonly telephonyGateway: TelephonyGateway,
     private readonly presenceService: TelephonyPresenceService,
+    private readonly salesService: SalesService,
   ) {}
 
   private async recordPresenceEventIfChanged(userId: number, status: AgentPresenceStatus, source: string) {
@@ -565,6 +567,7 @@ export class TelephonyService {
     suggestion?: string;
     notes?: string;
   }) {
+    const normalizedOutcome = String(body.outcome || '').trim().toLowerCase();
     if (String(body.assignmentType || '').toLowerCase() === 'incomplete') {
       const result = await this.salesOrderRepo.manager.query(
         `UPDATE incomplete_orders
@@ -583,21 +586,46 @@ export class TelephonyService {
       return { success: true, orderId };
     }
 
-    const result = await this.salesOrderRepo
-      .createQueryBuilder()
-      .update(SalesOrder)
-      .set({
-        telephonyCalledAt: new Date(),
-        telephonyCallStatus: 'called',
-        telephonyOutcome: body.outcome || null,
-        telephonySuggestion: body.suggestion || null,
-        telephonyNotes: body.notes || null,
-      })
-      .where('id = :orderId', { orderId })
-      .andWhere('assigned_to = :userId', { userId })
-      .execute();
+    const shouldMoveToUnreachableQueue = ['no_answer', 'unreachable'].includes(normalizedOutcome);
+    const result = shouldMoveToUnreachableQueue
+      ? await this.salesOrderRepo.manager.query(
+          `UPDATE sales_orders
+           SET telephony_called_at = NOW(),
+               telephony_call_status = 'called',
+               telephony_outcome = $3,
+               telephony_suggestion = $4,
+               telephony_notes = $5,
+               assigned_to = NULL,
+               assigned_by = NULL,
+               assigned_at = NULL,
+               updated_at = NOW()
+           WHERE id = $1
+             AND assigned_to = $2
+             AND LOWER(status::text) = 'processing'`,
+          [orderId, userId, body.outcome || null, body.suggestion || null, body.notes || null],
+        )
+      : await this.salesOrderRepo.manager.query(
+          `UPDATE sales_orders
+           SET telephony_called_at = NOW(),
+               telephony_call_status = 'called',
+               telephony_outcome = $3,
+               telephony_suggestion = $4,
+               telephony_notes = $5,
+               updated_at = NOW()
+           WHERE id = $1
+             AND assigned_to = $2`,
+          [orderId, userId, body.outcome || null, body.suggestion || null, body.notes || null],
+        );
 
-    if (!result.affected) throw new NotFoundException('Assigned order not found');
+    if (!result?.[1]) throw new NotFoundException('Assigned order not found');
+
+    if (shouldMoveToUnreachableQueue) {
+      await this.salesService.runAutomaticAssignmentQueue({
+        orderId,
+        limit: 50,
+        reason: 'unreachable_followup_handoff',
+      });
+    }
 
     return { success: true, orderId };
   }

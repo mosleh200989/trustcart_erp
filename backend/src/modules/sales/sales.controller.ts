@@ -278,15 +278,30 @@ export class SalesController {
   }
 
   @Get('automatic-assignment/overview')
-  @RequireAnyPermission('view-auto-order-assignment', 'manage-auto-order-assignment')
+  @RequireAnyPermission('view-auto-order-assignment', 'manage-auto-order-assignment', 'view-team-performance')
   async getAutomaticAssignmentOverview(@Req() req: any, @Query('teamLeaderId') teamLeaderId?: string) {
     return this.salesService.getAutomaticAssignmentOverview(req.user, {
       teamLeaderId: teamLeaderId ? Number(teamLeaderId) : undefined,
     });
   }
 
+  @Get('automatic-assignment/team-report')
+  @RequireAnyPermission('view-auto-order-assignment', 'manage-auto-order-assignment', 'view-team-performance')
+  async getAutomaticAssignmentTeamReport(
+    @Req() req: any,
+    @Query('teamLeaderId') teamLeaderId?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    return this.salesService.getAutomaticAssignmentTeamReport(req.user, {
+      teamLeaderId: teamLeaderId ? Number(teamLeaderId) : undefined,
+      from,
+      to,
+    });
+  }
+
   @Get('automatic-assignment/team-leaders')
-  @RequireAnyPermission('view-auto-order-assignment', 'manage-auto-order-assignment')
+  @RequireAnyPermission('view-auto-order-assignment', 'manage-auto-order-assignment', 'view-team-performance')
   async getAutomaticAssignmentTeamLeaders(@Req() req: any) {
     return this.salesService.getAutomaticAssignmentTeamLeaders(req.user);
   }

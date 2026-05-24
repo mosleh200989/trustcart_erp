@@ -39,6 +39,16 @@ type PresenceDashboard = {
   items: PresenceRow[];
 };
 
+function isDesktopPresenceDevice(): boolean {
+  if (typeof navigator === 'undefined') return true;
+  const ua = navigator.userAgent.toLowerCase();
+  const platform = (navigator.platform || '').toLowerCase();
+  const touchPoints = navigator.maxTouchPoints || 0;
+  const mobileMarkers = /android|iphone|ipad|ipod|mobile|windows phone|blackberry|bb10|opera mini|opera mobi|kindle|silk/;
+  const iPadDesktopMode = platform.includes('mac') && touchPoints > 1;
+  return !mobileMarkers.test(ua) && !iPadDesktopMode;
+}
+
 function secondsToHuman(value: any) {
   const total = Number(value || 0);
   if (!Number.isFinite(total) || total <= 0) return '0m';
@@ -74,6 +84,7 @@ export default function PresencePage() {
   const [history, setHistory] = useState<any[]>([]);
   const [message, setMessage] = useState('');
   const [toggleLoading, setToggleLoading] = useState(false);
+  const [presencePcAllowed, setPresencePcAllowed] = useState(true);
 
   const canViewOffice = hasPermission('view-presence');
   const canViewHistory = canViewOffice || hasPermission('view-presence-history') || hasPermission('manage-presence-history');
@@ -101,6 +112,7 @@ export default function PresencePage() {
   };
 
   useEffect(() => {
+    setPresencePcAllowed(isDesktopPresenceDevice());
     load();
     const iv = setInterval(load, 60000);
     return () => clearInterval(iv);
@@ -125,6 +137,7 @@ export default function PresencePage() {
   const myState = myPresence?.currentState === 'online' ? 'online' : 'offline';
 
   const toggleMyPresence = async () => {
+    if (!presencePcAllowed && myState !== 'online') return;
     const next = myState === 'online' ? 'offline' : 'online';
     setToggleLoading(true);
     setMessage('');
@@ -237,16 +250,19 @@ export default function PresencePage() {
             <div className="grid grid-cols-1 lg:grid-cols-[1.2fr_2fr] gap-6 items-stretch">
               <button
                 onClick={toggleMyPresence}
-                disabled={toggleLoading}
+                disabled={toggleLoading || (!presencePcAllowed && myState !== 'online')}
+                title={!presencePcAllowed ? 'Online presence is available only from PC' : undefined}
                 className={`min-h-[180px] rounded-lg text-white flex flex-col items-center justify-center gap-3 shadow-lg transition-all ${
                   myState === 'online'
                     ? 'bg-gradient-to-br from-green-500 to-green-700 hover:from-green-600 hover:to-green-800'
                     : 'bg-gradient-to-br from-gray-600 to-gray-800 hover:from-gray-700 hover:to-gray-900'
-                } ${toggleLoading ? 'opacity-75 cursor-wait' : ''}`}
+                } ${toggleLoading ? 'opacity-75 cursor-wait' : ''} ${!presencePcAllowed && myState !== 'online' ? 'opacity-70 cursor-not-allowed' : ''}`}
               >
                 <span className="text-sm font-semibold uppercase tracking-wide">{toggleLoading ? 'Updating' : 'My Status'}</span>
                 <span className="text-4xl font-black">{myState === 'online' ? 'Online' : 'Offline'}</span>
-                <span className="text-sm opacity-90">{myState === 'online' ? 'Click to go offline' : 'Click to go online'}</span>
+                <span className="text-sm opacity-90">
+                  {!presencePcAllowed && myState !== 'online' ? 'Online is PC only' : myState === 'online' ? 'Click to go offline' : 'Click to go online'}
+                </span>
               </button>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
