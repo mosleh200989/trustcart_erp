@@ -17,21 +17,23 @@ export default function AvailableProductsPage() {
   const toast = useToast();
   const [products, setProducts] = useState<ProductRow[]>([]);
   const [levels, setLevels] = useState<any[]>([]);
+  const [warehouseList, setWarehouseList] = useState<any[]>([]);
   const [warehouseMap, setWarehouseMap] = useState<Record<number, string>>({});
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('all');
   const [availability, setAvailability] = useState('all');
-  const [editingProductId, setEditingProductId] = useState<number | null>(null);
+  const [editingProduct, setEditingProduct] = useState<ProductRow | null>(null);
   const [editLoading, setEditLoading] = useState(false);
   const [editSaving, setEditSaving] = useState(false);
   const [editForm, setEditForm] = useState({
-    name_en: '',
-    name_bn: '',
-    sku: '',
-    base_price: '',
-    stock_quantity: '',
-    status: 'active',
+    warehouse_id: '',
+    quantity: '0',
+    reserved_quantity: '0',
+    damaged_quantity: '0',
+    cost_price: '',
+    location_id: '',
+    batch_id: '',
   });
 
   const loadData = async () => {
@@ -44,6 +46,7 @@ export default function AvailableProductsPage() {
       ]);
       setProducts(Array.isArray(productData) ? productData : []);
       setLevels(Array.isArray(levelData) ? levelData : []);
+      setWarehouseList(Array.isArray(warehouseData) ? warehouseData : []);
       const map: Record<number, string> = {};
       warehouseData.forEach((warehouse: any) => { map[warehouse.id] = warehouse.name; });
       setWarehouseMap(map);
@@ -57,23 +60,25 @@ export default function AvailableProductsPage() {
 
   useEffect(() => { loadData(); }, []);
 
-  const openEdit = async (productId: number) => {
-    setEditingProductId(productId);
+  const openEdit = async (product: ProductRow) => {
+    setEditingProduct(product);
     setEditLoading(true);
     try {
-      const product: any = await productsApi.get(productId);
+      const productLevels = await stockLevels.byProduct(product.id);
+      const primaryLevel = Array.isArray(productLevels) && productLevels.length > 0 ? productLevels[0] : null;
       setEditForm({
-        name_en: product.nameEn || product.name || '',
-        name_bn: product.nameBn || '',
-        sku: product.sku || '',
-        base_price: product.basePrice != null ? String(product.basePrice) : '',
-        stock_quantity: product.stock != null ? String(product.stock) : '',
-        status: product.status || 'active',
+        warehouse_id: String(primaryLevel?.warehouse_id || warehouseList[0]?.id || ''),
+        quantity: String(primaryLevel?.quantity ?? 0),
+        reserved_quantity: String(primaryLevel?.reserved_quantity ?? 0),
+        damaged_quantity: String(primaryLevel?.damaged_quantity ?? 0),
+        cost_price: primaryLevel?.cost_price != null ? String(primaryLevel.cost_price) : '',
+        location_id: primaryLevel?.location_id != null ? String(primaryLevel.location_id) : '',
+        batch_id: primaryLevel?.batch_id != null ? String(primaryLevel.batch_id) : '',
       });
     } catch (error) {
       console.error(error);
-      toast.error('Failed to load product details');
-      setEditingProductId(null);
+      toast.error('Failed to load inventory details');
+      setEditingProduct(null);
     } finally {
       setEditLoading(false);
     }
@@ -81,28 +86,30 @@ export default function AvailableProductsPage() {
 
   const closeEdit = () => {
     if (editSaving) return;
-    setEditingProductId(null);
+    setEditingProduct(null);
   };
 
   const saveEdit = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!editingProductId) return;
+    if (!editingProduct) return;
     setEditSaving(true);
     try {
-      await productsApi.update(editingProductId, {
-        name_en: editForm.name_en.trim(),
-        name_bn: editForm.name_bn.trim() || null,
-        sku: editForm.sku.trim() || null,
-        base_price: editForm.base_price === '' ? null : Number(editForm.base_price),
-        stock_quantity: editForm.stock_quantity === '' ? null : Number(editForm.stock_quantity),
-        status: editForm.status,
+      await stockLevels.upsert({
+        product_id: editingProduct.id,
+        warehouse_id: Number(editForm.warehouse_id),
+        quantity: Number(editForm.quantity || 0),
+        reserved_quantity: Number(editForm.reserved_quantity || 0),
+        damaged_quantity: Number(editForm.damaged_quantity || 0),
+        cost_price: editForm.cost_price === '' ? null : Number(editForm.cost_price),
+        location_id: editForm.location_id === '' ? null : Number(editForm.location_id),
+        batch_id: editForm.batch_id === '' ? null : Number(editForm.batch_id),
       });
-      toast.success('Product updated successfully');
-      setEditingProductId(null);
+      toast.success('Inventory stock updated successfully');
+      setEditingProduct(null);
       await loadData();
     } catch (error: any) {
       console.error(error);
-      toast.error(error?.response?.data?.message || 'Failed to update product');
+      toast.error(error?.response?.data?.message || 'Failed to update inventory stock');
     } finally {
       setEditSaving(false);
     }
@@ -242,7 +249,7 @@ export default function AvailableProductsPage() {
                     <td className="px-4 py-3 text-right">
                       <button
                         type="button"
-                        onClick={() => openEdit(product.id)}
+                        onClick={() => openEdit(product)}
                         className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-100"
                         title="Edit product"
                       >
@@ -257,68 +264,37 @@ export default function AvailableProductsPage() {
         </div>
       </div>
 
-      {editingProductId ? (
+      {editingProduct ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="w-full max-w-2xl rounded-lg bg-white shadow-xl">
             <div className="flex items-center justify-between border-b px-5 py-4">
-              <h2 className="text-lg font-semibold text-gray-800">Edit Product</h2>
+              <div>
+                <h2 className="text-lg font-semibold text-gray-800">Edit Inventory Stock</h2>
+                <p className="text-sm text-gray-500">{editingProduct.name} {editingProduct.sku ? `- ${editingProduct.sku}` : ''}</p>
+              </div>
               <button type="button" onClick={closeEdit} className="rounded p-2 text-gray-500 hover:bg-gray-100" title="Close">
                 <FaTimes />
               </button>
             </div>
 
             {editLoading ? (
-              <div className="p-8 text-center text-gray-500">Loading product details...</div>
+              <div className="p-8 text-center text-gray-500">Loading inventory details...</div>
             ) : (
               <form onSubmit={saveEdit} className="space-y-4 p-5">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <label className="block">
-                    <span className="mb-1 block text-sm font-medium text-gray-700">Product Name</span>
-                    <input
-                      value={editForm.name_en}
-                      onChange={(e) => setEditForm((prev) => ({ ...prev, name_en: e.target.value }))}
+                    <span className="mb-1 block text-sm font-medium text-gray-700">Warehouse</span>
+                    <select
+                      value={editForm.warehouse_id}
+                      onChange={(e) => setEditForm((prev) => ({ ...prev, warehouse_id: e.target.value }))}
                       className="w-full rounded-lg border px-3 py-2 text-sm"
                       required
-                    />
-                  </label>
-                  <label className="block">
-                    <span className="mb-1 block text-sm font-medium text-gray-700">Bangla Name</span>
-                    <input
-                      value={editForm.name_bn}
-                      onChange={(e) => setEditForm((prev) => ({ ...prev, name_bn: e.target.value }))}
-                      className="w-full rounded-lg border px-3 py-2 text-sm"
-                    />
-                  </label>
-                  <label className="block">
-                    <span className="mb-1 block text-sm font-medium text-gray-700">SKU</span>
-                    <input
-                      value={editForm.sku}
-                      onChange={(e) => setEditForm((prev) => ({ ...prev, sku: e.target.value }))}
-                      className="w-full rounded-lg border px-3 py-2 text-sm"
-                    />
-                  </label>
-                  <label className="block">
-                    <span className="mb-1 block text-sm font-medium text-gray-700">Status</span>
-                    <select
-                      value={editForm.status}
-                      onChange={(e) => setEditForm((prev) => ({ ...prev, status: e.target.value }))}
-                      className="w-full rounded-lg border px-3 py-2 text-sm"
                     >
-                      <option value="active">Active</option>
-                      <option value="inactive">Inactive</option>
-                      <option value="draft">Draft</option>
+                      <option value="">Select warehouse</option>
+                      {warehouseList.map((warehouse: any) => (
+                        <option key={warehouse.id} value={warehouse.id}>{warehouse.name}</option>
+                      ))}
                     </select>
-                  </label>
-                  <label className="block">
-                    <span className="mb-1 block text-sm font-medium text-gray-700">Base Price</span>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={editForm.base_price}
-                      onChange={(e) => setEditForm((prev) => ({ ...prev, base_price: e.target.value }))}
-                      className="w-full rounded-lg border px-3 py-2 text-sm"
-                    />
                   </label>
                   <label className="block">
                     <span className="mb-1 block text-sm font-medium text-gray-700">Stock Quantity</span>
@@ -326,8 +302,64 @@ export default function AvailableProductsPage() {
                       type="number"
                       min="0"
                       step="1"
-                      value={editForm.stock_quantity}
-                      onChange={(e) => setEditForm((prev) => ({ ...prev, stock_quantity: e.target.value }))}
+                      value={editForm.quantity}
+                      onChange={(e) => setEditForm((prev) => ({ ...prev, quantity: e.target.value }))}
+                      className="w-full rounded-lg border px-3 py-2 text-sm"
+                      required
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="mb-1 block text-sm font-medium text-gray-700">Reserved Quantity</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={editForm.reserved_quantity}
+                      onChange={(e) => setEditForm((prev) => ({ ...prev, reserved_quantity: e.target.value }))}
+                      className="w-full rounded-lg border px-3 py-2 text-sm"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="mb-1 block text-sm font-medium text-gray-700">Damaged Quantity</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={editForm.damaged_quantity}
+                      onChange={(e) => setEditForm((prev) => ({ ...prev, damaged_quantity: e.target.value }))}
+                      className="w-full rounded-lg border px-3 py-2 text-sm"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="mb-1 block text-sm font-medium text-gray-700">Cost Price</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={editForm.cost_price}
+                      onChange={(e) => setEditForm((prev) => ({ ...prev, cost_price: e.target.value }))}
+                      className="w-full rounded-lg border px-3 py-2 text-sm"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="mb-1 block text-sm font-medium text-gray-700">Location ID</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={editForm.location_id}
+                      onChange={(e) => setEditForm((prev) => ({ ...prev, location_id: e.target.value }))}
+                      className="w-full rounded-lg border px-3 py-2 text-sm"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="mb-1 block text-sm font-medium text-gray-700">Batch ID</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={editForm.batch_id}
+                      onChange={(e) => setEditForm((prev) => ({ ...prev, batch_id: e.target.value }))}
                       className="w-full rounded-lg border px-3 py-2 text-sm"
                     />
                   </label>

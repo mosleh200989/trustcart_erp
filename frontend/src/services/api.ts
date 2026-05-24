@@ -1028,6 +1028,10 @@ export const stockLevels = {
     const res = await apiClient.get(`/inventory/stock-levels/warehouse/${warehouseId}`);
     return Array.isArray(res.data) ? res.data : [];
   },
+  async upsert(data: any) {
+    const res = await apiClient.post('/inventory/stock-levels/upsert', data);
+    return res.data;
+  },
 };
 
 // ── Phase 6: Supplier Portal ──────────────────────

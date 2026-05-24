@@ -46,6 +46,12 @@ export class InventoryController {
     return this.inventoryService.getStockByWarehouse(warehouseId);
   }
 
+  @Post('stock-levels/upsert')
+  @RequireAnyPermission('manage-stock-levels', 'manage-stock')
+  upsertStockLevel(@Body() body: any, @Req() req: any) {
+    return this.inventoryService.upsertStockLevel(body, req.user?.id);
+  }
+
   // ── Stock Movements ─────────────────────────────────
 
   @Get('movements')
