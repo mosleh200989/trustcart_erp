@@ -895,10 +895,10 @@ export default function AdminSalesIncompleteOrders() {
                     <button
                       type="button"
                       onClick={() => setEditForm(prev => ({ ...prev, source: 'landing_page' }))}
-                      className={`rounded-md px-3 py-2 text-sm font-semibold transition-colors ${
+                      className={`rounded-md px-3 py-2 text-sm font-semibold transition-all focus:outline-none focus:ring-2 focus:ring-purple-300 ${
                         editForm.source === 'landing_page'
-                          ? 'bg-white text-purple-700 shadow-sm'
-                          : 'text-gray-600 hover:text-gray-900'
+                          ? 'bg-purple-800 text-white shadow-md ring-1 ring-purple-900'
+                          : 'bg-white text-gray-600 hover:bg-purple-50 hover:text-purple-800'
                       }`}
                     >
                       Landing Page
@@ -906,10 +906,10 @@ export default function AdminSalesIncompleteOrders() {
                     <button
                       type="button"
                       onClick={() => setEditForm(prev => ({ ...prev, source: 'admin_panel' }))}
-                      className={`rounded-md px-3 py-2 text-sm font-semibold transition-colors ${
+                      className={`rounded-md px-3 py-2 text-sm font-semibold transition-all focus:outline-none focus:ring-2 focus:ring-blue-300 ${
                         editForm.source === 'admin_panel'
-                          ? 'bg-white text-blue-700 shadow-sm'
-                          : 'text-gray-600 hover:text-gray-900'
+                          ? 'bg-blue-800 text-white shadow-md ring-1 ring-blue-900'
+                          : 'bg-white text-gray-600 hover:bg-blue-50 hover:text-blue-800'
                       }`}
                     >
                       {agentDisplayName}

@@ -401,10 +401,18 @@ export default function PrintingPage() {
       render: (_: any, row: PrintingOrder) => {
         const items = row.items || [];
         if (items.length === 0) return <span className="text-gray-400 text-xs">No items</span>;
+        const hasMultipleProducts = items.length > 1;
         return (
-          <div className="max-h-32 overflow-y-auto space-y-1" style={{ whiteSpace: 'pre-line' }}>
+          <div className="max-h-32 overflow-y-auto space-y-1.5" style={{ whiteSpace: 'pre-line' }}>
             {items.map((item, idx) => (
-              <div key={idx} className="flex items-start gap-2 text-sm leading-snug text-gray-900">
+              <div
+                key={idx}
+                className={`flex items-start gap-2 text-sm leading-snug text-gray-900 ${
+                  hasMultipleProducts
+                    ? 'rounded-md border border-gray-200 bg-gray-50 px-2.5 py-2 shadow-sm'
+                    : ''
+                }`}
+              >
                 <span className="flex-1 font-semibold">
                   {item.productNameBn || item.productName}{item.variantName ? ` (${item.variantName})` : ''}
                 </span>
