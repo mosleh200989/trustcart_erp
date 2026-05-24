@@ -109,6 +109,16 @@ export class TelephonyController {
     return this.telephonyService.updateOrderAssignmentOutcome(Number((req as any).user?.id), Number(orderId), body);
   }
 
+  @Post('order-assignments/:orderId/unreachable-handoff')
+  @UseGuards(JwtAuthGuard)
+  async handoffUnreachableOrderAssignment(
+    @Req() req: ExpressRequest,
+    @Param('orderId') orderId: string,
+    @Body() body: { outcome?: string; notes?: string },
+  ) {
+    return this.telephonyService.handoffUnreachableOrderAssignment(Number((req as any).user?.id), Number(orderId), body);
+  }
+
   @Post('calls/initiate')
   @UseGuards(JwtAuthGuard)
   async initiateCall(@Body() body: { taskId: number; agentUserId?: number; agentPhone?: string }) {
