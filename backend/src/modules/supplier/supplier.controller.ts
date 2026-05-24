@@ -5,7 +5,7 @@ import { UpdateSupplierDto } from './dto/update-supplier.dto';
 import { CreateSupplierProductDto } from './dto/create-supplier-product.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
-import { RequirePermissions } from '../../common/decorators/permissions.decorator';
+import { RequireAnyPermission, RequirePermissions } from '../../common/decorators/permissions.decorator';
 
 @Controller('suppliers')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -13,13 +13,13 @@ export class SupplierController {
   constructor(private readonly supplierService: SupplierService) {}
 
   @Get()
-  @RequirePermissions('view-suppliers')
+  @RequireAnyPermission('view-suppliers', 'view-inventory', 'view-purchase-orders')
   findAll(@Query('status') status?: string) {
     return this.supplierService.findAll(status);
   }
 
   @Get(':id')
-  @RequirePermissions('view-suppliers')
+  @RequireAnyPermission('view-suppliers', 'view-inventory', 'view-purchase-orders')
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.supplierService.findOne(id);
   }
@@ -45,7 +45,7 @@ export class SupplierController {
   // ── Supplier Products ───────────────────────────────
 
   @Get(':supplierId/products')
-  @RequirePermissions('view-suppliers')
+  @RequireAnyPermission('view-suppliers', 'view-inventory', 'view-purchase-orders')
   findProducts(@Param('supplierId', ParseIntPipe) supplierId: number) {
     return this.supplierService.findProducts(supplierId);
   }

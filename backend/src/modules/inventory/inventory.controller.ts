@@ -4,7 +4,7 @@ import { InventoryService } from './inventory.service';
 import { StockMovementService, RecordMovementParams } from './stock-movement.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
-import { RequirePermissions } from '../../common/decorators/permissions.decorator';
+import { RequireAnyPermission, RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import { StockQueryDto } from './dto/stock-query.dto';
 import { CreateReorderRuleDto } from './dto/create-reorder-rule.dto';
@@ -23,25 +23,25 @@ export class InventoryController {
   // ── Stock Levels ────────────────────────────────────
 
   @Get('stock-levels')
-  @RequirePermissions('view-stock-levels')
+  @RequireAnyPermission('view-stock-levels', 'view-inventory')
   getStockLevels(@Query() query: StockQueryDto) {
     return this.inventoryService.getStockLevels(query);
   }
 
   @Get('stock-levels/summary')
-  @RequirePermissions('view-stock-levels')
+  @RequireAnyPermission('view-stock-levels', 'view-inventory')
   getStockSummary() {
     return this.inventoryService.getStockSummary();
   }
 
   @Get('stock-levels/product/:productId')
-  @RequirePermissions('view-stock-levels')
+  @RequireAnyPermission('view-stock-levels', 'view-inventory')
   getStockByProduct(@Param('productId', ParseIntPipe) productId: number) {
     return this.inventoryService.getStockByProduct(productId);
   }
 
   @Get('stock-levels/warehouse/:warehouseId')
-  @RequirePermissions('view-stock-levels')
+  @RequireAnyPermission('view-stock-levels', 'view-inventory')
   getStockByWarehouse(@Param('warehouseId', ParseIntPipe) warehouseId: number) {
     return this.inventoryService.getStockByWarehouse(warehouseId);
   }
@@ -49,7 +49,7 @@ export class InventoryController {
   // ── Stock Movements ─────────────────────────────────
 
   @Get('movements')
-  @RequirePermissions('view-stock-movements')
+  @RequireAnyPermission('view-stock-movements', 'view-inventory')
   getMovements(
     @Query('product_id') productId?: string,
     @Query('warehouse_id') warehouseId?: string,
@@ -65,7 +65,7 @@ export class InventoryController {
   }
 
   @Get('movements/:id')
-  @RequirePermissions('view-stock-movements')
+  @RequireAnyPermission('view-stock-movements', 'view-inventory')
   getMovement(@Param('id', ParseIntPipe) id: number) {
     return this.stockMovementService.getMovement(id);
   }
@@ -80,7 +80,7 @@ export class InventoryController {
   // ── Batches ─────────────────────────────────────────
 
   @Get('batches')
-  @RequirePermissions('view-stock-batches')
+  @RequireAnyPermission('view-stock-batches', 'view-inventory', 'batch-tracking')
   getBatches(
     @Query('product_id') productId?: string,
     @Query('warehouse_id') warehouseId?: string,
@@ -92,13 +92,13 @@ export class InventoryController {
   }
 
   @Get('batches/expiring')
-  @RequirePermissions('view-stock-batches')
+  @RequireAnyPermission('view-stock-batches', 'view-inventory', 'batch-tracking')
   getExpiringBatches(@Query('days') days?: string) {
     return this.inventoryService.getExpiringBatches(days ? parseInt(days, 10) : 30);
   }
 
   @Get('batches/:id')
-  @RequirePermissions('view-stock-batches')
+  @RequireAnyPermission('view-stock-batches', 'view-inventory', 'batch-tracking')
   getBatch(@Param('id', ParseIntPipe) id: number) {
     return this.inventoryService.getBatch(id);
   }
@@ -386,13 +386,13 @@ export class InventoryController {
   }
 
   @Get('reports/valuation')
-  @RequirePermissions('view-stock-levels')
+  @RequireAnyPermission('view-stock-reports', 'view-stock-levels', 'view-inventory')
   getValuationReport(@Query('warehouse_id') warehouseId?: string) {
     return this.inventoryService.getStockValuation(warehouseId ? parseInt(warehouseId, 10) : undefined);
   }
 
   @Get('reports/movement-log')
-  @RequirePermissions('view-stock-movements')
+  @RequireAnyPermission('view-stock-reports', 'view-stock-movements', 'view-inventory')
   getMovementReport(
     @Query('date_from') dateFrom?: string,
     @Query('date_to') dateTo?: string,
@@ -620,7 +620,7 @@ export class InventoryController {
   // ── Warehouse Visual Map ────────────────────────────
 
   @Get('warehouse-map/:warehouseId')
-  @RequirePermissions('view-warehouses')
+  @RequireAnyPermission('view-warehouses', 'view-inventory')
   async getWarehouseMap(@Param('warehouseId', ParseIntPipe) warehouseId: number) {
     return this.inventoryService.getWarehouseMap(warehouseId);
   }
