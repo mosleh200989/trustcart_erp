@@ -46,6 +46,7 @@ const PRESENCE_STALE_TIMEOUT_MS = 3 * 60 * 1000;
 @Injectable()
 export class PresenceService {
   private readonly logger = new Logger(PresenceService.name);
+  private readonly autoAssignmentDrainAtByUser = new Map<number, number>();
 
   constructor(
     @InjectRepository(UserPresenceStatus)
@@ -127,9 +128,13 @@ export class PresenceService {
     };
   }
 
-  private async runAutomaticAssignmentForOnlineUser(userId: number): Promise<void> {
+  private async runAutomaticAssignmentForOnlineUser(userId: number, options: { force?: boolean } = {}): Promise<void> {
     const userIdNum = Number(userId);
     if (!Number.isFinite(userIdNum) || userIdNum <= 0) return;
+    const now = Date.now();
+    const lastRunAt = this.autoAssignmentDrainAtByUser.get(userIdNum) || 0;
+    if (!options.force && now - lastRunAt < 60_000) return;
+    this.autoAssignmentDrainAtByUser.set(userIdNum, now);
 
     try {
       const rows = await this.statusRepo.manager.query(
@@ -229,15 +234,20 @@ export class PresenceService {
     if (state === 'offline') {
       await this.unassignWorkForOfflineUser(userIdNum);
     } else if (state === 'online' && previousState !== 'online') {
-      await this.runAutomaticAssignmentForOnlineUser(userIdNum);
+      await this.runAutomaticAssignmentForOnlineUser(userIdNum, { force: true });
     }
     return saved;
   }
 
   async heartbeat(userId: number) {
-    const status = await this.getOrCreateStatus(Number(userId));
+    const userIdNum = Number(userId);
+    const status = await this.getOrCreateStatus(userIdNum);
     status.lastSeenAt = new Date();
-    return this.statusRepo.save(status);
+    const saved = await this.statusRepo.save(status);
+    if (saved.state === 'online') {
+      await this.runAutomaticAssignmentForOnlineUser(userIdNum);
+    }
+    return saved;
   }
 
   async getSettings() {
