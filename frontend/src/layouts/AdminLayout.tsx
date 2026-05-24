@@ -9,7 +9,7 @@ import { BACKEND_API_BASE_URL } from '@/config/backend';
 import { 
   FaTachometerAlt, FaBoxes, FaShoppingCart, FaUsers, FaWarehouse, 
   FaShoppingBag, FaUserTie, FaBook, FaBullseye, FaHandshake, 
-  FaHeadset, FaUser, FaUserClock, FaUserCheck, FaCog, FaBars, FaTimes, FaBell, FaChevronDown, FaChartBar, FaTags, FaGift, FaPhone, FaMoneyBillWave, FaImage, FaList, FaRocket, FaPrint, FaBan, FaHistory, FaTruck, FaClipboardList, FaExchangeAlt, FaSlidersH, FaClipboardCheck, FaBarcode, FaChartLine, FaFileImport, FaMap, FaSearch, FaRecycle, FaShieldAlt, FaCalculator
+  FaHeadset, FaUser, FaUserClock, FaUserCheck, FaCog, FaBars, FaTimes, FaBell, FaChevronDown, FaChartBar, FaTags, FaGift, FaPhone, FaMoneyBillWave, FaImage, FaList, FaRocket, FaPrint, FaBan, FaHistory, FaTruck, FaClipboardList, FaSlidersH, FaClipboardCheck, FaBarcode, FaFileImport, FaSearch, FaRecycle, FaShieldAlt, FaCalculator
 } from 'react-icons/fa';
 
 interface MenuItem {
@@ -158,24 +158,22 @@ const menuItems: MenuItem[] = [
   {
     title: 'Inventory',
     icon: FaWarehouse,
-    requiredPermissions: ['view-inventory', 'view-stock-levels'],
+    requiredPermissions: ['view-inventory', 'view-stock-levels', 'view-stock-reports', 'view-warehouses', 'view-suppliers'],
     children: [
       { title: 'Dashboard', icon: FaTachometerAlt, path: '/admin/inventory', requiredPermissions: ['view-inventory'] },
+      { title: 'Available Products', icon: FaBoxes, path: '/admin/inventory/available-products', requiredPermissions: ['view-inventory', 'view-stock-levels'] },
+      { title: 'Report', icon: FaChartBar, path: '/admin/inventory/reports', requiredPermissions: ['view-inventory', 'view-stock-reports'] },
       { title: 'Alerts', icon: FaBell, path: '/admin/inventory/alerts', requiredPermissions: ['view-inventory'] },
-      { title: 'Reorder Rules', icon: FaClipboardList, path: '/admin/inventory/reorder-rules', requiredPermissions: ['view-inventory'] },
+      { title: 'Inventory Count', icon: FaClipboardCheck, path: '/admin/inventory/counts', requiredPermissions: ['view-inventory'] },
       { title: 'Adjustments', icon: FaSlidersH, path: '/admin/inventory/adjustments', requiredPermissions: ['view-inventory'] },
-      { title: 'Transfers', icon: FaExchangeAlt, path: '/admin/inventory/transfers', requiredPermissions: ['view-inventory'] },
-      { title: 'Inventory Counts', icon: FaClipboardCheck, path: '/admin/inventory/counts', requiredPermissions: ['view-inventory'] },
-      { title: 'Reports', icon: FaChartBar, path: '/admin/inventory/reports', requiredPermissions: ['view-inventory'] },
-      { title: 'Warehouses', icon: FaWarehouse, path: '/admin/inventory/warehouses', requiredPermissions: ['view-inventory'] },
-      { title: 'Warehouse Map', icon: FaMap, path: '/admin/inventory/warehouse-map', requiredPermissions: ['view-inventory'] },
-      { title: 'Suppliers', icon: FaTruck, path: '/admin/inventory/suppliers', requiredPermissions: ['view-inventory'] },
-      { title: 'Forecasts', icon: FaChartLine, path: '/admin/inventory/forecasts', requiredPermissions: ['view-inventory'] },
-      { title: 'Barcode Tools', icon: FaBarcode, path: '/admin/inventory/barcode', requiredPermissions: ['view-inventory'] },
+      { title: 'Warehouse', icon: FaWarehouse, path: '/admin/inventory/warehouses', requiredPermissions: ['view-inventory', 'view-warehouses'] },
+      { title: 'Supplier', icon: FaTruck, path: '/admin/inventory/suppliers', requiredPermissions: ['view-inventory', 'view-suppliers'] },
+      { title: 'Reorder', icon: FaClipboardList, path: '/admin/inventory/reorder-rules', requiredPermissions: ['view-inventory'] },
       { title: 'Bulk Import', icon: FaFileImport, path: '/admin/inventory/import', requiredPermissions: ['manage-stock'] },
+      { title: 'Repacking', icon: FaRecycle, path: '/admin/inventory/repacking', requiredPermissions: ['view-inventory'] },
+      { title: 'Packaging Conf', icon: FaBoxes, path: '/admin/inventory/packaging-conf', requiredPermissions: ['view-inventory'] },
+      { title: 'Barcode', icon: FaBarcode, path: '/admin/inventory/barcode', requiredPermissions: ['view-inventory'] },
       { title: 'Audit Trail', icon: FaSearch, path: '/admin/inventory/audit-trail', requiredPermissions: ['view-inventory'] },
-      { title: 'Repack Orders', icon: FaRecycle, path: '/admin/inventory/repack', requiredPermissions: ['view-inventory'] },
-      { title: 'Packaging Configs', icon: FaRecycle, path: '/admin/inventory/repack/configs', requiredPermissions: ['manage-stock'] },
     ],
   },
   {
@@ -468,37 +466,6 @@ const menuItems: MenuItem[] = [
   },
 ];
 
-const iconMap: Record<string, any> = {
-  FaTachometerAlt,
-  FaBoxes,
-  FaShoppingCart,
-  FaUsers,
-  FaWarehouse,
-  FaShoppingBag,
-  FaUserTie,
-  FaBook,
-  FaBullseye,
-  FaHandshake,
-  FaHeadset,
-  FaUser,
-  FaCog,
-  FaBell,
-  FaChartBar,
-  FaTags,
-  FaGift,
-  FaPhone,
-  FaImage,
-  FaPrint,
-  FaClipboardList,
-  FaShieldAlt,
-  FaCalculator,
-};
-
-function iconFromKey(key?: string | null) {
-  if (!key) return FaCog;
-  return iconMap[String(key)] || FaCog;
-}
-
 function ensureManageModulesLink(items: MenuItem[]): MenuItem[] {
   const exists = (arr: MenuItem[]): boolean =>
     arr.some((x) => x.path === '/admin/settings/manage-modules' || (x.children ? exists(x.children) : false));
@@ -710,7 +677,6 @@ const PRESENCE_HEARTBEAT_MS = 60 * 1000;
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [expandedMenus, setExpandedMenus] = useState<string[]>([]);
-  const [dbMenuItems, setDbMenuItems] = useState<MenuItem[] | null>(null);
   const [alertCount, setAlertCount] = useState(0);
   const [showAlertDropdown, setShowAlertDropdown] = useState(false);
   const [recentAlerts, setRecentAlerts] = useState<any[]>([]);
@@ -907,44 +873,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     }
   }, [presenceState, presencePcAllowed]);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await apiClient.get('/settings/admin-menu', { params: { includeInactive: false } });
-        const data = Array.isArray(res.data) ? res.data : [];
-        if (cancelled) return;
-        if (data.length === 0) {
-          setDbMenuItems(null);
-          return;
-        }
-
-        const mapNode = (n: any): MenuItem => {
-          return {
-            title: String(n.title || ''),
-            icon: iconFromKey(n.icon),
-            path: n.path || undefined,
-            requiredPermissions: Array.isArray(n.requiredPermissions) ? n.requiredPermissions : [],
-            children: Array.isArray(n.children) ? n.children.map(mapNode) : undefined,
-          };
-        };
-
-        const mapped = data.map(mapNode);
-        setDbMenuItems(ensureManageModulesLink(mapped));
-      } catch {
-        if (!cancelled) setDbMenuItems(null);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
   const effectiveMenuItems = useMemo(() => {
-    const base = dbMenuItems && dbMenuItems.length > 0 ? dbMenuItems : menuItems;
-    return flattenSingleChildMenus(ensureManageModulesLink(ensurePresenceLink(base)));
-  }, [dbMenuItems]);
+    return flattenSingleChildMenus(ensureManageModulesLink(ensurePresenceLink(menuItems)));
+  }, []);
 
   const roleSlugs = useMemo(() => {
     const slugs = new Set<string>();
