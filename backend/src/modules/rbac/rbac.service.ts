@@ -4,8 +4,18 @@ import { Repository } from 'typeorm';
 import { Role } from './role.entity';
 import { Permission } from './permission.entity';
 
+type UserPermissionShape = {
+  tableExists: boolean;
+  permissionColumn?: 'permission_id' | 'permission_slug' | 'slug';
+  hasGranted: boolean;
+  hasGrantedAt: boolean;
+  hasGrantedBy: boolean;
+};
+
 @Injectable()
 export class RbacService {
+  private userPermissionShapePromise?: Promise<UserPermissionShape>;
+
   constructor(
     @InjectRepository(Role)
     private rolesRepository: Repository<Role>,
@@ -210,16 +220,8 @@ export class RbacService {
   // Check if user has permission
   async checkPermission(userId: number, permissionSlug: string): Promise<boolean> {
     try {
-      const result = await this.rolesRepository.query(`
-        WITH direct_override AS (
-          SELECT up.granted
-          FROM user_permissions up
-          INNER JOIN permissions p ON p.id = up.permission_id
-          WHERE up.user_id = $1 AND p.slug = $2
-          ORDER BY up.granted_at DESC
-          LIMIT 1
-        ),
-        role_match AS (
+      const roleResult = await this.rolesRepository.query(`
+        SELECT EXISTS (
           SELECT 1
           FROM users u
           INNER JOIN roles r ON r.id = u.role_id
@@ -233,14 +235,13 @@ export class RbacService {
           INNER JOIN role_permissions rp ON rp.role_id = r.id
           INNER JOIN permissions p ON rp.permission_id = p.id
           WHERE ur.user_id = $1 AND p.slug = $2 AND r.is_active = TRUE
-        )
-        SELECT COALESCE(
-          (SELECT granted FROM direct_override),
-          EXISTS (SELECT 1 FROM role_match)
-        ) AS has_permission
+        ) as has_permission
       `, [userId, permissionSlug]);
 
-      return result[0]?.has_permission || false;
+      const roleHasPermission = Boolean(roleResult[0]?.has_permission);
+      const directOverride = await this.getDirectUserPermissionOverride(userId, permissionSlug);
+
+      return directOverride ?? roleHasPermission;
     } catch (error) {
       console.error('Error checking permission:', error);
       return false;
@@ -250,42 +251,20 @@ export class RbacService {
   // Get user permissions
   async getUserPermissions(userId: number): Promise<Permission[]> {
     try {
-      const result = await this.permissionsRepository.query(`
-        WITH role_permissions_for_user AS (
-          SELECT DISTINCT p.id
-          FROM permissions p
-          INNER JOIN role_permissions rp ON p.id = rp.permission_id
-          INNER JOIN roles r ON r.id = rp.role_id
-          WHERE r.is_active = TRUE
-            AND (
-              r.id IN (SELECT role_id FROM users WHERE id = $1)
-              OR r.id IN (SELECT role_id FROM user_roles WHERE user_id = $1)
-            )
-        ),
-        directly_granted AS (
-          SELECT up.permission_id AS id
-          FROM user_permissions up
-          WHERE up.user_id = $1 AND up.granted = TRUE
-        ),
-        directly_revoked AS (
-          SELECT up.permission_id AS id
-          FROM user_permissions up
-          WHERE up.user_id = $1 AND up.granted = FALSE
-        ),
-        effective_permissions AS (
-          SELECT id FROM role_permissions_for_user
-          UNION
-          SELECT id FROM directly_granted
-          EXCEPT
-          SELECT id FROM directly_revoked
-        )
+      const rolePermissions = await this.permissionsRepository.query(`
         SELECT DISTINCT p.*
         FROM permissions p
-        INNER JOIN effective_permissions ep ON ep.id = p.id
+        INNER JOIN role_permissions rp ON p.id = rp.permission_id
+        INNER JOIN roles r ON r.id = rp.role_id
+        WHERE r.is_active = TRUE
+          AND (
+            r.id IN (SELECT role_id FROM users WHERE id = $1)
+            OR r.id IN (SELECT role_id FROM user_roles WHERE user_id = $1)
+          )
         ORDER BY p.module, p.action
       `, [userId]);
 
-      return result;
+      return this.applyDirectUserPermissionOverrides(userId, rolePermissions);
     } catch (error) {
       console.error('Error getting user permissions:', error);
       return [];
@@ -335,22 +314,12 @@ export class RbacService {
 
   // Grant custom permission to user
   async grantPermissionToUser(userId: number, permissionId: number, grantedBy?: number): Promise<void> {
-    await this.permissionsRepository.query(`
-      INSERT INTO user_permissions (user_id, permission_id, granted, granted_by)
-      VALUES ($1, $2, TRUE, $3)
-      ON CONFLICT (user_id, permission_id) 
-      DO UPDATE SET granted = TRUE, granted_at = CURRENT_TIMESTAMP, granted_by = $3
-    `, [userId, permissionId, grantedBy]);
+    await this.setDirectUserPermission(userId, permissionId, true, grantedBy);
   }
 
   // Revoke custom permission from user
   async revokePermissionFromUser(userId: number, permissionId: number, grantedBy?: number): Promise<void> {
-    await this.permissionsRepository.query(`
-      INSERT INTO user_permissions (user_id, permission_id, granted, granted_by)
-      VALUES ($1, $2, FALSE, $3)
-      ON CONFLICT (user_id, permission_id) 
-      DO UPDATE SET granted = FALSE, granted_at = CURRENT_TIMESTAMP, granted_by = $3
-    `, [userId, permissionId, grantedBy]);
+    await this.setDirectUserPermission(userId, permissionId, false, grantedBy);
   }
 
   // Log activity
@@ -444,5 +413,150 @@ export class RbacService {
     }
     
     await query.execute();
+  }
+
+  private async getUserPermissionShape(): Promise<UserPermissionShape> {
+    if (!this.userPermissionShapePromise) {
+      this.userPermissionShapePromise = this.permissionsRepository.query(`
+        SELECT column_name
+        FROM information_schema.columns
+        WHERE table_schema = current_schema()
+          AND table_name = 'user_permissions'
+      `).then((rows: Array<{ column_name: string }>) => {
+        const columns = new Set(rows.map((row) => row.column_name));
+        const permissionColumn: UserPermissionShape['permissionColumn'] = columns.has('permission_id')
+          ? 'permission_id'
+          : columns.has('permission_slug')
+            ? 'permission_slug'
+            : columns.has('slug')
+              ? 'slug'
+              : undefined;
+
+        return {
+          tableExists: rows.length > 0,
+          permissionColumn,
+          hasGranted: columns.has('granted'),
+          hasGrantedAt: columns.has('granted_at'),
+          hasGrantedBy: columns.has('granted_by'),
+        };
+      }).catch(() => ({
+        tableExists: false,
+        hasGranted: false,
+        hasGrantedAt: false,
+        hasGrantedBy: false,
+      }));
+    }
+
+    return this.userPermissionShapePromise!;
+  }
+
+  private async getDirectUserPermissionOverride(userId: number, permissionSlug: string): Promise<boolean | null> {
+    const shape = await this.getUserPermissionShape();
+    if (!shape.tableExists || !shape.permissionColumn) return null;
+
+    const grantedSelect = shape.hasGranted ? 'up.granted' : 'TRUE AS granted';
+    const orderBy = shape.hasGrantedAt ? 'ORDER BY up.granted_at DESC' : '';
+    const query = shape.permissionColumn === 'permission_id'
+      ? `
+        SELECT ${grantedSelect}
+        FROM user_permissions up
+        INNER JOIN permissions p ON p.id = up.permission_id
+        WHERE up.user_id = $1 AND p.slug = $2
+        ${orderBy}
+        LIMIT 1
+      `
+      : `
+        SELECT ${grantedSelect}
+        FROM user_permissions up
+        WHERE up.user_id = $1 AND up.${shape.permissionColumn} = $2
+        ${orderBy}
+        LIMIT 1
+      `;
+
+    const result = await this.permissionsRepository.query(query, [userId, permissionSlug]);
+    if (!result.length) return null;
+
+    return Boolean(result[0].granted);
+  }
+
+  private async applyDirectUserPermissionOverrides(userId: number, rolePermissions: Permission[]): Promise<Permission[]> {
+    const shape = await this.getUserPermissionShape();
+    if (!shape.tableExists || !shape.permissionColumn) return rolePermissions;
+
+    const grantedSelect = shape.hasGranted ? 'up.granted' : 'TRUE AS granted';
+    const query = shape.permissionColumn === 'permission_id'
+      ? `
+        SELECT p.*, ${grantedSelect}
+        FROM user_permissions up
+        INNER JOIN permissions p ON p.id = up.permission_id
+        WHERE up.user_id = $1
+      `
+      : `
+        SELECT p.*, ${grantedSelect}
+        FROM user_permissions up
+        INNER JOIN permissions p ON p.slug = up.${shape.permissionColumn}
+        WHERE up.user_id = $1
+      `;
+
+    const directRows = await this.permissionsRepository.query(query, [userId]);
+    const effective = new Map<number, Permission>();
+    rolePermissions.forEach((permission) => effective.set(permission.id, permission));
+
+    directRows.forEach((row: Permission & { granted?: boolean }) => {
+      if (row.granted === false) {
+        effective.delete(row.id);
+        return;
+      }
+
+      effective.set(row.id, row);
+    });
+
+    return Array.from(effective.values()).sort((a, b) => {
+      const moduleCompare = String(a.module || '').localeCompare(String(b.module || ''));
+      if (moduleCompare !== 0) return moduleCompare;
+      return String(a.action || '').localeCompare(String(b.action || ''));
+    });
+  }
+
+  private async setDirectUserPermission(
+    userId: number,
+    permissionId: number,
+    granted: boolean,
+    grantedBy?: number,
+  ): Promise<void> {
+    const shape = await this.getUserPermissionShape();
+    if (!shape.tableExists || !shape.permissionColumn) {
+      throw new BadRequestException('User permission overrides are not configured for this database');
+    }
+
+    const permission = await this.permissionsRepository.findOne({ where: { id: permissionId } });
+    if (!permission) throw new NotFoundException('Permission not found');
+
+    const permissionValue = shape.permissionColumn === 'permission_id' ? permission.id : permission.slug;
+    const columns = ['user_id', shape.permissionColumn];
+    const values = ['$1', '$2'];
+    const params: any[] = [userId, permissionValue];
+
+    if (shape.hasGranted) {
+      columns.push('granted');
+      values.push(`$${params.length + 1}`);
+      params.push(granted);
+    }
+
+    if (shape.hasGrantedBy) {
+      columns.push('granted_by');
+      values.push(`$${params.length + 1}`);
+      params.push(grantedBy);
+    }
+
+    await this.permissionsRepository.query(
+      `DELETE FROM user_permissions WHERE user_id = $1 AND ${shape.permissionColumn} = $2`,
+      [userId, permissionValue],
+    );
+
+    await this.permissionsRepository.query(
+      `INSERT INTO user_permissions (${columns.join(', ')}) VALUES (${values.join(', ')})`,
+      params,
+    );
   }
 }
