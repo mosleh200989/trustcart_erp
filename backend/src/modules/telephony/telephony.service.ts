@@ -238,7 +238,7 @@ export class TelephonyService {
     } else if (assignmentType === 'rejected') {
       qb.andWhere("LOWER(o.status::text) = 'admin_cancelled'");
     } else {
-      qb.andWhere("LOWER(o.status::text) = 'processing'");
+      qb.andWhere("o.assigned_at >= NOW() - INTERVAL '24 hours'");
     }
 
     if (params?.q?.trim()) {

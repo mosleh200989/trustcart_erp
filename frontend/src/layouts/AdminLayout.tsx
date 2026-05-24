@@ -866,6 +866,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           entries.map(async ([path, assignmentType]) => {
             const params: Record<string, string> = { page: '1', limit: '1' };
             if (assignmentType !== 'order') params.assignmentType = assignmentType;
+            if (assignmentType === 'order') params.status = 'processing';
             const res = await apiClient.get('/telephony/order-assignments', { params });
             return [path, Number(res.data?.total || 0)] as const;
           }),
