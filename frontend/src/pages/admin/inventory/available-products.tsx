@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import AdminLayout from '@/layouts/AdminLayout';
 import { products as productsApi, stockLevels, warehouses } from '@/services/api';
 import { useToast } from '@/contexts/ToastContext';
-import { FaBoxes, FaSearch, FaSync, FaWarehouse } from 'react-icons/fa';
+import { FaBoxes, FaEdit, FaSearch, FaSync, FaWarehouse } from 'react-icons/fa';
 
 type ProductRow = {
   id: number;
@@ -146,6 +147,7 @@ export default function AvailableProductsPage() {
                   <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Reserved</th>
                   <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Available</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Warehouse Stock</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -175,6 +177,15 @@ export default function AvailableProductsPage() {
                           ))}
                         </div>
                       )}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <Link
+                        href={`/admin/products?edit=${product.id}`}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-100"
+                        title="Edit product"
+                      >
+                        <FaEdit /> Edit
+                      </Link>
                     </td>
                   </tr>
                 ))}
