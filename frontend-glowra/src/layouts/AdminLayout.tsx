@@ -4,7 +4,7 @@ import { useRouter } from 'next/router';
 // import QuoteNotifications from '@/components/QuoteNotifications'; // DISABLED
 import CrmNotifications from '@/components/CrmNotifications';
 import { useAuth } from '@/contexts/AuthContext';
-import apiClient, { stockAlerts } from '@/services/api';
+import { stockAlerts } from '@/services/api';
 import { 
   FaTachometerAlt, FaBoxes, FaShoppingCart, FaUsers, FaWarehouse, 
   FaShoppingBag, FaUserTie, FaBook, FaBullseye, FaHandshake, 
@@ -400,41 +400,6 @@ const menuItems: MenuItem[] = [
   },
 ];
 
-const iconMap: Record<string, any> = {
-  FaTachometerAlt,
-  FaBoxes,
-  FaShoppingCart,
-  FaUsers,
-  FaWarehouse,
-  FaShoppingBag,
-  FaUserTie,
-  FaBook,
-  FaBullseye,
-  FaHandshake,
-  FaHeadset,
-  FaUser,
-  FaCog,
-  FaBell,
-  FaChartBar,
-  FaTags,
-  FaGift,
-  FaPhone,
-  FaImage,
-  FaPrint,
-  FaClipboardList,
-  FaSlidersH,
-  FaClipboardCheck,
-  FaBarcode,
-  FaFileImport,
-  FaSearch,
-  FaRecycle,
-};
-
-function iconFromKey(key?: string | null) {
-  if (!key) return FaCog;
-  return iconMap[String(key)] || FaCog;
-}
-
 function ensureManageModulesLink(items: MenuItem[]): MenuItem[] {
   const exists = (arr: MenuItem[]): boolean =>
     arr.some((x) => x.path === '/admin/settings/manage-modules' || (x.children ? exists(x.children) : false));
@@ -552,7 +517,6 @@ function getPanelTitleFromRoleSlugs(roleSlugs: Set<string>): string {
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [expandedMenus, setExpandedMenus] = useState<string[]>([]);
-  const [dbMenuItems, setDbMenuItems] = useState<MenuItem[] | null>(null);
   const [alertCount, setAlertCount] = useState(0);
   const [showAlertDropdown, setShowAlertDropdown] = useState(false);
   const [recentAlerts, setRecentAlerts] = useState<any[]>([]);
@@ -594,44 +558,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     }
   }, [showAlertDropdown]);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await apiClient.get('/settings/admin-menu', { params: { includeInactive: false } });
-        const data = Array.isArray(res.data) ? res.data : [];
-        if (cancelled) return;
-        if (data.length === 0) {
-          setDbMenuItems(null);
-          return;
-        }
-
-        const mapNode = (n: any): MenuItem => {
-          return {
-            title: String(n.title || ''),
-            icon: iconFromKey(n.icon),
-            path: n.path || undefined,
-            requiredPermissions: Array.isArray(n.requiredPermissions) ? n.requiredPermissions : [],
-            children: Array.isArray(n.children) ? n.children.map(mapNode) : undefined,
-          };
-        };
-
-        const mapped = data.map(mapNode);
-        setDbMenuItems(ensureManageModulesLink(mapped));
-      } catch {
-        if (!cancelled) setDbMenuItems(null);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
   const effectiveMenuItems = useMemo(() => {
-    const base = dbMenuItems && dbMenuItems.length > 0 ? dbMenuItems : menuItems;
-    return flattenSingleChildMenus(ensureManageModulesLink(base));
-  }, [dbMenuItems]);
+    return flattenSingleChildMenus(ensureManageModulesLink(menuItems));
+  }, []);
 
   const panelTitle = useMemo(() => {
     const slugs = new Set<string>();
