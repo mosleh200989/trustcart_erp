@@ -282,9 +282,13 @@ export class LeadManagementService {
     const cartItems = Array.isArray(order.cartData) ? order.cartData : [];
     const items = cartItems.map((item: any) => ({
       product_id: item.product_id || item.id || 0,
+      product_name: item.product_name || item.productName || item.name || null,
       quantity: item.quantity || 1,
       unit_price: item.price || item.unit_price || 0,
     }));
+    const selectedSource = String(order.source || '').toLowerCase() === 'admin_panel'
+      ? 'admin_panel'
+      : 'landing_page';
 
     const createDto: any = {
       customer_name: order.name || '',
@@ -295,7 +299,7 @@ export class LeadManagementService {
       items,
       total_amount: order.totalAmount || 0,
       delivery_charge: order.deliveryCharge || 0,
-      order_source: 'incomplete_order_conversion',
+      order_source: selectedSource,
       created_by: userId,
       status: 'processing',
     };

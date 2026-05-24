@@ -422,6 +422,13 @@ export default function AdminSales() {
     ));
   };
 
+  const updateOrderItemPrice = (productId: number, variantName: string, unitPrice: number) => {
+    if (!Number.isFinite(unitPrice) || unitPrice < 0) return;
+    setOrderItems(orderItems.map(item =>
+      (item.productId === productId && item.variantName === variantName) ? { ...item, unitPrice } : item
+    ));
+  };
+
   const handleAdd = () => {
     setModalMode('add');
     setFormData({
@@ -1783,7 +1790,16 @@ export default function AdminSales() {
                                 className="w-16 text-center border rounded px-1 py-0.5"
                               />
                             </td>
-                            <td className="px-3 py-2 text-right">৳{item.unitPrice.toFixed(2)}</td>
+                            <td className="px-3 py-2 text-right">
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={item.unitPrice}
+                                onChange={(e) => updateOrderItemPrice(item.productId, item.variantName, parseFloat(e.target.value) || 0)}
+                                className="w-24 text-right border rounded px-1 py-0.5"
+                              />
+                            </td>
                             <td className="px-3 py-2 text-right font-medium">৳{(item.quantity * item.unitPrice).toFixed(2)}</td>
                             <td className="px-1 py-2 text-center">
                               <button

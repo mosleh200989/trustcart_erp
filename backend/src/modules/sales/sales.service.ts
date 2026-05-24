@@ -42,6 +42,7 @@ export class SalesService {
   ) {}
 
   private readonly dhakaTimeZone = 'Asia/Dhaka';
+  private readonly automaticAssignmentWorkTypes = ['primary_leads', 'unreachable_followup', 'incomplete_recovery', 'rejected_recovery'];
 
   private currentDhakaDateString(): string {
     const parts = new Intl.DateTimeFormat('en-CA', {
@@ -277,9 +278,30 @@ export class SalesService {
       ALTER TABLE automatic_order_assignment_agent_preferences
         ADD COLUMN IF NOT EXISTS assignment_order_direction varchar(4) NOT NULL DEFAULT 'asc'
     `);
+    await manager.query(`
+      CREATE TABLE IF NOT EXISTS automatic_order_assignment_team_work_types (
+        id serial PRIMARY KEY,
+        team_leader_id integer NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        team_id integer NOT NULL REFERENCES sales_teams(id) ON DELETE CASCADE,
+        work_type varchar(50) NOT NULL,
+        updated_by integer NULL REFERENCES users(id) ON DELETE SET NULL,
+        created_at timestamp NOT NULL DEFAULT NOW(),
+        updated_at timestamp NOT NULL DEFAULT NOW(),
+        CONSTRAINT uq_auto_assignment_team_work_type UNIQUE (team_leader_id, team_id, work_type)
+      )
+    `);
+    await manager.query(`
+      ALTER TABLE automatic_order_assignment_logs
+        ALTER COLUMN order_id DROP NOT NULL
+    `);
+    await manager.query(`
+      ALTER TABLE automatic_order_assignment_logs
+        ADD COLUMN IF NOT EXISTS record_type varchar(30) NOT NULL DEFAULT 'sales_order',
+        ADD COLUMN IF NOT EXISTS incomplete_order_id integer NULL
+    `);
   }
 
-  private async runAutomaticAssignmentQueue(options: { orderId?: number; teamLeaderId?: number; limit?: number; reason?: string } = {}) {
+  async runAutomaticAssignmentQueue(options: { orderId?: number; teamLeaderId?: number; limit?: number; reason?: string } = {}) {
     const result = { assignedCount: 0, checkedOrders: 0, eligibleAgents: 0 };
 
     try {
@@ -293,22 +315,25 @@ export class SalesService {
         const candidates: Array<{
           agent_id: number;
           team_leader_id: number;
+          team_id: number | string | null;
           max_active_orders: number | string;
           max_daily_orders: number | string;
           product_preference_id: number | string | null;
           assignment_order_direction: string | null;
+          work_types: string[] | null;
           active_count: number | string;
           assigned_today: number | string;
         }> = await manager.query(
           `WITH agent_team AS (
-             SELECT DISTINCT agent_id, team_leader_id
+             SELECT DISTINCT agent_id, team_leader_id, team_id
              FROM (
-               SELECT u1.id AS agent_id, u1.team_leader_id
+               SELECT u1.id AS agent_id, u1.team_leader_id, u1.team_id
                FROM users u1
                WHERE u1.team_leader_id IS NOT NULL
                UNION ALL
-               SELECT tm.user_id AS agent_id, tm.team_leader_id
+               SELECT tm.user_id AS agent_id, tm.team_leader_id, u2.team_id
                FROM team_members tm
+               INNER JOIN users u2 ON u2.id = tm.user_id
                WHERE tm.is_active = TRUE
              ) memberships
              WHERE team_leader_id IS NOT NULL
@@ -316,10 +341,22 @@ export class SalesService {
            SELECT
              u.id AS agent_id,
              at.team_leader_id,
+             at.team_id,
              COALESCE(s.max_active_orders, 10) AS max_active_orders,
              COALESCE(s.max_daily_orders, 100) AS max_daily_orders,
              pref.product_id AS product_preference_id,
              COALESCE(pref.assignment_order_direction, 'asc') AS assignment_order_direction,
+             COALESCE(
+               ARRAY_AGG(DISTINCT twt.work_type) FILTER (WHERE twt.work_type IS NOT NULL),
+               CASE
+                 WHEN NOT EXISTS (
+                   SELECT 1
+                   FROM automatic_order_assignment_team_work_types configured
+                   WHERE configured.team_leader_id = at.team_leader_id
+                 ) THEN ARRAY['primary_leads']::text[]
+                 ELSE ARRAY[]::text[]
+               END
+             ) AS work_types,
              COUNT(DISTINCT active_orders.id)::int AS active_count,
              COUNT(DISTINCT today_orders.id)::int AS assigned_today
            FROM agent_team at
@@ -331,6 +368,9 @@ export class SalesService {
            LEFT JOIN automatic_order_assignment_agent_preferences pref
              ON pref.team_leader_id = at.team_leader_id
             AND pref.agent_id = u.id
+           LEFT JOIN automatic_order_assignment_team_work_types twt
+             ON twt.team_leader_id = at.team_leader_id
+            AND twt.team_id = at.team_id
            INNER JOIN user_presence_statuses ps
              ON ps.user_id = u.id
             AND LOWER(ps.state) = 'online'
@@ -344,7 +384,7 @@ export class SalesService {
              AND u.status = 'active'
              AND r.slug = 'sales-executive'
              ${teamLeaderClause}
-           GROUP BY u.id, at.team_leader_id, s.max_active_orders, s.max_daily_orders, pref.product_id, pref.assignment_order_direction
+           GROUP BY u.id, at.team_leader_id, at.team_id, s.max_active_orders, s.max_daily_orders, pref.product_id, pref.assignment_order_direction
            HAVING COUNT(DISTINCT active_orders.id) < COALESCE(s.max_active_orders, 10)
               AND COUNT(DISTINCT today_orders.id) < COALESCE(s.max_daily_orders, 100)
            ORDER BY COUNT(DISTINCT active_orders.id) ASC, COUNT(DISTINCT today_orders.id) ASC, u.id ASC`,
@@ -354,13 +394,17 @@ export class SalesService {
         const agents = candidates.map((candidate) => ({
           agentId: Number(candidate.agent_id),
           teamLeaderId: Number(candidate.team_leader_id),
+          teamId: candidate.team_id == null ? null : Number(candidate.team_id),
           maxActiveOrders: Number(candidate.max_active_orders || 10),
           maxDailyOrders: Number(candidate.max_daily_orders || 100),
           productPreferenceId: candidate.product_preference_id == null ? null : Number(candidate.product_preference_id),
           assignmentOrderDirection: String(candidate.assignment_order_direction || 'asc').toLowerCase() === 'desc' ? 'desc' : 'asc',
+          workTypes: Array.isArray(candidate.work_types)
+            ? candidate.work_types.map((item) => String(item)).filter((item) => this.automaticAssignmentWorkTypes.includes(item))
+            : [],
           activeCount: Number(candidate.active_count || 0),
           assignedToday: Number(candidate.assigned_today || 0),
-        }));
+        })).filter((candidate) => candidate.workTypes.length > 0);
         result.eligibleAgents = agents.length;
         if (agents.length === 0) return result;
 
@@ -371,31 +415,52 @@ export class SalesService {
           orderIdClause = `AND id = $${orderParams.length}`;
         }
 
-        const orders: Array<{ id: number; created_at: string | Date; product_ids: number[] | null }> = await manager.query(
+        const orders: Array<{ id: number; record_type: string; work_type: string; created_at: string | Date; product_ids: number[] | null }> = await manager.query(
           `SELECT q.id,
+                  q.record_type,
+                  q.work_type,
                   q.created_at,
                   COALESCE(product_data.product_ids, ARRAY[]::integer[]) AS product_ids
            FROM (
-             SELECT id, created_at
+             SELECT id,
+                    'sales_order'::text AS record_type,
+                    CASE
+                      WHEN LOWER(status::text) = 'admin_cancelled' THEN 'rejected_recovery'
+                      WHEN LOWER(status::text) = 'processing'
+                       AND LOWER(COALESCE(telephony_outcome, '')) IN ('no_answer', 'unreachable') THEN 'unreachable_followup'
+                      ELSE 'primary_leads'
+                    END AS work_type,
+                    created_at
              FROM sales_orders
              WHERE assigned_to IS NULL
                AND LOWER(COALESCE(order_source, '')) = ANY($1)
-               AND LOWER(status::text) = 'processing'
+               AND (
+                 LOWER(status::text) = 'admin_cancelled'
+                 OR LOWER(status::text) = 'processing'
+               )
                ${orderIdClause}
+             UNION ALL
+             SELECT id,
+                    'incomplete_order'::text AS record_type,
+                    'incomplete_recovery'::text AS work_type,
+                    created_at
+             FROM incomplete_orders
+             WHERE assigned_to IS NULL
+               AND COALESCE(converted_to_order, FALSE) = FALSE
+               AND ${orderIdClause ? 'FALSE' : 'TRUE'}
              ORDER BY created_at ASC, id ASC
              LIMIT $2
-             FOR UPDATE SKIP LOCKED
            ) q
            LEFT JOIN LATERAL (
              SELECT ARRAY_AGG(DISTINCT product_id) FILTER (WHERE product_id IS NOT NULL) AS product_ids
              FROM (
                SELECT oi.product_id
                FROM order_items oi
-               WHERE oi.order_id = q.id
+               WHERE oi.order_id = q.id AND q.record_type = 'sales_order'
                UNION ALL
                SELECT soi.product_id
                FROM sales_order_items soi
-               WHERE soi.sales_order_id = q.id
+               WHERE soi.sales_order_id = q.id AND q.record_type = 'sales_order'
              ) products_for_order
            ) product_data ON TRUE
            ORDER BY q.created_at ASC, q.id ASC
@@ -408,7 +473,7 @@ export class SalesService {
 
         const reason = String(options.reason || 'online_agent_auto_assignment').slice(0, 100);
 
-        const assignedOrderIds = new Set<number>();
+        const assignedOrderIds = new Set<string>();
         while (assignedOrderIds.size < orders.length) {
           agents.sort((a, b) => {
             const loadDiff = a.activeCount - b.activeCount;
@@ -422,8 +487,10 @@ export class SalesService {
             if (item.activeCount >= item.maxActiveOrders) return false;
             if (item.assignedToday >= item.maxDailyOrders) return false;
             return orders.some((order) => {
-              if (assignedOrderIds.has(Number(order.id))) return false;
+              if (assignedOrderIds.has(`${order.record_type}:${Number(order.id)}`)) return false;
+              if (!item.workTypes.includes(order.work_type)) return false;
               if (!item.productPreferenceId) return true;
+              if (order.record_type !== 'sales_order') return false;
               const productIds = new Set((order.product_ids || []).map((id) => Number(id)).filter((id) => Number.isFinite(id)));
               return productIds.has(item.productPreferenceId);
             });
@@ -432,8 +499,10 @@ export class SalesService {
 
           const matchingOrders = orders
             .filter((order) => {
-              if (assignedOrderIds.has(Number(order.id))) return false;
+              if (assignedOrderIds.has(`${order.record_type}:${Number(order.id)}`)) return false;
+              if (!agent.workTypes.includes(order.work_type)) return false;
               if (!agent.productPreferenceId) return true;
+              if (order.record_type !== 'sales_order') return false;
               const productIds = new Set((order.product_ids || []).map((id) => Number(id)).filter((id) => Number.isFinite(id)));
               return productIds.has(agent.productPreferenceId);
             })
@@ -447,30 +516,53 @@ export class SalesService {
           const order = matchingOrders[0];
           if (!order) break;
 
-          const updatedRows: Array<{ id: number }> = await manager.query(
-            `UPDATE sales_orders
-             SET assigned_to = $2,
-                 assigned_by = $3,
-                 assigned_at = NOW(),
-                 updated_at = NOW()
-             WHERE id = $1
-               AND assigned_to IS NULL
-               AND LOWER(COALESCE(order_source, '')) = ANY($4)
-               AND LOWER(status::text) = 'processing'
-             RETURNING id`,
-            [Number(order.id), agent.agentId, agent.teamLeaderId, this.webOrderSources],
-          );
+          const updatedRows: Array<{ id: number }> = order.record_type === 'incomplete_order'
+            ? await manager.query(
+                `UPDATE incomplete_orders
+                 SET assigned_to = $2,
+                     assigned_by = $3,
+                     assigned_at = NOW(),
+                     updated_at = NOW()
+                 WHERE id = $1
+                   AND assigned_to IS NULL
+                   AND COALESCE(converted_to_order, FALSE) = FALSE
+                 RETURNING id`,
+                [Number(order.id), agent.agentId, agent.teamLeaderId],
+              )
+            : await manager.query(
+                `UPDATE sales_orders
+                 SET assigned_to = $2,
+                     assigned_by = $3,
+                     assigned_at = NOW(),
+                     updated_at = NOW()
+                 WHERE id = $1
+                   AND assigned_to IS NULL
+                   AND LOWER(COALESCE(order_source, '')) = ANY($4)
+                   AND (
+                     LOWER(status::text) = 'admin_cancelled'
+                     OR LOWER(status::text) = 'processing'
+                   )
+                 RETURNING id`,
+                [Number(order.id), agent.agentId, agent.teamLeaderId, this.webOrderSources],
+              );
 
           if (updatedRows.length === 0) continue;
 
           await manager.query(
             `INSERT INTO automatic_order_assignment_logs
-               (order_id, agent_id, team_leader_id, assigned_by, reason, created_at)
-             VALUES ($1, $2, $3, $3, $4, NOW())`,
-            [Number(order.id), agent.agentId, agent.teamLeaderId, reason],
+               (order_id, incomplete_order_id, record_type, agent_id, team_leader_id, assigned_by, reason, created_at)
+             VALUES ($1, $2, $3, $4, $5, $5, $6, NOW())`,
+            [
+              order.record_type === 'sales_order' ? Number(order.id) : null,
+              order.record_type === 'incomplete_order' ? Number(order.id) : null,
+              order.record_type,
+              agent.agentId,
+              agent.teamLeaderId,
+              `${reason}:${order.work_type}`.slice(0, 100),
+            ],
           );
 
-          assignedOrderIds.add(Number(order.id));
+          assignedOrderIds.add(`${order.record_type}:${Number(order.id)}`);
           agent.activeCount += 1;
           agent.assignedToday += 1;
           result.assignedCount += 1;
@@ -501,13 +593,13 @@ export class SalesService {
        INNER JOIN roles r ON r.id = rp.role_id
        WHERE r.id = (SELECT role_id FROM users WHERE id = $1)
          AND r.is_active = true
-         AND p.slug IN ('view-auto-order-assignment', 'manage-auto-order-assignment')`,
+         AND p.slug IN ('view-auto-order-assignment', 'manage-auto-order-assignment', 'view-team-performance')`,
       [userId],
     );
     const permissions = new Set(rows.map((row) => row.slug));
     const roleSlug = String(user?.roleSlug || rows[0]?.role_slug || '').toLowerCase();
     const canManage = permissions.has('manage-auto-order-assignment');
-    const canView = canManage || permissions.has('view-auto-order-assignment');
+    const canView = canManage || permissions.has('view-auto-order-assignment') || permissions.has('view-team-performance');
     const canViewAll = ['super-admin', 'admin', 'sales-manager'].includes(roleSlug);
     return { userId, roleSlug, canManage, canView, canViewAll, isTeamLeader: roleSlug === 'sales-team-leader' };
   }
@@ -576,7 +668,7 @@ export class SalesService {
     );
 
     const recentAssignments = await this.salesRepository.manager.query(
-      `SELECT l.id, l.order_id, l.agent_id, l.team_leader_id, l.reason, l.created_at,
+      `SELECT l.id, l.order_id, l.incomplete_order_id, l.record_type, l.agent_id, l.team_leader_id, l.reason, l.created_at,
               CONCAT_WS(' ', u.name, u.last_name) AS agent_name
        FROM automatic_order_assignment_logs l
        LEFT JOIN users u ON u.id = l.agent_id
@@ -586,12 +678,45 @@ export class SalesService {
       [teamLeaderId],
     );
 
+    const configuredRows: Array<{ count: string }> = await this.salesRepository.manager.query(
+      `SELECT COUNT(*)::text AS count
+       FROM automatic_order_assignment_team_work_types
+       WHERE team_leader_id = $1`,
+      [teamLeaderId],
+    );
+    const hasConfiguredWorkTypes = Number(configuredRows[0]?.count || 0) > 0;
+    const teamRows: Array<{ id: number; name: string; code: string | null; work_types: string[] | null }> = await this.salesRepository.manager.query(
+      `SELECT st.id,
+              st.name,
+              st.code,
+              ARRAY_AGG(twt.work_type ORDER BY twt.work_type) FILTER (WHERE twt.work_type IS NOT NULL) AS work_types
+       FROM sales_teams st
+       LEFT JOIN automatic_order_assignment_team_work_types twt
+         ON twt.team_id = st.id
+        AND twt.team_leader_id = st.team_leader_id
+       WHERE st.team_leader_id = $1
+       GROUP BY st.id, st.name, st.code
+       ORDER BY COALESCE(st.code, ''), st.name`,
+      [teamLeaderId],
+    );
+
     const pendingRows: Array<{ count: string }> = await this.salesRepository.manager.query(
       `SELECT COUNT(*)::text AS count
-       FROM sales_orders
-       WHERE assigned_to IS NULL
-         AND LOWER(COALESCE(order_source, '')) = ANY($1)
-         AND LOWER(status::text) = 'processing'`,
+       FROM (
+         SELECT id
+         FROM sales_orders
+         WHERE assigned_to IS NULL
+           AND LOWER(COALESCE(order_source, '')) = ANY($1)
+           AND (
+             LOWER(status::text) = 'admin_cancelled'
+             OR LOWER(status::text) = 'processing'
+           )
+         UNION ALL
+         SELECT id
+         FROM incomplete_orders
+         WHERE assigned_to IS NULL
+           AND COALESCE(converted_to_order, FALSE) = FALSE
+       ) pending`,
       [this.webOrderSources],
     );
 
@@ -614,8 +739,209 @@ export class SalesService {
         productPreferenceName: agent.product_preference_name || null,
         assignmentOrderDirection: String(agent.assignment_order_direction || 'asc').toLowerCase() === 'desc' ? 'desc' : 'asc',
       })),
+      teamWorkTypes: teamRows.map((team) => ({
+        id: Number(team.id),
+        name: team.name,
+        code: team.code,
+        workTypes: hasConfiguredWorkTypes
+          ? (Array.isArray(team.work_types) ? team.work_types.filter((item) => this.automaticAssignmentWorkTypes.includes(String(item))) : [])
+          : ['primary_leads'],
+      })),
       recentAssignments,
       pendingUnassignedOrders: Number(pendingRows[0]?.count || 0),
+    };
+  }
+
+  async getAutomaticAssignmentTeamReport(user: any, params: { teamLeaderId?: number; from?: string; to?: string } = {}) {
+    const access = await this.getAutomaticAssignmentAccess(user);
+    if (!access.canView) throw new BadRequestException('You do not have permission to view team report');
+    if (!access.canViewAll && !access.isTeamLeader) throw new BadRequestException('Only Team Leaders can view their team report');
+    await this.ensureAutomaticAssignmentSchema();
+
+    const teamLeaderId = access.canViewAll && params.teamLeaderId ? Number(params.teamLeaderId) : access.userId;
+    const today = getDhakaDateString();
+    const fromDate = /^\d{4}-\d{2}-\d{2}$/.test(String(params.from || '')) ? String(params.from) : today;
+    const toDate = /^\d{4}-\d{2}-\d{2}$/.test(String(params.to || '')) ? String(params.to) : today;
+    const rangeStart = `${fromDate} 00:00:00`;
+    const rangeEnd = `${toDate} 23:59:59`;
+
+    const overview = await this.getAutomaticAssignmentOverview(user, { teamLeaderId });
+
+    const queueRows: Array<{ work_type: string; count: string }> = await this.salesRepository.manager.query(
+      `SELECT work_type, COUNT(*)::text AS count
+       FROM (
+         SELECT CASE
+                  WHEN LOWER(status::text) = 'admin_cancelled' THEN 'rejected_recovery'
+                  WHEN LOWER(status::text) = 'processing'
+                   AND LOWER(COALESCE(telephony_outcome, '')) IN ('no_answer', 'unreachable') THEN 'unreachable_followup'
+                  ELSE 'primary_leads'
+                END AS work_type
+         FROM sales_orders
+         WHERE assigned_to IS NULL
+           AND LOWER(COALESCE(order_source, '')) = ANY($1)
+           AND (LOWER(status::text) = 'processing' OR LOWER(status::text) = 'admin_cancelled')
+         UNION ALL
+         SELECT 'incomplete_recovery' AS work_type
+         FROM incomplete_orders
+         WHERE assigned_to IS NULL
+           AND COALESCE(converted_to_order, FALSE) = FALSE
+       ) queues
+       GROUP BY work_type`,
+      [this.webOrderSources],
+    );
+
+    const teamRows = await this.salesRepository.manager.query(
+      `WITH team_agents AS (
+         SELECT st.id AS team_id, u.id AS agent_id
+         FROM sales_teams st
+         LEFT JOIN users u
+           ON u.team_id = st.id
+          AND u.team_leader_id = st.team_leader_id
+          AND u.is_deleted = FALSE
+          AND u.status = 'active'
+         WHERE st.team_leader_id = $1
+       )
+       SELECT
+         st.id,
+         st.name,
+         st.code,
+         COALESCE(ARRAY_AGG(DISTINCT twt.work_type) FILTER (WHERE twt.work_type IS NOT NULL), ARRAY[]::text[]) AS work_types,
+         COUNT(DISTINCT ta.agent_id)::int AS agent_count,
+         COUNT(DISTINCT ta.agent_id) FILTER (WHERE LOWER(COALESCE(ps.state, 'offline')) = 'online')::int AS online_agents,
+         COUNT(DISTINCT so_active.id)::int AS active_sales_orders,
+         COUNT(DISTINCT io_active.id)::int AS active_incomplete_orders,
+         COUNT(DISTINCT l.id)::int AS assigned_in_range,
+         COUNT(DISTINCT l.id) FILTER (WHERE l.record_type = 'sales_order')::int AS sales_assigned_in_range,
+         COUNT(DISTINCT l.id) FILTER (WHERE l.record_type = 'incomplete_order')::int AS incomplete_assigned_in_range,
+         COUNT(DISTINCT so_called.id) FILTER (WHERE so_called.telephony_outcome IN ('no_answer', 'unreachable'))::int AS unreachable_outcomes,
+         COUNT(DISTINCT so_called.id) FILTER (WHERE so_called.telephony_outcome IN ('connected', 'order_placed'))::int AS positive_outcomes
+       FROM sales_teams st
+       LEFT JOIN automatic_order_assignment_team_work_types twt
+         ON twt.team_id = st.id
+        AND twt.team_leader_id = st.team_leader_id
+       LEFT JOIN team_agents ta ON ta.team_id = st.id
+       LEFT JOIN user_presence_statuses ps ON ps.user_id = ta.agent_id
+       LEFT JOIN sales_orders so_active
+         ON so_active.assigned_to = ta.agent_id
+        AND LOWER(so_active.status::text) IN ('processing', 'pending', 'approved', 'hold', 'sent', 'in_review', 'in_transit', 'picked', 'shipped')
+       LEFT JOIN incomplete_orders io_active
+         ON io_active.assigned_to = ta.agent_id
+        AND COALESCE(io_active.converted_to_order, FALSE) = FALSE
+       LEFT JOIN automatic_order_assignment_logs l
+         ON l.agent_id = ta.agent_id
+        AND l.created_at >= $2::timestamp
+        AND l.created_at <= $3::timestamp
+       LEFT JOIN sales_orders so_called
+         ON so_called.assigned_to = ta.agent_id
+        AND so_called.telephony_called_at >= $2::timestamp
+        AND so_called.telephony_called_at <= $3::timestamp
+       WHERE st.team_leader_id = $1
+       GROUP BY st.id, st.name, st.code
+       ORDER BY COALESCE(st.code, ''), st.name`,
+      [teamLeaderId, rangeStart, rangeEnd],
+    );
+
+    const agentRows = await this.salesRepository.manager.query(
+      `SELECT
+         u.id,
+         CONCAT_WS(' ', u.name, u.last_name) AS name,
+         u.email,
+         st.id AS team_id,
+         st.name AS team_name,
+         st.code AS team_code,
+         COALESCE(ps.state, 'offline') AS presence_state,
+         COUNT(DISTINCT so_active.id)::int AS active_sales_orders,
+         COUNT(DISTINCT io_active.id)::int AS active_incomplete_orders,
+         COUNT(DISTINCT l.id)::int AS assigned_in_range,
+         COUNT(DISTINCT so_called.id) FILTER (WHERE so_called.telephony_outcome IN ('connected', 'order_placed'))::int AS positive_outcomes,
+         COUNT(DISTINCT so_called.id) FILTER (WHERE so_called.telephony_outcome IN ('no_answer', 'unreachable'))::int AS unreachable_outcomes,
+         COUNT(DISTINCT so_called.id) FILTER (WHERE so_called.telephony_called_at IS NOT NULL)::int AS calls_logged
+       FROM users u
+       LEFT JOIN sales_teams st ON st.id = u.team_id
+       LEFT JOIN user_presence_statuses ps ON ps.user_id = u.id
+       LEFT JOIN automatic_order_assignment_logs l
+         ON l.agent_id = u.id
+        AND l.created_at >= $2::timestamp
+        AND l.created_at <= $3::timestamp
+       LEFT JOIN sales_orders so_active
+         ON so_active.assigned_to = u.id
+        AND LOWER(so_active.status::text) IN ('processing', 'pending', 'approved', 'hold', 'sent', 'in_review', 'in_transit', 'picked', 'shipped')
+       LEFT JOIN incomplete_orders io_active
+         ON io_active.assigned_to = u.id
+        AND COALESCE(io_active.converted_to_order, FALSE) = FALSE
+       LEFT JOIN sales_orders so_called
+         ON so_called.assigned_to = u.id
+        AND so_called.telephony_called_at >= $2::timestamp
+        AND so_called.telephony_called_at <= $3::timestamp
+       LEFT JOIN roles r ON r.id = u.role_id
+       WHERE u.team_leader_id = $1
+         AND u.is_deleted = FALSE
+         AND u.status = 'active'
+         AND r.slug = 'sales-executive'
+       GROUP BY u.id, u.name, u.last_name, u.email, st.id, st.name, st.code, ps.state
+       ORDER BY COALESCE(st.code, ''), st.name, assigned_in_range DESC, name`,
+      [teamLeaderId, rangeStart, rangeEnd],
+    );
+
+    const queueByType = new Map(queueRows.map((row) => [String(row.work_type), Number(row.count || 0)]));
+    const queueSummary = this.automaticAssignmentWorkTypes.map((workType) => ({
+      workType,
+      count: queueByType.get(workType) || 0,
+    }));
+
+    const teams = teamRows.map((team: any) => {
+      const configured = (overview.teamWorkTypes || []).find((item: any) => Number(item.id) === Number(team.id));
+      return {
+        id: Number(team.id),
+        name: team.name,
+        code: team.code,
+        workTypes: configured?.workTypes || (Array.isArray(team.work_types) ? team.work_types : []),
+        agentCount: Number(team.agent_count || 0),
+        onlineAgents: Number(team.online_agents || 0),
+        activeOrders: Number(team.active_sales_orders || 0) + Number(team.active_incomplete_orders || 0),
+        activeSalesOrders: Number(team.active_sales_orders || 0),
+        activeIncompleteOrders: Number(team.active_incomplete_orders || 0),
+        assignedInRange: Number(team.assigned_in_range || 0),
+        salesAssignedInRange: Number(team.sales_assigned_in_range || 0),
+        incompleteAssignedInRange: Number(team.incomplete_assigned_in_range || 0),
+        unreachableOutcomes: Number(team.unreachable_outcomes || 0),
+        positiveOutcomes: Number(team.positive_outcomes || 0),
+      };
+    });
+
+    const agents = agentRows.map((agent: any) => ({
+      id: Number(agent.id),
+      name: agent.name || agent.email,
+      email: agent.email,
+      teamId: agent.team_id == null ? null : Number(agent.team_id),
+      teamName: agent.team_name || 'Unassigned Team',
+      teamCode: agent.team_code || null,
+      presenceState: agent.presence_state || 'offline',
+      activeOrders: Number(agent.active_sales_orders || 0) + Number(agent.active_incomplete_orders || 0),
+      assignedInRange: Number(agent.assigned_in_range || 0),
+      callsLogged: Number(agent.calls_logged || 0),
+      positiveOutcomes: Number(agent.positive_outcomes || 0),
+      unreachableOutcomes: Number(agent.unreachable_outcomes || 0),
+    }));
+
+    return {
+      teamLeaderId,
+      from: fromDate,
+      to: toDate,
+      settings: overview.settings,
+      summary: {
+        teams: teams.length,
+        agents: agents.length,
+        onlineAgents: agents.filter((agent: any) => agent.presenceState === 'online').length,
+        activeOrders: teams.reduce((sum: number, team: any) => sum + team.activeOrders, 0),
+        assignedInRange: teams.reduce((sum: number, team: any) => sum + team.assignedInRange, 0),
+        pendingQueue: queueSummary.reduce((sum: number, row: any) => sum + row.count, 0),
+        unreachableOutcomes: teams.reduce((sum: number, team: any) => sum + team.unreachableOutcomes, 0),
+      },
+      queueSummary,
+      teams,
+      agents,
+      recentAssignments: overview.recentAssignments,
     };
   }
 
@@ -678,7 +1004,14 @@ export class SalesService {
     }));
   }
 
-  async updateAutomaticAssignmentSettings(user: any, body: { teamLeaderId?: number; isEnabled?: boolean; maxActiveOrders?: number; maxDailyOrders?: number; agentPreferences?: Array<{ agentId?: number; productId?: number | null; assignmentOrderDirection?: string }> }) {
+  async updateAutomaticAssignmentSettings(user: any, body: {
+    teamLeaderId?: number;
+    isEnabled?: boolean;
+    maxActiveOrders?: number;
+    maxDailyOrders?: number;
+    agentPreferences?: Array<{ agentId?: number; productId?: number | null; assignmentOrderDirection?: string }>;
+    teamWorkTypes?: Array<{ teamId?: number; workTypes?: string[] }>;
+  }) {
     const access = await this.getAutomaticAssignmentAccess(user);
     if (!access.canManage) throw new BadRequestException('You do not have permission to manage automatic assignment');
     if (!access.canViewAll && !access.isTeamLeader) throw new BadRequestException('Only Team Leaders can manage automatic assignment');
@@ -718,6 +1051,33 @@ export class SalesService {
                          updated_at = NOW()`,
           [teamLeaderId, agentId, Number.isFinite(productId as any) ? productId : null, assignmentOrderDirection, access.userId],
         );
+      }
+    }
+
+    if (Array.isArray(body.teamWorkTypes)) {
+      await this.salesRepository.manager.query(
+        `DELETE FROM automatic_order_assignment_team_work_types
+         WHERE team_leader_id = $1`,
+        [teamLeaderId],
+      );
+      for (const teamConfig of body.teamWorkTypes) {
+        const teamId = Number(teamConfig.teamId);
+        if (!Number.isFinite(teamId) || teamId <= 0) continue;
+        const workTypes = Array.from(new Set((teamConfig.workTypes || []).map((item) => String(item).trim()).filter((item) => this.automaticAssignmentWorkTypes.includes(item))));
+        for (const workType of workTypes) {
+          await this.salesRepository.manager.query(
+            `INSERT INTO automatic_order_assignment_team_work_types
+               (team_leader_id, team_id, work_type, updated_by, created_at, updated_at)
+             SELECT $1, st.id, $3, $4, NOW(), NOW()
+             FROM sales_teams st
+             WHERE st.id = $2
+               AND st.team_leader_id = $1
+             ON CONFLICT (team_leader_id, team_id, work_type)
+             DO UPDATE SET updated_by = EXCLUDED.updated_by,
+                           updated_at = NOW()`,
+            [teamLeaderId, teamId, workType, access.userId],
+          );
+        }
       }
     }
 

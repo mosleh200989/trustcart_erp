@@ -20,6 +20,23 @@ interface MenuItem {
   requiredPermissions?: string[]; // any-of
 }
 
+const telephonyAssignmentBadgeTypes: Record<string, 'order' | 'incomplete' | 'cancelled' | 'rejected'> = {
+  '/admin/telephony/order-assignment': 'order',
+  '/admin/telephony/incomplete-assignment': 'incomplete',
+  '/admin/telephony/cancelled-assignment': 'cancelled',
+  '/admin/telephony/rejected-assignment': 'rejected',
+};
+
+function isDesktopPresenceDevice(): boolean {
+  if (typeof navigator === 'undefined') return true;
+  const ua = navigator.userAgent.toLowerCase();
+  const platform = (navigator.platform || '').toLowerCase();
+  const touchPoints = navigator.maxTouchPoints || 0;
+  const mobileMarkers = /android|iphone|ipad|ipod|mobile|windows phone|blackberry|bb10|opera mini|opera mobi|kindle|silk/;
+  const iPadDesktopMode = platform.includes('mac') && touchPoints > 1;
+  return !mobileMarkers.test(ua) && !iPadDesktopMode;
+}
+
 const menuItems: MenuItem[] = [
   { title: 'Dashboard', icon: FaTachometerAlt, path: '/admin/dashboard' },
   {
@@ -699,6 +716,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [recentAlerts, setRecentAlerts] = useState<any[]>([]);
   const [presenceState, setPresenceState] = useState<'online' | 'offline'>('offline');
   const [presenceLoading, setPresenceLoading] = useState(false);
+  const [presencePcAllowed, setPresencePcAllowed] = useState(true);
+  const [telephonyAssignmentCounts, setTelephonyAssignmentCounts] = useState<Record<string, number>>({});
   const alertRef = useRef<HTMLDivElement>(null);
   const presenceStateRef = useRef<'online' | 'offline'>('offline');
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -743,6 +762,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   useEffect(() => {
     let cancelled = false;
+    const canUseOnlinePresence = isDesktopPresenceDevice();
+    setPresencePcAllowed(canUseOnlinePresence);
 
     const setPresence = async (state: 'online' | 'offline') => {
       presenceStateRef.current = state;
@@ -763,6 +784,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     };
 
     const markActive = () => {
+      if (!canUseOnlinePresence) return;
       resetIdleTimer();
       const now = Date.now();
       if (now < suppressAutoOnlineUntilRef.current) return;
@@ -784,6 +806,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     };
 
     const heartbeat = async () => {
+      if (!canUseOnlinePresence) return;
       if (presenceStateRef.current !== 'online') return;
       try {
         await apiClient.post('/presence/heartbeat');
@@ -811,7 +834,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     };
 
     loadPresence();
-    markActive();
+    if (canUseOnlinePresence) {
+      markActive();
+    } else {
+      void setPresence('offline');
+    }
     const activityEvents: Array<keyof WindowEventMap> = ['click', 'keydown', 'mousemove', 'scroll', 'touchstart', 'focus'];
     activityEvents.forEach((eventName) => window.addEventListener(eventName, markActive, { passive: true }));
     window.addEventListener('pagehide', sendOfflineOnExit);
@@ -828,7 +855,39 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     };
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    const loadAssignmentCounts = async () => {
+      if (isLoading || !user || !hasAnyPermission(['view-order-assignment'])) return;
+
+      const entries = Object.entries(telephonyAssignmentBadgeTypes);
+      try {
+        const responses = await Promise.all(
+          entries.map(async ([path, assignmentType]) => {
+            const params: Record<string, string> = { page: '1', limit: '1' };
+            if (assignmentType !== 'order') params.assignmentType = assignmentType;
+            const res = await apiClient.get('/telephony/order-assignments', { params });
+            return [path, Number(res.data?.total || 0)] as const;
+          }),
+        );
+        if (!cancelled) {
+          setTelephonyAssignmentCounts(Object.fromEntries(responses));
+        }
+      } catch {
+        if (!cancelled) setTelephonyAssignmentCounts({});
+      }
+    };
+
+    loadAssignmentCounts();
+    const interval = setInterval(loadAssignmentCounts, 60000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [hasAnyPermission, isLoading, user]);
+
   const togglePresence = useCallback(async () => {
+    if (!presencePcAllowed && presenceState !== 'online') return;
     const next = presenceState === 'online' ? 'offline' : 'online';
     if (next === 'offline') suppressAutoOnlineUntilRef.current = Date.now() + 2000;
     presenceStateRef.current = next;
@@ -845,7 +904,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     } finally {
       setPresenceLoading(false);
     }
-  }, [presenceState]);
+  }, [presenceState, presencePcAllowed]);
 
   useEffect(() => {
     let cancelled = false;
@@ -980,6 +1039,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               expandedMenus={expandedMenus}
               onToggle={toggleMenu}
               currentPath={currentPath}
+              assignmentCounts={telephonyAssignmentCounts}
             />
           ))}
         </nav>
@@ -1035,13 +1095,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               <CrmNotifications />
               <button
                 onClick={togglePresence}
-                disabled={presenceLoading}
-                title={presenceState === 'online' ? 'Set yourself offline' : 'Set yourself online'}
+                disabled={presenceLoading || (!presencePcAllowed && presenceState !== 'online')}
+                title={!presencePcAllowed ? 'Online presence is available only from PC' : presenceState === 'online' ? 'Set yourself offline' : 'Set yourself online'}
                 className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-semibold transition-all shadow-sm ${
                   presenceState === 'online'
                     ? 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100'
                     : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'
-                } ${presenceLoading ? 'opacity-70 cursor-wait' : ''}`}
+                } ${presenceLoading ? 'opacity-70 cursor-wait' : ''} ${!presencePcAllowed && presenceState !== 'online' ? 'opacity-60 cursor-not-allowed' : ''}`}
               >
                 <span className={`w-2.5 h-2.5 rounded-full ${presenceState === 'online' ? 'bg-green-500' : 'bg-gray-400'}`} />
                 {presenceState === 'online' ? 'Online' : 'Offline'}
@@ -1081,17 +1141,30 @@ function MenuItem({
   expandedMenus,
   onToggle,
   currentPath,
+  assignmentCounts,
 }: {
   item: MenuItem;
   collapsed: boolean;
   expandedMenus: string[];
   onToggle: (title: string) => void;
   currentPath: string;
+  assignmentCounts: Record<string, number>;
 }) {
   const hasChildren = item.children && item.children.length > 0;
   const isActive = item.path ? stripQuery(item.path) === stripQuery(currentPath) : false;
   const isExpanded = expandedMenus.includes(item.title);
   const IconComponent = item.icon;
+  const renderAssignmentBadge = (path?: string) => {
+    if (!path) return null;
+    const cleanPath = stripQuery(path);
+    if (!(cleanPath in telephonyAssignmentBadgeTypes)) return null;
+    const count = assignmentCounts[cleanPath] ?? 0;
+    return (
+      <span className="ml-2 inline-flex min-w-[1.5rem] h-6 items-center justify-center rounded-full bg-white px-2 text-xs font-bold leading-none text-blue-700 shadow-sm ring-1 ring-white/70">
+        {count > 999 ? '999+' : count}
+      </span>
+    );
+  };
 
   if (hasChildren) {
     return (
@@ -1125,7 +1198,8 @@ function MenuItem({
                       className="w-full flex items-center px-8 py-2 hover:bg-blue-700 transition-colors"
                     >
                       <ChildIcon className="text-sm" />
-                      <span className="ml-3 flex-1 text-left text-sm">{child.title}</span>
+                      <span className="ml-3 min-w-0 flex-1 text-left text-sm">{child.title}</span>
+                      {renderAssignmentBadge(child.path)}
                       <FaChevronDown className={`text-xs transition-transform ${isChildExpanded ? 'rotate-180' : ''}`} />
                     </button>
                     {isChildExpanded && (
@@ -1142,7 +1216,8 @@ function MenuItem({
                                 }`}
                               >
                                 <GrandchildIcon className="text-xs" />
-                                <span className="ml-3 text-xs">{grandchild.title}</span>
+                                <span className="ml-3 min-w-0 flex-1 text-xs">{grandchild.title}</span>
+                                {renderAssignmentBadge(grandchild.path)}
                               </div>
                             </Link>
                           );
@@ -1162,8 +1237,9 @@ function MenuItem({
                           : ''
                     }`}
                   >
-                    <ChildIcon className="text-sm" />
-                    <span className="ml-3 text-sm">{child.title}</span>
+                    <ChildIcon className="text-sm flex-shrink-0" />
+                    <span className="ml-3 min-w-0 flex-1 text-sm">{child.title}</span>
+                    {renderAssignmentBadge(child.path)}
                   </div>
                 </Link>
               );
@@ -1182,7 +1258,12 @@ function MenuItem({
         }`}
       >
         <IconComponent className="text-lg" />
-        {!collapsed && <span className="ml-3 text-sm font-medium">{item.title}</span>}
+        {!collapsed && (
+          <>
+            <span className="ml-3 min-w-0 flex-1 text-sm font-medium">{item.title}</span>
+            {renderAssignmentBadge(item.path)}
+          </>
+        )}
       </div>
     </Link>
   );

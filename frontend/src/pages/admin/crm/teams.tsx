@@ -228,6 +228,26 @@ const CrmTeamsAdmin: React.FC = () => {
     }
   };
 
+  const handleUnassignAgentFromTeam = async (agent: User) => {
+    if (!membersTeam) return;
+    const agentName = `${agent.name} ${agent.lastName || ''}`.trim();
+    const ok = window.confirm(`Unassign "${agentName}" from ${membersTeam.name}?`);
+    if (!ok) return;
+
+    try {
+      setRemoveLoading(true);
+      await api.post(`/crm/team/teams/${membersTeam.id}/unassign-agent`, {
+        agentId: agent.id,
+      });
+      toast.success('Agent unassigned from team');
+      await Promise.all([loadTeams(), loadAgents(), loadAllAgents()]);
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || 'Failed to unassign agent');
+    } finally {
+      setRemoveLoading(false);
+    }
+  };
+
   const getMemberCountForTeam = (teamId: number) => {
     return agents.filter((a) => a.teamId === teamId).length;
   };
@@ -487,6 +507,7 @@ const CrmTeamsAdmin: React.FC = () => {
                         <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
                         <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
                         <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">User ID</th>
+                        <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y">
@@ -495,6 +516,16 @@ const CrmTeamsAdmin: React.FC = () => {
                           <td className="px-4 py-2 text-sm text-gray-900">{m.name} {m.lastName}</td>
                           <td className="px-4 py-2 text-sm text-gray-700">{m.email}</td>
                           <td className="px-4 py-2 text-sm text-gray-700">{m.id}</td>
+                          <td className="px-4 py-2 text-right">
+                            <button
+                              type="button"
+                              onClick={() => handleUnassignAgentFromTeam(m)}
+                              disabled={removeLoading}
+                              className="text-sm font-medium text-red-600 hover:text-red-900 disabled:opacity-50"
+                            >
+                              Unassign
+                            </button>
+                          </td>
                         </tr>
                       ))}
                     </tbody>

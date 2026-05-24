@@ -3090,6 +3090,7 @@ export class OrderManagementService {
 
     // Show all non-legacy orders (sent to a courier), regardless of status/print state
     qb.andWhere("o.courier_company IS NOT NULL AND o.courier_company != ''");
+    qb.andWhere("(o.status IS NULL OR o.status != 'admin_cancelled')");
 
     // Text search (customer name, phone)
     if (params.q && params.q.trim()) {

@@ -55,6 +55,28 @@ export class CrmTeamService {
     return getDhakaDateString(date);
   }
 
+  private async getSalesExecutiveRoleId(): Promise<number | null> {
+    const role = await this.usersRepository.manager
+      .createQueryBuilder()
+      .select('r.id', 'id')
+      .from('roles', 'r')
+      .where("r.name = :name OR r.slug = :slug OR LOWER(r.name) LIKE :pattern", {
+        name: 'Sales Executive',
+        slug: 'sales-executive',
+        pattern: '%sales executive%',
+      })
+      .getRawOne();
+
+    return role?.id ? Number(role.id) : null;
+  }
+
+  private async assertSalesExecutive(agent: User): Promise<void> {
+    const salesExecRoleId = await this.getSalesExecutiveRoleId();
+    if (!salesExecRoleId || Number(agent.roleId) !== salesExecRoleId) {
+      throw new BadRequestException('Only Sales Executives can be assigned as agents.');
+    }
+  }
+
   /**
    * Apply "Called Status" filter to any QueryBuilder that has `c` aliased to the customers table.
    * Supported values: called_today,
@@ -231,6 +253,12 @@ export class CrmTeamService {
     if (!customer) {
       throw new NotFoundException(`Customer with ID ${customerId} not found`);
     }
+
+    const agent = await this.usersRepository.findOne({ where: { id: agentId, isDeleted: false } as any });
+    if (!agent) {
+      throw new NotFoundException('Agent not found');
+    }
+    await this.assertSalesExecutive(agent);
 
     // Enforce Sales Manager ownership: TL can only assign leads that have been
     // explicitly assigned to them by a Sales Manager (assigned_supervisor_id = TL).
@@ -1056,24 +1084,14 @@ export class CrmTeamService {
 
   // Search agents by name for autocomplete
   async searchAgents(teamLeaderId: number, searchTerm: string): Promise<User[]> {
-    const salesExecRole = await this.usersRepository.manager
-      .createQueryBuilder()
-      .select('r.id', 'id')
-      .from('roles', 'r')
-      .where("r.name = :name OR r.slug = :slug OR LOWER(r.name) LIKE :pattern", {
-        name: 'Sales Executive',
-        slug: 'sales-executive',
-        pattern: '%sales executive%',
-      })
-      .getRawOne();
-
-    if (!salesExecRole) {
+    const salesExecRoleId = await this.getSalesExecutiveRoleId();
+    if (!salesExecRoleId) {
       return [];
     }
 
     const qb = this.usersRepository.createQueryBuilder('u');
-    // Include Sales Executives OR the team leader themselves (for self-assignment)
-    qb.where('(u.role_id = :roleId OR u.id = :teamLeaderId)', { roleId: salesExecRole.id, teamLeaderId });
+    qb.where('u.role_id = :roleId', { roleId: salesExecRoleId });
+    qb.andWhere('u.team_leader_id = :teamLeaderId', { teamLeaderId });
     qb.andWhere('u.is_deleted = false');
 
     if (searchTerm && searchTerm.trim()) {
@@ -1483,6 +1501,10 @@ export class CrmTeamService {
     // Check cache first
     const cached = this.dashboardCache.get(teamLeaderId);
     if (cached && cached.expiresAt > Date.now()) {
+      cached.data.overview = {
+        ...(cached.data.overview || {}),
+        ...(await this.getTeamOrderOverview(teamLeaderId)),
+      };
       return cached.data;
     }
 
@@ -1510,6 +1532,7 @@ export class CrmTeamService {
     const today = this.getDateString();
     const customers = await this.getLeaderCustomers(teamLeaderId);
     const segments = await this.computeSegmentsForCustomers(customers);
+    const teamOrderOverview = await this.getTeamOrderOverview(teamLeaderId);
 
     const purchaseStageCounts: Record<string, number> = {
       new: 0,
@@ -1638,6 +1661,7 @@ export class CrmTeamService {
         repeatRate,
         vipRetention30,
         pendingFromPreviousDays: Number(tasksPendingPrev?.[0]?.cnt || 0),
+        ...teamOrderOverview,
       },
       tierStats,
       segmentation: {
@@ -1651,6 +1675,74 @@ export class CrmTeamService {
       recentEscalations: await this.getEscalatedCustomers(teamLeaderId),
       scripts: DEFAULT_SCRIPTS,
       trainingRolePlays: DEFAULT_TRAINING_ROLE_PLAYS,
+    };
+  }
+
+  private async getTeamOrderOverview(teamLeaderId: number): Promise<{
+    activeAssignedOrders: number;
+    approvedOrdersToday: number;
+    upsellToday: number;
+    crossSellToday: number;
+    rejectedOrdersToday: number;
+  }> {
+    const today = this.getDateString();
+    const agents = await this.usersRepository.find({
+      where: { teamLeaderId, status: 'active' as any },
+      select: ['id'],
+    });
+    const agentIds = agents.map((agent) => Number(agent.id)).filter((id) => Number.isFinite(id) && id > 0);
+    if (agentIds.length === 0) {
+      return {
+        activeAssignedOrders: 0,
+        approvedOrdersToday: 0,
+        upsellToday: 0,
+        crossSellToday: 0,
+        rejectedOrdersToday: 0,
+      };
+    }
+
+    const rows = await this.usersRepository.manager.query(
+      `WITH scoped_orders AS (
+         SELECT *
+         FROM sales_orders
+         WHERE assigned_to = ANY($1::int[])
+            OR created_by = ANY($1::int[])
+       )
+       SELECT
+         COUNT(*) FILTER (
+           WHERE assigned_to = ANY($1::int[])
+             AND LOWER(status::text) IN ('processing', 'pending', 'approved', 'hold', 'on_hold', 'sent', 'picked', 'in_transit', 'shipped')
+         )::int AS active_assigned_orders,
+         COUNT(*) FILTER (
+           WHERE approved_at IS NOT NULL
+             AND DATE(approved_at AT TIME ZONE 'Asia/Dhaka') = $2::date
+         )::int AS approved_orders_today,
+         COUNT(*) FILTER (
+           WHERE LOWER(status::text) = 'admin_cancelled'
+             AND DATE(COALESCE(cancelled_at, created_at) AT TIME ZONE 'Asia/Dhaka') = $2::date
+         )::int AS rejected_orders_today
+       FROM scoped_orders`,
+      [agentIds, today],
+    );
+
+    const itemRows = await this.usersRepository.manager.query(
+      `SELECT
+         COALESCE(SUM(CASE WHEN is_upsell = true THEN quantity ELSE 0 END), 0)::int AS upsell_today,
+         COALESCE(SUM(CASE WHEN is_cross_sell = true THEN quantity ELSE 0 END), 0)::int AS cross_sell_today
+       FROM order_items
+       WHERE added_by = ANY($1::int[])
+         AND DATE(created_at AT TIME ZONE 'Asia/Dhaka') = $2::date`,
+      [agentIds, today],
+    );
+
+    const orderRow = rows?.[0] || {};
+    const itemRow = itemRows?.[0] || {};
+    return {
+      activeAssignedOrders: Number(orderRow.active_assigned_orders || 0),
+      approvedOrdersToday: Number(orderRow.approved_orders_today || 0),
+      upsellToday: Number(itemRow.upsell_today || 0),
+      crossSellToday: Number(itemRow.cross_sell_today || 0),
+      rejectedOrdersToday: Number(orderRow.rejected_orders_today || 0),
     };
   }
 
@@ -1845,6 +1937,7 @@ export class CrmTeamService {
   async getTeamsForLeader(teamLeaderId: number): Promise<any[]> {
     await this.ensureDefaultTeamsForLeader(teamLeaderId);
     let teams = await this.salesTeamRepository.find({ where: { teamLeaderId } });
+    const salesExecRoleId = await this.getSalesExecutiveRoleId();
 
     // If user is not a team leader, return all teams so they can still assign leads
     if (teams.length === 0) {
@@ -1863,7 +1956,9 @@ export class CrmTeamService {
 
     const result: any[] = [];
     for (const team of teams) {
-      const members = await this.usersRepository.find({ where: { teamId: team.id } });
+      const members = salesExecRoleId
+        ? await this.usersRepository.find({ where: { teamId: team.id, roleId: salesExecRoleId, isDeleted: false } as any })
+        : [];
       result.push({
         id: team.id,
         name: team.name,
@@ -1959,6 +2054,7 @@ export class CrmTeamService {
     if (!agent) {
       throw new NotFoundException('Agent not found');
     }
+    await this.assertSalesExecutive(agent);
 
     const hadNoTL = !agent.teamLeaderId;
     agent.teamId = team.id;
@@ -1978,6 +2074,33 @@ export class CrmTeamService {
     }
 
     return saved;
+  }
+
+  async unassignAgentFromTeam(
+    teamLeaderId: number,
+    teamId: number,
+    agentId: number,
+  ): Promise<{ unassigned: boolean; agentId: number; teamId: number }> {
+    const team = await this.salesTeamRepository.findOne({ where: { id: teamId } });
+    if (!team) {
+      throw new NotFoundException('Team not found');
+    }
+    if (team.teamLeaderId !== teamLeaderId) {
+      throw new ForbiddenException('You are not the leader of this team');
+    }
+
+    const agent = await this.usersRepository.findOne({ where: { id: agentId } });
+    if (!agent) {
+      throw new NotFoundException('Agent not found');
+    }
+    await this.assertSalesExecutive(agent);
+
+    if (Number(agent.teamId) !== Number(teamId)) {
+      throw new BadRequestException('This agent is not assigned to the selected team.');
+    }
+
+    await this.usersRepository.update(agentId, { teamId: null } as any);
+    return { unassigned: true, agentId, teamId };
   }
 
   async getTeamLeadersList(): Promise<User[]> {
@@ -2002,38 +2125,17 @@ export class CrmTeamService {
     });
   }
 
-  async getAvailableAgentsForTeamLeader(teamLeaderId: number): Promise<User[]> {    // Get users with Sales Executive role that can be assigned to teams
-    const salesExecRole = await this.usersRepository.manager
-      .createQueryBuilder()
-      .select('r.id', 'id')
-      .from('roles', 'r')
-      .where("r.name = :name OR r.slug = :slug OR LOWER(r.name) LIKE :pattern", {
-        name: 'Sales Executive',
-        slug: 'sales-executive',
-        pattern: '%sales executive%',
-      })
-      .getRawOne();
-
-    if (!salesExecRole) {
+  async getAvailableAgentsForTeamLeader(teamLeaderId: number): Promise<User[]> {
+    const salesExecRoleId = await this.getSalesExecutiveRoleId();
+    if (!salesExecRoleId) {
       return [];
     }
 
-    // Return Sales Executives assigned to this team leader
-    const agents = await this.usersRepository.find({
-      where: { roleId: salesExecRole.id, teamLeaderId },
+    return await this.usersRepository.find({
+      where: { roleId: salesExecRoleId, teamLeaderId, isDeleted: false } as any,
       select: ['id', 'name', 'lastName', 'email', 'phone', 'teamId', 'teamLeaderId', 'status'],
+      order: { name: 'ASC', lastName: 'ASC' } as any,
     });
-
-    // Also include the team leader themselves (for self-assignment)
-    const teamLeader = await this.usersRepository.findOne({
-      where: { id: teamLeaderId },
-      select: ['id', 'name', 'lastName', 'email', 'phone', 'teamId', 'teamLeaderId', 'status'],
-    });
-    if (teamLeader && !agents.some(a => a.id === teamLeaderId)) {
-      agents.unshift(teamLeader);
-    }
-
-    return agents;
   }
 
   async getLeadAging(teamLeaderId: number): Promise<any> {

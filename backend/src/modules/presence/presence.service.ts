@@ -80,6 +80,20 @@ export class PresenceService {
     return this.statusRepo.save(status);
   }
 
+  private async unassignCustomersForOfflineUser(userId: number): Promise<number> {
+    const userIdNum = Number(userId);
+    if (!Number.isFinite(userIdNum) || userIdNum <= 0) return 0;
+
+    const result = await this.statusRepo.manager.query(
+      `UPDATE customers
+       SET assigned_to = NULL,
+           updated_at = NOW()
+       WHERE assigned_to = $1`,
+      [userIdNum],
+    );
+    return Number(result?.[1] ?? 0);
+  }
+
   async expireStaleOnlineStatuses(userIds?: number[]) {
     const cutoff = new Date(Date.now() - PRESENCE_STALE_TIMEOUT_MS);
     const qb = this.statusRepo
@@ -110,6 +124,7 @@ export class PresenceService {
       status.source = 'idle-timeout';
       status.lastChangedAt = occurredAt;
       await this.statusRepo.save(status);
+      await this.unassignCustomersForOfflineUser(Number(status.userId));
     }
 
     return { expired: staleStatuses.length };
@@ -140,7 +155,11 @@ export class PresenceService {
     status.state = state;
     status.source = source;
     status.lastSeenAt = now;
-    return this.statusRepo.save(status);
+    const saved = await this.statusRepo.save(status);
+    if (state === 'offline') {
+      await this.unassignCustomersForOfflineUser(userIdNum);
+    }
+    return saved;
   }
 
   async heartbeat(userId: number) {

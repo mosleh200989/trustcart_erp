@@ -206,7 +206,7 @@ export class SalesManagerService {
         'c.id', 'c.name', 'c.lastName', 'c.email', 'c.phone',
         'c.priority', 'c.customerType', 'c.lifecycleStage',
         'c.assigned_supervisor_id', 'c.assigned_to',
-        'c.city', 'c.district', 'c.source', 'c.createdAt', 'c.updatedAt',
+        'c.address', 'c.city', 'c.district', 'c.source', 'c.createdAt', 'c.updatedAt',
         'c.last_contact_date', 'c.total_spent',
       ])
       .addSelect(
@@ -254,8 +254,15 @@ export class SalesManagerService {
     }
     if (query.search) {
       qb.andWhere(
-        '(c.name ILIKE :s OR c.last_name ILIKE :s OR c.email ILIKE :s OR c.phone ILIKE :s)',
+        '(c.name ILIKE :s OR c.last_name ILIKE :s OR c.email ILIKE :s OR c.phone ILIKE :s OR c.address ILIKE :s OR c.city ILIKE :s OR c.district ILIKE :s)',
         { s: `%${query.search}%` },
+      );
+    }
+    if (query.address && String(query.address).trim()) {
+      const address = `%${String(query.address).trim()}%`;
+      qb.andWhere(
+        '(c.address ILIKE :address OR c.city ILIKE :address OR c.district ILIKE :address)',
+        { address },
       );
     }
     if (query.supervisor) {
@@ -284,6 +291,19 @@ export class SalesManagerService {
           )
         )`,
         { pName },
+      );
+    }
+
+    if (query.deliveryDate && String(query.deliveryDate).trim()) {
+      qb.andWhere(
+        `EXISTS (
+          SELECT 1
+          FROM sales_orders so_delivery
+          WHERE so_delivery.customer_id = c.id
+            AND LOWER(so_delivery.status::text) = 'delivered'
+            AND DATE(so_delivery.delivered_at) = :deliveryDate
+        )`,
+        { deliveryDate: String(query.deliveryDate).trim() },
       );
     }
 

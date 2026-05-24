@@ -193,6 +193,16 @@ export class CrmTeamController {
     return await this.crmTeamService.assignAgentToTeam(req.user.id, Number(teamId), body.agentId);
   }
 
+  @Post('teams/:teamId/unassign-agent')
+  @RequirePermissions('assign-leads-to-team')
+  async unassignAgentFromTeam(
+    @Param('teamId') teamId: string,
+    @Body() body: { agentId: number },
+    @Request() req: any,
+  ) {
+    return await this.crmTeamService.unassignAgentFromTeam(req.user.id, Number(teamId), body.agentId);
+  }
+
   @Get('available-agents')
   @RequirePermissions('assign-leads-to-team')
   async getAvailableAgents(@Request() req: any) {

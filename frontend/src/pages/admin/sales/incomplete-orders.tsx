@@ -1,10 +1,12 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import AdminLayout from '@/layouts/AdminLayout';
 import DataTable from '@/components/admin/DataTable';
 import { wrapCustomerName } from '@/utils/wrapCustomerName';
 import PageSizeSelector from '@/components/admin/PageSizeSelector';
 import FormInput from '@/components/admin/FormInput';
-import { FaSearch, FaFilter, FaExclamationTriangle, FaShoppingCart, FaGlobe, FaCheckCircle, FaTimesCircle, FaRedo, FaEye, FaPhone, FaMapMarkerAlt, FaEdit } from 'react-icons/fa';
+import PhoneInput from '@/components/PhoneInput';
+import { useAuth } from '@/contexts/AuthContext';
+import { FaSearch, FaFilter, FaExclamationTriangle, FaShoppingCart, FaGlobe, FaCheckCircle, FaTimesCircle, FaRedo, FaEye, FaPhone, FaMapMarkerAlt, FaEdit, FaTrash } from 'react-icons/fa';
 import apiClient from '@/services/api';
 
 interface IncompleteOrder {
@@ -59,6 +61,16 @@ interface LandingPageOption {
   title: string;
 }
 
+type EditCartItem = {
+  productId: number;
+  productName: string;
+  productNameBn?: string | null;
+  variantName: string;
+  quantity: number;
+  unitPrice: number;
+  imageUrl?: string | null;
+};
+
 interface ApiResponse {
   data: IncompleteOrder[];
   total: number;
@@ -97,6 +109,7 @@ const STAGE_LABELS: Record<string, { label: string; color: string }> = {
 };
 
 export default function AdminSalesIncompleteOrders() {
+  const { user } = useAuth();
   const [response, setResponse] = useState<ApiResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState(INITIAL_FILTERS);
@@ -105,7 +118,14 @@ export default function AdminSalesIncompleteOrders() {
   const [showFilters, setShowFilters] = useState(true);
   const [expandedRow, setExpandedRow] = useState<number | null>(null);
   const [editingOrder, setEditingOrder] = useState<IncompleteOrder | null>(null);
-  const [editForm, setEditForm] = useState({ name: '', phone: '', email: '', address: '', note: '', deliveryZone: '', totalAmount: '' });
+  const [editForm, setEditForm] = useState({ name: '', phone: '', email: '', address: '', note: '', deliveryZone: '', deliveryCharge: '0', totalAmount: '', source: 'landing_page' });
+  const [editCartItems, setEditCartItems] = useState<EditCartItem[]>([]);
+  const [productSearchQuery, setProductSearchQuery] = useState('');
+  const [productSearchResults, setProductSearchResults] = useState<any[]>([]);
+  const [showProductDropdown, setShowProductDropdown] = useState(false);
+  const [searchingProducts, setSearchingProducts] = useState(false);
+  const [expandedProductId, setExpandedProductId] = useState<number | null>(null);
+  const productDropdownRef = useRef<HTMLDivElement>(null);
   const [savingEdit, setSavingEdit] = useState(false);
 
   const load = useCallback(async () => {
@@ -159,7 +179,33 @@ export default function AdminSalesIncompleteOrders() {
     return (row[camel] ?? row[snake] ?? fallback) as T;
   };
 
+  const agentDisplayName = user?.name || user?.email || user?.phone || 'Agent';
+
+  const normalizeCartItems = (cart: any): EditCartItem[] => {
+    if (!Array.isArray(cart)) return [];
+    return cart.map((item: any, index: number) => {
+      const variantName = item.variantName || item.variant_name || '';
+      const productName = item.productName || item.product_name || item.name || `Product ${index + 1}`;
+      return {
+        productId: Number(item.productId || item.product_id || item.id || 0),
+        productName: variantName && !String(productName).includes(`(${variantName})`) ? `${productName} (${variantName})` : productName,
+        productNameBn: item.productNameBn || item.name_bn || null,
+        variantName,
+        quantity: Math.max(1, Number(item.quantity || 1)),
+        unitPrice: Number(item.unitPrice ?? item.unit_price ?? item.price ?? 0) || 0,
+        imageUrl: item.imageUrl || item.image_url || item.image || null,
+      };
+    });
+  };
+
+  const cartSubtotal = editCartItems.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
+  const editDeliveryCharge = Number(editForm.deliveryCharge || 0) || 0;
+  const editGrandTotal = cartSubtotal + editDeliveryCharge;
+
   const openEditModal = (row: IncompleteOrder) => {
+    const cart = getVal<any>(row, 'cartData', 'cart_data' as any, []);
+    const deliveryCharge = getVal<any>(row, 'deliveryCharge', 'delivery_charge' as any, 0);
+    const source = String(row.source || '').startsWith('admin_panel') ? 'admin_panel' : 'landing_page';
     setEditingOrder(row);
     setEditForm({
       name: row.name || '',
@@ -168,15 +214,103 @@ export default function AdminSalesIncompleteOrders() {
       address: row.address || '',
       note: row.note || '',
       deliveryZone: getVal<string>(row, 'deliveryZone', 'delivery_zone' as any, ''),
+      deliveryCharge: String(deliveryCharge ?? 0),
       totalAmount: String(getVal<any>(row, 'totalAmount', 'total_amount' as any, '') ?? ''),
+      source,
     });
+    setEditCartItems(normalizeCartItems(cart));
+    setProductSearchQuery('');
+    setProductSearchResults([]);
+    setShowProductDropdown(false);
+    setExpandedProductId(null);
+  };
+
+  const searchProducts = async (query: string) => {
+    setProductSearchQuery(query);
+    if (!query.trim()) {
+      setProductSearchResults([]);
+      setShowProductDropdown(false);
+      return;
+    }
+    setSearchingProducts(true);
+    try {
+      const response = await apiClient.get(`/products/search?q=${encodeURIComponent(query)}`);
+      setProductSearchResults(response.data || []);
+      setShowProductDropdown(true);
+    } catch (error) {
+      console.error('Product search failed:', error);
+      setProductSearchResults([]);
+    } finally {
+      setSearchingProducts(false);
+    }
+  };
+
+  const addProductToEditCart = (product: any, variant?: { name: string; price: number }) => {
+    const variantName = variant?.name || '';
+    const price = variant ? Number(variant.price) : Number(product.sale_price || product.base_price || product.price || 0);
+    const displayName = variantName ? `${product.name_en || product.name} (${variantName})` : (product.name_en || product.name);
+    const itemKey = `${product.id}-${variantName}`;
+    const existing = editCartItems.find(item => `${item.productId}-${item.variantName}` === itemKey);
+    if (existing) {
+      setEditCartItems(editCartItems.map(item =>
+        `${item.productId}-${item.variantName}` === itemKey ? { ...item, quantity: item.quantity + 1 } : item
+      ));
+    } else {
+      setEditCartItems([...editCartItems, {
+        productId: Number(product.id || 0),
+        productName: displayName,
+        productNameBn: product.name_bn || null,
+        variantName,
+        quantity: 1,
+        unitPrice: price,
+        imageUrl: product.image_url || product.image || null,
+      }]);
+    }
+    setProductSearchQuery('');
+    setProductSearchResults([]);
+    setShowProductDropdown(false);
+    setExpandedProductId(null);
+  };
+
+  const updateEditCartItem = (productId: number, variantName: string, patch: Partial<EditCartItem>) => {
+    setEditCartItems(editCartItems.map(item =>
+      item.productId === productId && item.variantName === variantName ? { ...item, ...patch } : item
+    ));
+  };
+
+  const removeEditCartItem = (productId: number, variantName: string) => {
+    setEditCartItems(editCartItems.filter(item => !(item.productId === productId && item.variantName === variantName)));
   };
 
   const handleEditSave = async () => {
     if (!editingOrder) return;
+    if (editCartItems.length === 0) {
+      alert('Please add at least one product.');
+      return;
+    }
     try {
       setSavingEdit(true);
-      await apiClient.put(`/lead-management/incomplete-order/${editingOrder.id}`, editForm);
+      const cartData = editCartItems.map((item) => ({
+        product_id: item.productId || null,
+        id: item.productId || null,
+        name: item.productName,
+        product_name: item.productName,
+        name_bn: item.productNameBn || null,
+        variant_name: item.variantName || null,
+        quantity: item.quantity,
+        price: item.unitPrice,
+        unit_price: item.unitPrice,
+        total_price: item.quantity * item.unitPrice,
+        image_url: item.imageUrl || null,
+      }));
+      const payload = {
+        ...editForm,
+        deliveryCharge: editDeliveryCharge,
+        totalAmount: editGrandTotal,
+        cartData,
+        source: editForm.source,
+      };
+      await apiClient.put(`/lead-management/incomplete-order/${editingOrder.id}`, payload);
       // Update local state
       setResponse(prev => {
         if (!prev) return prev;
@@ -193,8 +327,13 @@ export default function AdminSalesIncompleteOrders() {
                   note: editForm.note,
                   deliveryZone: editForm.deliveryZone,
                   delivery_zone: editForm.deliveryZone,
-                  totalAmount: editForm.totalAmount,
-                  total_amount: editForm.totalAmount,
+                  deliveryCharge: editDeliveryCharge,
+                  delivery_charge: editDeliveryCharge,
+                  totalAmount: editGrandTotal,
+                  total_amount: editGrandTotal,
+                  cartData,
+                  cart_data: cartData,
+                  source: editForm.source,
                 }
               : item
           ),
@@ -737,7 +876,7 @@ export default function AdminSalesIncompleteOrders() {
         {editingOrder && (
           <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => !savingEdit && setEditingOrder(null)}>
             <div
-              className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[80vh] overflow-y-auto"
+              className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="sticky top-0 bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between rounded-t-2xl">
@@ -749,19 +888,53 @@ export default function AdminSalesIncompleteOrders() {
                   &#10005;
                 </button>
               </div>
-              <div className="px-6 py-4 space-y-4">
-                <FormInput
-                  label="Name"
-                  name="name"
-                  value={editForm.name}
-                  onChange={(e: any) => setEditForm(prev => ({ ...prev, name: e.target.value }))}
-                />
-                <FormInput
-                  label="Phone"
-                  name="phone"
-                  value={editForm.phone}
-                  onChange={(e: any) => setEditForm(prev => ({ ...prev, phone: e.target.value }))}
-                />
+              <div className="px-6 py-4 space-y-5">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Order Source</label>
+                  <div className="grid grid-cols-2 gap-2 rounded-lg bg-gray-100 p-1">
+                    <button
+                      type="button"
+                      onClick={() => setEditForm(prev => ({ ...prev, source: 'landing_page' }))}
+                      className={`rounded-md px-3 py-2 text-sm font-semibold transition-colors ${
+                        editForm.source === 'landing_page'
+                          ? 'bg-white text-purple-700 shadow-sm'
+                          : 'text-gray-600 hover:text-gray-900'
+                      }`}
+                    >
+                      Landing Page
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditForm(prev => ({ ...prev, source: 'admin_panel' }))}
+                      className={`rounded-md px-3 py-2 text-sm font-semibold transition-colors ${
+                        editForm.source === 'admin_panel'
+                          ? 'bg-white text-blue-700 shadow-sm'
+                          : 'text-gray-600 hover:text-gray-900'
+                      }`}
+                    >
+                      {agentDisplayName}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FormInput
+                    label="Customer Name"
+                    name="name"
+                    value={editForm.name}
+                    onChange={(e: any) => setEditForm(prev => ({ ...prev, name: e.target.value }))}
+                  />
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
+                    <PhoneInput
+                      name="phone"
+                      value={editForm.phone}
+                      onChange={(value) => setEditForm(prev => ({ ...prev, phone: value }))}
+                      placeholder="01XXXXXXXXX"
+                    />
+                  </div>
+                </div>
+
                 <FormInput
                   label="Email"
                   name="email"
@@ -769,30 +942,183 @@ export default function AdminSalesIncompleteOrders() {
                   value={editForm.email}
                   onChange={(e: any) => setEditForm(prev => ({ ...prev, email: e.target.value }))}
                 />
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Products</label>
+                  <div className="relative" ref={productDropdownRef}>
+                    <input
+                      type="text"
+                      value={productSearchQuery}
+                      onChange={(e) => searchProducts(e.target.value)}
+                      onFocus={() => productSearchResults.length > 0 && setShowProductDropdown(true)}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="Search products to add..."
+                    />
+                    {searchingProducts && (
+                      <span className="absolute right-3 top-2.5 text-gray-400 text-sm">Searching...</span>
+                    )}
+                    {showProductDropdown && productSearchResults.length > 0 && (
+                      <div className="absolute z-20 w-full mt-1 bg-white border rounded-lg shadow-lg max-h-72 overflow-y-auto">
+                        {productSearchResults.map((product) => {
+                          const salePrice = Number(product.sale_price || product.base_price || product.price || 0);
+                          const basePrice = Number(product.base_price || product.price || 0);
+                          const hasDiscount = product.sale_price && salePrice < basePrice;
+                          const rawVariants = (() => {
+                            let sv = product.size_variants;
+                            if (!sv) return [];
+                            if (typeof sv === 'string') { try { sv = JSON.parse(sv); } catch { return []; } }
+                            return Array.isArray(sv) ? sv : [];
+                          })();
+                          const variants: Array<{ name: string; price: number; stock?: number; sku_suffix?: string }> = rawVariants.filter((v: any) => v && typeof v.name === 'string' && v.name.trim() && Number(v.price) > 0);
+                          const isExpanded = expandedProductId === product.id;
+                          return (
+                            <div key={product.id} className="border-b last:border-b-0">
+                              <button
+                                type="button"
+                                onClick={() => variants.length > 0 ? setExpandedProductId(isExpanded ? null : product.id) : addProductToEditCart(product)}
+                                className="w-full text-left px-3 py-2 hover:bg-blue-50 flex items-center gap-3 transition-colors"
+                              >
+                                {(product.image_url || product.image) && (
+                                  <img src={product.image_url || product.image} alt="" className="w-10 h-10 object-contain rounded border flex-shrink-0" />
+                                )}
+                                <div className="flex-1 min-w-0">
+                                  <div className="font-medium text-sm text-gray-900 truncate">
+                                    {variants.length > 0 && <span className={`text-xs mr-1 transition-transform inline-block ${isExpanded ? 'rotate-90' : ''}`}>▶</span>}
+                                    {product.name_en || product.name}
+                                  </div>
+                                  {product.name_bn && <div className="text-xs text-gray-500 truncate">{product.name_bn}</div>}
+                                </div>
+                                {variants.length === 0 && (
+                                  <div className="text-right flex-shrink-0">
+                                    <div className="text-sm font-semibold text-blue-600">&#2547;{salePrice.toFixed(2)}</div>
+                                    {hasDiscount && <div className="text-xs text-gray-400 line-through">&#2547;{basePrice.toFixed(2)}</div>}
+                                  </div>
+                                )}
+                              </button>
+                              {variants.length > 0 && isExpanded && (
+                                <div className="bg-gray-50 border-t">
+                                  {variants.map((v, vi) => (
+                                    <button
+                                      key={vi}
+                                      type="button"
+                                      onClick={() => addProductToEditCart(product, v)}
+                                      className="w-full text-left pl-10 pr-3 py-2 hover:bg-blue-100 flex items-center gap-3 transition-colors border-b last:border-b-0 border-gray-100"
+                                    >
+                                      <div className="flex-1 min-w-0">
+                                        <div className="text-sm text-gray-800">{v.name}</div>
+                                        {v.sku_suffix && <div className="text-xs text-gray-400">SKU: {v.sku_suffix}</div>}
+                                      </div>
+                                      <div className="text-sm font-semibold text-green-600">&#2547;{Number(v.price).toFixed(2)}</div>
+                                    </button>
+                                  ))}
+                                  <button
+                                    type="button"
+                                    onClick={() => addProductToEditCart(product)}
+                                    className="w-full text-left pl-10 pr-3 py-2 hover:bg-yellow-50 flex items-center gap-3 transition-colors border-t border-gray-200"
+                                  >
+                                    <div className="flex-1 text-sm text-gray-500 italic">Base product (no variant)</div>
+                                    <div className="text-sm font-semibold text-blue-600">&#2547;{salePrice.toFixed(2)}</div>
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  {editCartItems.length > 0 && (
+                    <div className="mt-3 border rounded-lg overflow-hidden">
+                      <table className="w-full text-sm">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="text-left px-3 py-2 font-medium text-gray-600">Product</th>
+                            <th className="text-center px-3 py-2 font-medium text-gray-600 w-20">Qty</th>
+                            <th className="text-right px-3 py-2 font-medium text-gray-600 w-28">Price</th>
+                            <th className="text-right px-3 py-2 font-medium text-gray-600 w-28">Subtotal</th>
+                            <th className="w-10" />
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y">
+                          {editCartItems.map((item) => (
+                            <tr key={`${item.productId}-${item.variantName}`} className="hover:bg-gray-50">
+                              <td className="px-3 py-2">{item.productNameBn || item.productName}</td>
+                              <td className="px-3 py-2 text-center">
+                                <input
+                                  type="number"
+                                  min="1"
+                                  value={item.quantity}
+                                  onChange={(e) => updateEditCartItem(item.productId, item.variantName, { quantity: parseInt(e.target.value) || 1 })}
+                                  className="w-16 text-center border rounded px-1 py-0.5"
+                                />
+                              </td>
+                              <td className="px-3 py-2 text-right">
+                                <input
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  value={item.unitPrice}
+                                  onChange={(e) => updateEditCartItem(item.productId, item.variantName, { unitPrice: parseFloat(e.target.value) || 0 })}
+                                  className="w-24 text-right border rounded px-1 py-0.5"
+                                />
+                              </td>
+                              <td className="px-3 py-2 text-right font-medium">&#2547;{(item.quantity * item.unitPrice).toFixed(2)}</td>
+                              <td className="px-1 py-2 text-center">
+                                <button type="button" onClick={() => removeEditCartItem(item.productId, item.variantName)} className="text-red-500 hover:text-red-700 p-1">
+                                  <FaTrash className="text-xs" />
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      <div className="bg-gray-50 px-3 py-2 space-y-1 border-t">
+                        <div className="flex justify-between text-sm text-gray-600">
+                          <span>Subtotal:</span>
+                          <span>&#2547;{cartSubtotal.toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between items-center text-sm text-gray-600">
+                          <span>Delivery Charge:</span>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={editForm.deliveryCharge}
+                            onChange={(e) => setEditForm(prev => ({ ...prev, deliveryCharge: e.target.value }))}
+                            className="w-28 text-right border rounded px-2 py-1"
+                          />
+                        </div>
+                        <div className="flex justify-between items-center border-t pt-1">
+                          <span className="font-semibold text-gray-700">Total:</span>
+                          <span className="font-bold text-lg text-blue-600">&#2547;{editGrandTotal.toFixed(2)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
                 <FormInput
-                  label="Address"
+                  label="Shipping Address"
                   name="address"
+                  type="textarea"
                   value={editForm.address}
                   onChange={(e: any) => setEditForm(prev => ({ ...prev, address: e.target.value }))}
+                  rows={3}
                 />
                 <FormInput
                   label="Note"
                   name="note"
+                  type="textarea"
                   value={editForm.note}
                   onChange={(e: any) => setEditForm(prev => ({ ...prev, note: e.target.value }))}
+                  rows={2}
                 />
                 <FormInput
                   label="Delivery Zone"
                   name="deliveryZone"
                   value={editForm.deliveryZone}
                   onChange={(e: any) => setEditForm(prev => ({ ...prev, deliveryZone: e.target.value }))}
-                />
-                <FormInput
-                  label="Total Amount"
-                  name="totalAmount"
-                  type="number"
-                  value={editForm.totalAmount}
-                  onChange={(e: any) => setEditForm(prev => ({ ...prev, totalAmount: e.target.value }))}
                 />
               </div>
               <div className="sticky bottom-0 bg-white border-t border-gray-100 px-6 py-4 flex justify-end gap-3 rounded-b-2xl">
