@@ -351,25 +351,38 @@ export class TelephonyService {
     const itemsByOrderId = await this.fetchOrderItems(orders.map((order) => order.id));
 
     return {
-      data: orders.map((order) => ({
-        id: order.id,
-        recordType: 'sales_order',
-        salesOrderNumber: order.salesOrderNumber,
-        customerName: order.customerName,
-        customerPhone: order.customerPhone,
-        shippingAddress: order.shippingAddress,
-        status: order.status,
-        orderSource: order.orderSource,
-        totalAmount: Number(order.totalAmount || 0),
-        orderDate: order.orderDate,
-        assignedAt: order.assignedAt,
-        calledAt: order.telephonyCalledAt,
-        callStatus: order.telephonyCallStatus || (order.telephonyCalledAt ? 'called' : 'not_called'),
-        outcome: order.telephonyOutcome,
-        suggestion: order.telephonySuggestion,
-        notes: order.telephonyNotes,
-        items: itemsByOrderId.get(order.id) || [],
-      })),
+      data: orders.map((order) => {
+        const status = String(order.status || '').toLowerCase();
+        const outcome = String(order.telephonyOutcome || '').toLowerCase();
+        const assignmentWorkType =
+          status === 'admin_cancelled'
+            ? 'rejected_recovery'
+            : status === 'processing' && ['no_answer', 'unreachable'].includes(outcome)
+              ? 'unreachable_followup'
+              : 'primary_leads';
+
+        return {
+          id: order.id,
+          recordType: 'sales_order',
+          assignmentWorkType,
+          canHandoffNoAnswer: assignmentWorkType === 'primary_leads',
+          salesOrderNumber: order.salesOrderNumber,
+          customerName: order.customerName,
+          customerPhone: order.customerPhone,
+          shippingAddress: order.shippingAddress,
+          status: order.status,
+          orderSource: order.orderSource,
+          totalAmount: Number(order.totalAmount || 0),
+          orderDate: order.orderDate,
+          assignedAt: order.assignedAt,
+          calledAt: order.telephonyCalledAt,
+          callStatus: order.telephonyCallStatus || (order.telephonyCalledAt ? 'called' : 'not_called'),
+          outcome: order.telephonyOutcome,
+          suggestion: order.telephonySuggestion,
+          notes: order.telephonyNotes,
+          items: itemsByOrderId.get(order.id) || [],
+        };
+      }),
       total,
       page: safePage,
       limit: safeLimit,

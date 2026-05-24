@@ -16,6 +16,8 @@ type CallOutcome = Exclude<FilterOutcome, 'all'> | '';
 type AssignedOrder = {
   id: number;
   recordType?: 'sales_order' | 'incomplete_order' | string;
+  assignmentWorkType?: 'primary_leads' | 'unreachable_followup' | 'incomplete_recovery' | 'rejected_recovery' | string;
+  canHandoffNoAnswer?: boolean;
   salesOrderNumber?: string;
   customerName?: string;
   customerPhone?: string;
@@ -455,7 +457,7 @@ export default function TelephonyOrderAssignmentPage({ assignmentType = 'order' 
                               >
                                 <FaPhone size={10} /> Log Call
                               </button>
-                              {assignmentType === 'order' && order.recordType !== 'incomplete_order' && (
+                              {assignmentType === 'order' && order.recordType !== 'incomplete_order' && order.canHandoffNoAnswer && (
                                 <button
                                   type="button"
                                   disabled={handoffOrderId === order.id}
