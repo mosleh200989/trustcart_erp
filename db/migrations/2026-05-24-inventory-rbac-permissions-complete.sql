@@ -120,9 +120,6 @@ WHERE r.slug = 'supplier-account'
 ON CONFLICT DO NOTHING;
 
 -- Keep existing database-backed admin menu rows aligned with the corrected permission model.
--- The application should use the built-in sidebar by default. The DB rows are kept
--- for Manage Modules history/editing, but left inactive so AdminLayout falls back
--- to the built-in menu sequence.
 DO $$
 DECLARE
   inventory_menu_id integer;
@@ -197,27 +194,22 @@ BEGIN
     IF inventory_menu_id IS NOT NULL THEN
       INSERT INTO admin_menu_items (title, icon, path, sort_order, is_active, required_permissions, parent_id, created_at, updated_at)
       VALUES
-        ('Dashboard', 'FaTachometerAlt', '/admin/inventory', 0, false, ARRAY['view-inventory'], inventory_menu_id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-        ('Available Products', 'FaBoxes', '/admin/inventory/available-products', 1, false, ARRAY['view-inventory', 'view-stock-levels'], inventory_menu_id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-        ('Report', 'FaChartBar', '/admin/inventory/reports', 2, false, ARRAY['view-inventory', 'view-stock-reports'], inventory_menu_id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-        ('Alerts', 'FaBell', '/admin/inventory/alerts', 3, false, ARRAY['view-inventory'], inventory_menu_id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-        ('Inventory Count', 'FaClipboardCheck', '/admin/inventory/counts', 4, false, ARRAY['view-inventory'], inventory_menu_id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-        ('Adjustments', 'FaSlidersH', '/admin/inventory/adjustments', 5, false, ARRAY['view-inventory'], inventory_menu_id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-        ('Warehouse', 'FaWarehouse', '/admin/inventory/warehouses', 6, false, ARRAY['view-inventory', 'view-warehouses'], inventory_menu_id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-        ('Supplier', 'FaTruck', '/admin/inventory/suppliers', 7, false, ARRAY['view-inventory', 'view-suppliers'], inventory_menu_id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-        ('Reorder', 'FaClipboardList', '/admin/inventory/reorder-rules', 8, false, ARRAY['view-inventory'], inventory_menu_id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-        ('Bulk Import', 'FaFileImport', '/admin/inventory/import', 9, false, ARRAY['manage-stock'], inventory_menu_id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-        ('Repacking', 'FaRecycle', '/admin/inventory/repacking', 10, false, ARRAY['view-inventory'], inventory_menu_id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-        ('Packaging Conf', 'FaBoxes', '/admin/inventory/packaging-conf', 11, false, ARRAY['view-inventory'], inventory_menu_id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-        ('Barcode', 'FaBarcode', '/admin/inventory/barcode', 12, false, ARRAY['view-inventory'], inventory_menu_id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-        ('Audit Trail', 'FaSearch', '/admin/inventory/audit-trail', 13, false, ARRAY['view-inventory'], inventory_menu_id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        ('Dashboard', 'FaTachometerAlt', '/admin/inventory', 0, true, ARRAY['view-inventory'], inventory_menu_id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+        ('Available Products', 'FaBoxes', '/admin/inventory/available-products', 1, true, ARRAY['view-inventory', 'view-stock-levels'], inventory_menu_id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+        ('Report', 'FaChartBar', '/admin/inventory/reports', 2, true, ARRAY['view-inventory', 'view-stock-reports'], inventory_menu_id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+        ('Alerts', 'FaBell', '/admin/inventory/alerts', 3, true, ARRAY['view-inventory'], inventory_menu_id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+        ('Inventory Count', 'FaClipboardCheck', '/admin/inventory/counts', 4, true, ARRAY['view-inventory'], inventory_menu_id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+        ('Adjustments', 'FaSlidersH', '/admin/inventory/adjustments', 5, true, ARRAY['view-inventory'], inventory_menu_id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+        ('Warehouse', 'FaWarehouse', '/admin/inventory/warehouses', 6, true, ARRAY['view-inventory', 'view-warehouses'], inventory_menu_id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+        ('Supplier', 'FaTruck', '/admin/inventory/suppliers', 7, true, ARRAY['view-inventory', 'view-suppliers'], inventory_menu_id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+        ('Reorder', 'FaClipboardList', '/admin/inventory/reorder-rules', 8, true, ARRAY['view-inventory'], inventory_menu_id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+        ('Bulk Import', 'FaFileImport', '/admin/inventory/import', 9, true, ARRAY['manage-stock'], inventory_menu_id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+        ('Repacking', 'FaRecycle', '/admin/inventory/repacking', 10, true, ARRAY['view-inventory'], inventory_menu_id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+        ('Packaging Conf', 'FaBoxes', '/admin/inventory/packaging-conf', 11, true, ARRAY['view-inventory'], inventory_menu_id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+        ('Barcode', 'FaBarcode', '/admin/inventory/barcode', 12, true, ARRAY['view-inventory'], inventory_menu_id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+        ('Audit Trail', 'FaSearch', '/admin/inventory/audit-trail', 13, true, ARRAY['view-inventory'], inventory_menu_id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
       ON CONFLICT DO NOTHING;
     END IF;
-
-    UPDATE admin_menu_items
-    SET is_active = false,
-        updated_at = CURRENT_TIMESTAMP
-    WHERE is_active = true;
   END IF;
 END $$;
 
