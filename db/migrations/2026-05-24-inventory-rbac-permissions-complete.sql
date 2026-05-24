@@ -194,20 +194,20 @@ BEGIN
     IF inventory_menu_id IS NOT NULL THEN
       INSERT INTO admin_menu_items (title, icon, path, sort_order, is_active, required_permissions, parent_id, created_at, updated_at)
       VALUES
-        ('Dashboard', 'FaTachometerAlt', '/admin/inventory', 1, true, ARRAY['view-inventory'], inventory_menu_id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-        ('Available Products', 'FaBoxes', '/admin/inventory/available-products', 2, true, ARRAY['view-inventory', 'view-stock-levels'], inventory_menu_id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-        ('Report', 'FaChartBar', '/admin/inventory/reports', 3, true, ARRAY['view-inventory', 'view-stock-reports'], inventory_menu_id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-        ('Alerts', 'FaBell', '/admin/inventory/alerts', 4, true, ARRAY['view-inventory'], inventory_menu_id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-        ('Inventory Count', 'FaClipboardCheck', '/admin/inventory/counts', 5, true, ARRAY['view-inventory'], inventory_menu_id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-        ('Adjustments', 'FaSlidersH', '/admin/inventory/adjustments', 6, true, ARRAY['view-inventory'], inventory_menu_id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-        ('Warehouse', 'FaWarehouse', '/admin/inventory/warehouses', 7, true, ARRAY['view-inventory', 'view-warehouses'], inventory_menu_id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-        ('Supplier', 'FaTruck', '/admin/inventory/suppliers', 8, true, ARRAY['view-inventory', 'view-suppliers'], inventory_menu_id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-        ('Reorder', 'FaClipboardList', '/admin/inventory/reorder-rules', 9, true, ARRAY['view-inventory'], inventory_menu_id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-        ('Bulk Import', 'FaFileImport', '/admin/inventory/import', 10, true, ARRAY['manage-stock'], inventory_menu_id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-        ('Repacking', 'FaRecycle', '/admin/inventory/repacking', 11, true, ARRAY['view-inventory'], inventory_menu_id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-        ('Packaging Conf', 'FaBoxes', '/admin/inventory/packaging-conf', 12, true, ARRAY['view-inventory'], inventory_menu_id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-        ('Barcode', 'FaBarcode', '/admin/inventory/barcode', 13, true, ARRAY['view-inventory'], inventory_menu_id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-        ('Audit Trail', 'FaSearch', '/admin/inventory/audit-trail', 14, true, ARRAY['view-inventory'], inventory_menu_id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        ('Dashboard', 'FaTachometerAlt', '/admin/inventory', 0, true, ARRAY['view-inventory'], inventory_menu_id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+        ('Available Products', 'FaBoxes', '/admin/inventory/available-products', 1, true, ARRAY['view-inventory', 'view-stock-levels'], inventory_menu_id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+        ('Report', 'FaChartBar', '/admin/inventory/reports', 2, true, ARRAY['view-inventory', 'view-stock-reports'], inventory_menu_id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+        ('Alerts', 'FaBell', '/admin/inventory/alerts', 3, true, ARRAY['view-inventory'], inventory_menu_id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+        ('Inventory Count', 'FaClipboardCheck', '/admin/inventory/counts', 4, true, ARRAY['view-inventory'], inventory_menu_id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+        ('Adjustments', 'FaSlidersH', '/admin/inventory/adjustments', 5, true, ARRAY['view-inventory'], inventory_menu_id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+        ('Warehouse', 'FaWarehouse', '/admin/inventory/warehouses', 6, true, ARRAY['view-inventory', 'view-warehouses'], inventory_menu_id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+        ('Supplier', 'FaTruck', '/admin/inventory/suppliers', 7, true, ARRAY['view-inventory', 'view-suppliers'], inventory_menu_id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+        ('Reorder', 'FaClipboardList', '/admin/inventory/reorder-rules', 8, true, ARRAY['view-inventory'], inventory_menu_id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+        ('Bulk Import', 'FaFileImport', '/admin/inventory/import', 9, true, ARRAY['manage-stock'], inventory_menu_id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+        ('Repacking', 'FaRecycle', '/admin/inventory/repacking', 10, true, ARRAY['view-inventory'], inventory_menu_id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+        ('Packaging Conf', 'FaBoxes', '/admin/inventory/packaging-conf', 11, true, ARRAY['view-inventory'], inventory_menu_id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+        ('Barcode', 'FaBarcode', '/admin/inventory/barcode', 12, true, ARRAY['view-inventory'], inventory_menu_id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+        ('Audit Trail', 'FaSearch', '/admin/inventory/audit-trail', 13, true, ARRAY['view-inventory'], inventory_menu_id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
       ON CONFLICT DO NOTHING;
     END IF;
   END IF;
