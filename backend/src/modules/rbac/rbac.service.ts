@@ -211,7 +211,15 @@ export class RbacService {
   async checkPermission(userId: number, permissionSlug: string): Promise<boolean> {
     try {
       const result = await this.rolesRepository.query(`
-        SELECT EXISTS (
+        WITH direct_override AS (
+          SELECT up.granted
+          FROM user_permissions up
+          INNER JOIN permissions p ON p.id = up.permission_id
+          WHERE up.user_id = $1 AND p.slug = $2
+          ORDER BY up.granted_at DESC
+          LIMIT 1
+        ),
+        role_match AS (
           SELECT 1
           FROM users u
           INNER JOIN roles r ON r.id = u.role_id
@@ -225,7 +233,11 @@ export class RbacService {
           INNER JOIN role_permissions rp ON rp.role_id = r.id
           INNER JOIN permissions p ON rp.permission_id = p.id
           WHERE ur.user_id = $1 AND p.slug = $2 AND r.is_active = TRUE
-        ) as has_permission
+        )
+        SELECT COALESCE(
+          (SELECT granted FROM direct_override),
+          EXISTS (SELECT 1 FROM role_match)
+        ) AS has_permission
       `, [userId, permissionSlug]);
 
       return result[0]?.has_permission || false;
@@ -239,15 +251,37 @@ export class RbacService {
   async getUserPermissions(userId: number): Promise<Permission[]> {
     try {
       const result = await this.permissionsRepository.query(`
+        WITH role_permissions_for_user AS (
+          SELECT DISTINCT p.id
+          FROM permissions p
+          INNER JOIN role_permissions rp ON p.id = rp.permission_id
+          INNER JOIN roles r ON r.id = rp.role_id
+          WHERE r.is_active = TRUE
+            AND (
+              r.id IN (SELECT role_id FROM users WHERE id = $1)
+              OR r.id IN (SELECT role_id FROM user_roles WHERE user_id = $1)
+            )
+        ),
+        directly_granted AS (
+          SELECT up.permission_id AS id
+          FROM user_permissions up
+          WHERE up.user_id = $1 AND up.granted = TRUE
+        ),
+        directly_revoked AS (
+          SELECT up.permission_id AS id
+          FROM user_permissions up
+          WHERE up.user_id = $1 AND up.granted = FALSE
+        ),
+        effective_permissions AS (
+          SELECT id FROM role_permissions_for_user
+          UNION
+          SELECT id FROM directly_granted
+          EXCEPT
+          SELECT id FROM directly_revoked
+        )
         SELECT DISTINCT p.*
         FROM permissions p
-        INNER JOIN role_permissions rp ON p.id = rp.permission_id
-        INNER JOIN roles r ON r.id = rp.role_id
-        WHERE r.is_active = TRUE
-          AND (
-            r.id IN (SELECT role_id FROM users WHERE id = $1)
-            OR r.id IN (SELECT role_id FROM user_roles WHERE user_id = $1)
-          )
+        INNER JOIN effective_permissions ep ON ep.id = p.id
         ORDER BY p.module, p.action
       `, [userId]);
 

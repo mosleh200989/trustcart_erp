@@ -6,7 +6,7 @@ import { CreateZoneDto } from './dto/create-zone.dto';
 import { CreateLocationDto } from './dto/create-location.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
-import { RequirePermissions } from '../../common/decorators/permissions.decorator';
+import { RequireAnyPermission, RequirePermissions } from '../../common/decorators/permissions.decorator';
 
 @Controller('warehouses')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -16,13 +16,13 @@ export class WarehouseController {
   // ── Warehouses ──────────────────────────────────────
 
   @Get()
-  @RequirePermissions('view-warehouses')
+  @RequireAnyPermission('view-warehouses', 'view-inventory')
   findAll() {
     return this.warehouseService.findAll();
   }
 
   @Get(':id')
-  @RequirePermissions('view-warehouses')
+  @RequireAnyPermission('view-warehouses', 'view-inventory')
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.warehouseService.findOne(id);
   }
@@ -48,13 +48,13 @@ export class WarehouseController {
   // ── Zones ───────────────────────────────────────────
 
   @Get(':warehouseId/zones')
-  @RequirePermissions('view-warehouses')
+  @RequireAnyPermission('view-warehouses', 'view-inventory')
   findAllZones(@Param('warehouseId', ParseIntPipe) warehouseId: number) {
     return this.warehouseService.findAllZones(warehouseId);
   }
 
   @Get('zones/:id')
-  @RequirePermissions('view-warehouses')
+  @RequireAnyPermission('view-warehouses', 'view-inventory')
   findOneZone(@Param('id', ParseIntPipe) id: number) {
     return this.warehouseService.findOneZone(id);
   }
@@ -80,13 +80,13 @@ export class WarehouseController {
   // ── Locations ───────────────────────────────────────
 
   @Get(':warehouseId/locations')
-  @RequirePermissions('view-warehouses')
+  @RequireAnyPermission('view-warehouses', 'view-inventory')
   findAllLocations(@Param('warehouseId', ParseIntPipe) warehouseId: number) {
     return this.warehouseService.findAllLocations(warehouseId);
   }
 
   @Get('locations/:id')
-  @RequirePermissions('view-warehouses')
+  @RequireAnyPermission('view-warehouses', 'view-inventory')
   findOneLocation(@Param('id', ParseIntPipe) id: number) {
     return this.warehouseService.findOneLocation(id);
   }
