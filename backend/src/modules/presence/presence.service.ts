@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import axios from 'axios';
@@ -10,6 +10,7 @@ import { UserPresenceState, UserPresenceStatus } from './entities/user-presence-
 import { PresenceSettings } from './entities/presence-settings.entity';
 import { UserOfficeTime } from './entities/user-office-time.entity';
 import { PresenceCalendarOverride } from './entities/presence-calendar-override.entity';
+import { SalesService } from '../sales/sales.service';
 
 function parseDate(value: any): Date | null {
   if (!value) return null;
@@ -44,6 +45,8 @@ const PRESENCE_STALE_TIMEOUT_MS = 3 * 60 * 1000;
 
 @Injectable()
 export class PresenceService {
+  private readonly logger = new Logger(PresenceService.name);
+
   constructor(
     @InjectRepository(UserPresenceStatus)
     private readonly statusRepo: Repository<UserPresenceStatus>,
@@ -57,6 +60,7 @@ export class PresenceService {
     private readonly officeTimeRepo: Repository<UserOfficeTime>,
     @InjectRepository(PresenceCalendarOverride)
     private readonly calendarOverrideRepo: Repository<PresenceCalendarOverride>,
+    private readonly salesService: SalesService,
   ) {}
 
   private getRange(params?: { from?: string; to?: string; rangeDays?: number }) {
@@ -123,6 +127,42 @@ export class PresenceService {
     };
   }
 
+  private async runAutomaticAssignmentForOnlineUser(userId: number): Promise<void> {
+    const userIdNum = Number(userId);
+    if (!Number.isFinite(userIdNum) || userIdNum <= 0) return;
+
+    try {
+      const rows = await this.statusRepo.manager.query(
+        `SELECT
+           u.team_leader_id AS "teamLeaderId",
+           LOWER(COALESCE(r.slug, '')) AS "roleSlug"
+         FROM users u
+         LEFT JOIN roles r ON r.id = u.role_id
+         WHERE u.id = $1
+           AND COALESCE(u.is_deleted, FALSE) = FALSE
+           AND COALESCE(u.status, 'active') = 'active'
+         LIMIT 1`,
+        [userIdNum],
+      );
+      const user = rows?.[0];
+      const roleSlug = String(user?.roleSlug || '').toLowerCase();
+      const teamLeaderId =
+        roleSlug === 'sales-team-leader'
+          ? userIdNum
+          : Number(user?.teamLeaderId || 0);
+
+      if (!Number.isFinite(teamLeaderId) || teamLeaderId <= 0) return;
+
+      await this.salesService.runAutomaticAssignmentQueue({
+        teamLeaderId,
+        limit: 500,
+        reason: 'agent_online_queue_drain',
+      });
+    } catch (err: any) {
+      this.logger.warn(`Automatic assignment queue drain failed for online user ${userIdNum}: ${err?.message || err}`);
+    }
+  }
+
   async expireStaleOnlineStatuses(userIds?: number[]) {
     const cutoff = new Date(Date.now() - PRESENCE_STALE_TIMEOUT_MS);
     const qb = this.statusRepo
@@ -169,6 +209,7 @@ export class PresenceService {
     const state = safeState(stateRaw);
     const now = new Date();
     const status = await this.getOrCreateStatus(userIdNum);
+    const previousState = status.state;
 
     if (status.state !== state) {
       const event = this.eventRepo.create({
@@ -187,6 +228,8 @@ export class PresenceService {
     const saved = await this.statusRepo.save(status);
     if (state === 'offline') {
       await this.unassignWorkForOfflineUser(userIdNum);
+    } else if (state === 'online' && previousState !== 'online') {
+      await this.runAutomaticAssignmentForOnlineUser(userIdNum);
     }
     return saved;
   }

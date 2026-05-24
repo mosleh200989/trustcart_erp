@@ -11,6 +11,7 @@ import { PresenceController } from './presence.controller';
 import { PresenceService } from './presence.service';
 import { PresenceTelegramReminderService } from './presence-telegram-reminder.service';
 import { PresenceStaleStatusService } from './presence-stale-status.service';
+import { SalesModule } from '../sales/sales.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { PresenceStaleStatusService } from './presence-stale-status.service';
       PresenceTelegramNotification,
       User,
     ]),
+    SalesModule,
   ],
   controllers: [PresenceController],
   providers: [PresenceService, PresenceTelegramReminderService, PresenceStaleStatusService],
