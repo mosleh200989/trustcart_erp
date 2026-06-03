@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import AdminLayout from '@/layouts/AdminLayout';
+import InventoryProductPicker from '@/components/admin/InventoryProductPicker';
 import { useToast } from '@/contexts/ToastContext';
 import { stockTransfers, warehouses, products as productsApi } from '@/services/api';
 import { FaExchangeAlt, FaArrowLeft, FaPlus, FaTrash, FaSave, FaCheck, FaTruck, FaBoxOpen, FaTimes } from 'react-icons/fa';
@@ -50,7 +51,7 @@ export default function TransferDetailPage() {
 
   const loadLookups = async () => {
     try {
-      const [whs, prods] = await Promise.all([warehouses.list(), productsApi.list()]);
+      const [whs, prods] = await Promise.all([warehouses.list(), productsApi.listAll()]);
       setWarehouseList(whs);
       const wMap: Record<number, string> = {};
       whs.forEach((w: any) => { wMap[w.id] = w.name; });
@@ -247,10 +248,16 @@ export default function TransferDetailPage() {
               {items.map((item, idx) => (
                 <tr key={idx}>
                   <td className="px-3 py-2">
-                    <select value={item.product_id} onChange={e => updateItem(idx, 'product_id', Number(e.target.value))} className="w-full border rounded px-2 py-1 text-sm">
-                      <option value={0}>Select product</option>
-                      {productList.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                    </select>
+                    <InventoryProductPicker
+                      products={productList}
+                      productId={item.product_id || ''}
+                      variantKey={item.variant_key || ''}
+                      onChange={(productId, variantKey) => {
+                        const updated = [...items];
+                        updated[idx] = { ...updated[idx], product_id: Number(productId || 0), variant_key: variantKey || undefined };
+                        setItems(updated);
+                      }}
+                    />
                   </td>
                   <td className="px-3 py-2"><input type="number" min="1" value={item.quantity_requested || ''} onChange={e => updateItem(idx, 'quantity_requested', Number(e.target.value))} className="w-full border rounded px-2 py-1 text-sm text-right" /></td>
                   <td className="px-3 py-2"><input value={item.notes || ''} onChange={e => updateItem(idx, 'notes', e.target.value)} className="w-full border rounded px-2 py-1 text-sm" /></td>

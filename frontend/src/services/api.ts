@@ -67,6 +67,10 @@ const transformProduct = (p: any) => {
     thumb: thumbImage,
     categoryId: p.category_id,
     category_id: p.category_id,
+    sale_price: p.sale_price,
+    salePrice: p.sale_price != null ? parseFloat(p.sale_price) : null,
+    size_variants: p.size_variants,
+    sizeVariants: p.size_variants,
     status: p.status || 'active',
     createdAt: p.created_at
   };
