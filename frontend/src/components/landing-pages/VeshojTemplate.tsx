@@ -518,7 +518,11 @@ export default function VeshojTemplate({ page, trafficSource = 'landing_page' }:
       const isComments = (section.images || []).length > 6 || section.title?.includes('মন্তব্য');
       return (
         <section key={section.id} className="veshoj-section">
-          {section.title && <h2 className="veshoj-section-title">{section.title}</h2>}
+          {section.title && (
+            <div className="veshoj-heading-band">
+              <h2>{section.title}</h2>
+            </div>
+          )}
           {section.content && (
             <div
               className="veshoj-section-copy"
@@ -556,7 +560,7 @@ export default function VeshojTemplate({ page, trafficSource = 'landing_page' }:
     return (
       <section
         key={section.id}
-        className={section.type === 'hero' ? 'veshoj-purple-strip' : 'veshoj-section'}
+        className={section.type === 'hero' || section.type === 'cta' ? 'veshoj-purple-strip' : 'veshoj-section'}
         style={{
           backgroundColor: section.backgroundColor || undefined,
           color: section.textColor || undefined,
@@ -564,10 +568,10 @@ export default function VeshojTemplate({ page, trafficSource = 'landing_page' }:
           paddingBottom: section.paddingY,
         }}
       >
-        {section.title && <h2 className={section.type === 'hero' ? '' : 'veshoj-section-title'}>{section.title}</h2>}
+        {section.title && <h2 className={section.type === 'hero' || section.type === 'cta' ? '' : 'veshoj-section-title'}>{section.title}</h2>}
         {section.content && (
           <div
-            className={section.type === 'hero' ? 'veshoj-strip-copy' : 'veshoj-rich-text'}
+            className={section.type === 'hero' || section.type === 'cta' ? 'veshoj-strip-copy' : 'veshoj-rich-text'}
             dangerouslySetInnerHTML={{ __html: section.content }}
           />
         )}
@@ -634,12 +638,23 @@ export default function VeshojTemplate({ page, trafficSource = 'landing_page' }:
         }
         .veshoj-purple-strip h1,
         .veshoj-purple-strip h2,
+        .veshoj-heading-band h2,
         .veshoj-phone-section h2 {
           margin: 0;
           color: #ffffff;
           font-size: clamp(20px, 4.2vw, 32px);
           font-weight: 800;
           line-height: 1.25;
+        }
+        .veshoj-heading-band {
+          display: inline-flex;
+          justify-content: center;
+          max-width: 100%;
+          margin: 8px auto 12px;
+          padding: 6px 10px;
+          border-radius: 10px;
+          background: ${primaryColor};
+          text-align: center;
         }
         .veshoj-strip-copy {
           font-size: 15px;
@@ -743,16 +758,21 @@ export default function VeshojTemplate({ page, trafficSource = 'landing_page' }:
           display: block;
         }
         .veshoj-comment-gallery {
-          display: grid;
-          grid-template-columns: repeat(2, minmax(0, 1fr));
-          gap: 8px;
+          display: flex;
+          gap: 10px;
+          overflow-x: auto;
+          padding: 2px 0 10px;
+          scroll-snap-type: x mandatory;
+          scrollbar-width: thin;
         }
         .veshoj-comment-gallery img {
-          width: 100%;
+          width: min(230px, 75vw);
+          flex: 0 0 min(230px, 75vw);
           aspect-ratio: 1 / 1;
           object-fit: cover;
           border-radius: 8px;
           border: 1px solid #f1f1f1;
+          scroll-snap-align: center;
         }
         .veshoj-video-frame {
           position: relative;
@@ -1025,6 +1045,7 @@ export default function VeshojTemplate({ page, trafficSource = 'landing_page' }:
           }
           .veshoj-purple-strip h1,
           .veshoj-purple-strip h2,
+          .veshoj-heading-band h2,
           .veshoj-phone-section h2 {
             font-size: 19px;
           }
@@ -1044,9 +1065,6 @@ export default function VeshojTemplate({ page, trafficSource = 'landing_page' }:
           .veshoj-product-card img {
             width: 64px;
             height: 64px;
-          }
-          .veshoj-comment-gallery {
-            grid-template-columns: 1fr;
           }
           .veshoj-submit {
             font-size: 16px;
