@@ -14,7 +14,6 @@ import { StockAdjustment } from './entities/stock-adjustment.entity';
 import { StockAdjustmentItem } from './entities/stock-adjustment-item.entity';
 import { InventoryCount } from './entities/inventory-count.entity';
 import { InventoryCountItem } from './entities/inventory-count-item.entity';
-import { ReorderRule } from './entities/reorder-rule.entity';
 import { DemandForecast } from './entities/demand-forecast.entity';
 import { PackagingConfig } from './entities/packaging-config.entity';
 import { RepackOrder } from './entities/repack-order.entity';
@@ -33,7 +32,6 @@ import { RepackOrder } from './entities/repack-order.entity';
       StockAdjustmentItem,
       InventoryCount,
       InventoryCountItem,
-      ReorderRule,
       DemandForecast,
       PackagingConfig,
       RepackOrder,
@@ -46,7 +44,6 @@ import { RepackOrder } from './entities/repack-order.entity';
 export class InventoryModule implements OnModuleInit {
   private readonly logger = new Logger('InventoryModule');
   private cleanupInterval: ReturnType<typeof setInterval>;
-  private reorderInterval: ReturnType<typeof setInterval>;
   private expiryInterval: ReturnType<typeof setInterval>;
 
   constructor(private readonly inventoryService: InventoryService) {}
@@ -64,18 +61,6 @@ export class InventoryModule implements OnModuleInit {
       }
     }, 5 * 60 * 1000);
 
-    // Run reorder point evaluation every 4 hours
-    this.reorderInterval = setInterval(async () => {
-      try {
-        const result = await this.inventoryService.evaluateReorderPoints();
-        if (result.alertsCreated > 0 || result.posCreated > 0) {
-          this.logger.log(`Reorder eval: ${result.alertsCreated} alert(s), ${result.posCreated} PO(s) created`);
-        }
-      } catch (err: any) {
-        this.logger.warn(`Reorder evaluation failed: ${err?.message}`);
-      }
-    }, 4 * 60 * 60 * 1000);
-
     // Run batch expiry check every 24 hours
     this.expiryInterval = setInterval(async () => {
       try {
@@ -88,10 +73,9 @@ export class InventoryModule implements OnModuleInit {
       }
     }, 24 * 60 * 60 * 1000);
 
-    // Also run both checks once at startup (after 30s delay to let DB warm up)
+    // Also run the expiry check once at startup (after 30s delay to let DB warm up)
     setTimeout(async () => {
       try {
-        await this.inventoryService.evaluateReorderPoints();
         await this.inventoryService.checkExpiryAlerts();
       } catch (err: any) {
         this.logger.warn(`Startup inventory checks failed: ${err?.message}`);

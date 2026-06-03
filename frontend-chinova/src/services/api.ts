@@ -889,20 +889,8 @@ export const inventoryCounts = {
     const res = await apiClient.post('/inventory/counts', data);
     return res.data;
   },
-  async start(id: number) {
-    const res = await apiClient.post(`/inventory/counts/${id}/start`);
-    return res.data;
-  },
   async recordItems(id: number, items: any[]) {
     const res = await apiClient.post(`/inventory/counts/${id}/items`, { items });
-    return res.data;
-  },
-  async complete(id: number) {
-    const res = await apiClient.post(`/inventory/counts/${id}/complete`);
-    return res.data;
-  },
-  async approve(id: number) {
-    const res = await apiClient.post(`/inventory/counts/${id}/approve`);
     return res.data;
   },
 };
@@ -937,29 +925,6 @@ export const stockAlerts = {
   },
   async resolve(id: number, notes?: string) {
     const res = await apiClient.put(`/inventory/alerts/${id}/resolve`, { notes });
-    return res.data;
-  },
-};
-
-export const reorderRules = {
-  async list(productId?: number) {
-    const res = await apiClient.get('/inventory/reorder-rules', { params: { product_id: productId } });
-    return Array.isArray(res.data) ? res.data : [];
-  },
-  async create(data: any) {
-    const res = await apiClient.post('/inventory/reorder-rules', data);
-    return res.data;
-  },
-  async update(id: number, data: any) {
-    const res = await apiClient.put(`/inventory/reorder-rules/${id}`, data);
-    return res.data;
-  },
-  async remove(id: number) {
-    const res = await apiClient.delete(`/inventory/reorder-rules/${id}`);
-    return res.data;
-  },
-  async evaluate() {
-    const res = await apiClient.post('/inventory/reorder-rules/evaluate');
     return res.data;
   },
 };

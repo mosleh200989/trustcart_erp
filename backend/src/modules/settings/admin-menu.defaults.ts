@@ -167,7 +167,6 @@ export const DEFAULT_ADMIN_MENU: AdminMenuSeedNode[] = [
       { title: 'Adjustments', icon: 'FaSlidersH', path: '/admin/inventory/adjustments', requiredPermissions: ['view-inventory'] },
       { title: 'Warehouse', icon: 'FaWarehouse', path: '/admin/inventory/warehouses', requiredPermissions: ['view-inventory', 'view-warehouses'] },
       { title: 'Supplier', icon: 'FaTruck', path: '/admin/inventory/suppliers', requiredPermissions: ['view-inventory', 'view-suppliers'] },
-      { title: 'Reorder', icon: 'FaClipboardList', path: '/admin/inventory/reorder-rules', requiredPermissions: ['view-inventory'] },
       { title: 'Repacking', icon: 'FaRecycle', path: '/admin/inventory/repacking', requiredPermissions: ['view-inventory'] },
       { title: 'Packaging Conf', icon: 'FaBoxes', path: '/admin/inventory/packaging-conf', requiredPermissions: ['view-inventory'] },
       { title: 'Audit Trail', icon: 'FaSearch', path: '/admin/inventory/audit-trail', requiredPermissions: ['view-inventory'] },

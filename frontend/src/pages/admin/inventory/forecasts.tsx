@@ -158,7 +158,7 @@ export default function ForecastsPage() {
                       <th className="text-center p-3">Period</th>
                       <th className="text-right p-3">Avg Monthly Qty</th>
                       <th className="text-right p-3">Std Dev</th>
-                      <th className="text-right p-3">Suggested Reorder</th>
+                      <th className="text-right p-3">Suggested Restock</th>
                       <th className="text-center p-3">Velocity</th>
                       <th className="text-left p-3">Forecast Date</th>
                     </tr>

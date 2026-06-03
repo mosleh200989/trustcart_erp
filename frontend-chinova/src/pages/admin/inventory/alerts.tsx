@@ -18,7 +18,7 @@ const alertTypeLabels: Record<string, string> = {
   overstock: 'Overstock',
   expiry_warning: 'Expiry Warning',
   expiry_critical: 'Expired',
-  reorder_triggered: 'Auto Reorder',
+  reorder_triggered: 'Stock Alert',
 };
 
 export default function InventoryAlerts() {

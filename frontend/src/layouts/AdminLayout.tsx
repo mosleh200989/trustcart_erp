@@ -9,7 +9,7 @@ import { BACKEND_API_BASE_URL } from '@/config/backend';
 import { 
   FaTachometerAlt, FaBoxes, FaShoppingCart, FaUsers, FaWarehouse, 
   FaShoppingBag, FaUserTie, FaBook, FaBullseye, FaHandshake, 
-  FaHeadset, FaUser, FaUserClock, FaUserCheck, FaCog, FaBars, FaTimes, FaBell, FaChevronDown, FaChartBar, FaTags, FaGift, FaPhone, FaMoneyBillWave, FaImage, FaList, FaRocket, FaPrint, FaBan, FaHistory, FaTruck, FaClipboardList, FaSlidersH, FaClipboardCheck, FaSearch, FaRecycle, FaShieldAlt, FaCalculator
+  FaHeadset, FaUser, FaUserClock, FaUserCheck, FaCog, FaBars, FaTimes, FaBell, FaChevronDown, FaChartBar, FaTags, FaGift, FaPhone, FaMoneyBillWave, FaImage, FaList, FaRocket, FaPrint, FaBan, FaHistory, FaTruck, FaSlidersH, FaClipboardCheck, FaSearch, FaRecycle, FaShieldAlt, FaCalculator
 } from 'react-icons/fa';
 
 interface MenuItem {
@@ -168,7 +168,6 @@ const menuItems: MenuItem[] = [
       { title: 'Adjustments', icon: FaSlidersH, path: '/admin/inventory/adjustments', requiredPermissions: ['view-inventory'] },
       { title: 'Warehouse', icon: FaWarehouse, path: '/admin/inventory/warehouses', requiredPermissions: ['view-inventory', 'view-warehouses'] },
       { title: 'Supplier', icon: FaTruck, path: '/admin/inventory/suppliers', requiredPermissions: ['view-inventory', 'view-suppliers'] },
-      { title: 'Reorder', icon: FaClipboardList, path: '/admin/inventory/reorder-rules', requiredPermissions: ['view-inventory'] },
       { title: 'Repacking', icon: FaRecycle, path: '/admin/inventory/repacking', requiredPermissions: ['view-inventory'] },
       { title: 'Packaging Conf', icon: FaBoxes, path: '/admin/inventory/packaging-conf', requiredPermissions: ['view-inventory'] },
       { title: 'Audit Trail', icon: FaSearch, path: '/admin/inventory/audit-trail', requiredPermissions: ['view-inventory'] },

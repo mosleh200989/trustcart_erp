@@ -7,7 +7,6 @@ import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { RequireAnyPermission, RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import { StockQueryDto } from './dto/stock-query.dto';
-import { CreateReorderRuleDto } from './dto/create-reorder-rule.dto';
 import { CreateStockAdjustmentDto } from './dto/create-stock-adjustment.dto';
 import { CreateStockTransferDto } from './dto/create-stock-transfer.dto';
 import { CreateInventoryCountDto, RecordCountItemDto } from './dto/create-inventory-count.dto';
@@ -143,40 +142,6 @@ export class InventoryController {
     @Body('notes') notes?: string,
   ) {
     return this.inventoryService.resolveAlert(id, req.user?.id, notes);
-  }
-
-  // ── Reorder Rules ──────────────────────────────────
-
-  @Get('reorder-rules')
-  @RequirePermissions('view-inventory')
-  getReorderRules(@Query('product_id') productId?: string) {
-    return this.inventoryService.getReorderRules(
-      productId ? parseInt(productId, 10) : undefined,
-    );
-  }
-
-  @Post('reorder-rules')
-  @RequirePermissions('manage-stock')
-  createReorderRule(@Body() dto: CreateReorderRuleDto) {
-    return this.inventoryService.createReorderRule(dto);
-  }
-
-  @Post('reorder-rules/evaluate')
-  @RequirePermissions('manage-stock')
-  evaluateReorderPoints() {
-    return this.inventoryService.evaluateReorderPoints();
-  }
-
-  @Put('reorder-rules/:id')
-  @RequirePermissions('manage-stock')
-  updateReorderRule(@Param('id', ParseIntPipe) id: number, @Body() dto: Partial<CreateReorderRuleDto>) {
-    return this.inventoryService.updateReorderRule(id, dto);
-  }
-
-  @Delete('reorder-rules/:id')
-  @RequirePermissions('manage-stock')
-  removeReorderRule(@Param('id', ParseIntPipe) id: number) {
-    return this.inventoryService.removeReorderRule(id);
   }
 
   // ── Stock Adjustments ───────────────────────────────
@@ -315,28 +280,10 @@ export class InventoryController {
     return this.inventoryService.createCount(dto, req.user?.id);
   }
 
-  @Post('counts/:id/start')
-  @RequirePermissions('manage-stock')
-  startCount(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
-    return this.inventoryService.startCount(id, req.user?.id);
-  }
-
   @Post('counts/:id/items')
   @RequirePermissions('manage-stock')
   recordCountItems(@Param('id', ParseIntPipe) id: number, @Req() req: any, @Body('items') items: RecordCountItemDto[]) {
     return this.inventoryService.recordCountItems(id, req.user?.id, items);
-  }
-
-  @Post('counts/:id/complete')
-  @RequirePermissions('manage-stock')
-  completeCount(@Param('id', ParseIntPipe) id: number) {
-    return this.inventoryService.completeCount(id);
-  }
-
-  @Post('counts/:id/approve')
-  @RequirePermissions('approve-stock-adjustment')
-  approveCount(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
-    return this.inventoryService.approveCount(id, req.user?.id);
   }
 
   // ── Phase 4: Availability & Reservations ────────────
