@@ -1430,6 +1430,10 @@ export class CommissionService {
     requestedBy: number;
     commissionMonth?: string;
   }): Promise<any> {
+    if (data.commissionMonth && !/^\d{4}-\d{2}$/.test(data.commissionMonth)) {
+      throw new BadRequestException('Commission month must be in YYYY-MM format');
+    }
+
     const sql = `
       INSERT INTO commission_payment_requests (agent_id, requested_amount, payment_method, notes, requested_by, commission_month)
       VALUES ($1, $2, $3, $4, $5, $6)
@@ -1445,12 +1449,11 @@ export class CommissionService {
     status?: string;
     agentId?: number;
     search?: string;
-    startDate?: string;
-    endDate?: string;
+    month?: string;
     page?: number;
     limit?: number;
   } = {}): Promise<{ data: any[]; total: number; agents: any[]; teamLeaders: any[] }> {
-    const { status, agentId, search, startDate, endDate, page = 1, limit = 50 } = query;
+    const { status, agentId, search, month, page = 1, limit = 50 } = query;
     const pageNum = Number(page) || 1;
     const limitNum = Number(limit) || 50;
     const offset = (pageNum - 1) * limitNum;
@@ -1467,13 +1470,9 @@ export class CommissionService {
       conditions.push(`pr.agent_id = $${paramIdx++}`);
       params.push(Number(agentId));
     }
-    if (startDate) {
-      conditions.push(`pr.created_at >= $${paramIdx++}`);
-      params.push(startDate);
-    }
-    if (endDate) {
-      conditions.push(`pr.created_at <= ($${paramIdx++}::date + INTERVAL '1 day')`);
-      params.push(endDate);
+    if (month && /^\d{4}-\d{2}$/.test(month)) {
+      conditions.push(`COALESCE(pr.commission_month, TO_CHAR(DATE(pr.created_at AT TIME ZONE 'Asia/Dhaka'), 'YYYY-MM')) = $${paramIdx++}`);
+      params.push(month);
     }
     if (search && search.trim()) {
       conditions.push(`(u.name ILIKE $${paramIdx} OR u.last_name ILIKE $${paramIdx} OR u.phone ILIKE $${paramIdx} OR pr.payment_reference ILIKE $${paramIdx})`);
@@ -1558,6 +1557,7 @@ export class CommissionService {
         agentBankBranchName: r.agent_bank_branch_name || null,
         requestedAmount: parseFloat(r.requested_amount || '0'),
         approvedAmount: r.approved_amount ? parseFloat(r.approved_amount) : null,
+        commissionMonth: r.commission_month,
         paymentMethod: r.payment_method,
         paymentReference: r.payment_reference,
         status: r.status,
@@ -1643,6 +1643,19 @@ export class CommissionService {
     );
 
     return { success: true, id, previousMonth, commissionMonth };
+  }
+
+  async deletePaymentRequest(id: number): Promise<any> {
+    if (!Number.isFinite(id)) throw new BadRequestException('Invalid payment request id');
+
+    const rows = await this.dataSource.query(`SELECT * FROM commission_payment_requests WHERE id = $1`, [id]);
+    if (!rows.length) throw new NotFoundException('Payment request not found');
+    if (rows[0].status !== 'rejected') {
+      throw new BadRequestException('Only rejected payment requests can be deleted');
+    }
+
+    await this.dataSource.query(`DELETE FROM commission_payment_requests WHERE id = $1`, [id]);
+    return { success: true };
   }
 
   async getPaymentHistory(query: {

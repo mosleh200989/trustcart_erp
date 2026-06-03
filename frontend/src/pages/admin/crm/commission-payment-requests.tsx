@@ -4,7 +4,7 @@ import AdminLayout from '@/layouts/AdminLayout';
 import DataTable from '@/components/admin/DataTable';
 import PageSizeSelector from '@/components/admin/PageSizeSelector';
 import { useToast } from '@/contexts/ToastContext';
-import { FaSearch, FaPlus, FaCheck, FaMoneyBillWave, FaTimes, FaEye } from 'react-icons/fa';
+import { FaSearch, FaPlus, FaCheck, FaMoneyBillWave, FaTimes, FaEye, FaTrash } from 'react-icons/fa';
 import apiClient from '@/services/api';
 
 interface PaymentRequest {
@@ -22,6 +22,7 @@ interface PaymentRequest {
   agentBankBranchName: string | null;
   requestedAmount: number;
   approvedAmount: number | null;
+  commissionMonth: string | null;
   paymentMethod: string | null;
   paymentReference: string | null;
   status: string;
@@ -57,6 +58,11 @@ const PAYMENT_METHODS = [
   { value: 'other', label: 'Other' },
 ];
 
+const getCurrentMonth = () => {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+};
+
 export default function CommissionPaymentRequestsPage() {
   const toast = useToast();
   const router = useRouter();
@@ -73,12 +79,11 @@ export default function CommissionPaymentRequestsPage() {
   // Filters
   const [statusFilter, setStatusFilter] = useState('');
   const [agentFilter, setAgentFilter] = useState('');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
+  const [monthFilter, setMonthFilter] = useState('');
 
   // Create modal
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [createForm, setCreateForm] = useState({ agentId: '', requestedAmount: '', paymentMethod: '', notes: '' });
+  const [createForm, setCreateForm] = useState({ agentId: '', requestedAmount: '', commissionMonth: getCurrentMonth(), paymentMethod: '', notes: '' });
   const [creating, setCreating] = useState(false);
 
   // Action modals
@@ -94,8 +99,7 @@ export default function CommissionPaymentRequestsPage() {
       const params: any = { page: p, limit: ps };
       if (statusFilter) params.status = statusFilter;
       if (agentFilter) params.agentId = agentFilter;
-      if (startDate) params.startDate = startDate;
-      if (endDate) params.endDate = endDate;
+      if (monthFilter) params.month = monthFilter;
       if (searchText.trim()) params.search = searchText.trim();
 
       const response = await apiClient.get('/crm/commissions/payment-requests', { params });
@@ -110,11 +114,11 @@ export default function CommissionPaymentRequestsPage() {
     } finally {
       setLoading(false);
     }
-  }, [currentPage, itemsPerPage, statusFilter, agentFilter, startDate, endDate, searchText]);
+  }, [currentPage, itemsPerPage, statusFilter, agentFilter, monthFilter, searchText]);
 
   useEffect(() => {
     loadRequests(currentPage, itemsPerPage);
-  }, [currentPage, itemsPerPage, statusFilter, agentFilter, startDate, endDate]);
+  }, [currentPage, itemsPerPage, statusFilter, agentFilter, monthFilter]);
 
   const handleSearch = () => {
     setCurrentPage(1);
@@ -131,12 +135,13 @@ export default function CommissionPaymentRequestsPage() {
       await apiClient.post('/crm/commissions/payment-requests', {
         agentId: Number(createForm.agentId),
         requestedAmount: parseFloat(createForm.requestedAmount),
+        commissionMonth: createForm.commissionMonth || undefined,
         paymentMethod: createForm.paymentMethod || undefined,
         notes: createForm.notes || undefined,
       });
       toast.success('Payment request created successfully');
       setShowCreateModal(false);
-      setCreateForm({ agentId: '', requestedAmount: '', paymentMethod: '', notes: '' });
+      setCreateForm({ agentId: '', requestedAmount: '', commissionMonth: getCurrentMonth(), paymentMethod: '', notes: '' });
       loadRequests(1, itemsPerPage);
     } catch (error: any) {
       toast.error(error?.response?.data?.message || 'Failed to create payment request');
@@ -188,11 +193,35 @@ export default function CommissionPaymentRequestsPage() {
     });
   };
 
+  const handleDelete = async (request: PaymentRequest) => {
+    if (request.status !== 'rejected') {
+      toast.error('Only rejected payment requests can be deleted');
+      return;
+    }
+    const confirmed = window.confirm(`Delete rejected payment request for ${request.agentName || 'this agent'}?`);
+    if (!confirmed) return;
+
+    try {
+      await apiClient.delete(`/crm/commissions/payment-requests/${request.id}`);
+      toast.success('Rejected payment request deleted');
+      loadRequests();
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || 'Failed to delete payment request');
+    }
+  };
+
   const formatDate = (dateStr: string | null) => {
     if (!dateStr) return '-';
     const d = new Date(dateStr);
     return d.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }) +
       ' ' + d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  };
+
+  const formatMonth = (month: string | null) => {
+    if (!month) return '-';
+    const [year, monthNumber] = month.split('-').map(Number);
+    if (!year || !monthNumber) return month;
+    return new Date(year, monthNumber - 1, 1).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
   };
 
   const columns = [
@@ -224,6 +253,14 @@ export default function CommissionPaymentRequestsPage() {
       sortable: true,
       render: (_: any, row: PaymentRequest) => (
         <span className="text-sm font-medium">৳{row.requestedAmount.toLocaleString()}</span>
+      ),
+    },
+    {
+      key: 'commissionMonth',
+      label: 'Payment Month',
+      sortable: true,
+      render: (_: any, row: PaymentRequest) => (
+        <span className="text-sm font-medium text-gray-700">{formatMonth(row.commissionMonth)}</span>
       ),
     },
     {
@@ -308,8 +345,17 @@ export default function CommissionPaymentRequestsPage() {
               <FaMoneyBillWave size={10} /> Pay
             </button>
           )}
-          {(row.status === 'paid' || row.status === 'rejected') && (
+          {row.status === 'paid' && (
             <span className="text-xs text-gray-400 italic">No actions</span>
+          )}
+          {row.status === 'rejected' && (
+            <button
+              onClick={() => handleDelete(row)}
+              className="bg-red-700 hover:bg-red-800 text-white px-2 py-1 rounded text-xs font-medium flex items-center gap-1"
+              title="Delete rejected request"
+            >
+              <FaTrash size={10} /> Delete
+            </button>
           )}
           <button
             onClick={() => router.push(`/admin/crm/commission-sales?agentId=${row.agentId}`)}
@@ -347,7 +393,7 @@ export default function CommissionPaymentRequestsPage() {
 
         {/* Filters */}
         <div className="bg-white rounded-lg shadow mb-4 p-4">
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <div>
               <label className="block text-xs text-gray-500 mb-1">Status</label>
               <select
@@ -387,13 +433,8 @@ export default function CommissionPaymentRequestsPage() {
               </select>
             </div>
             <div>
-              <label className="block text-xs text-gray-500 mb-1">Start Date</label>
-              <input type="date" value={startDate} onChange={(e) => { setStartDate(e.target.value); setCurrentPage(1); }}
-                className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-            </div>
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">End Date</label>
-              <input type="date" value={endDate} onChange={(e) => { setEndDate(e.target.value); setCurrentPage(1); }}
+              <label className="block text-xs text-gray-500 mb-1">Payment Month</label>
+              <input type="month" value={monthFilter} onChange={(e) => { setMonthFilter(e.target.value); setCurrentPage(1); }}
                 className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
             <div>
@@ -458,6 +499,15 @@ export default function CommissionPaymentRequestsPage() {
                       </optgroup>
                     )}
                   </select>
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-600 mb-1">Payment Month</label>
+                  <input
+                    type="month"
+                    value={createForm.commissionMonth}
+                    onChange={(e) => setCreateForm(f => ({ ...f, commissionMonth: e.target.value }))}
+                    className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
                 </div>
                 <div>
                   <label className="block text-sm text-gray-600 mb-1">Amount (৳) *</label>
