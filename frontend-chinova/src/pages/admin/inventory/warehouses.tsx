@@ -48,7 +48,7 @@ export default function WarehousesManagement() {
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [editingLocation, setEditingLocation] = useState<any | null>(null);
   const [locationForm, setLocationForm] = useState({
-    zone_id: '', code: '', aisle: '', rack: '', shelf: '', bin: '', location_type: 'storage', barcode: '', is_active: true,
+    zone_id: '', code: '', aisle: '', rack: '', shelf: '', bin: '', location_type: 'storage', is_active: true,
   });
 
   const [formData, setFormData] = useState({
@@ -223,7 +223,7 @@ export default function WarehousesManagement() {
   // --- Location CRUD ---
   const resetLocationForm = () => {
     setEditingLocation(null);
-    setLocationForm({ zone_id: '', code: '', aisle: '', rack: '', shelf: '', bin: '', location_type: 'storage', barcode: '', is_active: true });
+    setLocationForm({ zone_id: '', code: '', aisle: '', rack: '', shelf: '', bin: '', location_type: 'storage', is_active: true });
   };
 
   const handleEditLocation = (loc: any) => {
@@ -236,7 +236,6 @@ export default function WarehousesManagement() {
       shelf: loc.shelf || '',
       bin: loc.bin || '',
       location_type: loc.location_type || 'storage',
-      barcode: loc.barcode || '',
       is_active: loc.is_active ?? true,
     });
     setShowLocationModal(true);
@@ -256,7 +255,6 @@ export default function WarehousesManagement() {
     if (locationForm.rack) payload.rack = locationForm.rack;
     if (locationForm.shelf) payload.shelf = locationForm.shelf;
     if (locationForm.bin) payload.bin = locationForm.bin;
-    if (locationForm.barcode) payload.barcode = locationForm.barcode;
     try {
       if (editingLocation) {
         await warehouses.updateLocation(selectedWarehouse.id, editingLocation.id, payload);
@@ -610,10 +608,6 @@ export default function WarehousesManagement() {
                   <select value={locationForm.location_type} onChange={(e) => setLocationForm({ ...locationForm, location_type: e.target.value })} className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500">
                     {LOCATION_TYPES.map(t => <option key={t} value={t}>{typeLabel(t)}</option>)}
                   </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Barcode (optional)</label>
-                  <input type="text" value={locationForm.barcode} onChange={(e) => setLocationForm({ ...locationForm, barcode: e.target.value })} className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="e.g. LOC-A-01-01" />
                 </div>
                 <label className="flex items-center gap-2">
                   <input type="checkbox" checked={locationForm.is_active} onChange={(e) => setLocationForm({ ...locationForm, is_active: e.target.checked })} className="w-4 h-4" />

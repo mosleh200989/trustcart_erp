@@ -1062,33 +1062,7 @@ export const supplierPortal = {
   },
 };
 
-// ── Phase 6: Barcode ──────────────────────────────
 
-export const inventoryBarcode = {
-  async generateBlobUrl(text: string, type: string = 'code128'): Promise<string> {
-    const res = await apiClient.get('/inventory/barcode/generate', {
-      params: { text, type },
-      responseType: 'blob',
-    });
-    return URL.createObjectURL(res.data);
-  },
-  async getBatchLabel(batchId: number) {
-    const res = await apiClient.get(`/inventory/barcode/label/batch/${batchId}`);
-    return res.data;
-  },
-  async getLocationLabel(locationId: number) {
-    const res = await apiClient.get(`/inventory/barcode/label/location/${locationId}`);
-    return res.data;
-  },
-  async getPoLabel(poId: number) {
-    const res = await apiClient.get(`/inventory/barcode/label/po/${poId}`);
-    return res.data;
-  },
-  async lookup(code: string) {
-    const res = await apiClient.get('/inventory/barcode/lookup', { params: { code } });
-    return res.data;
-  },
-};
 
 // ── Phase 6: Demand Forecasting ───────────────────
 
@@ -1107,18 +1081,7 @@ export const inventoryForecasts = {
   },
 };
 
-// ── Phase 6: Bulk Import ──────────────────────────
 
-export const inventoryImport = {
-  async validate(importType: string, rows: any[]) {
-    const res = await apiClient.post('/inventory/import/validate', { import_type: importType, rows });
-    return res.data;
-  },
-  async execute(importType: string, rows: any[]) {
-    const res = await apiClient.post('/inventory/import/execute', { import_type: importType, rows });
-    return res.data;
-  },
-};
 
 export const inventoryPackagingConfigs = {
   async list(sourceProductId?: number) {
