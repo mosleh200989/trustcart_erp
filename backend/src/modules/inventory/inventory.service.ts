@@ -1504,7 +1504,7 @@ export class InventoryService {
       params.push(filters.movement_type);
     }
     if (filters.warehouse_id) {
-      query += ` AND (sm.source_warehouse_id = $${paramIdx} OR sm.dest_warehouse_id = $${paramIdx++})`;
+      query += ` AND (sm.source_warehouse_id = $${paramIdx} OR sm.destination_warehouse_id = $${paramIdx++})`;
       params.push(filters.warehouse_id);
     }
 
@@ -1848,7 +1848,7 @@ export class InventoryService {
       params.push(filters.productId);
     }
     if (filters.warehouseId) {
-      conditions.push(`(sm.source_warehouse_id = $${paramIdx} OR sm.dest_warehouse_id = $${paramIdx++})`);
+      conditions.push(`(sm.source_warehouse_id = $${paramIdx} OR sm.destination_warehouse_id = $${paramIdx++})`);
       params.push(filters.warehouseId);
     }
     if (filters.dateFrom) {
@@ -1861,16 +1861,21 @@ export class InventoryService {
     }
 
     const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
-    const limit = filters.limit || 100;
+    const rawLimit = Number(filters.limit || 100);
+    const limit = Number.isFinite(rawLimit) ? Math.min(Math.max(Math.trunc(rawLimit), 1), 500) : 100;
 
     return this.dataSource.query(
       `SELECT sm.*, p.name_en as product_name, p.sku as product_sku,
               sw.name as source_warehouse_name, dw.name as dest_warehouse_name,
-              u.first_name || ' ' || u.last_name as performed_by_name
+              COALESCE(
+                NULLIF(TRIM(CONCAT(COALESCE(u.name, ''), ' ', COALESCE(u.last_name, ''))), ''),
+                u.email,
+                CASE WHEN sm.performed_by IS NOT NULL THEN 'User #' || sm.performed_by::text ELSE NULL END
+              ) as performed_by_name
        FROM stock_movements sm
        LEFT JOIN products p ON p.id = sm.product_id
        LEFT JOIN warehouses sw ON sw.id = sm.source_warehouse_id
-       LEFT JOIN warehouses dw ON dw.id = sm.dest_warehouse_id
+       LEFT JOIN warehouses dw ON dw.id = sm.destination_warehouse_id
        LEFT JOIN users u ON u.id = sm.performed_by
        ${where}
        ORDER BY sm.created_at DESC
@@ -2064,10 +2069,14 @@ export class InventoryService {
   }, userId: number): Promise<any> {
     // Check source stock availability
     const [srcLevel] = await this.dataSource.query(
-      `SELECT quantity FROM stock_levels WHERE product_id = $1 AND warehouse_id = $2 LIMIT 1`,
-      [dto.source_product_id, dto.warehouse_id],
+      `SELECT COALESCE(SUM(quantity - reserved_quantity), 0) as available
+       FROM stock_levels
+       WHERE product_id = $1
+       AND warehouse_id = $2
+       AND ($3::text IS NULL OR variant_key = $3)`,
+      [dto.source_product_id, dto.warehouse_id, dto.source_variant_key || null],
     );
-    const available = srcLevel ? Number(srcLevel.quantity) : 0;
+    const available = srcLevel ? Number(srcLevel.available) : 0;
     if (available < dto.source_qty_to_consume) {
       throw new BadRequestException(
         `Insufficient source stock. Available: ${available}, Required: ${dto.source_qty_to_consume}`,
@@ -2084,7 +2093,12 @@ export class InventoryService {
        dto.source_qty_to_consume, dto.output_product_id, dto.output_variant_key || null,
        dto.output_qty_expected, dto.notes || null, userId],
     );
-    return this.getRepackOrder(row.id);
+    return this.completeRepackOrder(row.id, {
+      source_qty_consumed: dto.source_qty_to_consume,
+      output_qty_actual: dto.output_qty_expected,
+      waste_qty: 0,
+      notes: dto.notes,
+    }, userId);
   }
 
   async startRepackOrder(id: number, userId: number): Promise<any> {
