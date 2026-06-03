@@ -62,9 +62,6 @@ export default function InventoryDashboard() {
             <Link href="/admin/inventory/alerts" className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg text-sm flex items-center gap-2">
               <FaBell /> Alerts
             </Link>
-            <Link href="/admin/inventory/reorder-rules" className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm flex items-center gap-2">
-              <FaClipboardList /> Reorder Rules
-            </Link>
             <button onClick={loadDashboard} className="bg-gray-200 hover:bg-gray-300 px-3 py-2 rounded-lg text-sm flex items-center gap-2">
               <FaSync className={loading ? 'animate-spin' : ''} /> Refresh
             </button>
@@ -138,7 +135,6 @@ export default function InventoryDashboard() {
                       <tr className="text-left text-xs text-gray-500 border-b">
                         <th className="pb-2">Product</th>
                         <th className="pb-2 text-right">Available</th>
-                        <th className="pb-2 text-right">Reorder Pt</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -151,7 +147,6 @@ export default function InventoryDashboard() {
                           <td className={`py-2 text-right font-semibold ${Number(item.available) === 0 ? 'text-red-600' : 'text-orange-600'}`}>
                             {item.available}
                           </td>
-                          <td className="py-2 text-right text-gray-500">{item.reorder_point}</td>
                         </tr>
                       ))}
                     </tbody>

@@ -178,7 +178,6 @@ BEGIN
     WHERE path IN (
       '/admin/inventory',
       '/admin/inventory/alerts',
-      '/admin/inventory/reorder-rules',
       '/admin/inventory/adjustments',
       '/admin/inventory/counts',
       '/admin/inventory/audit-trail',
@@ -198,10 +197,9 @@ BEGIN
         ('Adjustments', 'FaSlidersH', '/admin/inventory/adjustments', 5, true, ARRAY['view-inventory'], inventory_menu_id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
         ('Warehouse', 'FaWarehouse', '/admin/inventory/warehouses', 6, true, ARRAY['view-inventory', 'view-warehouses'], inventory_menu_id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
         ('Supplier', 'FaTruck', '/admin/inventory/suppliers', 7, true, ARRAY['view-inventory', 'view-suppliers'], inventory_menu_id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-        ('Reorder', 'FaClipboardList', '/admin/inventory/reorder-rules', 8, true, ARRAY['view-inventory'], inventory_menu_id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-        ('Repacking', 'FaRecycle', '/admin/inventory/repacking', 9, true, ARRAY['view-inventory'], inventory_menu_id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-        ('Packaging Conf', 'FaBoxes', '/admin/inventory/packaging-conf', 10, true, ARRAY['view-inventory'], inventory_menu_id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-        ('Audit Trail', 'FaSearch', '/admin/inventory/audit-trail', 11, true, ARRAY['view-inventory'], inventory_menu_id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        ('Repacking', 'FaRecycle', '/admin/inventory/repacking', 8, true, ARRAY['view-inventory'], inventory_menu_id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+        ('Packaging Conf', 'FaBoxes', '/admin/inventory/packaging-conf', 9, true, ARRAY['view-inventory'], inventory_menu_id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+        ('Audit Trail', 'FaSearch', '/admin/inventory/audit-trail', 10, true, ARRAY['view-inventory'], inventory_menu_id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
       ON CONFLICT DO NOTHING;
     END IF;
   END IF;

@@ -224,7 +224,6 @@ import { StockAdjustment } from './modules/inventory/entities/stock-adjustment.e
 import { StockAdjustmentItem } from './modules/inventory/entities/stock-adjustment-item.entity';
 import { InventoryCount } from './modules/inventory/entities/inventory-count.entity';
 import { InventoryCountItem } from './modules/inventory/entities/inventory-count-item.entity';
-import { ReorderRule } from './modules/inventory/entities/reorder-rule.entity';
 
 // Purchase Entities
 import { PurchaseOrder } from './modules/purchase/entities/purchase-order.entity';
@@ -316,7 +315,7 @@ import { GrnItem } from './modules/purchase/entities/grn-item.entity';
             // Inventory entities
             StockLevel, StockMovement, StockBatch, StockReservation, StockAlert,
             StockTransfer, StockTransferItem, StockAdjustment, StockAdjustmentItem,
-            InventoryCount, InventoryCountItem, ReorderRule,
+            InventoryCount, InventoryCountItem,
             // Purchase entities
             PurchaseOrder, PurchaseOrderItem, GoodsReceivedNote, GrnItem,
             // Accounting entities

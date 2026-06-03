@@ -1,250 +1,94 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import AdminLayout from '@/layouts/AdminLayout';
 import { useToast } from '@/contexts/ToastContext';
-import { inventoryCounts, warehouses, products as productsApi } from '@/services/api';
-import { FaClipboardList, FaArrowLeft, FaPlus, FaTrash, FaSave, FaPlay, FaCheckDouble, FaCheck } from 'react-icons/fa';
+import { inventoryCounts, products as productsApi, stockLevels, warehouses } from '@/services/api';
+import { FaArrowLeft, FaClipboardList, FaPlus, FaSave, FaTrash } from 'react-icons/fa';
 
-const STATUS_COLORS: Record<string, string> = {
-  planned: 'bg-gray-100 text-gray-800',
-  in_progress: 'bg-blue-100 text-blue-800',
-  pending_review: 'bg-yellow-100 text-yellow-800',
-  approved: 'bg-green-100 text-green-800',
-};
-const ITEM_COLORS: Record<string, string> = {
-  pending: 'bg-gray-100 text-gray-600',
-  counted: 'bg-blue-100 text-blue-700',
-  approved: 'bg-green-100 text-green-700',
-  discrepancy: 'bg-red-100 text-red-700',
-};
+type CountRow = { product_id: string; system_quantity: number; counted_quantity: string; variance_reason: string };
+const emptyRow = (): CountRow => ({ product_id: '', system_quantity: 0, counted_quantity: '', variance_reason: '' });
 
-export default function InventoryCountDetailPage() {
+export default function ManualInventoryCountPage() {
   const router = useRouter();
   const toast = useToast();
   const { id } = router.query;
   const isNew = id === 'new';
-
-  const [count, setCount] = useState<any>(null);
   const [loading, setLoading] = useState(!isNew);
   const [saving, setSaving] = useState(false);
-  const [warehouseList, setWarehouseList] = useState<any[]>([]);
-  const [warehouseMap, setWarehouseMap] = useState<Record<number, string>>({});
-  const [productList, setProductList] = useState<any[]>([]);
-
-  const [form, setForm] = useState({ warehouse_id: '', count_type: 'full', notes: '' });
-  const [countItems, setCountItems] = useState<any[]>([]);
+  const [count, setCount] = useState<any>(null);
+  const [warehousesList, setWarehousesList] = useState<any[]>([]);
+  const [productsList, setProductsList] = useState<any[]>([]);
+  const [form, setForm] = useState({ warehouse_id: '', notes: '' });
+  const [rows, setRows] = useState<CountRow[]>([emptyRow()]);
 
   useEffect(() => { loadLookups(); }, []);
-  useEffect(() => {
-    if (!router.isReady) return;
-    if (!isNew) loadCount();
-  }, [router.isReady, id]);
+  useEffect(() => { if (router.isReady && !isNew) loadCount(); }, [router.isReady, id]);
 
   const loadLookups = async () => {
     try {
-      const [whs, prods] = await Promise.all([warehouses.list(), productsApi.listAll()]);
-      setWarehouseList(whs);
-      const m: Record<number, string> = {};
-      whs.forEach((w: any) => { m[w.id] = w.name; });
-      setWarehouseMap(m);
-      setProductList(Array.isArray(prods) ? prods : []);
-    } catch { /* ignore */ }
+      const [warehouseData, productData] = await Promise.all([warehouses.list(), typeof productsApi.listAll === 'function' ? productsApi.listAll() : productsApi.list()]);
+      setWarehousesList(Array.isArray(warehouseData) ? warehouseData : []);
+      setProductsList(Array.isArray(productData) ? productData : []);
+    } catch { toast.error('Failed to load count options'); }
   };
 
   const loadCount = async () => {
     setLoading(true);
-    try { setCount(await inventoryCounts.get(Number(id))); }
-    catch { toast.error('Failed to load count'); }
+    try {
+      const data = await inventoryCounts.get(Number(id));
+      setCount(data);
+      setForm({ warehouse_id: String(data.warehouse_id || ''), notes: data.notes || '' });
+      setRows(Array.isArray(data.items) && data.items.length > 0 ? data.items.map((item: any) => ({ product_id: String(item.product_id || ''), system_quantity: Number(item.system_quantity || 0), counted_quantity: item.counted_quantity != null ? String(item.counted_quantity) : '', variance_reason: item.variance_reason || '' })) : [emptyRow()]);
+    } catch { toast.error('Failed to load inventory count'); }
     finally { setLoading(false); }
   };
 
-  const productName = (pid: number) => productList.find((p: any) => p.id === pid)?.name || `#${pid}`;
+  const updateRow = async (index: number, field: keyof CountRow, value: string) => {
+    setRows((current) => current.map((row, rowIndex) => rowIndex === index ? { ...row, [field]: value } : row));
+    if (field === 'product_id' && value && form.warehouse_id) {
+      try {
+        const levels = await stockLevels.list({ product_id: Number(value), warehouse_id: Number(form.warehouse_id) });
+        const systemQuantity = Array.isArray(levels) ? levels.reduce((sum: number, level: any) => sum + Number(level.quantity || 0), 0) : 0;
+        setRows((current) => current.map((row, rowIndex) => rowIndex === index ? { ...row, system_quantity: systemQuantity } : row));
+      } catch {}
+    }
+  };
 
-  const handleSave = async () => {
+  const addRow = () => setRows((current) => [...current, emptyRow()]);
+  const removeRow = (index: number) => setRows((current) => current.length === 1 ? current : current.filter((_, rowIndex) => rowIndex !== index));
+
+  const saveCount = async () => {
     if (!form.warehouse_id) { toast.error('Warehouse is required'); return; }
+    const validRows = rows.filter((row) => row.product_id && row.counted_quantity !== '');
+    if (validRows.length === 0) { toast.error('Add at least one counted product'); return; }
     setSaving(true);
     try {
-      const result = await inventoryCounts.create({ warehouse_id: Number(form.warehouse_id), count_type: form.count_type, notes: form.notes || undefined });
-      toast.success('Count created');
-      router.push(`/admin/inventory/counts/${result.id}`);
-    } catch (e: any) { toast.error(e?.response?.data?.message || 'Failed to create'); }
+      const countId = isNew ? (await inventoryCounts.create({ warehouse_id: Number(form.warehouse_id), count_type: 'spot', notes: form.notes || undefined })).id : Number(id);
+      await inventoryCounts.recordItems(countId, validRows.map((row) => ({ product_id: Number(row.product_id), counted_quantity: Number(row.counted_quantity), variance_reason: row.variance_reason || undefined })));
+      toast.success('Inventory count saved');
+      if (isNew) router.replace('/admin/inventory/counts/' + countId); else loadCount();
+    } catch (error: any) { toast.error(error?.response?.data?.message || 'Failed to save inventory count'); }
     finally { setSaving(false); }
-  };
-
-  const handleStart = async () => {
-    try { await inventoryCounts.start(count.id); toast.success('Count started — items populated'); loadCount(); }
-    catch (e: any) { toast.error(e?.response?.data?.message || 'Failed'); }
-  };
-
-  const handleRecordItems = async () => {
-    const toRecord = countItems.filter(i => i._dirty);
-    if (toRecord.length === 0) { toast.error('No items to record'); return; }
-    try {
-      await inventoryCounts.recordItems(count.id, toRecord.map((i: any) => ({
-        product_id: i.product_id,
-        variant_key: i.variant_key || undefined,
-        location_id: i.location_id || undefined,
-        batch_id: i.batch_id || undefined,
-        counted_quantity: Number(i.counted_quantity),
-        variance_reason: i.variance_reason || undefined,
-      })));
-      toast.success('Items recorded');
-      loadCount();
-    } catch (e: any) { toast.error(e?.response?.data?.message || 'Failed'); }
-  };
-
-  const handleComplete = async () => {
-    try { await inventoryCounts.complete(count.id); toast.success('Count completed — pending review'); loadCount(); }
-    catch (e: any) { toast.error(e?.response?.data?.message || 'Failed'); }
-  };
-
-  const handleApprove = async () => {
-    if (!confirm('Approve count? Variances will be applied to stock.')) return;
-    try { await inventoryCounts.approve(count.id); toast.success('Count approved — stock adjusted'); loadCount(); }
-    catch (e: any) { toast.error(e?.response?.data?.message || 'Failed'); }
-  };
-
-  // Initialize editable items from loaded count
-  useEffect(() => {
-    if (count?.items) setCountItems(count.items.map((i: any) => ({ ...i, _dirty: false })));
-  }, [count]);
-
-  const updateCountItem = (idx: number, field: string, value: any) => {
-    const updated = [...countItems];
-    updated[idx] = { ...updated[idx], [field]: value, _dirty: true };
-    setCountItems(updated);
   };
 
   if (loading) return <AdminLayout><div className="p-6 text-center text-gray-500">Loading...</div></AdminLayout>;
 
-  // ─── Detail View ────────────────────────────────────
-  if (!isNew && count) {
-    const isInProgress = count.status === 'in_progress';
-    return (
-      <AdminLayout>
-        <div className="p-6 max-w-6xl mx-auto">
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-3">
-              <button onClick={() => router.push('/admin/inventory/counts')} className="text-gray-500 hover:text-gray-700"><FaArrowLeft /></button>
-              <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2"><FaClipboardList className="text-indigo-600" /> {count.count_number}</h1>
-              <span className={`px-3 py-1 rounded-full text-xs font-medium ${STATUS_COLORS[count.status] || 'bg-gray-100'}`}>{count.status?.replace(/_/g, ' ').toUpperCase()}</span>
-            </div>
-            <div className="flex gap-2">
-              {count.status === 'planned' && <button onClick={handleStart} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm"><FaPlay /> Start Count</button>}
-              {isInProgress && (
-                <>
-                  <button onClick={handleRecordItems} className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm"><FaSave /> Save Items</button>
-                  <button onClick={handleComplete} className="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm"><FaCheckDouble /> Complete</button>
-                </>
-              )}
-              {count.status === 'pending_review' && <button onClick={handleApprove} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm"><FaCheck /> Approve</button>}
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg shadow p-6 mb-6 grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-            <div><span className="text-gray-500">Warehouse</span><div className="font-medium">{warehouseMap[count.warehouse_id] || `#${count.warehouse_id}`}</div></div>
-            <div><span className="text-gray-500">Type</span><div className="font-medium capitalize">{count.count_type}</div></div>
-            <div><span className="text-gray-500">Items Counted</span><div className="font-medium">{count.total_items_counted || '—'}</div></div>
-            <div><span className="text-gray-500">Variances</span><div className="font-medium">{count.total_variances || '—'}</div></div>
-            {count.started_at && <div><span className="text-gray-500">Started</span><div className="font-medium">{new Date(count.started_at).toLocaleString()}</div></div>}
-            {count.completed_at && <div><span className="text-gray-500">Completed</span><div className="font-medium">{new Date(count.completed_at).toLocaleString()}</div></div>}
-            {count.total_variance_value != null && <div><span className="text-gray-500">Variance Value</span><div className="font-medium">${Number(count.total_variance_value).toFixed(2)}</div></div>}
-          </div>
-          {count.notes && <div className="bg-white rounded-lg shadow p-4 mb-6 text-sm"><span className="text-gray-500">Notes:</span> {count.notes}</div>}
-
-          <div className="bg-white rounded-lg shadow overflow-x-auto">
-            <div className="p-4 border-b flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-              <h2 className="font-semibold text-gray-800">Count Items</h2>
-            </div>
-            {countItems.length === 0 ? (
-              <div className="p-8 text-center text-gray-400">No items yet. Press &quot;Start Count&quot; to populate items from current stock levels.</div>
-            ) : (
-              <table className="w-full text-sm">
-                <thead className="bg-gray-50 border-b">
-                  <tr>
-                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Product</th>
-                    <th className="px-3 py-2 text-right text-xs font-medium text-gray-500">System Qty</th>
-                    <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 w-28">{isInProgress ? 'Counted Qty' : 'Counted'}</th>
-                    <th className="px-3 py-2 text-right text-xs font-medium text-gray-500">Variance</th>
-                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">{isInProgress ? 'Reason' : 'Variance Reason'}</th>
-                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y">
-                  {countItems.map((item: any, idx: number) => {
-                    const variance = item.counted_quantity != null ? Number(item.counted_quantity) - Number(item.system_quantity) : null;
-                    return (
-                      <tr key={item.id || idx} className={`hover:bg-gray-50 ${variance && variance !== 0 ? 'bg-red-50/30' : ''}`}>
-                        <td className="px-3 py-2 font-medium">{productName(item.product_id)}{item.variant_key ? ` (${item.variant_key})` : ''}</td>
-                        <td className="px-3 py-2 text-right">{item.system_quantity}</td>
-                        <td className="px-3 py-2 text-right">
-                          {isInProgress ? (
-                            <input type="number" min="0" value={item.counted_quantity ?? ''} onChange={e => updateCountItem(idx, 'counted_quantity', e.target.value === '' ? null : Number(e.target.value))} className="w-24 border rounded px-2 py-1 text-sm text-right" />
-                          ) : (
-                            item.counted_quantity ?? '—'
-                          )}
-                        </td>
-                        <td className={`px-3 py-2 text-right font-medium ${variance && variance > 0 ? 'text-green-600' : variance && variance < 0 ? 'text-red-600' : ''}`}>
-                          {variance != null ? (variance > 0 ? `+${variance}` : variance) : '—'}
-                        </td>
-                        <td className="px-3 py-2">
-                          {isInProgress ? (
-                            <input value={item.variance_reason || ''} onChange={e => updateCountItem(idx, 'variance_reason', e.target.value)} className="w-full border rounded px-2 py-1 text-sm" placeholder="Reason..." />
-                          ) : (
-                            item.variance_reason || '—'
-                          )}
-                        </td>
-                        <td className="px-3 py-2"><span className={`px-2 py-0.5 rounded-full text-xs font-medium ${ITEM_COLORS[item.status] || 'bg-gray-100'}`}>{item.status?.toUpperCase()}</span></td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            )}
-          </div>
-        </div>
-      </AdminLayout>
-    );
-  }
-
-  // ─── Create Form ────────────────────────────────────
   return (
     <AdminLayout>
-      <div className="p-6 max-w-3xl mx-auto">
-        <div className="flex items-center gap-3 mb-6">
-          <button onClick={() => router.push('/admin/inventory/counts')} className="text-gray-500 hover:text-gray-700"><FaArrowLeft /></button>
-          <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2"><FaClipboardList className="text-indigo-600" /> New Inventory Count</h1>
+      <div className="p-6 max-w-6xl mx-auto space-y-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3"><button onClick={() => router.push('/admin/inventory/counts')} className="text-gray-500 hover:text-gray-700"><FaArrowLeft /></button><h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2"><FaClipboardList className="text-indigo-600" /> {isNew ? 'New Manual Inventory Count' : count?.count_number || 'Manual Inventory Count'}</h1></div>
+          <button onClick={saveCount} disabled={saving} className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm font-medium"><FaSave /> {saving ? 'Saving...' : 'Save Count'}</button>
         </div>
-
-        <div className="bg-white rounded-lg shadow p-6 mb-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Warehouse *</label>
-              <select value={form.warehouse_id} onChange={e => setForm({ ...form, warehouse_id: e.target.value })} className="w-full border rounded-lg px-3 py-2 text-sm">
-                <option value="">Select warehouse</option>
-                {warehouseList.map((w: any) => <option key={w.id} value={w.id}>{w.name}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Count Type</label>
-              <select value={form.count_type} onChange={e => setForm({ ...form, count_type: e.target.value })} className="w-full border rounded-lg px-3 py-2 text-sm">
-                <option value="full">Full Count</option>
-                <option value="cycle">Cycle Count</option>
-                <option value="spot">Spot Check</option>
-              </select>
-            </div>
-          </div>
-          <div className="mt-4">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
-            <textarea rows={3} value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} className="w-full border rounded-lg px-3 py-2 text-sm" />
-          </div>
+        <div className="bg-white rounded-lg border p-4 grid grid-cols-1 md:grid-cols-[260px_1fr] gap-4">
+          <label className="block"><span className="block text-sm font-medium text-gray-700 mb-1">Warehouse</span><select value={form.warehouse_id} onChange={(event) => setForm({ ...form, warehouse_id: event.target.value })} className="w-full border rounded-lg px-3 py-2 text-sm" disabled={!isNew} required><option value="">Select warehouse</option>{warehousesList.map((warehouse: any) => <option key={warehouse.id} value={warehouse.id}>{warehouse.name}</option>)}</select></label>
+          <label className="block"><span className="block text-sm font-medium text-gray-700 mb-1">Notes</span><input value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="Optional count note" /></label>
         </div>
-
-        <div className="flex justify-end gap-3">
-          <button onClick={() => router.push('/admin/inventory/counts')} className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50">Cancel</button>
-          <button onClick={handleSave} disabled={saving} className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-lg flex items-center gap-2 text-sm font-medium disabled:opacity-50">
-            <FaSave /> {saving ? 'Creating...' : 'Create Count'}
-          </button>
+        <div className="bg-white rounded-lg border overflow-x-auto">
+          <div className="p-4 border-b flex items-center justify-between gap-3"><h2 className="font-semibold text-gray-800">Manual Count Items</h2><button onClick={addRow} className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm hover:bg-gray-50"><FaPlus /> Add Product</button></div>
+          <table className="w-full text-sm"><thead className="bg-gray-50 border-b"><tr><th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Product</th><th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">System Qty</th><th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Counted Qty</th><th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Variance</th><th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Reason</th><th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Action</th></tr></thead><tbody className="divide-y">
+            {rows.map((row, index) => { const counted = row.counted_quantity === '' ? 0 : Number(row.counted_quantity); const variance = counted - Number(row.system_quantity || 0); return (<tr key={index}><td className="px-3 py-2 min-w-[260px]"><select value={row.product_id} onChange={(event) => updateRow(index, 'product_id', event.target.value)} className="w-full border rounded px-2 py-1.5" required><option value="">Select product</option>{productsList.map((product: any) => <option key={product.id} value={product.id}>{product.name || product.nameEn || '#' + product.id}</option>)}</select></td><td className="px-3 py-2 text-right text-gray-600">{Number(row.system_quantity || 0)}</td><td className="px-3 py-2 text-right"><input type="number" min="0" value={row.counted_quantity} onChange={(event) => updateRow(index, 'counted_quantity', event.target.value)} className="w-28 border rounded px-2 py-1.5 text-right" required /></td><td className={'px-3 py-2 text-right font-semibold ' + (variance === 0 ? 'text-gray-600' : variance > 0 ? 'text-green-700' : 'text-red-600')}>{row.counted_quantity === '' ? '-' : variance}</td><td className="px-3 py-2 min-w-[220px]"><input value={row.variance_reason} onChange={(event) => updateRow(index, 'variance_reason', event.target.value)} className="w-full border rounded px-2 py-1.5" placeholder="Optional" /></td><td className="px-3 py-2 text-right"><button onClick={() => removeRow(index)} className="p-2 text-red-600 hover:bg-red-50 rounded" title="Remove row"><FaTrash /></button></td></tr>); })}
+          </tbody></table>
         </div>
       </div>
     </AdminLayout>

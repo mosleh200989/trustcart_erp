@@ -5,7 +5,6 @@ import { addDhakaDays, getDhakaDateString } from '../../common/utils/dhaka-date'
 import { StockLevel } from './entities/stock-level.entity';
 import { StockBatch } from './entities/stock-batch.entity';
 import { StockAlert } from './entities/stock-alert.entity';
-import { ReorderRule } from './entities/reorder-rule.entity';
 import { StockAdjustment } from './entities/stock-adjustment.entity';
 import { StockAdjustmentItem } from './entities/stock-adjustment-item.entity';
 import { StockTransfer } from './entities/stock-transfer.entity';
@@ -13,7 +12,6 @@ import { StockTransferItem } from './entities/stock-transfer-item.entity';
 import { InventoryCount } from './entities/inventory-count.entity';
 import { InventoryCountItem } from './entities/inventory-count-item.entity';
 import { StockQueryDto } from './dto/stock-query.dto';
-import { CreateReorderRuleDto } from './dto/create-reorder-rule.dto';
 import { CreateStockAdjustmentDto } from './dto/create-stock-adjustment.dto';
 import { CreateStockTransferDto } from './dto/create-stock-transfer.dto';
 import { CreateInventoryCountDto, RecordCountItemDto } from './dto/create-inventory-count.dto';
@@ -33,8 +31,6 @@ export class InventoryService {
     private batchRepo: Repository<StockBatch>,
     @InjectRepository(StockAlert)
     private alertRepo: Repository<StockAlert>,
-    @InjectRepository(ReorderRule)
-    private reorderRepo: Repository<ReorderRule>,
     @InjectRepository(StockAdjustment)
     private adjustmentRepo: Repository<StockAdjustment>,
     @InjectRepository(StockAdjustmentItem)
@@ -190,33 +186,6 @@ export class InventoryService {
     alert.resolved_at = new Date();
     if (notes) alert.resolution_notes = notes;
     return this.alertRepo.save(alert);
-  }
-
-  // ── Reorder Rules ──────────────────────────────────
-
-  async getReorderRules(productId?: number): Promise<ReorderRule[]> {
-    const where: any = {};
-    if (productId) where.product_id = productId;
-    return this.reorderRepo.find({ where, order: { product_id: 'ASC' } });
-  }
-
-  async createReorderRule(dto: CreateReorderRuleDto): Promise<ReorderRule> {
-    const entity = this.reorderRepo.create(dto);
-    return this.reorderRepo.save(entity);
-  }
-
-  async updateReorderRule(id: number, dto: Partial<CreateReorderRuleDto>): Promise<ReorderRule> {
-    const rule = await this.reorderRepo.findOne({ where: { id } });
-    if (!rule) throw new NotFoundException(`Reorder rule #${id} not found`);
-    Object.assign(rule, dto);
-    return this.reorderRepo.save(rule);
-  }
-
-  async removeReorderRule(id: number): Promise<{ message: string }> {
-    const rule = await this.reorderRepo.findOne({ where: { id } });
-    if (!rule) throw new NotFoundException(`Reorder rule #${id} not found`);
-    await this.reorderRepo.remove(rule);
-    return { message: `Reorder rule #${id} deleted` };
   }
 
   // ══════════════════════════════════════════════════════
@@ -605,7 +574,8 @@ export class InventoryService {
         count_type: dto.count_type,
         scope_zone_id: dto.scope_zone_id,
         scope_category_id: dto.scope_category_id,
-        status: 'planned',
+        status: 'in_progress',
+        started_at: new Date(),
         started_by: userId,
         notes: dto.notes,
       });
@@ -673,8 +643,6 @@ export class InventoryService {
   async recordCountItems(id: number, userId: number, items: RecordCountItemDto[]): Promise<InventoryCount> {
     const c = await this.countRepo.findOne({ where: { id } });
     if (!c) throw new NotFoundException(`Inventory count #${id} not found`);
-    if (c.status !== 'in_progress') throw new BadRequestException('Count must be in progress to record items');
-
     for (const dto of items) {
       // Find or create the count item
       let countItem = await this.countItemRepo.findOne({
@@ -1246,7 +1214,7 @@ export class InventoryService {
   }
 
   // ══════════════════════════════════════════════════════
-  // ── Phase 5: Alerts, Reorder & Reports ──────────────
+  // ── Phase 5: Alerts & Reports ───────────────────────
   // ══════════════════════════════════════════════════════
 
   // ── Alert Creation ──────────────────────────────────
@@ -1278,164 +1246,6 @@ export class InventoryService {
       .where('is_read = false')
       .execute();
     return { updated: result.affected || 0 };
-  }
-
-  // ── 5.3 Low Stock Detection ─────────────────────────
-
-  async evaluateReorderPoints(): Promise<{ alertsCreated: number; posCreated: number }> {
-    const rules = await this.reorderRepo.find({ where: { is_active: true } });
-    let alertsCreated = 0;
-    let posCreated = 0;
-
-    for (const rule of rules) {
-      try {
-        // Get available quantity for this product/warehouse
-        const qb = this.stockLevelRepo
-          .createQueryBuilder('sl')
-          .select('COALESCE(SUM(sl.quantity - sl.reserved_quantity), 0)', 'available')
-          .where('sl.product_id = :pid', { pid: rule.product_id });
-
-        if (rule.warehouse_id) {
-          qb.andWhere('sl.warehouse_id = :wid', { wid: rule.warehouse_id });
-        }
-        if (rule.variant_key) {
-          qb.andWhere('sl.variant_key = :vk', { vk: rule.variant_key });
-        }
-
-        const result = await qb.getRawOne();
-        const available = parseInt(result?.available || '0', 10);
-
-        // Get product name for alert messages
-        const product = await this.dataSource.query(
-          'SELECT name_en, sku FROM products WHERE id = $1',
-          [rule.product_id],
-        );
-        const productName = product?.[0]?.name_en || `Product #${rule.product_id}`;
-
-        // Check overstock
-        if (rule.max_stock_level && available > rule.max_stock_level) {
-          const existing = await this.alertRepo.findOne({
-            where: { alert_type: 'overstock', product_id: rule.product_id, is_resolved: false },
-          });
-          if (!existing) {
-            await this.createAlert({
-              alert_type: 'overstock',
-              product_id: rule.product_id,
-              variant_key: rule.variant_key || undefined,
-              warehouse_id: rule.warehouse_id || undefined,
-              message: `${productName} exceeds max stock: ${available} (max: ${rule.max_stock_level})`,
-              severity: 'info',
-              metadata: { available, max_stock_level: rule.max_stock_level },
-            });
-            alertsCreated++;
-          }
-        }
-
-        // Check if below reorder point
-        if (available <= rule.reorder_point) {
-          const isOutOfStock = available === 0;
-          const alertType = isOutOfStock ? 'out_of_stock' : 'low_stock';
-          const severity = isOutOfStock ? 'critical' : 'warning';
-
-          // Don't duplicate unresolved alerts for same product
-          const existing = await this.alertRepo.findOne({
-            where: { alert_type: alertType, product_id: rule.product_id, is_resolved: false },
-          });
-
-          if (!existing) {
-            const message = isOutOfStock
-              ? `${productName} is OUT OF STOCK${rule.warehouse_id ? ` at warehouse #${rule.warehouse_id}` : ''}`
-              : `${productName} stock low: ${available} remaining (reorder point: ${rule.reorder_point})${rule.warehouse_id ? ` at warehouse #${rule.warehouse_id}` : ''}`;
-
-            await this.createAlert({
-              alert_type: alertType,
-              product_id: rule.product_id,
-              variant_key: rule.variant_key || undefined,
-              warehouse_id: rule.warehouse_id || undefined,
-              message,
-              severity,
-              metadata: { available, reorder_point: rule.reorder_point },
-            });
-            alertsCreated++;
-          }
-
-          // 5.5 Auto-reorder PO creation
-          if (rule.auto_reorder && rule.preferred_supplier_id) {
-            try {
-              const po = await this.createAutoReorderPO(rule, productName);
-              if (po) {
-                posCreated++;
-                await this.createAlert({
-                  alert_type: 'reorder_triggered',
-                  product_id: rule.product_id,
-                  message: `Auto-reorder PO ${po.po_number} created for ${productName}: ${rule.reorder_quantity} units`,
-                  severity: 'info',
-                  metadata: { po_id: po.id, po_number: po.po_number, quantity: rule.reorder_quantity },
-                });
-                alertsCreated++;
-              }
-            } catch (poErr: any) {
-              this.logger.warn(`Auto-reorder PO failed for product #${rule.product_id}: ${poErr?.message}`);
-            }
-          }
-        }
-
-        // Update last_triggered_at
-        rule.last_triggered_at = new Date();
-        await this.reorderRepo.save(rule);
-      } catch (ruleErr: any) {
-        this.logger.warn(`Reorder eval failed for rule #${rule.id}: ${ruleErr?.message}`);
-      }
-    }
-
-    return { alertsCreated, posCreated };
-  }
-
-  // ── 5.5 Auto-Reorder PO Creation ───────────────────
-
-  private async createAutoReorderPO(rule: ReorderRule, productName: string): Promise<any> {
-    // Use DataSource directly to avoid circular dependency with PurchaseModule
-    return this.dataSource.transaction(async (manager) => {
-      // Generate PO number
-      const lastPo = await manager.query(
-        `SELECT po_number FROM purchase_orders ORDER BY id DESC LIMIT 1`,
-      );
-      const lastNum = lastPo?.[0]?.po_number
-        ? parseInt(lastPo[0].po_number.replace(/\D/g, '') || '0', 10)
-        : 0;
-      const poNumber = `PO-${String(lastNum + 1).padStart(6, '0')}`;
-
-      // Get unit price from supplier_products
-      const supplierProduct = await manager.query(
-        `SELECT unit_price FROM supplier_products WHERE supplier_id = $1 AND product_id = $2 AND is_active = true LIMIT 1`,
-        [rule.preferred_supplier_id, rule.product_id],
-      );
-      const unitPrice = supplierProduct?.[0]?.unit_price || 0;
-      const lineTotal = unitPrice * rule.reorder_quantity;
-
-      // Create PO header
-      const [po] = await manager.query(
-        `INSERT INTO purchase_orders (po_number, supplier_id, warehouse_id, status, order_date, subtotal, total_amount, created_by, notes)
-         VALUES ($1, $2, $3, 'draft', NOW(), $4, $4, 0, $5)
-         RETURNING id, po_number`,
-        [
-          poNumber,
-          rule.preferred_supplier_id,
-          rule.warehouse_id || 1,
-          lineTotal,
-          `Auto-generated from reorder rule #${rule.id} for ${productName}`,
-        ],
-      );
-
-      // Create PO item
-      await manager.query(
-        `INSERT INTO purchase_order_items (purchase_order_id, product_id, variant_key, quantity_ordered, unit_price, line_total)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
-        [po.id, rule.product_id, rule.variant_key || null, rule.reorder_quantity, unitPrice, lineTotal],
-      );
-
-      return po;
-    });
   }
 
   // ── 5.4 Batch Expiry Monitoring ─────────────────────
@@ -1542,28 +1352,26 @@ export class InventoryService {
       this.dataSource.query(`SELECT COUNT(DISTINCT product_id) as count FROM stock_levels`),
       // Total stock value
       this.dataSource.query(`SELECT COALESCE(SUM(sl.quantity * sl.cost_price), 0) as total FROM stock_levels sl WHERE sl.quantity > 0`),
-      // Low stock items count (where reorder rules exist and qty <= reorder_point)
+      // Low stock items count based on current available quantity
       this.dataSource.query(`
-        SELECT COUNT(*) as count FROM reorder_rules rr
-        WHERE rr.is_active = true AND EXISTS (
-          SELECT 1 FROM stock_levels sl
-          WHERE sl.product_id = rr.product_id
-          AND (rr.warehouse_id IS NULL OR sl.warehouse_id = rr.warehouse_id)
+        SELECT COUNT(*) as count
+        FROM (
+          SELECT sl.product_id, COALESCE(SUM(sl.quantity - sl.reserved_quantity), 0) as available
+          FROM stock_levels sl
           GROUP BY sl.product_id
-          HAVING COALESCE(SUM(sl.quantity - sl.reserved_quantity), 0) <= rr.reorder_point
-          AND COALESCE(SUM(sl.quantity - sl.reserved_quantity), 0) > 0
-        )
+          HAVING COALESCE(SUM(sl.quantity - sl.reserved_quantity), 0) > 0
+          AND COALESCE(SUM(sl.quantity - sl.reserved_quantity), 0) <= 5
+        ) low_stock
       `),
       // Out of stock count
       this.dataSource.query(`
-        SELECT COUNT(*) as count FROM reorder_rules rr
-        WHERE rr.is_active = true AND EXISTS (
-          SELECT 1 FROM stock_levels sl
-          WHERE sl.product_id = rr.product_id
-          AND (rr.warehouse_id IS NULL OR sl.warehouse_id = rr.warehouse_id)
+        SELECT COUNT(*) as count
+        FROM (
+          SELECT sl.product_id, COALESCE(SUM(sl.quantity - sl.reserved_quantity), 0) as available
+          FROM stock_levels sl
           GROUP BY sl.product_id
           HAVING COALESCE(SUM(sl.quantity - sl.reserved_quantity), 0) = 0
-        )
+        ) out_of_stock_items
       `),
       // Expiring within 7 days
       this.dataSource.query(`
@@ -1595,17 +1403,13 @@ export class InventoryService {
       `),
       // Top 10 low stock items
       this.dataSource.query(`
-        SELECT rr.product_id, rr.reorder_point, rr.reorder_quantity,
-               p.name_en as product_name, p.sku,
-               COALESCE(sub.available, 0) as available
-        FROM reorder_rules rr
-        LEFT JOIN products p ON p.id = rr.product_id
-        LEFT JOIN LATERAL (
-          SELECT SUM(sl.quantity - sl.reserved_quantity) as available
-          FROM stock_levels sl WHERE sl.product_id = rr.product_id
-        ) sub ON true
-        WHERE rr.is_active = true AND COALESCE(sub.available, 0) <= rr.reorder_point
-        ORDER BY COALESCE(sub.available, 0) ASC
+        SELECT sl.product_id, p.name_en as product_name, p.sku,
+               COALESCE(SUM(sl.quantity - sl.reserved_quantity), 0) as available
+        FROM stock_levels sl
+        LEFT JOIN products p ON p.id = sl.product_id
+        GROUP BY sl.product_id, p.name_en, p.sku
+        HAVING COALESCE(SUM(sl.quantity - sl.reserved_quantity), 0) <= 5
+        ORDER BY COALESCE(SUM(sl.quantity - sl.reserved_quantity), 0) ASC
         LIMIT 10
       `),
       // Expiring batches this month
