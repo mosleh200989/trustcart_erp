@@ -211,7 +211,7 @@ export class InventoryService {
     if (!String(dto.notes || '').trim()) {
       throw new BadRequestException('Adjustment notes are required');
     }
-    return this.dataSource.transaction(async (manager) => {
+    const created = await this.dataSource.transaction(async (manager) => {
       const adjNumber = await this.generateAdjustmentNumber(manager);
       const adjustment = manager.create(StockAdjustment, {
         adjustment_number: adjNumber,
@@ -248,6 +248,7 @@ export class InventoryService {
       await manager.save(StockAdjustment, savedAdj);
       return (await manager.findOne(StockAdjustment, { where: { id: savedAdj.id }, relations: ['items'] }))!;
     });
+    return this.applyAdjustment(created, userId);
   }
 
   async updateAdjustment(id: number, dto: Partial<CreateStockAdjustmentDto>): Promise<StockAdjustment> {
@@ -268,37 +269,18 @@ export class InventoryService {
   }
 
   async submitAdjustment(id: number): Promise<StockAdjustment> {
-    const adj = await this.adjustmentRepo.findOne({ where: { id }, relations: ['items'] });
-    if (!adj) throw new NotFoundException(`Adjustment #${id} not found`);
-    if (adj.status !== 'draft') throw new BadRequestException('Only draft adjustments can be submitted');
-
-    // Auto-approve expiry and recount types
-    if (['expiry', 'recount'].includes(adj.adjustment_type)) {
-      return this.applyAdjustment(adj, adj.created_by);
-    }
-
-    adj.status = 'pending_approval';
-    await this.adjustmentRepo.save(adj);
-    return this.getAdjustment(id);
+    await this.getAdjustment(id);
+    throw new BadRequestException('Adjustment approval workflow has been removed. Create an adjustment to apply stock immediately.');
   }
 
   async approveAdjustment(id: number, userId: number): Promise<StockAdjustment> {
-    const adj = await this.adjustmentRepo.findOne({ where: { id }, relations: ['items'] });
-    if (!adj) throw new NotFoundException(`Adjustment #${id} not found`);
-    if (adj.status !== 'pending_approval') throw new BadRequestException('Adjustment is not pending approval');
-    return this.applyAdjustment(adj, userId);
+    await this.getAdjustment(id);
+    throw new BadRequestException('Adjustment approval workflow has been removed. Create an adjustment to apply stock immediately.');
   }
 
   async rejectAdjustment(id: number, userId: number, reason?: string): Promise<StockAdjustment> {
-    const adj = await this.adjustmentRepo.findOne({ where: { id } });
-    if (!adj) throw new NotFoundException(`Adjustment #${id} not found`);
-    if (adj.status !== 'pending_approval') throw new BadRequestException('Adjustment is not pending approval');
-    adj.status = 'rejected';
-    adj.rejected_by = userId;
-    adj.rejected_at = new Date();
-    adj.rejection_reason = reason || '';
-    await this.adjustmentRepo.save(adj);
-    return this.getAdjustment(id);
+    await this.getAdjustment(id);
+    throw new BadRequestException('Adjustment approval workflow has been removed. Create an adjustment to apply stock immediately.');
   }
 
   private async applyAdjustment(adj: StockAdjustment, userId: number): Promise<StockAdjustment> {
@@ -1342,7 +1324,6 @@ export class InventoryService {
       lowStockItems,
       outOfStock,
       expiringSoon,
-      pendingPOs,
       recentMovements,
       movementChart,
       topLowStock,
@@ -1380,8 +1361,6 @@ export class InventoryService {
         AND expiry_date IS NOT NULL AND expiry_date <= NOW() + INTERVAL '7 days'
         AND expiry_date > NOW()
       `),
-      // Pending purchase orders
-      this.dataSource.query(`SELECT COUNT(*) as count FROM purchase_orders WHERE status IN ('draft', 'pending_approval', 'approved')`),
       // Recent 20 movements
       this.dataSource.query(`
         SELECT sm.id, sm.reference_number, sm.movement_type, sm.product_id, sm.quantity,
@@ -1390,14 +1369,14 @@ export class InventoryService {
         LEFT JOIN products p ON p.id = sm.product_id
         ORDER BY sm.created_at DESC LIMIT 20
       `),
-      // Movement chart: receipts vs dispatches last 30 days
+      // Movement chart: receipts vs dispatches last 7 days
       this.dataSource.query(`
         SELECT
           TO_CHAR(sm.created_at, 'YYYY-MM-DD') as date,
           SUM(CASE WHEN sm.movement_type IN ('receipt', 'sales_return', 'transfer_in', 'adjustment_increase') THEN sm.quantity ELSE 0 END) as inbound,
           SUM(CASE WHEN sm.movement_type IN ('sales_dispatch', 'transfer_out', 'adjustment_decrease') THEN sm.quantity ELSE 0 END) as outbound
         FROM stock_movements sm
-        WHERE sm.created_at >= NOW() - INTERVAL '30 days'
+        WHERE sm.created_at >= NOW() - INTERVAL '7 days'
         GROUP BY TO_CHAR(sm.created_at, 'YYYY-MM-DD')
         ORDER BY date ASC
       `),
@@ -1431,7 +1410,6 @@ export class InventoryService {
         lowStockItems: parseInt(lowStockItems?.[0]?.count || '0', 10),
         outOfStock: parseInt(outOfStock?.[0]?.count || '0', 10),
         expiringSoon: parseInt(expiringSoon?.[0]?.count || '0', 10),
-        pendingPOs: parseInt(pendingPOs?.[0]?.count || '0', 10),
       },
       recentMovements,
       movementChart,

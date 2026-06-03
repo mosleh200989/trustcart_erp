@@ -4,14 +4,7 @@ import AdminLayout from '@/layouts/AdminLayout';
 import InventoryProductPicker from '@/components/admin/InventoryProductPicker';
 import { useToast } from '@/contexts/ToastContext';
 import { stockAdjustments, warehouses, products as productsApi } from '@/services/api';
-import { FaBalanceScale, FaArrowLeft, FaPlus, FaTrash, FaSave, FaPaperPlane, FaCheck, FaTimes } from 'react-icons/fa';
-
-const STATUS_COLORS: Record<string, string> = {
-  draft: 'bg-gray-100 text-gray-800',
-  pending_approval: 'bg-yellow-100 text-yellow-800',
-  approved: 'bg-green-100 text-green-800',
-  rejected: 'bg-red-100 text-red-800',
-};
+import { FaBalanceScale, FaArrowLeft, FaPlus, FaTrash, FaSave } from 'react-icons/fa';
 
 const TYPES = [
   { value: 'increase', label: 'Increase' },
@@ -90,7 +83,7 @@ export default function AdjustmentDetailPage() {
   };
 
   const handleSave = async () => {
-    if (!form.warehouse_id || !form.reason) { toast.error('Warehouse and reason are required'); return; }
+    if (!form.warehouse_id || !form.reason || !form.notes.trim()) { toast.error('Warehouse, reason, and notes are required'); return; }
     if (items.every(i => !i.product_id)) { toast.error('Add at least one item'); return; }
     setSaving(true);
     try {
@@ -103,27 +96,11 @@ export default function AdjustmentDetailPage() {
           ...i, unit_cost: i.unit_cost ? Number(i.unit_cost) : undefined,
         })),
       };
-      const result = await stockAdjustments.create(payload);
-      toast.success('Adjustment created');
-      router.push(`/admin/inventory/adjustments/${result.id}`);
+      await stockAdjustments.create(payload);
+      toast.success('Adjustment created and stock updated');
+      router.push('/admin/inventory/adjustments');
     } catch (e: any) { toast.error(e?.response?.data?.message || 'Failed to create'); }
     finally { setSaving(false); }
-  };
-
-  const handleSubmit = async () => {
-    try { await stockAdjustments.submit(adj.id); toast.success('Submitted for approval'); loadAdj(); }
-    catch (e: any) { toast.error(e?.response?.data?.message || 'Failed'); }
-  };
-  const handleApprove = async () => {
-    if (!confirm('Approve? Stock will be updated.')) return;
-    try { await stockAdjustments.approve(adj.id); toast.success('Approved'); loadAdj(); }
-    catch (e: any) { toast.error(e?.response?.data?.message || 'Failed'); }
-  };
-  const handleReject = async () => {
-    const reason = prompt('Rejection reason:');
-    if (reason === null) return;
-    try { await stockAdjustments.reject(adj.id, reason); toast.success('Rejected'); loadAdj(); }
-    catch { toast.error('Failed'); }
   };
 
   if (loading) return <AdminLayout><div className="p-6 text-center text-gray-500">Loading...</div></AdminLayout>;
@@ -139,20 +116,6 @@ export default function AdjustmentDetailPage() {
               <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
                 <FaBalanceScale className="text-indigo-600" /> {adj.adjustment_number}
               </h1>
-              <span className={`px-3 py-1 rounded-full text-xs font-medium ${STATUS_COLORS[adj.status] || 'bg-gray-100'}`}>
-                {adj.status?.replace(/_/g, ' ').toUpperCase()}
-              </span>
-            </div>
-            <div className="flex gap-2">
-              {adj.status === 'draft' && (
-                <button onClick={handleSubmit} className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm"><FaPaperPlane /> Submit</button>
-              )}
-              {adj.status === 'pending_approval' && (
-                <>
-                  <button onClick={handleApprove} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm"><FaCheck /> Approve</button>
-                  <button onClick={handleReject} className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm"><FaTimes /> Reject</button>
-                </>
-              )}
             </div>
           </div>
 
@@ -162,11 +125,6 @@ export default function AdjustmentDetailPage() {
             <div><span className="text-gray-500">Reason</span><div className="font-medium">{adj.reason}</div></div>
             <div><span className="text-gray-500">Value Impact</span><div className="font-medium">₹{Number(adj.total_value_impact || 0).toFixed(2)}</div></div>
           </div>
-          {adj.rejection_reason && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6 text-sm text-red-700">
-              <strong>Rejection Reason:</strong> {adj.rejection_reason}
-            </div>
-          )}
           {adj.notes && <div className="bg-white rounded-lg shadow p-4 mb-6 text-sm"><span className="text-gray-500">Notes:</span> {adj.notes}</div>}
 
           <div className="bg-white rounded-lg shadow overflow-x-auto">
@@ -233,7 +191,7 @@ export default function AdjustmentDetailPage() {
             </div>
           </div>
           <div className="mt-4">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Notes *</label>
             <textarea rows={2} value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} className="w-full border rounded-lg px-3 py-2 text-sm" />
           </div>
         </div>

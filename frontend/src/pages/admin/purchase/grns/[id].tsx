@@ -63,9 +63,6 @@ export default function GrnDetailPage() {
     received_date: new Date().toISOString().slice(0, 16),
     invoice_number: '',
     invoice_date: '',
-    delivery_note_number: '',
-    vehicle_number: '',
-    driver_name: '',
     notes: '',
     quality_check_required: true,
   });
@@ -176,7 +173,6 @@ export default function GrnDetailPage() {
           quantity_received: Number(i.quantity_received),
           quantity_accepted: Number(i.quantity_accepted),
           quantity_rejected: Number(i.quantity_rejected),
-          temperature_on_arrival: i.temperature_on_arrival ? Number(i.temperature_on_arrival) : undefined,
         })),
       };
       const result = await grns.create(payload);
@@ -335,18 +331,6 @@ export default function GrnDetailPage() {
               <label className="block text-sm font-medium text-gray-700 mb-1">Invoice Date</label>
               <input type="date" value={form.invoice_date} onChange={e => setForm({...form, invoice_date: e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm" />
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Vehicle #</label>
-              <input value={form.vehicle_number} onChange={e => setForm({...form, vehicle_number: e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Driver Name</label>
-              <input value={form.driver_name} onChange={e => setForm({...form, driver_name: e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Delivery Note #</label>
-              <input value={form.delivery_note_number} onChange={e => setForm({...form, delivery_note_number: e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm" />
-            </div>
           </div>
           <div className="mt-4">
             <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
@@ -373,7 +357,6 @@ export default function GrnDetailPage() {
                 <th className="px-3 py-2 text-xs font-medium text-gray-500">Batch #</th>
                 <th className="px-3 py-2 text-xs font-medium text-gray-500">Expiry</th>
                 <th className="px-3 py-2 text-xs font-medium text-gray-500 w-24">Unit Cost</th>
-                <th className="px-3 py-2 text-xs font-medium text-gray-500 w-16">Temp °C</th>
                 <th className="px-3 py-2 w-10"></th>
               </tr>
             </thead>
@@ -393,7 +376,6 @@ export default function GrnDetailPage() {
                   <td className="px-3 py-2"><input value={item.batch_number || ''} onChange={e => updateItem(idx, 'batch_number', e.target.value)} className="w-full border rounded px-2 py-1 text-sm" placeholder="BATCH-..." /></td>
                   <td className="px-3 py-2"><input type="date" value={item.expiry_date || ''} onChange={e => updateItem(idx, 'expiry_date', e.target.value)} className="w-full border rounded px-2 py-1 text-sm" /></td>
                   <td className="px-3 py-2"><input type="number" min="0" step="0.01" value={item.unit_cost || ''} onChange={e => updateItem(idx, 'unit_cost', Number(e.target.value))} className="w-full border rounded px-2 py-1 text-sm text-right" /></td>
-                  <td className="px-3 py-2"><input type="number" step="0.1" value={item.temperature_on_arrival ?? ''} onChange={e => updateItem(idx, 'temperature_on_arrival', e.target.value ? Number(e.target.value) : undefined)} className="w-full border rounded px-2 py-1 text-sm text-right" /></td>
                   <td className="px-3 py-2"><button onClick={() => removeItem(idx)} className="text-red-400 hover:text-red-600"><FaTrash size={12} /></button></td>
                 </tr>
               ))}
