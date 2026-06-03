@@ -9,7 +9,7 @@ export class PurchaseOrder {
   @Column({ length: 50, unique: true })
   po_number!: string;
 
-  @Column({ nullable: true })
+  @Column({ type: 'int', nullable: true })
   supplier_id!: number | null;
 
   @Column()
