@@ -8,7 +8,7 @@ BEGIN;
 
 INSERT INTO permissions (name, slug, module, action, description)
 VALUES
-  ('View Inventory', 'view-inventory', 'inventory', 'read', 'View inventory dashboard, alerts, rules, counts, adjustments, transfers, forecasts, barcode tools, and audit trail'),
+  ('View Inventory', 'view-inventory', 'inventory', 'read', 'View inventory dashboard, alerts, rules, counts, adjustments, transfers, forecasts, and audit trail'),
   ('Manage Stock', 'manage-stock', 'inventory', 'update', 'Manage stock rules, counts, imports, forecasts, reservations, packaging, and operational inventory updates'),
   ('View Stock Levels', 'view-stock-levels', 'inventory', 'read', 'View product and warehouse stock levels'),
   ('Manage Stock Levels', 'manage-stock-levels', 'inventory', 'update', 'Manage stock level records and related stock settings'),
@@ -142,7 +142,9 @@ BEGIN
     WHERE path IN (
       '/admin/inventory/transfers',
       '/admin/inventory/warehouse-map',
-      '/admin/inventory/forecasts'
+      '/admin/inventory/forecasts',
+      '/admin/inventory/import',
+      '/admin/inventory/barcode'
     );
 
     IF inventory_menu_id IS NOT NULL THEN
@@ -179,17 +181,11 @@ BEGIN
       '/admin/inventory/reorder-rules',
       '/admin/inventory/adjustments',
       '/admin/inventory/counts',
-      '/admin/inventory/barcode',
       '/admin/inventory/audit-trail',
       '/admin/inventory/available-products',
       '/admin/inventory/repacking',
       '/admin/inventory/packaging-conf'
     );
-
-    UPDATE admin_menu_items
-    SET required_permissions = ARRAY['manage-stock'],
-        updated_at = CURRENT_TIMESTAMP
-    WHERE path = '/admin/inventory/import';
 
     IF inventory_menu_id IS NOT NULL THEN
       INSERT INTO admin_menu_items (title, icon, path, sort_order, is_active, required_permissions, parent_id, created_at, updated_at)
@@ -203,11 +199,9 @@ BEGIN
         ('Warehouse', 'FaWarehouse', '/admin/inventory/warehouses', 6, true, ARRAY['view-inventory', 'view-warehouses'], inventory_menu_id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
         ('Supplier', 'FaTruck', '/admin/inventory/suppliers', 7, true, ARRAY['view-inventory', 'view-suppliers'], inventory_menu_id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
         ('Reorder', 'FaClipboardList', '/admin/inventory/reorder-rules', 8, true, ARRAY['view-inventory'], inventory_menu_id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-        ('Bulk Import', 'FaFileImport', '/admin/inventory/import', 9, true, ARRAY['manage-stock'], inventory_menu_id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-        ('Repacking', 'FaRecycle', '/admin/inventory/repacking', 10, true, ARRAY['view-inventory'], inventory_menu_id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-        ('Packaging Conf', 'FaBoxes', '/admin/inventory/packaging-conf', 11, true, ARRAY['view-inventory'], inventory_menu_id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-        ('Barcode', 'FaBarcode', '/admin/inventory/barcode', 12, true, ARRAY['view-inventory'], inventory_menu_id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-        ('Audit Trail', 'FaSearch', '/admin/inventory/audit-trail', 13, true, ARRAY['view-inventory'], inventory_menu_id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        ('Repacking', 'FaRecycle', '/admin/inventory/repacking', 9, true, ARRAY['view-inventory'], inventory_menu_id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+        ('Packaging Conf', 'FaBoxes', '/admin/inventory/packaging-conf', 10, true, ARRAY['view-inventory'], inventory_menu_id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+        ('Audit Trail', 'FaSearch', '/admin/inventory/audit-trail', 11, true, ARRAY['view-inventory'], inventory_menu_id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
       ON CONFLICT DO NOTHING;
     END IF;
   END IF;

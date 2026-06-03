@@ -48,9 +48,4 @@ export class CreateLocationDto {
   @IsOptional()
   @IsBoolean()
   is_active?: boolean;
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(50)
-  barcode?: string;
 }

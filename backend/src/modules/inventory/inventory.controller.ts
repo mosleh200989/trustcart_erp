@@ -525,50 +525,6 @@ export class InventoryController {
     res!.send(csv);
   }
 
-  // ── Barcode Generation ──────────────────────────────
-
-  @Get('barcode/generate')
-  @RequirePermissions('view-inventory')
-  async generateBarcode(
-    @Query('text') text: string,
-    @Query('type') type: string = 'code128',
-    @Res() res?: Response,
-  ) {
-    if (!text) {
-      res!.status(400).json({ message: 'text query parameter is required' });
-      return;
-    }
-    const png = await this.inventoryService.generateBarcode(text, type);
-    res!.setHeader('Content-Type', 'image/png');
-    res!.setHeader('Cache-Control', 'public, max-age=86400');
-    res!.send(png);
-  }
-
-  @Get('barcode/label/batch/:batchId')
-  @RequirePermissions('view-inventory')
-  async getBatchLabel(@Param('batchId', ParseIntPipe) batchId: number) {
-    return this.inventoryService.getBatchLabelData(batchId);
-  }
-
-  @Get('barcode/label/location/:locationId')
-  @RequirePermissions('view-inventory')
-  async getLocationLabel(@Param('locationId', ParseIntPipe) locationId: number) {
-    return this.inventoryService.getLocationLabelData(locationId);
-  }
-
-  @Get('barcode/label/po/:poId')
-  @RequirePermissions('view-inventory')
-  async getPoLabel(@Param('poId', ParseIntPipe) poId: number) {
-    return this.inventoryService.getPoLabelData(poId);
-  }
-
-  @Get('barcode/lookup')
-  @RequirePermissions('view-inventory')
-  async barcodeLookup(@Query('code') code: string) {
-    if (!code) return { found: false };
-    return this.inventoryService.barcodeLookup(code);
-  }
-
   // ── Demand Forecasting ──────────────────────────────
 
   @Get('forecasts')
@@ -587,20 +543,6 @@ export class InventoryController {
   @RequirePermissions('view-inventory')
   async getForecastAccuracy() {
     return this.inventoryService.getForecastAccuracy();
-  }
-
-  // ── Bulk Import ─────────────────────────────────────
-
-  @Post('import/validate')
-  @RequirePermissions('manage-stock')
-  async validateImport(@Body() body: { import_type: string; rows: any[] }) {
-    return this.inventoryService.validateImport(body.import_type, body.rows);
-  }
-
-  @Post('import/execute')
-  @RequirePermissions('manage-stock')
-  async executeImport(@Body() body: { import_type: string; rows: any[] }, @Req() req: any) {
-    return this.inventoryService.executeImport(body.import_type, body.rows, req.user?.id);
   }
 
   // ── Audit Trail ─────────────────────────────────────

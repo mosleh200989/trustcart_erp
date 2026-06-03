@@ -40,9 +40,6 @@ export class WarehouseLocation {
   @Column({ default: true })
   is_active!: boolean;
 
-  @Column({ length: 50, nullable: true, unique: true })
-  barcode!: string;
-
   @CreateDateColumn({ name: 'created_at' })
   created_at!: Date;
 
