@@ -182,9 +182,11 @@ export default function LandingPagesIndex() {
                                 ? 'bg-gradient-to-r from-red-100 to-yellow-100 text-red-800'
                                 : page.template === 'free-offer'
                                   ? 'bg-gradient-to-r from-yellow-100 to-yellow-200 text-yellow-800'
-                                  : 'bg-blue-50 text-blue-600'
+                                  : page.template === 'veshoj'
+                                    ? 'bg-gradient-to-r from-fuchsia-100 to-orange-100 text-fuchsia-800'
+                                    : 'bg-blue-50 text-blue-600'
                       }`}>
-                        {page.template === 'elegant' ? '✨ Elegant' : page.template === 'ghee' ? '🧈 Ghee' : page.template === 'pickle' ? '🌶️ Pickle' : page.template === 'special-event' ? '🔥 Special Event' : page.template === 'free-offer' ? '🌟 Free Offer' : '📄 Classic'}
+                        {page.template === 'elegant' ? '✨ Elegant' : page.template === 'ghee' ? '🧈 Ghee' : page.template === 'pickle' ? '🌶️ Pickle' : page.template === 'special-event' ? '🔥 Special Event' : page.template === 'free-offer' ? '🌟 Free Offer' : page.template === 'veshoj' ? 'Veshoj' : '📄 Classic'}
                       </span>
                     </td>
                     <td className="px-4 py-3">

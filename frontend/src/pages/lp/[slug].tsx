@@ -10,6 +10,7 @@ import GheeTemplate from '@/components/landing-pages/GheeTemplate';
 import PickleTemplate from '@/components/landing-pages/PickleTemplate';
 import SpecialEventTemplate from '@/components/landing-pages/SpecialEventTemplate';
 import FreeOfferTemplate from '@/components/landing-pages/FreeOfferTemplate';
+import VeshojTemplate from '@/components/landing-pages/VeshojTemplate';
 import { getOrderGuardNoteHtml, isOrderGuardBlocked } from '@/utils/orderGuard';
 import { TrackingService } from '@/utils/tracking';
 
@@ -425,6 +426,11 @@ export default function LandingPagePublic() {
   // ─── Template Routing: Render Free Offer template if selected ───
   if (page.template === 'free-offer') {
     return <FreeOfferTemplate page={page} trafficSource="landing_page" />;
+  }
+
+  // ─── Template Routing: Render Veshoj template if selected ───
+  if (page.template === 'veshoj') {
+    return <VeshojTemplate page={page} trafficSource="landing_page" />;
   }
 
   const visibleSections = (page.sections || [])
