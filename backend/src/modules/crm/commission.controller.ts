@@ -257,6 +257,12 @@ export class CommissionController {
     );
   }
 
+  @Delete('payment-requests/:id')
+  @RequireAnyPermission('manage-payment-requests', 'approve-commissions')
+  async deletePaymentRequest(@Param('id') id: string) {
+    return await this.commissionService.deletePaymentRequest(Number(id));
+  }
+
   @Get('payment-history')
   @RequireAnyPermission('view-payment-history', 'view-commission-reports')
   async getPaymentHistory(@Query() query: any) {
