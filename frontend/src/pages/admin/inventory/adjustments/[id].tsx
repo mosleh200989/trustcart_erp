@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import AdminLayout from '@/layouts/AdminLayout';
+import InventoryProductPicker from '@/components/admin/InventoryProductPicker';
 import { useToast } from '@/contexts/ToastContext';
 import { stockAdjustments, warehouses, products as productsApi } from '@/services/api';
 import { FaBalanceScale, FaArrowLeft, FaPlus, FaTrash, FaSave, FaPaperPlane, FaCheck, FaTimes } from 'react-icons/fa';
@@ -59,7 +60,7 @@ export default function AdjustmentDetailPage() {
 
   const loadLookups = async () => {
     try {
-      const [whs, prods] = await Promise.all([warehouses.list(), productsApi.list()]);
+      const [whs, prods] = await Promise.all([warehouses.list(), productsApi.listAll()]);
       setWarehouseList(whs);
       const wMap: Record<number, string> = {};
       whs.forEach((w: any) => { wMap[w.id] = w.name; });
@@ -184,7 +185,7 @@ export default function AdjustmentDetailPage() {
               <tbody className="divide-y">
                 {adj.items?.map((item: any) => (
                   <tr key={item.id} className="hover:bg-gray-50">
-                    <td className="px-3 py-2 font-medium">{productName(item.product_id)}</td>
+                    <td className="px-3 py-2 font-medium">{productName(item.product_id)}{item.variant_key ? ` (${item.variant_key})` : ''}</td>
                     <td className="px-3 py-2 text-right">{item.quantity_before}</td>
                     <td className="px-3 py-2 text-right">{item.quantity_after}</td>
                     <td className={`px-3 py-2 text-right font-medium ${item.quantity_change > 0 ? 'text-green-700' : item.quantity_change < 0 ? 'text-red-700' : ''}`}>
@@ -258,10 +259,16 @@ export default function AdjustmentDetailPage() {
               {items.map((item, idx) => (
                 <tr key={idx}>
                   <td className="px-3 py-2">
-                    <select value={item.product_id} onChange={e => updateItem(idx, 'product_id', Number(e.target.value))} className="w-full border rounded px-2 py-1 text-sm">
-                      <option value={0}>Select product</option>
-                      {productList.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                    </select>
+                    <InventoryProductPicker
+                      products={productList}
+                      productId={item.product_id || ''}
+                      variantKey={item.variant_key || ''}
+                      onChange={(productId, variantKey) => {
+                        const updated = [...items];
+                        updated[idx] = { ...updated[idx], product_id: Number(productId || 0), variant_key: variantKey || undefined };
+                        setItems(updated);
+                      }}
+                    />
                   </td>
                   <td className="px-3 py-2"><input type="number" min="0" value={item.quantity_before || ''} onChange={e => updateItem(idx, 'quantity_before', Number(e.target.value))} className="w-full border rounded px-2 py-1 text-sm text-right" /></td>
                   <td className="px-3 py-2"><input type="number" min="0" value={item.quantity_after || ''} onChange={e => updateItem(idx, 'quantity_after', Number(e.target.value))} className="w-full border rounded px-2 py-1 text-sm text-right" /></td>

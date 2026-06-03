@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import AdminLayout from '@/layouts/AdminLayout';
+import InventoryProductPicker from '@/components/admin/InventoryProductPicker';
 import { useToast } from '@/contexts/ToastContext';
 import { packagingConfigs, products as productsApi } from '@/services/api';
 import { FaBox, FaPlus, FaEdit, FaTrash, FaArrowRight, FaTimes, FaToggleOn, FaToggleOff } from 'react-icons/fa';
@@ -7,10 +8,12 @@ import { FaBox, FaPlus, FaEdit, FaTrash, FaArrowRight, FaTimes, FaToggleOn, FaTo
 interface Config {
   id: number;
   source_product_id: number;
+  source_variant_key?: string;
   source_product_name?: string;
   source_product_sku?: string;
   source_qty: number;
   output_product_id: number;
+  output_variant_key?: string;
   output_product_name?: string;
   output_product_sku?: string;
   output_qty: number;
@@ -21,8 +24,10 @@ interface Config {
 
 const emptyForm = {
   source_product_id: '',
+  source_variant_key: '',
   source_qty: '',
   output_product_id: '',
+  output_variant_key: '',
   output_qty: '',
   waste_percentage: '0',
   description: '',
@@ -44,7 +49,7 @@ export default function PackagingConfigsPage() {
   const loadAll = async () => {
     setLoading(true);
     try {
-      const [cfgs, prods] = await Promise.all([packagingConfigs.list(), productsApi.list()]);
+      const [cfgs, prods] = await Promise.all([packagingConfigs.list(), productsApi.listAll()]);
       setConfigs(cfgs);
       setProducts(prods);
     } catch { toast.error('Failed to load data'); }
@@ -61,8 +66,10 @@ export default function PackagingConfigsPage() {
     setEditing(cfg);
     setForm({
       source_product_id: String(cfg.source_product_id),
+      source_variant_key: cfg.source_variant_key || '',
       source_qty: String(cfg.source_qty),
       output_product_id: String(cfg.output_product_id),
+      output_variant_key: cfg.output_variant_key || '',
       output_qty: String(cfg.output_qty),
       waste_percentage: String(cfg.waste_percentage),
       description: cfg.description || '',
@@ -85,8 +92,10 @@ export default function PackagingConfigsPage() {
     try {
       const dto = {
         source_product_id: parseInt(form.source_product_id),
+        source_variant_key: form.source_variant_key || undefined,
         source_qty: parseFloat(form.source_qty),
         output_product_id: parseInt(form.output_product_id),
+        output_variant_key: form.output_variant_key || undefined,
         output_qty: parseInt(form.output_qty),
         waste_percentage: parseFloat(form.waste_percentage) || 0,
         description: form.description || undefined,
@@ -217,10 +226,7 @@ export default function PackagingConfigsPage() {
                   <div className="text-xs font-semibold text-orange-700 uppercase tracking-wide">Bulk / Source</div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Product (bulk) *</label>
-                    <select value={form.source_product_id} onChange={e => setForm(f => ({ ...f, source_product_id: e.target.value }))} className="w-full border rounded-lg px-3 py-2 text-sm bg-white" required>
-                      <option value="">Select product...</option>
-                      {products.map((p: any) => <option key={p.id} value={p.id}>{p.nameEn || p.name_en} ({p.sku})</option>)}
-                    </select>
+                    <InventoryProductPicker products={products} productId={form.source_product_id} variantKey={form.source_variant_key} onChange={(productId, variantKey) => setForm(f => ({ ...f, source_product_id: productId, source_variant_key: variantKey || '' }))} />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Source Quantity *</label>
@@ -234,12 +240,7 @@ export default function PackagingConfigsPage() {
                   <div className="text-xs font-semibold text-green-700 uppercase tracking-wide">Retail / Output</div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Product (retail) *</label>
-                    <select value={form.output_product_id} onChange={e => setForm(f => ({ ...f, output_product_id: e.target.value }))} className="w-full border rounded-lg px-3 py-2 text-sm bg-white" required>
-                      <option value="">Select product...</option>
-                      {products.filter((p: any) => String(p.id) !== form.source_product_id).map((p: any) => (
-                        <option key={p.id} value={p.id}>{p.nameEn || p.name_en} ({p.sku})</option>
-                      ))}
-                    </select>
+                    <InventoryProductPicker products={products.filter((p: any) => String(p.id) !== form.source_product_id)} productId={form.output_product_id} variantKey={form.output_variant_key} onChange={(productId, variantKey) => setForm(f => ({ ...f, output_product_id: productId, output_variant_key: variantKey || '' }))} />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Output Quantity *</label>

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import AdminLayout from '@/layouts/AdminLayout';
+import InventoryProductPicker from '@/components/admin/InventoryProductPicker';
 import { inventoryPackagingConfigs, products as productsApi } from '@/services/api';
 import { useToast } from '@/contexts/ToastContext';
 import { FaEdit, FaPlus, FaRecycle, FaSync, FaTimes, FaTrash } from 'react-icons/fa';
@@ -12,8 +13,10 @@ export default function PackagingConfPage() {
   const [editing, setEditing] = useState<any | null>(null);
   const [form, setForm] = useState({
     source_product_id: '',
+    source_variant_key: '',
     source_qty: '',
     output_product_id: '',
+    output_variant_key: '',
     output_qty: '',
     waste_percentage: '0',
     description: '',
@@ -41,15 +44,17 @@ export default function PackagingConfPage() {
 
   const resetForm = () => {
     setEditing(null);
-    setForm({ source_product_id: '', source_qty: '', output_product_id: '', output_qty: '', waste_percentage: '0', description: '', is_active: true });
+    setForm({ source_product_id: '', source_variant_key: '', source_qty: '', output_product_id: '', output_variant_key: '', output_qty: '', waste_percentage: '0', description: '', is_active: true });
   };
 
   const openEdit = (config: any) => {
     setEditing(config);
     setForm({
       source_product_id: String(config.source_product_id || ''),
+      source_variant_key: config.source_variant_key || '',
       source_qty: String(config.source_qty || ''),
       output_product_id: String(config.output_product_id || ''),
+      output_variant_key: config.output_variant_key || '',
       output_qty: String(config.output_qty || ''),
       waste_percentage: String(config.waste_percentage ?? 0),
       description: config.description || '',
@@ -64,8 +69,10 @@ export default function PackagingConfPage() {
     }
     const payload = {
       source_product_id: Number(form.source_product_id),
+      source_variant_key: form.source_variant_key || undefined,
       source_qty: Number(form.source_qty),
       output_product_id: Number(form.output_product_id),
+      output_variant_key: form.output_variant_key || undefined,
       output_qty: Number(form.output_qty),
       waste_percentage: Number(form.waste_percentage || 0),
       description: form.description || undefined,
@@ -97,11 +104,6 @@ export default function PackagingConfPage() {
     }
   };
 
-  const productOptions = products.map((product) => ({
-    value: product.id,
-    label: `${product.name}${product.status !== 'active' ? ` (${product.status})` : ''}`,
-  }));
-
   return (
     <AdminLayout>
       <div className="p-6 space-y-5">
@@ -115,9 +117,15 @@ export default function PackagingConfPage() {
             {editing ? <FaEdit /> : <FaPlus />} {editing ? 'Edit Configuration' : 'New Configuration'}
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-            <Select label="Source Product *" value={form.source_product_id} onChange={(value) => setForm({ ...form, source_product_id: value })} options={productOptions} />
+            <label className="block">
+              <span className="block text-xs font-medium text-gray-600 mb-1">Source Product *</span>
+              <InventoryProductPicker products={products} productId={form.source_product_id} variantKey={form.source_variant_key} onChange={(productId, variantKey) => setForm({ ...form, source_product_id: productId, source_variant_key: variantKey || '' })} />
+            </label>
             <Input label="Source Qty *" value={form.source_qty} onChange={(value) => setForm({ ...form, source_qty: value })} type="number" />
-            <Select label="Output Product *" value={form.output_product_id} onChange={(value) => setForm({ ...form, output_product_id: value })} options={productOptions} />
+            <label className="block">
+              <span className="block text-xs font-medium text-gray-600 mb-1">Output Product *</span>
+              <InventoryProductPicker products={products} productId={form.output_product_id} variantKey={form.output_variant_key} onChange={(productId, variantKey) => setForm({ ...form, output_product_id: productId, output_variant_key: variantKey || '' })} />
+            </label>
             <Input label="Output Qty *" value={form.output_qty} onChange={(value) => setForm({ ...form, output_qty: value })} type="number" />
             <Input label="Waste %" value={form.waste_percentage} onChange={(value) => setForm({ ...form, waste_percentage: value })} type="number" />
             <div className="lg:col-span-2"><Input label="Description" value={form.description} onChange={(value) => setForm({ ...form, description: value })} /></div>

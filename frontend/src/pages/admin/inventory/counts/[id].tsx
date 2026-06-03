@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import AdminLayout from '@/layouts/AdminLayout';
+import InventoryProductPicker from '@/components/admin/InventoryProductPicker';
 import { useToast } from '@/contexts/ToastContext';
 import { inventoryCounts, products as productsApi, stockLevels, warehouses } from '@/services/api';
 import { FaArrowLeft, FaClipboardList, FaPlus, FaSave, FaTrash } from 'react-icons/fa';
 
-type CountRow = { product_id: string; system_quantity: number; counted_quantity: string; variance_reason: string };
-const emptyRow = (): CountRow => ({ product_id: '', system_quantity: 0, counted_quantity: '', variance_reason: '' });
+type CountRow = { product_id: string; variant_key?: string; system_quantity: number; counted_quantity: string; variance_reason: string };
+const emptyRow = (): CountRow => ({ product_id: '', variant_key: '', system_quantity: 0, counted_quantity: '', variance_reason: '' });
 
 export default function ManualInventoryCountPage() {
   const router = useRouter();
@@ -38,7 +39,7 @@ export default function ManualInventoryCountPage() {
       const data = await inventoryCounts.get(Number(id));
       setCount(data);
       setForm({ warehouse_id: String(data.warehouse_id || ''), notes: data.notes || '' });
-      setRows(Array.isArray(data.items) && data.items.length > 0 ? data.items.map((item: any) => ({ product_id: String(item.product_id || ''), system_quantity: Number(item.system_quantity || 0), counted_quantity: item.counted_quantity != null ? String(item.counted_quantity) : '', variance_reason: item.variance_reason || '' })) : [emptyRow()]);
+      setRows(Array.isArray(data.items) && data.items.length > 0 ? data.items.map((item: any) => ({ product_id: String(item.product_id || ''), variant_key: item.variant_key || '', system_quantity: Number(item.system_quantity || 0), counted_quantity: item.counted_quantity != null ? String(item.counted_quantity) : '', variance_reason: item.variance_reason || '' })) : [emptyRow()]);
     } catch { toast.error('Failed to load inventory count'); }
     finally { setLoading(false); }
   };
@@ -54,6 +55,20 @@ export default function ManualInventoryCountPage() {
     }
   };
 
+  const selectProduct = async (index: number, productId: string, variantKey?: string) => {
+    setRows((current) => current.map((row, rowIndex) => rowIndex === index ? { ...row, product_id: productId, variant_key: variantKey || '', system_quantity: 0 } : row));
+    if (!productId || !form.warehouse_id) return;
+    try {
+      const levels = await stockLevels.list({ product_id: Number(productId), warehouse_id: Number(form.warehouse_id) });
+      const matchingLevels = Array.isArray(levels)
+        ? levels.filter((level: any) => (variantKey ? level.variant_key === variantKey : !level.variant_key))
+        : [];
+      const sourceLevels = matchingLevels.length > 0 ? matchingLevels : Array.isArray(levels) ? levels : [];
+      const systemQuantity = sourceLevels.reduce((sum: number, level: any) => sum + Number(level.quantity || 0), 0);
+      setRows((current) => current.map((row, rowIndex) => rowIndex === index ? { ...row, system_quantity: systemQuantity } : row));
+    } catch {}
+  };
+
   const addRow = () => setRows((current) => [...current, emptyRow()]);
   const removeRow = (index: number) => setRows((current) => current.length === 1 ? current : current.filter((_, rowIndex) => rowIndex !== index));
 
@@ -64,7 +79,7 @@ export default function ManualInventoryCountPage() {
     setSaving(true);
     try {
       const countId = isNew ? (await inventoryCounts.create({ warehouse_id: Number(form.warehouse_id), count_type: 'spot', notes: form.notes || undefined })).id : Number(id);
-      await inventoryCounts.recordItems(countId, validRows.map((row) => ({ product_id: Number(row.product_id), counted_quantity: Number(row.counted_quantity), variance_reason: row.variance_reason || undefined })));
+      await inventoryCounts.recordItems(countId, validRows.map((row) => ({ product_id: Number(row.product_id), variant_key: row.variant_key || undefined, counted_quantity: Number(row.counted_quantity), variance_reason: row.variance_reason || undefined })));
       toast.success('Inventory count saved');
       if (isNew) router.replace('/admin/inventory/counts/' + countId); else loadCount();
     } catch (error: any) { toast.error(error?.response?.data?.message || 'Failed to save inventory count'); }
@@ -87,7 +102,7 @@ export default function ManualInventoryCountPage() {
         <div className="bg-white rounded-lg border overflow-x-auto">
           <div className="p-4 border-b flex items-center justify-between gap-3"><h2 className="font-semibold text-gray-800">Manual Count Items</h2><button onClick={addRow} className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm hover:bg-gray-50"><FaPlus /> Add Product</button></div>
           <table className="w-full text-sm"><thead className="bg-gray-50 border-b"><tr><th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Product</th><th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">System Qty</th><th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Counted Qty</th><th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Variance</th><th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Reason</th><th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Action</th></tr></thead><tbody className="divide-y">
-            {rows.map((row, index) => { const counted = row.counted_quantity === '' ? 0 : Number(row.counted_quantity); const variance = counted - Number(row.system_quantity || 0); return (<tr key={index}><td className="px-3 py-2 min-w-[260px]"><select value={row.product_id} onChange={(event) => updateRow(index, 'product_id', event.target.value)} className="w-full border rounded px-2 py-1.5" required><option value="">Select product</option>{productsList.map((product: any) => <option key={product.id} value={product.id}>{product.name || product.nameEn || '#' + product.id}</option>)}</select></td><td className="px-3 py-2 text-right text-gray-600">{Number(row.system_quantity || 0)}</td><td className="px-3 py-2 text-right"><input type="number" min="0" value={row.counted_quantity} onChange={(event) => updateRow(index, 'counted_quantity', event.target.value)} className="w-28 border rounded px-2 py-1.5 text-right" required /></td><td className={'px-3 py-2 text-right font-semibold ' + (variance === 0 ? 'text-gray-600' : variance > 0 ? 'text-green-700' : 'text-red-600')}>{row.counted_quantity === '' ? '-' : variance}</td><td className="px-3 py-2 min-w-[220px]"><input value={row.variance_reason} onChange={(event) => updateRow(index, 'variance_reason', event.target.value)} className="w-full border rounded px-2 py-1.5" placeholder="Optional" /></td><td className="px-3 py-2 text-right"><button onClick={() => removeRow(index)} className="p-2 text-red-600 hover:bg-red-50 rounded" title="Remove row"><FaTrash /></button></td></tr>); })}
+            {rows.map((row, index) => { const counted = row.counted_quantity === '' ? 0 : Number(row.counted_quantity); const variance = counted - Number(row.system_quantity || 0); return (<tr key={index}><td className="px-3 py-2 min-w-[300px]"><InventoryProductPicker products={productsList} productId={row.product_id} variantKey={row.variant_key || ''} onChange={(productId, variantKey) => selectProduct(index, productId, variantKey)} /></td><td className="px-3 py-2 text-right text-gray-600">{Number(row.system_quantity || 0)}</td><td className="px-3 py-2 text-right"><input type="number" min="0" value={row.counted_quantity} onChange={(event) => updateRow(index, 'counted_quantity', event.target.value)} className="w-28 border rounded px-2 py-1.5 text-right" required /></td><td className={'px-3 py-2 text-right font-semibold ' + (variance === 0 ? 'text-gray-600' : variance > 0 ? 'text-green-700' : 'text-red-600')}>{row.counted_quantity === '' ? '-' : variance}</td><td className="px-3 py-2 min-w-[220px]"><input value={row.variance_reason} onChange={(event) => updateRow(index, 'variance_reason', event.target.value)} className="w-full border rounded px-2 py-1.5" placeholder="Optional" /></td><td className="px-3 py-2 text-right"><button onClick={() => removeRow(index)} className="p-2 text-red-600 hover:bg-red-50 rounded" title="Remove row"><FaTrash /></button></td></tr>); })}
           </tbody></table>
         </div>
       </div>

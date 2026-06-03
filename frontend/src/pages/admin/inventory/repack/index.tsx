@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import AdminLayout from '@/layouts/AdminLayout';
+import InventoryProductPicker from '@/components/admin/InventoryProductPicker';
 import { useToast } from '@/contexts/ToastContext';
 import { repackOrders, warehouses, products as productsApi } from '@/services/api';
 import { FaRecycle, FaPlus, FaEye, FaPlay, FaCheck, FaTimes, FaBox } from 'react-icons/fa';
@@ -27,9 +28,11 @@ export default function RepackOrdersPage() {
   const [form, setForm] = useState({
     warehouse_id: '',
     source_product_id: '',
+    source_variant_key: '',
     source_batch_id: '',
     source_qty_to_consume: '',
     output_product_id: '',
+    output_variant_key: '',
     output_qty_expected: '',
     notes: '',
   });
@@ -42,7 +45,7 @@ export default function RepackOrdersPage() {
       const [orders, whs, prods] = await Promise.all([
         repackOrders.list(),
         warehouses.list(),
-        productsApi.list(),
+        productsApi.listAll(),
       ]);
       setList(orders);
       setWarehouseList(whs);
@@ -62,15 +65,17 @@ export default function RepackOrdersPage() {
       const order = await repackOrders.create({
         warehouse_id: parseInt(form.warehouse_id),
         source_product_id: parseInt(form.source_product_id),
+        source_variant_key: form.source_variant_key || undefined,
         source_batch_id: form.source_batch_id ? parseInt(form.source_batch_id) : undefined,
         source_qty_to_consume: parseFloat(form.source_qty_to_consume),
         output_product_id: parseInt(form.output_product_id),
+        output_variant_key: form.output_variant_key || undefined,
         output_qty_expected: parseInt(form.output_qty_expected),
         notes: form.notes || undefined,
       });
       toast.success(`Repack order ${order.repack_number} created`);
       setShowCreate(false);
-      setForm({ warehouse_id: '', source_product_id: '', source_batch_id: '', source_qty_to_consume: '', output_product_id: '', output_qty_expected: '', notes: '' });
+      setForm({ warehouse_id: '', source_product_id: '', source_variant_key: '', source_batch_id: '', source_qty_to_consume: '', output_product_id: '', output_variant_key: '', output_qty_expected: '', notes: '' });
       router.push(`/admin/inventory/repack/${order.id}`);
     } catch (e: any) {
       toast.error(e?.response?.data?.message || 'Failed to create');
@@ -173,11 +178,11 @@ export default function RepackOrdersPage() {
                   <tr key={o.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3 font-mono font-medium text-blue-700">{o.repack_number}</td>
                     <td className="px-4 py-3">
-                      <div className="font-medium">{o.source_product_name}</div>
+                      <div className="font-medium">{o.source_product_name}{o.source_variant_key ? ` (${o.source_variant_key})` : ''}</div>
                       <div className="text-xs text-gray-400">{o.source_product_sku}</div>
                     </td>
                     <td className="px-4 py-3">
-                      <div className="font-medium">{o.output_product_name}</div>
+                      <div className="font-medium">{o.output_product_name}{o.output_variant_key ? ` (${o.output_variant_key})` : ''}</div>
                       <div className="text-xs text-gray-400">{o.output_product_sku}</div>
                     </td>
                     <td className="px-4 py-3 text-gray-600">{o.warehouse_name}</td>
@@ -226,10 +231,7 @@ export default function RepackOrdersPage() {
                   <div className="text-xs font-semibold text-orange-700 uppercase tracking-wide">Source (Bulk Stock)</div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Source Product (bulk) *</label>
-                    <select value={form.source_product_id} onChange={e => setForm(f => ({ ...f, source_product_id: e.target.value }))} className="w-full border rounded-lg px-3 py-2 text-sm" required>
-                      <option value="">Select product...</option>
-                      {productList.map((p: any) => <option key={p.id} value={p.id}>{p.nameEn || p.name_en} ({p.sku})</option>)}
-                    </select>
+                    <InventoryProductPicker products={productList} productId={form.source_product_id} variantKey={form.source_variant_key} onChange={(productId, variantKey) => setForm(f => ({ ...f, source_product_id: productId, source_variant_key: variantKey || '' }))} />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Quantity to Consume *</label>
@@ -240,10 +242,7 @@ export default function RepackOrdersPage() {
                   <div className="text-xs font-semibold text-green-700 uppercase tracking-wide">Output (Packaged Product)</div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Output Product *</label>
-                    <select value={form.output_product_id} onChange={e => setForm(f => ({ ...f, output_product_id: e.target.value }))} className="w-full border rounded-lg px-3 py-2 text-sm" required>
-                      <option value="">Select product...</option>
-                      {productList.map((p: any) => <option key={p.id} value={p.id}>{p.nameEn || p.name_en} ({p.sku})</option>)}
-                    </select>
+                    <InventoryProductPicker products={productList} productId={form.output_product_id} variantKey={form.output_variant_key} onChange={(productId, variantKey) => setForm(f => ({ ...f, output_product_id: productId, output_variant_key: variantKey || '' }))} />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Expected Output Qty *</label>
