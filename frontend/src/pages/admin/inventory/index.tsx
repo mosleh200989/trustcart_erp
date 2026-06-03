@@ -47,7 +47,6 @@ export default function InventoryDashboard() {
     { label: 'Low Stock', value: kpis.lowStockItems || 0, icon: FaExclamationTriangle, color: 'text-orange-600', bg: 'bg-orange-50', link: '/admin/inventory/alerts' },
     { label: 'Out of Stock', value: kpis.outOfStock || 0, icon: FaTimesCircle, color: 'text-red-600', bg: 'bg-red-50', link: '/admin/inventory/alerts' },
     { label: 'Expiring (7d)', value: kpis.expiringSoon || 0, icon: FaClock, color: 'text-yellow-600', bg: 'bg-yellow-50' },
-    { label: 'Pending POs', value: kpis.pendingPOs || 0, icon: FaTruck, color: 'text-purple-600', bg: 'bg-purple-50' },
   ];
 
   return (
@@ -69,7 +68,7 @@ export default function InventoryDashboard() {
         </div>
 
         {/* KPI Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
           {kpiCards.map((card) => {
             const Card = (
               <div key={card.label} className={`${card.bg} rounded-xl p-4 border`}>
@@ -93,7 +92,7 @@ export default function InventoryDashboard() {
             {/* Movement Chart (simplified bar representation) */}
             <div className="bg-white rounded-xl shadow p-5 border">
               <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                <FaChartBar className="text-blue-500" /> Stock Movements (30 days)
+                <FaChartBar className="text-blue-500" /> Stock Movements (7 days)
               </h2>
               {(data?.movementChart || []).length === 0 ? (
                 <p className="text-gray-400 text-sm py-4">No movement data available</p>

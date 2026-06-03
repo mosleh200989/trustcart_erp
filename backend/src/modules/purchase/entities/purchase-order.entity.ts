@@ -9,8 +9,8 @@ export class PurchaseOrder {
   @Column({ length: 50, unique: true })
   po_number!: string;
 
-  @Column()
-  supplier_id!: number;
+  @Column({ nullable: true })
+  supplier_id!: number | null;
 
   @Column()
   warehouse_id!: number;

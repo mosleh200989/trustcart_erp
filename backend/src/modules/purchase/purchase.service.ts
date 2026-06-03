@@ -44,9 +44,11 @@ export class PurchaseService {
     return this.dataSource.transaction(async (manager) => {
       const poNumber = await this.generatePoNumber(manager);
       const { items, ...header } = dto;
+      const supplierId = header.supplier_id ? Number(header.supplier_id) : null;
 
       const po = manager.create(PurchaseOrder, {
         ...header,
+        supplier_id: supplierId,
         po_number: poNumber,
         created_by: userId,
         order_date: header.order_date || new Date(),
@@ -85,7 +87,11 @@ export class PurchaseService {
     if (!['draft', 'rejected'].includes(po.status)) {
       throw new BadRequestException(`Cannot edit purchase order in "${po.status}" status`);
     }
-    Object.assign(po, dto);
+    const { supplier_id, ...rest } = dto;
+    Object.assign(po, {
+      ...rest,
+      ...(supplier_id !== undefined ? { supplier_id: supplier_id ? Number(supplier_id) : null } : {}),
+    });
     await this.poRepo.save(po);
     return this.findOne(id);
   }

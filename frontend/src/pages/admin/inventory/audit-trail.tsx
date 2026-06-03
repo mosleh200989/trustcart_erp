@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import AdminLayout from '@/layouts/AdminLayout';
-import { inventoryAuditTrail } from '@/services/api';
+import InventoryProductPicker from '@/components/admin/InventoryProductPicker';
+import { inventoryAuditTrail, products as productsApi, warehouses } from '@/services/api';
 import { useToast } from '@/contexts/ToastContext';
 import { FaSearch, FaFilter } from 'react-icons/fa';
 
@@ -24,6 +25,8 @@ interface AuditEntry {
 export default function AuditTrailPage() {
   const toast = useToast();
   const [entries, setEntries] = useState<AuditEntry[]>([]);
+  const [productList, setProductList] = useState<any[]>([]);
+  const [warehouseList, setWarehouseList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({
     product_id: '',
@@ -33,7 +36,23 @@ export default function AuditTrailPage() {
     limit: '100',
   });
 
-  useEffect(() => { loadAuditTrail(); }, []);
+  useEffect(() => {
+    loadLookups();
+    loadAuditTrail();
+  }, []);
+
+  const loadLookups = async () => {
+    try {
+      const [productData, warehouseData] = await Promise.all([
+        productsApi.listAll(),
+        warehouses.list(),
+      ]);
+      setProductList(Array.isArray(productData) ? productData : []);
+      setWarehouseList(Array.isArray(warehouseData) ? warehouseData : []);
+    } catch {
+      toast.error('Failed to load filter options');
+    }
+  };
 
   const loadAuditTrail = async () => {
     setLoading(true);
@@ -82,21 +101,26 @@ export default function AuditTrailPage() {
             <FaFilter className="text-gray-400" />
             <span className="font-medium text-sm">Filters</span>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
-            <input
-              type="number"
-              placeholder="Product ID"
-              value={filters.product_id}
-              onChange={(e) => setFilters({ ...filters, product_id: e.target.value })}
-              className="border rounded px-3 py-2 text-sm"
-            />
-            <input
-              type="number"
-              placeholder="Warehouse ID"
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
+            <div className="sm:col-span-2">
+              <InventoryProductPicker
+                products={productList}
+                productId={filters.product_id}
+                variantKey=""
+                onChange={(productId) => setFilters({ ...filters, product_id: productId || '' })}
+                placeholder="Search product"
+              />
+            </div>
+            <select
               value={filters.warehouse_id}
               onChange={(e) => setFilters({ ...filters, warehouse_id: e.target.value })}
-              className="border rounded px-3 py-2 text-sm"
-            />
+              className="border rounded px-3 py-2 text-sm bg-white"
+            >
+              <option value="">All warehouses</option>
+              {warehouseList.map((warehouse: any) => (
+                <option key={warehouse.id} value={warehouse.id}>{warehouse.name}</option>
+              ))}
+            </select>
             <input
               type="date"
               placeholder="Date From"

@@ -832,18 +832,6 @@ export const stockAdjustments = {
     const res = await apiClient.put(`/inventory/adjustments/${id}`, data);
     return res.data;
   },
-  async submit(id: number) {
-    const res = await apiClient.post(`/inventory/adjustments/${id}/submit`);
-    return res.data;
-  },
-  async approve(id: number) {
-    const res = await apiClient.post(`/inventory/adjustments/${id}/approve`);
-    return res.data;
-  },
-  async reject(id: number, reason?: string) {
-    const res = await apiClient.post(`/inventory/adjustments/${id}/reject`, { reason });
-    return res.data;
-  },
 };
 
 // ── Stock Transfers ───────────────────────────────────

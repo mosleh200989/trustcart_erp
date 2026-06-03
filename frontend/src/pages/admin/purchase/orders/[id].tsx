@@ -149,8 +149,8 @@ export default function PurchaseOrderDetail() {
   const grandTotal = subtotal + taxTotal;
 
   const handleSave = async (submitAfter = false) => {
-    if (!form.supplier_id || !form.warehouse_id) {
-      toast.error('Supplier and Warehouse are required');
+    if (!form.warehouse_id) {
+      toast.error('Receiving Warehouse is required');
       return;
     }
     if (items.length === 0) {
@@ -166,6 +166,7 @@ export default function PurchaseOrderDetail() {
     try {
       const payload = {
         ...form,
+        supplier_id: form.supplier_id ? Number(form.supplier_id) : null,
         expected_delivery_date: form.expected_delivery_date || null,
         items: items.map(({ line_total, quantity_received, ...rest }) => rest),
       };
@@ -242,7 +243,7 @@ export default function PurchaseOrderDetail() {
 
           {/* PO Info Grid */}
           <div className="bg-white rounded-lg shadow p-6 mb-6 grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-            <div><span className="text-gray-500 block">Supplier</span><span className="font-medium">{sup?.company_name || `#${po.supplier_id}`}</span></div>
+            <div><span className="text-gray-500 block">Supplier</span><span className="font-medium">{sup?.company_name || (po.supplier_id ? `#${po.supplier_id}` : 'Not assigned')}</span></div>
             <div><span className="text-gray-500 block">Warehouse</span><span className="font-medium">{wh?.name || `#${po.warehouse_id}`}</span></div>
             <div><span className="text-gray-500 block">Priority</span><span className="font-medium capitalize">{po.priority}</span></div>
             <div><span className="text-gray-500 block">Payment Terms</span><span className="font-medium">{po.payment_terms || '—'}</span></div>
@@ -356,13 +357,13 @@ export default function PurchaseOrderDetail() {
           <h2 className="text-lg font-semibold mb-4">Order Details</h2>
           <div className="grid md:grid-cols-3 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Supplier *</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Supplier</label>
               <select
                 value={form.supplier_id}
                 onChange={(e) => setForm({ ...form, supplier_id: Number(e.target.value) })}
                 className="w-full border rounded px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500"
               >
-                <option value={0}>Select supplier...</option>
+                <option value={0}>No supplier selected</option>
                 {supplierList.filter((s) => s.is_active).map((s) => (
                   <option key={s.id} value={s.id}>{s.company_name} ({s.code})</option>
                 ))}
