@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import AdminLayout from '@/layouts/AdminLayout';
+import InventoryProductPicker from '@/components/admin/InventoryProductPicker';
 import { useToast } from '@/contexts/ToastContext';
-import { purchaseOrders, suppliers, warehouses, grns } from '@/services/api';
-import apiClient from '@/services/api';
+import { purchaseOrders, suppliers, warehouses, grns, products as productsApi } from '@/services/api';
 import { getDhakaDateString } from '@/utils/dhakaDate';
 import {
-  FaArrowLeft, FaSave, FaPaperPlane, FaCheck, FaTimes, FaPlus,
+  FaArrowLeft, FaSave, FaPlus,
   FaTrash, FaTruck, FaCopy, FaFileInvoice,
 } from 'react-icons/fa';
 
@@ -69,7 +69,7 @@ export default function PurchaseOrderDetail() {
       const [sups, whs, prods] = await Promise.all([
         suppliers.list(),
         warehouses.list(),
-        apiClient.get('/products').then(r => Array.isArray(r.data) ? r.data : r.data?.data || []),
+        productsApi.listAll(),
       ]);
       setSupplierList(sups);
       setWarehouseList(whs);
@@ -141,6 +141,16 @@ export default function PurchaseOrderDetail() {
     setItems(updated);
   };
 
+  const selectItemProduct = (idx: number, productId: string, variantKey?: string) => {
+    const updated = [...items];
+    updated[idx] = {
+      ...updated[idx],
+      product_id: Number(productId || 0),
+      variant_key: variantKey || '',
+    };
+    setItems(updated);
+  };
+
   const subtotal = items.reduce((s, it) => s + it.quantity_ordered * it.unit_price - it.discount_amount, 0);
   const taxTotal = items.reduce((s, it) => {
     const lineBase = it.quantity_ordered * it.unit_price - it.discount_amount;
@@ -148,7 +158,7 @@ export default function PurchaseOrderDetail() {
   }, 0);
   const grandTotal = subtotal + taxTotal;
 
-  const handleSave = async (submitAfter = false) => {
+  const handleSave = async () => {
     if (!form.warehouse_id) {
       toast.error('Receiving Warehouse is required');
       return;
@@ -175,14 +185,11 @@ export default function PurchaseOrderDetail() {
       if (isNew) {
         saved = await purchaseOrders.create(payload);
         toast.success('Purchase order created');
+        router.push(`/admin/purchase/grns/new?po_id=${saved.id}`);
+        return;
       } else {
         saved = await purchaseOrders.update(Number(id), payload);
         toast.success('Purchase order updated');
-      }
-
-      if (submitAfter) {
-        await purchaseOrders.submit(saved.id);
-        toast.success('PO submitted for approval');
       }
 
       router.push(`/admin/purchase/orders/${saved.id}`);
@@ -225,13 +232,6 @@ export default function PurchaseOrderDetail() {
               {po.status === 'draft' && (
                 <>
                   <button onClick={() => setIsEditing(true)} className="px-4 py-2 bg-blue-600 text-white rounded text-sm flex items-center gap-2"><FaFileInvoice size={12} /> Edit</button>
-                  <button onClick={async () => { await purchaseOrders.submit(po.id); toast.success('Submitted'); loadPo(po.id); }} className="px-4 py-2 bg-green-600 text-white rounded text-sm flex items-center gap-2"><FaPaperPlane size={12} /> Submit</button>
-                </>
-              )}
-              {po.status === 'pending_approval' && (
-                <>
-                  <button onClick={async () => { await purchaseOrders.approve(po.id); toast.success('Approved'); loadPo(po.id); }} className="px-4 py-2 bg-green-600 text-white rounded text-sm flex items-center gap-2"><FaCheck size={12} /> Approve</button>
-                  <button onClick={async () => { const r = prompt('Reason:'); if (r !== null) { await purchaseOrders.reject(po.id, r); toast.success('Rejected'); loadPo(po.id); }}} className="px-4 py-2 bg-red-600 text-white rounded text-sm flex items-center gap-2"><FaTimes size={12} /> Reject</button>
                 </>
               )}
               {['approved', 'partially_received'].includes(po.status) && (
@@ -273,7 +273,7 @@ export default function PurchaseOrderDetail() {
                   const prod = productList.find((p: any) => p.id === it.product_id);
                   return (
                     <tr key={i}>
-                      <td className="px-3 py-2">{prod?.name_en || `Product #${it.product_id}`}</td>
+                      <td className="px-3 py-2">{prod?.name || prod?.name_en || `Product #${it.product_id}`}</td>
                       <td className="px-3 py-2">{it.variant_key || '—'}</td>
                       <td className="px-3 py-2 text-right">{it.quantity_ordered}</td>
                       <td className="px-3 py-2 text-right">{it.quantity_received || 0}</td>
@@ -431,8 +431,7 @@ export default function PurchaseOrderDetail() {
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 border-b">
                   <tr>
-                    <th className="px-2 py-2 text-left text-xs font-medium text-gray-500">Product</th>
-                    <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 w-24">Variant</th>
+                    <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 min-w-[280px]">Product</th>
                     <th className="px-2 py-2 text-right text-xs font-medium text-gray-500 w-20">Qty</th>
                     <th className="px-2 py-2 text-right text-xs font-medium text-gray-500 w-28">Unit Price</th>
                     <th className="px-2 py-2 text-right text-xs font-medium text-gray-500 w-20">Tax %</th>
@@ -445,14 +444,14 @@ export default function PurchaseOrderDetail() {
                   {items.map((it, idx) => (
                     <tr key={idx} className="border-b">
                       <td className="px-2 py-1">
-                        <select value={it.product_id} onChange={(e) => updateItem(idx, 'product_id', Number(e.target.value))} className="w-full border rounded px-2 py-1 text-sm">
-                          <option value={0}>Select...</option>
-                          {productList.map((p: any) => (
-                            <option key={p.id} value={p.id}>{p.name_en} ({p.sku})</option>
-                          ))}
-                        </select>
+                        <InventoryProductPicker
+                          products={productList}
+                          productId={it.product_id || ''}
+                          variantKey={it.variant_key || ''}
+                          onChange={(productId, variantKey) => selectItemProduct(idx, productId, variantKey)}
+                          placeholder="Type product name or SKU..."
+                        />
                       </td>
-                      <td className="px-2 py-1"><input type="text" value={it.variant_key || ''} onChange={(e) => updateItem(idx, 'variant_key', e.target.value)} className="w-full border rounded px-2 py-1 text-sm" placeholder="e.g. 500g" /></td>
                       <td className="px-2 py-1"><input type="number" min={1} value={it.quantity_ordered} onChange={(e) => updateItem(idx, 'quantity_ordered', Number(e.target.value))} className="w-full border rounded px-2 py-1 text-sm text-right" /></td>
                       <td className="px-2 py-1"><input type="number" step="0.01" min={0} value={it.unit_price} onChange={(e) => updateItem(idx, 'unit_price', Number(e.target.value))} className="w-full border rounded px-2 py-1 text-sm text-right" /></td>
                       <td className="px-2 py-1"><input type="number" step="0.1" min={0} value={it.tax_rate} onChange={(e) => updateItem(idx, 'tax_rate', Number(e.target.value))} className="w-full border rounded px-2 py-1 text-sm text-right" /></td>
@@ -490,11 +489,8 @@ export default function PurchaseOrderDetail() {
 
         {/* Action Buttons */}
         <div className="flex gap-3">
-          <button onClick={() => handleSave(false)} disabled={saving} className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-6 py-2 rounded-lg flex items-center gap-2 text-sm font-medium">
-            <FaSave /> {saving ? 'Saving...' : 'Save as Draft'}
-          </button>
-          <button onClick={() => handleSave(true)} disabled={saving} className="bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white px-6 py-2 rounded-lg flex items-center gap-2 text-sm font-medium">
-            <FaPaperPlane /> {saving ? 'Saving...' : 'Save & Submit'}
+          <button onClick={() => handleSave()} disabled={saving} className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-6 py-2 rounded-lg flex items-center gap-2 text-sm font-medium">
+            <FaSave /> {saving ? 'Saving...' : isNew ? 'Create PO' : 'Save Changes'}
           </button>
           <button onClick={() => isNew ? router.push('/admin/purchase/orders') : setIsEditing(false)} className="bg-gray-100 text-gray-700 px-6 py-2 rounded-lg text-sm font-medium hover:bg-gray-200">
             Cancel

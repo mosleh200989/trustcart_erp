@@ -60,67 +60,66 @@ export class StockMovementService {
 
   async recordMovement(params: RecordMovementParams): Promise<StockMovement> {
     return this.dataSource.transaction(async (manager) => {
-      // Generate reference number
-      const refNumber = await this.generateReferenceNumber(manager);
+      return this.recordMovementWithManager(manager, params);
+    });
+  }
 
-      // Determine balance before/after based on movement direction
-      const isInbound = ['receipt', 'sales_return', 'transfer_in', 'adjustment_increase', 'production_output', 'opening_balance', 'repack_in'].includes(params.movement_type);
-      const warehouseId = isInbound ? params.destination_warehouse_id : params.source_warehouse_id;
+  async recordMovementWithManager(manager: any, params: RecordMovementParams): Promise<StockMovement> {
+    const refNumber = await this.generateReferenceNumber(manager);
+    const isInbound = ['receipt', 'sales_return', 'transfer_in', 'adjustment_increase', 'production_output', 'opening_balance', 'repack_in'].includes(params.movement_type);
+    const warehouseId = isInbound ? params.destination_warehouse_id : params.source_warehouse_id;
 
-      let balanceBefore = 0;
-      if (warehouseId) {
-        const existing = await manager.findOne(StockLevel, {
-          where: {
-            product_id: params.product_id,
-            warehouse_id: warehouseId,
-          },
-        });
-        balanceBefore = existing?.quantity ?? 0;
-      }
+    let balanceBefore = 0;
+    if (warehouseId) {
+      const existing = await manager.findOne(StockLevel, {
+        where: {
+          product_id: params.product_id,
+          warehouse_id: warehouseId,
+        },
+      });
+      balanceBefore = existing?.quantity ?? 0;
+    }
 
-      const balanceAfter = isInbound
-        ? balanceBefore + params.quantity
-        : balanceBefore - params.quantity;
+    const balanceAfter = isInbound
+      ? balanceBefore + params.quantity
+      : balanceBefore - params.quantity;
 
-      // Create movement record
-      const movement = manager.create(StockMovement, {
-        reference_number: refNumber,
-        movement_type: params.movement_type,
+    const movement = manager.create(StockMovement, {
+      reference_number: refNumber,
+      movement_type: params.movement_type,
+      product_id: params.product_id,
+      variant_key: params.variant_key,
+      batch_id: params.batch_id,
+      source_warehouse_id: params.source_warehouse_id,
+      source_location_id: params.source_location_id,
+      destination_warehouse_id: params.destination_warehouse_id,
+      destination_location_id: params.destination_location_id,
+      quantity: params.quantity,
+      unit_cost: params.unit_cost,
+      total_cost: params.unit_cost ? params.unit_cost * params.quantity : undefined,
+      balance_before: balanceBefore,
+      balance_after: balanceAfter,
+      reason: params.reason,
+      notes: params.notes,
+      related_document_type: params.related_document_type,
+      related_document_id: params.related_document_id,
+      performed_by: params.performed_by,
+    });
+    const saved = await manager.save(StockMovement, movement);
+
+    if (warehouseId) {
+      await this.updateStockLevel(manager, {
         product_id: params.product_id,
         variant_key: params.variant_key,
+        warehouse_id: warehouseId,
+        location_id: isInbound ? params.destination_location_id : params.source_location_id,
         batch_id: params.batch_id,
-        source_warehouse_id: params.source_warehouse_id,
-        source_location_id: params.source_location_id,
-        destination_warehouse_id: params.destination_warehouse_id,
-        destination_location_id: params.destination_location_id,
-        quantity: params.quantity,
-        unit_cost: params.unit_cost,
-        total_cost: params.unit_cost ? params.unit_cost * params.quantity : undefined,
-        balance_before: balanceBefore,
-        balance_after: balanceAfter,
-        reason: params.reason,
-        notes: params.notes,
-        related_document_type: params.related_document_type,
-        related_document_id: params.related_document_id,
-        performed_by: params.performed_by,
+        quantity_change: isInbound ? params.quantity : -params.quantity,
+        cost_price: params.unit_cost,
       });
-      const saved = await manager.save(StockMovement, movement);
+    }
 
-      // Update stock level
-      if (warehouseId) {
-        await this.updateStockLevel(manager, {
-          product_id: params.product_id,
-          variant_key: params.variant_key,
-          warehouse_id: warehouseId,
-          location_id: isInbound ? params.destination_location_id : params.source_location_id,
-          batch_id: params.batch_id,
-          quantity_change: isInbound ? params.quantity : -params.quantity,
-          cost_price: params.unit_cost,
-        });
-      }
-
-      return saved;
-    });
+    return saved;
   }
 
   private async updateStockLevel(

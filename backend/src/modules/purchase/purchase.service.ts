@@ -50,6 +50,9 @@ export class PurchaseService {
         ...header,
         supplier_id: supplierId,
         po_number: poNumber,
+        status: 'approved',
+        approved_by: userId,
+        approved_at: new Date(),
         created_by: userId,
         order_date: header.order_date || new Date(),
       });
@@ -251,7 +254,7 @@ export class PurchaseService {
         }
 
         // Record stock movement (receipt)
-        await this.stockMovementService.recordMovement({
+        await this.stockMovementService.recordMovementWithManager(manager, {
           movement_type: 'receipt',
           product_id: item.product_id,
           variant_key: item.variant_key || undefined,

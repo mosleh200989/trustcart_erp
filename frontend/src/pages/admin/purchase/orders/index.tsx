@@ -4,8 +4,8 @@ import AdminLayout from '@/layouts/AdminLayout';
 import { useToast } from '@/contexts/ToastContext';
 import { purchaseOrders, suppliers, warehouses } from '@/services/api';
 import {
-  FaFileInvoice, FaPlus, FaEdit, FaEye, FaTrash, FaCheck,
-  FaTimes, FaPaperPlane, FaCopy, FaFilter, FaTruck,
+  FaFileInvoice, FaPlus, FaEdit, FaEye, FaTrash,
+  FaTimes, FaCopy, FaFilter, FaTruck,
 } from 'react-icons/fa';
 
 const STATUS_COLORS: Record<string, string> = {
@@ -20,7 +20,6 @@ const STATUS_COLORS: Record<string, string> = {
 
 const STATUS_LABELS: Record<string, string> = {
   draft: 'Draft',
-  pending_approval: 'Pending Approval',
   approved: 'Approved',
   partially_received: 'Partially Received',
   closed: 'Closed',
@@ -62,38 +61,6 @@ export default function PurchaseOrdersPage() {
       toast.error('Failed to load purchase orders');
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleSubmit = async (id: number) => {
-    try {
-      await purchaseOrders.submit(id);
-      toast.success('PO submitted for approval');
-      loadData();
-    } catch {
-      toast.error('Failed to submit PO');
-    }
-  };
-
-  const handleApprove = async (id: number) => {
-    try {
-      await purchaseOrders.approve(id);
-      toast.success('PO approved');
-      loadData();
-    } catch {
-      toast.error('Failed to approve PO');
-    }
-  };
-
-  const handleReject = async (id: number) => {
-    const reason = prompt('Reason for rejection:');
-    if (reason === null) return;
-    try {
-      await purchaseOrders.reject(id, reason);
-      toast.success('PO rejected');
-      loadData();
-    } catch {
-      toast.error('Failed to reject PO');
     }
   };
 
@@ -139,7 +106,7 @@ export default function PurchaseOrdersPage() {
     );
   });
 
-  const statusTabs = ['', 'draft', 'pending_approval', 'approved', 'partially_received', 'closed', 'cancelled'];
+  const statusTabs = ['', 'draft', 'approved', 'partially_received', 'closed', 'cancelled'];
 
   return (
     <AdminLayout>
@@ -228,14 +195,7 @@ export default function PurchaseOrdersPage() {
                         {po.status === 'draft' && (
                           <>
                             <button onClick={() => router.push(`/admin/purchase/orders/${po.id}?edit=true`)} title="Edit" className="p-1.5 text-gray-500 hover:text-green-600 rounded"><FaEdit size={14} /></button>
-                            <button onClick={() => handleSubmit(po.id)} title="Submit" className="p-1.5 text-gray-500 hover:text-blue-600 rounded"><FaPaperPlane size={14} /></button>
                             <button onClick={() => handleDelete(po.id)} title="Delete" className="p-1.5 text-gray-500 hover:text-red-600 rounded"><FaTrash size={14} /></button>
-                          </>
-                        )}
-                        {po.status === 'pending_approval' && (
-                          <>
-                            <button onClick={() => handleApprove(po.id)} title="Approve" className="p-1.5 text-gray-500 hover:text-green-600 rounded"><FaCheck size={14} /></button>
-                            <button onClick={() => handleReject(po.id)} title="Reject" className="p-1.5 text-gray-500 hover:text-red-600 rounded"><FaTimes size={14} /></button>
                           </>
                         )}
                         {['approved', 'partially_received'].includes(po.status) && (

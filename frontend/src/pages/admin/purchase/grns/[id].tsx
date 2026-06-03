@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import AdminLayout from '@/layouts/AdminLayout';
+import InventoryProductPicker from '@/components/admin/InventoryProductPicker';
 import { useToast } from '@/contexts/ToastContext';
 import { grns, purchaseOrders, suppliers, warehouses, products as productsApi } from '@/services/api';
 import { FaTruck, FaArrowLeft, FaCheck, FaTimes, FaPlus, FaTrash, FaSave } from 'react-icons/fa';
@@ -86,7 +87,7 @@ export default function GrnDetailPage() {
       const [sups, whs, prods] = await Promise.all([
         suppliers.list(),
         warehouses.list(),
-        productsApi.list(),
+        productsApi.listAll(),
       ]);
       setSupplierList(sups);
       setWarehouseList(whs);
@@ -146,6 +147,16 @@ export default function GrnDetailPage() {
     setItems(updated);
   };
 
+  const selectItemProduct = (idx: number, productId: string, variantKey?: string) => {
+    const updated = [...items];
+    updated[idx] = {
+      ...updated[idx],
+      product_id: Number(productId || 0),
+      variant_key: variantKey || '',
+    };
+    setItems(updated);
+  };
+
   const productName = (pid: number) => {
     const p = productList.find((pr: any) => pr.id === pid);
     return p ? p.name : `#${pid}`;
@@ -164,10 +175,11 @@ export default function GrnDetailPage() {
     try {
       const payload = {
         ...form,
+        invoice_date: form.invoice_date || null,
         purchase_order_id: form.purchase_order_id ? Number(form.purchase_order_id) : undefined,
         supplier_id: Number(form.supplier_id),
         warehouse_id: Number(form.warehouse_id),
-        items: items.filter(i => i.product_id).map(i => ({
+        items: items.filter(i => i.product_id).map(({ expiry_date, ...i }) => ({
           ...i,
           unit_cost: Number(i.unit_cost),
           quantity_received: Number(i.quantity_received),
@@ -186,7 +198,6 @@ export default function GrnDetailPage() {
   };
 
   const handleAccept = async () => {
-    if (!confirm('Accept this GRN? Stock will be updated.')) return;
     try {
       await grns.accept(grn.id);
       toast.success('GRN accepted — stock updated');
@@ -244,9 +255,6 @@ export default function GrnDetailPage() {
             <div><span className="text-gray-500">PO</span><div className="font-medium">{grn.purchase_order_id ? `PO-${grn.purchase_order_id}` : '—'}</div></div>
             <div><span className="text-gray-500">Received Date</span><div className="font-medium">{grn.received_date ? new Date(grn.received_date).toLocaleString() : '—'}</div></div>
             <div><span className="text-gray-500">Invoice #</span><div className="font-medium">{grn.invoice_number || '—'}</div></div>
-            <div><span className="text-gray-500">Vehicle #</span><div className="font-medium">{grn.vehicle_number || '—'}</div></div>
-            <div><span className="text-gray-500">Driver</span><div className="font-medium">{grn.driver_name || '—'}</div></div>
-            <div><span className="text-gray-500">Delivery Note</span><div className="font-medium">{grn.delivery_note_number || '—'}</div></div>
           </div>
           {grn.notes && <div className="bg-white rounded-lg shadow p-4 mb-6 text-sm"><span className="text-gray-500">Notes:</span> {grn.notes}</div>}
 
@@ -262,9 +270,7 @@ export default function GrnDetailPage() {
                   <th className="px-3 py-2 text-right text-xs font-medium text-gray-500">Accepted</th>
                   <th className="px-3 py-2 text-right text-xs font-medium text-gray-500">Rejected</th>
                   <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Batch #</th>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Expiry</th>
                   <th className="px-3 py-2 text-right text-xs font-medium text-gray-500">Unit Cost</th>
-                  <th className="px-3 py-2 text-right text-xs font-medium text-gray-500">Temp °C</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -276,9 +282,7 @@ export default function GrnDetailPage() {
                     <td className="px-3 py-2 text-right text-green-700">{item.quantity_accepted}</td>
                     <td className="px-3 py-2 text-right text-red-700">{item.quantity_rejected || 0}</td>
                     <td className="px-3 py-2">{item.batch_number || '—'}</td>
-                    <td className="px-3 py-2">{item.expiry_date ? new Date(item.expiry_date).toLocaleDateString() : '—'}</td>
-                    <td className="px-3 py-2 text-right">₹{Number(item.unit_cost).toFixed(2)}</td>
-                    <td className="px-3 py-2 text-right">{item.temperature_on_arrival ?? '—'}</td>
+                    <td className="px-3 py-2 text-right">৳{Number(item.unit_cost).toFixed(2)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -355,7 +359,6 @@ export default function GrnDetailPage() {
                 <th className="px-3 py-2 text-xs font-medium text-gray-500 w-20">Accepted</th>
                 <th className="px-3 py-2 text-xs font-medium text-gray-500 w-20">Rejected</th>
                 <th className="px-3 py-2 text-xs font-medium text-gray-500">Batch #</th>
-                <th className="px-3 py-2 text-xs font-medium text-gray-500">Expiry</th>
                 <th className="px-3 py-2 text-xs font-medium text-gray-500 w-24">Unit Cost</th>
                 <th className="px-3 py-2 w-10"></th>
               </tr>
@@ -364,17 +367,19 @@ export default function GrnDetailPage() {
               {items.map((item, idx) => (
                 <tr key={idx}>
                   <td className="px-3 py-2">
-                    <select value={item.product_id} onChange={e => updateItem(idx, 'product_id', Number(e.target.value))} className="w-full border rounded px-2 py-1 text-sm">
-                      <option value={0}>Select product</option>
-                      {productList.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                    </select>
+                    <InventoryProductPicker
+                      products={productList}
+                      productId={item.product_id || ''}
+                      variantKey={item.variant_key || ''}
+                      onChange={(productId, variantKey) => selectItemProduct(idx, productId, variantKey)}
+                      placeholder="Type product name or SKU..."
+                    />
                   </td>
                   <td className="px-3 py-2"><input type="number" min="0" value={item.quantity_expected || ''} onChange={e => updateItem(idx, 'quantity_expected', Number(e.target.value))} className="w-full border rounded px-2 py-1 text-sm text-right" /></td>
                   <td className="px-3 py-2"><input type="number" min="0" value={item.quantity_received || ''} onChange={e => updateItem(idx, 'quantity_received', Number(e.target.value))} className="w-full border rounded px-2 py-1 text-sm text-right" /></td>
                   <td className="px-3 py-2"><input type="number" min="0" value={item.quantity_accepted || ''} onChange={e => updateItem(idx, 'quantity_accepted', Number(e.target.value))} className="w-full border rounded px-2 py-1 text-sm text-right" /></td>
                   <td className="px-3 py-2"><input type="number" min="0" value={item.quantity_rejected || ''} onChange={e => updateItem(idx, 'quantity_rejected', Number(e.target.value))} className="w-full border rounded px-2 py-1 text-sm text-right" /></td>
                   <td className="px-3 py-2"><input value={item.batch_number || ''} onChange={e => updateItem(idx, 'batch_number', e.target.value)} className="w-full border rounded px-2 py-1 text-sm" placeholder="BATCH-..." /></td>
-                  <td className="px-3 py-2"><input type="date" value={item.expiry_date || ''} onChange={e => updateItem(idx, 'expiry_date', e.target.value)} className="w-full border rounded px-2 py-1 text-sm" /></td>
                   <td className="px-3 py-2"><input type="number" min="0" step="0.01" value={item.unit_cost || ''} onChange={e => updateItem(idx, 'unit_cost', Number(e.target.value))} className="w-full border rounded px-2 py-1 text-sm text-right" /></td>
                   <td className="px-3 py-2"><button onClick={() => removeItem(idx)} className="text-red-400 hover:text-red-600"><FaTrash size={12} /></button></td>
                 </tr>
