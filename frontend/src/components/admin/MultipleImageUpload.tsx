@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { FaPlus, FaTimes, FaStar, FaArrowUp, FaArrowDown } from 'react-icons/fa';
+import type { DragEvent } from 'react';
+import { FaPlus, FaTimes, FaStar, FaGripVertical } from 'react-icons/fa';
 import ImageUpload from './ImageUpload';
 import apiClient from '@/services/api';
 import { useToast } from '@/contexts/ToastContext';
@@ -22,6 +23,8 @@ export default function MultipleImageUpload({ productId, onImagesChange, folder 
   const [images, setImages] = useState<ProductImage[]>([]);
   const [showUpload, setShowUpload] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 
   useEffect(() => {
     if (productId) {
@@ -113,44 +116,67 @@ export default function MultipleImageUpload({ productId, onImagesChange, folder 
     }
   };
 
-  const moveImage = async (index: number, direction: 'up' | 'down') => {
-    if (
-      (direction === 'up' && index === 0) ||
-      (direction === 'down' && index === images.length - 1)
-    ) {
-      return;
-    }
-
-    const newIndex = direction === 'up' ? index - 1 : index + 1;
-    const updatedImages = [...images];
-    [updatedImages[index], updatedImages[newIndex]] = [updatedImages[newIndex], updatedImages[index]];
-    
-    // Update display_order
-    updatedImages.forEach((img, i) => {
-      img.display_order = i;
-    });
+  const persistImageOrder = async (updatedImages: ProductImage[]) => {
+    const orderedImages = updatedImages.map((img, i) => ({
+      ...img,
+      display_order: i,
+    }));
 
     if (productId) {
       try {
-        // Update both images
-        await Promise.all([
-          apiClient.put(`/products/${productId}/images/${updatedImages[index].id}`, {
-            display_order: index
-          }),
-          apiClient.put(`/products/${productId}/images/${updatedImages[newIndex].id}`, {
-            display_order: newIndex
-          })
-        ]);
-        setImages(updatedImages);
-        onImagesChange?.(updatedImages);
+        await Promise.all(
+          orderedImages
+            .filter((image) => image.id)
+            .map((image) =>
+              apiClient.put(`/products/${productId}/images/${image.id}`, {
+                display_order: image.display_order,
+              }),
+            ),
+        );
+        setImages(orderedImages);
+        onImagesChange?.(orderedImages);
       } catch (error) {
         console.error('Error reordering images:', error);
         toast.error('Failed to reorder images');
       }
     } else {
-      setImages(updatedImages);
-      onImagesChange?.(updatedImages);
+      setImages(orderedImages);
+      onImagesChange?.(orderedImages);
     }
+  };
+
+  const handleDragStart = (index: number) => (event: DragEvent<HTMLDivElement>) => {
+    setDraggedIndex(index);
+    setDragOverIndex(index);
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', String(index));
+  };
+
+  const handleDragOver = (index: number) => (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+    setDragOverIndex(index);
+  };
+
+  const handleDrop = (index: number) => async (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    const sourceIndex = draggedIndex ?? Number(event.dataTransfer.getData('text/plain'));
+    setDraggedIndex(null);
+    setDragOverIndex(null);
+
+    if (!Number.isInteger(sourceIndex) || sourceIndex === index || sourceIndex < 0 || sourceIndex >= images.length) {
+      return;
+    }
+
+    const reorderedImages = [...images];
+    const [movedImage] = reorderedImages.splice(sourceIndex, 1);
+    reorderedImages.splice(index, 0, movedImage);
+    await persistImageOrder(reorderedImages);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedIndex(null);
+    setDragOverIndex(null);
   };
 
   return (
@@ -198,7 +224,16 @@ export default function MultipleImageUpload({ productId, onImagesChange, folder 
           {images.map((image, index) => (
             <div
               key={image.id || index}
-              className="relative group border-2 rounded-lg overflow-hidden"
+              draggable
+              onDragStart={handleDragStart(index)}
+              onDragOver={handleDragOver(index)}
+              onDrop={handleDrop(index)}
+              onDragEnd={handleDragEnd}
+              className={`relative group border-2 rounded-lg overflow-hidden cursor-grab active:cursor-grabbing transition ${
+                draggedIndex === index ? 'opacity-50 scale-[0.98]' : ''
+              } ${
+                dragOverIndex === index && draggedIndex !== index ? 'ring-2 ring-blue-500 ring-offset-2' : ''
+              }`}
               style={{
                 borderColor: image.is_primary ? '#f97316' : '#e5e7eb'
               }}
@@ -216,6 +251,11 @@ export default function MultipleImageUpload({ productId, onImagesChange, folder 
                   Primary
                 </div>
               )}
+
+              <div className="absolute bottom-2 left-2 bg-gray-900 bg-opacity-75 text-white px-2 py-1 rounded text-xs flex items-center gap-1 pointer-events-none">
+                <FaGripVertical size={10} />
+                Drag
+              </div>
 
               {/* Always-visible Delete Button */}
               <button
@@ -239,28 +279,6 @@ export default function MultipleImageUpload({ productId, onImagesChange, folder 
                     <FaStar size={14} />
                   </button>
                 )}
-                
-                {index > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => moveImage(index, 'up')}
-                    className="bg-blue-500 text-white p-2 rounded-full hover:bg-blue-600 transition"
-                    title="Move up"
-                  >
-                    <FaArrowUp size={14} />
-                  </button>
-                )}
-                
-                {index < images.length - 1 && (
-                  <button
-                    type="button"
-                    onClick={() => moveImage(index, 'down')}
-                    className="bg-blue-500 text-white p-2 rounded-full hover:bg-blue-600 transition"
-                    title="Move down"
-                  >
-                    <FaArrowDown size={14} />
-                  </button>
-                )}
               </div>
 
               {/* Image Order */}
@@ -274,7 +292,7 @@ export default function MultipleImageUpload({ productId, onImagesChange, folder 
 
       <p className="text-xs text-gray-500">
         <strong>Tip:</strong> The first image (or the one marked as "Primary") will be displayed as the main product image.
-        Use the arrow buttons to reorder images.
+        Drag and drop images to reorder them.
       </p>
     </div>
   );

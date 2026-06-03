@@ -3,7 +3,7 @@ import AdminLayout from '@/layouts/AdminLayout';
 import InventoryProductPicker from '@/components/admin/InventoryProductPicker';
 import { inventoryPackagingConfigs, inventoryRepackOrders, products as productsApi, warehouses } from '@/services/api';
 import { useToast } from '@/contexts/ToastContext';
-import { FaBoxes, FaCheck, FaPlay, FaPlus, FaSync, FaTimes } from 'react-icons/fa';
+import { FaBoxes, FaPlus, FaSync, FaTimes } from 'react-icons/fa';
 
 const statusTone: Record<string, string> = {
   draft: 'bg-gray-100 text-gray-700',
@@ -20,7 +20,7 @@ export default function RepackingPage() {
   const [warehouseList, setWarehouseList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
-  const [completeOrder, setCompleteOrder] = useState<any | null>(null);
+  const [creating, setCreating] = useState(false);
   const [form, setForm] = useState({
     warehouse_id: '',
     config_id: '',
@@ -32,7 +32,6 @@ export default function RepackingPage() {
     output_qty_expected: '',
     notes: '',
   });
-  const [completeForm, setCompleteForm] = useState({ source_qty_consumed: '', output_qty_actual: '', waste_qty: '0', output_batch_number: '', notes: '' });
 
   const loadData = async () => {
     setLoading(true);
@@ -76,6 +75,7 @@ export default function RepackingPage() {
       toast.error('Warehouse, source product, output product, and quantities are required');
       return;
     }
+    setCreating(true);
     try {
       await inventoryRepackOrders.create({
         warehouse_id: Number(form.warehouse_id),
@@ -88,55 +88,14 @@ export default function RepackingPage() {
         output_qty_expected: Number(form.output_qty_expected),
         notes: form.notes || undefined,
       });
-      toast.success('Repack order created');
+      toast.success('Repack completed successfully');
       setShowCreate(false);
       setForm({ warehouse_id: '', config_id: '', source_product_id: '', source_variant_key: '', source_qty_to_consume: '', output_product_id: '', output_variant_key: '', output_qty_expected: '', notes: '' });
       loadData();
     } catch (error: any) {
       toast.error(error?.response?.data?.message || 'Failed to create repack order');
-    }
-  };
-
-  const startOrder = async (id: number) => {
-    try {
-      await inventoryRepackOrders.start(id);
-      toast.success('Repack order started');
-      loadData();
-    } catch (error: any) {
-      toast.error(error?.response?.data?.message || 'Failed to start');
-    }
-  };
-
-  const completeSelectedOrder = async () => {
-    if (!completeOrder || !completeForm.source_qty_consumed || !completeForm.output_qty_actual) {
-      toast.error('Consumed and output quantities are required');
-      return;
-    }
-    try {
-      await inventoryRepackOrders.complete(completeOrder.id, {
-        source_qty_consumed: Number(completeForm.source_qty_consumed),
-        output_qty_actual: Number(completeForm.output_qty_actual),
-        waste_qty: Number(completeForm.waste_qty || 0),
-        output_batch_number: completeForm.output_batch_number || undefined,
-        notes: completeForm.notes || undefined,
-      });
-      toast.success('Repack order completed');
-      setCompleteOrder(null);
-      setCompleteForm({ source_qty_consumed: '', output_qty_actual: '', waste_qty: '0', output_batch_number: '', notes: '' });
-      loadData();
-    } catch (error: any) {
-      toast.error(error?.response?.data?.message || 'Failed to complete');
-    }
-  };
-
-  const cancelOrder = async (id: number) => {
-    if (!confirm('Cancel this repack order?')) return;
-    try {
-      await inventoryRepackOrders.cancel(id);
-      toast.success('Repack order cancelled');
-      loadData();
-    } catch (error: any) {
-      toast.error(error?.response?.data?.message || 'Failed to cancel');
+    } finally {
+      setCreating(false);
     }
   };
 
@@ -161,7 +120,6 @@ export default function RepackingPage() {
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Output</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Warehouse</th>
                   <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Status</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -172,16 +130,9 @@ export default function RepackingPage() {
                     <td className="px-4 py-3">{order.output_product_name || `#${order.output_product_id}`}{order.output_variant_key ? ` (${order.output_variant_key})` : ''}<div className="text-xs text-gray-400">Expected: {order.output_qty_expected}</div></td>
                     <td className="px-4 py-3">{order.warehouse_name || `#${order.warehouse_id}`}</td>
                     <td className="px-4 py-3 text-center"><span className={`px-2 py-1 rounded-full text-xs font-medium ${statusTone[order.status] || 'bg-gray-100 text-gray-600'}`}>{order.status}</span></td>
-                    <td className="px-4 py-3">
-                      <div className="flex justify-end gap-1">
-                        {order.status === 'draft' && <button onClick={() => startOrder(order.id)} title="Start" className="p-1.5 text-blue-600 hover:bg-blue-50 rounded"><FaPlay /></button>}
-                        {order.status === 'in_progress' && <button onClick={() => { setCompleteOrder(order); setCompleteForm({ source_qty_consumed: String(order.source_qty_to_consume || ''), output_qty_actual: String(order.output_qty_expected || ''), waste_qty: '0', output_batch_number: '', notes: '' }); }} title="Complete" className="p-1.5 text-green-600 hover:bg-green-50 rounded"><FaCheck /></button>}
-                        {order.status !== 'completed' && order.status !== 'cancelled' && <button onClick={() => cancelOrder(order.id)} title="Cancel" className="p-1.5 text-red-600 hover:bg-red-50 rounded"><FaTimes /></button>}
-                      </div>
-                    </td>
                   </tr>
                 ))}
-                {orders.length === 0 && <tr><td colSpan={6} className="p-10 text-center text-gray-500">No repack orders found</td></tr>}
+                {orders.length === 0 && <tr><td colSpan={5} className="p-10 text-center text-gray-500">No repack orders found</td></tr>}
               </tbody>
             </table>
           )}
@@ -206,23 +157,7 @@ export default function RepackingPage() {
             </div>
             <div className="flex justify-end gap-2 mt-5">
               <button onClick={() => setShowCreate(false)} className="px-4 py-2 text-sm border rounded-lg">Cancel</button>
-              <button onClick={createOrder} className="px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg">Create</button>
-            </div>
-          </Modal>
-        )}
-
-        {completeOrder && (
-          <Modal title={`Complete ${completeOrder.repack_number}`} onClose={() => setCompleteOrder(null)}>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <Input label="Source Qty Consumed *" value={completeForm.source_qty_consumed} onChange={(value) => setCompleteForm({ ...completeForm, source_qty_consumed: value })} type="number" />
-              <Input label="Output Qty Actual *" value={completeForm.output_qty_actual} onChange={(value) => setCompleteForm({ ...completeForm, output_qty_actual: value })} type="number" />
-              <Input label="Waste Qty" value={completeForm.waste_qty} onChange={(value) => setCompleteForm({ ...completeForm, waste_qty: value })} type="number" />
-              <Input label="Output Batch Number" value={completeForm.output_batch_number} onChange={(value) => setCompleteForm({ ...completeForm, output_batch_number: value })} />
-              <div className="md:col-span-2"><Input label="Notes" value={completeForm.notes} onChange={(value) => setCompleteForm({ ...completeForm, notes: value })} /></div>
-            </div>
-            <div className="flex justify-end gap-2 mt-5">
-              <button onClick={() => setCompleteOrder(null)} className="px-4 py-2 text-sm border rounded-lg">Cancel</button>
-              <button onClick={completeSelectedOrder} className="px-4 py-2 text-sm bg-green-600 text-white rounded-lg">Complete</button>
+              <button onClick={createOrder} disabled={creating} className="px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg disabled:opacity-60">{creating ? 'Processing...' : 'Create & Complete'}</button>
             </div>
           </Modal>
         )}
