@@ -1423,7 +1423,7 @@ export class InventoryService {
   async getStockValuation(warehouseId?: number): Promise<any[]> {
     let query = `
       SELECT sl.product_id, sl.warehouse_id, sl.variant_key,
-             p.name_en as product_name, p.sku, p.category,
+             p.name_en as product_name, p.sku, COALESCE(c.name_en, 'Uncategorized') as category,
              w.name as warehouse_name,
              SUM(sl.quantity) as total_quantity,
              SUM(sl.reserved_quantity) as total_reserved,
@@ -1432,6 +1432,7 @@ export class InventoryService {
              SUM(sl.quantity * sl.cost_price) as total_value
       FROM stock_levels sl
       LEFT JOIN products p ON p.id = sl.product_id
+      LEFT JOIN categories c ON c.id = p.category_id
       LEFT JOIN warehouses w ON w.id = sl.warehouse_id
     `;
     const params: any[] = [];
@@ -1440,7 +1441,7 @@ export class InventoryService {
       params.push(warehouseId);
     }
     query += `
-      GROUP BY sl.product_id, sl.warehouse_id, sl.variant_key, p.name_en, p.sku, p.category, w.name
+      GROUP BY sl.product_id, sl.warehouse_id, sl.variant_key, p.name_en, p.sku, c.name_en, w.name
       ORDER BY total_value DESC
     `;
     return this.dataSource.query(query, params);
@@ -1548,13 +1549,14 @@ export class InventoryService {
   async getAbcAnalysis(): Promise<any[]> {
     // ABC classification by total stock value
     const items = await this.dataSource.query(`
-      SELECT sl.product_id, p.name_en as product_name, p.sku, p.category,
+      SELECT sl.product_id, p.name_en as product_name, p.sku, COALESCE(c.name_en, 'Uncategorized') as category,
              SUM(sl.quantity) as total_quantity,
              SUM(sl.quantity * sl.cost_price) as total_value
       FROM stock_levels sl
       LEFT JOIN products p ON p.id = sl.product_id
+      LEFT JOIN categories c ON c.id = p.category_id
       WHERE sl.quantity > 0
-      GROUP BY sl.product_id, p.name_en, p.sku, p.category
+      GROUP BY sl.product_id, p.name_en, p.sku, c.name_en
       ORDER BY total_value DESC
     `);
 
@@ -1581,16 +1583,17 @@ export class InventoryService {
 
   async getDeadStock(daysSinceMovement: number = 90): Promise<any[]> {
     return this.dataSource.query(`
-      SELECT sl.product_id, p.name_en as product_name, p.sku, p.category,
+      SELECT sl.product_id, p.name_en as product_name, p.sku, COALESCE(c.name_en, 'Uncategorized') as category,
              SUM(sl.quantity) as total_quantity,
              SUM(sl.quantity * sl.cost_price) as total_value,
              MAX(sm.created_at) as last_movement_date,
              EXTRACT(DAY FROM NOW() - MAX(sm.created_at))::int as days_since_movement
       FROM stock_levels sl
       LEFT JOIN products p ON p.id = sl.product_id
+      LEFT JOIN categories c ON c.id = p.category_id
       LEFT JOIN stock_movements sm ON sm.product_id = sl.product_id
       WHERE sl.quantity > 0
-      GROUP BY sl.product_id, p.name_en, p.sku, p.category
+      GROUP BY sl.product_id, p.name_en, p.sku, c.name_en
       HAVING MAX(sm.created_at) IS NULL OR MAX(sm.created_at) < NOW() - INTERVAL '1 day' * $1
       ORDER BY days_since_movement DESC NULLS FIRST
     `, [daysSinceMovement]);
@@ -1601,14 +1604,15 @@ export class InventoryService {
     const toDate = dateTo || getDhakaDateString();
 
     const items = await this.dataSource.query(`
-      SELECT sm.product_id, p.name_en as product_name, p.sku, p.category,
+      SELECT sm.product_id, p.name_en as product_name, p.sku, COALESCE(c.name_en, 'Uncategorized') as category,
              SUM(CASE WHEN sm.movement_type = 'sales_dispatch' THEN sm.quantity ELSE 0 END) as units_sold,
              COUNT(CASE WHEN sm.movement_type = 'sales_dispatch' THEN 1 END) as dispatch_count,
              SUM(sm.quantity) as total_movement
       FROM stock_movements sm
       LEFT JOIN products p ON p.id = sm.product_id
+      LEFT JOIN categories c ON c.id = p.category_id
       WHERE sm.created_at BETWEEN $1 AND $2
-      GROUP BY sm.product_id, p.name_en, p.sku, p.category
+      GROUP BY sm.product_id, p.name_en, p.sku, c.name_en
       ORDER BY units_sold DESC
     `, [fromDate, toDate]);
 

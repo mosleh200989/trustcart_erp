@@ -47,7 +47,6 @@ export default function GrnListPage() {
   };
 
   const handleAccept = async (id: number) => {
-    if (!confirm('Accept this GRN? This will add received goods to stock.')) return;
     try {
       await grns.accept(id);
       toast.success('GRN accepted — stock updated');

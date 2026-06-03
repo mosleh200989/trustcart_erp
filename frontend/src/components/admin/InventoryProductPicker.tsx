@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { type CSSProperties, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { FaChevronRight, FaSearch, FaTimes } from 'react-icons/fa';
 import { products as productsApi } from '@/services/api';
 
@@ -74,7 +75,9 @@ export default function InventoryProductPicker({
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
   const [expandedProductId, setExpandedProductId] = useState<number | null>(null);
+  const [dropdownStyle, setDropdownStyle] = useState<CSSProperties>({});
   const wrapperRef = useRef<HTMLDivElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   const allProducts = products || internalProducts;
 
@@ -100,13 +103,48 @@ export default function InventoryProductPicker({
 
   useEffect(() => {
     const handleClick = (event: MouseEvent) => {
-      if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
+      const target = event.target as Node;
+      const isInsideInput = wrapperRef.current?.contains(target);
+      const isInsideDropdown = dropdownRef.current?.contains(target);
+      if (!isInsideInput && !isInsideDropdown) {
         setOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const updatePosition = () => {
+      if (!wrapperRef.current) return;
+      const rect = wrapperRef.current.getBoundingClientRect();
+      const viewportGap = 12;
+      const spaceBelow = window.innerHeight - rect.bottom - viewportGap;
+      const spaceAbove = rect.top - viewportGap;
+      const maxHeight = Math.max(220, Math.min(360, Math.max(spaceBelow, spaceAbove)));
+      const openAbove = spaceBelow < 260 && spaceAbove > spaceBelow;
+
+      setDropdownStyle({
+        position: 'fixed',
+        zIndex: 9999,
+        left: rect.left,
+        top: openAbove ? undefined : rect.bottom + 4,
+        bottom: openAbove ? window.innerHeight - rect.top + 4 : undefined,
+        width: rect.width,
+        maxHeight,
+      });
+    };
+
+    updatePosition();
+    window.addEventListener('resize', updatePosition);
+    window.addEventListener('scroll', updatePosition, true);
+    return () => {
+      window.removeEventListener('resize', updatePosition);
+      window.removeEventListener('scroll', updatePosition, true);
+    };
+  }, [open]);
 
   const filteredProducts = useMemo(() => {
     const term = query.trim().toLowerCase();
@@ -163,8 +201,8 @@ export default function InventoryProductPicker({
         ) : null}
       </div>
 
-      {open && !disabled ? (
-        <div className="absolute z-50 mt-1 max-h-80 w-full overflow-y-auto rounded-lg border bg-white shadow-lg">
+      {open && !disabled ? createPortal(
+        <div ref={dropdownRef} style={dropdownStyle} className="overflow-y-auto rounded-lg border bg-white shadow-lg">
           {filteredProducts.length === 0 ? (
             <div className="px-3 py-3 text-sm text-gray-500">No products found</div>
           ) : (
@@ -231,7 +269,8 @@ export default function InventoryProductPicker({
               );
             })
           )}
-        </div>
+        </div>,
+        document.body,
       ) : null}
     </div>
   );
