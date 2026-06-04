@@ -92,6 +92,15 @@ export class ProductsController {
     return await this.productsService.searchProducts(query);
   }
 
+  @Get('admin/search')
+  @RequireAnyPermission('view-products', 'view-sales-orders', 'create-sales-orders', 'edit-sales-orders', 'manage-landing-pages', 'create-coupons')
+  async searchAdmin(@Query('q') query: string) {
+    if (!query || query.trim() === '') {
+      return [];
+    }
+    return await this.productsService.searchProducts(query, { includeInactive: true });
+  }
+
   @Get('by-slug/:slug')
   @Public()
   async findBySlug(@Param('slug') slug: string) {

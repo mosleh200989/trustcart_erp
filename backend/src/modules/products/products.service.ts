@@ -289,9 +289,10 @@ export class ProductsService {
     return this.productsRepository.findOne({ where: { id: numericId } });
   }
 
-  async searchProducts(query: string) {
+  async searchProducts(query: string, options?: { includeInactive?: boolean }) {
     try {
       const searchTerm = `%${query.toLowerCase()}%`;
+      const statusFilter = options?.includeInactive ? '' : `p.status = 'active' AND`;
       const results = await this.productsRepository.query(`
         SELECT 
           p.id, p.slug, p.sku, p.product_code, 
@@ -319,8 +320,7 @@ export class ProductsService {
           LIMIT 1
         ) pi ON TRUE
         LEFT JOIN categories c ON p.category_id = c.id
-        WHERE p.status = 'active'
-          AND (
+        WHERE ${statusFilter} (
             LOWER(p.name_en) LIKE $1 
             OR LOWER(p.name_bn) LIKE $1 
             OR LOWER(p.description_en) LIKE $1

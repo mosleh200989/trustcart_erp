@@ -115,7 +115,7 @@ export default function CategorySlider({ categories }: CategorySliderProps) {
       {/* Scrollable container: touch swipe left/right + snap */}
       <div
         ref={scrollerRef}
-        className="flex gap-2 overflow-x-auto scroll-smooth snap-x snap-mandatory touch-pan-x overscroll-x-contain px-4 sm:px-0 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden [-webkit-overflow-scrolling:touch]"
+        className="category-slider-scroller flex gap-2 scroll-smooth snap-x snap-mandatory touch-pan-x overscroll-x-contain px-4 sm:px-0"
       >
         {categories.map((cat) => (
           <div

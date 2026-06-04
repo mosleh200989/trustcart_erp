@@ -234,7 +234,7 @@ export default function AdminSalesIncompleteOrders() {
     }
     setSearchingProducts(true);
     try {
-      const response = await apiClient.get(`/products/search?q=${encodeURIComponent(query)}`);
+      const response = await apiClient.get(`/products/admin/search?q=${encodeURIComponent(query)}`);
       setProductSearchResults(response.data || []);
       setShowProductDropdown(true);
     } catch (error) {

@@ -223,6 +223,8 @@ export class OrderManagementController {
   @Public()
   @Post('webhook/pathao')
   @HttpCode(202)
+  @UseGuards(PathaoWebhookGuard)
+  @UsePipes(new ValidationPipe({ transform: true, whitelist: true, forbidNonWhitelisted: false }))
   async pathaoWebhook(
     @Body() dto: PathaoWebhookDto,
     @Headers() headers: Record<string, string>,

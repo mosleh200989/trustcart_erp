@@ -204,7 +204,7 @@ function ProductSearchField({
     if (q.length < 2) { setResults([]); setShowDropdown(false); return; }
     setLoading(true);
     try {
-      const res = await apiClient.get(`/products/search?q=${encodeURIComponent(q)}`);
+      const res = await apiClient.get(`/products/admin/search?q=${encodeURIComponent(q)}`);
       const products = Array.isArray(res.data) ? res.data : (res.data?.data || []);
       setResults(products.slice(0, 10));
       setShowDropdown(products.length > 0);
