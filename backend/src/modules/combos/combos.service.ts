@@ -10,6 +10,125 @@ export class CombosService {
     private comboDealsRepository: Repository<ComboDeal>,
   ) {}
 
+  private getComboProductSelect() {
+    return `
+      ARRAY_AGG(
+        DISTINCT jsonb_build_object(
+          'id', p.id,
+          'name_en', p.name_en,
+          'name_bn', p.name_bn,
+          'slug', p.slug,
+          'image_url', p.image_url,
+          'base_price', p.base_price,
+          'sale_price', p.sale_price,
+          'size_variants', p.size_variants,
+          'variant_name', cdp.variant_name,
+          'variant_price', cdp.variant_price,
+          'quantity', COALESCE(cdp.quantity, 1),
+          'display_order', COALESCE(cdp.display_order, 0)
+        )
+      ) FILTER (WHERE p.id IS NOT NULL) as products,
+      COALESCE((
+        SELECT jsonb_agg(
+          jsonb_build_object(
+            'id', cdi.id,
+            'image_url', cdi.image_url,
+            'display_order', cdi.display_order,
+            'is_primary', cdi.is_primary
+          )
+          ORDER BY cdi.is_primary DESC, cdi.display_order ASC, cdi.id ASC
+        )
+        FROM combo_deal_images cdi
+        WHERE cdi.combo_deal_id = cd.id
+      ), '[]'::jsonb) as images
+    `;
+  }
+
+  private normalizeComboItems(comboDto: any) {
+    if (Array.isArray(comboDto.product_items)) {
+      return comboDto.product_items
+        .map((item: any, index: number) => ({
+          product_id: Number(item.product_id ?? item.productId ?? item.id),
+          variant_name: item.variant_name || item.variantName || null,
+          variant_price: item.variant_price ?? item.variantPrice ?? null,
+          quantity: Number(item.quantity || 1),
+          display_order: Number(item.display_order ?? index),
+        }))
+        .filter((item: any) => Number.isFinite(item.product_id) && item.product_id > 0);
+    }
+
+    if (Array.isArray(comboDto.product_ids)) {
+      return comboDto.product_ids
+        .map((productId: any, index: number) => ({
+          product_id: Number(productId),
+          variant_name: null,
+          variant_price: null,
+          quantity: 1,
+          display_order: index,
+        }))
+        .filter((item: any) => Number.isFinite(item.product_id) && item.product_id > 0);
+    }
+
+    return [];
+  }
+
+  private normalizeComboImages(comboDto: any) {
+    const urls = Array.isArray(comboDto.image_urls)
+      ? comboDto.image_urls
+      : Array.isArray(comboDto.images)
+        ? comboDto.images.map((image: any) => typeof image === 'string' ? image : image?.image_url)
+        : [];
+
+    const cleaned = urls
+      .map((url: any) => typeof url === 'string' ? url.trim() : '')
+      .filter(Boolean);
+
+    if (comboDto.image_url && !cleaned.includes(comboDto.image_url)) {
+      cleaned.unshift(comboDto.image_url);
+    }
+
+    return cleaned;
+  }
+
+  private async syncComboProducts(comboId: number, comboDto: any) {
+    const items = this.normalizeComboItems(comboDto);
+    if (items.length === 0) return;
+
+    for (const item of items) {
+      await this.comboDealsRepository.query(`
+        INSERT INTO combo_deal_products
+          (combo_deal_id, product_id, variant_name, variant_price, quantity, display_order)
+        VALUES ($1, $2, $3, $4, $5, $6)
+        ON CONFLICT (combo_deal_id, product_id, COALESCE(variant_name, '')) DO UPDATE SET
+          variant_price = EXCLUDED.variant_price,
+          quantity = EXCLUDED.quantity,
+          display_order = EXCLUDED.display_order
+      `, [
+        comboId,
+        item.product_id,
+        item.variant_name,
+        item.variant_price,
+        item.quantity,
+        item.display_order,
+      ]);
+    }
+  }
+
+  private async syncComboImages(comboId: number, comboDto: any) {
+    const imageUrls = this.normalizeComboImages(comboDto);
+    await this.comboDealsRepository.query(
+      `DELETE FROM combo_deal_images WHERE combo_deal_id = $1`,
+      [comboId],
+    );
+
+    for (let index = 0; index < imageUrls.length; index += 1) {
+      await this.comboDealsRepository.query(`
+        INSERT INTO combo_deal_images (combo_deal_id, image_url, display_order, is_primary)
+        VALUES ($1, $2, $3, $4)
+      `, [comboId, imageUrls[index], index, index === 0]);
+    }
+  }
+
   async findAll(includeInactive: boolean = false) {
     try {
       const whereClause = includeInactive 
@@ -19,16 +138,7 @@ export class CombosService {
       const results = await this.comboDealsRepository.query(`
         SELECT cd.*, 
                CASE WHEN cd.is_active THEN 'active' ELSE 'inactive' END as status,
-               ARRAY_AGG(
-                 DISTINCT jsonb_build_object(
-                   'id', p.id,
-                   'name_en', p.name_en,
-                   'name_bn', p.name_bn,
-                   'slug', p.slug,
-                   'image_url', p.image_url,
-                   'base_price', p.base_price
-                 )
-               ) FILTER (WHERE p.id IS NOT NULL) as products
+               ${this.getComboProductSelect()}
         FROM combo_deals cd
         LEFT JOIN combo_deal_products cdp ON cd.id = cdp.combo_deal_id
         LEFT JOIN products p ON cdp.product_id = p.id
@@ -48,16 +158,7 @@ export class CombosService {
       const results = await this.comboDealsRepository.query(`
         SELECT cd.*, 
                CASE WHEN cd.is_active THEN 'active' ELSE 'inactive' END as status,
-               ARRAY_AGG(
-                 DISTINCT jsonb_build_object(
-                   'id', p.id,
-                   'name_en', p.name_en,
-                   'name_bn', p.name_bn,
-                   'slug', p.slug,
-                   'image_url', p.image_url,
-                   'base_price', p.base_price
-                 )
-               ) FILTER (WHERE p.id IS NOT NULL) as products
+               ${this.getComboProductSelect()}
         FROM combo_deals cd
         LEFT JOIN combo_deal_products cdp ON cd.id = cdp.combo_deal_id
         LEFT JOIN products p ON cdp.product_id = p.id
@@ -88,14 +189,18 @@ export class CombosService {
       if (!slug || !/[a-z0-9]/.test(slug)) {
         slug = `combo-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
       }
+
+      const comboImages = this.normalizeComboImages(createComboDto);
       
       const combo = this.comboDealsRepository.create({
         name: createComboDto.name,
         slug,
         description: createComboDto.description || null,
         discount_percentage: createComboDto.discount_percentage || 0,
-        image_url: createComboDto.image_url || null,
+        combo_price: createComboDto.combo_price || null,
+        image_url: createComboDto.image_url || comboImages[0] || null,
         display_position: createComboDto.display_position || null,
+        expires_at: createComboDto.expires_at || null,
         is_active: createComboDto.status === 'active'
       });
       
@@ -103,17 +208,9 @@ export class CombosService {
       console.log('Combo saved:', savedCombo.id);
       
       // Add products to combo
-      if (createComboDto.product_ids && Array.isArray(createComboDto.product_ids) && createComboDto.product_ids.length > 0) {
-        console.log('Adding products to combo:', createComboDto.product_ids);
-        for (const productId of createComboDto.product_ids) {
-          await this.comboDealsRepository.query(`
-            INSERT INTO combo_deal_products (combo_deal_id, product_id)
-            VALUES ($1, $2)
-            ON CONFLICT (combo_deal_id, product_id) DO NOTHING
-          `, [savedCombo.id, productId]);
-        }
-        console.log('Products added to combo');
-      }
+      await this.syncComboProducts(savedCombo.id, createComboDto);
+      await this.syncComboImages(savedCombo.id, createComboDto);
+      console.log('Products and images added to combo');
       
       return savedCombo;
     } catch (error) {
@@ -131,8 +228,10 @@ export class CombosService {
         name: updateComboDto.name,
         description: updateComboDto.description || null,
         discount_percentage: updateComboDto.discount_percentage || 0,
-        image_url: updateComboDto.image_url || null,
+        combo_price: updateComboDto.combo_price || null,
+        image_url: updateComboDto.image_url || this.normalizeComboImages(updateComboDto)[0] || null,
         display_position: updateComboDto.display_position || null,
+        expires_at: updateComboDto.expires_at || null,
         is_active: updateComboDto.status === 'active'
       };
       
@@ -156,8 +255,8 @@ export class CombosService {
       console.log('Update result:', result);
       
       // Update combo products if provided
-      if (updateComboDto.product_ids !== undefined) {
-        console.log('Updating combo products:', updateComboDto.product_ids);
+      if (updateComboDto.product_ids !== undefined || updateComboDto.product_items !== undefined) {
+        console.log('Updating combo products:', updateComboDto.product_items || updateComboDto.product_ids);
         
         // Delete existing products
         await this.comboDealsRepository.query(`
@@ -166,31 +265,19 @@ export class CombosService {
         console.log('Deleted existing products');
         
         // Add new products
-        if (Array.isArray(updateComboDto.product_ids) && updateComboDto.product_ids.length > 0) {
-          for (const productId of updateComboDto.product_ids) {
-            await this.comboDealsRepository.query(`
-              INSERT INTO combo_deal_products (combo_deal_id, product_id)
-              VALUES ($1, $2)
-              ON CONFLICT (combo_deal_id, product_id) DO NOTHING
-            `, [parseInt(id), productId]);
-          }
-          console.log('Added new products');
-        }
+        await this.syncComboProducts(parseInt(id), updateComboDto);
+        console.log('Added new products');
+      }
+
+      if (updateComboDto.image_urls !== undefined || updateComboDto.images !== undefined || updateComboDto.image_url !== undefined) {
+        await this.syncComboImages(parseInt(id), updateComboDto);
       }
       
       // Fetch and return updated combo with products
       const updatedResults = await this.comboDealsRepository.query(`
         SELECT cd.*, 
-               ARRAY_AGG(
-                 DISTINCT jsonb_build_object(
-                   'id', p.id,
-                   'name_en', p.name_en,
-                   'name_bn', p.name_bn,
-                   'slug', p.slug,
-                   'image_url', p.image_url,
-                   'base_price', p.base_price
-                 )
-               ) FILTER (WHERE p.id IS NOT NULL) as products
+               CASE WHEN cd.is_active THEN 'active' ELSE 'inactive' END as status,
+               ${this.getComboProductSelect()}
         FROM combo_deals cd
         LEFT JOIN combo_deal_products cdp ON cd.id = cdp.combo_deal_id
         LEFT JOIN products p ON cdp.product_id = p.id

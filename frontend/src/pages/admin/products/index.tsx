@@ -74,7 +74,6 @@ export default function AdminProducts() {
 
   const [additionalInfoRows, setAdditionalInfoRows] = useState<Array<{ key: string; value: string }>>([]);
   const [sizeVariants, setSizeVariants] = useState<SizeVariant[]>([]);
-  const [isCombo, setIsCombo] = useState(false);
   const [viewProductImages, setViewProductImages] = useState<ProductImage[]>([]);
   const [viewProductDetails, setViewProductDetails] = useState<any>(null);
   const [pendingImages, setPendingImages] = useState<string[]>([]);
@@ -164,7 +163,6 @@ export default function AdminProducts() {
     });
     setAdditionalInfoRows([]);
     setSizeVariants([]);
-    setIsCombo(false);
     setPendingImages([]);
     setIsModalOpen(true);
   };
@@ -200,7 +198,6 @@ export default function AdminProducts() {
 
       setAdditionalInfoRows(toAdditionalInfoRows(fullProduct.additional_info));
       setSizeVariants(Array.isArray(fullProduct.size_variants) ? fullProduct.size_variants : []);
-      setIsCombo(fullProduct.is_combo === true);
       
       console.log('Form data set to:', {
         ...fullProduct,
@@ -437,8 +434,6 @@ export default function AdminProducts() {
     } else {
       payload.size_variants = [];
     }
-
-    payload.is_combo = isCombo;
 
     console.log('Payload to send:', payload);
 
@@ -1261,40 +1256,6 @@ export default function AdminProducts() {
                 ]}
               />
 
-              {/* Combo Product Toggle */}
-              <div className="border-t pt-4">
-                <label className="flex items-start gap-3 cursor-pointer group">
-                  <div className="relative flex-shrink-0 mt-0.5">
-                    <input
-                      type="checkbox"
-                      checked={isCombo}
-                      onChange={(e) => setIsCombo(e.target.checked)}
-                      className="sr-only"
-                    />
-                    <div
-                      className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
-                        isCombo
-                          ? 'bg-orange-500 border-orange-500'
-                          : 'bg-white border-gray-300 group-hover:border-orange-400'
-                      }`}
-                    >
-                      {isCombo && (
-                        <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                        </svg>
-                      )}
-                    </div>
-                  </div>
-                  <div>
-                    <span className="font-medium text-gray-800 text-sm">
-                      Combo Product
-                    </span>
-                    <p className="text-xs text-gray-500 mt-0.5">
-                      Mark this product as a combo. It will be displayed in combo style on the homepage and eligible for combo-specific features.
-                    </p>
-                  </div>
-                </label>
-              </div>
             </form>
           )}
         </Modal>
