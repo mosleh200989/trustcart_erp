@@ -19,19 +19,23 @@ interface Props {
 }
 
 export default function HeroBannerCarousel({ banners }: Props) {
-  const scrollerRef = useRef<HTMLDivElement | null>(null);
+  const resumeTimerRef = useRef<number | null>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isAutoPlaying, setIsAutoPlaying] = useState(true);
+
+  const pauseAutoPlay = () => {
+    setIsAutoPlaying(false);
+    if (resumeTimerRef.current != null) {
+      window.clearTimeout(resumeTimerRef.current);
+    }
+    resumeTimerRef.current = window.setTimeout(() => setIsAutoPlaying(true), 10000);
+  };
 
   useEffect(() => {
     if (!isAutoPlaying || banners.length <= 1) return;
 
     const interval = setInterval(() => {
       const next = (currentIndex + 1) % banners.length;
-      const el = scrollerRef.current;
-      if (el) {
-        el.scrollTo({ left: next * el.clientWidth, behavior: 'smooth' });
-      }
       setCurrentIndex(next);
     }, 5000);
 
@@ -39,52 +43,28 @@ export default function HeroBannerCarousel({ banners }: Props) {
   }, [isAutoPlaying, banners.length, currentIndex]);
 
   useEffect(() => {
-    const el = scrollerRef.current;
-    if (!el) return;
-
-    const onScroll = () => {
-      if (el.clientWidth <= 0) return;
-      const idx = Math.round(el.scrollLeft / el.clientWidth);
-      const clamped = Math.min(Math.max(0, idx), Math.max(0, banners.length - 1));
-      setCurrentIndex(clamped);
-    };
-
-    el.addEventListener('scroll', onScroll, { passive: true });
     return () => {
-      el.removeEventListener('scroll', onScroll);
+      if (resumeTimerRef.current != null) {
+        window.clearTimeout(resumeTimerRef.current);
+      }
     };
-  }, [banners.length]);
+  }, []);
 
   const goToSlide = (index: number) => {
-    const el = scrollerRef.current;
-    if (el) {
-      el.scrollTo({ left: index * el.clientWidth, behavior: 'smooth' });
-    }
     setCurrentIndex(index);
-    setIsAutoPlaying(false);
-    setTimeout(() => setIsAutoPlaying(true), 10000);
+    pauseAutoPlay();
   };
 
   const goToPrevious = () => {
     const prevIndex = (currentIndex - 1 + banners.length) % banners.length;
-    const el = scrollerRef.current;
-    if (el) {
-      el.scrollTo({ left: prevIndex * el.clientWidth, behavior: 'smooth' });
-    }
     setCurrentIndex(prevIndex);
-    setIsAutoPlaying(false);
-    setTimeout(() => setIsAutoPlaying(true), 10000);
+    pauseAutoPlay();
   };
 
   const goToNext = () => {
     const nextIndex = (currentIndex + 1) % banners.length;
-    const el = scrollerRef.current;
-    if (el) {
-      el.scrollTo({ left: nextIndex * el.clientWidth, behavior: 'smooth' });
-    }
     setCurrentIndex(nextIndex);
-    setIsAutoPlaying(false);
-    setTimeout(() => setIsAutoPlaying(true), 10000);
+    pauseAutoPlay();
   };
 
   if (!banners || banners.length === 0) {
@@ -99,25 +79,22 @@ export default function HeroBannerCarousel({ banners }: Props) {
     <div className="relative overflow-hidden group bg-gray-100">
       {/* Swipeable Carousel Track */}
       <div
-        ref={scrollerRef}
-        className="flex overflow-x-auto scroll-smooth snap-x snap-mandatory touch-pan-x overscroll-x-contain [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
-        style={{ WebkitOverflowScrolling: 'touch' }}
+        className="hero-banner-scroller flex"
+        style={{ transform: `translate3d(-${currentIndex * 100}%, 0, 0)` }}
       >
         {banners.map((banner) => (
           <a
             key={banner.id}
             href={banner.button_link || '#'}
-            className="block relative w-full flex-none snap-start cursor-pointer h-48 sm:h-64 md:h-80 lg:h-96"
+            className="block relative w-full flex-none cursor-pointer h-48 sm:h-64 md:h-80 lg:h-96"
             onPointerDown={() => {
               if (banners.length > 1) {
-                setIsAutoPlaying(false);
-                setTimeout(() => setIsAutoPlaying(true), 10000);
+                pauseAutoPlay();
               }
             }}
             onTouchStart={() => {
               if (banners.length > 1) {
-                setIsAutoPlaying(false);
-                setTimeout(() => setIsAutoPlaying(true), 10000);
+                pauseAutoPlay();
               }
             }}
           >

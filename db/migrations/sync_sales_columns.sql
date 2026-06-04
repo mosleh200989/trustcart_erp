@@ -10,6 +10,7 @@ ALTER TABLE sales_orders ADD COLUMN IF NOT EXISTS customer_phone VARCHAR(30);
 
 -- Enhanced order management
 ALTER TABLE sales_orders ADD COLUMN IF NOT EXISTS shipping_address TEXT;
+ALTER TABLE sales_orders ADD COLUMN IF NOT EXISTS district VARCHAR(100);
 ALTER TABLE sales_orders ADD COLUMN IF NOT EXISTS courier_notes TEXT;
 ALTER TABLE sales_orders ADD COLUMN IF NOT EXISTS rider_instructions TEXT;
 ALTER TABLE sales_orders ADD COLUMN IF NOT EXISTS internal_notes TEXT;

@@ -2,7 +2,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/router';
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { FaPhone, FaEnvelope, FaUser, FaShoppingCart, FaHeart, FaBars, FaSearch, FaTimes, FaChevronRight, FaChevronDown } from 'react-icons/fa';
+import { FaPhone, FaEnvelope, FaUser, FaShoppingCart, FaBars, FaSearch, FaTimes, FaChevronRight, FaChevronDown } from 'react-icons/fa';
 import apiClient, { categories as categoriesAPI } from '@/services/api';
 import { useCart } from '@/contexts/CartContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -28,24 +28,6 @@ export default function ElectroNavbar() {
   const [navbarCategoriesLoading, setNavbarCategoriesLoading] = useState(false);
   const [navbarCategoriesError, setNavbarCategoriesError] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [wishlistCount, setWishlistCount] = useState(0);
-
-  // Track wishlist count from localStorage
-  useEffect(() => {
-    const updateWishlistCount = () => {
-      try {
-        const stored = JSON.parse(localStorage.getItem('wishlist') || '[]');
-        setWishlistCount(stored.length);
-      } catch { setWishlistCount(0); }
-    };
-    updateWishlistCount();
-    window.addEventListener('wishlistUpdated', updateWishlistCount);
-    window.addEventListener('storage', updateWishlistCount);
-    return () => {
-      window.removeEventListener('wishlistUpdated', updateWishlistCount);
-      window.removeEventListener('storage', updateWishlistCount);
-    };
-  }, []);
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [showSearchResults, setShowSearchResults] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
@@ -247,16 +229,6 @@ export default function ElectroNavbar() {
 
             {/* Actions */}
             <div className="flex items-center gap-3 lg:gap-6">
-              <Link href="/wishlist" className="hidden sm:flex flex-col items-center text-gray-700 hover:text-orange-500 transition relative">
-                <FaHeart size={20} className="lg:w-6 lg:h-6" />
-                <span className="text-xs mt-1 hidden lg:block">Wishlist</span>
-                {wishlistCount > 0 && (
-                  <span className="absolute -top-2 -right-2 bg-orange-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-                    {wishlistCount}
-                  </span>
-                )}
-              </Link>
-              
               {user ? (
                 <Link href="/customer/dashboard" className="hidden sm:flex flex-col items-center text-gray-700 hover:text-orange-500 transition">
                   <FaUser size={20} className="lg:w-6 lg:h-6" />
@@ -558,9 +530,6 @@ export default function ElectroNavbar() {
               {/* <Link href="/blog" onClick={() => setShowMobileMenu(false)} className="py-2 px-4 hover:bg-orange-500 rounded transition">
                 Blog
               </Link> */}
-              <Link href="/wishlist" onClick={() => setShowMobileMenu(false)} className="py-2 px-4 hover:bg-orange-500 rounded transition">
-                Wishlist
-              </Link>
               {user ? (
                 <Link href="/customer/dashboard" onClick={() => setShowMobileMenu(false)} className="py-2 px-4 hover:bg-orange-500 rounded transition">
                   My Account

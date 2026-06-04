@@ -151,38 +151,64 @@ export default function Products() {
     loadCategories();
   }, []);
 
-  // Sync URL query params → component state (runs once when router + categories are ready)
+  const getQueryValue = (value: string | string[] | undefined) => {
+    if (Array.isArray(value)) return value[0] || "";
+    return value || "";
+  };
+
+  const areFiltersEqual = (a: typeof filters, b: typeof filters) => (
+    a.search === b.search &&
+    a.category === b.category &&
+    a.minPrice === b.minPrice &&
+    a.maxPrice === b.maxPrice &&
+    a.sortBy === b.sortBy &&
+    a.inStock === b.inStock &&
+    a.isCombo === b.isCombo &&
+    a.hasDiscount === b.hasDiscount
+  );
+
+  // Sync URL query params → component state whenever the URL changes
   useEffect(() => {
     if (!router.isReady || categories.length === 0) return;
-    if (filtersInitialized.current) return;
-    filtersInitialized.current = true;
 
     isUpdatingFromUrl.current = true;
 
-    const updates: Partial<typeof filters> = {};
+    const nextFilters = {
+      search: "",
+      category: "",
+      minPrice: "",
+      maxPrice: "",
+      sortBy: "featured",
+      inStock: false,
+      isCombo: false,
+      hasDiscount: false,
+    };
 
-    if (router.query.category) {
-      const categorySlug = router.query.category as string;
+    const categorySlug = getQueryValue(router.query.category);
+    if (categorySlug) {
       const category = categories.find((cat) => cat.slug === categorySlug);
-      if (category) updates.category = category.name_en;
+      if (category) nextFilters.category = category.name_en;
     }
-    if (router.query.sort) updates.sortBy = router.query.sort as string;
-    if (router.query.search) updates.search = router.query.search as string;
-    if (router.query.minPrice) updates.minPrice = router.query.minPrice as string;
-    if (router.query.maxPrice) updates.maxPrice = router.query.maxPrice as string;
-    if (router.query.inStock === "true") updates.inStock = true;
-    if (router.query.is_combo === "true") updates.isCombo = true;
-    if (router.query.hasDiscount === "true") updates.hasDiscount = true;
 
-    const initialFilters = { ...filters, ...updates };
-    setFilters(initialFilters);
-    prevFiltersRef.current = initialFilters;
+    nextFilters.sortBy = getQueryValue(router.query.sort) || "featured";
+    nextFilters.search = getQueryValue(router.query.search);
+    nextFilters.minPrice = getQueryValue(router.query.minPrice);
+    nextFilters.maxPrice = getQueryValue(router.query.maxPrice);
+    nextFilters.inStock = getQueryValue(router.query.inStock) === "true";
+    nextFilters.isCombo = getQueryValue(router.query.is_combo) === "true";
+    nextFilters.hasDiscount = getQueryValue(router.query.hasDiscount) === "true";
 
-    // Fetch first page with initial filters
-    fetchProducts(1, false, initialFilters);
+    const shouldFetch = !filtersInitialized.current || !areFiltersEqual(filters, nextFilters);
+    filtersInitialized.current = true;
+
+    if (shouldFetch) {
+      setFilters(nextFilters);
+      prevFiltersRef.current = nextFilters;
+      fetchProducts(1, false, nextFilters);
+    }
 
     setTimeout(() => { isUpdatingFromUrl.current = false; }, 0);
-  }, [router.isReady, categories]);
+  }, [router.isReady, router.asPath, categories, fetchProducts, filters]);
 
   // Sync component state → URL query params + re-fetch when filters change
   const updateUrl = useCallback(

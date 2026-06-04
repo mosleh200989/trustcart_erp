@@ -76,6 +76,7 @@ export class SalesController {
       shippedAt: order.shippedAt,
       deliveredAt: order.deliveredAt,
       shippingAddress: order.shippingAddress,
+      district: (order as any).district,
       customerPhone: maskedPhone,
       items: orderItems.map((item: any) => ({
         productName: item.displayName || item.productName || 'Product',

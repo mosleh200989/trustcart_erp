@@ -319,7 +319,8 @@ export class ProductsService {
           LIMIT 1
         ) pi ON TRUE
         LEFT JOIN categories c ON p.category_id = c.id
-        WHERE (
+        WHERE p.status = 'active'
+          AND (
             LOWER(p.name_en) LIKE $1 
             OR LOWER(p.name_bn) LIKE $1 
             OR LOWER(p.description_en) LIKE $1
