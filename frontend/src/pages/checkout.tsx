@@ -27,6 +27,72 @@ import { useCart } from "@/contexts/CartContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { getOrderGuardNoteHtml, isOrderGuardBlocked } from "@/utils/orderGuard";
 
+const BANGLADESH_DISTRICTS = [
+  "Bagerhat",
+  "Bandarban",
+  "Barguna",
+  "Barishal",
+  "Bhola",
+  "Bogura",
+  "Brahmanbaria",
+  "Chandpur",
+  "Chattogram",
+  "Chuadanga",
+  "Cox's Bazar",
+  "Cumilla",
+  "Dhaka",
+  "Dinajpur",
+  "Faridpur",
+  "Feni",
+  "Gaibandha",
+  "Gazipur",
+  "Gopalganj",
+  "Habiganj",
+  "Jamalpur",
+  "Jashore",
+  "Jhalokathi",
+  "Jhenaidah",
+  "Joypurhat",
+  "Khagrachhari",
+  "Khulna",
+  "Kishoreganj",
+  "Kurigram",
+  "Kushtia",
+  "Lakshmipur",
+  "Lalmonirhat",
+  "Madaripur",
+  "Magura",
+  "Manikganj",
+  "Meherpur",
+  "Moulvibazar",
+  "Munshiganj",
+  "Mymensingh",
+  "Naogaon",
+  "Narail",
+  "Narayanganj",
+  "Narsingdi",
+  "Natore",
+  "Netrokona",
+  "Nilphamari",
+  "Noakhali",
+  "Pabna",
+  "Panchagarh",
+  "Patuakhali",
+  "Pirojpur",
+  "Rajbari",
+  "Rajshahi",
+  "Rangamati",
+  "Rangpur",
+  "Satkhira",
+  "Shariatpur",
+  "Sherpur",
+  "Sirajganj",
+  "Sunamganj",
+  "Sylhet",
+  "Tangail",
+  "Thakurgaon",
+];
+
 export default function Checkout() {
   const router = useRouter();
   const toast = useToast();
@@ -53,6 +119,7 @@ export default function Checkout() {
     fullName: "",
     email: "",
     phone: "",
+    district: "",
     address: "",
     notes: "",
     offerCode: "",
@@ -143,8 +210,12 @@ export default function Checkout() {
                 : fullNameFromUser,
             email:
               isTouched.email || prev.email ? prev.email : emailFromUser,
-            phone:
-              isTouched.phone || prev.phone ? prev.phone : phoneFromUser,
+              phone:
+                isTouched.phone || prev.phone ? prev.phone : phoneFromUser,
+              district:
+                isTouched.district || prev.district
+                  ? prev.district
+                  : String((user as any).district ?? "").trim(),
           };
         });
 
@@ -195,6 +266,10 @@ export default function Checkout() {
                 isTouched.phone || prev.phone
                   ? prev.phone
                   : primaryAddress?.phone || match.phone || prev.phone,
+              district:
+                isTouched.district || prev.district
+                  ? prev.district
+                  : primaryAddress?.district || match.district || prev.district,
               address:
                 isTouched.address || prev.address
                   ? prev.address
@@ -222,6 +297,10 @@ export default function Checkout() {
                 isTouched.phone || prev.phone
                   ? prev.phone
                   : match.phone || prev.phone,
+              district:
+                isTouched.district || prev.district
+                  ? prev.district
+                  : match.district || prev.district,
               address:
                 isTouched.address || prev.address
                   ? prev.address
@@ -301,13 +380,13 @@ export default function Checkout() {
 
   // Auto-detect Dhaka in address and set delivery zone
   useEffect(() => {
-    const addr = formData.address.toLowerCase();
+    const addr = `${formData.address} ${formData.district}`.toLowerCase();
     if (addr.includes('dhaka') || addr.includes('ঢাকা')) {
       setDeliveryZone('inside_dhaka');
     } else if (addr.length > 10 && !addr.includes('dhaka') && !addr.includes('ঢাকা')) {
       setDeliveryZone('outside_dhaka');
     }
-  }, [formData.address]);
+  }, [formData.address, formData.district]);
 
   // Read coupon from URL query params (passed from cart page)
   useEffect(() => {
@@ -368,6 +447,7 @@ export default function Checkout() {
     } else if (!validateBDPhone(formData.phone)) {
       errors.phone = 'Enter a valid Bangladesh phone number (e.g. 01712345678)';
     }
+    if (!formData.district.trim()) errors.district = 'District is required';
     if (!formData.address.trim()) errors.address = 'Shipping address is required';
     if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
       errors.email = 'Enter a valid email address';
@@ -445,6 +525,7 @@ export default function Checkout() {
               name: formData.fullName,
               email: formData.email || null,
               phone: formData.phone,
+              district: formData.district,
               address: formData.address,
               ...(pendingReferral?.code
                 ? {
@@ -471,7 +552,8 @@ export default function Checkout() {
         customer_name: formData.fullName,
         customer_email: formData.email || null,
         customer_phone: formData.phone,
-        shipping_address: formData.address,
+        district: formData.district,
+        shipping_address: [formData.address, formData.district].filter(Boolean).join(', '),
         notes: formData.notes,
         ...(formData.offerCode?.trim()
           ? { offer_code: formData.offerCode.trim() }
@@ -540,7 +622,7 @@ export default function Checkout() {
               customerName: formData.fullName,
               customerEmail: formData.email || undefined,
               customerPhone: formData.phone,
-              shippingAddress: formData.address,
+              shippingAddress: [formData.address, formData.district].filter(Boolean).join(', '),
             });
 
             if (paymentResult.success && paymentResult.gatewayUrl) {
@@ -808,6 +890,9 @@ export default function Checkout() {
                             {defaultAddress.phone || customerProfile.phone}
                           </div>
                           <div>{defaultAddress.streetAddress}</div>
+                          {defaultAddress.district && (
+                            <div>District: {defaultAddress.district}</div>
+                          )}
                           {defaultAddress.postalCode && (
                             <div>Postal Code: {defaultAddress.postalCode}</div>
                           )}
@@ -817,6 +902,9 @@ export default function Checkout() {
                           <div>{customerProfile.name}</div>
                           <div>{customerProfile.phone}</div>
                           <div>{customerProfile.address || "Not set"}</div>
+                          {customerProfile.district && (
+                            <div>District: {customerProfile.district}</div>
+                          )}
                         </>
                       )}
                       <div className="text-xs text-gray-600 mt-1">
@@ -904,6 +992,39 @@ export default function Checkout() {
                         <p className="mt-1 text-sm text-red-500 flex items-center gap-1">
                           <FaExclamationTriangle size={12} />
                           {formErrors.phone}
+                        </p>
+                      )}
+                    </div>
+
+                    <div data-error={!!formErrors.district || undefined}>
+                      <label htmlFor="district" className="block text-sm font-semibold mb-2">
+                        District *
+                      </label>
+                      <input
+                        type="text"
+                        id="district"
+                        name="district"
+                        list="checkout-districts"
+                        value={formData.district}
+                        onChange={handleChange}
+                        required
+                        className={`w-full px-4 py-2 border rounded-lg focus:outline-none transition-colors ${
+                          formErrors.district
+                            ? 'border-red-400 bg-red-50 focus:border-red-500'
+                            : 'border-gray-300 focus:border-orange-500'
+                        }`}
+                        placeholder="Select or type district"
+                        autoComplete="address-level1"
+                      />
+                      <datalist id="checkout-districts">
+                        {BANGLADESH_DISTRICTS.map((district) => (
+                          <option key={district} value={district} />
+                        ))}
+                      </datalist>
+                      {formErrors.district && (
+                        <p className="mt-1 text-sm text-red-500 flex items-center gap-1">
+                          <FaExclamationTriangle size={12} />
+                          {formErrors.district}
                         </p>
                       )}
                     </div>
