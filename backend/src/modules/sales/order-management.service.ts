@@ -2669,19 +2669,37 @@ export class OrderManagementService {
    * Map Pathao order_status to our internal status.
    */
   private mapPathaoStatus(pathaoStatus: string): string {
-    const s = String(pathaoStatus).toLowerCase().replace(/[-_\s]/g, '');
+    const s = String(pathaoStatus).toLowerCase().replace(/[^a-z0-9]/g, '');
     const map: Record<string, string> = {
       pending: 'pending',
+      orderplaced: 'pending',
+      ordercreated: 'pending',
       pickup: 'pickup',
+      picked: 'pickup',
+      pickedup: 'pickup',
       pickuppending: 'pickup_pending',
+      pickuprequested: 'pickup_pending',
+      assignedforpickup: 'pickup_pending',
+      pickupassigned: 'pickup_pending',
+      pickupfailed: 'pickup_failed',
       atthehub: 'in_transit',
       intransit: 'in_transit',
+      deliveryinprogress: 'in_transit',
+      outfordelivery: 'in_transit',
+      ontheway: 'in_transit',
       delivered: 'delivered',
+      successfuldelivery: 'delivered',
       return: 'returned',
       returned: 'returned',
+      returnintransit: 'returned',
+      returntransit: 'returned',
+      returnedtomerchant: 'returned',
       onhold: 'on_hold',
+      hold: 'on_hold',
       cancelled: 'cancelled',
+      canceled: 'cancelled',
       partialdelivered: 'partial_delivered',
+      partialdelivery: 'partial_delivered',
     };
     return map[s] || pathaoStatus;
   }
@@ -2693,12 +2711,24 @@ export class OrderManagementService {
     dto: import('./dto/pathao-webhook.dto').PathaoWebhookDto,
     headers: Record<string, any>,
   ): Promise<{ status: string; message: string }> {
-    const consignmentId = dto.consignment_id;
-    const orderStatus = dto.order_status || dto.order_status_slug;
+    const payload = (dto as any).data && typeof (dto as any).data === 'object' ? (dto as any).data : dto;
+    const consignmentId =
+      dto.consignment_id ??
+      payload.consignment_id ??
+      payload.consignmentId ??
+      payload.consignment?.id;
+    const orderStatus =
+      dto.order_status ||
+      dto.order_status_slug ||
+      dto.status ||
+      payload.order_status ||
+      payload.order_status_slug ||
+      payload.status;
+    const merchantOrderId = dto.merchant_order_id || payload.merchant_order_id || payload.merchantOrderId || payload.invoice_id;
 
     this.logger.log(
       `[Pathao Webhook] Received — CID=${consignmentId ?? '—'} status=${orderStatus ?? '—'} ` +
-        `merchant_order_id=${dto.merchant_order_id ?? '—'} reason=${dto.reason ?? '—'}`,
+        `merchant_order_id=${merchantOrderId ?? '—'} reason=${dto.reason ?? payload.reason ?? '—'}`,
     );
     this.logger.debug(`[Pathao Webhook] Full payload: ${JSON.stringify(dto)}`);
 
@@ -2740,16 +2770,29 @@ export class OrderManagementService {
     order: SalesOrder,
     dto: import('./dto/pathao-webhook.dto').PathaoWebhookDto,
   ): Promise<{ status: string; message: string }> {
-    const rawStatus = dto.order_status || dto.order_status_slug;
+    const payload = (dto as any).data && typeof (dto as any).data === 'object' ? (dto as any).data : dto;
+    const rawStatus =
+      dto.order_status ||
+      dto.order_status_slug ||
+      dto.status ||
+      payload.order_status ||
+      payload.order_status_slug ||
+      payload.status;
     if (!rawStatus) {
       return { status: 'error', message: 'No status in webhook payload' };
     }
 
     const newStatus = this.mapPathaoStatus(rawStatus);
+    const codAmount = dto.cod_amount ?? payload.cod_amount ?? payload.codAmount;
+    const deliveryFee = dto.delivery_fee ?? payload.delivery_fee ?? payload.deliveryFee;
+    const reason = dto.reason ?? payload.reason;
+    const consignmentId = dto.consignment_id ?? payload.consignment_id ?? payload.consignmentId ?? payload.consignment?.id;
+    const numericCodAmount = codAmount != null && Number.isFinite(Number(codAmount)) ? Number(codAmount) : null;
+    const numericDeliveryFee = deliveryFee != null && Number.isFinite(Number(deliveryFee)) ? Number(deliveryFee) : null;
 
     // Update courier financial fields. Courier delivery fee is an expense/audit value;
     // never overwrite the customer-facing sales_orders.delivery_charge.
-    if (dto.cod_amount != null) order.codAmount = dto.cod_amount;
+    if (numericCodAmount != null) order.codAmount = numericCodAmount;
 
     // Check sticker condition.
     const stickerPrinted = (order as any).stickerPrinted === true;
@@ -2765,9 +2808,9 @@ export class OrderManagementService {
         courierCompany: 'Pathao',
         trackingId: order.trackingId,
         status: newStatus,
-        codAmount: dto.cod_amount ?? null,
-        deliveryCharge: dto.delivery_fee ?? null,
-        consignmentId: dto.consignment_id != null ? String(dto.consignment_id) : null,
+        codAmount: numericCodAmount,
+        deliveryCharge: numericDeliveryFee,
+        consignmentId: consignmentId != null ? String(consignmentId) : null,
         rawPayload: dto,
         remarks: `Pathao webhook: status=${newStatus} (NOT applied — stickerPrinted=${stickerPrinted})`,
       });
@@ -2793,7 +2836,7 @@ export class OrderManagementService {
     }
 
     if (becameCancelled) {
-      order.cancelReason = order.cancelReason || `Cancelled by courier (Pathao)${dto.reason ? ': ' + dto.reason : ''}`;
+      order.cancelReason = order.cancelReason || `Cancelled by courier (Pathao)${reason ? ': ' + reason : ''}`;
       order.cancelledAt = new Date();
     }
 
@@ -2832,9 +2875,9 @@ export class OrderManagementService {
       courierCompany: 'Pathao',
       trackingId: saved.trackingId,
       status: newStatus,
-      codAmount: dto.cod_amount ?? null,
-      deliveryCharge: dto.delivery_fee ?? null,
-      consignmentId: dto.consignment_id != null ? String(dto.consignment_id) : null,
+      codAmount: numericCodAmount,
+      deliveryCharge: numericDeliveryFee,
+      consignmentId: consignmentId != null ? String(consignmentId) : null,
       rawPayload: dto,
       remarks: `Pathao webhook: ${prevStatus || 'null'} → ${newStatus}`,
     });
@@ -2843,9 +2886,9 @@ export class OrderManagementService {
     await this.logActivity({
       orderId: saved.id,
       actionType: 'courier_status_webhook',
-      actionDescription: `Pathao webhook: ${prevStatus || 'null'} → ${newStatus}${dto.reason ? ` — "${dto.reason}"` : ''}`,
+      actionDescription: `Pathao webhook: ${prevStatus || 'null'} → ${newStatus}${reason ? ` — "${reason}"` : ''}`,
       oldValue: { status: prevStatus },
-      newValue: { status: newStatus, codAmount: dto.cod_amount, deliveryFee: dto.delivery_fee },
+      newValue: { status: newStatus, codAmount: numericCodAmount, deliveryFee: numericDeliveryFee },
       performedBy: undefined,
       performedByName: 'Pathao Webhook',
     });

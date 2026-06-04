@@ -34,6 +34,22 @@ export class PathaoWebhookGuard implements CanActivate {
   canActivate(context: ExecutionContext): boolean {
     const request = context.switchToHttp().getRequest<Request>();
     const secret = this.configService.get<string>('PATHAO_WEBHOOK_SECRET');
+    const integrationSecret = this.configService.get<string>('PATHAO_WEBHOOK_INTEGRATION_SECRET');
+
+    // Pathao's webhook registration handshake expects the endpoint to echo the
+    // integration secret header in the response. Let that verification event through.
+    if ((request.body as any)?.event === 'webhook_integration') {
+      return true;
+    }
+
+    const integrationHeader = request.headers['x-pathao-merchant-webhook-integration-secret'] as string | undefined;
+    if (integrationHeader) {
+      if (integrationSecret && integrationHeader === integrationSecret) {
+        return true;
+      }
+      this.logger.warn(`[Pathao Webhook] Invalid integration secret header from ${request.ip}`);
+      throw new UnauthorizedException('Invalid webhook integration secret');
+    }
 
     if (!secret) {
       this.logger.warn(
@@ -54,7 +70,12 @@ export class PathaoWebhookGuard implements CanActivate {
         .createHmac('sha256', secret)
         .update(rawBody)
         .digest('hex');
-      if (crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) {
+      const signatureBuffer = Buffer.from(signature);
+      const expectedBuffer = Buffer.from(expected);
+      if (
+        signatureBuffer.length === expectedBuffer.length &&
+        crypto.timingSafeEqual(signatureBuffer, expectedBuffer)
+      ) {
         return true;
       }
       this.logger.warn(`[Pathao Webhook] HMAC signature mismatch from ${request.ip}`);

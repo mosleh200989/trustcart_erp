@@ -710,7 +710,7 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
     }
     setAddProductSearchLoading(true);
     try {
-      const response = await apiClient.get(`/products/search?q=${encodeURIComponent(query)}`);
+      const response = await apiClient.get(`/products/admin/search?q=${encodeURIComponent(query)}`);
       const products = Array.isArray(response.data) ? response.data : (response.data?.data || []);
       const filtered = products.slice(0, 10);
       setAddProductSearchResults(filtered);
@@ -793,7 +793,7 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
     
     setSearchingProducts(true);
     try {
-      const response = await apiClient.get(`/products/search?q=${encodeURIComponent(query)}`);
+      const response = await apiClient.get(`/products/admin/search?q=${encodeURIComponent(query)}`);
       setProductSearchResults(response.data || []);
       setShowProductDropdown(true);
     } catch (error) {

@@ -1,4 +1,4 @@
-import { IsOptional, IsString, IsNumber } from 'class-validator';
+import { IsOptional, IsString, IsNumber, IsObject } from 'class-validator';
 import { Type } from 'class-transformer';
 
 /**
@@ -24,6 +24,10 @@ export class PathaoWebhookDto {
   @IsOptional()
   @IsString()
   order_status_slug?: string;
+
+  @IsOptional()
+  @IsString()
+  status?: string;
 
   @IsOptional()
   @IsString()
@@ -62,4 +66,8 @@ export class PathaoWebhookDto {
   @IsOptional()
   @IsString()
   invoice_id?: string;
+
+  @IsOptional()
+  @IsObject()
+  data?: Record<string, any>;
 }

@@ -197,7 +197,7 @@ export default function ComboProductsAdmin() {
     }
 
     try {
-      const response = await apiClient.get(`/products?search=${query}`);
+      const response = await apiClient.get(`/products/admin/search?q=${encodeURIComponent(query)}`);
       setSearchResults(Array.isArray(response.data) ? response.data.slice(0, 10) : []);
       setShowSearchResults(true);
     } catch (error) {

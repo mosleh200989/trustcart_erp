@@ -118,7 +118,7 @@ export default function CouponsPage() {
     setProductSearch(query);
     if (!query || query.length < 2) { setProductResults([]); setShowProductDropdown(false); return; }
     try {
-      const res = await apiClient.get(`/products?search=${encodeURIComponent(query)}`);
+      const res = await apiClient.get(`/products/admin/search?q=${encodeURIComponent(query)}`);
       const list = Array.isArray(res.data) ? res.data : res.data?.data || [];
       setProductResults(list.slice(0, 15));
       setShowProductDropdown(true);
