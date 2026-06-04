@@ -33,7 +33,18 @@ interface Product {
   name_bn?: string;
   slug?: string;
   base_price: number;
+  sale_price?: number;
   image_url?: string;
+  variant_name?: string | null;
+  variant_price?: number | string | null;
+  quantity?: number;
+}
+
+interface ComboImage {
+  id?: number;
+  image_url: string;
+  display_order?: number;
+  is_primary?: boolean;
 }
 
 interface ComboDeal {
@@ -44,6 +55,7 @@ interface ComboDeal {
   discount_percentage: number;
   combo_price?: number;
   image_url?: string;
+  images?: ComboImage[];
   products?: Product[];
   expires_at?: string;
 }
@@ -155,7 +167,13 @@ export default function ComboDetailPage() {
   const getGalleryImages = () => {
     if (!combo) return [];
     const images: { id: number; image_url: string; label?: string }[] = [];
-    if (combo.image_url) {
+    if (Array.isArray(combo.images) && combo.images.length > 0) {
+      combo.images.forEach((image, index) => {
+        if (image.image_url) {
+          images.push({ id: image.id || -(index + 1), image_url: image.image_url, label: 'Combo' });
+        }
+      });
+    } else if (combo.image_url) {
       images.push({ id: -1, image_url: combo.image_url, label: 'Combo' });
     }
     if (combo.products) {
@@ -170,10 +188,17 @@ export default function ComboDetailPage() {
 
   const galleryImages = getGalleryImages();
 
+  const getProductPrice = (product: Product) => Number(product.variant_price || product.sale_price || product.base_price || 0);
+
+  const getProductQuantity = (product: Product) => Number(product.quantity || 1);
+
+  const getProductDisplayName = (product: Product) =>
+    product.variant_name ? `${product.name_en} (${product.variant_name})` : product.name_en;
+
   // Calculate total price of all products
   const calculateTotalPrice = () => {
     if (!combo?.products) return 0;
-    return combo.products.reduce((sum, p) => sum + (Number(p.base_price) || 0), 0);
+    return combo.products.reduce((sum, product) => sum + (getProductPrice(product) * getProductQuantity(product)), 0);
   };
 
   // Calculate discounted price
@@ -191,10 +216,11 @@ export default function ComboDetailPage() {
     combo.products.forEach(product => {
       addItem({
         id: product.id,
-        name: product.name_en,
-        price: Number(product.base_price),
-        quantity: quantity,
+        name: getProductDisplayName(product),
+        price: getProductPrice(product),
+        quantity: quantity * getProductQuantity(product),
         image: product.image_url || '',
+        variant: product.variant_name || null,
       });
     });
     
@@ -240,15 +266,16 @@ export default function ComboDetailPage() {
   const handleAddProductToCart = (product: Product) => {
     addItem({
       id: product.id,
-      name: product.name_en,
-      price: Number(product.base_price),
-      quantity: 1,
+      name: getProductDisplayName(product),
+      price: getProductPrice(product),
+      quantity: getProductQuantity(product),
       image: product.image_url || '',
+      variant: product.variant_name || null,
     });
     setCartProduct({
       id: product.id,
-      name: product.name_en,
-      price: Number(product.base_price),
+      name: getProductDisplayName(product),
+      price: getProductPrice(product),
       image: product.image_url || ''
     });
     setShowCartPopup(true);
@@ -753,7 +780,7 @@ export default function ComboDetailPage() {
                 <div className="border-t pt-4 space-y-2 text-sm text-gray-600">
                   <p>
                     <span className="font-semibold">Products Included:</span>{' '}
-                    {combo.products?.map(p => p.name_en).join(', ') || 'N/A'}
+                    {combo.products?.map(p => getProductDisplayName(p)).join(', ') || 'N/A'}
                   </p>
                   {combo.discount_percentage > 0 && (
                     <p>
@@ -856,10 +883,11 @@ export default function ComboDetailPage() {
                     {combo.products && combo.products.length > 0 ? (
                       <div className="space-y-4">
                         {combo.products.map((product) => {
-                          const price = Number(product.base_price) || 0;
+                          const price = getProductPrice(product);
+                          const itemQuantity = getProductQuantity(product);
                           return (
                             <div
-                              key={product.id}
+                              key={`${product.id}-${product.variant_name || ''}`}
                               className="flex items-center gap-4 p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
                             >
                               <div className="w-20 h-20 flex-shrink-0 rounded-lg overflow-hidden bg-white">
@@ -874,12 +902,15 @@ export default function ComboDetailPage() {
                                   className="font-semibold text-gray-800 cursor-pointer hover:text-orange-500 transition-colors truncate"
                                   onClick={() => router.push(`/products/${product.slug || product.id}`)}
                                 >
-                                  {product.name_en}
+                                  {getProductDisplayName(product)}
                                 </h4>
                                 {product.name_bn && (
                                   <p className="text-sm text-gray-500">{product.name_bn}</p>
                                 )}
-                                <p className="text-orange-500 font-bold mt-1">৳{price.toFixed(2)}</p>
+                                <p className="text-orange-500 font-bold mt-1">
+                                  ৳{price.toFixed(2)}
+                                  {itemQuantity > 1 && <span className="text-sm text-gray-500 font-medium"> x {itemQuantity}</span>}
+                                </p>
                               </div>
                               <button
                                 onClick={() => handleAddProductToCart(product)}
