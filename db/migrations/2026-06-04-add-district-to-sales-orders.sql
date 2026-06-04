@@ -1,0 +1,2 @@
+ALTER TABLE sales_orders
+  ADD COLUMN IF NOT EXISTS district VARCHAR(100);

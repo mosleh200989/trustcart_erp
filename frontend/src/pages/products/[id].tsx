@@ -16,7 +16,6 @@ import { SITE_NAME, SITE_URL, DEFAULT_OG_IMAGE, canonicalUrl, productImageUrl } 
 import {
   FaStar,
   FaShoppingCart,
-  FaHeart,
   FaShareAlt,
   FaChevronLeft,
   FaChevronRight,
@@ -982,14 +981,6 @@ export default function ProductDetailsPage() {
                   >
                     <FaShoppingCart />
                     <span>Buy Now</span>
-                  </button>
-                  <button
-                    onClick={handleAddToWishlist}
-                    className="w-full sm:w-12 h-12 border-2 border-orange-500 text-orange-500 rounded-lg hover:!bg-orange-500 hover:text-white flex items-center justify-center sm:justify-center space-x-2 sm:space-x-0 transition-all duration-300"
-                    aria-label="Add to Wishlist"
-                  >
-                    <FaHeart />
-                    <span className="sm:hidden">Add to Wishlist</span>
                   </button>
                   <div className="relative" ref={shareMenuRef}>
                     <button

@@ -28,70 +28,113 @@ import { useAuth } from "@/contexts/AuthContext";
 import { getOrderGuardNoteHtml, isOrderGuardBlocked } from "@/utils/orderGuard";
 
 const BANGLADESH_DISTRICTS = [
-  "Bagerhat",
-  "Bandarban",
-  "Barguna",
-  "Barishal",
-  "Bhola",
-  "Bogura",
-  "Brahmanbaria",
-  "Chandpur",
-  "Chattogram",
-  "Chuadanga",
-  "Cox's Bazar",
-  "Cumilla",
-  "Dhaka",
-  "Dinajpur",
-  "Faridpur",
-  "Feni",
-  "Gaibandha",
-  "Gazipur",
-  "Gopalganj",
-  "Habiganj",
-  "Jamalpur",
-  "Jashore",
-  "Jhalokathi",
-  "Jhenaidah",
-  "Joypurhat",
-  "Khagrachhari",
-  "Khulna",
-  "Kishoreganj",
-  "Kurigram",
-  "Kushtia",
-  "Lakshmipur",
-  "Lalmonirhat",
-  "Madaripur",
-  "Magura",
-  "Manikganj",
-  "Meherpur",
-  "Moulvibazar",
-  "Munshiganj",
-  "Mymensingh",
-  "Naogaon",
-  "Narail",
-  "Narayanganj",
-  "Narsingdi",
-  "Natore",
-  "Netrokona",
-  "Nilphamari",
-  "Noakhali",
-  "Pabna",
-  "Panchagarh",
-  "Patuakhali",
-  "Pirojpur",
-  "Rajbari",
-  "Rajshahi",
-  "Rangamati",
-  "Rangpur",
-  "Satkhira",
-  "Shariatpur",
-  "Sherpur",
-  "Sirajganj",
-  "Sunamganj",
-  "Sylhet",
-  "Tangail",
-  "Thakurgaon",
+  { en: "Bagerhat", bn: "বাগেরহাট" },
+  { en: "Bandarban", bn: "বান্দরবান" },
+  { en: "Barguna", bn: "বরগুনা" },
+  { en: "Barishal", bn: "বরিশাল" },
+  { en: "Bhola", bn: "ভোলা" },
+  { en: "Bogura", bn: "বগুড়া" },
+  { en: "Brahmanbaria", bn: "ব্রাহ্মণবাড়িয়া" },
+  { en: "Chandpur", bn: "চাঁদপুর" },
+  { en: "Chapai Nawabganj", bn: "চাঁপাইনবাবগঞ্জ" },
+  { en: "Chattogram", bn: "চট্টগ্রাম" },
+  { en: "Chuadanga", bn: "চুয়াডাঙ্গা" },
+  { en: "Cox's Bazar", bn: "কক্সবাজার" },
+  { en: "Cumilla", bn: "কুমিল্লা" },
+  { en: "Dhaka", bn: "ঢাকা" },
+  { en: "Dinajpur", bn: "দিনাজপুর" },
+  { en: "Faridpur", bn: "ফরিদপুর" },
+  { en: "Feni", bn: "ফেনী" },
+  { en: "Gaibandha", bn: "গাইবান্ধা" },
+  { en: "Gazipur", bn: "গাজীপুর" },
+  { en: "Gopalganj", bn: "গোপালগঞ্জ" },
+  { en: "Habiganj", bn: "হবিগঞ্জ" },
+  { en: "Jamalpur", bn: "জামালপুর" },
+  { en: "Jashore", bn: "যশোর" },
+  { en: "Jhalokathi", bn: "ঝালকাঠি" },
+  { en: "Jhenaidah", bn: "ঝিনাইদহ" },
+  { en: "Joypurhat", bn: "জয়পুরহাট" },
+  { en: "Khagrachhari", bn: "খাগড়াছড়ি" },
+  { en: "Khulna", bn: "খুলনা" },
+  { en: "Kishoreganj", bn: "কিশোরগঞ্জ" },
+  { en: "Kurigram", bn: "কুড়িগ্রাম" },
+  { en: "Kushtia", bn: "কুষ্টিয়া" },
+  { en: "Lakshmipur", bn: "লক্ষ্মীপুর" },
+  { en: "Lalmonirhat", bn: "লালমনিরহাট" },
+  { en: "Madaripur", bn: "মাদারীপুর" },
+  { en: "Magura", bn: "মাগুরা" },
+  { en: "Manikganj", bn: "মানিকগঞ্জ" },
+  { en: "Meherpur", bn: "মেহেরপুর" },
+  { en: "Moulvibazar", bn: "মৌলভীবাজার" },
+  { en: "Munshiganj", bn: "মুন্সীগঞ্জ" },
+  { en: "Mymensingh", bn: "ময়মনসিংহ" },
+  { en: "Naogaon", bn: "নওগাঁ" },
+  { en: "Narail", bn: "নড়াইল" },
+  { en: "Narayanganj", bn: "নারায়ণগঞ্জ" },
+  { en: "Narsingdi", bn: "নরসিংদী" },
+  { en: "Natore", bn: "নাটোর" },
+  { en: "Netrokona", bn: "নেত্রকোনা" },
+  { en: "Nilphamari", bn: "নীলফামারী" },
+  { en: "Noakhali", bn: "নোয়াখালী" },
+  { en: "Pabna", bn: "পাবনা" },
+  { en: "Panchagarh", bn: "পঞ্চগড়" },
+  { en: "Patuakhali", bn: "পটুয়াখালী" },
+  { en: "Pirojpur", bn: "পিরোজপুর" },
+  { en: "Rajbari", bn: "রাজবাড়ী" },
+  { en: "Rajshahi", bn: "রাজশাহী" },
+  { en: "Rangamati", bn: "রাঙ্গামাটি" },
+  { en: "Rangpur", bn: "রংপুর" },
+  { en: "Satkhira", bn: "সাতক্ষীরা" },
+  { en: "Shariatpur", bn: "শরীয়তপুর" },
+  { en: "Sherpur", bn: "শেরপুর" },
+  { en: "Sirajganj", bn: "সিরাজগঞ্জ" },
+  { en: "Sunamganj", bn: "সুনামগঞ্জ" },
+  { en: "Sylhet", bn: "সিলেট" },
+  { en: "Tangail", bn: "টাঙ্গাইল" },
+  { en: "Thakurgaon", bn: "ঠাকুরগাঁও" },
 ];
+
+const DISTRICT_SEARCH_ALIASES: Record<string, string[]> = {
+  Satkhira: ["সাতক্ষীরা", "সাতখীরা", "সাতখিরা", "সাতক্ষিরা", "সাত"],
+  Chattogram: ["চট্টগ্রাম", "চট্রগ্রাম", "চিটাগাং"],
+  CoxsBazar: ["কক্সবাজার", "কক্স বাজার"],
+  Cumilla: ["কুমিল্লা", "কুমিল্লা", "কুমিলা"],
+  Bogura: ["বগুড়া", "বগুড়া", "বগুরা"],
+  Jashore: ["যশোর", "যশোর", "জেসোর"],
+  Barishal: ["বরিশাল", "বারিশাল"],
+  Moulvibazar: ["মৌলভীবাজার", "মৌলভি বাজার"],
+  ChapaiNawabganj: ["চাঁপাইনবাবগঞ্জ", "চাপাইনবাবগঞ্জ", "চাঁপাই নবাবগঞ্জ"],
+};
+
+const normalizeDistrictText = (value: string) =>
+  value
+    .normalize("NFKC")
+    .toLowerCase()
+    .replace(/[়]/g, "")
+    .replace(/[’']/g, "")
+    .replace(/[\s\-_.]/g, "")
+    .trim();
+
+const districtLabel = (district: { en: string; bn: string }) => `${district.en} - ${district.bn}`;
+
+const getDistrictSearchValues = (district: { en: string; bn: string }) => {
+  const aliasKey = district.en.replace(/[^A-Za-z]/g, "");
+  return [
+    district.en,
+    district.bn,
+    districtLabel(district),
+    ...(DISTRICT_SEARCH_ALIASES[aliasKey] || []),
+  ].map(normalizeDistrictText);
+};
+
+const findDistrictInText = (value: string) => {
+  const normalizedValue = normalizeDistrictText(value);
+  if (!normalizedValue) return null;
+
+  return BANGLADESH_DISTRICTS.find((district) =>
+    getDistrictSearchValues(district).some((searchValue) => searchValue && normalizedValue.includes(searchValue)),
+  ) || null;
+};
 
 export default function Checkout() {
   const router = useRouter();
@@ -100,6 +143,7 @@ export default function Checkout() {
   const { items: cart, addItem, removeItem: removeCartItem, updateQuantity: updateCartQuantity, clearCart: clearAllCart, setItems: setCartItems } = useCart();
   const touchedRef = useRef<Record<string, boolean>>({});
   const formRef = useRef<HTMLFormElement>(null);
+  const districtDropdownRef = useRef<HTMLDivElement>(null);
   const [suggestedProducts, setSuggestedProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [currentUser, setCurrentUser] = useState<any | null>(null);
@@ -115,6 +159,8 @@ export default function Checkout() {
   const [orderGuardNoteHtml, setOrderGuardNoteHtml] = useState('');
   const [couponLoading, setCouponLoading] = useState(false);
   const [couponApplied, setCouponApplied] = useState(false);
+  const [districtDropdownOpen, setDistrictDropdownOpen] = useState(false);
+  const [districtQuery, setDistrictQuery] = useState("");
   const [formData, setFormData] = useState({
     fullName: "",
     email: "",
@@ -378,6 +424,20 @@ export default function Checkout() {
     }
   };
 
+  useEffect(() => {
+    if (touchedRef.current.district || !formData.address.trim()) return;
+
+    const detectedDistrict = findDistrictInText(formData.address);
+    if (!detectedDistrict) return;
+
+    const nextDistrict = districtLabel(detectedDistrict);
+    setFormData((prev) => {
+      if (prev.district === nextDistrict) return prev;
+      return { ...prev, district: nextDistrict };
+    });
+    setDistrictQuery(nextDistrict);
+  }, [formData.address]);
+
   // Auto-detect Dhaka in address and set delivery zone
   useEffect(() => {
     const addr = `${formData.address} ${formData.district}`.toLowerCase();
@@ -403,6 +463,49 @@ export default function Checkout() {
       setCouponDiscount(0);
       setCouponMsg('');
       setCouponError('');
+    }
+  };
+
+  useEffect(() => {
+    if (!districtDropdownOpen) {
+      setDistrictQuery(formData.district);
+    }
+  }, [formData.district, districtDropdownOpen]);
+
+  useEffect(() => {
+    const handleOutsideClick = (event: MouseEvent) => {
+      if (!districtDropdownRef.current?.contains(event.target as Node)) {
+        setDistrictDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleOutsideClick);
+    return () => document.removeEventListener("mousedown", handleOutsideClick);
+  }, []);
+
+  const districtSearch = normalizeDistrictText(districtQuery);
+  const filteredDistricts = BANGLADESH_DISTRICTS.filter((district) => {
+    if (!districtSearch) return true;
+    const searchableValues = getDistrictSearchValues(district);
+
+    return (
+      searchableValues.some((value) => value.includes(districtSearch)) ||
+      searchableValues.some((value) => districtSearch.includes(value))
+    );
+  }).slice(0, 10);
+
+  const selectDistrict = (district: { en: string; bn: string }) => {
+    const selectedDistrict = districtLabel(district);
+    touchedRef.current.district = true;
+    setDistrictQuery(selectedDistrict);
+    setFormData((prev) => ({ ...prev, district: selectedDistrict }));
+    setDistrictDropdownOpen(false);
+    if (formErrors.district) {
+      setFormErrors((prev) => {
+        const next = { ...prev };
+        delete next.district;
+        return next;
+      });
     }
   };
 
@@ -1000,27 +1103,72 @@ export default function Checkout() {
                       <label htmlFor="district" className="block text-sm font-semibold mb-2">
                         District *
                       </label>
-                      <input
-                        type="text"
-                        id="district"
-                        name="district"
-                        list="checkout-districts"
-                        value={formData.district}
-                        onChange={handleChange}
-                        required
-                        className={`w-full px-4 py-2 border rounded-lg focus:outline-none transition-colors ${
-                          formErrors.district
-                            ? 'border-red-400 bg-red-50 focus:border-red-500'
-                            : 'border-gray-300 focus:border-orange-500'
-                        }`}
-                        placeholder="Select or type district"
-                        autoComplete="address-level1"
-                      />
-                      <datalist id="checkout-districts">
-                        {BANGLADESH_DISTRICTS.map((district) => (
-                          <option key={district} value={district} />
-                        ))}
-                      </datalist>
+                      <div className="relative" ref={districtDropdownRef}>
+                        <input
+                          type="text"
+                          id="district"
+                          name="district"
+                          value={districtQuery}
+                          onChange={(event) => {
+                            const value = event.target.value;
+                            touchedRef.current.district = true;
+                            setDistrictQuery(value);
+                            setFormData((prev) => ({ ...prev, district: value }));
+                            if (formErrors.district) {
+                              setFormErrors((prev) => {
+                                const next = { ...prev };
+                                delete next.district;
+                                return next;
+                              });
+                            }
+                            setDistrictDropdownOpen(true);
+                          }}
+                          onInput={(event) => {
+                            const value = event.currentTarget.value;
+                            setDistrictQuery(value);
+                            setFormData((prev) => ({ ...prev, district: value }));
+                            setDistrictDropdownOpen(true);
+                          }}
+                          onCompositionStart={() => setDistrictDropdownOpen(true)}
+                          onCompositionEnd={(event) => {
+                            const value = event.currentTarget.value;
+                            setDistrictQuery(value);
+                            setFormData((prev) => ({ ...prev, district: value }));
+                            setDistrictDropdownOpen(true);
+                          }}
+                          onFocus={() => setDistrictDropdownOpen(true)}
+                          required
+                          className={`w-full px-4 py-2 border rounded-lg focus:outline-none transition-colors ${
+                            formErrors.district
+                              ? 'border-red-400 bg-red-50 focus:border-red-500'
+                              : 'border-gray-300 focus:border-orange-500'
+                          }`}
+                          placeholder="Select or type district"
+                          autoComplete="off"
+                        />
+                        {districtDropdownOpen && (
+                          <div className="absolute z-30 mt-1 max-h-64 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg">
+                            {filteredDistricts.length > 0 ? (
+                              filteredDistricts.map((district) => (
+                                <button
+                                  key={district.en}
+                                  type="button"
+                                  onMouseDown={(event) => {
+                                    event.preventDefault();
+                                    selectDistrict(district);
+                                  }}
+                                  className="block w-full px-4 py-2 text-left text-sm hover:bg-orange-50"
+                                >
+                                  <span className="font-medium text-gray-800">{district.en}</span>
+                                  <span className="ml-2 text-gray-500">{district.bn}</span>
+                                </button>
+                              ))
+                            ) : (
+                              <div className="px-4 py-2 text-sm text-gray-500">No district found</div>
+                            )}
+                          </div>
+                        )}
+                      </div>
                       {formErrors.district && (
                         <p className="mt-1 text-sm text-red-500 flex items-center gap-1">
                           <FaExclamationTriangle size={12} />

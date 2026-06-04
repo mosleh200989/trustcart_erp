@@ -377,7 +377,11 @@ export class OrderManagementService {
     const invoice = this.buildSteadfastInvoice(order);
     const recipientName = (order.customerName ? String(order.customerName).trim() : '') || 'N/A';
     const recipientPhone = this.normalizeBdPhone(order.customerPhone);
-    const recipientAddress = (order.shippingAddress ? String(order.shippingAddress).trim() : '') || (order.notes ? String(order.notes).trim() : '');
+    const baseRecipientAddress = (order.shippingAddress ? String(order.shippingAddress).trim() : '') || (order.notes ? String(order.notes).trim() : '');
+    const orderDistrict = ((order as any).district ? String((order as any).district).trim() : '');
+    const recipientAddress = orderDistrict && !baseRecipientAddress.toLowerCase().includes(orderDistrict.toLowerCase())
+      ? (baseRecipientAddress ? `${baseRecipientAddress}, ${orderDistrict}` : orderDistrict)
+      : baseRecipientAddress;
 
     if (!recipientPhone || recipientPhone.length !== 11) {
       throw new BadRequestException('Customer phone must be a valid 11 digit number to send to Steadfast');
@@ -1464,6 +1468,7 @@ export class OrderManagementService {
       orderDate: order.orderDate || order.createdAt,
       createdAt: order.createdAt,
       shippingAddress: order.shippingAddress,
+      district: (order as any).district,
     }));
   }
 
@@ -2447,7 +2452,11 @@ export class OrderManagementService {
     const items = await this.getOrderItems(order.id);
     const recipientName = (order.customerName ? String(order.customerName).trim() : '') || 'N/A';
     const recipientPhone = this.normalizeBdPhone(order.customerPhone);
-    const recipientAddress = (order.shippingAddress ? String(order.shippingAddress).trim() : '') || (order.notes ? String(order.notes).trim() : '');
+    const baseRecipientAddress = (order.shippingAddress ? String(order.shippingAddress).trim() : '') || (order.notes ? String(order.notes).trim() : '');
+    const orderDistrict = ((order as any).district ? String((order as any).district).trim() : '');
+    const recipientAddress = orderDistrict && !baseRecipientAddress.toLowerCase().includes(orderDistrict.toLowerCase())
+      ? (baseRecipientAddress ? `${baseRecipientAddress}, ${orderDistrict}` : orderDistrict)
+      : baseRecipientAddress;
 
     if (!recipientPhone || recipientPhone.length !== 11) {
       throw new BadRequestException('Customer phone must be a valid 11 digit number to send to Pathao');
@@ -2469,8 +2478,11 @@ export class OrderManagementService {
       try {
         const cust = await this.customersService.findOne(String(order.customerId));
         if (cust) {
-          const extra = [cust.district, cust.city].filter(Boolean).join(' ');
-          if (extra) enrichedAddress = `${recipientAddress}, ${extra}`;
+          const extraParts = [cust.district, cust.city]
+            .filter(Boolean)
+            .map((value) => String(value).trim())
+            .filter((value) => value && !enrichedAddress.toLowerCase().includes(value.toLowerCase()));
+          if (extraParts.length) enrichedAddress = `${enrichedAddress}, ${extraParts.join(' ')}`;
         }
       } catch {}
     }
@@ -3006,6 +3018,7 @@ export class OrderManagementService {
         customerEmail: order.customerEmail,
         customerPhone: order.customerPhone,
         shippingAddress: order.shippingAddress,
+        district: (order as any).district,
         orderDate: order.orderDate,
         status: order.status,
         isPacked: order.isPacked,
@@ -3044,6 +3057,7 @@ export class OrderManagementService {
         customerName: order.customerName,
         customerPhone: order.customerPhone,
         shippingAddress: order.shippingAddress,
+        district: (order as any).district,
         isPacked: order.isPacked,
         totalAmount: order.totalAmount,
         courierCompany: order.courierCompany,

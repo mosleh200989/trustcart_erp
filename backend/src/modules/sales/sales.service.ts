@@ -2004,6 +2004,7 @@ export class SalesService {
       'o.discountAmount',
       'o.deliveryCharge',
       'o.shippingAddress',
+      'o.district',
       'o.courierNotes',
       'o.riderInstructions',
       'o.internalNotes',
@@ -2829,6 +2830,15 @@ export class SalesService {
       null;
     if (shippingAddress != null && String(shippingAddress).trim() !== '') {
       sales.shippingAddress = String(shippingAddress);
+    }
+
+    const district =
+      createSalesDto.district ??
+      createSalesDto.customer_district ??
+      createSalesDto.customerDistrict ??
+      null;
+    if (district != null && String(district).trim() !== '') {
+      sales.district = String(district).trim();
     }
 
     const courierNotes =

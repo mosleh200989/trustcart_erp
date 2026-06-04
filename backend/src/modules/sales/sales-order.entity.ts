@@ -56,6 +56,9 @@ export class SalesOrder {
   @Column({ name: 'shipping_address', type: 'text', nullable: true })
   shippingAddress: string;
 
+  @Column({ name: 'district', type: 'varchar', length: 100, nullable: true })
+  district: string | null;
+
   @Column({ name: 'courier_notes', type: 'text', nullable: true })
   courierNotes: string;
 

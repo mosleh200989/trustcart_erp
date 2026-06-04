@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/router";
-import { FaStar, FaShoppingCart, FaHeart, FaEye, FaTag } from "react-icons/fa";
+import { FaStar, FaShoppingCart, FaEye, FaTag } from "react-icons/fa";
 import { BACKEND_ORIGIN } from "@/config/backend";
 import { useToast } from "@/contexts/ToastContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -64,7 +64,7 @@ export default function ElectroProductCard({
   const { fly } = useFlyToCart();
   const [imageError, setImageError] = useState(false);
   const router = useRouter();
-  const displayName = nameEn || name || nameBn || "Product";
+  const displayName = nameEn || name || "Product";
   const displayCategory =
     typeof categoryName === "string" ? categoryName.trim() : "";
   const productUrl = slug ? `/products/${slug}` : `/products/${id}`;
@@ -151,14 +151,6 @@ export default function ElectroProductCard({
       {/* Quick Actions */}
       <div className="absolute top-3 left-3 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
         <button
-          onClick={handleAddToWishlist}
-          className="bg-white hover:bg-orange-500 hover:text-white p-2.5 rounded-full shadow-lg transition-all hover:scale-110"
-          title="Add to Wishlist"
-          aria-label="Add to Wishlist"
-        >
-          <FaHeart size={16} />
-        </button>
-        <button
           className="bg-white hover:bg-orange-500 hover:text-white p-2.5 rounded-full shadow-lg transition-all hover:scale-110"
           title="Quick View"
           aria-label="Quick View"
@@ -211,14 +203,9 @@ export default function ElectroProductCard({
               displayCategory ? "mb-1" : "mb-2 sm:mb-3"
             }`}
           >
-            {nameBn && (
-              <h3 className="font-semibold text-gray-800 text-sm sm:text-base lg:text-xl group-hover:text-orange-500 transition-colors line-clamp-1">
-                {nameBn}
-              </h3>
-            )}
-            <p className="text-sm sm:text-base text-gray-600 font-medium line-clamp-1">
-              {nameEn || name || "Product"}
-            </p>
+            <h3 className="text-sm sm:text-base lg:text-xl font-bold text-gray-900 group-hover:text-orange-500 transition-colors line-clamp-2">
+              {displayName}
+            </h3>
           </div>
 
           {displayCategory && (
