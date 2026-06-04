@@ -8,6 +8,7 @@ import { ToastProvider } from '@/contexts/ToastContext';
 import { CartProvider } from '@/contexts/CartContext';
 import AdminRouteGuard from '@/components/auth/AdminRouteGuard';
 import MobileBottomNav from '@/components/MobileBottomNav';
+import FloatingCartButton from '@/components/FloatingCartButton';
 import { isAuthPath, setAuthReturnPath } from '@/utils/authReturnPath';
 import { initDataLayer, trackPageView } from '@/utils/gtm';
 import { initDhakaTimezoneDefaults } from '@/utils/dhakaDate';
@@ -130,6 +131,7 @@ export default function App({ Component, pageProps }: AppProps) {
               <main id="main-content">
                 <Component {...pageProps} />
               </main>
+              <FloatingCartButton />
               <MobileBottomNav />
             </AdminRouteGuard>
           </ToastProvider>
