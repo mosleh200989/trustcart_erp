@@ -758,7 +758,12 @@ export default function AdminSales() {
     try {
       const res = await apiClient.post('/order-management/pathao/sync-all');
       const data = res.data;
-      toast.success(`Synced ${data.synced} of ${data.total} orders. Failed: ${data.failed}.`);
+      if (Number(data.failed || 0) > 0) {
+        const firstError = Array.isArray(data.errors) && data.errors.length > 0 ? ` First error: ${data.errors[0]}` : '';
+        toast.warning(`Synced ${data.synced} of ${data.total} Pathao orders. Failed: ${data.failed}.${firstError}`);
+      } else {
+        toast.success(`Synced ${data.synced} of ${data.total} Pathao orders.`);
+      }
       await loadOrders();
     } catch (e: any) {
       toast.error(e?.response?.data?.message || 'Failed to sync Pathao statuses');

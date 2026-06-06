@@ -9,7 +9,7 @@ import FormInput from '@/components/admin/FormInput';
 import ImageUpload from '@/components/admin/ImageUpload';
 import MultipleImageUpload from '@/components/admin/MultipleImageUpload';
 import RichTextEditor from '@/components/admin/RichTextEditor';
-import { FaPlus, FaSearch, FaEye, FaEyeSlash } from 'react-icons/fa';
+import { FaPlus, FaSearch, FaEye, FaEyeSlash, FaSortAmountDown } from 'react-icons/fa';
 import apiClient from '@/services/api';
 
 interface Product {
@@ -622,13 +622,22 @@ export default function AdminProducts() {
             <h1 className="text-3xl font-bold text-gray-800">Products Management</h1>
             <p className="text-gray-600 mt-1">Manage your product inventory</p>
           </div>
-          <button
-            onClick={handleAdd}
-            className="flex items-center gap-2 bg-gradient-to-r from-green-500 to-green-600 text-white px-6 py-3 rounded-lg hover:from-green-600 hover:to-green-700 transition-all shadow-lg"
-          >
-            <FaPlus />
-            Add New Product
-          </button>
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              onClick={() => router.push('/admin/products/set-order')}
+              className="flex items-center gap-2 border border-green-600 bg-white px-5 py-3 text-green-700 rounded-lg hover:bg-green-50 transition-all shadow-sm"
+            >
+              <FaSortAmountDown />
+              Set Order
+            </button>
+            <button
+              onClick={handleAdd}
+              className="flex items-center gap-2 bg-gradient-to-r from-green-500 to-green-600 text-white px-6 py-3 rounded-lg hover:from-green-600 hover:to-green-700 transition-all shadow-lg"
+            >
+              <FaPlus />
+              Add New Product
+            </button>
+          </div>
         </div>
 
         {/* Search & Category Filter */}

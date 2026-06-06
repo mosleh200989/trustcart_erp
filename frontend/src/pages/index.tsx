@@ -117,7 +117,7 @@ export default function Home() {
   const { data: featuredProducts = [], isLoading: loading } = useQuery({
     queryKey: ['featured-products'],
     queryFn: async () => {
-      const response = await apiClient.get("/products?page=1&limit=12");
+      const response = await apiClient.get("/products?page=1&limit=12&section=homepage_featured");
       const result = response.data;
       const products = result.data || result || [];
 
