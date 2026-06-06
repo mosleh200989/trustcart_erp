@@ -86,7 +86,6 @@ export default function AdminProducts() {
     base_price: '',
     sale_price: '',
     category_id: '',
-    stock_quantity: '',
     description_en: '',
     short_description: '',
     status: 'active',
@@ -154,7 +153,6 @@ export default function AdminProducts() {
       base_price: '',
       sale_price: '',
       category_id: '',
-      stock_quantity: '',
       description_en: '',
       short_description: '',
       status: 'active',
@@ -188,7 +186,6 @@ export default function AdminProducts() {
         base_price: fullProduct.base_price?.toString() || '',
         sale_price: fullProduct.sale_price?.toString() || '',
         category_id: fullProduct.category_id ? fullProduct.category_id.toString() : '',
-        stock_quantity: fullProduct.stock_quantity ? fullProduct.stock_quantity.toString() : '',
         description_en: fullProduct.description_en || '',
         short_description: fullProduct.short_description || '',
         status: fullProduct.status || 'active',
@@ -214,7 +211,6 @@ export default function AdminProducts() {
         base_price: product.base_price.toString(),
         sale_price: '',
         category_id: '',
-        stock_quantity: product.stock_quantity?.toString() || '',
         description_en: '',
         short_description: '',
         status: product.status,
@@ -396,10 +392,6 @@ export default function AdminProducts() {
     // Only include optional fields if they have values
     if (formData.image_url && formData.image_url.trim()) {
       payload.image_url = formData.image_url.trim();
-    }
-
-    if (formData.stock_quantity && formData.stock_quantity.trim()) {
-      payload.stock_quantity = parseInt(formData.stock_quantity);
     }
 
     if (formData.display_position && formData.display_position.trim()) {
@@ -999,13 +991,6 @@ export default function AdminProducts() {
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <FormInput
-                  label="Stock Quantity"
-                  name="stock_quantity"
-                  type="number"
-                  value={formData.stock_quantity}
-                  onChange={handleInputChange}
-                />
                 <FormInput
                   label="Display Position"
                   name="display_position"

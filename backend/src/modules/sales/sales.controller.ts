@@ -260,7 +260,7 @@ export class SalesController {
   }
 
   @Get('source-options')
-  @RequirePermissions('view-sales-orders')
+  @RequireAnyPermission('view-sales-orders', 'view-late-delivery')
   async getSourceOptions() {
     return this.salesService.getSourceFilterOptions();
   }

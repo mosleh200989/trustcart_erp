@@ -78,6 +78,7 @@ const COURIER_COMPANY_OPTIONS = [
 const MANUAL_STATUS_OPTIONS = [
   { value: 'pending', label: 'Pending' },
   { value: 'delivered', label: 'Delivered' },
+  { value: 'partial_delivered', label: 'Partial Delivered' },
   { value: 'cancelled', label: 'Cancelled' },
   { value: 'admin_cancelled', label: 'Order Rejected' },
 ];
@@ -97,6 +98,7 @@ const INITIAL_FILTERS = {
   shippedFrom: '',
   shippedTo: '',
   status: '',
+  source: '',
 };
 
 type SalesFollowupMode = 'late-delivery' | 'cancelled-orders' | 'rejected-orders';
@@ -243,9 +245,13 @@ export function SalesFollowupOrdersPage({ mode = 'late-delivery' }: { mode?: Sal
   const [savingNotes, setSavingNotes] = useState<Record<number, boolean>>({});
   // Status editing
   const [savingStatus, setSavingStatus] = useState<Record<number, boolean>>({});
+  const [sourceOptions, setSourceOptions] = useState<{ value: string; label: string }[]>([]);
 
   useEffect(() => {
     load();
+    apiClient.get('/sales/source-options')
+      .then((res) => setSourceOptions(Array.isArray(res.data) ? res.data : []))
+      .catch(() => setSourceOptions([]));
   }, []);
 
   const load = async () => {
@@ -351,6 +357,7 @@ export function SalesFollowupOrdersPage({ mode = 'late-delivery' }: { mode?: Sal
       const customerName = o.customerName ?? o.customer_name ?? '';
       const customerPhone = o.customerPhone ?? o.customer_phone ?? '';
       const courierCompany = o.courierCompany ?? o.courier_company ?? '';
+      const orderSource = o.order_source ?? '';
       const relevantDate = config.dateField(o);
 
       // Always-visible search bar
@@ -378,6 +385,7 @@ export function SalesFollowupOrdersPage({ mode = 'late-delivery' }: { mode?: Sal
 
       if (filters.status && normalize(o.status) !== normalize(filters.status)) return false;
       if (!includes(courierCompany, filters.courierCompany)) return false;
+      if (filters.source && normalize(orderSource) !== normalize(filters.source)) return false;
       if (!inDateRange(relevantDate, filters.shippedFrom, filters.shippedTo)) return false;
 
       return true;
@@ -741,6 +749,15 @@ export function SalesFollowupOrdersPage({ mode = 'late-delivery' }: { mode?: Sal
                   value={filters.courierCompany}
                   onChange={handleFilterChange}
                   options={COURIER_COMPANY_OPTIONS}
+                />
+                <FormInput
+                  label="Source"
+                  name="source"
+                  type="select"
+                  value={filters.source}
+                  onChange={handleFilterChange}
+                  selectPlaceholder="All Sources"
+                  options={sourceOptions}
                 />
                 <FormInput label={config.dateFromLabel} name="shippedFrom" type="date" value={filters.shippedFrom} onChange={handleFilterChange} />
                 <FormInput label={config.dateToLabel} name="shippedTo" type="date" value={filters.shippedTo} onChange={handleFilterChange} />
