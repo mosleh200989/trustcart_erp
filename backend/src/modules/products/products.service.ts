@@ -16,6 +16,39 @@ export class ProductsService {
     private hotDealRepository: Repository<HotDeal>,
   ) {}
 
+  private readonly productOrderSections = new Map<string, { label: string; where: string }>([
+    ['products_page', { label: 'Products Page', where: `p.status = 'active'` }],
+    ['homepage_featured', { label: 'Homepage Featured Products', where: `p.status = 'active'` }],
+    ['hot_deals', {
+      label: 'Hot Deals',
+      where: `p.status = 'active' AND (
+        EXISTS (SELECT 1 FROM hot_deals hd WHERE hd.product_id = p.id AND hd.is_active = true)
+        OR (p.sale_price IS NOT NULL AND p.sale_price < p.base_price)
+        OR (p.discount_value IS NOT NULL AND p.discount_value > 0)
+      )`,
+    }],
+    ['combo_products', { label: 'Combo Products', where: `p.status = 'active' AND p.is_combo = TRUE` }],
+    ['featured_products', { label: 'Featured Flag Products', where: `p.status = 'active' AND p.is_featured = TRUE` }],
+    ['popular_products', { label: 'Popular Products', where: `p.status = 'active' AND p.is_popular = TRUE` }],
+    ['new_arrivals', { label: 'New Arrivals', where: `p.status = 'active' AND p.is_new_arrival = TRUE` }],
+  ]);
+
+  private normalizeSectionKey(sectionKey?: string) {
+    const key = String(sectionKey || 'products_page').trim().toLowerCase().replace(/[^a-z0-9_]/g, '_');
+    if (!this.productOrderSections.has(key)) {
+      throw new BadRequestException('Unsupported product ordering section');
+    }
+    return key;
+  }
+
+  private sectionOrderJoin(sectionKey: string) {
+    return `LEFT JOIN product_section_orders pso ON pso.product_id = p.id AND pso.section_key = '${sectionKey.replace(/'/g, "''")}'`;
+  }
+
+  private sectionOrderClause(fallback = 'p.created_at DESC') {
+    return `CASE WHEN pso.display_order IS NULL THEN 1 ELSE 0 END, pso.display_order ASC, ${fallback}`;
+  }
+
   async findAll() {
     try {
       console.log('Starting findAll query...');
@@ -52,8 +85,11 @@ export class ProductsService {
           LIMIT 1
         ) pi ON TRUE
         LEFT JOIN categories c ON p.category_id = c.id
+        ${this.sectionOrderJoin('products_page')}
         WHERE p.status = 'active'
         ORDER BY 
+          CASE WHEN pso.display_order IS NULL THEN 1 ELSE 0 END,
+          pso.display_order ASC,
           CASE WHEN p.display_position IS NOT NULL THEN 0 ELSE 1 END,
           p.display_position ASC,
           p.created_at DESC
@@ -86,10 +122,12 @@ export class ProductsService {
     maxPrice?: number;
     inStock: boolean;
     isCombo?: boolean;
+    section?: string;
   }) {
     try {
       const { page, limit, search, category, sort, minPrice, maxPrice, inStock, isCombo } = params;
       const offset = (page - 1) * limit;
+      const sectionKey = this.normalizeSectionKey(params.section || 'products_page');
 
       const conditions: string[] = [`p.status = 'active'`];
       const queryParams: any[] = [];
@@ -151,8 +189,8 @@ export class ProductsService {
           orderClause = 'p.name_en ASC';
           break;
         default:
-          orderClause = `CASE WHEN p.display_position IS NOT NULL THEN 0 ELSE 1 END,
-            p.display_position ASC, p.created_at DESC`;
+          orderClause = this.sectionOrderClause(`CASE WHEN p.display_position IS NOT NULL THEN 0 ELSE 1 END,
+            p.display_position ASC, p.created_at DESC`);
       }
 
       // Count total matching rows
@@ -197,6 +235,7 @@ export class ProductsService {
           LIMIT 1
         ) pi ON TRUE
         LEFT JOIN categories c ON p.category_id = c.id
+        ${this.sectionOrderJoin(sectionKey)}
         WHERE ${whereClause}
         ORDER BY ${orderClause}
         LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
@@ -264,6 +303,74 @@ export class ProductsService {
       }
       return [];
     }
+  }
+
+  async getSectionOrder(sectionKeyInput: string) {
+    const sectionKey = this.normalizeSectionKey(sectionKeyInput);
+    const section = this.productOrderSections.get(sectionKey)!;
+
+    const products = await this.productsRepository.query(`
+      SELECT
+        p.id,
+        p.slug,
+        p.sku,
+        p.name_en,
+        p.name_bn,
+        p.base_price,
+        p.sale_price,
+        p.stock_quantity,
+        p.status,
+        c.name_en AS category_name,
+        COALESCE(p.image_url, pi.image_url) AS image_url,
+        pso.display_order
+      FROM products p
+      LEFT JOIN LATERAL (
+        SELECT image_url
+        FROM product_images
+        WHERE product_id = p.id
+        ORDER BY is_primary DESC, display_order ASC
+        LIMIT 1
+      ) pi ON TRUE
+      LEFT JOIN categories c ON p.category_id = c.id
+      ${this.sectionOrderJoin(sectionKey)}
+      WHERE ${section.where}
+      ORDER BY ${this.sectionOrderClause('p.created_at DESC')}
+    `);
+
+    return {
+      sectionKey,
+      label: section.label,
+      products,
+    };
+  }
+
+  async updateSectionOrder(sectionKeyInput: string, productIds: number[]) {
+    const sectionKey = this.normalizeSectionKey(sectionKeyInput);
+    const uniqueIds = Array.from(new Set(
+      (productIds || [])
+        .map((id) => Number(id))
+        .filter((id) => Number.isFinite(id) && id > 0),
+    ));
+
+    await this.productsRepository.manager.transaction(async (manager) => {
+      await manager.query(`DELETE FROM product_section_orders WHERE section_key = $1`, [sectionKey]);
+
+      for (let index = 0; index < uniqueIds.length; index += 1) {
+        await manager.query(
+          `INSERT INTO product_section_orders (section_key, product_id, display_order, updated_at)
+           VALUES ($1, $2, $3, NOW())
+           ON CONFLICT (section_key, product_id)
+           DO UPDATE SET display_order = EXCLUDED.display_order, updated_at = NOW()`,
+          [sectionKey, uniqueIds[index], index],
+        );
+      }
+    });
+
+    return {
+      success: true,
+      sectionKey,
+      total: uniqueIds.length,
+    };
   }
 
   async findAllCategories() {
@@ -521,8 +628,9 @@ export class ProductsService {
           ORDER BY is_primary DESC, display_order ASC
           LIMIT 1
         ) pi ON TRUE
+        ${this.sectionOrderJoin('popular_products')}
         WHERE is_popular = TRUE AND status = 'active'
-        ORDER BY created_at DESC
+        ORDER BY ${this.sectionOrderClause('p.created_at DESC')}
         LIMIT 8
       `);
       return results;
@@ -546,8 +654,9 @@ export class ProductsService {
           ORDER BY is_primary DESC, display_order ASC
           LIMIT 1
         ) pi ON TRUE
+        ${this.sectionOrderJoin('new_arrivals')}
         WHERE is_new_arrival = TRUE AND status = 'active'
-        ORDER BY created_at DESC
+        ORDER BY ${this.sectionOrderClause('p.created_at DESC')}
         LIMIT 8
       `);
       return results;
@@ -571,8 +680,9 @@ export class ProductsService {
           ORDER BY is_primary DESC, display_order ASC
           LIMIT 1
         ) pi ON TRUE
+        ${this.sectionOrderJoin('featured_products')}
         WHERE is_featured = TRUE AND status = 'active'
-        ORDER BY created_at DESC
+        ORDER BY ${this.sectionOrderClause('p.created_at DESC')}
         LIMIT 8
       `);
       return results;
@@ -598,8 +708,9 @@ export class ProductsService {
           LIMIT 1
         ) pi ON TRUE
         LEFT JOIN categories c ON p.category_id = c.id
+        ${this.sectionOrderJoin('combo_products')}
         WHERE p.is_combo = TRUE AND p.status = 'active'
-        ORDER BY p.display_position ASC NULLS LAST, p.created_at DESC
+        ORDER BY ${this.sectionOrderClause('p.display_position ASC NULLS LAST, p.created_at DESC')}
         LIMIT 8
       `);
       return results;
@@ -931,11 +1042,12 @@ export class ProductsService {
         FROM hot_deals hd
         JOIN products p ON hd.product_id = p.id
         LEFT JOIN categories c ON p.category_id = c.id
+        ${this.sectionOrderJoin('hot_deals')}
         WHERE hd.is_active = true
           AND p.status = 'active'
           AND (hd.start_date IS NULL OR hd.start_date <= $1)
           AND (hd.end_date IS NULL OR hd.end_date >= $1)
-        ORDER BY hd.display_order ASC, hd.created_at DESC
+        ORDER BY CASE WHEN pso.display_order IS NULL THEN 1 ELSE 0 END, pso.display_order ASC, hd.display_order ASC, hd.created_at DESC
       `, [now]);
       return deals;
     } catch (error) {

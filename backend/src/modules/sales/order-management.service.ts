@@ -2671,17 +2671,17 @@ export class OrderManagementService {
   private mapPathaoStatus(pathaoStatus: string): string {
     const s = String(pathaoStatus).toLowerCase().replace(/[^a-z0-9]/g, '');
     const map: Record<string, string> = {
-      pending: 'pending',
-      orderplaced: 'pending',
-      ordercreated: 'pending',
-      pickup: 'pickup',
-      picked: 'pickup',
-      pickedup: 'pickup',
-      pickuppending: 'pickup_pending',
-      pickuprequested: 'pickup_pending',
-      assignedforpickup: 'pickup_pending',
-      pickupassigned: 'pickup_pending',
-      pickupfailed: 'pickup_failed',
+      pending: 'sent',
+      orderplaced: 'sent',
+      ordercreated: 'sent',
+      pickup: 'picked',
+      picked: 'picked',
+      pickedup: 'picked',
+      pickuppending: 'sent',
+      pickuprequested: 'sent',
+      assignedforpickup: 'sent',
+      pickupassigned: 'sent',
+      pickupfailed: 'sent',
       atthehub: 'in_transit',
       intransit: 'in_transit',
       deliveryinprogress: 'in_transit',
@@ -2694,8 +2694,8 @@ export class OrderManagementService {
       returnintransit: 'returned',
       returntransit: 'returned',
       returnedtomerchant: 'returned',
-      onhold: 'on_hold',
-      hold: 'on_hold',
+      onhold: 'hold',
+      hold: 'hold',
       cancelled: 'cancelled',
       canceled: 'cancelled',
       partialdelivered: 'partial_delivered',
@@ -2910,7 +2910,7 @@ export class OrderManagementService {
     const orders = await this.salesOrderRepository.find({
       where: {
         courierCompany: 'Pathao',
-        status: In(['sent', 'shipped', 'pickup', 'pickup_pending', 'in_transit']),
+        status: In(['sent', 'shipped', 'picked', 'in_transit']),
       },
     });
 

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/router";
-import { FaStar, FaShoppingCart, FaEye, FaTag } from "react-icons/fa";
+import { FaShoppingCart, FaEye } from "react-icons/fa";
 import { BACKEND_ORIGIN } from "@/config/backend";
 import { useToast } from "@/contexts/ToastContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -132,7 +132,7 @@ export default function ElectroProductCard({
   };
 
   return (
-    <div className="electro-product-card bg-white border border-gray-200 rounded-lg overflow-hidden hover:shadow-xl transition-all duration-300 group relative">
+    <div className="electro-product-card bg-white border border-green-500 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-all duration-300 group relative">
       {/* Discount Badge */}
       {discountPercent && discountPercent > 0 && (
         <div className="absolute top-2 right-2 z-10">
@@ -160,8 +160,8 @@ export default function ElectroProductCard({
       </div>
 
       <Link href={productUrl}>
-        {/* Image - 1:1 Aspect Ratio for Professional E-commerce Look */}
-        <div className="relative w-full pt-[100%] bg-gray-50 overflow-hidden">
+        {/* Image */}
+        <div className="relative w-full pt-[82%] bg-gray-50 overflow-hidden">
           {resolvedImageUrl && !imageError ? (
             <Image
               src={resolvedImageUrl}
@@ -184,7 +184,7 @@ export default function ElectroProductCard({
         </div>
 
         {/* Content */}
-        <div className="py-1 px-2 sm:px-3">
+        <div className="px-3 py-3 sm:px-4">
           {/* Rating */}
           {/* <div className="flex items-center gap-1 mb-2">
             {[...Array(5)].map((_, i) => (
@@ -198,26 +198,16 @@ export default function ElectroProductCard({
           </div> */}
 
           {/* Name */}
-          <div
-            className={`text-center min-h-[2.5rem] sm:min-h-[3rem] lg:min-h-[3.5rem] ${
-              displayCategory ? "mb-1" : "mb-2 sm:mb-3"
-            }`}
-          >
-            <h3 className="text-sm sm:text-base lg:text-xl font-bold text-gray-900 group-hover:text-orange-500 transition-colors line-clamp-2">
+          <div className="mb-2 text-center min-h-[2.25rem] sm:min-h-[2.5rem]">
+            <h3 className="text-sm sm:text-base font-bold text-gray-900 group-hover:text-orange-500 transition-colors line-clamp-2">
               {displayName}
             </h3>
           </div>
 
-          {displayCategory && (
-            <div className="text-xs sm:text-sm text-gray-500 mb-2 sm:mb-3 text-center line-clamp-1">
-              {displayCategory}
-            </div>
-          )}
-
           {/* Price */}
-          <div className="mb-2 sm:mb-3 text-center">
+          <div className="text-center">
             <div className="flex items-center justify-center gap-1 sm:gap-2 mb-1">
-              <span className="text-base sm:text-lg lg:text-2xl font-bold text-orange-500">
+              <span className="text-base sm:text-lg font-bold text-orange-500">
                 ৳{priceNum.toFixed(2)}
               </span>
               {hasDiscount && originalPriceNum && (
@@ -236,7 +226,7 @@ export default function ElectroProductCard({
       </Link>
 
       {/* Add to Cart Button */}
-      <div className="px-2 sm:px-3 pb-2 sm:pb-4">
+      <div className="px-3 pb-3 sm:px-4 sm:pb-4">
         <button
           onClick={handleAddToCart}
           disabled={stock === 0}

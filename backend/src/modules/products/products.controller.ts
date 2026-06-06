@@ -29,6 +29,7 @@ export class ProductsController {
     @Query('maxPrice') maxPrice?: string,
     @Query('inStock') inStock?: string,
     @Query('is_combo') isCombo?: string,
+    @Query('section') section?: string,
   ) {
     // If page param is provided, use paginated server-side query
     if (page) {
@@ -42,6 +43,7 @@ export class ProductsController {
         maxPrice: maxPrice ? parseFloat(maxPrice) : undefined,
         inStock: inStock === 'true',
         isCombo: isCombo === 'true',
+        section: section?.trim(),
       });
     }
     // No page param — return flat array (backward compatible for homepage)
@@ -55,6 +57,21 @@ export class ProductsController {
     const products = await this.productsService.findAllAdmin();
     console.log(`Admin controller returning ${products.length} products (including inactive)`);
     return products;
+  }
+
+  @Get('admin/section-orders/:sectionKey')
+  @RequirePermissions('edit-products')
+  async getSectionOrder(@Param('sectionKey') sectionKey: string) {
+    return this.productsService.getSectionOrder(sectionKey);
+  }
+
+  @Put('admin/section-orders/:sectionKey')
+  @RequirePermissions('edit-products')
+  async updateSectionOrder(
+    @Param('sectionKey') sectionKey: string,
+    @Body() body: { productIds?: number[] },
+  ) {
+    return this.productsService.updateSectionOrder(sectionKey, body.productIds || []);
   }
 
   @Get('categories')
