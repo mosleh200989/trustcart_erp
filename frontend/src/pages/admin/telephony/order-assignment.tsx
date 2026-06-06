@@ -21,6 +21,7 @@ type AssignedOrder = {
   salesOrderNumber?: string;
   customerName?: string;
   customerPhone?: string;
+  customerTotalOrders?: number;
   shippingAddress?: string;
   status: string;
   orderSource?: string | null;
@@ -385,6 +386,7 @@ export default function TelephonyOrderAssignmentPage({ assignmentType = 'order' 
                       <th className="px-4 py-2 text-left text-xs font-medium uppercase text-gray-500">Order ID</th>
                       <th className="px-4 py-2 text-left text-xs font-medium uppercase text-gray-500">Date</th>
                       <th className="px-4 py-2 text-left text-xs font-medium uppercase text-gray-500">Customer</th>
+                      <th className="px-4 py-2 text-center text-xs font-medium uppercase text-gray-500">Order Count</th>
                       <th className="px-4 py-2 text-left text-xs font-medium uppercase text-gray-500">Status</th>
                       <th className="px-4 py-2 text-left text-xs font-medium uppercase text-gray-500">Products</th>
                       <th className="px-4 py-2 text-left text-xs font-medium uppercase text-gray-500">Address</th>
@@ -414,6 +416,11 @@ export default function TelephonyOrderAssignmentPage({ assignmentType = 'order' 
                                 </button>
                               </div>
                             )}
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <span className="inline-flex min-w-[28px] items-center justify-center rounded-full bg-indigo-100 px-1.5 py-0.5 text-xs font-semibold text-indigo-700">
+                              {order.customerTotalOrders ?? 0}
+                            </span>
                           </td>
                           <td className="px-4 py-3">
                             <span className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${getOrderStatusColor(order.status)}`}>
