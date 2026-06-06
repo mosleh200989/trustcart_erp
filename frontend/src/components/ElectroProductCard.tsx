@@ -161,7 +161,7 @@ export default function ElectroProductCard({
 
       <Link href={productUrl}>
         {/* Image */}
-        <div className="relative w-full pt-[82%] bg-gray-50 overflow-hidden">
+        <div className="relative w-full pt-[100%] bg-gray-50 overflow-hidden">
           {resolvedImageUrl && !imageError ? (
             <Image
               src={resolvedImageUrl}
@@ -198,8 +198,8 @@ export default function ElectroProductCard({
           </div> */}
 
           {/* Name */}
-          <div className="mb-2 text-center min-h-[2.25rem] sm:min-h-[2.5rem]">
-            <h3 className="text-sm sm:text-base font-bold text-gray-900 group-hover:text-orange-500 transition-colors line-clamp-2">
+          <div className="mb-2 text-center">
+            <h3 className="truncate text-sm sm:text-base font-bold text-gray-900 group-hover:text-orange-500 transition-colors">
               {displayName}
             </h3>
           </div>
