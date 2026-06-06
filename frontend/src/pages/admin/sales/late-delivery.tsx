@@ -469,21 +469,73 @@ export function SalesFollowupOrdersPage({ mode = 'late-delivery' }: { mode?: Sal
       },
     },
     {
-      key: 'items',
-      label: 'Products',
+      key: 'notes',
+      label: 'Notes',
+      className: 'min-w-[420px] w-[520px] align-top',
       render: (_: any, row: SalesOrder) => {
-        const items = row.items ?? [];
-        if (items.length === 0) return <span className="text-gray-400 text-xs">-</span>;
-        return (
-          <div className="max-w-[220px]">
-            {items.slice(0, 3).map((item, i) => (
-              <div key={i} className="text-xs text-gray-700 truncate" title={`${item.productNameBn || item.productName || 'Unknown'}${item.variantName ? ` (${item.variantName})` : ''} x${item.quantity}`}>
-                <span className="font-medium">{item.quantity}x</span>{' '}
-                {item.productNameBn || item.productName || 'Unknown'}{item.variantName ? ` (${item.variantName})` : ''}
+        const fullNote = config.noteField(row) || '';
+        const meta = parseNoteMeta(fullNote);
+        const isEditing = editingNotes[row.id] !== undefined;
+        const isSaving = savingNotes[row.id] || false;
+        const currentContent = parseNoteContent(fullNote);
+
+        if (isEditing) {
+          return (
+            <div className="flex flex-col gap-1" onClick={(e) => e.stopPropagation()}>
+              <textarea
+                value={editingNotes[row.id] ?? ''}
+                onChange={(e) => setEditingNotes((prev) => ({ ...prev, [row.id]: e.target.value }))}
+                className="min-h-[120px] w-full resize-y rounded-lg border border-gray-300 px-3 py-2 text-sm leading-relaxed text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                rows={5}
+                placeholder="Add a note..."
+                disabled={isSaving}
+              />
+              <div className="flex gap-1">
+                <button
+                  onClick={() => handleSaveNote(row.id)}
+                  disabled={isSaving}
+                  className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium text-white bg-blue-600 rounded hover:bg-blue-700 disabled:opacity-50"
+                >
+                  <FaCheck size={8} />
+                  {isSaving ? 'Saving...' : 'Save'}
+                </button>
+                <button
+                  onClick={() => setEditingNotes((prev) => { const next = { ...prev }; delete next[row.id]; return next; })}
+                  disabled={isSaving}
+                  className="px-2 py-0.5 text-xs font-medium text-gray-600 bg-gray-100 rounded hover:bg-gray-200 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
               </div>
-            ))}
-            {items.length > 3 && (
-              <div className="text-xs text-blue-600 font-medium">+{items.length - 3} more</div>
+            </div>
+          );
+        }
+
+        return (
+          <div
+            className="w-full min-w-[420px] max-w-[560px] cursor-pointer rounded-lg border border-transparent p-2 transition-colors group hover:border-yellow-200 hover:bg-yellow-50"
+            onClick={(e) => {
+              e.stopPropagation();
+              setEditingNotes((prev) => ({ ...prev, [row.id]: currentContent }));
+            }}
+            title="Click to edit note"
+          >
+            {fullNote ? (
+              <div>
+                {meta && (
+                  <div className="text-[10px] text-gray-400 mb-0.5">
+                    {meta.date} — {meta.agent}
+                  </div>
+                )}
+                <div className="flex items-start gap-1">
+                  <FaStickyNote className="text-yellow-500 mt-0.5 flex-shrink-0" size={12} />
+                  <span className="whitespace-pre-wrap break-words text-sm leading-relaxed text-gray-800">{currentContent}</span>
+                </div>
+              </div>
+            ) : (
+              <span className="text-gray-400 text-xs group-hover:text-blue-500 transition-colors">
+                + Add note
+              </span>
             )}
           </div>
         );
@@ -541,73 +593,21 @@ export function SalesFollowupOrdersPage({ mode = 'late-delivery' }: { mode?: Sal
       },
     },
     {
-      key: 'notes',
-      label: 'Notes',
-      className: 'min-w-[220px]',
+      key: 'items',
+      label: 'Products',
       render: (_: any, row: SalesOrder) => {
-        const fullNote = config.noteField(row) || '';
-        const meta = parseNoteMeta(fullNote);
-        const isEditing = editingNotes[row.id] !== undefined;
-        const isSaving = savingNotes[row.id] || false;
-        const currentContent = parseNoteContent(fullNote);
-
-        if (isEditing) {
-          return (
-            <div className="flex flex-col gap-1" onClick={(e) => e.stopPropagation()}>
-              <textarea
-                value={editingNotes[row.id] ?? ''}
-                onChange={(e) => setEditingNotes((prev) => ({ ...prev, [row.id]: e.target.value }))}
-                className="w-full text-xs border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none"
-                rows={2}
-                placeholder="Add a note..."
-                disabled={isSaving}
-              />
-              <div className="flex gap-1">
-                <button
-                  onClick={() => handleSaveNote(row.id)}
-                  disabled={isSaving}
-                  className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium text-white bg-blue-600 rounded hover:bg-blue-700 disabled:opacity-50"
-                >
-                  <FaCheck size={8} />
-                  {isSaving ? 'Saving...' : 'Save'}
-                </button>
-                <button
-                  onClick={() => setEditingNotes((prev) => { const next = { ...prev }; delete next[row.id]; return next; })}
-                  disabled={isSaving}
-                  className="px-2 py-0.5 text-xs font-medium text-gray-600 bg-gray-100 rounded hover:bg-gray-200 disabled:opacity-50"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          );
-        }
-
+        const items = row.items ?? [];
+        if (items.length === 0) return <span className="text-gray-400 text-xs">-</span>;
         return (
-          <div
-            className="max-w-[220px] cursor-pointer group"
-            onClick={(e) => {
-              e.stopPropagation();
-              setEditingNotes((prev) => ({ ...prev, [row.id]: currentContent }));
-            }}
-            title="Click to edit note"
-          >
-            {fullNote ? (
-              <div>
-                {meta && (
-                  <div className="text-[10px] text-gray-400 mb-0.5">
-                    {meta.date} — {meta.agent}
-                  </div>
-                )}
-                <div className="flex items-start gap-1">
-                  <FaStickyNote className="text-yellow-500 mt-0.5 flex-shrink-0" size={12} />
-                  <span className="text-xs text-gray-700 line-clamp-2">{currentContent}</span>
-                </div>
+          <div className="max-w-[220px]">
+            {items.slice(0, 3).map((item, i) => (
+              <div key={i} className="text-xs text-gray-700 truncate" title={`${item.productNameBn || item.productName || 'Unknown'}${item.variantName ? ` (${item.variantName})` : ''} x${item.quantity}`}>
+                <span className="font-medium">{item.quantity}x</span>{' '}
+                {item.productNameBn || item.productName || 'Unknown'}{item.variantName ? ` (${item.variantName})` : ''}
               </div>
-            ) : (
-              <span className="text-gray-400 text-xs group-hover:text-blue-500 transition-colors">
-                + Add note
-              </span>
+            ))}
+            {items.length > 3 && (
+              <div className="text-xs text-blue-600 font-medium">+{items.length - 3} more</div>
             )}
           </div>
         );
