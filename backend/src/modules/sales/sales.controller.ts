@@ -443,6 +443,20 @@ export class SalesController {
     return this.salesService.getLandingPageReport({ startDate, endDate, slug, groupBy });
   }
 
+  @Get('cross-sell-analysis')
+  @RequirePermissions('view-sales-reports')
+  async getCrossSellAnalysisReport(
+    @Query('productId') productId?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+  ) {
+    return this.salesService.getCrossSellAnalysisReport({
+      productId: productId ? parseInt(productId, 10) : undefined,
+      startDate: startDate || undefined,
+      endDate: endDate || undefined,
+    });
+  }
+
   @Get(':id')
   @RequirePermissions('view-sales-orders')
   async findOne(@Param('id') id: string) {

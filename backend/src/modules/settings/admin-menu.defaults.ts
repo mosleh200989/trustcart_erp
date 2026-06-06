@@ -79,6 +79,7 @@ export const DEFAULT_ADMIN_MENU: AdminMenuSeedNode[] = [
         ],
       },
       { title: 'Sales Reports', icon: 'FaChartBar', path: '/admin/reports?tab=sales', requiredPermissions: ['view-sales-reports'] },
+      { title: 'Cross Sell Analysis', icon: 'FaChartBar', path: '/admin/reports/cross-sell-analysis', requiredPermissions: ['view-sales-reports'] },
       {
         title: 'Customer Reports',
         icon: 'FaChartBar',

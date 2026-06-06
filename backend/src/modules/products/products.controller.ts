@@ -110,7 +110,7 @@ export class ProductsController {
   }
 
   @Get('admin/search')
-  @RequireAnyPermission('view-products', 'view-sales-orders', 'create-sales-orders', 'edit-sales-orders', 'manage-landing-pages', 'create-coupons')
+  @RequireAnyPermission('view-products', 'view-sales-orders', 'create-sales-orders', 'edit-sales-orders', 'manage-landing-pages', 'create-coupons', 'view-sales-reports')
   async searchAdmin(@Query('q') query: string) {
     if (!query || query.trim() === '') {
       return [];

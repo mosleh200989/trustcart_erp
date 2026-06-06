@@ -3919,14 +3919,54 @@ export class SalesService {
     }
 
     // ──── 7) Overall totals ────
-    const agents = agentRows.map((r: any) => {
-      const cs = crossSellMap.get(toNum(r.agent_id)) || { qty: 0, orders: 0 };
+    const agentRowMap = new Map<number, any>();
+    const agentIds = new Set<number>();
+
+    for (const row of agentRows) {
+      const agentId = toNum(row.agent_id);
+      if (agentId > 0) {
+        agentRowMap.set(agentId, row);
+        agentIds.add(agentId);
+      }
+    }
+    for (const agentId of crossSellMap.keys()) {
+      if (agentId > 0) agentIds.add(agentId);
+    }
+    for (const agentId of prodQtyMap.keys()) {
+      if (agentId > 0) agentIds.add(agentId);
+    }
+    for (const agentId of convRateMap.keys()) {
+      if (agentId > 0) agentIds.add(agentId);
+    }
+
+    const agentNameRows: any[] = agentIds.size
+      ? await this.salesRepository.manager.query(
+          `SELECT id, name, last_name, email
+           FROM users
+           WHERE id = ANY($1::int[])`,
+          [Array.from(agentIds)],
+        )
+      : [];
+    const agentNameMap = new Map<number, any>();
+    for (const row of agentNameRows) {
+      agentNameMap.set(toNum(row.id), row);
+    }
+
+    const agents = Array.from(agentIds).map((agentId) => {
+      const r = agentRowMap.get(agentId) || {};
+      const userRow = agentNameMap.get(agentId) || {};
+      const cs = crossSellMap.get(agentId) || { qty: 0, orders: 0 };
       const totalOrders = toNum(r.total_orders);
-      const productsQty = prodQtyMap.get(toNum(r.agent_id)) || 0;
+      const productsQty = prodQtyMap.get(agentId) || 0;
       const upsellQty = Math.max(0, productsQty - totalOrders);
+      const agentName = [
+        r.agent_name ?? userRow.name,
+        r.agent_last_name ?? userRow.last_name,
+      ].filter(Boolean).join(' ').trim() || userRow.email || `Agent #${agentId}`;
+
       return {
-        agentId: toNum(r.agent_id),
-        agentName: [r.agent_name, r.agent_last_name].filter(Boolean).join(' ') || `Agent #${r.agent_id}`,
+        agentId,
+        agentName,
         totalOrders,
         totalRevenue: toNum(r.total_revenue),
         avgOrderValue: toNum(r.avg_order_value),
@@ -3942,12 +3982,17 @@ export class SalesService {
         deliveredOrders: toNum(r.delivered_orders),
         rejectedOrders: toNum(r.rejected_orders),
         cancelledOrders: toNum(r.cancelled_orders),
-        conversionRate: convRateMap.get(toNum(r.agent_id)) || 0,
+        conversionRate: convRateMap.get(agentId) || 0,
         cancelRate: toNum(r.total_orders) > 0
           ? Math.round((toNum(r.cancelled_orders) / toNum(r.total_orders)) * 100)
           : 0,
       };
-    });
+    }).sort((a, b) =>
+      b.totalOrders - a.totalOrders
+      || b.upsellQty - a.upsellQty
+      || b.crossSellQty - a.crossSellQty
+      || a.agentName.localeCompare(b.agentName)
+    );
 
     const totalSummary = {
       totalOrders: agents.reduce((s, a) => s + a.totalOrders, 0),
@@ -4626,6 +4671,153 @@ export class SalesService {
       })),
       crossSellProducts: Array.from(crossSellProductMap.values())
         .sort((a, b) => b.totalQty - a.totalQty),
+    };
+  }
+
+  async getCrossSellAnalysisReport(params: {
+    productId?: number;
+    startDate?: string;
+    endDate?: string;
+  }) {
+    const toNum = (value: any) => Number(value || 0);
+    const productId = Number(params.productId);
+    if (!Number.isFinite(productId) || productId <= 0) {
+      throw new BadRequestException('A valid productId is required');
+    }
+
+    const productRows = await this.salesRepository.manager.query(
+      `SELECT id, slug, sku, product_code, name_en, name_bn, image_url
+       FROM products
+       WHERE id = $1
+       LIMIT 1`,
+      [productId],
+    );
+    const selectedProduct = productRows[0];
+    if (!selectedProduct) {
+      throw new NotFoundException('Selected product not found');
+    }
+
+    const values: any[] = [productId];
+    const deliveredDateExpr = `DATE(COALESCE(o.delivered_at, o.order_date::timestamp, o.created_at AT TIME ZONE '${this.dhakaTimeZone}'))`;
+    const dateConditions: string[] = [];
+    if (params.startDate) {
+      values.push(params.startDate);
+      dateConditions.push(`${deliveredDateExpr} >= $${values.length}`);
+    }
+    if (params.endDate) {
+      values.push(params.endDate);
+      dateConditions.push(`${deliveredDateExpr} <= $${values.length}`);
+    }
+    const dateFilter = dateConditions.length ? `AND ${dateConditions.join(' AND ')}` : '';
+
+    const selectedOrdersCte = `
+      WITH selected_orders AS (
+        SELECT DISTINCT o.id
+        FROM sales_orders o
+        WHERE LOWER(o.status::text) = 'delivered'
+          ${dateFilter}
+          AND (
+            EXISTS (
+              SELECT 1
+              FROM sales_order_items soi
+              WHERE soi.sales_order_id = o.id
+                AND soi.product_id = $1
+            )
+            OR EXISTS (
+              SELECT 1
+              FROM order_items base_oi
+              WHERE base_oi.order_id = o.id
+                AND base_oi.product_id = $1
+                AND COALESCE(base_oi.is_cross_sell, false) = false
+            )
+          )
+      )
+    `;
+
+    const summaryRows = await this.salesRepository.manager.query(
+      `${selectedOrdersCte}
+       SELECT
+         (SELECT COUNT(*) FROM selected_orders)::int AS selected_delivered_orders,
+         COUNT(DISTINCT oi.order_id)::int AS cross_sell_orders,
+         COALESCE(SUM(oi.quantity), 0)::numeric AS cross_sell_qty,
+         COALESCE(SUM(oi.subtotal), 0)::numeric AS cross_sell_revenue
+       FROM selected_orders so
+       LEFT JOIN order_items oi
+         ON oi.order_id = so.id
+        AND COALESCE(oi.is_cross_sell, false) = true
+        AND COALESCE(oi.product_id, 0) <> $1`,
+      values,
+    );
+
+    const rows = await this.salesRepository.manager.query(
+      `${selectedOrdersCte}
+       SELECT
+         oi.product_id AS product_id,
+         COALESCE(NULLIF(p.name_en, ''), NULLIF(oi.product_name, ''), NULLIF(oi.custom_product_name, ''), 'Unknown Product') AS product_name,
+         p.slug,
+         p.sku,
+         p.image_url,
+         COUNT(DISTINCT oi.order_id)::int AS total_orders,
+         COALESCE(SUM(oi.quantity), 0)::numeric AS total_qty,
+         COALESCE(SUM(oi.subtotal), 0)::numeric AS total_revenue
+       FROM selected_orders so
+       INNER JOIN order_items oi
+         ON oi.order_id = so.id
+        AND COALESCE(oi.is_cross_sell, false) = true
+        AND COALESCE(oi.product_id, 0) <> $1
+       LEFT JOIN products p ON p.id = oi.product_id
+       GROUP BY
+         oi.product_id,
+         COALESCE(NULLIF(p.name_en, ''), NULLIF(oi.product_name, ''), NULLIF(oi.custom_product_name, ''), 'Unknown Product'),
+         p.slug,
+         p.sku,
+         p.image_url
+       ORDER BY total_qty DESC, total_orders DESC, product_name ASC`,
+      values,
+    );
+
+    const summary = summaryRows[0] || {};
+    const selectedDeliveredOrders = toNum(summary.selected_delivered_orders);
+
+    return {
+      productId,
+      startDate: params.startDate || null,
+      endDate: params.endDate || null,
+      selectedProduct: {
+        id: toNum(selectedProduct.id),
+        name: selectedProduct.name_en || selectedProduct.name_bn || selectedProduct.sku || `Product #${productId}`,
+        nameBn: selectedProduct.name_bn || null,
+        slug: selectedProduct.slug || null,
+        sku: selectedProduct.sku || selectedProduct.product_code || null,
+        imageUrl: selectedProduct.image_url || null,
+      },
+      summary: {
+        selectedDeliveredOrders,
+        crossSellOrders: toNum(summary.cross_sell_orders),
+        crossSellQty: toNum(summary.cross_sell_qty),
+        crossSellRevenue: toNum(summary.cross_sell_revenue),
+        attachRate: selectedDeliveredOrders > 0
+          ? Math.round((toNum(summary.cross_sell_orders) / selectedDeliveredOrders) * 100)
+          : 0,
+      },
+      products: rows.map((row: any) => {
+        const totalOrders = toNum(row.total_orders);
+        const totalQty = toNum(row.total_qty);
+        return {
+          productId: row.product_id == null ? null : toNum(row.product_id),
+          productName: row.product_name || 'Unknown Product',
+          slug: row.slug || null,
+          sku: row.sku || null,
+          imageUrl: row.image_url || null,
+          totalOrders,
+          totalQty,
+          totalRevenue: toNum(row.total_revenue),
+          attachRate: selectedDeliveredOrders > 0
+            ? Math.round((totalOrders / selectedDeliveredOrders) * 100)
+            : 0,
+          avgQtyPerOrder: totalOrders > 0 ? Number((totalQty / totalOrders).toFixed(2)) : 0,
+        };
+      }),
     };
   }
 }
