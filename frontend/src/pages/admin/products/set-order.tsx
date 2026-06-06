@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
 import AdminLayout from '@/layouts/AdminLayout';
 import apiClient from '@/services/api';
@@ -48,6 +48,8 @@ export default function ProductSetOrderPage() {
   const [draggedId, setDraggedId] = useState<number | null>(null);
   const [search, setSearch] = useState('');
   const [dirty, setDirty] = useState(false);
+  const autoScrollDirectionRef = useRef(0);
+  const autoScrollFrameRef = useRef<number | null>(null);
 
   const sectionMeta = SECTIONS.find((section) => section.key === activeSection) || SECTIONS[0];
 
@@ -68,6 +70,47 @@ export default function ProductSetOrderPage() {
   useEffect(() => {
     loadSection(activeSection);
   }, [activeSection]);
+
+  useEffect(() => {
+    return () => stopAutoScroll();
+  }, []);
+
+  const stopAutoScroll = () => {
+    autoScrollDirectionRef.current = 0;
+    if (autoScrollFrameRef.current != null) {
+      window.cancelAnimationFrame(autoScrollFrameRef.current);
+      autoScrollFrameRef.current = null;
+    }
+  };
+
+  const runAutoScroll = () => {
+    const direction = autoScrollDirectionRef.current;
+    if (!direction) {
+      autoScrollFrameRef.current = null;
+      return;
+    }
+
+    window.scrollBy({ top: direction * 18, behavior: 'auto' });
+    autoScrollFrameRef.current = window.requestAnimationFrame(runAutoScroll);
+  };
+
+  const updateAutoScroll = (clientY: number) => {
+    const edgeSize = Math.min(140, Math.max(80, window.innerHeight * 0.16));
+    const bottomEdge = window.innerHeight - edgeSize;
+    let nextDirection = 0;
+
+    if (clientY < edgeSize) nextDirection = -1;
+    else if (clientY > bottomEdge) nextDirection = 1;
+
+    autoScrollDirectionRef.current = nextDirection;
+    if (nextDirection && autoScrollFrameRef.current == null) {
+      autoScrollFrameRef.current = window.requestAnimationFrame(runAutoScroll);
+    }
+    if (!nextDirection && autoScrollFrameRef.current != null) {
+      window.cancelAnimationFrame(autoScrollFrameRef.current);
+      autoScrollFrameRef.current = null;
+    }
+  };
 
   const visibleProducts = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -197,12 +240,19 @@ export default function ProductSetOrderPage() {
                       key={product.id}
                       draggable
                       onDragStart={() => setDraggedId(product.id)}
-                      onDragOver={(event) => event.preventDefault()}
+                      onDragOver={(event) => {
+                        event.preventDefault();
+                        updateAutoScroll(event.clientY);
+                      }}
                       onDrop={() => {
                         if (draggedId != null) moveProduct(draggedId, product.id);
                         setDraggedId(null);
+                        stopAutoScroll();
                       }}
-                      onDragEnd={() => setDraggedId(null)}
+                      onDragEnd={() => {
+                        setDraggedId(null);
+                        stopAutoScroll();
+                      }}
                       className={`grid grid-cols-[auto_56px_1fr_auto] items-center gap-3 rounded-lg border bg-white p-3 transition-shadow ${
                         draggedId === product.id ? 'border-green-500 shadow-md' : 'border-gray-200 hover:shadow-sm'
                       }`}
