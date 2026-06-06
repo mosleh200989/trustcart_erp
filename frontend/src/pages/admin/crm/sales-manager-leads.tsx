@@ -271,7 +271,10 @@ const SalesManagerLeadAssignment = () => {
   const supervisorName = (id: number | null) => {
     if (!id) return <span className="text-gray-400 text-xs">Unassigned</span>;
     const tl = teamLeaders.find(t => t.id === id);
-    return <span className="text-xs text-indigo-700 font-medium">{tl?.name || `TL #${id}`}</span>;
+    if (!tl) {
+      return <span className="text-xs text-red-700 font-medium">Invalid / deleted TL</span>;
+    }
+    return <span className="text-xs text-indigo-700 font-medium">{tl.name}</span>;
   };
 
   return (
@@ -692,7 +695,7 @@ const SalesManagerLeadAssignment = () => {
                 <div className="text-sm text-gray-500">{assignModalLead.phone}</div>
                 {assignModalLead.assigned_supervisor_id && (
                   <div className="text-xs text-indigo-600 mt-1">
-                    Currently: {teamLeaders.find(t => t.id === assignModalLead.assigned_supervisor_id)?.name || `TL #${assignModalLead.assigned_supervisor_id}`}
+                    Currently: {teamLeaders.find(t => t.id === assignModalLead.assigned_supervisor_id)?.name || 'Invalid / deleted TL'}
                   </div>
                 )}
               </div>

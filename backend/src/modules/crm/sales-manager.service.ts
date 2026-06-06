@@ -23,7 +23,7 @@ export class SalesManagerService {
   /**
    * Get all team leaders under the Sales Manager's oversight
    */
-  private async getTeamLeaders(): Promise<User[]> {
+  private async getTeamLeaderRoleId(): Promise<number | null> {
     const tlRole = await this.usersRepository.manager
       .createQueryBuilder()
       .select('r.id', 'id')
@@ -34,17 +34,47 @@ export class SalesManagerService {
       })
       .getRawOne();
 
-    if (!tlRole) return [];
+    return tlRole?.id ? Number(tlRole.id) : null;
+  }
+
+  private async getTeamLeaders(): Promise<User[]> {
+    const tlRoleId = await this.getTeamLeaderRoleId();
+
+    if (!tlRoleId) return [];
 
     return await this.usersRepository.find({
-      where: { roleId: tlRole.id, status: 'active' as any },
+      where: { roleId: tlRoleId, status: 'active' as any, isDeleted: false } as any,
     });
+  }
+
+  private async cleanupInvalidTeamLeaderAssignments(): Promise<number> {
+    const tlRoleId = await this.getTeamLeaderRoleId();
+    if (!tlRoleId) return 0;
+
+    const result = await this.customerRepository.query(
+      `UPDATE customers c
+       SET assigned_supervisor_id = NULL,
+           updated_at = NOW()
+       WHERE c.assigned_supervisor_id IS NOT NULL
+         AND NOT EXISTS (
+           SELECT 1
+           FROM users u
+           WHERE u.id = c.assigned_supervisor_id
+             AND u.role_id = $1
+             AND u.status = 'active'
+             AND COALESCE(u.is_deleted, false) = false
+         )`,
+      [tlRoleId],
+    );
+
+    return Number(result?.[1] || 0);
   }
 
   /**
    * Main dashboard data for Sales Manager
    */
   async getDashboard() {
+    await this.cleanupInvalidTeamLeaderAssignments();
     const teamLeaders = await this.getTeamLeaders();
     const tlIds = teamLeaders.map(tl => tl.id);
 
@@ -70,7 +100,7 @@ export class SalesManagerService {
     const teamLeaderStats = [];
     for (const tl of teamLeaders) {
       // Customers under this TL
-      const agentIds = (await this.usersRepository.find({ where: { teamLeaderId: tl.id } })).map(u => u.id);
+      const agentIds = (await this.usersRepository.find({ where: { teamLeaderId: tl.id, status: 'active' as any, isDeleted: false } as any })).map(u => u.id);
       const allAgentIds = agentIds.length > 0 ? agentIds : [0]; // prevent IN () error
 
       const totalCustQb = this.customerRepository.createQueryBuilder('c')
@@ -195,6 +225,8 @@ export class SalesManagerService {
    * Supports large page sizes (200, 500, 750, 1000, 2000)
    */
   async getUnassignedLeads(query: any) {
+    await this.cleanupInvalidTeamLeaderAssignments();
+
     const page = parseInt(query.page) || 1;
     const allowedLimits = [20, 200, 500, 750, 1000, 2000];
     const requestedLimit = parseInt(query.limit) || 200;
@@ -411,6 +443,7 @@ export class SalesManagerService {
    * Get all team leaders list with summary info
    */
   async getTeamLeadersForManager() {
+    await this.cleanupInvalidTeamLeaderAssignments();
     const teamLeaders = await this.getTeamLeaders();
     return teamLeaders.map(tl => ({
       id: tl.id,
