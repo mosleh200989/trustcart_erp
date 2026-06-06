@@ -104,7 +104,10 @@ export class UsersService {
 
     if (isBeingDeactivated) {
       const result = await this.dataSource.query(
-        `UPDATE customers SET assigned_to = NULL WHERE assigned_to = $1`,
+        `UPDATE customers
+         SET assigned_to = NULL,
+             assigned_supervisor_id = CASE WHEN assigned_supervisor_id = $1 THEN NULL ELSE assigned_supervisor_id END
+         WHERE assigned_to = $1 OR assigned_supervisor_id = $1`,
         [id],
       );
       unassignedCount = result?.[1] ?? 0;
@@ -124,9 +127,13 @@ export class UsersService {
       throw new NotFoundException('User not found');
     }
 
-    // Unassign all customers before deactivating
+    // Unassign all customers before deactivating. Team leaders are stored in
+    // assigned_supervisor_id, while sales executives are stored in assigned_to.
     const result = await this.dataSource.query(
-      `UPDATE customers SET assigned_to = NULL WHERE assigned_to = $1`,
+      `UPDATE customers
+       SET assigned_to = NULL,
+           assigned_supervisor_id = CASE WHEN assigned_supervisor_id = $1 THEN NULL ELSE assigned_supervisor_id END
+       WHERE assigned_to = $1 OR assigned_supervisor_id = $1`,
       [id],
     );
     const unassignedCount = result?.[1] ?? 0;
