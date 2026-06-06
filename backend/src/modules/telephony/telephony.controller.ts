@@ -109,6 +109,20 @@ export class TelephonyController {
     return this.telephonyService.updateOrderAssignmentOutcome(Number((req as any).user?.id), Number(orderId), body);
   }
 
+  @Get('order-assignments/:orderId/call-history')
+  @UseGuards(JwtAuthGuard)
+  async listOrderAssignmentCallHistory(
+    @Req() req: ExpressRequest,
+    @Param('orderId') orderId: string,
+    @Query('assignmentType') assignmentType?: string,
+  ) {
+    return this.telephonyService.listOrderAssignmentCallHistory(
+      Number((req as any).user?.id),
+      Number(orderId),
+      assignmentType,
+    );
+  }
+
   @Post('order-assignments/:orderId/unreachable-handoff')
   @UseGuards(JwtAuthGuard)
   async handoffUnreachableOrderAssignment(

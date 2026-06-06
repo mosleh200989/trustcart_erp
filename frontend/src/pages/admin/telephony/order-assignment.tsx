@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { FaCalendarAlt, FaCheckCircle, FaCopy, FaPhone, FaShare, FaSms, FaSyncAlt, FaWhatsapp } from 'react-icons/fa';
+import { FaCalendarAlt, FaCheckCircle, FaCopy, FaHistory, FaPhone, FaShare, FaSms, FaSyncAlt, FaWhatsapp } from 'react-icons/fa';
 import AdminLayout from '@/layouts/AdminLayout';
 import PageSizeSelector from '@/components/admin/PageSizeSelector';
 import ProductAutocomplete from '@/components/admin/ProductAutocomplete';
@@ -31,7 +31,22 @@ type AssignedOrder = {
   outcome?: string | null;
   suggestion?: string | null;
   notes?: string | null;
+  lastCallLog?: AssignmentCallLog | null;
   items?: Array<{ productName: string; productNameBn?: string | null; variantName?: string | null; quantity: number }>;
+};
+
+type AssignmentCallLog = {
+  id: number;
+  recordType?: string;
+  assignmentType?: string | null;
+  orderId: number;
+  callerUserId?: number | null;
+  callerName?: string | null;
+  outcome?: string | null;
+  suggestion?: string | null;
+  notes: string;
+  calledAt?: string | null;
+  createdAt?: string | null;
 };
 
 type AssignmentType = 'order' | 'incomplete' | 'cancelled' | 'rejected';
@@ -115,6 +130,9 @@ export default function TelephonyOrderAssignmentPage({ assignmentType = 'order' 
   const [callActionOutcome, setCallActionOutcome] = useState<CallOutcome>('');
   const [savingCallAction, setSavingCallAction] = useState(false);
   const [handoffOrderId, setHandoffOrderId] = useState<number | null>(null);
+  const [historyOrder, setHistoryOrder] = useState<AssignedOrder | null>(null);
+  const [callHistory, setCallHistory] = useState<AssignmentCallLog[]>([]);
+  const [loadingCallHistory, setLoadingCallHistory] = useState(false);
 
   const loadOrders = async (nextPage = page, nextLimit = limit, filters = appliedFilters) => {
     setLoading(true);
@@ -166,7 +184,7 @@ export default function TelephonyOrderAssignmentPage({ assignmentType = 'order' 
     setSelectedOrder(order);
     setCallActionFollowUpDate('');
     setCallActionFollowUpTime('');
-    setCallActionNotes(order.notes || '');
+    setCallActionNotes('');
     setCallActionProductSuggestion(order.suggestion || '');
     setCallActionOutcome((order.outcome as CallOutcome) || '');
   };
@@ -178,6 +196,42 @@ export default function TelephonyOrderAssignmentPage({ assignmentType = 'order' 
     setCallActionNotes('');
     setCallActionProductSuggestion('');
     setCallActionOutcome('');
+  };
+
+  const getPreviousCallLog = (order: AssignedOrder | null): AssignmentCallLog | null => {
+    if (!order) return null;
+    if (order.lastCallLog) return order.lastCallLog;
+    if (!order.notes) return null;
+    return {
+      id: 0,
+      orderId: order.id,
+      callerName: 'Unknown caller',
+      notes: order.notes,
+      outcome: order.outcome,
+      suggestion: order.suggestion,
+      calledAt: order.calledAt,
+    };
+  };
+
+  const openCallHistory = async (order: AssignedOrder) => {
+    setHistoryOrder(order);
+    setCallHistory([]);
+    setLoadingCallHistory(true);
+    try {
+      const res = await apiClient.get(`/telephony/order-assignments/${order.id}/call-history`, {
+        params: { assignmentType },
+      });
+      setCallHistory(Array.isArray(res.data) ? res.data : []);
+    } catch (e: any) {
+      toast.error(e?.response?.data?.message || 'Failed to load call history');
+    } finally {
+      setLoadingCallHistory(false);
+    }
+  };
+
+  const closeCallHistory = () => {
+    setHistoryOrder(null);
+    setCallHistory([]);
   };
 
   const handleSubmitCallAction = async () => {
@@ -457,6 +511,13 @@ export default function TelephonyOrderAssignmentPage({ assignmentType = 'order' 
                               >
                                 <FaPhone size={10} /> Log Call
                               </button>
+                              <button
+                                type="button"
+                                className="flex items-center gap-1 rounded border border-purple-200 px-3 py-1.5 text-xs font-medium text-purple-700 hover:bg-purple-50"
+                                onClick={() => openCallHistory(order)}
+                              >
+                                <FaHistory size={10} /> History
+                              </button>
                               {assignmentType === 'order' && order.recordType !== 'incomplete_order' && order.canHandoffNoAnswer && (
                                 <button
                                   type="button"
@@ -523,12 +584,22 @@ export default function TelephonyOrderAssignmentPage({ assignmentType = 'order' 
                 </div>
 
                 <div>
-                  {selectedOrder.notes && (
-                    <div className="mb-2 rounded-lg border border-blue-200 bg-blue-50 p-2">
-                      <span className="text-xs font-medium text-blue-700">Previous Call Note:</span>
-                      <p className="mt-0.5 text-sm text-blue-900">{selectedOrder.notes}</p>
-                    </div>
-                  )}
+                  {(() => {
+                    const previousLog = getPreviousCallLog(selectedOrder);
+                    if (!previousLog) return null;
+                    return (
+                      <div className="mb-2 rounded-lg border border-blue-200 bg-blue-50 p-3">
+                        <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                          <span className="text-xs font-semibold text-blue-700">Previous Call</span>
+                          <span className="text-xs text-blue-700">
+                            {previousLog.callerName || 'Unknown caller'}
+                            {previousLog.calledAt && ` · ${formatDate(previousLog.calledAt)}`}
+                          </span>
+                        </div>
+                        <p className="mt-1 text-sm text-blue-950">{previousLog.notes}</p>
+                      </div>
+                    );
+                  })()}
                   <label className="mb-1 block text-sm font-medium text-gray-700">
                     Call Notes <span className="text-red-500">*</span>
                   </label>
@@ -605,6 +676,66 @@ export default function TelephonyOrderAssignmentPage({ assignmentType = 'order' 
                   Cancel
                 </button>
               </div>
+            </div>
+          </div>
+        )}
+
+        {historyOrder && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
+            <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg bg-white p-6 shadow-xl">
+              <div className="mb-4 flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="flex items-center gap-2 text-xl font-bold text-gray-800">
+                    <FaHistory className="text-purple-600" />
+                    Call History
+                  </h3>
+                  <p className="mt-1 text-sm text-gray-600">
+                    {historyOrder.customerName || `Order #${historyOrder.id}`}
+                    {historyOrder.customerPhone && <span className="ml-2 text-gray-500">({historyOrder.customerPhone})</span>}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={closeCallHistory}
+                  className="rounded-lg bg-gray-100 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-200"
+                >
+                  Close
+                </button>
+              </div>
+
+              {loadingCallHistory ? (
+                <div className="rounded-lg border border-gray-200 p-6 text-center text-sm text-gray-500">
+                  Loading call history...
+                </div>
+              ) : callHistory.length === 0 ? (
+                <div className="rounded-lg border border-gray-200 p-6 text-center text-sm text-gray-500">
+                  No call history found.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {callHistory.map((log) => (
+                    <div key={log.id} className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+                      <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                          <div className="font-semibold text-gray-900">{log.callerName || 'Unknown caller'}</div>
+                          <div className="text-xs text-gray-500">{log.calledAt ? formatDate(log.calledAt) : 'Unknown time'}</div>
+                        </div>
+                        {log.outcome && (
+                          <span className="inline-flex w-fit rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700">
+                            {OUTCOMES.find((o) => o.value === log.outcome)?.label || log.outcome.replace(/_/g, ' ')}
+                          </span>
+                        )}
+                      </div>
+                      <p className="mt-3 whitespace-pre-wrap text-sm text-gray-800">{log.notes}</p>
+                      {log.suggestion && (
+                        <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-2 text-sm text-amber-900">
+                          <span className="font-medium">Suggestion:</span> {log.suggestion}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         )}
