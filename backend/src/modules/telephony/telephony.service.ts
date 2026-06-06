@@ -349,6 +349,7 @@ export class TelephonyService {
 
     const [orders, total] = await qb.skip(skip).take(safeLimit).getManyAndCount();
     const itemsByOrderId = await this.fetchOrderItems(orders.map((order) => order.id));
+    const latestLogsByOrderId = await this.fetchLatestAssignmentCallLogs('sales_order', orders.map((order) => order.id));
 
     return {
       data: orders.map((order) => {
@@ -380,6 +381,7 @@ export class TelephonyService {
           outcome: order.telephonyOutcome,
           suggestion: order.telephonySuggestion,
           notes: order.telephonyNotes,
+          lastCallLog: latestLogsByOrderId.get(order.id) || null,
           items: itemsByOrderId.get(order.id) || [],
         };
       }),
@@ -503,6 +505,7 @@ export class TelephonyService {
     );
 
     const total = Number(countRows[0]?.count || 0);
+    const latestLogsByOrderId = await this.fetchLatestAssignmentCallLogs('incomplete_order', rows.map((row: any) => Number(row.id)));
     return {
       data: rows.map((row: any) => ({
         id: Number(row.id),
@@ -521,6 +524,7 @@ export class TelephonyService {
         outcome: row.telephony_outcome,
         suggestion: row.telephony_suggestion,
         notes: row.telephony_notes || row.note,
+        lastCallLog: latestLogsByOrderId.get(Number(row.id)) || null,
         items: this.parseIncompleteOrderItems(row.cart_data),
       })),
       total,
@@ -576,6 +580,110 @@ export class TelephonyService {
     return map;
   }
 
+  private async getCallerDisplayName(userId: number): Promise<string> {
+    const rows = await this.salesOrderRepo.manager.query(
+      `SELECT name, last_name, email FROM users WHERE id = $1 LIMIT 1`,
+      [userId],
+    );
+    const user = rows?.[0];
+    const fullName = [user?.name, user?.last_name].filter(Boolean).join(' ').trim();
+    return fullName || user?.email || `User #${userId}`;
+  }
+
+  private async recordAssignmentCallLog(params: {
+    recordType: 'sales_order' | 'incomplete_order';
+    assignmentType?: string;
+    orderId: number;
+    callerUserId: number;
+    outcome?: string | null;
+    suggestion?: string | null;
+    notes?: string | null;
+  }) {
+    const notes = String(params.notes || '').trim();
+    if (!notes) return null;
+    const callerName = await this.getCallerDisplayName(params.callerUserId);
+    const rows = await this.salesOrderRepo.manager.query(
+      `INSERT INTO telephony_assignment_call_logs
+        (record_type, assignment_type, order_id, caller_user_id, caller_name, outcome, suggestion, notes, called_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+       RETURNING id, record_type, assignment_type, order_id, caller_user_id, caller_name, outcome, suggestion, notes, called_at, created_at`,
+      [
+        params.recordType,
+        params.assignmentType || null,
+        params.orderId,
+        params.callerUserId,
+        callerName,
+        params.outcome || null,
+        params.suggestion || null,
+        notes,
+      ],
+    );
+    return rows?.[0] || null;
+  }
+
+  private mapAssignmentCallLog(row: any) {
+    if (!row) return null;
+    return {
+      id: Number(row.id),
+      recordType: row.record_type,
+      assignmentType: row.assignment_type,
+      orderId: Number(row.order_id),
+      callerUserId: row.caller_user_id != null ? Number(row.caller_user_id) : null,
+      callerName: row.caller_name || 'Unknown caller',
+      outcome: row.outcome,
+      suggestion: row.suggestion,
+      notes: row.notes,
+      calledAt: row.called_at,
+      createdAt: row.created_at,
+    };
+  }
+
+  private async fetchLatestAssignmentCallLogs(recordType: 'sales_order' | 'incomplete_order', orderIds: number[]) {
+    const map = new Map<number, any>();
+    if (orderIds.length === 0) return map;
+    const rows = await this.salesOrderRepo.manager.query(
+      `SELECT DISTINCT ON (record_type, order_id)
+          id, record_type, assignment_type, order_id, caller_user_id, caller_name, outcome, suggestion, notes, called_at, created_at
+       FROM telephony_assignment_call_logs
+       WHERE record_type = $1
+         AND order_id = ANY($2::int[])
+       ORDER BY record_type, order_id, called_at DESC, id DESC`,
+      [recordType, orderIds],
+    );
+    for (const row of rows || []) {
+      map.set(Number(row.order_id), this.mapAssignmentCallLog(row));
+    }
+    return map;
+  }
+
+  async listOrderAssignmentCallHistory(userId: number, orderId: number, assignmentType?: string) {
+    const normalizedType = String(assignmentType || 'order').trim().toLowerCase();
+    const recordType: 'sales_order' | 'incomplete_order' = normalizedType === 'incomplete' ? 'incomplete_order' : 'sales_order';
+
+    const ownerRows = recordType === 'incomplete_order'
+      ? await this.salesOrderRepo.manager.query(
+          `SELECT id FROM incomplete_orders WHERE id = $1 AND assigned_to = $2 LIMIT 1`,
+          [orderId, userId],
+        )
+      : await this.salesOrderRepo.manager.query(
+          `SELECT id FROM sales_orders WHERE id = $1 AND assigned_to = $2 LIMIT 1`,
+          [orderId, userId],
+        );
+
+    if (!ownerRows?.length) throw new NotFoundException('Assigned order not found');
+
+    const rows = await this.salesOrderRepo.manager.query(
+      `SELECT id, record_type, assignment_type, order_id, caller_user_id, caller_name, outcome, suggestion, notes, called_at, created_at
+       FROM telephony_assignment_call_logs
+       WHERE record_type = $1
+         AND order_id = $2
+       ORDER BY called_at DESC, id DESC`,
+      [recordType, orderId],
+    );
+
+    return (rows || []).map((row: any) => this.mapAssignmentCallLog(row));
+  }
+
   async updateOrderAssignmentOutcome(userId: number, orderId: number, body: {
     assignmentType?: string;
     outcome?: string;
@@ -598,6 +706,15 @@ export class TelephonyService {
         [orderId, userId, body.outcome || null, body.suggestion || null, body.notes || null],
       );
       if (!result?.[1]) throw new NotFoundException('Assigned incomplete order not found');
+      await this.recordAssignmentCallLog({
+        recordType: 'incomplete_order',
+        assignmentType: 'incomplete',
+        orderId,
+        callerUserId: userId,
+        outcome: body.outcome || null,
+        suggestion: body.suggestion || null,
+        notes: body.notes || null,
+      });
       return { success: true, orderId };
     }
 
@@ -633,6 +750,16 @@ export class TelephonyService {
         );
 
     if (!result?.[1]) throw new NotFoundException('Assigned order not found');
+
+    await this.recordAssignmentCallLog({
+      recordType: 'sales_order',
+      assignmentType: body.assignmentType || 'order',
+      orderId,
+      callerUserId: userId,
+      outcome: body.outcome || null,
+      suggestion: body.suggestion || null,
+      notes: body.notes || null,
+    });
 
     if (shouldMoveToUnreachableQueue) {
       await this.salesService.runAutomaticAssignmentQueue({
@@ -680,6 +807,16 @@ export class TelephonyService {
     if (!result?.[1]) {
       throw new NotFoundException('Processing primary-lead assignment not found');
     }
+
+    await this.recordAssignmentCallLog({
+      recordType: 'sales_order',
+      assignmentType: 'order',
+      orderId,
+      callerUserId: userId,
+      outcome,
+      suggestion: null,
+      notes,
+    });
 
     const assignmentRun = await this.salesService.runAutomaticAssignmentQueue({
       orderId,
