@@ -2056,19 +2056,34 @@ export class CrmTeamService {
     }
     await this.assertSalesExecutive(agent);
 
-    const hadNoTL = !agent.teamLeaderId;
+    const previousTeamLeaderId = agent.teamLeaderId ? Number(agent.teamLeaderId) : null;
     agent.teamId = team.id;
-    if (!agent.teamLeaderId) {
-      agent.teamLeaderId = teamLeaderId;
-    }
+    agent.teamLeaderId = teamLeaderId;
 
     const saved = await this.usersRepository.save(agent);
 
-    // Record initial TL assignment in history so commission queries can
-    // use time-based attribution even before any transfer occurs.
-    if (hadNoTL) {
+    // Keep TL history aligned with the current team binding so commission
+    // reports can attribute supervision commission by month.
+    if (previousTeamLeaderId !== Number(teamLeaderId)) {
       await this.usersRepository.manager.query(
-        `INSERT INTO agent_tl_history (agent_id, team_leader_id, valid_from) VALUES ($1, $2, NOW())`,
+        `UPDATE agent_tl_history
+         SET valid_until = NOW()
+         WHERE agent_id = $1
+           AND valid_until IS NULL
+           AND team_leader_id <> $2`,
+        [agentId, teamLeaderId],
+      );
+
+      await this.usersRepository.manager.query(
+        `INSERT INTO agent_tl_history (agent_id, team_leader_id, valid_from)
+         SELECT $1, $2, NOW()
+         WHERE NOT EXISTS (
+           SELECT 1
+           FROM agent_tl_history
+           WHERE agent_id = $1
+             AND team_leader_id = $2
+             AND valid_until IS NULL
+         )`,
         [agentId, teamLeaderId],
       );
     }

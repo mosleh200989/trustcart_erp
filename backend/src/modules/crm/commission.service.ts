@@ -660,7 +660,9 @@ export class CommissionService {
           FROM sales_order_items soi GROUP BY soi.sales_order_id
           UNION ALL
           SELECT oi.order_id as order_id, COALESCE(SUM(oi.quantity), 0) as qty
-          FROM order_items oi GROUP BY oi.order_id
+          FROM order_items oi
+          WHERE COALESCE(oi.is_cross_sell, false) = false
+          GROUP BY oi.order_id
         ) sub GROUP BY sub.order_id
       ) product_qty ON product_qty.order_id = so.id
       WHERE so.created_by = $1
@@ -676,7 +678,7 @@ export class CommissionService {
     const crossSellSql = `
       SELECT
         DATE(so.created_at AT TIME ZONE 'Asia/Dhaka') as order_date,
-        COUNT(*) as cross_sell_qty
+        COALESCE(SUM(oi.quantity), 0) as cross_sell_qty
       FROM order_items oi
       INNER JOIN sales_orders so ON so.id = oi.order_id
       WHERE oi.added_by = $1
@@ -705,10 +707,20 @@ export class CommissionService {
     let monthUpsellCount = 0;
     let monthCrossSellCount = 0;
 
-    const dailyData = dailyRows.map((row: any) => {
-      const orderCount = parseInt(row.order_count || '0', 10);
-      const totalProductQty = parseInt(row.total_product_qty || '0', 10);
+    const dailyByDate = new Map<string, any>();
+    for (const row of dailyRows) {
       const dateKey = (row.order_date instanceof Date ? row.order_date.toISOString() : String(row.order_date)).split('T')[0];
+      dailyByDate.set(dateKey, row);
+    }
+    const dailyDateKeys = Array.from(new Set([
+      ...Array.from(dailyByDate.keys()),
+      ...Array.from(crossSellByDate.keys()),
+    ])).sort();
+
+    const dailyData = dailyDateKeys.map((dateKey: string) => {
+      const row = dailyByDate.get(dateKey);
+      const orderCount = parseInt(row?.order_count || '0', 10);
+      const totalProductQty = parseInt(row?.total_product_qty || '0', 10);
       const crossSellCount = crossSellByDate.get(dateKey) || 0;
       const upsellCount = Math.max(totalProductQty - orderCount, 0);
 
@@ -717,7 +729,7 @@ export class CommissionService {
       monthCrossSellCount += crossSellCount;
 
       return {
-        date: row.order_date,
+        date: row?.order_date || dateKey,
         orderCount,
         upsellCount,
         crossSellCount,
@@ -827,7 +839,6 @@ export class CommissionService {
       const lastDay = new Date(y, m, 0).getDate();
       monthEnd = `${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
     }
-
     const searchCondition = search && search.trim()
       ? `AND (u.name ILIKE $1 OR u.last_name ILIKE $1 OR u.phone ILIKE $1)`
       : '';
@@ -937,12 +948,13 @@ export class CommissionService {
           WHERE so.created_by IS NOT NULL
             AND so.order_source IN ('admin_panel', 'agent_dashboard')
             AND so.status = 'delivered'
+            AND COALESCE(oi.is_cross_sell, false) = false
             AND DATE(so.created_at AT TIME ZONE 'Asia/Dhaka') BETWEEN '${monthStart}' AND '${monthEnd}'
           GROUP BY so.created_by
         ) combined GROUP BY agent_id
       ) delivered_product_qty_stats ON delivered_product_qty_stats.agent_id = u.id
       LEFT JOIN (
-        SELECT oi.added_by as agent_id, COUNT(*) as cross_sell_qty
+        SELECT oi.added_by as agent_id, COALESCE(SUM(oi.quantity), 0) as cross_sell_qty
         FROM order_items oi
         INNER JOIN sales_orders so ON so.id = oi.order_id
         WHERE oi.is_cross_sell = true
@@ -953,12 +965,18 @@ export class CommissionService {
       ) cross_sell_stats ON cross_sell_stats.agent_id = u.id
       LEFT JOIN (
         SELECT
-          pr.agent_id,
-          COALESCE(SUM(COALESCE(pr.approved_amount, pr.requested_amount)), 0) as paid_commission
-        FROM commission_payment_requests pr
-        WHERE pr.status = 'paid'
-          AND COALESCE(pr.commission_month, TO_CHAR(DATE(pr.paid_at AT TIME ZONE 'Asia/Dhaka'), 'YYYY-MM')) = '${monthStart.substring(0, 7)}'
-        GROUP BY pr.agent_id
+          paid.agent_id,
+          COALESCE(COALESCE(paid.approved_amount, paid.requested_amount), 0) as paid_commission
+        FROM (
+          SELECT DISTINCT ON (pr.agent_id)
+            pr.agent_id,
+            pr.approved_amount,
+            pr.requested_amount
+          FROM commission_payment_requests pr
+          WHERE pr.status = 'paid'
+            AND COALESCE(pr.commission_month, TO_CHAR(DATE(pr.paid_at AT TIME ZONE 'Asia/Dhaka'), 'YYYY-MM')) = '${monthStart.substring(0, 7)}'
+          ORDER BY pr.agent_id, pr.paid_at DESC NULLS LAST, pr.created_at DESC, pr.id DESC
+        ) paid
       ) paid_stats ON paid_stats.agent_id = u.id
       LEFT JOIN (
         SELECT DISTINCT ON (pr.agent_id)
@@ -1070,7 +1088,6 @@ export class CommissionService {
       const lastDay = new Date(y, m, 0).getDate();
       monthEnd = `${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
     }
-
     const searchCondition = search && search.trim()
       ? `AND (u.name ILIKE $1 OR u.last_name ILIKE $1 OR u.phone ILIKE $1)`
       : '';
@@ -1104,17 +1121,16 @@ export class CommissionService {
       INNER JOIN roles r ON r.id = u.role_id
       LEFT JOIN (
         SELECT
-          ath.team_leader_id as tl_id,
+          agent.team_leader_id as tl_id,
           COUNT(DISTINCT so.id) as agent_orders
         FROM sales_orders so
-        INNER JOIN agent_tl_history ath ON ath.agent_id = so.created_by
-          AND ath.valid_from <= so.created_at
-          AND (ath.valid_until IS NULL OR ath.valid_until > so.created_at)
+        INNER JOIN users agent ON agent.id = so.created_by
         WHERE so.created_by IS NOT NULL
+          AND agent.team_leader_id IS NOT NULL
           AND so.order_source IN ('admin_panel', 'agent_dashboard')
           AND so.status = 'delivered'
           AND DATE(COALESCE(so.delivered_at, so.created_at) AT TIME ZONE 'Asia/Dhaka') BETWEEN '${monthStart}' AND '${monthEnd}'
-        GROUP BY ath.team_leader_id
+        GROUP BY agent.team_leader_id
       ) agent_order_stats ON agent_order_stats.tl_id = u.id
       LEFT JOIN (
         SELECT
@@ -1126,11 +1142,12 @@ export class CommissionService {
           SELECT sub.order_id, SUM(sub.qty) as total_qty FROM (
             SELECT soi.sales_order_id as order_id, COALESCE(SUM(soi.quantity), 0) as qty
             FROM sales_order_items soi
-            WHERE soi.sales_order_id NOT IN (SELECT DISTINCT oi2.order_id FROM order_items oi2)
             GROUP BY soi.sales_order_id
             UNION ALL
             SELECT oi.order_id as order_id, COALESCE(SUM(oi.quantity), 0) as qty
-            FROM order_items oi GROUP BY oi.order_id
+            FROM order_items oi
+            WHERE COALESCE(oi.is_cross_sell, false) = false
+            GROUP BY oi.order_id
           ) sub GROUP BY sub.order_id
         ) pq ON pq.order_id = so.id
         WHERE so.order_source IN ('admin_panel', 'agent_dashboard')
@@ -1139,7 +1156,7 @@ export class CommissionService {
         GROUP BY so.created_by
       ) own_order_stats ON own_order_stats.tl_id = u.id
       LEFT JOIN (
-        SELECT oi.added_by as tl_id, COUNT(*) as cross_sell_qty
+        SELECT oi.added_by as tl_id, COALESCE(SUM(oi.quantity), 0) as cross_sell_qty
         FROM order_items oi
         INNER JOIN sales_orders so ON so.id = oi.order_id
         WHERE oi.is_cross_sell = true
@@ -1150,12 +1167,18 @@ export class CommissionService {
       ) own_cross_sell_stats ON own_cross_sell_stats.tl_id = u.id
       LEFT JOIN (
         SELECT
-          pr.agent_id,
-          COALESCE(SUM(COALESCE(pr.approved_amount, pr.requested_amount)), 0) as paid_commission
-        FROM commission_payment_requests pr
-        WHERE pr.status = 'paid'
-          AND COALESCE(pr.commission_month, TO_CHAR(DATE(pr.paid_at AT TIME ZONE 'Asia/Dhaka'), 'YYYY-MM')) = '${monthStart.substring(0, 7)}'
-        GROUP BY pr.agent_id
+          paid.agent_id,
+          COALESCE(COALESCE(paid.approved_amount, paid.requested_amount), 0) as paid_commission
+        FROM (
+          SELECT DISTINCT ON (pr.agent_id)
+            pr.agent_id,
+            pr.approved_amount,
+            pr.requested_amount
+          FROM commission_payment_requests pr
+          WHERE pr.status = 'paid'
+            AND COALESCE(pr.commission_month, TO_CHAR(DATE(pr.paid_at AT TIME ZONE 'Asia/Dhaka'), 'YYYY-MM')) = '${monthStart.substring(0, 7)}'
+          ORDER BY pr.agent_id, pr.paid_at DESC NULLS LAST, pr.created_at DESC, pr.id DESC
+        ) paid
       ) paid_stats ON paid_stats.agent_id = u.id
       WHERE (LOWER(r.name) LIKE '%sales team leader%' OR r.slug = 'sales-team-leader')
         AND u.status = 'active'
@@ -1277,10 +1300,8 @@ export class CommissionService {
         COUNT(DISTINCT so.id) as order_count,
         COUNT(DISTINCT so.created_by) as agent_count
       FROM sales_orders so
-      INNER JOIN agent_tl_history ath ON ath.agent_id = so.created_by
-        AND ath.team_leader_id = $1
-        AND ath.valid_from <= so.created_at
-        AND (ath.valid_until IS NULL OR ath.valid_until > so.created_at)
+      INNER JOIN users agent ON agent.id = so.created_by
+        AND agent.team_leader_id = $1
       WHERE so.created_by != $1
         AND so.order_source IN ('admin_panel', 'agent_dashboard')
         AND so.status = 'delivered'
@@ -1301,11 +1322,12 @@ export class CommissionService {
         SELECT sub.order_id, SUM(sub.qty) as total_qty FROM (
           SELECT soi.sales_order_id as order_id, COALESCE(SUM(soi.quantity), 0) as qty
           FROM sales_order_items soi
-          WHERE soi.sales_order_id NOT IN (SELECT DISTINCT oi2.order_id FROM order_items oi2)
           GROUP BY soi.sales_order_id
           UNION ALL
           SELECT oi.order_id as order_id, COALESCE(SUM(oi.quantity), 0) as qty
-          FROM order_items oi GROUP BY oi.order_id
+          FROM order_items oi
+          WHERE COALESCE(oi.is_cross_sell, false) = false
+          GROUP BY oi.order_id
         ) sub GROUP BY sub.order_id
       ) pq ON pq.order_id = so.id
       WHERE so.created_by = $1
@@ -1321,7 +1343,7 @@ export class CommissionService {
     const tlCrossSellSql = `
       SELECT
         DATE(COALESCE(so.delivered_at, so.created_at) AT TIME ZONE 'Asia/Dhaka') as order_date,
-        COUNT(*) as cross_sell_qty
+        COALESCE(SUM(oi.quantity), 0) as cross_sell_qty
       FROM order_items oi
       INNER JOIN sales_orders so ON so.id = oi.order_id
       WHERE oi.added_by = $1
@@ -1353,16 +1375,26 @@ export class CommissionService {
     let monthOwnOrders = 0;
     let monthOwnUpsells = 0;
     let monthOwnCrossSells = 0;
-    const ownSalesData = ownSalesRows.map((row: any) => {
-      const orderCount = parseInt(row.order_count || '0', 10);
-      const totalProductQty = parseInt(row.total_product_qty || '0', 10);
+    const ownSalesByDate = new Map<string, any>();
+    for (const row of ownSalesRows) {
       const dateKey = (row.order_date instanceof Date ? row.order_date.toISOString() : String(row.order_date)).split('T')[0];
+      ownSalesByDate.set(dateKey, row);
+    }
+    const ownSalesDateKeys = Array.from(new Set([
+      ...Array.from(ownSalesByDate.keys()),
+      ...Array.from(tlCrossSellByDate.keys()),
+    ])).sort();
+
+    const ownSalesData = ownSalesDateKeys.map((dateKey: string) => {
+      const row = ownSalesByDate.get(dateKey);
+      const orderCount = parseInt(row?.order_count || '0', 10);
+      const totalProductQty = parseInt(row?.total_product_qty || '0', 10);
       const crossSellCount = tlCrossSellByDate.get(dateKey) || 0;
       const upsellCount = Math.max(totalProductQty - orderCount, 0);
       monthOwnOrders += orderCount;
       monthOwnUpsells += upsellCount;
       monthOwnCrossSells += crossSellCount;
-      return { date: row.order_date, orderCount, upsellCount, crossSellCount };
+      return { date: row?.order_date || dateKey, orderCount, upsellCount, crossSellCount };
     });
 
     const findTLSlabRate = (slabType: string, count: number): number => {
@@ -2057,15 +2089,12 @@ export class CommissionService {
       order_extras AS (
         SELECT
           so3.id as order_id,
-          (SELECT COUNT(*) FROM order_items oi WHERE oi.order_id = so3.id AND oi.is_cross_sell = true) as cross_sell_count,
-          CASE
-            WHEN (SELECT COUNT(*) FROM order_items oi WHERE oi.order_id = so3.id AND oi.is_cross_sell = true) > 0 THEN 0
-            ELSE GREATEST(
-              (SELECT COALESCE(SUM(soi.quantity), 0) FROM sales_order_items soi WHERE soi.sales_order_id = so3.id)
-              + (SELECT COALESCE(SUM(oi.quantity), 0) FROM order_items oi WHERE oi.order_id = so3.id)
-              - 1, 0
-            )
-          END as upsell_count
+          (SELECT COALESCE(SUM(oi.quantity), 0) FROM order_items oi WHERE oi.order_id = so3.id AND oi.is_cross_sell = true) as cross_sell_count,
+          GREATEST(
+            (SELECT COALESCE(SUM(soi.quantity), 0) FROM sales_order_items soi WHERE soi.sales_order_id = so3.id)
+            + (SELECT COALESCE(SUM(oi.quantity), 0) FROM order_items oi WHERE oi.order_id = so3.id AND COALESCE(oi.is_cross_sell, false) = false)
+            - 1, 0
+          ) as upsell_count
         FROM sales_orders so3
         WHERE so3.status = 'delivered'
           AND so3.created_at >= '2026-03-01'
@@ -2075,7 +2104,8 @@ export class CommissionService {
         ${agentExpr} as agent_id,
         so.customer_id,
         COALESCE(cs_order.commission_amount, 0)
-          + COALESCE(oe.upsell_count, 0) * COALESCE(cs_upsell.commission_amount, 0) as commission_amount,
+          + COALESCE(oe.upsell_count, 0) * COALESCE(cs_upsell.commission_amount, 0)
+          + COALESCE(oe.cross_sell_count, 0) * COALESCE(cs_cross_sell.commission_amount, 0) as commission_amount,
         so.id as order_id,
         so.sales_order_number,
         so.order_date,
@@ -2144,16 +2174,22 @@ export class CommissionService {
       LEFT JOIN order_extras oe ON oe.order_id = so.id
       LEFT JOIN commission_slabs cs_order ON cs_order.role_type = 'agent'
         AND cs_order.slab_type = 'order'
-        AND cs_order.agent_tier = 'silver'
+        AND cs_order.agent_tier = COALESCE(uc.agent_tier, 'silver')
         AND cs_order.is_active = true
         AND cs_order.min_order_count <= ap.order_position
         AND (cs_order.max_order_count IS NULL OR cs_order.max_order_count > ap.order_position)
       LEFT JOIN commission_slabs cs_upsell ON cs_upsell.role_type = 'agent'
         AND cs_upsell.slab_type = 'upsell'
-        AND cs_upsell.agent_tier = 'silver'
+        AND cs_upsell.agent_tier = COALESCE(uc.agent_tier, 'silver')
         AND cs_upsell.is_active = true
         AND cs_upsell.min_order_count <= ap.order_position
         AND (cs_upsell.max_order_count IS NULL OR cs_upsell.max_order_count > ap.order_position)
+      LEFT JOIN commission_slabs cs_cross_sell ON cs_cross_sell.role_type = 'agent'
+        AND cs_cross_sell.slab_type = 'cross_sell'
+        AND cs_cross_sell.agent_tier = COALESCE(uc.agent_tier, 'silver')
+        AND cs_cross_sell.is_active = true
+        AND cs_cross_sell.min_order_count <= ap.order_position
+        AND (cs_cross_sell.max_order_count IS NULL OR cs_cross_sell.max_order_count > ap.order_position)
       WHERE 1=1 ${whereClause}
       ORDER BY so.order_date DESC, so.id DESC
       LIMIT $${paramIdx} OFFSET $${paramIdx + 1}
