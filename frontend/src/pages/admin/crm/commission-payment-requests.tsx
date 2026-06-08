@@ -4,7 +4,7 @@ import AdminLayout from '@/layouts/AdminLayout';
 import DataTable from '@/components/admin/DataTable';
 import PageSizeSelector from '@/components/admin/PageSizeSelector';
 import { useToast } from '@/contexts/ToastContext';
-import { FaSearch, FaPlus, FaCheck, FaMoneyBillWave, FaTimes, FaEye, FaTrash } from 'react-icons/fa';
+import { FaSearch, FaPlus, FaMoneyBillWave, FaEye, FaTrash } from 'react-icons/fa';
 import apiClient from '@/services/api';
 
 interface PaymentRequest {
@@ -45,9 +45,15 @@ interface Agent {
 
 const STATUS_COLORS: Record<string, string> = {
   pending: 'bg-yellow-100 text-yellow-800',
-  approved: 'bg-blue-100 text-blue-800',
+  approved: 'bg-yellow-100 text-yellow-800',
   paid: 'bg-green-100 text-green-800',
-  rejected: 'bg-red-100 text-red-800',
+  rejected: 'bg-gray-100 text-gray-700',
+};
+
+const getStatusLabel = (status: string) => {
+  if (status === 'paid') return 'Paid';
+  if (status === 'rejected') return 'Rejected';
+  return 'Requested';
 };
 
 const PAYMENT_METHODS = [
@@ -87,7 +93,7 @@ export default function CommissionPaymentRequestsPage() {
   const [creating, setCreating] = useState(false);
 
   // Action modals
-  const [actionModal, setActionModal] = useState<{ type: 'approve' | 'pay' | 'reject'; request: PaymentRequest } | null>(null);
+  const [actionModal, setActionModal] = useState<{ type: 'pay'; request: PaymentRequest } | null>(null);
   const [actionForm, setActionForm] = useState({ approvedAmount: '', paymentMethod: '', paymentReference: '', adminNotes: '' });
   const [actionLoading, setActionLoading] = useState(false);
 
@@ -155,23 +161,13 @@ export default function CommissionPaymentRequestsPage() {
     try {
       setActionLoading(true);
       const { type, request } = actionModal;
-      if (type === 'approve') {
-        await apiClient.put(`/crm/commissions/payment-requests/${request.id}/approve`, {
-          approvedAmount: actionForm.approvedAmount ? parseFloat(actionForm.approvedAmount) : undefined,
-        });
-        toast.success('Payment request approved');
-      } else if (type === 'pay') {
+      if (type === 'pay') {
         await apiClient.put(`/crm/commissions/payment-requests/${request.id}/pay`, {
           paymentMethod: actionForm.paymentMethod || undefined,
           paymentReference: actionForm.paymentReference || undefined,
           adminNotes: actionForm.adminNotes || undefined,
         });
         toast.success('Payment marked as paid');
-      } else if (type === 'reject') {
-        await apiClient.put(`/crm/commissions/payment-requests/${request.id}/reject`, {
-          adminNotes: actionForm.adminNotes || undefined,
-        });
-        toast.success('Payment request rejected');
       }
       setActionModal(null);
       setActionForm({ approvedAmount: '', paymentMethod: '', paymentReference: '', adminNotes: '' });
@@ -183,11 +179,11 @@ export default function CommissionPaymentRequestsPage() {
     }
   };
 
-  const openActionModal = (type: 'approve' | 'pay' | 'reject', request: PaymentRequest) => {
+  const openActionModal = (type: 'pay', request: PaymentRequest) => {
     setActionModal({ type, request });
     setActionForm({
-      approvedAmount: type === 'approve' ? String(request.requestedAmount) : '',
-      paymentMethod: type === 'pay' ? (request.agentPreferredMethod || request.paymentMethod || '') : (request.paymentMethod || ''),
+      approvedAmount: '',
+      paymentMethod: request.agentPreferredMethod || request.paymentMethod || '',
       paymentReference: request.paymentReference || '',
       adminNotes: '',
     });
@@ -265,11 +261,13 @@ export default function CommissionPaymentRequestsPage() {
     },
     {
       key: 'approvedAmount',
-      label: 'Approved',
+      label: 'Paid Amount',
       sortable: true,
       render: (_: any, row: PaymentRequest) => (
         <span className="text-sm font-medium">
-          {row.approvedAmount != null ? `৳${row.approvedAmount.toLocaleString()}` : '-'}
+          {row.status === 'paid'
+            ? `৳${(row.approvedAmount ?? row.requestedAmount).toLocaleString()}`
+            : '-'}
         </span>
       ),
     },
@@ -296,7 +294,7 @@ export default function CommissionPaymentRequestsPage() {
       sortable: true,
       render: (_: any, row: PaymentRequest) => (
         <span className={`px-2 py-0.5 rounded-full text-xs font-semibold capitalize ${STATUS_COLORS[row.status] || 'bg-gray-100 text-gray-800'}`}>
-          {row.status}
+          {getStatusLabel(row.status)}
         </span>
       ),
     },
@@ -318,29 +316,11 @@ export default function CommissionPaymentRequestsPage() {
       sortable: false,
       render: (_: any, row: PaymentRequest) => (
         <div className="flex items-center gap-1.5">
-          {row.status === 'pending' && (
-            <>
-              <button
-                onClick={() => openActionModal('approve', row)}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded text-xs font-medium flex items-center gap-1"
-                title="Approve"
-              >
-                <FaCheck size={10} /> Approve
-              </button>
-              <button
-                onClick={() => openActionModal('reject', row)}
-                className="bg-red-500 hover:bg-red-600 text-white px-2 py-1 rounded text-xs font-medium flex items-center gap-1"
-                title="Reject"
-              >
-                <FaTimes size={10} /> Reject
-              </button>
-            </>
-          )}
-          {row.status === 'approved' && (
+          {(row.status === 'pending' || row.status === 'approved') && (
             <button
               onClick={() => openActionModal('pay', row)}
               className="bg-green-600 hover:bg-green-700 text-white px-2 py-1 rounded text-xs font-medium flex items-center gap-1"
-              title="Mark as Paid"
+              title="Pay"
             >
               <FaMoneyBillWave size={10} /> Pay
             </button>
@@ -380,7 +360,7 @@ export default function CommissionPaymentRequestsPage() {
                 <span className="text-blue-600 text-2xl">💰</span>
                 <h1 className="text-2xl font-bold text-blue-700">Payment Requests</h1>
               </div>
-              <p className="text-gray-500 text-sm">Manage agent commission payment requests - create, approve, pay, or reject.</p>
+              <p className="text-gray-500 text-sm">Manage agent commission payment requests and mark them as paid.</p>
             </div>
             <button
               onClick={() => setShowCreateModal(true)}
@@ -402,10 +382,8 @@ export default function CommissionPaymentRequestsPage() {
                 className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="">All Statuses</option>
-                <option value="pending">Pending</option>
-                <option value="approved">Approved</option>
+                <option value="pending">Requested</option>
                 <option value="paid">Paid</option>
-                <option value="rejected">Rejected</option>
               </select>
             </div>
             <div>
@@ -551,11 +529,11 @@ export default function CommissionPaymentRequestsPage() {
           </div>
         )}
 
-        {/* Action Modal (Approve / Pay / Reject) */}
+        {/* Action Modal (Pay) */}
         {actionModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-white rounded-lg shadow-xl w-full max-w-lg p-6">
-              <h2 className="text-lg font-bold text-gray-800 mb-1 capitalize">{actionModal.type} Payment Request</h2>
+              <h2 className="text-lg font-bold text-gray-800 mb-1">Pay Commission Request</h2>
               <p className="text-sm text-gray-500 mb-4">
                 Agent: <strong>{actionModal.request.agentName}</strong> | Amount: <strong>৳{actionModal.request.requestedAmount.toLocaleString()}</strong>
               </p>
@@ -618,17 +596,6 @@ export default function CommissionPaymentRequestsPage() {
                 </div>
               )}
               <div className="space-y-3">
-                {actionModal.type === 'approve' && (
-                  <div>
-                    <label className="block text-sm text-gray-600 mb-1">Approved Amount (৳)</label>
-                    <input
-                      type="number" min="0" step="0.01"
-                      value={actionForm.approvedAmount}
-                      onChange={(e) => setActionForm(f => ({ ...f, approvedAmount: e.target.value }))}
-                      className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-                )}
                 {actionModal.type === 'pay' && (
                   <>
                     <div>
@@ -665,25 +632,21 @@ export default function CommissionPaymentRequestsPage() {
                 )}
                 <div>
                   <label className="block text-sm text-gray-600 mb-1">
-                    {actionModal.type === 'reject' ? 'Reason for Rejection' : 'Admin Notes'}
+                    Admin Notes
                   </label>
                   <textarea
                     value={actionForm.adminNotes}
                     onChange={(e) => setActionForm(f => ({ ...f, adminNotes: e.target.value }))}
                     className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    rows={2} placeholder={actionModal.type === 'reject' ? 'Reason...' : 'Optional notes'}
+                    rows={2} placeholder="Optional notes"
                   />
                 </div>
               </div>
               <div className="flex justify-end gap-2 mt-5">
                 <button onClick={() => setActionModal(null)} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800">Cancel</button>
                 <button onClick={handleAction} disabled={actionLoading}
-                  className={`px-4 py-2 rounded text-sm font-medium text-white disabled:opacity-50 ${
-                    actionModal.type === 'reject' ? 'bg-red-600 hover:bg-red-700' :
-                    actionModal.type === 'pay' ? 'bg-green-600 hover:bg-green-700' :
-                    'bg-blue-600 hover:bg-blue-700'
-                  }`}>
-                  {actionLoading ? 'Processing...' : actionModal.type === 'approve' ? 'Approve' : actionModal.type === 'pay' ? 'Confirm Payment' : 'Reject'}
+                  className="px-4 py-2 rounded text-sm font-medium text-white disabled:opacity-50 bg-green-600 hover:bg-green-700">
+                  {actionLoading ? 'Processing...' : 'Confirm Payment'}
                 </button>
               </div>
             </div>

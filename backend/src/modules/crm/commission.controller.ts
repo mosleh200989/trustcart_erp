@@ -214,6 +214,18 @@ export class CommissionController {
     return await this.commissionService.createPaymentRequest({ ...body, requestedBy: req.user.id });
   }
 
+  @Post('payment-requests/bulk')
+  @RequireAnyPermission('manage-payment-requests', 'approve-commissions')
+  async createBulkPaymentRequests(
+    @Body() body: {
+      commissionMonth: string;
+      requests: Array<{ agentId: number; requestedAmount: number; paymentMethod?: string; notes?: string }>;
+    },
+    @Request() req: any,
+  ) {
+    return await this.commissionService.createBulkPaymentRequests({ ...body, requestedBy: req.user.id });
+  }
+
   @Get('payment-requests')
   @RequireAnyPermission('view-payment-requests', 'manage-payment-requests', 'view-commission-reports')
   async getPaymentRequests(@Query() query: any) {
