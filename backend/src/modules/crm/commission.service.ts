@@ -862,7 +862,10 @@ export class CommissionService {
         COALESCE(cross_sell_stats.cross_sell_qty, 0) as cross_sell_qty,
         COALESCE(delivered_order_stats.total_amount, 0) as total_amount,
         COALESCE(paid_stats.paid_commission, 0) as paid_commission,
-        COALESCE(extra_partial.amount, 0) as extra_partial
+        COALESCE(extra_partial.amount, 0) as extra_partial,
+        request_stats.request_id as payment_request_id,
+        request_stats.request_status as payment_request_status,
+        request_stats.requested_amount as payment_requested_amount
       FROM users u
       INNER JOIN roles r ON r.id = u.role_id
       LEFT JOIN (
@@ -957,6 +960,17 @@ export class CommissionService {
           AND COALESCE(pr.commission_month, TO_CHAR(DATE(pr.paid_at AT TIME ZONE 'Asia/Dhaka'), 'YYYY-MM')) = '${monthStart.substring(0, 7)}'
         GROUP BY pr.agent_id
       ) paid_stats ON paid_stats.agent_id = u.id
+      LEFT JOIN (
+        SELECT DISTINCT ON (pr.agent_id)
+          pr.agent_id,
+          pr.id as request_id,
+          pr.status as request_status,
+          pr.requested_amount
+        FROM commission_payment_requests pr
+        WHERE pr.status IN ('pending', 'approved', 'paid')
+          AND COALESCE(pr.commission_month, TO_CHAR(DATE(pr.created_at AT TIME ZONE 'Asia/Dhaka'), 'YYYY-MM')) = '${monthStart.substring(0, 7)}'
+        ORDER BY pr.agent_id, pr.created_at DESC, pr.id DESC
+      ) request_stats ON request_stats.agent_id = u.id
       LEFT JOIN commission_extra_partial extra_partial ON extra_partial.agent_id = u.id AND extra_partial.month = '${monthStart.substring(0, 7)}'
       WHERE (LOWER(r.name) LIKE '%sales executive%' OR r.slug = 'sales-executive')
         AND u.status = 'active'
@@ -991,6 +1005,7 @@ export class CommissionService {
         const crossSellQty = parseInt(r.cross_sell_qty || '0', 10);
         const tier = r.agent_tier || 'silver';
         const paidCommission = parseFloat(r.paid_commission || '0');
+        const paymentRequestId = r.payment_request_id ? Number(r.payment_request_id) : null;
 
         // Slab-based commission calculation (matches Payment Breakdown) — based on delivered orders
         const orderRate = findSlabRate(tier, 'order', deliveredOrders);
@@ -1015,6 +1030,10 @@ export class CommissionService {
           totalCommission,
           paidCommission,
           balance: totalCommission - paidCommission,
+          paymentRequestId,
+          paymentRequestStatus: r.payment_request_status || null,
+          paymentRequestedAmount: r.payment_requested_amount ? parseFloat(r.payment_requested_amount) : null,
+          hasPaymentRequest: Boolean(paymentRequestId),
         };
       }),
       total,
@@ -1430,8 +1449,32 @@ export class CommissionService {
     requestedBy: number;
     commissionMonth?: string;
   }): Promise<any> {
+    const agentId = Number(data.agentId);
+    const requestedAmount = Number(data.requestedAmount);
+    if (!Number.isFinite(agentId) || agentId <= 0) {
+      throw new BadRequestException('Invalid agent');
+    }
+    if (!Number.isFinite(requestedAmount) || requestedAmount <= 0) {
+      throw new BadRequestException('Requested amount must be greater than 0');
+    }
     if (data.commissionMonth && !/^\d{4}-\d{2}$/.test(data.commissionMonth)) {
       throw new BadRequestException('Commission month must be in YYYY-MM format');
+    }
+
+    if (data.commissionMonth) {
+      const existing = await this.dataSource.query(
+        `SELECT id, status
+         FROM commission_payment_requests
+         WHERE agent_id = $1
+           AND status IN ('pending', 'approved', 'paid')
+           AND COALESCE(commission_month, TO_CHAR(DATE(created_at AT TIME ZONE 'Asia/Dhaka'), 'YYYY-MM')) = $2
+         ORDER BY created_at DESC, id DESC
+         LIMIT 1`,
+        [agentId, data.commissionMonth],
+      );
+      if (existing.length) {
+        throw new BadRequestException('Payment request already exists for this agent and month');
+      }
     }
 
     const sql = `
@@ -1440,9 +1483,80 @@ export class CommissionService {
       RETURNING *
     `;
     const result = await this.dataSource.query(sql, [
-      data.agentId, data.requestedAmount, data.paymentMethod || null, data.notes || null, data.requestedBy, data.commissionMonth || null,
+      agentId, requestedAmount, data.paymentMethod || null, data.notes || null, data.requestedBy, data.commissionMonth || null,
     ]);
     return result[0];
+  }
+
+  async createBulkPaymentRequests(data: {
+    requests: Array<{ agentId: number; requestedAmount: number; paymentMethod?: string; notes?: string }>;
+    requestedBy: number;
+    commissionMonth: string;
+  }): Promise<{ success: boolean; createdCount: number; skippedCount: number; created: any[]; skipped: any[] }> {
+    if (!data.commissionMonth || !/^\d{4}-\d{2}$/.test(data.commissionMonth)) {
+      throw new BadRequestException('Commission month must be in YYYY-MM format');
+    }
+    if (!Array.isArray(data.requests) || data.requests.length === 0) {
+      throw new BadRequestException('Select at least one agent');
+    }
+
+    const created: any[] = [];
+    const skipped: any[] = [];
+    const seen = new Set<number>();
+
+    for (const item of data.requests) {
+      const agentId = Number(item.agentId);
+      const requestedAmount = Number(item.requestedAmount);
+
+      if (!Number.isFinite(agentId) || agentId <= 0 || seen.has(agentId)) {
+        skipped.push({ agentId, reason: 'Invalid or duplicate agent' });
+        continue;
+      }
+      seen.add(agentId);
+
+      if (!Number.isFinite(requestedAmount) || requestedAmount <= 0) {
+        skipped.push({ agentId, reason: 'Requested amount must be greater than 0' });
+        continue;
+      }
+
+      const existing = await this.dataSource.query(
+        `SELECT id, status
+         FROM commission_payment_requests
+         WHERE agent_id = $1
+           AND status IN ('pending', 'approved', 'paid')
+           AND COALESCE(commission_month, TO_CHAR(DATE(created_at AT TIME ZONE 'Asia/Dhaka'), 'YYYY-MM')) = $2
+         ORDER BY created_at DESC, id DESC
+         LIMIT 1`,
+        [agentId, data.commissionMonth],
+      );
+      if (existing.length) {
+        skipped.push({ agentId, reason: 'Payment request already exists for this month' });
+        continue;
+      }
+
+      const result = await this.dataSource.query(
+        `INSERT INTO commission_payment_requests (agent_id, requested_amount, payment_method, notes, requested_by, commission_month)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         RETURNING *`,
+        [
+          agentId,
+          requestedAmount,
+          item.paymentMethod || null,
+          item.notes || null,
+          data.requestedBy,
+          data.commissionMonth,
+        ],
+      );
+      created.push(result[0]);
+    }
+
+    return {
+      success: true,
+      createdCount: created.length,
+      skippedCount: skipped.length,
+      created,
+      skipped,
+    };
   }
 
   async getPaymentRequests(query: {
@@ -1593,10 +1707,21 @@ export class CommissionService {
   async markPaymentRequestPaid(id: number, adminUserId: number, paymentMethod?: string, paymentReference?: string, adminNotes?: string): Promise<any> {
     const rows = await this.dataSource.query(`SELECT * FROM commission_payment_requests WHERE id = $1`, [id]);
     if (!rows.length) throw new NotFoundException('Payment request not found');
-    if (rows[0].status !== 'approved') throw new BadRequestException('Only approved requests can be marked as paid');
+    if (!['pending', 'approved'].includes(rows[0].status)) throw new BadRequestException('Only requested payments can be marked as paid');
 
     await this.dataSource.query(
-      `UPDATE commission_payment_requests SET status = 'paid', paid_by = $1, paid_at = NOW(), payment_method = COALESCE($2, payment_method), payment_reference = COALESCE($3, payment_reference), admin_notes = COALESCE($4, admin_notes), updated_at = NOW() WHERE id = $5`,
+      `UPDATE commission_payment_requests
+       SET status = 'paid',
+           approved_amount = COALESCE(approved_amount, requested_amount),
+           approved_by = COALESCE(approved_by, $1),
+           approved_at = COALESCE(approved_at, NOW()),
+           paid_by = $1,
+           paid_at = NOW(),
+           payment_method = COALESCE($2, payment_method),
+           payment_reference = COALESCE($3, payment_reference),
+           admin_notes = COALESCE($4, admin_notes),
+           updated_at = NOW()
+       WHERE id = $5`,
       [adminUserId, paymentMethod || null, paymentReference || null, adminNotes || null, id],
     );
     return { success: true };

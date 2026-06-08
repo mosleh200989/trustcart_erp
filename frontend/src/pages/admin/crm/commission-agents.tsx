@@ -4,7 +4,7 @@ import AdminLayout from '@/layouts/AdminLayout';
 import DataTable from '@/components/admin/DataTable';
 import PageSizeSelector from '@/components/admin/PageSizeSelector';
 import { useToast } from '@/contexts/ToastContext';
-import { FaSearch, FaMoneyBillWave, FaEye } from 'react-icons/fa';
+import { FaSearch, FaMoneyBillWave, FaEye, FaCheckSquare } from 'react-icons/fa';
 import apiClient from '@/services/api';
 
 interface AgentRow {
@@ -23,6 +23,10 @@ interface AgentRow {
   totalCommission: number;
   paidCommission: number;
   balance: number;
+  paymentRequestId?: number | null;
+  paymentRequestStatus?: string | null;
+  paymentRequestedAmount?: number | null;
+  hasPaymentRequest?: boolean;
 }
 
 const PAYMENT_METHODS = [
@@ -52,6 +56,8 @@ export default function CommissionAgentsPage() {
   const [paymentModal, setPaymentModal] = useState<AgentRow | null>(null);
   const [paymentForm, setPaymentForm] = useState({ amount: '', paymentMethod: '', notes: '' });
   const [submitting, setSubmitting] = useState(false);
+  const [selectedAgentIds, setSelectedAgentIds] = useState<number[]>([]);
+  const [bulkSubmitting, setBulkSubmitting] = useState(false);
 
   // Extra partial editing
   const [extraPartialEdits, setExtraPartialEdits] = useState<Record<number, string>>({});
@@ -85,6 +91,7 @@ export default function CommissionAgentsPage() {
       const response = await apiClient.get('/crm/commissions/agents', { params });
       const data = response.data;
       setAgents(data.data || []);
+      setSelectedAgentIds([]);
       setTotalPages(Math.ceil((data.total || 0) / ps));
     } catch (error) {
       console.error('Failed to load agent report:', error);
@@ -129,7 +136,70 @@ export default function CommissionAgentsPage() {
     }
   };
 
+  const eligibleAgents = agents.filter(agent => !agent.hasPaymentRequest && agent.balance > 0);
+  const selectedEligibleAgents = agents.filter(agent => selectedAgentIds.includes(agent.agentId) && !agent.hasPaymentRequest && agent.balance > 0);
+  const allEligibleSelected = eligibleAgents.length > 0 && eligibleAgents.every(agent => selectedAgentIds.includes(agent.agentId));
+
+  const toggleAgentSelection = (agent: AgentRow, checked: boolean) => {
+    if (agent.hasPaymentRequest || agent.balance <= 0) return;
+    setSelectedAgentIds(prev => checked
+      ? Array.from(new Set([...prev, agent.agentId]))
+      : prev.filter(id => id !== agent.agentId));
+  };
+
+  const toggleAllEligible = (checked: boolean) => {
+    setSelectedAgentIds(checked ? eligibleAgents.map(agent => agent.agentId) : []);
+  };
+
+  const handleBulkPaymentRequest = async () => {
+    if (selectedEligibleAgents.length === 0) {
+      toast.error('Select at least one eligible agent');
+      return;
+    }
+
+    const confirmed = window.confirm(`Create payment requests for ${selectedEligibleAgents.length} selected agent(s) for ${monthFilter}?`);
+    if (!confirmed) return;
+
+    try {
+      setBulkSubmitting(true);
+      const response = await apiClient.post('/crm/commissions/payment-requests/bulk', {
+        commissionMonth: monthFilter,
+        requests: selectedEligibleAgents.map(agent => ({
+          agentId: agent.agentId,
+          requestedAmount: Math.max(agent.balance, 0),
+        })),
+      });
+      const createdCount = response.data?.createdCount || 0;
+      const skippedCount = response.data?.skippedCount || 0;
+      toast.success(`Created ${createdCount} payment request(s)${skippedCount ? `, skipped ${skippedCount}` : ''}`);
+      setSelectedAgentIds([]);
+      loadAgents();
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || 'Failed to create bulk payment requests');
+    } finally {
+      setBulkSubmitting(false);
+    }
+  };
+
   const columns = [
+    {
+      key: 'select',
+      label: 'Select',
+      sortable: false,
+      render: (_: any, row: AgentRow) => {
+        const disabled = Boolean(row.hasPaymentRequest) || row.balance <= 0;
+        return (
+          <input
+            type="checkbox"
+            checked={selectedAgentIds.includes(row.agentId)}
+            disabled={disabled}
+            onChange={(e) => toggleAgentSelection(row, e.target.checked)}
+            className="h-4 w-4 rounded border-gray-300 text-yellow-600 focus:ring-yellow-500 disabled:opacity-40"
+            title={disabled ? 'Payment request is not available for this row' : 'Select for bulk payment request'}
+          />
+        );
+      },
+    },
     {
       key: 'agentName',
       label: 'Name',
@@ -267,18 +337,36 @@ export default function CommissionAgentsPage() {
       key: 'actions',
       label: 'Actions',
       sortable: false,
-      render: (_: any, row: AgentRow) => (
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => {
-              setPaymentModal(row);
-              setPaymentForm({ amount: String(row.balance > 0 ? row.balance : ''), paymentMethod: '', notes: '' });
-            }}
-            className="bg-yellow-500 hover:bg-yellow-600 text-white px-2.5 py-1 rounded text-xs font-medium flex items-center gap-1"
-            title="Payment Request"
-          >
-            <FaMoneyBillWave size={12} /> Payment Request
-          </button>
+      render: (_: any, row: AgentRow) => {
+        const hasRequest = Boolean(row.hasPaymentRequest);
+        const requestStatusLabel = row.paymentRequestStatus === 'paid' ? 'Paid'
+          : row.paymentRequestStatus === 'approved' ? 'Requested'
+            : row.paymentRequestStatus === 'pending' ? 'Requested'
+              : 'Requested';
+
+        return (
+          <div className="flex items-center gap-2">
+            {hasRequest ? (
+              <span className={`px-2.5 py-1 rounded text-xs font-medium ${
+                row.paymentRequestStatus === 'paid'
+                  ? 'bg-green-100 text-green-700'
+                  : 'bg-yellow-100 text-yellow-700'
+              }`}>
+                {requestStatusLabel}
+              </span>
+            ) : (
+              <button
+                onClick={() => {
+                  setPaymentModal(row);
+                  setPaymentForm({ amount: String(row.balance > 0 ? row.balance : ''), paymentMethod: '', notes: '' });
+                }}
+                disabled={row.balance <= 0}
+                className="bg-yellow-500 hover:bg-yellow-600 text-white px-2.5 py-1 rounded text-xs font-medium flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Payment Request"
+              >
+                <FaMoneyBillWave size={12} /> Payment Request
+              </button>
+            )}
           <button
             onClick={() => router.push(`/admin/crm/commission-sales?agentId=${row.agentId}`)}
             className="bg-blue-600 hover:bg-blue-700 text-white px-2.5 py-1 rounded text-xs font-medium flex items-center gap-1"
@@ -287,7 +375,8 @@ export default function CommissionAgentsPage() {
             <FaEye size={12} /> View
           </button>
         </div>
-      ),
+        );
+      },
     },
   ];
 
@@ -326,6 +415,21 @@ export default function CommissionAgentsPage() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => toggleAllEligible(!allEligibleSelected)}
+              disabled={eligibleAgents.length === 0}
+              className="border border-gray-300 text-gray-700 px-3 py-1.5 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+            >
+              {allEligibleSelected ? 'Clear Selection' : 'Select Eligible'}
+            </button>
+            <button
+              onClick={handleBulkPaymentRequest}
+              disabled={bulkSubmitting || selectedEligibleAgents.length === 0}
+              className="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-1.5 rounded disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1 text-sm"
+              title="Create payment requests for selected eligible agents"
+            >
+              <FaCheckSquare size={12} /> {bulkSubmitting ? 'Submitting...' : `Bulk Payment Request${selectedEligibleAgents.length ? ` (${selectedEligibleAgents.length})` : ''}`}
+            </button>
             <label className="text-sm text-gray-600">Search:</label>
             <input
               type="text"
