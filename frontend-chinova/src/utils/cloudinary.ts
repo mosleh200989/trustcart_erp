@@ -10,11 +10,12 @@ export interface UploadResult {
 /**
  * Upload an image file to Cloudinary via backend API
  */
-export const uploadImageToCloudinary = async (file: File): Promise<UploadResult> => {
+export const uploadImageToCloudinary = async (file: File, folder?: string): Promise<UploadResult> => {
   const formData = new FormData();
   formData.append('file', file);
 
-  const response = await apiClient.post('/upload/image', formData, {
+  const url = folder ? `/upload/image?folder=${encodeURIComponent(folder)}` : '/upload/image';
+  const response = await apiClient.post(url, formData, {
     headers: {
       'Content-Type': 'multipart/form-data',
     },

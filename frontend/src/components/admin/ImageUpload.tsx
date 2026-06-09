@@ -37,8 +37,8 @@ export default function ImageUpload({ value, onChange, label = 'Image', folder =
       };
       reader.readAsDataURL(file);
 
-      // Upload to Cloudinary
-      const result = await uploadImageToCloudinary(file);
+      // Upload to local storage
+      const result = await uploadImageToCloudinary(file, folder);
       onChange(result.url);
       setPreview(result.url);
     } catch (error) {

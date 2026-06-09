@@ -50,3 +50,6 @@ backend/.env
 backend\.env
 backend/*.env
 backend/*.env.local
+backend/uploads/
+backend\uploads\
+
