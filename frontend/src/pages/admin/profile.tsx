@@ -110,7 +110,7 @@ export default function AdminProfilePage() {
     try {
       setUploadingAvatar(true);
       setError(null);
-      const result = await uploadImageToCloudinary(file);
+      const result = await uploadImageToCloudinary(file, 'trustcart/avatars');
       setForm((p) => ({ ...p, avatarUrl: result.url }));
       setSuccess('Image uploaded. Click "Save changes" to apply.');
     } catch (err: any) {

@@ -1,19 +1,31 @@
 process.env.TZ = process.env.TZ || 'Asia/Dhaka';
 
 import { NestFactory } from '@nestjs/core';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
 import { AuditInterceptor } from './modules/audit-log/audit.interceptor';
 import { AuditLogService } from './modules/audit-log/audit-log.service';
 import { TenantService } from './modules/tenant/tenant.service';
+import { join } from 'path';
+import * as fs from 'fs';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
   const port = process.env.PORT || 3001;
 
   // Set global API prefix
   app.setGlobalPrefix('api');
+
+  // Serve uploads directory as static assets
+  const uploadsDir = join(process.cwd(), 'uploads');
+  if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+  }
+  app.useStaticAssets(uploadsDir, {
+    prefix: '/uploads/',
+  });
 
   // Register global audit interceptor
   const auditLogService = app.get(AuditLogService);
