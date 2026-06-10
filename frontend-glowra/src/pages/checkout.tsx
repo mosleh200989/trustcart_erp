@@ -66,13 +66,16 @@ export default function Checkout() {
     product?.name_en || product?.name_bn || product?.name || "Product";
 
   const getProductPrice = (product: any) => {
-    const price =
-      product?.base_price ??
-      product?.price ??
-      product?.sale_price ??
-      product?.salePrice ??
-      0;
-    return Number(price) || 0;
+    const sale = (product?.sale_price !== null && product?.sale_price !== undefined) 
+      ? product.sale_price 
+      : ((product?.salePrice !== null && product?.salePrice !== undefined) ? product.salePrice : null);
+    
+    if (sale !== null) {
+      return Number(sale);
+    }
+    
+    const base = product?.base_price ?? product?.price ?? 0;
+    return Number(base);
   };
 
   const getProductImageUrl = (product: any) => {

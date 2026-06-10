@@ -90,7 +90,9 @@ export default function AdminProducts() {
     short_description: '',
     status: 'active',
     image_url: '',
-    display_position: ''
+    display_position: '',
+    landing_page_delivery_charge: '',
+    landing_page_delivery_charge_outside: ''
   });
 
   const toAdditionalInfoRows = (data: any): Array<{ key: string; value: string }> => {
@@ -157,7 +159,9 @@ export default function AdminProducts() {
       short_description: '',
       status: 'active',
       image_url: '',
-      display_position: ''
+      display_position: '',
+      landing_page_delivery_charge: '',
+      landing_page_delivery_charge_outside: ''
     });
     setAdditionalInfoRows([]);
     setSizeVariants([]);
@@ -184,13 +188,15 @@ export default function AdminProducts() {
         slug: fullProduct.slug || '',
         sku: fullProduct.sku || '',
         base_price: fullProduct.base_price?.toString() || '',
-        sale_price: fullProduct.sale_price?.toString() || '',
+        sale_price: fullProduct.sale_price !== null && fullProduct.sale_price !== undefined ? fullProduct.sale_price.toString() : '',
         category_id: fullProduct.category_id ? fullProduct.category_id.toString() : '',
         description_en: fullProduct.description_en || '',
         short_description: fullProduct.short_description || '',
         status: fullProduct.status || 'active',
         image_url: fullProduct.image_url || '',
-        display_position: fullProduct.display_position ? fullProduct.display_position.toString() : ''
+        display_position: fullProduct.display_position ? fullProduct.display_position.toString() : '',
+        landing_page_delivery_charge: fullProduct.landing_page_delivery_charge !== null && fullProduct.landing_page_delivery_charge !== undefined ? fullProduct.landing_page_delivery_charge.toString() : '',
+        landing_page_delivery_charge_outside: fullProduct.landing_page_delivery_charge_outside !== null && fullProduct.landing_page_delivery_charge_outside !== undefined ? fullProduct.landing_page_delivery_charge_outside.toString() : ''
       });
 
       setAdditionalInfoRows(toAdditionalInfoRows(fullProduct.additional_info));
@@ -215,7 +221,9 @@ export default function AdminProducts() {
         short_description: '',
         status: product.status,
         image_url: '',
-        display_position: ''
+        display_position: '',
+        landing_page_delivery_charge: '',
+        landing_page_delivery_charge_outside: ''
       });
       setAdditionalInfoRows([]);
       setSizeVariants([]);
@@ -383,10 +391,22 @@ export default function AdminProducts() {
     };
 
     // Include optional price fields
-    if (formData.sale_price && formData.sale_price.trim()) {
+    if (formData.sale_price !== null && formData.sale_price !== undefined && formData.sale_price.trim() !== '') {
       payload.sale_price = parseFloat(formData.sale_price);
     } else {
       payload.sale_price = null;
+    }
+
+    if (formData.landing_page_delivery_charge !== null && formData.landing_page_delivery_charge !== undefined && formData.landing_page_delivery_charge.trim() !== '') {
+      payload.landing_page_delivery_charge = parseFloat(formData.landing_page_delivery_charge);
+    } else {
+      payload.landing_page_delivery_charge = null;
+    }
+
+    if (formData.landing_page_delivery_charge_outside !== null && formData.landing_page_delivery_charge_outside !== undefined && formData.landing_page_delivery_charge_outside.trim() !== '') {
+      payload.landing_page_delivery_charge_outside = parseFloat(formData.landing_page_delivery_charge_outside);
+    } else {
+      payload.landing_page_delivery_charge_outside = null;
     }
 
     // Only include optional fields if they have values
@@ -840,7 +860,17 @@ export default function AdminProducts() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700">Offer / Sale Price</label>
-                  <p className="mt-1 font-semibold text-green-700">{viewProductDetails?.sale_price ? `৳${Number(viewProductDetails.sale_price).toFixed(2)}` : 'N/A'}</p>
+                  <p className="mt-1 font-semibold text-green-700">{viewProductDetails?.sale_price !== null && viewProductDetails?.sale_price !== undefined ? `৳${Number(viewProductDetails.sale_price).toFixed(2)}` : 'N/A'}</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Landing LP Delivery Charge (Inside Dhaka)</label>
+                  <p className="mt-1 text-gray-900">{viewProductDetails?.landing_page_delivery_charge !== null && viewProductDetails?.landing_page_delivery_charge !== undefined ? `৳${Number(viewProductDetails.landing_page_delivery_charge).toFixed(2)}` : '৳60.00 (Default)'}</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Landing LP Delivery Charge (Outside Dhaka)</label>
+                  <p className="mt-1 text-gray-900">{viewProductDetails?.landing_page_delivery_charge_outside !== null && viewProductDetails?.landing_page_delivery_charge_outside !== undefined ? `৳${Number(viewProductDetails.landing_page_delivery_charge_outside).toFixed(2)}` : '৳110.00 (Default)'}</p>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -988,6 +1018,24 @@ export default function AdminProducts() {
                   value={formData.sale_price}
                   onChange={handleInputChange}
                   placeholder="Optional"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4 bg-gray-50 p-3 rounded-lg border border-gray-100">
+                <FormInput
+                  label="Landing Page Delivery Charge (Inside Dhaka)"
+                  name="landing_page_delivery_charge"
+                  type="number"
+                  value={formData.landing_page_delivery_charge}
+                  onChange={handleInputChange}
+                  placeholder="Defaults to 60"
+                />
+                <FormInput
+                  label="Landing Page Delivery Charge (Outside Dhaka)"
+                  name="landing_page_delivery_charge_outside"
+                  type="number"
+                  value={formData.landing_page_delivery_charge_outside}
+                  onChange={handleInputChange}
+                  placeholder="Defaults to 110"
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">

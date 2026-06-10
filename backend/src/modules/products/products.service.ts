@@ -225,6 +225,8 @@ export class ProductsService {
           p.brand,
           p.unit_of_measure,
           p.size_variants,
+          p.landing_page_delivery_charge,
+          p.landing_page_delivery_charge_outside,
           p.created_at
         FROM products p
         LEFT JOIN LATERAL (
@@ -281,6 +283,8 @@ export class ProductsService {
           p.brand,
           p.unit_of_measure,
           p.size_variants,
+          p.landing_page_delivery_charge,
+          p.landing_page_delivery_charge_outside,
           p.created_at
         FROM products p
         LEFT JOIN LATERAL (
@@ -417,7 +421,9 @@ export class ProductsService {
           p.discount_value,
           p.sale_price,
           p.brand,
-          p.size_variants
+          p.size_variants,
+          p.landing_page_delivery_charge,
+          p.landing_page_delivery_charge_outside
         FROM products p
         LEFT JOIN LATERAL (
           SELECT image_url
@@ -468,6 +474,8 @@ export class ProductsService {
           p.discount_type,
           p.discount_value,
           p.sale_price,
+          p.landing_page_delivery_charge,
+          p.landing_page_delivery_charge_outside,
           p.created_at
         FROM products p
         LEFT JOIN LATERAL (
