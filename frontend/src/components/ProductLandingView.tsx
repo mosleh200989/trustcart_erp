@@ -15,6 +15,7 @@ import {
   FaMapMarkerAlt,
   FaEnvelope,
   FaShoppingCart,
+  FaExclamationTriangle,
 } from "react-icons/fa";
 import apiClient from "@/services/api";
 import PhoneInput from "@/components/PhoneInput";
@@ -35,8 +36,114 @@ interface ProductLandingViewProps {
   productImages: any[];
 }
 
-const DELIVERY_INSIDE = 60;
-const DELIVERY_OUTSIDE = 110;
+const BANGLADESH_DISTRICTS = [
+  { en: "Bagerhat", bn: "বাগেরহাট" },
+  { en: "Bandarban", bn: "বান্দরবান" },
+  { en: "Barguna", bn: "বরগুনা" },
+  { en: "Barishal", bn: "বরিশাল" },
+  { en: "Bhola", bn: "ভোলা" },
+  { en: "Bogura", bn: "বগুড়া" },
+  { en: "Brahmanbaria", bn: "ব্রাহ্মণবাড়িয়া" },
+  { en: "Chandpur", bn: "চাঁদপুর" },
+  { en: "Chapai Nawabganj", bn: "চাঁপাইনবাবগঞ্জ" },
+  { en: "Chattogram", bn: "চট্টগ্রাম" },
+  { en: "Chuadanga", bn: "চুয়াডাঙ্গা" },
+  { en: "Cox's Bazar", bn: "কক্সবাজার" },
+  { en: "Cumilla", bn: "কুমিল্লা" },
+  { en: "Dhaka", bn: "ঢাকা" },
+  { en: "Dinajpur", bn: "দিনাজপুর" },
+  { en: "Faridpur", bn: "ফরিদপুর" },
+  { en: "Feni", bn: "ফেনী" },
+  { en: "Gaibandha", bn: "গাইবান্ধা" },
+  { en: "Gazipur", bn: "গাজীপুর" },
+  { en: "Gopalganj", bn: "গোপালগঞ্জ" },
+  { en: "Habiganj", bn: "হবিগঞ্জ" },
+  { en: "Jamalpur", bn: "জামালপুর" },
+  { en: "Jashore", bn: "যশোর" },
+  { en: "Jhalokathi", bn: "ঝালকাঠি" },
+  { en: "Jhenaidah", bn: "ঝিনাইদহ" },
+  { en: "Joypurhat", bn: "জয়পুরহাট" },
+  { en: "Khagrachhari", bn: "খাগড়াছড়ি" },
+  { en: "Khulna", bn: "খুলনা" },
+  { en: "Kishoreganj", bn: "কিশোরগঞ্জ" },
+  { en: "Kurigram", bn: "কুড়িগ্রাম" },
+  { en: "Kushtia", bn: "কুষ্টিয়া" },
+  { en: "Lakshmipur", bn: "লক্ষ্মীপুর" },
+  { en: "Lalmonirhat", bn: "লালমনিরহাট" },
+  { en: "Madaripur", bn: "মাদারীপুর" },
+  { en: "Magura", bn: "মাগুরা" },
+  { en: "Manikganj", bn: "মানিকগঞ্জ" },
+  { en: "Meherpur", bn: "মেহেরপুর" },
+  { en: "Moulvibazar", bn: "মৌলভীবাজার" },
+  { en: "Munshiganj", bn: "মুন্সীগঞ্জ" },
+  { en: "Mymensingh", bn: "ময়মনসিংহ" },
+  { en: "Naogaon", bn: "নওগাঁ" },
+  { en: "Narail", bn: "নড়াইল" },
+  { en: "Narayanganj", bn: "নারায়ণগঞ্জ" },
+  { en: "Narsingdi", bn: "নরসিংদী" },
+  { en: "Natore", bn: "নাটোর" },
+  { en: "Netrokona", bn: "নেত্রকোনা" },
+  { en: "Nilphamari", bn: "নীলফামারী" },
+  { en: "Noakhali", bn: "নোয়াখালী" },
+  { en: "Pabna", bn: "পাবনা" },
+  { en: "Panchagarh", bn: "পঞ্চগড়" },
+  { en: "Patuakhali", bn: "পটুয়াখালী" },
+  { en: "Pirojpur", bn: "পিরোজপুর" },
+  { en: "Rajbari", bn: "রাজবাড়ী" },
+  { en: "Rajshahi", bn: "রাজশাহী" },
+  { en: "Rangamati", bn: "রাঙ্গামাটি" },
+  { en: "Rangpur", bn: "রংপুর" },
+  { en: "Satkhira", bn: "সাতক্ষীরা" },
+  { en: "Shariatpur", bn: "শরীয়তপুর" },
+  { en: "Sherpur", bn: "শেরপুর" },
+  { en: "Sirajganj", bn: "সিরাজগঞ্জ" },
+  { en: "Sunamganj", bn: "সুনামগঞ্জ" },
+  { en: "Sylhet", bn: "সিলেট" },
+  { en: "Tangail", bn: "টাঙ্গাইল" },
+  { en: "Thakurgaon", bn: "ঠাকুরগাঁও" },
+];
+
+const DISTRICT_SEARCH_ALIASES: Record<string, string[]> = {
+  Satkhira: ["সাতক্ষীরা", "সাতখীরা", "সাতখিরা", "সাতক্ষিরা", "সাত"],
+  Chattogram: ["চট্টগ্রাম", "চট্রগ্রাম", "চিটাগাং"],
+  CoxsBazar: ["কক্সবাজার", "কক্স বাজার"],
+  Cumilla: ["কুমিল্লা", "কুমিল্লা", "কুমিলা"],
+  Bogura: ["বগুড়া", "বগুড়া", "বগুরা"],
+  Jashore: ["যশোর", "যশোর", "জেসোর"],
+  Barishal: ["বরিশাল", "বারিশাল"],
+  Moulvibazar: ["মৌলভীবাজার", "মৌলভি বাজার"],
+  ChapaiNawabganj: ["চাঁপাইনবাবগঞ্জ", "চাপাইনবাবগঞ্জ", "চাঁপাই নবাবগঞ্জ"],
+};
+
+const normalizeDistrictText = (value: string) =>
+  value
+    .normalize("NFKC")
+    .toLowerCase()
+    .replace(/[়]/g, "")
+    .replace(/[’']/g, "")
+    .replace(/[\s\-_.]/g, "")
+    .trim();
+
+const districtLabel = (district: { en: string; bn: string }) => `${district.en} - ${district.bn}`;
+
+const getDistrictSearchValues = (district: { en: string; bn: string }) => {
+  const aliasKey = district.en.replace(/[^A-Za-z]/g, "");
+  return [
+    district.en,
+    district.bn,
+    districtLabel(district),
+    ...(DISTRICT_SEARCH_ALIASES[aliasKey] || []),
+  ].map(normalizeDistrictText);
+};
+
+const findDistrictInText = (value: string) => {
+  const normalizedValue = normalizeDistrictText(value);
+  if (!normalizedValue) return null;
+
+  return BANGLADESH_DISTRICTS.find((district) =>
+    getDistrictSearchValues(district).some((searchValue) => searchValue && normalizedValue.includes(searchValue)),
+  ) || null;
+};
 
 export default function ProductLandingView({
   product,
@@ -45,6 +152,8 @@ export default function ProductLandingView({
   const router = useRouter();
   const toast = useToast();
   const orderFormRef = useRef<HTMLDivElement>(null);
+  const districtDropdownRef = useRef<HTMLDivElement>(null);
+  const touchedRef = useRef<Record<string, boolean>>({});
 
   const sizeVariants: SizeVariant[] = Array.isArray(product.size_variants)
     ? product.size_variants
@@ -76,10 +185,13 @@ export default function ProductLandingView({
   const [deliveryZone, setDeliveryZone] = useState<"inside" | "outside">(
     "outside",
   );
+  const [districtDropdownOpen, setDistrictDropdownOpen] = useState(false);
+  const [districtQuery, setDistrictQuery] = useState("");
   const [orderForm, setOrderForm] = useState({
     name: "",
     phone: "",
     address: "",
+    district: "",
     note: "",
   });
   const [formTouched, setFormTouched] = useState(false);
@@ -94,23 +206,29 @@ export default function ProductLandingView({
 
   // Price calculation
   const basePrice = Number(product.base_price || product.price || 0);
-  const salePrice = product.sale_price ? Number(product.sale_price) : null;
+  const salePrice = (product.sale_price !== null && product.sale_price !== undefined) ? Number(product.sale_price) : null;
   const unitPrice = selectedVariant
     ? selectedVariant.price
-    : salePrice != null && salePrice > 0 && salePrice < basePrice
+    : salePrice != null && salePrice < basePrice
       ? salePrice
       : basePrice;
   const originalPrice = selectedVariant ? basePrice : basePrice;
   const hasDiscount = selectedVariant
     ? selectedVariant.price < basePrice
-    : salePrice != null && salePrice > 0 && salePrice < basePrice;
+    : salePrice != null && salePrice < basePrice;
   const discountPercent = hasDiscount
     ? Math.round(((originalPrice - unitPrice) / originalPrice) * 100)
     : 0;
 
   const subtotal = unitPrice * quantity;
+  const deliveryInside = product.landing_page_delivery_charge !== null && product.landing_page_delivery_charge !== undefined
+    ? Number(product.landing_page_delivery_charge)
+    : 60;
+  const deliveryOutside = product.landing_page_delivery_charge_outside !== null && product.landing_page_delivery_charge_outside !== undefined
+    ? Number(product.landing_page_delivery_charge_outside)
+    : 110;
   const deliveryCharge =
-    deliveryZone === "inside" ? DELIVERY_INSIDE : DELIVERY_OUTSIDE;
+    deliveryZone === "inside" ? deliveryInside : deliveryOutside;
   const total = subtotal + deliveryCharge;
 
   const displayName = product.name_bn || product.name_en || "Product";
@@ -118,15 +236,64 @@ export default function ProductLandingView({
   const mainImage =
     productImages.length > 0 ? productImages[0]?.image_url : product.image_url;
 
-  // Auto-detect Dhaka in address and set delivery zone
   useEffect(() => {
-    const addr = orderForm.address.toLowerCase();
+    if (touchedRef.current.district || !orderForm.address.trim()) return;
+
+    const detectedDistrict = findDistrictInText(orderForm.address);
+    if (!detectedDistrict) return;
+
+    const nextDistrict = districtLabel(detectedDistrict);
+    setOrderForm((prev) => {
+      if (prev.district === nextDistrict) return prev;
+      return { ...prev, district: nextDistrict };
+    });
+    setDistrictQuery(nextDistrict);
+  }, [orderForm.address]);
+
+  // Auto-detect Dhaka in address/district and set delivery zone
+  useEffect(() => {
+    const addr = `${orderForm.address} ${orderForm.district}`.toLowerCase();
     if (addr.includes('dhaka') || addr.includes('ঢাকা')) {
       setDeliveryZone('inside');
     } else if (addr.length > 10 && !addr.includes('dhaka') && !addr.includes('ঢাকা')) {
       setDeliveryZone('outside');
     }
-  }, [orderForm.address]);
+  }, [orderForm.address, orderForm.district]);
+
+  useEffect(() => {
+    if (!districtDropdownOpen) {
+      setDistrictQuery(orderForm.district);
+    }
+  }, [orderForm.district, districtDropdownOpen]);
+
+  useEffect(() => {
+    const handleOutsideClick = (event: MouseEvent) => {
+      if (!districtDropdownRef.current?.contains(event.target as Node)) {
+        setDistrictDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleOutsideClick);
+    return () => document.removeEventListener("mousedown", handleOutsideClick);
+  }, []);
+
+  const districtSearch = normalizeDistrictText(districtQuery);
+  const filteredDistricts = BANGLADESH_DISTRICTS.filter((district) => {
+    if (!districtSearch) return true;
+    const searchableValues = getDistrictSearchValues(district);
+    return (
+      searchableValues.some((value) => value.includes(districtSearch)) ||
+      searchableValues.some((value) => districtSearch.includes(value))
+    );
+  }).slice(0, 10);
+
+  const selectDistrict = (district: { en: string; bn: string }) => {
+    const selectedDistrict = districtLabel(district);
+    touchedRef.current.district = true;
+    setDistrictQuery(selectedDistrict);
+    setOrderForm((prev) => ({ ...prev, district: selectedDistrict }));
+    setDistrictDropdownOpen(false);
+  };
 
   // Auto-rotate images
   useEffect(() => {
@@ -153,7 +320,7 @@ export default function ProductLandingView({
   const handleSubmitOrder = async () => {
     setOrderGuardNoteHtml('');
     setFormTouched(true);
-    if (!orderForm.name || !orderForm.phone || !orderForm.address) {
+    if (!orderForm.name || !orderForm.phone || !orderForm.address || !orderForm.district) {
       toast.warning("Please fill in all required fields");
       return;
     }
@@ -171,7 +338,8 @@ export default function ProductLandingView({
       const orderPayload = {
         customer_name: orderForm.name,
         customer_phone: orderForm.phone,
-        shipping_address: orderForm.address,
+        district: orderForm.district,
+        shipping_address: [orderForm.address, orderForm.district].filter(Boolean).join(', '),
         notes: orderForm.note || "",
         payment_method: "cash",
         items: [
@@ -546,6 +714,75 @@ export default function ProductLandingView({
             </div>
             <div>
               <label
+                className={`block text-sm font-medium mb-1 ${formTouched && !orderForm.district ? "text-red-600" : "text-gray-600"}`}
+              >
+                জেলা / District *
+              </label>
+              <div className="relative" ref={districtDropdownRef}>
+                <input
+                  type="text"
+                  value={districtQuery}
+                  onChange={(event) => {
+                    const value = event.target.value;
+                    touchedRef.current.district = true;
+                    setDistrictQuery(value);
+                    setOrderForm((prev) => ({ ...prev, district: value }));
+                    setDistrictDropdownOpen(true);
+                  }}
+                  onInput={(event) => {
+                    const value = event.currentTarget.value;
+                    setDistrictQuery(value);
+                    setOrderForm((prev) => ({ ...prev, district: value }));
+                    setDistrictDropdownOpen(true);
+                  }}
+                  onCompositionStart={() => setDistrictDropdownOpen(true)}
+                  onCompositionEnd={(event) => {
+                    const value = event.currentTarget.value;
+                    setDistrictQuery(value);
+                    setOrderForm((prev) => ({ ...prev, district: value }));
+                    setDistrictDropdownOpen(true);
+                  }}
+                  onFocus={() => setDistrictDropdownOpen(true)}
+                  placeholder="জেলা নির্বাচন করুন বা লিখুন"
+                  className={`w-full border rounded-lg px-4 py-3 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 focus:outline-none transition-colors ${
+                    formTouched && !orderForm.district
+                      ? "border-red-500 bg-red-50"
+                      : "border-gray-300"
+                  }`}
+                  autoComplete="off"
+                />
+                {districtDropdownOpen && (
+                  <div className="absolute z-30 mt-1 max-h-60 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg">
+                    {filteredDistricts.length > 0 ? (
+                      filteredDistricts.map((d) => (
+                        <button
+                          key={d.en}
+                          type="button"
+                          onMouseDown={(event) => {
+                            event.preventDefault();
+                            selectDistrict(d);
+                          }}
+                          className="block w-full px-4 py-2.5 text-left text-sm hover:bg-orange-50 text-gray-800 border-b border-gray-100 last:border-b-0"
+                        >
+                          <span className="font-medium">{d.en}</span>
+                          <span className="ml-2 text-gray-500">{d.bn}</span>
+                        </button>
+                      ))
+                    ) : (
+                      <div className="px-4 py-3 text-sm text-gray-500">No district found</div>
+                    )}
+                  </div>
+                )}
+              </div>
+              {formTouched && !orderForm.district && (
+                <p className="mt-1 text-xs text-red-500 flex items-center gap-1">
+                  <FaExclamationTriangle size={10} />
+                  জেলা নির্বাচন করা আবশ্যক
+                </p>
+              )}
+            </div>
+            <div>
+              <label
                 className={`block text-sm font-medium mb-1 ${formTouched && !orderForm.address ? "text-red-600" : "text-gray-600"}`}
               >
                 আপনার ঠিকানা লিখুন *
@@ -624,7 +861,7 @@ export default function ProductLandingView({
                 >
                   ঢাকার ভিতরে
                   <div className="text-xs mt-0.5">
-                    {DELIVERY_INSIDE.toLocaleString()} ৳
+                    {deliveryInside.toLocaleString()} ৳
                   </div>
                 </button>
                 <button
@@ -638,7 +875,7 @@ export default function ProductLandingView({
                 >
                   ঢাকার বাইরে
                   <div className="text-xs mt-0.5">
-                    {DELIVERY_OUTSIDE.toLocaleString()} ৳
+                    {deliveryOutside.toLocaleString()} ৳
                   </div>
                 </button>
               </div>
@@ -646,7 +883,7 @@ export default function ProductLandingView({
 
             {/* Delivery Charge Line */}
             <div className="flex justify-between text-sm mb-2">
-              <span className="text-gray-600">ডেলিভারি চার্জ</span>
+              <span className="text-gray-600">ডেলিভারি + প্যাকেজিং চার্জ</span>
               <span className="font-medium">
                 {deliveryCharge.toLocaleString()} ৳
               </span>

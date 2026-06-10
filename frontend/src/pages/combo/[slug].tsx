@@ -188,7 +188,7 @@ export default function ComboDetailPage() {
 
   const galleryImages = getGalleryImages();
 
-  const getProductPrice = (product: Product) => Number(product.variant_price || product.sale_price || product.base_price || 0);
+  const getProductPrice = (product: Product) => Number(product.variant_price !== null && product.variant_price !== undefined ? product.variant_price : (product.sale_price !== null && product.sale_price !== undefined ? product.sale_price : (product.base_price || 0)));
 
   const getProductQuantity = (product: Product) => Number(product.quantity || 1);
 

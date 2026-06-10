@@ -141,7 +141,7 @@ export default function ProductDetailsPage() {
       trackViewItem({
         id: response.data.id,
         name: response.data.name_en || response.data.name,
-        price: Number(response.data.sale_price || response.data.base_price || 0),
+        price: Number(response.data.sale_price !== null && response.data.sale_price !== undefined ? response.data.sale_price : (response.data.base_price || 0)),
         category: response.data.category?.name || response.data.category?.name_en || undefined,
       });
       
@@ -246,10 +246,10 @@ export default function ProductDetailsPage() {
       : product.id.toString();
 
     const bp = Number(product.base_price || product.price || 0);
-    const sp = product.sale_price ? Number(product.sale_price) : null;
+    const sp = product.sale_price !== null && product.sale_price !== undefined ? Number(product.sale_price) : null;
     const itemPrice = selectedVariant
       ? selectedVariant.price
-      : (sp != null && sp > 0 && sp < bp ? sp : bp);
+      : (sp != null && sp >= 0 && sp < bp ? sp : bp);
 
     addItem({
       id: product.id,
@@ -291,10 +291,10 @@ export default function ProductDetailsPage() {
       : product.id.toString();
 
     const bp = Number(product.base_price || product.price || 0);
-    const sp = product.sale_price ? Number(product.sale_price) : null;
+    const sp = product.sale_price !== null && product.sale_price !== undefined ? Number(product.sale_price) : null;
     const itemPrice = selectedVariant
       ? selectedVariant.price
-      : (sp != null && sp > 0 && sp < bp ? sp : bp);
+      : (sp != null && sp >= 0 && sp < bp ? sp : bp);
 
     addItem({
       id: product.id,
@@ -447,10 +447,10 @@ export default function ProductDetailsPage() {
 
   const displayName = product.name_en || product.name_bn || "Product";
   const basePrice = Number(product.base_price || product.price || 0);
-  const salePrice = product.sale_price ? Number(product.sale_price) : null;
+  const salePrice = product.sale_price !== null && product.sale_price !== undefined ? Number(product.sale_price) : null;
   // Use selected variant price if a variant is selected; otherwise use sale_price (offer price) if available, then base price
-  const price = selectedVariant ? selectedVariant.price : (salePrice != null && salePrice > 0 && salePrice < basePrice ? salePrice : basePrice);
-  const hasDiscount = !selectedVariant && salePrice != null && salePrice > 0 && salePrice < basePrice;
+  const price = selectedVariant ? selectedVariant.price : (salePrice != null && salePrice >= 0 && salePrice < basePrice ? salePrice : basePrice);
+  const hasDiscount = !selectedVariant && salePrice != null && salePrice >= 0 && salePrice < basePrice;
   const additionalInfo = product.additional_info || {};
   const sizeVariants: SizeVariant[] = Array.isArray(product.size_variants) ? product.size_variants : [];
 

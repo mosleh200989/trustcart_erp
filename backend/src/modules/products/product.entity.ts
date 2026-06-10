@@ -90,6 +90,12 @@ export class Product {
   @Column({ type: 'boolean', default: false, name: 'is_combo' })
   is_combo!: boolean;
 
+  @Column('decimal', { precision: 10, scale: 2, nullable: true, name: 'landing_page_delivery_charge', default: 60.00 })
+  landing_page_delivery_charge!: number;
+
+  @Column('decimal', { precision: 10, scale: 2, nullable: true, name: 'landing_page_delivery_charge_outside', default: 110.00 })
+  landing_page_delivery_charge_outside!: number;
+
   @CreateDateColumn({ name: 'created_at' })
   created_at!: Date;
 

@@ -181,12 +181,7 @@ export default function Checkout() {
     product?.name_en || product?.name_bn || product?.name || "Product";
 
   const getProductPrice = (product: any) => {
-    const price =
-      product?.base_price ??
-      product?.price ??
-      product?.sale_price ??
-      product?.salePrice ??
-      0;
+    const price = product?.sale_price !== null && product?.sale_price !== undefined ? product.sale_price : (product?.salePrice !== null && product?.salePrice !== undefined ? product.salePrice : (product?.base_price ?? product?.price ?? 0));
     return Number(price) || 0;
   };
 

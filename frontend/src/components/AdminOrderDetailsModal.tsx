@@ -731,7 +731,7 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
 
   const selectAddProduct = (product: any, variant?: { name: string; price: number }) => {
     const variantName = variant?.name || '';
-    const price = variant ? Number(variant.price) : Number(product.sale_price || product.base_price || product.price || 0);
+    const price = variant ? Number(variant.price) : Number(product.sale_price !== null && product.sale_price !== undefined ? product.sale_price : (product.base_price || product.price || 0));
     const displayName = variantName ? `${product.name_en || product.name} (${variantName})` : (product.name_en || product.name || '');
     setNewProduct({
       ...newProduct,
@@ -806,7 +806,7 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
 
   const addProductToNewOrder = (product: any, variant?: { name: string; price: number }) => {
     const variantName = variant?.name || '';
-    const price = variant ? Number(variant.price) : Number(product.sale_price || product.base_price || product.price || 0);
+    const price = variant ? Number(variant.price) : Number(product.sale_price !== null && product.sale_price !== undefined ? product.sale_price : (product.base_price || product.price || 0));
     const displayName = variantName ? `${product.name_en || product.name} (${variantName})` : (product.name_en || product.name);
     const itemKey = `${product.id}-${variantName}`;
     const existing = newOrderItems.find(item => `${item.productId}-${item.variantName}` === itemKey);
@@ -1336,9 +1336,9 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                       {showAddProductDropdown && addProductSearchResults.length > 0 && (
                         <div className="absolute z-50 left-0 right-0 mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-72 overflow-y-auto">
                           {addProductSearchResults.map((p: any) => {
-                            const salePrice = Number(p.sale_price || p.base_price || p.price || 0);
+                            const salePrice = Number(p.sale_price !== null && p.sale_price !== undefined ? p.sale_price : (p.base_price || p.price || 0));
                             const basePrice = Number(p.base_price || p.price || 0);
-                            const hasDiscount = p.sale_price && salePrice < basePrice;
+                            const hasDiscount = p.sale_price !== null && p.sale_price !== undefined && salePrice < basePrice;
                             const variants: Array<{ name: string; price: number; stock?: number; sku_suffix?: string }> = Array.isArray(p.size_variants) && p.size_variants.length > 0 ? p.size_variants : [];
                             const isExpanded = expandedProductId === p.id;
                             return (
@@ -2961,9 +2961,9 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                     {showProductDropdown && productSearchResults.length > 0 && (
                       <div className="absolute z-10 w-full mt-1 bg-white border rounded-lg shadow-lg max-h-72 overflow-y-auto">
                         {productSearchResults.map((product) => {
-                          const salePrice = Number(product.sale_price || product.base_price || product.price || 0);
+                          const salePrice = Number(product.sale_price !== null && product.sale_price !== undefined ? product.sale_price : (product.base_price || product.price || 0));
                           const basePrice = Number(product.base_price || product.price || 0);
-                          const hasDiscount = product.sale_price && salePrice < basePrice;
+                          const hasDiscount = product.sale_price !== null && product.sale_price !== undefined && salePrice < basePrice;
                           const rawVariants = (() => {
                             let sv = product.size_variants;
                             if (!sv) return [];
@@ -3049,7 +3049,7 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                                   >
                                     <span className="text-gray-400 text-xs">└─</span>
                                     <div className="flex-1 text-sm text-gray-500 italic">Base product (no variant)</div>
-                                    <div className="text-sm font-semibold text-blue-600">৳{Number(product.sale_price || product.base_price || product.price || 0).toFixed(2)}</div>
+                                    <div className="text-sm font-semibold text-blue-600">৳{Number(product.sale_price !== null && product.sale_price !== undefined ? product.sale_price : (product.base_price || product.price || 0)).toFixed(2)}</div>
                                   </button>
                                 </div>
                               )}
