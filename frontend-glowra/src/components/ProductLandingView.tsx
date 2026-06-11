@@ -166,6 +166,27 @@ export default function ProductLandingView({
   const quantity = selectedVariant
     ? variantQuantities[selectedVariant.name] || 1
     : baseQuantity;
+
+  // Suggested Products State
+  const [suggestedProducts, setSuggestedProducts] = useState<any[]>([]);
+  const [loadingSuggestions, setLoadingSuggestions] = useState(true);
+
+  useEffect(() => {
+    if (product?.id) {
+      apiClient
+        .get(`/products/${product.id}/suggestions`)
+        .then((res) => {
+          setSuggestedProducts(res.data || []);
+        })
+        .catch((err) => {
+          console.error("Error loading suggested products:", err);
+        })
+        .finally(() => {
+          setLoadingSuggestions(false);
+        });
+    }
+  }, [product?.id]);
+
   const setQuantity = (updater: number | ((prev: number) => number)) => {
     if (selectedVariant) {
       setVariantQuantities((prev) => {
@@ -929,6 +950,57 @@ export default function ProductLandingView({
               className="prose prose-sm max-w-none text-gray-700 prose-headings:text-gray-900"
               dangerouslySetInnerHTML={{ __html: product.description_en }}
             />
+          </div>
+        </section>
+      )}
+
+      {/* Suggested Products Section */}
+      {suggestedProducts.length > 0 && (
+        <section className="border-t border-gray-200 bg-gray-50">
+          <div className="max-w-4xl mx-auto px-4 py-8 sm:py-12">
+            <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-6 text-center">
+              আপনার জন্য আরও কিছু পণ্য (Suggested Products)
+            </h2>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6">
+              {suggestedProducts.map((item) => {
+                const itemPrice = item.sale_price !== null && item.sale_price !== undefined ? Number(item.sale_price) : Number(item.base_price || 0);
+                const showDiscount = item.sale_price !== null && item.sale_price !== undefined && Number(item.sale_price) < Number(item.base_price);
+                const displayImageUrl = item.image_url || "/placeholder.png";
+
+                return (
+                  <div key={item.id} className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-lg transition-shadow duration-300 flex flex-col h-full border border-gray-100">
+                    <div className="relative pt-[100%] bg-gray-50">
+                      <img
+                        src={displayImageUrl}
+                        alt={item.name_en}
+                        className="absolute inset-0 w-full h-full object-cover"
+                      />
+                    </div>
+                    <div className="p-3 sm:p-4 flex flex-col flex-grow">
+                      <h3 className="text-sm sm:text-base font-semibold text-gray-800 line-clamp-2 mb-2 flex-grow">
+                        {item.name_bn || item.name_en}
+                      </h3>
+                      <div className="flex items-center gap-2 mb-3">
+                        <span className="text-base sm:text-lg font-bold text-red-600">
+                          ৳{itemPrice.toFixed(0)}
+                        </span>
+                        {showDiscount && (
+                          <span className="text-xs sm:text-sm text-gray-400 line-through">
+                            ৳{Number(item.base_price).toFixed(0)}
+                          </span>
+                        )}
+                      </div>
+                      <Link
+                        href={`/products/${item.slug || item.id}?lp=1`}
+                        className="w-full bg-orange-500 hover:bg-orange-600 text-white text-center py-2 px-3 rounded-lg text-xs sm:text-sm font-semibold transition-colors duration-200"
+                      >
+                        অর্ডার করুন
+                      </Link>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </section>
       )}

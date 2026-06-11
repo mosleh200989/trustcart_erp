@@ -329,6 +329,21 @@ export class ProductsController {
     return this.productsService.toggleHotDealStatus(parseInt(id));
   }
 
+  @Get(':id/suggestions')
+  @Public()
+  async getSuggestions(@Param('id') id: string) {
+    return this.productsService.getSuggestions(parseInt(id, 10));
+  }
+
+  @Put(':id/suggestions')
+  @RequirePermissions('edit-products')
+  async updateSuggestions(
+    @Param('id') id: string,
+    @Body() body: { suggestedIds: number[] },
+  ) {
+    return this.productsService.updateSuggestions(parseInt(id, 10), body.suggestedIds || []);
+  }
+
   // NOTE: Keep this below other static GET routes (e.g. deal-of-the-day)
   // so it doesn't accidentally catch them.
   @Get(':id')

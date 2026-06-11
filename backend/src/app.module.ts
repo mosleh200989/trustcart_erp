@@ -5,6 +5,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 
 // Entities
 import { Product } from './modules/products/product.entity';
+import { ProductSuggestion } from './modules/products/product-suggestion.entity';
 import { User } from './modules/users/user.entity';
 import { Customer } from './modules/customers/customer.entity';
 import { BlogPost } from './modules/blog/blog-post.entity';
@@ -258,7 +259,7 @@ import { GrnItem } from './modules/purchase/entities/grn-item.entity';
           password: configService.get<string>('DB_PASSWORD') || 'c0mm0n',
           database: configService.get<string>('DB_NAME') || 'trustcart_erp',
           entities: [
-            Product, User, Customer, BlogPost, BlogCategory, BlogTag, ComboDeal, 
+            Product, ProductSuggestion, User, Customer, BlogPost, BlogCategory, BlogTag, ComboDeal, 
             CustomerReview, EmailSubscriber, UserProductView, Role, Permission, 
             JobPost, JobApplication, Interview,
             FamilyMember, CustomerInteraction, CustomerBehavior, CustomerDropoff, CustomerAddress,
