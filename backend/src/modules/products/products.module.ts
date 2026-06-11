@@ -5,9 +5,10 @@ import { ProductsController } from './products.controller';
 import { Product } from './product.entity';
 import { DealOfTheDay } from './deal-of-the-day.entity';
 import { HotDeal } from './hot-deal.entity';
+import { ProductSuggestion } from './product-suggestion.entity';
 
 @Module({
-  imports: [TenantTypeOrmModule.forFeature([Product, DealOfTheDay, HotDeal])],
+  imports: [TenantTypeOrmModule.forFeature([Product, DealOfTheDay, HotDeal, ProductSuggestion])],
   controllers: [ProductsController],
   providers: [ProductsService],
   exports: [ProductsService],

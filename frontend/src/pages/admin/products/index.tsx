@@ -9,7 +9,7 @@ import FormInput from '@/components/admin/FormInput';
 import ImageUpload from '@/components/admin/ImageUpload';
 import MultipleImageUpload from '@/components/admin/MultipleImageUpload';
 import RichTextEditor from '@/components/admin/RichTextEditor';
-import { FaPlus, FaSearch, FaEye, FaEyeSlash, FaSortAmountDown } from 'react-icons/fa';
+import { FaPlus, FaSearch, FaEye, FaEyeSlash, FaSortAmountDown, FaListUl } from 'react-icons/fa';
 import apiClient from '@/services/api';
 
 interface Product {
@@ -77,6 +77,14 @@ export default function AdminProducts() {
   const [viewProductImages, setViewProductImages] = useState<ProductImage[]>([]);
   const [viewProductDetails, setViewProductDetails] = useState<any>(null);
   const [pendingImages, setPendingImages] = useState<string[]>([]);
+
+  // Suggestions Modal State
+  const [isSuggestionsModalOpen, setIsSuggestionsModalOpen] = useState(false);
+  const [suggestionsTargetProduct, setSuggestionsTargetProduct] = useState<Product | null>(null);
+  const [selectedSuggestions, setSelectedSuggestions] = useState<number[]>([]);
+  const [searchSuggestionsQuery, setSearchSuggestionsQuery] = useState('');
+  const [suggestionsLoading, setSuggestionsLoading] = useState(false);
+  const [savingSuggestions, setSavingSuggestions] = useState(false);
 
   const [formData, setFormData] = useState({
     name_en: '',
@@ -307,6 +315,41 @@ export default function AdminProducts() {
     } catch (error) {
       console.error('Failed to toggle visibility:', error);
       toast.error('Failed to update product visibility');
+    }
+  };
+
+  const handleOpenSuggestionsModal = async (product: Product) => {
+    setSuggestionsTargetProduct(product);
+    setSuggestionsLoading(true);
+    setIsSuggestionsModalOpen(true);
+    setSelectedSuggestions([]);
+    setSearchSuggestionsQuery('');
+    try {
+      const response = await apiClient.get(`/products/${product.id}/suggestions`);
+      const suggestions = Array.isArray(response.data) ? response.data : [];
+      setSelectedSuggestions(suggestions.map((s: any) => s.id));
+    } catch (error) {
+      console.error('Failed to load suggestions:', error);
+      toast.error('Failed to load suggested products');
+    } finally {
+      setSuggestionsLoading(false);
+    }
+  };
+
+  const handleSaveSuggestions = async () => {
+    if (!suggestionsTargetProduct) return;
+    setSavingSuggestions(true);
+    try {
+      await apiClient.put(`/products/${suggestionsTargetProduct.id}/suggestions`, {
+        suggestedIds: selectedSuggestions,
+      });
+      toast.success('Suggested products updated successfully');
+      setIsSuggestionsModalOpen(false);
+    } catch (error) {
+      console.error('Failed to save suggestions:', error);
+      toast.error('Failed to save suggested products');
+    } finally {
+      setSavingSuggestions(false);
     }
   };
 
@@ -620,6 +663,22 @@ export default function AdminProducts() {
           title={row.status === 'active' ? 'Click to hide from customers' : 'Click to show to customers'}
         >
           {row.status === 'active' ? <FaEye size={18} /> : <FaEyeSlash size={18} />}
+        </button>
+      )
+    },
+    {
+      key: 'suggestions',
+      label: 'Suggest',
+      render: (_value: any, row: Product) => (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            handleOpenSuggestionsModal(row);
+          }}
+          className="p-2 rounded-lg bg-blue-100 text-blue-600 hover:bg-blue-200 transition-all"
+          title="Set Suggested Products"
+        >
+          <FaListUl size={18} />
         </button>
       )
     }
@@ -1301,6 +1360,208 @@ export default function AdminProducts() {
             </form>
           )}
         </Modal>
+
+        {isSuggestionsModalOpen && suggestionsTargetProduct && (
+          <Modal
+            isOpen={isSuggestionsModalOpen}
+            onClose={() => setIsSuggestionsModalOpen(false)}
+            title={`Set Suggested Products for: ${suggestionsTargetProduct.name_en}`}
+            size="lg"
+            footer={
+              <div className="flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setIsSuggestionsModalOpen(false)}
+                  className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-lg transition-colors"
+                  disabled={savingSuggestions}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveSuggestions}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors flex items-center gap-2"
+                  disabled={savingSuggestions}
+                >
+                  {savingSuggestions ? 'Saving...' : 'Save Changes'}
+                </button>
+              </div>
+            }
+          >
+            {suggestionsLoading ? (
+              <div className="py-12 text-center text-gray-500">
+                <div className="flex justify-center items-center mb-3">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                </div>
+                Loading suggestions data...
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Left Column: Select Products */}
+                <div className="flex flex-col border border-gray-200 rounded-lg overflow-hidden bg-gray-50">
+                  <div className="p-3 border-b border-gray-200 bg-white">
+                    <h3 className="font-semibold text-gray-700 mb-2">Available Products</h3>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        placeholder="Search products..."
+                        value={searchSuggestionsQuery}
+                        onChange={(e) => setSearchSuggestionsQuery(e.target.value)}
+                        className="w-full pl-9 pr-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                      />
+                      <FaSearch className="absolute left-3 top-3 text-gray-400 text-sm" />
+                    </div>
+                  </div>
+                  
+                  <div className="flex-1 overflow-y-auto p-3 space-y-2 max-h-[350px]">
+                    {products
+                      .filter(
+                        (p) =>
+                          p.id !== suggestionsTargetProduct.id &&
+                          p.status === 'active' &&
+                          (p.name_en.toLowerCase().includes(searchSuggestionsQuery.toLowerCase()) ||
+                            p.name_bn?.toLowerCase().includes(searchSuggestionsQuery.toLowerCase()) ||
+                            p.sku?.toLowerCase().includes(searchSuggestionsQuery.toLowerCase()))
+                      )
+                      .map((item) => {
+                        const isSelected = selectedSuggestions.includes(item.id);
+                        return (
+                          <div
+                            key={item.id}
+                            onClick={() => {
+                              if (isSelected) {
+                                setSelectedSuggestions(selectedSuggestions.filter((id) => id !== item.id));
+                              } else {
+                                setSelectedSuggestions([...selectedSuggestions, item.id]);
+                              }
+                            }}
+                            className={`flex items-center gap-3 p-2 border rounded-lg cursor-pointer transition-colors ${
+                              isSelected
+                                ? 'bg-blue-50 border-blue-300'
+                                : 'bg-white border-gray-200 hover:bg-gray-50'
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              readOnly
+                              className="h-4 w-4 text-blue-600 rounded"
+                            />
+                            {item.image_url && (
+                              <img
+                                src={item.image_url}
+                                alt={item.name_en}
+                                className="w-10 h-10 object-cover rounded bg-gray-100"
+                              />
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-gray-800 truncate">
+                                {item.name_en}
+                              </p>
+                              <p className="text-xs text-gray-500">
+                                SKU: {item.sku || 'N/A'} | Price: ৳{item.base_price}
+                              </p>
+                            </div>
+                          </div>
+                        );
+                      })}
+                  </div>
+                </div>
+
+                {/* Right Column: Order & Reorder */}
+                <div className="flex flex-col border border-gray-200 rounded-lg overflow-hidden bg-gray-50">
+                  <div className="p-3 border-b border-gray-200 bg-white">
+                    <h3 className="font-semibold text-gray-700">
+                      Selected Suggestions ({selectedSuggestions.length})
+                    </h3>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Order below determines the display sequence.
+                    </p>
+                  </div>
+
+                  <div className="flex-1 overflow-y-auto p-3 space-y-2 max-h-[350px]">
+                    {selectedSuggestions.length === 0 ? (
+                      <div className="text-center py-12 text-gray-400 text-sm">
+                        No products selected yet.
+                      </div>
+                    ) : (
+                      selectedSuggestions.map((id, index) => {
+                        const item = products.find((p) => p.id === id);
+                        if (!item) return null;
+                        return (
+                          <div
+                            key={id}
+                            className="flex items-center gap-3 p-2 bg-white border border-gray-200 rounded-lg"
+                          >
+                            {item.image_url && (
+                              <img
+                                src={item.image_url}
+                                alt={item.name_en}
+                                className="w-10 h-10 object-cover rounded bg-gray-100"
+                              />
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-gray-800 truncate">
+                                {item.name_en}
+                              </p>
+                              <p className="text-xs text-gray-500">
+                                Order: {index + 1}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (index === 0) return;
+                                  const next = [...selectedSuggestions];
+                                  const temp = next[index];
+                                  next[index] = next[index - 1];
+                                  next[index - 1] = temp;
+                                  setSelectedSuggestions(next);
+                                }}
+                                disabled={index === 0}
+                                className="p-1.5 bg-gray-100 text-gray-600 hover:bg-gray-200 rounded disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                title="Move Up"
+                              >
+                                ▲
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (index === selectedSuggestions.length - 1) return;
+                                  const next = [...selectedSuggestions];
+                                  const temp = next[index];
+                                  next[index] = next[index + 1];
+                                  next[index + 1] = temp;
+                                  setSelectedSuggestions(next);
+                                }}
+                                disabled={index === selectedSuggestions.length - 1}
+                                className="p-1.5 bg-gray-100 text-gray-600 hover:bg-gray-200 rounded disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                title="Move Down"
+                              >
+                                ▼
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedSuggestions(selectedSuggestions.filter((sid) => sid !== id));
+                                }}
+                                className="p-1.5 bg-red-50 text-red-500 hover:bg-red-100 rounded transition-colors"
+                                title="Remove"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+          </Modal>
+        )}
       </div>
     </AdminLayout>
   );

@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { Product } from './product.entity';
 import { DealOfTheDay } from './deal-of-the-day.entity';
 import { HotDeal } from './hot-deal.entity';
+import { ProductSuggestion } from './product-suggestion.entity';
 
 @Injectable()
 export class ProductsService {
@@ -14,6 +15,8 @@ export class ProductsService {
     private dealOfTheDayRepository: Repository<DealOfTheDay>,
     @InjectRepository(HotDeal)
     private hotDealRepository: Repository<HotDeal>,
+    @InjectRepository(ProductSuggestion)
+    private productSuggestionRepository: Repository<ProductSuggestion>,
   ) {}
 
   private readonly productOrderSections = new Map<string, { label: string; where: string }>([
@@ -1147,6 +1150,69 @@ export class ProductsService {
       return await this.hotDealRepository.save(hotDeal);
     } catch (error) {
       console.error('Error toggling hot deal status:', error);
+      throw error;
+    }
+  }
+
+  async getSuggestions(productId: number): Promise<any[]> {
+    try {
+      const results = await this.productsRepository.query(`
+        SELECT 
+          p.id, p.slug, p.sku, p.product_code, 
+          p.name_en, p.name_bn, p.short_description,
+          p.category_id,
+          p.base_price, 
+          p.base_price as price,
+          p.wholesale_price, 
+          p.stock_quantity,
+          COALESCE(p.image_url, pi.image_url) as image_url,
+          p.status,
+          p.discount_type,
+          p.discount_value,
+          p.sale_price,
+          p.landing_page_delivery_charge,
+          p.landing_page_delivery_charge_outside
+        FROM product_suggestions ps
+        INNER JOIN products p ON ps.suggested_product_id = p.id
+        LEFT JOIN LATERAL (
+          SELECT image_url
+          FROM product_images
+          WHERE product_id = p.id
+          ORDER BY is_primary DESC, display_order ASC
+          LIMIT 1
+        ) pi ON TRUE
+        WHERE ps.product_id = $1 AND p.status = 'active'
+        ORDER BY ps.display_order ASC, ps.created_at ASC
+      `, [productId]);
+      return results || [];
+    } catch (error) {
+      console.error('Error fetching product suggestions:', error);
+      return [];
+    }
+  }
+
+  async updateSuggestions(productId: number, suggestedProductIds: number[]): Promise<{ success: boolean }> {
+    try {
+      await this.productsRepository.manager.transaction(async (manager) => {
+        // Delete existing suggestions
+        await manager.query(
+          `DELETE FROM product_suggestions WHERE product_id = $1`,
+          [productId]
+        );
+
+        // Insert new suggestions
+        for (let index = 0; index < suggestedProductIds.length; index++) {
+          const suggestedId = suggestedProductIds[index];
+          await manager.query(
+            `INSERT INTO product_suggestions (product_id, suggested_product_id, display_order, created_at, updated_at)
+             VALUES ($1, $2, $3, NOW(), NOW())`,
+            [productId, suggestedId, index]
+          );
+        }
+      });
+      return { success: true };
+    } catch (error) {
+      console.error('Error updating suggestions:', error);
       throw error;
     }
   }
