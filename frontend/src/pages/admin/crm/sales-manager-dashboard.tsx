@@ -52,7 +52,7 @@ const SalesManagerDashboard = () => {
 
   const fetchDashboard = useCallback(async () => {
     try {
-      const response = await api.get('/crm/sales-manager/dashboard');
+      const response = await api.get('/crm/data-analyst/dashboard');
       setDashboard(response.data);
     } catch (error) {
       console.error('Error fetching dashboard:', error);
@@ -80,7 +80,7 @@ const SalesManagerDashboard = () => {
       <AdminLayout>
         <div className="flex items-center justify-center py-20">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600" />
-          <span className="ml-4 text-lg text-gray-600">Loading Sales Manager Dashboard…</span>
+          <span className="ml-4 text-lg text-gray-600">Loading Data Analyst Dashboard...</span>
         </div>
       </AdminLayout>
     );
@@ -95,7 +95,7 @@ const SalesManagerDashboard = () => {
         {/* Header */}
         <div className="mb-8 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Sales Manager Dashboard</h1>
+            <h1 className="text-3xl font-bold text-gray-900">Data Analyst Dashboard</h1>
             <p className="text-gray-500 mt-1">Monitor team leaders, track performance, and assign leads</p>
           </div>
           <div className="flex gap-3">

@@ -14,6 +14,8 @@ import { CustomerTier } from './entities/customer-tier.entity';
 
 @Injectable()
 export class LeadManagementService {
+  private readonly manualTierValues = new Set(['tier_1', 'tier_2', 'tier_3', 'tier_4', 'tier_5', 'tier_6']);
+
   constructor(
     @InjectRepository(CustomerSession)
     private readonly sessionRepo: Repository<CustomerSession>,
@@ -527,17 +529,39 @@ export class LeadManagementService {
     tierAssignedById?: number;
     notes?: string;
   }) {
-    // When rejecting a customer: unassign from agent and team leader
-    if (data.tier === 'rejected') {
-      await this.sessionRepo.query(
-        `UPDATE customers SET assigned_to = NULL, assigned_supervisor_id = NULL WHERE id = $1`,
-        [data.customerId],
-      );
+    if (data.tier !== 'rejected' && !this.manualTierValues.has(data.tier)) {
+      throw new Error('Invalid customer tier. Use tier_1 through tier_6.');
     }
 
     const existing = await this.customerTierRepo.findOne({
       where: { customerId: data.customerId },
     });
+
+    // When rejecting a customer: unassign from agent and team leader
+    if (data.tier === 'rejected') {
+      if (!existing || existing.tier !== 'tier_6') {
+        throw new Error('Only Tier 6 customers can be moved to the rejected list.');
+      }
+
+      await this.sessionRepo.query(
+        `UPDATE customers
+         SET assigned_to = NULL,
+             assigned_supervisor_id = NULL,
+             assigned_at = NULL,
+             customer_type = 'rejected',
+             lead_status = 'rejected'
+         WHERE id = $1`,
+        [data.customerId],
+      );
+    } else if (existing?.tier === 'rejected') {
+      await this.sessionRepo.query(
+        `UPDATE customers
+         SET customer_type = CASE WHEN customer_type = 'rejected' THEN 'new' ELSE customer_type END,
+             lead_status = NULL
+         WHERE id = $1`,
+        [data.customerId],
+      );
+    }
 
     if (existing) {
       await this.customerTierRepo.update(existing.id, {
@@ -565,187 +589,14 @@ export class LeadManagementService {
     });
   }
 
-  /**
-   * Auto-assign tier based on delivered order count.
-   * 1 → new, 2 → repeat, 3 → silver, 4 → gold, 5 → platinum, 6+ → vip
-   * Only upgrades; never downgrades a manually set higher tier or blacklist/rejected.
-   */
+  /** Compatibility no-op: customer tiers are assigned manually. */
   async autoAssignTierForCustomer(customerId: number): Promise<void> {
-    // Count delivered orders for this customer
-    const rows: { cnt: string }[] = await this.sessionRepo.query(
-      `SELECT COUNT(*)::text AS cnt FROM sales_orders WHERE customer_id = $1 AND LOWER(status::text) = 'delivered'`,
-      [customerId],
-    );
-    const deliveredCount = parseInt(rows[0]?.cnt || '0', 10);
-    if (deliveredCount < 1) return;
-
-    const tierOrder = ['new', 'repeat', 'silver', 'gold', 'platinum', 'vip'];
-    const targetTier =
-      deliveredCount >= 6 ? 'vip' :
-      deliveredCount === 5 ? 'platinum' :
-      deliveredCount === 4 ? 'gold' :
-      deliveredCount === 3 ? 'silver' :
-      deliveredCount === 2 ? 'repeat' :
-      'new';
-
-    const existing = await this.customerTierRepo.findOne({ where: { customerId } });
-
-    // Never override blacklist/rejected
-    if (existing && (existing.tier === 'blacklist' || existing.tier === 'rejected')) return;
-
-    // Only upgrade, never downgrade
-    if (existing) {
-      const currentRank = tierOrder.indexOf(existing.tier);
-      const targetRank = tierOrder.indexOf(targetTier);
-      if (currentRank >= targetRank) return; // already at same or higher tier
-    }
-
-    if (existing) {
-      await this.customerTierRepo.update(existing.id, {
-        tier: targetTier,
-        autoAssigned: true,
-        tierAssignedAt: new Date(),
-        totalPurchases: deliveredCount,
-        lastActivityDate: new Date(),
-      });
-    } else {
-      const tier = this.customerTierRepo.create({
-        customerId,
-        tier: targetTier,
-        isActive: true,
-        autoAssigned: true,
-        tierAssignedAt: new Date(),
-        totalPurchases: deliveredCount,
-        lastActivityDate: new Date(),
-      });
-      await this.customerTierRepo.save(tier);
-    }
+    void customerId;
   }
 
-  /**
-   * Bulk auto-assign / upgrade tiers for ALL customers with delivered orders.
-   * Runs as a batch SQL operation — efficient even at scale.
-   *
-   * Rules:
-   *  - 1 delivered → new | 2 → repeat | 3 → silver | 4 → gold | 5 → platinum | 6+ → vip
-   *  - Customers with NO tier row → INSERT the correct tier (auto_assigned = true)
-   *  - Customers with auto_assigned = true tier → UPGRADE if new rank is higher
-   *  - Customers with auto_assigned = false (manually set) → SKIP (respect manual override)
-   *  - blacklist / rejected → always SKIP
-   *
-   * Returns stats: { inserted, upgraded, skipped }
-   */
+  /** Compatibility no-op: customer tiers are assigned manually. */
   async bulkAutoAssignTiers(): Promise<{ inserted: number; upgraded: number; skipped: number }> {
-    const tierCase = `
-      CASE
-        WHEN delivered_count >= 6 THEN 'vip'
-        WHEN delivered_count = 5  THEN 'platinum'
-        WHEN delivered_count = 4  THEN 'gold'
-        WHEN delivered_count = 3  THEN 'silver'
-        WHEN delivered_count = 2  THEN 'repeat'
-        ELSE                           'new'
-      END
-    `;
-
-    // Rank helper (higher = better tier)
-    const tierRank = `
-      CASE tier
-        WHEN 'vip'      THEN 6
-        WHEN 'platinum' THEN 5
-        WHEN 'gold'     THEN 4
-        WHEN 'silver'   THEN 3
-        WHEN 'repeat'   THEN 2
-        WHEN 'new'      THEN 1
-        ELSE                 0
-      END
-    `;
-
-    // Step 1: INSERT for customers who have delivered orders but NO tier row yet
-    const insertResult: { rowcount: string }[] = await this.sessionRepo.query(`
-      WITH delivered AS (
-        SELECT customer_id,
-               COUNT(*)::int                        AS delivered_count,
-               MAX(updated_at)                      AS last_delivery
-        FROM   sales_orders
-        WHERE  LOWER(status::text) = 'delivered'
-          AND  customer_id IS NOT NULL
-        GROUP  BY customer_id
-      ),
-      new_tiers AS (
-        SELECT d.customer_id,
-               ${tierCase} AS target_tier,
-               d.delivered_count,
-               d.last_delivery
-        FROM   delivered d
-        WHERE  NOT EXISTS (
-          SELECT 1 FROM customer_tiers ct WHERE ct.customer_id = d.customer_id
-        )
-      )
-      INSERT INTO customer_tiers (
-        customer_id, tier, is_active, auto_assigned,
-        tier_assigned_at, total_purchases, last_activity_date,
-        days_inactive, total_spent, engagement_score, notes
-      )
-      SELECT
-        n.customer_id,
-        n.target_tier,
-        true,
-        true,
-        NOW(),
-        n.delivered_count,
-        n.last_delivery,
-        0,
-        COALESCE((SELECT SUM(total_amount) FROM sales_orders WHERE customer_id = n.customer_id), 0),
-        0,
-        'Auto-assigned by nightly tier sync'
-      FROM new_tiers n
-      ON CONFLICT (customer_id) DO NOTHING
-      RETURNING customer_id
-    `);
-
-    const inserted = Array.isArray(insertResult) ? insertResult.length : 0;
-
-    // Step 2: UPGRADE customers whose auto_assigned tier is now below their delivered count
-    //         Never touch blacklist / rejected / manually set tiers
-    const upgradeResult: { rowcount: string }[] = await this.sessionRepo.query(`
-      WITH delivered AS (
-        SELECT customer_id,
-               COUNT(*)::int AS delivered_count,
-               MAX(updated_at) AS last_delivery
-        FROM   sales_orders
-        WHERE  LOWER(status::text) = 'delivered'
-          AND  customer_id IS NOT NULL
-        GROUP  BY customer_id
-      ),
-      targets AS (
-        SELECT d.customer_id,
-               ${tierCase}    AS target_tier,
-               d.delivered_count,
-               d.last_delivery
-        FROM   delivered d
-        JOIN   customer_tiers ct ON ct.customer_id = d.customer_id
-        WHERE  ct.auto_assigned = true
-          AND  ct.tier NOT IN ('blacklist', 'rejected')
-          AND  (${tierRank.replace(/tier/g, '(' + tierCase.replace(/delivered_count/g, 'd.delivered_count') + ')')})
-             > (${tierRank.replace(/tier/g, 'ct.tier')})
-      )
-      UPDATE customer_tiers ct
-      SET
-        tier             = t.target_tier,
-        auto_assigned    = true,
-        tier_assigned_at = NOW(),
-        total_purchases  = t.delivered_count,
-        last_activity_date = t.last_delivery,
-        notes = COALESCE(ct.notes, '') || ' | Upgraded by nightly tier sync at ' || NOW()::text
-      FROM targets t
-      WHERE ct.customer_id = t.customer_id
-      RETURNING ct.customer_id
-    `);
-
-    const upgraded = Array.isArray(upgradeResult) ? upgradeResult.length : 0;
-
-    const skipped = 0; // not tracked individually — skipped means no change needed
-    return { inserted, upgraded, skipped };
+    return { inserted: 0, upgraded: 0, skipped: 0 };
   }
 
   async getInactiveCustomers(daysThreshold = 30) {
@@ -777,13 +628,12 @@ export class LeadManagementService {
       SELECT 
         COUNT(CASE WHEN ct.is_active = true THEN 1 END)::int as total_active,
         COUNT(CASE WHEN ct.is_active = false THEN 1 END)::int as total_inactive,
-        COUNT(CASE WHEN ct.tier = 'new' THEN 1 END)::int as new_tier,
-        COUNT(CASE WHEN ct.tier = 'repeat' THEN 1 END)::int as repeat_tier,
-        COUNT(CASE WHEN ct.tier = 'silver' THEN 1 END)::int as silver,
-        COUNT(CASE WHEN ct.tier = 'gold' THEN 1 END)::int as gold,
-        COUNT(CASE WHEN ct.tier = 'platinum' THEN 1 END)::int as platinum,
-        COUNT(CASE WHEN ct.tier = 'vip' THEN 1 END)::int as vip,
-        COUNT(CASE WHEN ct.tier = 'blacklist' THEN 1 END)::int as blacklist,
+        COUNT(CASE WHEN ct.tier = 'tier_1' THEN 1 END)::int as tier_1,
+        COUNT(CASE WHEN ct.tier = 'tier_2' THEN 1 END)::int as tier_2,
+        COUNT(CASE WHEN ct.tier = 'tier_3' THEN 1 END)::int as tier_3,
+        COUNT(CASE WHEN ct.tier = 'tier_4' THEN 1 END)::int as tier_4,
+        COUNT(CASE WHEN ct.tier = 'tier_5' THEN 1 END)::int as tier_5,
+        COUNT(CASE WHEN ct.tier = 'tier_6' THEN 1 END)::int as tier_6,
         COUNT(CASE WHEN ct.tier = 'rejected' THEN 1 END)::int as rejected,
         COUNT(CASE WHEN ct.tier IS NULL THEN 1 END)::int as no_tier
       FROM customers c
@@ -886,13 +736,12 @@ export class LeadManagementService {
       stats: {
         totalActive: statsRow.total_active || 0,
         totalInactive: statsRow.total_inactive || 0,
-        new: statsRow.new_tier || 0,
-        repeat: statsRow.repeat_tier || 0,
-        silver: statsRow.silver || 0,
-        gold: statsRow.gold || 0,
-        platinum: statsRow.platinum || 0,
-        vip: statsRow.vip || 0,
-        blacklist: statsRow.blacklist || 0,
+        tier1: statsRow.tier_1 || 0,
+        tier2: statsRow.tier_2 || 0,
+        tier3: statsRow.tier_3 || 0,
+        tier4: statsRow.tier_4 || 0,
+        tier5: statsRow.tier_5 || 0,
+        tier6: statsRow.tier_6 || 0,
         rejected: statsRow.rejected || 0,
         noTier: statsRow.no_tier || 0,
       },

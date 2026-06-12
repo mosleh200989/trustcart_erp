@@ -43,6 +43,7 @@ const ADMIN_ROLE_SLUGS = new Set([
   'admin',
   'sales-executive',
   'sales-team-leader',
+  'data-analyst',
   'inventory-manager',
   'purchase-manager',
   'accounts',

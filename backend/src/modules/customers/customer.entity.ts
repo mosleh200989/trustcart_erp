@@ -150,6 +150,12 @@ export class Customer {
   @Column({ nullable: true })
   assigned_to!: number;
 
+  @Column({ nullable: true })
+  assigned_by!: number;
+
+  @Column({ type: 'timestamp', nullable: true })
+  assigned_at!: Date;
+
   @Column({
     type: 'enum',
     enum: LeadPriority,

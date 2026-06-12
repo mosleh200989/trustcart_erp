@@ -11,8 +11,8 @@ export class CustomerTier {
   @Column({ name: 'is_active', default: true })
   isActive: boolean;
 
-  @Column({ default: 'silver' })
-  tier: string; // new, repeat, silver, gold, platinum, vip, blacklist, rejected
+  @Column({ default: 'tier_3' })
+  tier: string; // tier_1, tier_2, tier_3, tier_4, tier_5, tier_6, rejected
 
   @Column({ name: 'tier_assigned_at', type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
   tierAssignedAt: Date;

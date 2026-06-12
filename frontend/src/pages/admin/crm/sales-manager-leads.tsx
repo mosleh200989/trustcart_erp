@@ -16,6 +16,13 @@ interface Lead {
   customerType: string;
   lifecycleStage: string;
   assigned_supervisor_id: number | null;
+  assigned_to: number | null;
+  assigned_by?: number | null;
+  assigned_at?: string | null;
+  assignedAgentName?: string | null;
+  teamLeaderId?: number | null;
+  teamLeaderName?: string | null;
+  dataAnalystName?: string | null;
   address: string | null;
   city: string | null;
   district: string | null;
@@ -34,17 +41,22 @@ interface TeamLeader {
   email: string;
 }
 
+interface Agent {
+  id: number;
+  name: string;
+  email: string;
+  teamLeaderId?: number | null;
+}
+
 const ROWS_OPTIONS = [200, 500, 750, 1000, 2000];
 
 const TIER_COLORS: Record<string, string> = {
-  new: 'bg-blue-100 text-blue-700',
-  normal: 'bg-gray-100 text-gray-600',
-  repeat: 'bg-teal-100 text-teal-700',
-  silver: 'bg-slate-200 text-slate-700',
-  gold: 'bg-amber-100 text-amber-700',
-  platinum: 'bg-indigo-100 text-indigo-700',
-  vip: 'bg-purple-100 text-purple-700',
-  blacklist: 'bg-red-100 text-red-700',
+  tier_1: 'bg-emerald-100 text-emerald-700',
+  tier_2: 'bg-sky-100 text-sky-700',
+  tier_3: 'bg-slate-100 text-slate-700',
+  tier_4: 'bg-amber-100 text-amber-700',
+  tier_5: 'bg-orange-100 text-orange-700',
+  tier_6: 'bg-red-100 text-red-700',
   rejected: 'bg-rose-100 text-rose-800',
 };
 
@@ -72,6 +84,7 @@ const SalesManagerLeadAssignment = () => {
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [teamLeaders, setTeamLeaders] = useState<TeamLeader[]>([]);
+  const [agents, setAgents] = useState<Agent[]>([]);
 
   // Filters
   const [search, setSearch] = useState('');
@@ -82,6 +95,8 @@ const SalesManagerLeadAssignment = () => {
   const [lifecycleFilter, setLifecycleFilter] = useState('');
   const [productFilter, setProductFilter] = useState('');
   const [deliveryDateFilter, setDeliveryDateFilter] = useState('');
+  const [assignedFromFilter, setAssignedFromFilter] = useState('');
+  const [assignedToFilter, setAssignedToFilter] = useState('');
   const [addressFilter, setAddressFilter] = useState('');
   const [segmentFilter, setSegmentFilter] = useState<'' | 'new' | 'legacy' | 'mixed'>('');
   const [rejectedStatusFilter, setRejectedStatusFilter] = useState<'non_rejected' | 'rejected' | 'all'>('non_rejected');
@@ -89,7 +104,7 @@ const SalesManagerLeadAssignment = () => {
 
   // Selection
   const [selected, setSelected] = useState<Set<number>>(new Set());
-  const [bulkTL, setBulkTL] = useState<number | ''>('');
+  const [bulkAgent, setBulkAgent] = useState<number | ''>('');
   const [assigning, setAssigning] = useState(false);
 
   // View (order) modal
@@ -98,7 +113,7 @@ const SalesManagerLeadAssignment = () => {
 
   // Single assign modal
   const [assignModalLead, setAssignModalLead] = useState<Lead | null>(null);
-  const [assignModalTL, setAssignModalTL] = useState<number | ''>('');
+  const [assignModalAgent, setAssignModalAgent] = useState<number | ''>('');
   const [assigningSingle, setAssigningSingle] = useState(false);
 
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -117,11 +132,13 @@ const SalesManagerLeadAssignment = () => {
       if (lifecycleFilter) params.set('lifecycleStage', lifecycleFilter);
       if (productFilter) params.set('productName', productFilter);
       if (deliveryDateFilter) params.set('deliveryDate', deliveryDateFilter);
+      if (assignedFromFilter) params.set('assignedFrom', assignedFromFilter);
+      if (assignedToFilter) params.set('assignedToDate', assignedToFilter);
       if (addressFilter.trim()) params.set('address', addressFilter.trim());
       if (segmentFilter) params.set('orderSegment', segmentFilter);
       if (rejectedStatusFilter !== 'non_rejected') params.set('rejectedStatus', rejectedStatusFilter);
 
-      const res = await api.get(`/crm/sales-manager/unassigned-leads?${params}`);
+      const res = await api.get(`/crm/data-analyst/unassigned-leads?${params}`);
       setLeads(res.data.items || []);
       setTotal(res.data.total || 0);
       setTotalPages(res.data.totalPages || 1);
@@ -132,7 +149,7 @@ const SalesManagerLeadAssignment = () => {
     } finally {
       setLoading(false);
     }
-  }, [search, assignmentStatus, tierFilter, tlFilter, lifecycleFilter, productFilter, deliveryDateFilter, addressFilter, segmentFilter, rejectedStatusFilter, rowsPerPage, toast]);
+  }, [search, assignmentStatus, tierFilter, tlFilter, lifecycleFilter, productFilter, deliveryDateFilter, assignedFromFilter, assignedToFilter, addressFilter, segmentFilter, rejectedStatusFilter, rowsPerPage, toast]);
 
   const fetchTeamLeaders = useCallback(async () => {
     try {
@@ -143,10 +160,20 @@ const SalesManagerLeadAssignment = () => {
     }
   }, [toast]);
 
+  const fetchAgents = useCallback(async () => {
+    try {
+      const res = await api.get('/crm/data-analyst/agents');
+      setAgents(res.data || []);
+    } catch {
+      toast.error('Failed to load agents');
+    }
+  }, [toast]);
+
   useEffect(() => {
     fetchLeads(1);
     fetchTeamLeaders();
-  }, [fetchLeads, fetchTeamLeaders]);
+    fetchAgents();
+  }, [fetchLeads, fetchTeamLeaders, fetchAgents]);
 
   // Debounced search
   const handleSearchChange = (val: string) => {
@@ -193,19 +220,19 @@ const SalesManagerLeadAssignment = () => {
   };
 
   const handleBulkAssign = async () => {
-    if (selected.size === 0 || !bulkTL) {
-      toast.error('Select at least one lead and a team leader');
+    if (selected.size === 0 || !bulkAgent) {
+      toast.error('Select at least one lead and an agent');
       return;
     }
     setAssigning(true);
     try {
-      await api.post('/crm/sales-manager/assign-leads', {
+      await api.post('/crm/data-analyst/assign-leads', {
         customerIds: Array.from(selected),
-        teamLeaderId: Number(bulkTL),
+        agentId: Number(bulkAgent),
       });
-      const tlName = teamLeaders.find(t => t.id === Number(bulkTL))?.name || '';
-      toast.success(`${selected.size} lead(s) assigned to ${tlName}`);
-      setBulkTL('');
+      const agentName = agents.find(a => a.id === Number(bulkAgent))?.name || '';
+      toast.success(`${selected.size} lead(s) assigned to ${agentName}`);
+      setBulkAgent('');
       fetchLeads(page);
     } catch {
       toast.error('Assignment failed');
@@ -215,17 +242,17 @@ const SalesManagerLeadAssignment = () => {
   };
 
   const handleSingleAssign = async () => {
-    if (!assignModalLead || !assignModalTL) return;
+    if (!assignModalLead || !assignModalAgent) return;
     setAssigningSingle(true);
     try {
-      await api.post('/crm/sales-manager/assign-leads', {
+      await api.post('/crm/data-analyst/assign-leads', {
         customerIds: [assignModalLead.id],
-        teamLeaderId: Number(assignModalTL),
+        agentId: Number(assignModalAgent),
       });
-      const tlName = teamLeaders.find(t => t.id === Number(assignModalTL))?.name || '';
-      toast.success(`Assigned to ${tlName}`);
+      const agentName = agents.find(a => a.id === Number(assignModalAgent))?.name || '';
+      toast.success(`Assigned to ${agentName}`);
       setAssignModalLead(null);
-      setAssignModalTL('');
+      setAssignModalAgent('');
       fetchLeads(page);
     } catch {
       toast.error('Assignment failed');
@@ -236,9 +263,9 @@ const SalesManagerLeadAssignment = () => {
 
   // Single unassign (sales manager level — removes supervisor assignment)
   const handleUnassign = async (lead: Lead) => {
-    if (!confirm(`Unassign lead "${lead.name || ''} ${lead.lastName || ''}" from their team leader?`)) return;
+    if (!confirm(`Unassign lead "${lead.name || ''} ${lead.lastName || ''}" from their agent?`)) return;
     try {
-      await api.post('/crm/sales-manager/unassign-leads', {
+      await api.post('/crm/data-analyst/unassign-leads', {
         customerIds: [lead.id],
       });
       toast.success('Lead unassigned successfully');
@@ -251,10 +278,10 @@ const SalesManagerLeadAssignment = () => {
   // Bulk unassign
   const handleBulkUnassign = async () => {
     if (selected.size === 0) return;
-    if (!confirm(`Unassign ${selected.size} selected lead(s) from their team leaders?`)) return;
+    if (!confirm(`Unassign ${selected.size} selected lead(s) from their agents?`)) return;
     setAssigning(true);
     try {
-      const res = await api.post('/crm/sales-manager/unassign-leads', {
+      const res = await api.post('/crm/data-analyst/unassign-leads', {
         customerIds: Array.from(selected),
       });
       const result = (res as any)?.data;
@@ -268,14 +295,9 @@ const SalesManagerLeadAssignment = () => {
     }
   };
 
-  const supervisorName = (id: number | null) => {
-    if (!id) return <span className="text-gray-400 text-xs">Unassigned</span>;
-    const tl = teamLeaders.find(t => t.id === id);
-    if (!tl) {
-      return <span className="text-xs text-red-700 font-medium">Invalid / deleted TL</span>;
-    }
-    return <span className="text-xs text-indigo-700 font-medium">{tl.name}</span>;
-  };
+  const personName = (name?: string | null, fallback = 'Unassigned') => (
+    name ? <span className="text-xs text-gray-800 font-medium">{name}</span> : <span className="text-gray-400 text-xs">{fallback}</span>
+  );
 
   return (
     <AdminLayout>
@@ -288,11 +310,11 @@ const SalesManagerLeadAssignment = () => {
                 href="/admin/crm/sales-manager-dashboard"
                 className="text-gray-400 hover:text-gray-600 text-sm"
               >
-                ← Sales Manager
+                Data Analyst
               </a>
             </div>
             <h1 className="text-2xl font-bold text-gray-900">Lead Assignment</h1>
-            <p className="text-gray-500 text-sm mt-0.5">Select leads and assign them to team leaders</p>
+            <p className="text-gray-500 text-sm mt-0.5">Select leads and assign them directly to agents</p>
           </div>
           <div className="text-sm text-gray-500">
             {total.toLocaleString()} total leads
@@ -341,19 +363,12 @@ const SalesManagerLeadAssignment = () => {
               className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500"
             >
               <option value="">All Tiers</option>
-              <optgroup label="Active">
-                <option value="new">New</option>
-                <option value="normal">Normal</option>
-                <option value="repeat">Repeat</option>
-                <option value="silver">Silver</option>
-                <option value="gold">Gold</option>
-                <option value="platinum">Platinum</option>
-                <option value="vip">VIP</option>
-              </optgroup>
-              <optgroup label="Restricted">
-                <option value="blacklist">Blacklisted</option>
-                <option value="rejected">Rejected</option>
-              </optgroup>
+              <option value="tier_1">Tier 1 - Highest Value</option>
+              <option value="tier_2">Tier 2</option>
+              <option value="tier_3">Tier 3</option>
+              <option value="tier_4">Tier 4</option>
+              <option value="tier_5">Tier 5</option>
+              <option value="tier_6">Tier 6 - Highest Risk</option>
             </select>
 
             {/* Lifecycle filter */}
@@ -429,6 +444,22 @@ const SalesManagerLeadAssignment = () => {
             />
 
             <input
+              type="date"
+              value={assignedFromFilter}
+              onChange={e => setAssignedFromFilter(e.target.value)}
+              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              title="Assigned Start Date"
+            />
+
+            <input
+              type="date"
+              value={assignedToFilter}
+              onChange={e => setAssignedToFilter(e.target.value)}
+              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              title="Assigned End Date"
+            />
+
+            <input
               type="text"
               placeholder="Address, city, district..."
               value={addressFilter}
@@ -466,18 +497,18 @@ const SalesManagerLeadAssignment = () => {
               {selected.size} lead{selected.size !== 1 ? 's' : ''} selected
             </span>
             <select
-              value={bulkTL}
-              onChange={e => setBulkTL(e.target.value ? Number(e.target.value) : '')}
+              value={bulkAgent}
+              onChange={e => setBulkAgent(e.target.value ? Number(e.target.value) : '')}
               className="border border-indigo-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 bg-white min-w-[220px]"
             >
-              <option value="">Select Team Leader…</option>
-              {teamLeaders.map(tl => (
-                <option key={tl.id} value={tl.id}>{tl.name}</option>
+              <option value="">Select Agent...</option>
+              {agents.map(agent => (
+                <option key={agent.id} value={agent.id}>{agent.name}</option>
               ))}
             </select>
             <button
               onClick={handleBulkAssign}
-              disabled={assigning || !bulkTL}
+              disabled={assigning || !bulkAgent}
               className="bg-indigo-600 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {assigning ? 'Assigning…' : `Assign ${selected.size} Lead${selected.size !== 1 ? 's' : ''}`}
@@ -524,7 +555,9 @@ const SalesManagerLeadAssignment = () => {
                       <th className="text-left py-3 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Phone</th>
                       <th className="text-center py-3 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Segment</th>
                       <th className="text-center py-3 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Tier</th>
-                      <th className="text-left py-3 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Assigned To</th>
+                      <th className="text-left py-3 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Data Analyst</th>
+                      <th className="text-left py-3 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Team Leader</th>
+                      <th className="text-left py-3 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Assigned Agent</th>
                       <th className="text-center py-3 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Action</th>
                     </tr>
                   </thead>
@@ -570,7 +603,12 @@ const SalesManagerLeadAssignment = () => {
                             <span className="text-gray-300 text-xs">—</span>
                           )}
                         </td>
-                        <td className="py-3 px-3">{supervisorName(lead.assigned_supervisor_id)}</td>
+                        <td className="py-3 px-3">
+                          {personName(lead.dataAnalystName)}
+                          {lead.assigned_at && <div className="text-[11px] text-gray-400">{new Date(lead.assigned_at).toLocaleDateString()}</div>}
+                        </td>
+                        <td className="py-3 px-3">{personName(lead.teamLeaderName)}</td>
+                        <td className="py-3 px-3">{personName(lead.assignedAgentName)}</td>
                         <td className="py-3 px-3 text-center">
                           <div className="flex items-center justify-center gap-2">
                             <button
@@ -580,12 +618,12 @@ const SalesManagerLeadAssignment = () => {
                               <FaEye size={12} /> View
                             </button>
                             <button
-                              onClick={() => { setAssignModalLead(lead); setAssignModalTL(''); }}
+                              onClick={() => { setAssignModalLead(lead); setAssignModalAgent(''); }}
                               className="bg-green-600 text-white px-3 py-1.5 rounded text-sm hover:bg-green-700"
                             >
-                              {lead.assigned_supervisor_id ? 'Reassign' : 'Assign'}
+                              {lead.assigned_to ? 'Reassign' : 'Assign'}
                             </button>
-                            {lead.assigned_supervisor_id && (
+                            {lead.assigned_to && (
                               <button
                                 onClick={() => handleUnassign(lead)}
                                 className="bg-red-600 text-white px-3 py-1.5 rounded text-sm hover:bg-red-700"
@@ -599,7 +637,7 @@ const SalesManagerLeadAssignment = () => {
                     ))}
                     {leads.length === 0 && (
                       <tr>
-                        <td colSpan={7} className="text-center py-16 text-gray-400">
+                        <td colSpan={9} className="text-center py-16 text-gray-400">
                           No leads found. Try adjusting your filters.
                         </td>
                       </tr>
@@ -683,7 +721,7 @@ const SalesManagerLeadAssignment = () => {
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
             <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
               <h3 className="text-lg font-semibold text-gray-900">
-                {assignModalLead.assigned_supervisor_id ? 'Reassign Lead' : 'Assign Lead'}
+                {assignModalLead.assigned_to ? 'Reassign Lead' : 'Assign Lead'}
               </h3>
               <button onClick={() => setAssignModalLead(null)} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
             </div>
@@ -693,22 +731,22 @@ const SalesManagerLeadAssignment = () => {
                   {[assignModalLead.name, assignModalLead.lastName].filter(Boolean).join(' ')}
                 </div>
                 <div className="text-sm text-gray-500">{assignModalLead.phone}</div>
-                {assignModalLead.assigned_supervisor_id && (
+                {assignModalLead.assigned_to && (
                   <div className="text-xs text-indigo-600 mt-1">
-                    Currently: {teamLeaders.find(t => t.id === assignModalLead.assigned_supervisor_id)?.name || 'Invalid / deleted TL'}
+                    Currently: {assignModalLead.assignedAgentName || `Agent #${assignModalLead.assigned_to}`}
                   </div>
                 )}
               </div>
 
-              <label className="block text-sm font-medium text-gray-700 mb-2">Select Team Leader</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Select Agent</label>
               <select
-                value={assignModalTL}
-                onChange={e => setAssignModalTL(e.target.value ? Number(e.target.value) : '')}
+                value={assignModalAgent}
+                onChange={e => setAssignModalAgent(e.target.value ? Number(e.target.value) : '')}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 mb-5"
               >
-                <option value="">— Choose Team Leader —</option>
-                {teamLeaders.map(tl => (
-                  <option key={tl.id} value={tl.id}>{tl.name}</option>
+                <option value="">Choose Agent</option>
+                {agents.map(agent => (
+                  <option key={agent.id} value={agent.id}>{agent.name}</option>
                 ))}
               </select>
 
@@ -721,7 +759,7 @@ const SalesManagerLeadAssignment = () => {
                 </button>
                 <button
                   onClick={handleSingleAssign}
-                  disabled={assigningSingle || !assignModalTL}
+                  disabled={assigningSingle || !assignModalAgent}
                   className="bg-green-600 text-white px-6 py-2 rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                   {assigningSingle ? 'Assigning…' : 'Assign Lead'}

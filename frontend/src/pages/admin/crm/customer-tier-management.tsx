@@ -44,7 +44,7 @@ export default function CustomerTierManagementPage() {
   const [showTierModal, setShowTierModal] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
   const [tierForm, setTierForm] = useState({
-    tier: 'silver',
+    tier: 'tier_3',
     isActive: true,
     notes: '',
   });
@@ -62,13 +62,12 @@ export default function CustomerTierManagementPage() {
   const [stats, setStats] = useState({
     totalActive: 0,
     totalInactive: 0,
-    new: 0,
-    repeat: 0,
-    silver: 0,
-    gold: 0,
-    platinum: 0,
-    vip: 0,
-    blacklist: 0,
+    tier1: 0,
+    tier2: 0,
+    tier3: 0,
+    tier4: 0,
+    tier5: 0,
+    tier6: 0,
     rejected: 0,
     noTier: 0,
   });
@@ -112,12 +111,12 @@ export default function CustomerTierManagementPage() {
         setStats(data.stats || {
           totalActive: 0,
           totalInactive: 0,
-          new: 0,
-          repeat: 0,
-          silver: 0,
-          gold: 0,
-          platinum: 0,
-          vip: 0,
+          tier1: 0,
+          tier2: 0,
+          tier3: 0,
+          tier4: 0,
+          tier5: 0,
+          tier6: 0,
           noTier: 0,
         });
         // Set pagination data
@@ -146,7 +145,7 @@ export default function CustomerTierManagementPage() {
       });
     } else {
       setTierForm({
-        tier: 'silver',
+        tier: 'tier_3',
         isActive: true,
         notes: '',
       });
@@ -158,6 +157,11 @@ export default function CustomerTierManagementPage() {
     if (!selectedCustomer) return;
 
     if (tierForm.tier === 'rejected') {
+      if (selectedCustomer.tierData?.tier !== 'tier_6') {
+        toast.error('Only Tier 6 customers can be moved to the rejected list.');
+        return;
+      }
+
       const confirmed = confirm(
         `Are you sure you want to mark "${selectedCustomer.first_name} ${selectedCustomer.last_name}" as Rejected?\n\nThis will:\n• Unassign the customer from their agent and team leader\n• Remove them from all CRM and Telephony views\n• Move them to the Rejected Customers sub-module only`
       );
@@ -185,25 +189,36 @@ export default function CustomerTierManagementPage() {
 
   const getTierBadgeColor = (tier: string) => {
     switch (tier) {
-      case 'new':
-        return 'bg-blue-200 text-blue-800';
-      case 'repeat':
-        return 'bg-teal-200 text-teal-800';
-      case 'silver':
-        return 'bg-gray-200 text-gray-800';
-      case 'gold':
-        return 'bg-yellow-200 text-yellow-800';
-      case 'platinum':
-        return 'bg-purple-200 text-purple-800';
-      case 'vip':
-        return 'bg-red-200 text-red-800';
-      case 'blacklist':
-        return 'bg-black text-white';
+      case 'tier_1':
+        return 'bg-emerald-100 text-emerald-800';
+      case 'tier_2':
+        return 'bg-sky-100 text-sky-800';
+      case 'tier_3':
+        return 'bg-slate-100 text-slate-800';
+      case 'tier_4':
+        return 'bg-amber-100 text-amber-800';
+      case 'tier_5':
+        return 'bg-orange-100 text-orange-800';
+      case 'tier_6':
+        return 'bg-red-100 text-red-800';
       case 'rejected':
         return 'bg-orange-200 text-orange-800';
       default:
         return 'bg-gray-100 text-gray-600';
     }
+  };
+
+  const getTierLabel = (tier?: string | null) => {
+    const labels: Record<string, string> = {
+      tier_1: 'Tier 1',
+      tier_2: 'Tier 2',
+      tier_3: 'Tier 3',
+      tier_4: 'Tier 4',
+      tier_5: 'Tier 5',
+      tier_6: 'Tier 6',
+      rejected: 'Rejected',
+    };
+    return tier ? labels[tier] || tier : 'Not Set';
   };
 
   return (
@@ -215,40 +230,35 @@ export default function CustomerTierManagementPage() {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4 mb-6">
-          <div className="bg-blue-100 p-4 rounded-lg shadow">
-            <div className="text-sm text-blue-600 font-medium">New</div>
-            <div className="text-2xl font-bold text-blue-700">{stats.new || 0}</div>
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4 mb-6">
+          <div className="bg-emerald-50 p-4 rounded-lg shadow">
+            <div className="text-sm text-emerald-700 font-medium">Tier 1</div>
+            <div className="text-2xl font-bold text-emerald-800">{stats.tier1 || 0}</div>
           </div>
 
-          <div className="bg-teal-100 p-4 rounded-lg shadow">
-            <div className="text-sm text-teal-600 font-medium">Repeat</div>
-            <div className="text-2xl font-bold text-teal-700">{stats.repeat || 0}</div>
+          <div className="bg-sky-50 p-4 rounded-lg shadow">
+            <div className="text-sm text-sky-700 font-medium">Tier 2</div>
+            <div className="text-2xl font-bold text-sky-800">{stats.tier2 || 0}</div>
           </div>
 
-          <div className="bg-gray-100 p-4 rounded-lg shadow">
-            <div className="text-sm text-gray-600 font-medium">Silver</div>
-            <div className="text-2xl font-bold text-gray-700">{stats.silver}</div>
+          <div className="bg-slate-50 p-4 rounded-lg shadow">
+            <div className="text-sm text-slate-700 font-medium">Tier 3</div>
+            <div className="text-2xl font-bold text-slate-800">{stats.tier3 || 0}</div>
           </div>
 
-          <div className="bg-yellow-100 p-4 rounded-lg shadow">
-            <div className="text-sm text-yellow-600 font-medium">Gold</div>
-            <div className="text-2xl font-bold text-yellow-700">{stats.gold}</div>
+          <div className="bg-amber-50 p-4 rounded-lg shadow">
+            <div className="text-sm text-amber-700 font-medium">Tier 4</div>
+            <div className="text-2xl font-bold text-amber-800">{stats.tier4 || 0}</div>
           </div>
 
-          <div className="bg-purple-100 p-4 rounded-lg shadow">
-            <div className="text-sm text-purple-600 font-medium">Platinum</div>
-            <div className="text-2xl font-bold text-purple-700">{stats.platinum}</div>
+          <div className="bg-orange-50 p-4 rounded-lg shadow">
+            <div className="text-sm text-orange-700 font-medium">Tier 5</div>
+            <div className="text-2xl font-bold text-orange-800">{stats.tier5 || 0}</div>
           </div>
 
-          <div className="bg-red-100 p-4 rounded-lg shadow">
-            <div className="text-sm text-red-600 font-medium">VIP</div>
-            <div className="text-2xl font-bold text-red-700">{stats.vip}</div>
-          </div>
-
-          <div className="bg-gray-900 p-4 rounded-lg shadow">
-            <div className="text-sm text-gray-300 font-medium">Black List</div>
-            <div className="text-2xl font-bold text-white">{stats.blacklist || 0}</div>
+          <div className="bg-red-50 p-4 rounded-lg shadow">
+            <div className="text-sm text-red-700 font-medium">Tier 6</div>
+            <div className="text-2xl font-bold text-red-800">{stats.tier6 || 0}</div>
           </div>
 
           <div className="bg-orange-100 p-4 rounded-lg shadow">
@@ -278,13 +288,12 @@ export default function CustomerTierManagementPage() {
                 className="w-full border rounded-lg p-2"
               >
                 <option value="all">All Tiers</option>
-                <option value="new">New</option>
-                <option value="repeat">Repeat</option>
-                <option value="silver">Silver</option>
-                <option value="gold">Gold</option>
-                <option value="platinum">Platinum</option>
-                <option value="vip">VIP</option>
-                <option value="blacklist">Black List</option>
+                <option value="tier_1">Tier 1 - Highest Value</option>
+                <option value="tier_2">Tier 2</option>
+                <option value="tier_3">Tier 3</option>
+                <option value="tier_4">Tier 4</option>
+                <option value="tier_5">Tier 5</option>
+                <option value="tier_6">Tier 6 - Highest Risk</option>
                 <option value="rejected">Rejected</option>
               </select>
             </div>
@@ -364,7 +373,7 @@ export default function CustomerTierManagementPage() {
                       <td className="px-6 py-4">
                         {customer.tierData ? (
                           <span className={`px-2 py-1 rounded text-xs font-semibold uppercase ${getTierBadgeColor(customer.tierData.tier)}`}>
-                            {customer.tierData.tier}
+                            {getTierLabel(customer.tierData.tier)}
                           </span>
                         ) : (
                           <span className="text-sm text-gray-400">Not Set</span>
@@ -418,14 +427,13 @@ export default function CustomerTierManagementPage() {
                     onChange={(e) => setTierForm({ ...tierForm, tier: e.target.value })}
                     className="w-full border rounded-lg p-2"
                   >
-                    <option value="new">New</option>
-                    <option value="repeat">Repeat</option>
-                    <option value="silver">Silver</option>
-                    <option value="gold">Gold</option>
-                    <option value="platinum">Platinum</option>
-                    <option value="vip">VIP</option>
-                    <option value="blacklist">Black List</option>
-                    <option value="rejected">Rejected — unassigns &amp; removes from CRM/Telephony</option>
+                    <option value="tier_1">Tier 1 - Highest Value</option>
+                    <option value="tier_2">Tier 2</option>
+                    <option value="tier_3">Tier 3</option>
+                    <option value="tier_4">Tier 4</option>
+                    <option value="tier_5">Tier 5</option>
+                    <option value="tier_6">Tier 6 - Highest Risk</option>
+                    <option value="rejected" disabled={selectedCustomer.tierData?.tier !== 'tier_6'}>Rejected - Tier 6 only</option>
                   </select>
                   {tierForm.tier === 'rejected' && (
                     <p className="mt-1.5 text-xs text-orange-600 bg-orange-50 border border-orange-200 rounded px-3 py-2">
