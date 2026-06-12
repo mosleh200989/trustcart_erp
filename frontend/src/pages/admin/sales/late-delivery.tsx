@@ -49,6 +49,11 @@ interface SalesOrder {
 
   order_source?: string | null;
   order_source_display?: string | null;
+  orderSource?: string | null;
+  created_by?: number | null;
+  createdBy?: number | null;
+  created_by_name?: string | null;
+  createdByName?: string | null;
 
   items?: { productName: string | null; productNameBn?: string | null; variantName?: string | null; quantity: number }[];
 
@@ -246,6 +251,14 @@ export function SalesFollowupOrdersPage({ mode = 'late-delivery' }: { mode?: Sal
   // Status editing
   const [savingStatus, setSavingStatus] = useState<Record<number, boolean>>({});
   const [sourceOptions, setSourceOptions] = useState<{ value: string; label: string }[]>([]);
+  const courierHighlightStorageKey = `sales-followup-courier-highlight:${mode}`;
+  const [highlightedCourierRowId, setHighlightedCourierRowId] = useState<number | null>(() => {
+    if (typeof window === 'undefined') return null;
+    const saved = window.sessionStorage.getItem(`sales-followup-courier-highlight:${mode}`);
+    if (!saved) return null;
+    const parsed = Number(saved);
+    return Number.isFinite(parsed) ? parsed : null;
+  });
 
   useEffect(() => {
     load();
@@ -332,6 +345,25 @@ export function SalesFollowupOrdersPage({ mode = 'late-delivery' }: { mode?: Sal
       if (!n) return true;
       return normalize(field).includes(n);
     };
+    const matchesSourceFilter = (order: SalesOrder, sourceFilter: string) => {
+      const filterValue = sourceFilter.trim();
+      if (!filterValue) return true;
+
+      const source = (order.orderSource ?? order.order_source ?? '').trim();
+      if (filterValue.startsWith('agent:')) {
+        const selectedAgentId = Number(filterValue.slice('agent:'.length));
+        const createdBy = Number(order.createdBy ?? order.created_by);
+
+        return (
+          Number.isFinite(selectedAgentId) &&
+          Number.isFinite(createdBy) &&
+          createdBy === selectedAgentId &&
+          (source === 'admin_panel' || source === 'agent_dashboard')
+        );
+      }
+
+      return normalize(source) === normalize(filterValue);
+    };
 
     const dateKey = (v: any): string => {
       if (!v) return '';
@@ -357,7 +389,6 @@ export function SalesFollowupOrdersPage({ mode = 'late-delivery' }: { mode?: Sal
       const customerName = o.customerName ?? o.customer_name ?? '';
       const customerPhone = o.customerPhone ?? o.customer_phone ?? '';
       const courierCompany = o.courierCompany ?? o.courier_company ?? '';
-      const orderSource = o.order_source ?? '';
       const relevantDate = config.dateField(o);
 
       // Always-visible search bar
@@ -385,7 +416,7 @@ export function SalesFollowupOrdersPage({ mode = 'late-delivery' }: { mode?: Sal
 
       if (filters.status && normalize(o.status) !== normalize(filters.status)) return false;
       if (!includes(courierCompany, filters.courierCompany)) return false;
-      if (filters.source && normalize(orderSource) !== normalize(filters.source)) return false;
+      if (filters.source && !matchesSourceFilter(o, filters.source)) return false;
       if (!inDateRange(relevantDate, filters.shippedFrom, filters.shippedTo)) return false;
 
       return true;
@@ -398,6 +429,13 @@ export function SalesFollowupOrdersPage({ mode = 'late-delivery' }: { mode?: Sal
 
   const totalPages = Math.ceil(filtered.length / itemsPerPage);
   const paginated = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
+  const handleCourierLinkClick = useCallback((orderId: number) => {
+    setHighlightedCourierRowId(orderId);
+    if (typeof window !== 'undefined') {
+      window.sessionStorage.setItem(courierHighlightStorageKey, String(orderId));
+    }
+  }, [courierHighlightStorageKey]);
 
   const columns = [
     { key: 'id', label: 'ID' },
@@ -427,7 +465,10 @@ export function SalesFollowupOrdersPage({ mode = 'late-delivery' }: { mode?: Sal
               target="_blank"
               rel="noopener noreferrer"
               className="text-blue-600 hover:text-blue-800 underline flex items-center gap-1"
-              onClick={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleCourierLinkClick(row.id);
+              }}
             >
               {cid}
               <FaExternalLinkAlt className="text-[10px]" />
@@ -785,6 +826,11 @@ export function SalesFollowupOrdersPage({ mode = 'late-delivery' }: { mode?: Sal
           currentPage={currentPage}
           totalPages={totalPages}
           onPageChange={setCurrentPage}
+          rowClassName={(row: SalesOrder) =>
+            row.id === highlightedCourierRowId
+              ? 'bg-amber-50 hover:bg-amber-50 ring-1 ring-inset ring-amber-300'
+              : ''
+          }
         />
 
         {/* Order Details Modal */}
