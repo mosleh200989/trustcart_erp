@@ -15,6 +15,45 @@ export class ActivityService {
     return await this.activityRepository.save(activity);
   }
 
+  async createCustomerNote(data: { customerId: number; userId: number; note: string; subject?: string }): Promise<Activity> {
+    return this.create({
+      type: 'note',
+      customerId: data.customerId,
+      userId: data.userId,
+      subject: data.subject || 'Customer Note',
+      description: data.note,
+      notes: data.note,
+      completedAt: new Date(),
+    });
+  }
+
+  async findCustomerNotes(customerId: number): Promise<Activity[]> {
+    return await this.activityRepository
+      .createQueryBuilder('activity')
+      .leftJoinAndSelect('activity.user', 'user')
+      .where('activity.customerId = :customerId', { customerId })
+      .andWhere('activity.type = :type', { type: 'note' })
+      .orderBy('activity.createdAt', 'DESC')
+      .getMany();
+  }
+
+  async updateCustomerNote(id: number, data: { note?: string; subject?: string }): Promise<Activity | null> {
+    const update: Partial<Activity> = {};
+    if (data.note !== undefined) {
+      update.description = data.note;
+      update.notes = data.note;
+    }
+    if (data.subject !== undefined) {
+      update.subject = data.subject;
+    }
+    await this.activityRepository.update({ id, type: 'note' }, update);
+    return this.findOne(id);
+  }
+
+  async deleteCustomerNote(id: number): Promise<void> {
+    await this.activityRepository.delete({ id, type: 'note' });
+  }
+
   async findAll(filters?: any): Promise<Activity[]> {
     const query = this.activityRepository.createQueryBuilder('activity')
       .leftJoinAndSelect('activity.customer', 'customer')

@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards, Request } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards, Request, ForbiddenException } from '@nestjs/common';
 import { CrmTeamService } from './crm-team.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
@@ -9,27 +9,37 @@ import { RequirePermissions } from '../../common/decorators/permissions.decorato
 export class CrmTeamController {
   constructor(private readonly crmTeamService: CrmTeamService) {}
 
+  private blockTeamLeaderAssignment(req: any) {
+    if (String(req.user?.roleSlug || '').toLowerCase() === 'sales-team-leader') {
+      throw new ForbiddenException('Lead assignment is handled by Data Analysts.');
+    }
+  }
+
   @Post('leads/:customerId/assign')
   @RequirePermissions('assign-leads-to-team')
   async assignLead(@Param('customerId') customerId: string, @Body() body: any, @Request() req: any) {
+    this.blockTeamLeaderAssignment(req);
     return await this.crmTeamService.assignLeadToAgent(customerId, body.agentId, req.user.id);
   }
 
   @Post('leads/bulk-assign')
   @RequirePermissions('assign-leads-to-team')
   async bulkAssignLeads(@Body() body: { customerIds: (number | string)[]; agentId: number }, @Request() req: any) {
+    this.blockTeamLeaderAssignment(req);
     return await this.crmTeamService.bulkAssignLeads(body.customerIds, body.agentId, req.user.id);
   }
 
   @Post('leads/:customerId/unassign')
   @RequirePermissions('assign-leads-to-team')
   async unassignLead(@Param('customerId') customerId: string, @Request() req: any) {
+    this.blockTeamLeaderAssignment(req);
     return await this.crmTeamService.unassignLead(customerId, req.user.id);
   }
 
   @Post('leads/bulk-unassign')
   @RequirePermissions('assign-leads-to-team')
   async bulkUnassignLeads(@Body() body: { customerIds: (number | string)[] }, @Request() req: any) {
+    this.blockTeamLeaderAssignment(req);
     return await this.crmTeamService.bulkUnassignLeads(body.customerIds, req.user.id);
   }
 
@@ -42,6 +52,7 @@ export class CrmTeamController {
   @Put('leads/:customerId/reassign')
   @RequirePermissions('reassign-customers')
   async reassignCustomer(@Param('customerId') customerId: string, @Body() body: any, @Request() req: any) {
+    this.blockTeamLeaderAssignment(req);
     return await this.crmTeamService.reassignCustomer(customerId, body.newAgentId, req.user.id);
   }
 

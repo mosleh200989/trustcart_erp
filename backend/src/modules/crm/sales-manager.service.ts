@@ -9,6 +9,8 @@ import { getDhakaDateString } from '../../common/utils/dhaka-date';
 
 @Injectable()
 export class SalesManagerService {
+  private assignmentColumnShapePromise?: Promise<{ assignedBy: boolean; assignedAt: boolean }>;
+
   constructor(
     @InjectRepository(Customer)
     private customerRepository: Repository<Customer>,
@@ -21,20 +23,29 @@ export class SalesManagerService {
   ) {}
 
   /**
-   * Get all team leaders under the Sales Manager's oversight
+   * Get all team leaders for visibility only. Team leaders no longer receive
+   * lead assignments in the Data Analyst workflow.
    */
-  private async getTeamLeaderRoleId(): Promise<number | null> {
-    const tlRole = await this.usersRepository.manager
+  private async getRoleId(slug: string, namePattern: string): Promise<number | null> {
+    const role = await this.usersRepository.manager
       .createQueryBuilder()
       .select('r.id', 'id')
       .from('roles', 'r')
       .where("r.slug = :slug OR LOWER(r.name) LIKE :pattern", {
-        slug: 'sales-team-leader',
-        pattern: '%team leader%',
+        slug,
+        pattern: namePattern,
       })
       .getRawOne();
 
-    return tlRole?.id ? Number(tlRole.id) : null;
+    return role?.id ? Number(role.id) : null;
+  }
+
+  private async getTeamLeaderRoleId(): Promise<number | null> {
+    return this.getRoleId('sales-team-leader', '%team leader%');
+  }
+
+  private async getAgentRoleId(): Promise<number | null> {
+    return this.getRoleId('sales-executive', '%sales executive%');
   }
 
   private async getTeamLeaders(): Promise<User[]> {
@@ -45,6 +56,47 @@ export class SalesManagerService {
     return await this.usersRepository.find({
       where: { roleId: tlRoleId, status: 'active' as any, isDeleted: false } as any,
     });
+  }
+
+  private async getAgents(): Promise<User[]> {
+    const agentRoleId = await this.getAgentRoleId();
+
+    if (!agentRoleId) return [];
+
+    return await this.usersRepository.find({
+      where: { roleId: agentRoleId, status: 'active' as any, isDeleted: false } as any,
+      order: { name: 'ASC', lastName: 'ASC' } as any,
+    });
+  }
+
+  private async getAssignmentColumnShape(): Promise<{ assignedBy: boolean; assignedAt: boolean }> {
+    if (!this.assignmentColumnShapePromise) {
+      this.assignmentColumnShapePromise = this.customerRepository.query(
+        `SELECT column_name
+         FROM information_schema.columns
+         WHERE table_schema = current_schema()
+           AND table_name = 'customers'
+           AND column_name IN ('assigned_by', 'assigned_at')`,
+      ).then((rows: Array<{ column_name: string }>) => {
+        const names = new Set(rows.map((row) => row.column_name));
+        return {
+          assignedBy: names.has('assigned_by'),
+          assignedAt: names.has('assigned_at'),
+        };
+      }).catch(() => ({ assignedBy: false, assignedAt: false }));
+    }
+
+    return this.assignmentColumnShapePromise;
+  }
+
+  private setCustomerAssignmentFields(
+    assignmentShape: { assignedBy: boolean; assignedAt: boolean },
+    dataAnalystId: number | null,
+  ) {
+    const fields: any = {};
+    if (assignmentShape.assignedBy) fields.assigned_by = dataAnalystId;
+    if (assignmentShape.assignedAt) fields.assigned_at = dataAnalystId == null ? null : new Date();
+    return fields;
   }
 
   private async cleanupInvalidTeamLeaderAssignments(): Promise<number> {
@@ -84,11 +136,11 @@ export class SalesManagerService {
     const totalConverted = await this.customerRepository.count({ where: { lifecycleStage: 'customer' } });
     const conversionRate = totalCustomers > 0 ? Math.round((totalConverted / totalCustomers) * 100) : 0;
 
-    // Unassigned leads (no supervisor assigned, excluding rejected)
+    // Unassigned leads (no agent assigned, excluding rejected)
     const unassignedLeads = await this.customerRepository
       .createQueryBuilder('c')
       .where('c.lifecycle_stage = :stage', { stage: 'lead' })
-      .andWhere('(c.assigned_supervisor_id IS NULL)')
+      .andWhere('(c.assigned_to IS NULL)')
       .andWhere(`NOT EXISTS (SELECT 1 FROM customer_tiers ct WHERE ct.customer_id = c.id AND ct.tier = 'rejected')`)
       .andWhere(`(c.customer_type IS NULL OR c.customer_type != 'rejected')`)
       .getCount();
@@ -221,11 +273,12 @@ export class SalesManagerService {
   }
 
   /**
-   * Get leads for assignment page (all leads, with optional supervisor filter)
+   * Get leads for assignment page (all leads, with optional agent/TL/date filters)
    * Supports large page sizes (200, 500, 750, 1000, 2000)
    */
   async getUnassignedLeads(query: any) {
     await this.cleanupInvalidTeamLeaderAssignments();
+    const assignmentShape = await this.getAssignmentColumnShape();
 
     const page = parseInt(query.page) || 1;
     const allowedLimits = [20, 200, 500, 750, 1000, 2000];
@@ -233,14 +286,18 @@ export class SalesManagerService {
     const limit = allowedLimits.includes(requestedLimit) ? requestedLimit : 200;
     const offset = (page - 1) * limit;
 
-    const qb = this.customerRepository.createQueryBuilder('c')
-      .select([
+    const selectedFields = [
         'c.id', 'c.name', 'c.lastName', 'c.email', 'c.phone',
         'c.priority', 'c.customerType', 'c.lifecycleStage',
         'c.assigned_supervisor_id', 'c.assigned_to',
         'c.address', 'c.city', 'c.district', 'c.source', 'c.createdAt', 'c.updatedAt',
         'c.last_contact_date', 'c.total_spent',
-      ])
+      ];
+    if (assignmentShape.assignedBy) selectedFields.push('c.assigned_by');
+    if (assignmentShape.assignedAt) selectedFields.push('c.assigned_at');
+
+    const qb = this.customerRepository.createQueryBuilder('c')
+      .select(selectedFields)
       .addSelect(
         '(SELECT ct.tier FROM customer_tiers ct WHERE ct.customer_id = c.id LIMIT 1)',
         'tier',
@@ -253,6 +310,24 @@ export class SalesManagerService {
         `(SELECT COUNT(*)::int FROM sales_orders so WHERE so.customer_id = c.id AND so.sales_order_number LIKE 'LEG-%')`,
         'leg_count',
       )
+      .addSelect(
+        `(SELECT CONCAT(COALESCE(agent.name, ''), ' ', COALESCE(agent.last_name, '')) FROM users agent WHERE agent.id = c.assigned_to LIMIT 1)`,
+        'assigned_agent_name',
+      )
+      .addSelect(
+        `(SELECT agent.team_leader_id FROM users agent WHERE agent.id = c.assigned_to LIMIT 1)`,
+        'team_leader_id',
+      )
+      .addSelect(
+        `(SELECT CONCAT(COALESCE(tl.name, ''), ' ', COALESCE(tl.last_name, '')) FROM users agent LEFT JOIN users tl ON tl.id = agent.team_leader_id WHERE agent.id = c.assigned_to LIMIT 1)`,
+        'team_leader_name',
+      )
+      .addSelect(
+        assignmentShape.assignedBy
+          ? `(SELECT CONCAT(COALESCE(da.name, ''), ' ', COALESCE(da.last_name, '')) FROM users da WHERE da.id = c.assigned_by LIMIT 1)`
+          : `NULL`,
+        'data_analyst_name',
+      )
       // Only customers who have at least one delivered order
       .andWhere(
         `c.id IN (SELECT so.customer_id FROM sales_orders so WHERE LOWER(so.status::text) = 'delivered')`,
@@ -263,9 +338,9 @@ export class SalesManagerService {
 
     // Assignment status filter
     if (query.assignmentStatus === 'unassigned' || query.unassignedOnly === 'true' || query.unassignedOnly === true) {
-      qb.where('c.assigned_supervisor_id IS NULL');
+      qb.andWhere('c.assigned_to IS NULL');
     } else if (query.assignmentStatus === 'assigned') {
-      qb.where('c.assigned_supervisor_id IS NOT NULL');
+      qb.andWhere('c.assigned_to IS NOT NULL');
     }
 
     // Rejected status filter
@@ -298,7 +373,13 @@ export class SalesManagerService {
       );
     }
     if (query.supervisor) {
-      qb.andWhere('c.assigned_supervisor_id = :sup', { sup: query.supervisor });
+      qb.andWhere(
+        `c.assigned_to IN (SELECT u.id FROM users u WHERE u.team_leader_id = :sup)`,
+        { sup: query.supervisor },
+      );
+    }
+    if (query.agent || query.assignedTo) {
+      qb.andWhere('c.assigned_to = :agentId', { agentId: Number(query.agent || query.assignedTo) });
     }
     if (query.lifecycleStage) {
       qb.andWhere('c.lifecycle_stage = :ls', { ls: query.lifecycleStage });
@@ -339,6 +420,15 @@ export class SalesManagerService {
       );
     }
 
+    if (assignmentShape.assignedAt && query.assignedFrom && String(query.assignedFrom).trim()) {
+      qb.andWhere('c.assigned_at >= :assignedFrom', { assignedFrom: String(query.assignedFrom).trim() });
+    }
+    if (assignmentShape.assignedAt && query.assignedToDate && String(query.assignedToDate).trim()) {
+      qb.andWhere('c.assigned_at <= :assignedToDate', {
+        assignedToDate: `${String(query.assignedToDate).trim()} 23:59:59`,
+      });
+    }
+
     // Order segment filter (SO-/LEG- based)
     if (query.orderSegment === 'new') {
       qb.andWhere(`EXISTS (SELECT 1 FROM sales_orders so WHERE so.customer_id = c.id AND so.sales_order_number LIKE 'SO-%')`);
@@ -372,67 +462,93 @@ export class SalesManagerService {
       tier: raw[i]?.tier ?? null,
       soCount: Number(raw[i]?.so_count ?? 0),
       legCount: Number(raw[i]?.leg_count ?? 0),
+      assignedAgentName: String(raw[i]?.assigned_agent_name || '').trim() || null,
+      teamLeaderId: raw[i]?.team_leader_id ? Number(raw[i].team_leader_id) : null,
+      teamLeaderName: String(raw[i]?.team_leader_name || '').trim() || null,
+      dataAnalystName: String(raw[i]?.data_analyst_name || '').trim() || null,
     }));
 
     return { items, total, page, limit, totalPages: Math.ceil(total / limit) };
   }
 
   /**
-   * Assign lead(s) to a team leader
+   * Assign lead(s) directly to an agent by a Data Analyst.
    */
-  async assignLeadToTeamLeader(customerIds: number[], teamLeaderId: number, managerId: number) {
-    // Verify the target is actually a team leader
-    const teamLeaders = await this.getTeamLeaders();
-    const isValidTL = teamLeaders.some(tl => tl.id === teamLeaderId);
-    if (!isValidTL) {
-      throw new Error('Invalid team leader ID');
+  async assignLeadToAgent(customerIds: number[], agentId: number, dataAnalystId: number) {
+    if (!customerIds || customerIds.length === 0 || !agentId) {
+      return { assigned: 0, agentId };
     }
+
+    const agents = await this.getAgents();
+    const agent = agents.find(a => a.id === agentId);
+    if (!agent) {
+      throw new Error('Invalid agent ID');
+    }
+    const assignmentShape = await this.getAssignmentColumnShape();
 
     const updated = await this.customerRepository
       .createQueryBuilder()
       .update(Customer)
-      .set({ assigned_supervisor_id: teamLeaderId } as any)
+      .set({
+        assigned_to: agentId,
+        assigned_supervisor_id: agent.teamLeaderId ?? null,
+        ...this.setCustomerAssignmentFields(assignmentShape, dataAnalystId),
+        leadStatus: 'assigned',
+      } as any)
       .where('id IN (:...ids)', { ids: customerIds })
       .execute();
 
-    return { assigned: updated.affected || 0, teamLeaderId };
+    return { assigned: updated.affected || 0, agentId, teamLeaderId: agent.teamLeaderId ?? null };
   }
 
   /**
-   * Reassign leads from one TL to another
+   * Reassign leads from one agent to another.
    */
-  async reassignLeadsBetweenTeamLeaders(
+  async reassignLeadsBetweenAgents(
     customerIds: number[],
-    fromTeamLeaderId: number,
-    toTeamLeaderId: number,
-    managerId: number,
+    fromAgentId: number,
+    toAgentId: number,
+    dataAnalystId: number,
   ) {
-    const teamLeaders = await this.getTeamLeaders();
-    const validTo = teamLeaders.some(tl => tl.id === toTeamLeaderId);
-    if (!validTo) {
-      throw new Error('Invalid target team leader ID');
+    const agents = await this.getAgents();
+    const targetAgent = agents.find(a => a.id === toAgentId);
+    if (!targetAgent) {
+      throw new Error('Invalid target agent ID');
     }
+    const assignmentShape = await this.getAssignmentColumnShape();
 
     const updated = await this.customerRepository
       .createQueryBuilder()
       .update(Customer)
-      .set({ assigned_supervisor_id: toTeamLeaderId } as any)
+      .set({
+        assigned_to: toAgentId,
+        assigned_supervisor_id: targetAgent.teamLeaderId ?? null,
+        ...this.setCustomerAssignmentFields(assignmentShape, dataAnalystId),
+        leadStatus: 'assigned',
+      } as any)
       .where('id IN (:...ids)', { ids: customerIds })
+      .andWhere(fromAgentId ? 'assigned_to = :fromAgentId' : '1=1', { fromAgentId })
       .execute();
 
-    return { reassigned: updated.affected || 0, fromTeamLeaderId, toTeamLeaderId };
+    return { reassigned: updated.affected || 0, fromAgentId, toAgentId, teamLeaderId: targetAgent.teamLeaderId ?? null };
   }
 
-  // Unassign leads from their team leader (set assigned_supervisor_id AND assigned_to to null)
-  async unassignLeadsFromTeamLeader(customerIds: number[], managerId: number) {
+  // Unassign leads from their agent and direct assignment owner.
+  async unassignLeadsFromAgent(customerIds: number[], dataAnalystId: number) {
     if (!customerIds || customerIds.length === 0) {
       return { unassigned: 0 };
     }
+    const assignmentShape = await this.getAssignmentColumnShape();
 
     const updated = await this.customerRepository
       .createQueryBuilder()
       .update(Customer)
-      .set({ assigned_supervisor_id: null, assigned_to: null } as any)
+      .set({
+        assigned_supervisor_id: null,
+        assigned_to: null,
+        ...this.setCustomerAssignmentFields(assignmentShape, null),
+        leadStatus: 'unassigned',
+      } as any)
       .where('id IN (:...ids)', { ids: customerIds })
       .execute();
 
@@ -450,6 +566,17 @@ export class SalesManagerService {
       name: `${tl.name} ${tl.lastName || ''}`.trim(),
       email: tl.email,
       phone: tl.phone,
+    }));
+  }
+
+  async getAgentsForDataAnalyst() {
+    const agents = await this.getAgents();
+    return agents.map(agent => ({
+      id: agent.id,
+      name: `${agent.name} ${agent.lastName || ''}`.trim(),
+      email: agent.email,
+      phone: agent.phone,
+      teamLeaderId: agent.teamLeaderId ?? null,
     }));
   }
 }

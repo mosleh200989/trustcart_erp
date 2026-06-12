@@ -124,12 +124,12 @@ export default function RejectedCustomersPage() {
     }
   };
 
-  // Remove from rejected (change tier back to silver)
+  // Restore to active pool as Tier 6 so they are assignment-eligible again.
   const removeTier = async (customerId: number) => {
     try {
       setUpdatingId(customerId);
-      await apiClient.post('/lead-management/tier', { customerId, tier: 'silver', isActive: true, notes: 'Removed from rejected list' });
-      toast.success('Customer removed from rejected list');
+      await apiClient.post('/lead-management/tier', { customerId, tier: 'tier_6', isActive: true, notes: 'Restored from rejected list' });
+      toast.success('Customer restored to active pool');
       fetchCustomers();
     } catch {
       toast.error('Failed to update tier');
@@ -145,7 +145,7 @@ export default function RejectedCustomersPage() {
     let success = 0;
     for (const id of selectedIds) {
       try {
-        await apiClient.post('/lead-management/tier', { customerId: id, tier: 'silver', isActive: true, notes: 'Bulk removed from rejected list' });
+        await apiClient.post('/lead-management/tier', { customerId: id, tier: 'tier_6', isActive: true, notes: 'Bulk restored from rejected list' });
         success++;
       } catch {}
     }
