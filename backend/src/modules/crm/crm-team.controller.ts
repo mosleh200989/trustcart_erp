@@ -2,7 +2,7 @@ import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards, Requ
 import { CrmTeamService } from './crm-team.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
-import { RequirePermissions } from '../../common/decorators/permissions.decorator';
+import { RequireAnyPermission, RequirePermissions } from '../../common/decorators/permissions.decorator';
 
 @Controller('crm/team')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -130,7 +130,7 @@ export class CrmTeamController {
   }
 
   @Get('dashboard')
-  @RequirePermissions('view-team-leader-dashboard')
+  @RequireAnyPermission('view-team-leader-dashboard', 'view-team-performance', 'manage-team-members')
   async getTeamLeaderDashboard(@Request() req: any) {
     return await this.crmTeamService.getTeamLeaderDashboard(req.user.id);
   }
@@ -314,13 +314,13 @@ export class CrmTeamController {
   // ==================== DASHBOARD CONFIG ENDPOINTS ====================
 
   @Get('dashboard/config')
-  @RequirePermissions('view-team-leader-dashboard')
+  @RequireAnyPermission('view-team-leader-dashboard', 'view-team-performance', 'manage-team-members')
   async getAllDashboardConfigs(@Request() req: any) {
     return await this.crmTeamService.getAllDashboardConfigs(req.user.id);
   }
 
   @Get('dashboard/config/:configKey')
-  @RequirePermissions('view-team-leader-dashboard')
+  @RequireAnyPermission('view-team-leader-dashboard', 'view-team-performance', 'manage-team-members')
   async getDashboardConfig(
     @Param('configKey') configKey: string,
     @Request() req: any,

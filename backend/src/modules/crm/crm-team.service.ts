@@ -1,6 +1,6 @@
 ﻿import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In } from 'typeorm';
+import { Brackets, Repository, In } from 'typeorm';
 import { Customer } from '../customers/customer.entity';
 import { SalesTeam } from './entities/sales-team.entity';
 import { User } from '../users/user.entity';
@@ -184,12 +184,17 @@ export class CrmTeamService {
   private async getLeaderCustomers(teamLeaderId: number): Promise<Customer[]> {
     // Customer coverage for TL = customers directly supervised OR customers assigned to TL agents.
     // Uses phone-based join for sales analytics because sales_orders is int-based in many installs.
-    const agentIds = (await this.usersRepository.find({ where: { teamLeaderId } })).map((u) => u.id);
+    const agentIds = (await this.usersRepository.find({
+      where: { teamLeaderId, status: 'active' as any, isDeleted: false } as any,
+      select: ['id'],
+    })).map((u) => u.id);
     const qb = this.customerRepository.createQueryBuilder('c');
-    qb.where('c.assigned_supervisor_id = :tl', { tl: teamLeaderId });
-    if (agentIds.length > 0) {
-      qb.orWhere('c.assigned_to IN (:...agentIds)', { agentIds });
-    }
+    qb.where(new Brackets((scope) => {
+      scope.where('c.assigned_supervisor_id = :tl', { tl: teamLeaderId });
+      if (agentIds.length > 0) {
+        scope.orWhere('c.assigned_to IN (:...agentIds)', { agentIds });
+      }
+    }));
     qb.andWhere('c.is_active = true');
     qb.andWhere('c.phone IS NOT NULL');
     qb.andWhere(`NOT EXISTS (SELECT 1 FROM customer_tiers ct WHERE ct.customer_id = c.id AND ct.tier = 'rejected')`);
@@ -1483,11 +1488,23 @@ export class CrmTeamService {
   }
 
   async getEscalatedCustomers(teamLeaderId: number): Promise<Customer[]> {
+    const agentIds = (await this.usersRepository.find({
+      where: { teamLeaderId, status: 'active' as any, isDeleted: false } as any,
+      select: ['id'],
+    })).map((u) => u.id);
+
     // Get customers marked for escalation
     const qb = this.customerRepository.createQueryBuilder('c')
       .where('c.is_escalated = :escalated', { escalated: true })
       .andWhere('c.is_deleted = :deleted', { deleted: false })
       .andWhere('c.is_active = :active', { active: true });
+
+    qb.andWhere(new Brackets((scope) => {
+      scope.where('c.assigned_supervisor_id = :tl', { tl: teamLeaderId });
+      if (agentIds.length > 0) {
+        scope.orWhere('c.assigned_to IN (:...agentIds)', { agentIds });
+      }
+    }));
     
     qb.andWhere(`NOT EXISTS (SELECT 1 FROM customer_tiers ct WHERE ct.customer_id = c.id AND ct.tier = 'rejected')`);
     qb.andWhere(`(c.customer_type IS NULL OR c.customer_type != 'rejected')`);
@@ -1533,6 +1550,11 @@ export class CrmTeamService {
     const customers = await this.getLeaderCustomers(teamLeaderId);
     const segments = await this.computeSegmentsForCustomers(customers);
     const teamOrderOverview = await this.getTeamOrderOverview(teamLeaderId);
+    const agentUsers = await this.usersRepository.find({
+      where: { teamLeaderId, status: 'active' as any, isDeleted: false } as any,
+      select: ['id', 'name', 'lastName', 'email', 'agentTier', 'phone'],
+    });
+    const agentIds = agentUsers.map((agent) => Number(agent.id)).filter((id) => Number.isFinite(id) && id > 0);
 
     const purchaseStageCounts: Record<string, number> = {
       new: 0,
@@ -1563,44 +1585,54 @@ export class CrmTeamService {
       }
     }
 
-    const tasksToday = await this.callTaskRepo.query(
-      `
-      SELECT
-        assigned_agent_id,
-        status,
-        COUNT(*)::int AS cnt
-      FROM crm_call_tasks
-      WHERE task_date = $1
-      GROUP BY assigned_agent_id, status
-      `,
-      [today],
-    );
+    const tasksToday = agentIds.length > 0
+      ? await this.callTaskRepo.query(
+        `
+        SELECT
+          assigned_agent_id,
+          status,
+          COUNT(*)::int AS cnt
+        FROM crm_call_tasks
+        WHERE task_date = $1
+          AND assigned_agent_id = ANY($2::int[])
+        GROUP BY assigned_agent_id, status
+        `,
+        [today, agentIds],
+      )
+      : [];
 
-    const tasksPendingPrev = await this.callTaskRepo.query(
-      `
-      SELECT COUNT(*)::int AS cnt
-      FROM crm_call_tasks
-      WHERE task_date < $1 AND status = 'pending'
-      `,
-      [today],
-    );
+    const tasksPendingPrev = agentIds.length > 0
+      ? await this.callTaskRepo.query(
+        `
+        SELECT COUNT(*)::int AS cnt
+        FROM crm_call_tasks
+        WHERE task_date < $1
+          AND status = 'pending'
+          AND assigned_agent_id = ANY($2::int[])
+        `,
+        [today, agentIds],
+      )
+      : [{ cnt: 0 }];
 
-    const agentPerformance = await this.callTaskRepo.query(
-      `
-      SELECT
-        ct.assigned_agent_id AS agent_id,
-        COALESCE(u.name || ' ' || COALESCE(u.last_name, ''), 'Agent #' || ct.assigned_agent_id::text) AS agent_name,
-        COUNT(*) FILTER (WHERE ct.task_date = $1)::int AS total_today,
-        COUNT(*) FILTER (WHERE ct.task_date = $1 AND ct.status = 'completed')::int AS completed_today,
-        COUNT(*) FILTER (WHERE ct.task_date = $1 AND ct.status = 'failed')::int AS failed_today
-      FROM crm_call_tasks ct
-      LEFT JOIN users u ON u.id = ct.assigned_agent_id
-      WHERE ct.task_date = $1
-      GROUP BY ct.assigned_agent_id, u.name, u.last_name
-      ORDER BY total_today DESC
-      `,
-      [today],
-    );
+    const agentPerformance = agentIds.length > 0
+      ? await this.callTaskRepo.query(
+        `
+        SELECT
+          ct.assigned_agent_id AS agent_id,
+          COALESCE(u.name || ' ' || COALESCE(u.last_name, ''), 'Agent #' || ct.assigned_agent_id::text) AS agent_name,
+          COUNT(*) FILTER (WHERE ct.task_date = $1)::int AS total_today,
+          COUNT(*) FILTER (WHERE ct.task_date = $1 AND ct.status = 'completed')::int AS completed_today,
+          COUNT(*) FILTER (WHERE ct.task_date = $1 AND ct.status = 'failed')::int AS failed_today
+        FROM crm_call_tasks ct
+        LEFT JOIN users u ON u.id = ct.assigned_agent_id
+        WHERE ct.task_date = $1
+          AND ct.assigned_agent_id = ANY($2::int[])
+        GROUP BY ct.assigned_agent_id, u.name, u.last_name
+        ORDER BY total_today DESC
+        `,
+        [today, agentIds],
+      )
+      : [];
 
     const repeatRate = customers.length > 0 ? Number(((repeatCustomers / customers.length) * 100).toFixed(2)) : 0;
     const vipRetention30 = vipPermanent > 0 ? Number(((vipPermanentActive30 / vipPermanent) * 100).toFixed(2)) : 0;
@@ -1630,11 +1662,7 @@ export class CrmTeamService {
       }
     }
 
-    // Assigned agents — all users under this TL with their lead stats
-    const agentUsers = await this.usersRepository.find({
-      where: { teamLeaderId, status: 'active' as any },
-      select: ['id', 'name', 'lastName', 'email', 'agentTier', 'phone'],
-    });
+    // Assigned agents — all active users under this TL with their lead stats
     const assignedAgents = agentUsers.map(a => {
       const aCustomers = customers.filter(c => c.assigned_to === a.id);
       const aConverted = aCustomers.filter(c => c.lifecycleStage === 'customer').length;
@@ -1687,7 +1715,7 @@ export class CrmTeamService {
   }> {
     const today = this.getDateString();
     const agents = await this.usersRepository.find({
-      where: { teamLeaderId, status: 'active' as any },
+      where: { teamLeaderId, status: 'active' as any, isDeleted: false } as any,
       select: ['id'],
     });
     const agentIds = agents.map((agent) => Number(agent.id)).filter((id) => Number.isFinite(id) && id > 0);
