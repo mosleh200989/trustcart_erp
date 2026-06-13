@@ -99,6 +99,63 @@ export class SalesManagerService {
     return fields;
   }
 
+  private applyLastCallFilter(qb: any, calledStatus: string): void {
+    if (!calledStatus || calledStatus === 'all') return;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const daysAgo = (days: number) => {
+      const date = new Date(today);
+      date.setDate(date.getDate() - days);
+      return date;
+    };
+
+    switch (calledStatus) {
+      case 'called':
+      case 'called_today':
+        qb.andWhere('c.last_contact_date >= :lastCallToday AND c.last_contact_date < :lastCallTomorrow', {
+          lastCallToday: today,
+          lastCallTomorrow: tomorrow,
+        });
+        break;
+      case 'called_1week':
+        qb.andWhere('c.last_contact_date >= :lastCall1wStart AND c.last_contact_date < :lastCall1wEnd', {
+          lastCall1wStart: daysAgo(13),
+          lastCall1wEnd: daysAgo(6),
+        });
+        break;
+      case 'called_2weeks':
+        qb.andWhere('c.last_contact_date >= :lastCall2wStart AND c.last_contact_date < :lastCall2wEnd', {
+          lastCall2wStart: daysAgo(20),
+          lastCall2wEnd: daysAgo(13),
+        });
+        break;
+      case 'called_3weeks':
+        qb.andWhere('c.last_contact_date >= :lastCall3wStart AND c.last_contact_date < :lastCall3wEnd', {
+          lastCall3wStart: daysAgo(27),
+          lastCall3wEnd: daysAgo(20),
+        });
+        break;
+      case 'called_1month':
+        qb.andWhere('c.last_contact_date < :lastCall1mEnd', { lastCall1mEnd: daysAgo(27) });
+        break;
+      case 'not_called':
+      case 'not_called_today':
+        qb.andWhere('(c.last_contact_date IS NULL OR c.last_contact_date < :lastCallToday)', { lastCallToday: today });
+        break;
+      case 'not_called_week':
+        qb.andWhere('(c.last_contact_date IS NULL OR c.last_contact_date < :lastCallWeekAgo)', {
+          lastCallWeekAgo: daysAgo(6),
+        });
+        break;
+      case 'never':
+        qb.andWhere('c.last_contact_date IS NULL');
+        break;
+    }
+  }
+
   private async cleanupInvalidTeamLeaderAssignments(): Promise<number> {
     const tlRoleId = await this.getTeamLeaderRoleId();
     if (!tlRoleId) return 0;
@@ -384,6 +441,7 @@ export class SalesManagerService {
     if (query.lifecycleStage) {
       qb.andWhere('c.lifecycle_stage = :ls', { ls: query.lifecycleStage });
     }
+    this.applyLastCallFilter(qb, String(query.calledStatus || query.lastCallStatus || ''));
 
     // Tier filter — join customer_tiers table
     if (query.tier) {
@@ -414,7 +472,11 @@ export class SalesManagerService {
           FROM sales_orders so_delivery
           WHERE so_delivery.customer_id = c.id
             AND LOWER(so_delivery.status::text) = 'delivered'
-            AND DATE(so_delivery.delivered_at) = :deliveryDate
+            AND DATE(COALESCE(
+              so_delivery.delivered_at,
+              so_delivery.order_date::timestamp,
+              so_delivery.created_at AT TIME ZONE 'Asia/Dhaka'
+            )) = :deliveryDate::date
         )`,
         { deliveryDate: String(query.deliveryDate).trim() },
       );

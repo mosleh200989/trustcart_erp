@@ -49,6 +49,25 @@ interface Agent {
 }
 
 const ROWS_OPTIONS = [200, 500, 750, 1000, 2000];
+type LastCallFilter = 'all' | 'called_today' | 'called_1week' | 'called_2weeks' | 'called_3weeks' | 'called_1month' | 'never';
+
+const formatLastCalled = (dateStr?: string | null): { text: string; className: string } => {
+  if (!dateStr) return { text: 'Never', className: 'text-red-600 font-medium' };
+  const date = new Date(dateStr);
+  if (Number.isNaN(date.getTime())) return { text: 'Invalid date', className: 'text-gray-400' };
+
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const callDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const diffDays = Math.floor((today.getTime() - callDate.getTime()) / (1000 * 60 * 60 * 24));
+
+  if (diffDays <= 0) return { text: 'Today', className: 'text-green-700 font-semibold' };
+  if (diffDays === 1) return { text: 'Yesterday', className: 'text-blue-600' };
+  if (diffDays < 7) return { text: `${diffDays} days ago`, className: 'text-orange-600' };
+  if (diffDays < 14) return { text: '1 week ago', className: 'text-orange-700' };
+  if (diffDays < 28) return { text: `${Math.floor(diffDays / 7)} weeks ago`, className: 'text-red-500' };
+  return { text: `${Math.floor(diffDays / 30)} months ago`, className: 'text-red-600' };
+};
 
 const TIER_COLORS: Record<string, string> = {
   tier_1: 'bg-emerald-100 text-emerald-700',
@@ -100,6 +119,7 @@ const SalesManagerLeadAssignment = () => {
   const [addressFilter, setAddressFilter] = useState('');
   const [segmentFilter, setSegmentFilter] = useState<'' | 'new' | 'legacy' | 'mixed'>('');
   const [rejectedStatusFilter, setRejectedStatusFilter] = useState<'non_rejected' | 'rejected' | 'all'>('non_rejected');
+  const [lastCallFilter, setLastCallFilter] = useState<LastCallFilter>('all');
   const [rowsPerPage, setRowsPerPage] = useState(200);
 
   // Selection
@@ -137,6 +157,7 @@ const SalesManagerLeadAssignment = () => {
       if (addressFilter.trim()) params.set('address', addressFilter.trim());
       if (segmentFilter) params.set('orderSegment', segmentFilter);
       if (rejectedStatusFilter !== 'non_rejected') params.set('rejectedStatus', rejectedStatusFilter);
+      if (lastCallFilter !== 'all') params.set('calledStatus', lastCallFilter);
 
       const res = await api.get(`/crm/data-analyst/unassigned-leads?${params}`);
       setLeads(res.data.items || []);
@@ -149,7 +170,7 @@ const SalesManagerLeadAssignment = () => {
     } finally {
       setLoading(false);
     }
-  }, [search, assignmentStatus, tierFilter, tlFilter, lifecycleFilter, productFilter, deliveryDateFilter, assignedFromFilter, assignedToFilter, addressFilter, segmentFilter, rejectedStatusFilter, rowsPerPage, toast]);
+  }, [search, assignmentStatus, tierFilter, tlFilter, lifecycleFilter, productFilter, deliveryDateFilter, assignedFromFilter, assignedToFilter, addressFilter, segmentFilter, rejectedStatusFilter, lastCallFilter, rowsPerPage, toast]);
 
   const fetchTeamLeaders = useCallback(async () => {
     try {
@@ -426,6 +447,21 @@ const SalesManagerLeadAssignment = () => {
               <option value="rejected">Rejected Only</option>
             </select>
 
+            {/* Last Call filter */}
+            <select
+              value={lastCallFilter}
+              onChange={e => setLastCallFilter(e.target.value as LastCallFilter)}
+              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500"
+            >
+              <option value="all">All Last Calls</option>
+              <option value="called_today">Called Today</option>
+              <option value="called_1week">Called 1 Week Ago</option>
+              <option value="called_2weeks">Called 2 Weeks Ago</option>
+              <option value="called_3weeks">Called 3 Weeks Ago</option>
+              <option value="called_1month">Called 1 Month Ago</option>
+              <option value="never">Never Called</option>
+            </select>
+
             {/* Product search — Bengali + English */}
             <div className="xl:col-span-2">
               <ProductAutocomplete
@@ -558,6 +594,7 @@ const SalesManagerLeadAssignment = () => {
                       <th className="text-left py-3 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Data Analyst</th>
                       <th className="text-left py-3 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Team Leader</th>
                       <th className="text-left py-3 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Assigned Agent</th>
+                      <th className="text-left py-3 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Last Call</th>
                       <th className="text-center py-3 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Action</th>
                     </tr>
                   </thead>
@@ -609,6 +646,21 @@ const SalesManagerLeadAssignment = () => {
                         </td>
                         <td className="py-3 px-3">{personName(lead.teamLeaderName)}</td>
                         <td className="py-3 px-3">{personName(lead.assignedAgentName)}</td>
+                        <td className="py-3 px-3 text-sm">
+                          {(() => {
+                            const lastCall = formatLastCalled(lead.last_contact_date);
+                            return (
+                              <>
+                                <div className={lastCall.className}>{lastCall.text}</div>
+                                {lead.last_contact_date && (
+                                  <div className="text-[11px] text-gray-400">
+                                    {new Date(lead.last_contact_date).toLocaleDateString()}
+                                  </div>
+                                )}
+                              </>
+                            );
+                          })()}
+                        </td>
                         <td className="py-3 px-3 text-center">
                           <div className="flex items-center justify-center gap-2">
                             <button
@@ -637,7 +689,7 @@ const SalesManagerLeadAssignment = () => {
                     ))}
                     {leads.length === 0 && (
                       <tr>
-                        <td colSpan={9} className="text-center py-16 text-gray-400">
+                        <td colSpan={10} className="text-center py-16 text-gray-400">
                           No leads found. Try adjusting your filters.
                         </td>
                       </tr>
