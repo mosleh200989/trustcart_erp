@@ -283,10 +283,12 @@ export class LeadManagementService {
     // Build items from cartData
     const cartItems = Array.isArray(order.cartData) ? order.cartData : [];
     const items = cartItems.map((item: any) => ({
-      product_id: item.product_id || item.id || 0,
+      product_id: item.product_id || item.productId || item.id || 0,
       product_name: item.product_name || item.productName || item.name || null,
+      product_image: item.product_image || item.productImage || item.image_url || item.imageUrl || item.image || null,
+      variant_name: item.variant_name || item.variantName || null,
       quantity: item.quantity || 1,
-      unit_price: item.price || item.unit_price || 0,
+      unit_price: item.unit_price || item.unitPrice || item.price || 0,
     }));
     const selectedSource = String(order.source || '').toLowerCase() === 'admin_panel'
       ? 'admin_panel'
@@ -315,6 +317,7 @@ export class LeadManagementService {
     // Mark incomplete order as converted
     order.convertedToOrder = true;
     order.recovered = true;
+    order.contactedDone = true;
     order.recoveredOrderId = savedOrder.id;
     await this.incompleteOrderRepo.save(order);
 

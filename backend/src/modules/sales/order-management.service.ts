@@ -1567,6 +1567,26 @@ export class OrderManagementService {
     const items = await this.getOrderItems(orderId);
     const activityLogs = await this.enrichActivityLogs(await this.getActivityLogs(orderId));
     const courierTracking = await this.getCourierTrackingHistory(orderId);
+    const latestOrder = orderHistoryRows[0] || orderWithCourierSync;
+    const latestOrderItems = latestOrder?.id
+      ? (Number(latestOrder.id) === Number(orderId) ? items : await this.getOrderItems(latestOrder.id))
+      : [];
+    const latestOrderFirstItem = latestOrderItems[0] || null;
+    const lastBoughtProduct = latestOrderFirstItem
+      ? {
+          orderId: latestOrder.id,
+          salesOrderNumber: latestOrder.salesOrderNumber,
+          productId: latestOrderFirstItem.productId ?? null,
+          productName: latestOrderFirstItem.customProductName
+            || latestOrderFirstItem.productName
+            || latestOrderFirstItem.displayName
+            || null,
+          variantName: latestOrderFirstItem.variantName || null,
+          quantity: Number(latestOrderFirstItem.quantity || 0),
+          unitPrice: Number(latestOrderFirstItem.unitPrice || latestOrderFirstItem.unit_price || 0),
+          purchasedAt: latestOrder.orderDate || latestOrder.createdAt,
+        }
+      : null;
 
     // Always compute reliable deliveryCharge for the response.
     // Use the DB column if it has a real value; otherwise derive from totalAmount.
@@ -1641,6 +1661,7 @@ export class OrderManagementService {
       customer,
       customerRecord,
       orderHistory,
+      lastBoughtProduct,
       activeCouponCodes,
       customerTags,
     };

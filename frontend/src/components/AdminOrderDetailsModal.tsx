@@ -191,9 +191,9 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
     }
   }, [customer, customerRecord, order]);
 
-  // Load call logs when logs tab is opened
+  // Load call logs when the customer summary or logs tab is opened
   useEffect(() => {
-    if (activeTab === 'logs' && customerRecord?.id) {
+    if ((activeTab === 'customer' || activeTab === 'logs') && customerRecord?.id) {
       loadCallLogs();
     }
   }, [activeTab, customerRecord?.id]);
@@ -219,6 +219,7 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
         outcome: e.metadata?.outcome || e.call_outcome || e.outcome || '',
         productSuggestion: e.metadata?.product_suggestion || '',
         agentName: e.agent_name || e.agentName || '',
+        agentId: e.agent_id || e.agentId || e.user_id || e.userId || e.created_by || e.createdBy || e.metadata?.agent_id || null,
         duration: e.metadata?.duration || e.duration || '',
         callType: e.metadata?.type || e.callType || '',
       }));
@@ -1119,6 +1120,8 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
     Number(order.computedTotalAmount ?? order.computed_total_amount ?? (itemsSubtotal + deliveryCharge - discountAmount))
   ));
   const totalQuantity = items.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+  const lastBoughtProduct = order?.lastBoughtProduct || null;
+  const compactCallLogs = callLogs.slice(0, 5);
 
   const canHoldOrCancel = !['picked', 'in_transit', 'delivered'].includes(order.status);
 
@@ -1659,26 +1662,77 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                 )}
               </div>
 
-              {/* Quick Reference: Name, Address, Phone */}
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex flex-col gap-2">
-                <div className="flex items-center gap-2">
-                  <span className="font-semibold text-blue-700 min-w-[70px]">Name:</span>
-                  <span className="text-gray-900">{viewCustomer.name ? `${viewCustomer.title ? viewCustomer.title + ' ' : ''}${viewCustomer.name}${viewCustomer.lastName ? ' ' + viewCustomer.lastName : ''}` : 'N/A'}</span>
+              <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.65fr)] gap-4">
+                {/* Quick Reference: Name, Address, Phone */}
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex flex-col gap-3">
+                  <div className="flex items-start gap-3">
+                    <span className="font-semibold text-blue-700 min-w-[70px]">Name:</span>
+                    <span className="text-gray-900">{viewCustomer.name ? `${viewCustomer.title ? viewCustomer.title + ' ' : ''}${viewCustomer.name}${viewCustomer.lastName ? ' ' + viewCustomer.lastName : ''}` : 'N/A'}</span>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <span className="font-semibold text-blue-700 min-w-[70px]">Address:</span>
+                    <span className="text-gray-900 leading-relaxed">{[viewCustomer.address, viewCustomer.district, viewCustomer.city].filter(Boolean).join(', ') || 'N/A'}</span>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <span className="font-semibold text-blue-700 min-w-[70px]">Phone:</span>
+                    <span className="text-gray-900">{viewCustomer.phone || viewCustomer.mobile || 'N/A'}</span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="font-semibold text-blue-700 min-w-[70px]">Address:</span>
-                  <span className="text-gray-900">{[viewCustomer.address, viewCustomer.district, viewCustomer.city].filter(Boolean).join(', ') || 'N/A'}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="font-semibold text-blue-700 min-w-[70px]">Phone:</span>
-                  <span className="text-gray-900">{viewCustomer.phone || viewCustomer.mobile || 'N/A'}</span>
+
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                  <div className="text-sm font-semibold text-amber-800 mb-2 flex items-center gap-2">
+                    <FaStickyNote /> Internal Notes
+                  </div>
+                  <div className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed max-h-32 overflow-y-auto">
+                    {internalNotes?.trim() ? internalNotes : 'N/A'}
+                  </div>
                 </div>
               </div>
 
-              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-                <div className="text-sm font-semibold text-amber-800 mb-2">Internal Notes</div>
-                <div className="text-sm text-gray-800 whitespace-pre-wrap">
-                  {internalNotes?.trim() ? internalNotes : 'N/A'}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+                  <div className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                    <FaPhone className="text-green-600" /> Call Logs
+                  </div>
+                  {callLogsLoading ? (
+                    <div className="text-sm text-gray-500 py-3">Loading call logs...</div>
+                  ) : compactCallLogs.length > 0 ? (
+                    <div className="divide-y divide-gray-100">
+                      {compactCallLogs.map((call) => (
+                        <div key={call.id || `${call.agentName}-${call.createdAt}`} className="py-2 flex items-center justify-between gap-3">
+                          <span className="text-sm font-medium text-gray-800">{call.agentName || 'Unknown Agent'}</span>
+                          <span className="text-xs text-gray-500">{call.agentId ? `ID: ${call.agentId}` : 'ID: N/A'}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-sm text-gray-500 py-3">No call logs found</div>
+                  )}
+                </div>
+
+                <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+                  <div className="text-sm font-semibold text-gray-900 mb-3">Last Bought Product</div>
+                  {lastBoughtProduct ? (
+                    <div className="space-y-1">
+                      <div className="text-base font-semibold text-gray-900">
+                        {lastBoughtProduct.productName || 'N/A'}
+                        {lastBoughtProduct.variantName ? ` (${lastBoughtProduct.variantName})` : ''}
+                      </div>
+                      <div className="text-sm text-gray-600">
+                        {lastBoughtProduct.salesOrderNumber ? `Order #${lastBoughtProduct.salesOrderNumber}` : `Order #${lastBoughtProduct.orderId}`}
+                      </div>
+                      <div className="text-sm text-gray-600">
+                        Qty {Number(lastBoughtProduct.quantity || 0)} · ৳{Number(lastBoughtProduct.unitPrice || 0).toFixed(2)}
+                      </div>
+                      {lastBoughtProduct.purchasedAt && (
+                        <div className="text-xs text-gray-500">
+                          {new Date(lastBoughtProduct.purchasedAt).toLocaleString('en-GB', { timeZone: 'Asia/Dhaka' })}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="text-sm text-gray-500 py-3">No bought product found</div>
+                  )}
                 </div>
               </div>
 
