@@ -30,6 +30,7 @@ const INITIAL_FILTERS = {
   source: '',
   landingPage: '',
   assignment: '',
+  totalCancelledOrders: '',
 };
 
 function formatDate(value?: string | null) {
@@ -308,6 +309,7 @@ export default function AdminSales() {
       if (f.source) params.source = f.source;
       if (f.landingPage) params.landingPage = f.landingPage;
       if (f.assignment) params.assignment = f.assignment;
+      if (f.totalCancelledOrders) params.totalCancelledOrders = f.totalCancelledOrders;
 
       const response = await apiClient.get('/sales', { params });
       const body = response.data;
@@ -1385,7 +1387,7 @@ export default function AdminSales() {
               </div>
 
               {/* 2nd line: Status + date range (single row on desktop) */}
-              <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
+              <div className="grid grid-cols-1 md:grid-cols-5 xl:grid-cols-6 gap-4 items-end">
                 <FormInput
                   label="Order Status"
                   name="status"
@@ -1438,6 +1440,20 @@ export default function AdminSales() {
                   type="date"
                   value={filters.endDate}
                   onChange={handleFilterChange}
+                />
+
+                <FormInput
+                  label="Total Cancelled Orders"
+                  name="totalCancelledOrders"
+                  type="select"
+                  value={filters.totalCancelledOrders}
+                  onChange={handleFilterChange}
+                  selectPlaceholder="All"
+                  options={[
+                    { value: '1', label: '1 time' },
+                    { value: '2', label: '2 times' },
+                    { value: '3', label: '3 times' },
+                  ]}
                 />
               </div>
 

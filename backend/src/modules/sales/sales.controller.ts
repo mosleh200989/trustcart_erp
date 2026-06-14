@@ -237,9 +237,10 @@ export class SalesController {
     @Query('source') source?: string,
     @Query('landingPage') landingPage?: string,
     @Query('assignment') assignment?: string,
+    @Query('totalCancelledOrders') totalCancelledOrders?: string,
   ) {
     // If pagination params are provided, use the paginated method
-    if (page || limit || q || status || startDate || endDate || todayOnly || productName || sourceGroup || source || landingPage || assignment) {
+    if (page || limit || q || status || startDate || endDate || todayOnly || productName || sourceGroup || source || landingPage || assignment || totalCancelledOrders) {
       return this.salesService.findAllPaginated({
         page: page ? parseInt(page, 10) : 1,
         limit: limit ? parseInt(limit, 10) : 10,
@@ -253,6 +254,7 @@ export class SalesController {
         source: source || '',
         landingPage: landingPage || '',
         assignment: assignment || '',
+        totalCancelledOrders: totalCancelledOrders ? parseInt(totalCancelledOrders, 10) : undefined,
       });
     }
     // Fallback for backwards compatibility (no params = return all)
