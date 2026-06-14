@@ -264,6 +264,10 @@ export class LeadManagementController {
     @Query('page') page?: string,
     @Query('limit') limit?: string,
     @Query('search') search?: string,
+    @Query('deliveryDateStart') deliveryDateStart?: string,
+    @Query('deliveryDateEnd') deliveryDateEnd?: string,
+    @Query('purchasesCount') purchasesCount?: string,
+    @Query('cancelledOrdersCount') cancelledOrdersCount?: string,
   ) {
     return this.leadService.getAllCustomersWithTiers({
       tier,
@@ -272,6 +276,10 @@ export class LeadManagementController {
       page: page ? parseInt(page, 10) : 1,
       limit: limit ? parseInt(limit, 10) : 10,
       search,
+      deliveryDateStart,
+      deliveryDateEnd,
+      purchasesCount: purchasesCount ? parseInt(purchasesCount, 10) : undefined,
+      cancelledOrdersCount: cancelledOrdersCount ? parseInt(cancelledOrdersCount, 10) : undefined,
     });
   }
 

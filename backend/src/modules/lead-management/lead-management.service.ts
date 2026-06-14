@@ -609,7 +609,18 @@ export class LeadManagementService {
     });
   }
 
-  async getAllCustomersWithTiers(filters: { tier?: string; status?: string; assignedTo?: number; page?: number; limit?: number; search?: string } = {}) {
+  async getAllCustomersWithTiers(filters: {
+    tier?: string;
+    status?: string;
+    assignedTo?: number;
+    page?: number;
+    limit?: number;
+    search?: string;
+    deliveryDateStart?: string;
+    deliveryDateEnd?: string;
+    purchasesCount?: number;
+    cancelledOrdersCount?: number;
+  } = {}) {
     const { page = 1, limit = 10 } = filters;
     const offset = (page - 1) * limit;
 
@@ -624,6 +635,31 @@ export class LeadManagementService {
     const excludeRejected = filters.tier === 'rejected'
       ? ''
       : `AND NOT EXISTS (SELECT 1 FROM customer_tiers ct_rej WHERE ct_rej.customer_id = c.id AND ct_rej.tier = 'rejected') AND (c.customer_type IS NULL OR c.customer_type != 'rejected')`;
+
+    const deliveryDateExpr = `DATE(COALESCE(so_delivered.delivered_at, so_delivered.order_date::timestamp, so_delivered.created_at AT TIME ZONE 'Asia/Dhaka'))`;
+    const deliveryDateStart = String(filters.deliveryDateStart || '').trim();
+    const deliveryDateEnd = String(filters.deliveryDateEnd || '').trim();
+    const deliveryDateFilter = deliveryDateStart || deliveryDateEnd
+      ? `AND EXISTS (
+          SELECT 1
+          FROM sales_orders so_delivered
+          WHERE so_delivered.customer_id = c.id
+            AND LOWER(so_delivered.status::text) = 'delivered'
+            ${deliveryDateStart ? `AND ${deliveryDateExpr} >= '${deliveryDateStart.replace(/'/g, "''")}'::date` : ''}
+            ${deliveryDateEnd ? `AND ${deliveryDateExpr} <= '${deliveryDateEnd.replace(/'/g, "''")}'::date` : ''}
+        )`
+      : '';
+    const purchasesCountFilter = Number.isFinite(filters.purchasesCount) && Number(filters.purchasesCount) >= 0
+      ? `AND COALESCE((SELECT COUNT(*)::int FROM sales_orders so_pc WHERE so_pc.customer_id = c.id), 0) >= ${Number(filters.purchasesCount)}`
+      : '';
+    const cancelledOrdersCountFilter = Number.isFinite(filters.cancelledOrdersCount) && Number(filters.cancelledOrdersCount) >= 0
+      ? `AND COALESCE((SELECT COUNT(*)::int FROM sales_orders so_cc WHERE so_cc.customer_id = c.id AND LOWER(so_cc.status::text) IN ('cancelled', 'returned')), 0) >= ${Number(filters.cancelledOrdersCount)}`
+      : '';
+    const extraFilters = `
+      ${deliveryDateFilter}
+      ${purchasesCountFilter}
+      ${cancelledOrdersCountFilter}
+    `;
 
     // Stats query: always returns counts for ALL tiers regardless of tier filter,
     // so the tier cards on the management page always show correct global totals.
@@ -660,6 +696,7 @@ export class LeadManagementService {
       ${filters.status === 'inactive' ? 'AND ct.is_active = false' : ''}
       ${filters.assignedTo ? `AND c.assigned_to = ${filters.assignedTo}` : ''}
       ${searchClause}
+      ${extraFilters}
     `;
 
     const countResults = await this.sessionRepo.query(countQuery);
@@ -690,6 +727,20 @@ export class LeadManagementService {
           0
         ) as order_count,
         COALESCE(
+          (SELECT COUNT(*)::int FROM sales_orders so_cancelled WHERE so_cancelled.customer_id = c.id AND LOWER(so_cancelled.status::text) IN ('cancelled', 'returned')),
+          0
+        ) as cancelled_order_count,
+        (
+          SELECT MAX(DATE(COALESCE(
+            so_last.delivered_at,
+            so_last.order_date::timestamp,
+            so_last.created_at AT TIME ZONE 'Asia/Dhaka'
+          )))
+          FROM sales_orders so_last
+          WHERE so_last.customer_id = c.id
+            AND LOWER(so_last.status::text) = 'delivered'
+        ) as last_delivery_date,
+        COALESCE(
           (SELECT SUM(so.total_amount) FROM sales_orders so WHERE so.customer_id = c.id),
           0
         ) as lifetime_value,
@@ -705,6 +756,7 @@ export class LeadManagementService {
       ${filters.status === 'inactive' ? 'AND ct.is_active = false' : ''}
       ${filters.assignedTo ? `AND c.assigned_to = ${filters.assignedTo}` : ''}
       ${searchClause}
+      ${extraFilters}
       ORDER BY c.created_at DESC
       LIMIT ${limit} OFFSET ${offset}
     `;
@@ -723,6 +775,8 @@ export class LeadManagementService {
         agent_name: r.agent_name ? `${r.agent_name} ${r.agent_last_name || ''}`.trim() : null,
         created_at: r.created_at,
         order_count: r.order_count,
+        cancelled_order_count: r.cancelled_order_count,
+        last_delivery_date: r.last_delivery_date,
         lifetime_value: r.lifetime_value,
         tierData: r.tier_id ? {
           id: r.tier_id,

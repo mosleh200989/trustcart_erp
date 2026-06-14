@@ -6,6 +6,8 @@ import PageSizeSelector from '@/components/admin/PageSizeSelector';
 import Pagination from '@/components/admin/Pagination';
 import ThSort from '@/components/admin/ThSort';
 import { useSortableData } from '@/hooks/useSortableData';
+import AdminOrderDetailsModal from '@/components/AdminOrderDetailsModal';
+import { FaEye } from 'react-icons/fa';
 
 interface Customer {
   id: number;
@@ -38,7 +40,15 @@ interface CustomerTier {
 export default function CustomerTierManagementPage() {
   const toast = useToast();
   const [customers, setCustomers] = useState<any[]>([]);
-  const [filter, setFilter] = useState({ tier: 'all', status: 'all', agent: 'all' });
+  const [filter, setFilter] = useState({
+    tier: 'all',
+    status: 'all',
+    agent: 'all',
+    deliveryDateStart: '',
+    deliveryDateEnd: '',
+    purchasesCount: '',
+    cancelledOrdersCount: '',
+  });
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [showTierModal, setShowTierModal] = useState(false);
@@ -48,6 +58,9 @@ export default function CustomerTierManagementPage() {
     isActive: true,
     notes: '',
   });
+  const [updatingTierCustomerId, setUpdatingTierCustomerId] = useState<number | null>(null);
+  const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
+  const [showOrderModal, setShowOrderModal] = useState(false);
   const { sorted: sortedTierCustomers, sortKey: tierSortKey, sortDir: tierSortDir, toggleSort: toggleTierSort } = useSortableData<any>(customers);
 
   // Pagination state
@@ -98,6 +111,10 @@ export default function CustomerTierManagementPage() {
       if (filter.tier !== 'all') params.append('tier', filter.tier);
       if (filter.status !== 'all') params.append('status', filter.status);
       if (filter.agent !== 'all') params.append('assignedTo', filter.agent);
+      if (filter.deliveryDateStart) params.append('deliveryDateStart', filter.deliveryDateStart);
+      if (filter.deliveryDateEnd) params.append('deliveryDateEnd', filter.deliveryDateEnd);
+      if (filter.purchasesCount) params.append('purchasesCount', filter.purchasesCount);
+      if (filter.cancelledOrdersCount) params.append('cancelledOrdersCount', filter.cancelledOrdersCount);
       if (searchQuery.trim()) params.append('search', searchQuery.trim());
       params.append('page', currentPage.toString());
       params.append('limit', itemsPerPage.toString());
@@ -184,6 +201,55 @@ export default function CustomerTierManagementPage() {
     } catch (error) {
       console.error('Error updating tier:', error);
       toast.error('Failed to update tier');
+    }
+  };
+
+  const handleInlineTierUpdate = async (customer: any, tier: string) => {
+    if (!tier || tier === customer.tierData?.tier) return;
+
+    if (tier === 'rejected') {
+      if (customer.tierData?.tier !== 'tier_6') {
+        toast.error('Only Tier 6 customers can be moved to the rejected list.');
+        return;
+      }
+
+      const confirmed = confirm(
+        `Are you sure you want to mark "${customer.first_name} ${customer.last_name}" as Rejected?\n\nThis will:\n- Unassign the customer from their agent and team leader\n- Remove them from all CRM and Telephony views\n- Move them to the Rejected Customers sub-module only`
+      );
+      if (!confirmed) return;
+    }
+
+    try {
+      setUpdatingTierCustomerId(customer.id);
+      await apiClient.post('/lead-management/tier', {
+        customerId: customer.id,
+        tier,
+        isActive: tier !== 'rejected' ? (customer.tierData?.isActive ?? true) : false,
+        notes: '',
+      });
+      toast.success(tier === 'rejected' ? 'Customer moved to Rejected.' : 'Tier updated successfully!');
+      fetchCustomers();
+    } catch (error) {
+      console.error('Error updating tier:', error);
+      toast.error('Failed to update tier');
+    } finally {
+      setUpdatingTierCustomerId(null);
+    }
+  };
+
+  const handleViewCustomerOrder = async (customerId: number) => {
+    try {
+      const response = await apiClient.get(`/order-management/customer/${customerId}/orders`);
+      const orders = response.data?.data || response.data || [];
+      if (orders.length > 0) {
+        setSelectedOrderId(orders[0].id);
+        setShowOrderModal(true);
+      } else {
+        toast.error('No orders found for this customer');
+      }
+    } catch (error) {
+      console.error('Failed to fetch customer orders:', error);
+      toast.error('Failed to fetch customer orders');
     }
   };
 
@@ -279,7 +345,7 @@ export default function CustomerTierManagementPage() {
               className="w-full border rounded-lg p-2"
             />
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div>
               <label className="block text-sm font-medium mb-2">Filter by Tier</label>
               <select
@@ -326,6 +392,50 @@ export default function CustomerTierManagementPage() {
                 ))}
               </select>
             </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-2">Delivery Date Start</label>
+              <input
+                type="date"
+                value={filter.deliveryDateStart}
+                onChange={(e) => { setFilter({ ...filter, deliveryDateStart: e.target.value }); setCurrentPage(1); }}
+                className="w-full border rounded-lg p-2"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-2">Delivery Date End</label>
+              <input
+                type="date"
+                value={filter.deliveryDateEnd}
+                onChange={(e) => { setFilter({ ...filter, deliveryDateEnd: e.target.value }); setCurrentPage(1); }}
+                className="w-full border rounded-lg p-2"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-2">Min Purchases Count</label>
+              <input
+                type="number"
+                min="0"
+                value={filter.purchasesCount}
+                onChange={(e) => { setFilter({ ...filter, purchasesCount: e.target.value }); setCurrentPage(1); }}
+                className="w-full border rounded-lg p-2"
+                placeholder="Any"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-2">Min Cancelled Orders</label>
+              <input
+                type="number"
+                min="0"
+                value={filter.cancelledOrdersCount}
+                onChange={(e) => { setFilter({ ...filter, cancelledOrdersCount: e.target.value }); setCurrentPage(1); }}
+                className="w-full border rounded-lg p-2"
+                placeholder="Any"
+              />
+            </div>
           </div>
         </div>
 
@@ -355,6 +465,8 @@ export default function CustomerTierManagementPage() {
                       <ThSort col="email" label="Contact" sortKey={tierSortKey} sortDir={tierSortDir} onSort={toggleTierSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
                       <ThSort col="tier" label="Tier" sortKey={tierSortKey} sortDir={tierSortDir} onSort={toggleTierSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
                       <ThSort col="order_count" label="Purchases" sortKey={tierSortKey} sortDir={tierSortDir} onSort={toggleTierSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                      <ThSort col="cancelled_order_count" label="Cancelled Orders" sortKey={tierSortKey} sortDir={tierSortDir} onSort={toggleTierSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                      <ThSort col="last_delivery_date" label="Last Delivery Date" sortKey={tierSortKey} sortDir={tierSortDir} onSort={toggleTierSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
                       <ThSort col="lifetime_value" label="Total Spent" sortKey={tierSortKey} sortDir={tierSortDir} onSort={toggleTierSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Action</th>
                   </tr>
@@ -371,22 +483,34 @@ export default function CustomerTierManagementPage() {
                         <div className="text-xs text-gray-500">{customer.phone}</div>
                       </td>
                       <td className="px-6 py-4">
-                        {customer.tierData ? (
-                          <span className={`px-2 py-1 rounded text-xs font-semibold uppercase ${getTierBadgeColor(customer.tierData.tier)}`}>
-                            {getTierLabel(customer.tierData.tier)}
-                          </span>
-                        ) : (
-                          <span className="text-sm text-gray-400">Not Set</span>
-                        )}
+                        <select
+                          value={customer.tierData?.tier || ''}
+                          onChange={(e) => handleInlineTierUpdate(customer, e.target.value)}
+                          disabled={updatingTierCustomerId === customer.id}
+                          className={`min-w-[150px] border rounded-lg px-2 py-1 text-xs font-semibold uppercase disabled:opacity-60 ${getTierBadgeColor(customer.tierData?.tier || '')}`}
+                        >
+                          <option value="" disabled>Not Set</option>
+                          <option value="tier_1">Tier 1</option>
+                          <option value="tier_2">Tier 2</option>
+                          <option value="tier_3">Tier 3</option>
+                          <option value="tier_4">Tier 4</option>
+                          <option value="tier_5">Tier 5</option>
+                          <option value="tier_6">Tier 6</option>
+                          <option value="rejected" disabled={customer.tierData?.tier !== 'tier_6'}>Rejected</option>
+                        </select>
                       </td>
                       <td className="px-6 py-4 text-sm">{customer.order_count || customer.tierData?.totalPurchases || 0}</td>
+                      <td className="px-6 py-4 text-sm">{customer.cancelled_order_count || 0}</td>
+                      <td className="px-6 py-4 text-sm whitespace-nowrap">
+                        {customer.last_delivery_date ? new Date(customer.last_delivery_date).toLocaleDateString('en-GB', { timeZone: 'Asia/Dhaka' }) : 'N/A'}
+                      </td>
                       <td className="px-6 py-4 text-sm">৳{Number(customer.lifetime_value || customer.tierData?.totalSpent || 0).toLocaleString()}</td>
                       <td className="px-6 py-4">
                         <button
-                          onClick={() => openTierModal(customer)}
-                          className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 text-sm"
+                          onClick={() => handleViewCustomerOrder(customer.id)}
+                          className="inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 text-sm"
                         >
-                          Manage
+                          <FaEye className="text-xs" /> View
                         </button>
                       </td>
                     </tr>
@@ -482,6 +606,17 @@ export default function CustomerTierManagementPage() {
               </div>
             </div>
           </div>
+        )}
+
+        {showOrderModal && selectedOrderId && (
+          <AdminOrderDetailsModal
+            orderId={selectedOrderId}
+            onClose={() => {
+              setShowOrderModal(false);
+              setSelectedOrderId(null);
+            }}
+            onUpdate={fetchCustomers}
+          />
         )}
       </div>
     </AdminLayout>
