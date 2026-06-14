@@ -646,6 +646,7 @@ export class LeadManagementService {
     deliveryDateEnd?: string;
     purchasesCount?: number;
     cancelledOrdersCount?: number;
+    customerSegment?: string;
   } = {}) {
     const { page = 1, limit = 10 } = filters;
     const offset = (page - 1) * limit;
@@ -666,6 +667,26 @@ export class LeadManagementService {
       : filters.tier && filters.tier !== 'all'
         ? `AND ct.tier = '${String(filters.tier).replace(/'/g, "''")}'`
         : '';
+    const orderStatsJoin = `
+      INNER JOIN (
+        SELECT
+          so.customer_id,
+          COUNT(*)::int AS order_count,
+          COALESCE(SUM(so.total_amount), 0) AS lifetime_value,
+          COUNT(CASE WHEN LOWER(so.status::text) = 'delivered' THEN 1 END)::int AS delivered_order_count,
+          COUNT(CASE WHEN LOWER(so.status::text) IN ('cancelled', 'returned') THEN 1 END)::int AS cancelled_order_count,
+          COUNT(CASE WHEN so.sales_order_number LIKE 'SO-%' THEN 1 END)::int AS so_order_count,
+          COUNT(CASE WHEN so.sales_order_number LIKE 'LEG-%' THEN 1 END)::int AS leg_order_count,
+          MAX(DATE(COALESCE(
+            so.delivered_at,
+            so.order_date::timestamp,
+            so.created_at AT TIME ZONE 'Asia/Dhaka'
+          ))) FILTER (WHERE LOWER(so.status::text) = 'delivered') AS last_delivery_date
+        FROM sales_orders so
+        WHERE so.customer_id IS NOT NULL
+        GROUP BY so.customer_id
+      ) os ON os.customer_id = c.id AND os.delivered_order_count > 0
+    `;
 
     const deliveryDateExpr = `DATE(COALESCE(so_delivered.delivered_at, so_delivered.order_date::timestamp, so_delivered.created_at AT TIME ZONE 'Asia/Dhaka'))`;
     const deliveryDateStart = String(filters.deliveryDateStart || '').trim();
@@ -681,15 +702,24 @@ export class LeadManagementService {
         )`
       : '';
     const purchasesCountFilter = Number.isFinite(filters.purchasesCount) && Number(filters.purchasesCount) >= 0
-      ? `AND COALESCE((SELECT COUNT(*)::int FROM sales_orders so_pc WHERE so_pc.customer_id = c.id), 0) >= ${Number(filters.purchasesCount)}`
+      ? `AND os.order_count >= ${Number(filters.purchasesCount)}`
       : '';
     const cancelledOrdersCountFilter = Number.isFinite(filters.cancelledOrdersCount) && Number(filters.cancelledOrdersCount) >= 0
-      ? `AND COALESCE((SELECT COUNT(*)::int FROM sales_orders so_cc WHERE so_cc.customer_id = c.id AND LOWER(so_cc.status::text) IN ('cancelled', 'returned')), 0) >= ${Number(filters.cancelledOrdersCount)}`
+      ? `AND os.cancelled_order_count >= ${Number(filters.cancelledOrdersCount)}`
       : '';
+    const segment = String(filters.customerSegment || 'all').trim().toLowerCase();
+    const customerSegmentFilter = segment === 'new'
+      ? 'AND os.so_order_count > 0 AND os.leg_order_count = 0'
+      : segment === 'legacy'
+        ? 'AND os.leg_order_count > 0 AND os.so_order_count = 0'
+        : segment === 'converted'
+          ? 'AND os.so_order_count > 0 AND os.leg_order_count > 0'
+          : '';
     const extraFilters = `
       ${deliveryDateFilter}
       ${purchasesCountFilter}
       ${cancelledOrdersCountFilter}
+      ${customerSegmentFilter}
     `;
 
     // Stats query: always returns counts for ALL tiers regardless of tier filter,
@@ -707,6 +737,7 @@ export class LeadManagementService {
         COUNT(CASE WHEN ct.tier = 'rejected' THEN 1 END)::int as rejected,
         COUNT(CASE WHEN ct.tier IS NULL THEN 1 END)::int as no_tier
       FROM customers c
+      ${orderStatsJoin}
       LEFT JOIN customer_tiers ct ON ct.customer_id = c.id
       WHERE c.is_deleted = false
       ${filters.assignedTo ? `AND c.assigned_to = ${filters.assignedTo}` : ''}
@@ -719,6 +750,7 @@ export class LeadManagementService {
     const countQuery = `
       SELECT COUNT(*)::int as total
       FROM customers c
+      ${orderStatsJoin}
       LEFT JOIN customer_tiers ct ON ct.customer_id = c.id
       WHERE c.is_deleted = false
       ${tierFilterClause}
@@ -753,31 +785,14 @@ export class LeadManagementService {
         ct.engagement_score,
         ct.days_inactive,
         ct.notes as tier_notes,
-        COALESCE(
-          (SELECT COUNT(*)::int FROM sales_orders so WHERE so.customer_id = c.id),
-          0
-        ) as order_count,
-        COALESCE(
-          (SELECT COUNT(*)::int FROM sales_orders so_cancelled WHERE so_cancelled.customer_id = c.id AND LOWER(so_cancelled.status::text) IN ('cancelled', 'returned')),
-          0
-        ) as cancelled_order_count,
-        (
-          SELECT MAX(DATE(COALESCE(
-            so_last.delivered_at,
-            so_last.order_date::timestamp,
-            so_last.created_at AT TIME ZONE 'Asia/Dhaka'
-          )))
-          FROM sales_orders so_last
-          WHERE so_last.customer_id = c.id
-            AND LOWER(so_last.status::text) = 'delivered'
-        ) as last_delivery_date,
-        COALESCE(
-          (SELECT SUM(so.total_amount) FROM sales_orders so WHERE so.customer_id = c.id),
-          0
-        ) as lifetime_value,
+        os.order_count,
+        os.cancelled_order_count,
+        os.last_delivery_date,
+        os.lifetime_value,
         u.name as agent_name,
         u.last_name as agent_last_name
       FROM customers c
+      ${orderStatsJoin}
       LEFT JOIN customer_tiers ct ON ct.customer_id = c.id
       LEFT JOIN users u ON u.id = c.assigned_to
       WHERE c.is_deleted = false
