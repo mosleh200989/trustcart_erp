@@ -48,6 +48,7 @@ export default function CustomerTierManagementPage() {
     deliveryDateEnd: '',
     purchasesCount: '',
     cancelledOrdersCount: '',
+    customerSegment: 'all',
   });
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
@@ -115,6 +116,7 @@ export default function CustomerTierManagementPage() {
       if (filter.deliveryDateEnd) params.append('deliveryDateEnd', filter.deliveryDateEnd);
       if (filter.purchasesCount) params.append('purchasesCount', filter.purchasesCount);
       if (filter.cancelledOrdersCount) params.append('cancelledOrdersCount', filter.cancelledOrdersCount);
+      if (filter.customerSegment !== 'all') params.append('customerSegment', filter.customerSegment);
       if (searchQuery.trim()) params.append('search', searchQuery.trim());
       params.append('page', currentPage.toString());
       params.append('limit', itemsPerPage.toString());
@@ -416,6 +418,20 @@ export default function CustomerTierManagementPage() {
                     {agent.name} {agent.lastName || ''}
                   </option>
                 ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-2">Customer Segment</label>
+              <select
+                value={filter.customerSegment}
+                onChange={(e) => { setFilter({ ...filter, customerSegment: e.target.value }); setCurrentPage(1); }}
+                className="w-full border rounded-lg p-2"
+              >
+                <option value="all">All</option>
+                <option value="new">New</option>
+                <option value="legacy">Legacy</option>
+                <option value="converted">Converted</option>
               </select>
             </div>
 
