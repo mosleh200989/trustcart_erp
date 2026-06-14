@@ -29,7 +29,7 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
   const [productHistory, setProductHistory] = useState<any>(null);
   const [productHistoryLoading, setProductHistoryLoading] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('items');
+  const [activeTab, setActiveTab] = useState('customer');
 
   const [currentOrderId, setCurrentOrderId] = useState<number>(orderId);
   
@@ -1237,7 +1237,7 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
         {/* Tabs */}
         <div className="border-b">
           <div className="flex gap-1 p-2 bg-gray-50">
-            {['items', 'customer', 'product', 'order history', 'delivery', 'notes', 'tracking', 'fraud', 'logs'].map((tab) => (
+            {['customer', 'items', 'product', 'order history', 'delivery', 'notes', 'tracking', 'fraud', 'logs'].map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab === 'order history' ? 'order-history' : tab)}
@@ -1672,6 +1672,13 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                 <div className="flex items-center gap-2">
                   <span className="font-semibold text-blue-700 min-w-[70px]">Phone:</span>
                   <span className="text-gray-900">{viewCustomer.phone || viewCustomer.mobile || 'N/A'}</span>
+                </div>
+              </div>
+
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                <div className="text-sm font-semibold text-amber-800 mb-2">Internal Notes</div>
+                <div className="text-sm text-gray-800 whitespace-pre-wrap">
+                  {internalNotes?.trim() ? internalNotes : 'N/A'}
                 </div>
               </div>
 

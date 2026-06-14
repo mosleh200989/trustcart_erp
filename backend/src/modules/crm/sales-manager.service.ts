@@ -465,30 +465,80 @@ export class SalesManagerService {
       );
     }
 
-    if (query.deliveryDate && String(query.deliveryDate).trim()) {
+    const deliveryDateExpr = `DATE(COALESCE(
+      so_delivery.delivered_at,
+      so_delivery.order_date::timestamp,
+      so_delivery.created_at AT TIME ZONE 'Asia/Dhaka'
+    ))`;
+    const deliveryDateStart = String(query.deliveryDateStart || query.deliveryFrom || query.deliveryDate || '').trim();
+    const deliveryDateEnd = String(query.deliveryDateEnd || query.deliveryTo || query.deliveryDate || '').trim();
+    if (deliveryDateStart || deliveryDateEnd) {
+      const deliveryDateConditions: string[] = [];
+      const deliveryDateParams: Record<string, string> = {};
+      if (deliveryDateStart) {
+        deliveryDateConditions.push(`${deliveryDateExpr} >= CAST(:deliveryDateStart AS date)`);
+        deliveryDateParams.deliveryDateStart = deliveryDateStart;
+      }
+      if (deliveryDateEnd) {
+        deliveryDateConditions.push(`${deliveryDateExpr} <= CAST(:deliveryDateEnd AS date)`);
+        deliveryDateParams.deliveryDateEnd = deliveryDateEnd;
+      }
+
       qb.andWhere(
         `EXISTS (
           SELECT 1
           FROM sales_orders so_delivery
           WHERE so_delivery.customer_id = c.id
             AND LOWER(so_delivery.status::text) = 'delivered'
-            AND DATE(COALESCE(
-              so_delivery.delivered_at,
-              so_delivery.order_date::timestamp,
-              so_delivery.created_at AT TIME ZONE 'Asia/Dhaka'
-            )) = :deliveryDate::date
+            AND ${deliveryDateConditions.join(' AND ')}
         )`,
-        { deliveryDate: String(query.deliveryDate).trim() },
+        deliveryDateParams,
       );
     }
 
     if (assignmentShape.assignedAt && query.assignedFrom && String(query.assignedFrom).trim()) {
-      qb.andWhere('c.assigned_at >= :assignedFrom', { assignedFrom: String(query.assignedFrom).trim() });
+      qb.andWhere('DATE(c.assigned_at) >= CAST(:assignedFrom AS date)', { assignedFrom: String(query.assignedFrom).trim() });
     }
     if (assignmentShape.assignedAt && query.assignedToDate && String(query.assignedToDate).trim()) {
-      qb.andWhere('c.assigned_at <= :assignedToDate', {
-        assignedToDate: `${String(query.assignedToDate).trim()} 23:59:59`,
-      });
+      qb.andWhere('DATE(c.assigned_at) <= CAST(:assignedToDate AS date)', { assignedToDate: String(query.assignedToDate).trim() });
+    }
+
+    if (query.noteSearch && String(query.noteSearch).trim()) {
+      const noteSearch = `%${String(query.noteSearch).trim()}%`;
+      qb.andWhere(
+        `(
+          EXISTS (
+            SELECT 1
+            FROM crm_call_tasks t
+            WHERE (t.customer_id = c.id::text OR t.customer_id = c.phone)
+              AND (t.notes ILIKE :noteSearch OR t.call_reason ILIKE :noteSearch OR t.call_outcome ILIKE :noteSearch)
+          )
+          OR EXISTS (
+            SELECT 1
+            FROM customer_engagement_history eh
+            WHERE (eh.customer_id = c.id::text OR eh.customer_id = c.phone)
+              AND eh.engagement_type = 'call'
+              AND (
+                eh.message_content ILIKE :noteSearch
+                OR eh.metadata::text ILIKE :noteSearch
+              )
+          )
+          OR EXISTS (
+            SELECT 1
+            FROM activities a
+            WHERE a.customer_id = c.id
+              AND a.type = 'call'
+              AND (
+                a.notes ILIKE :noteSearch
+                OR a.description ILIKE :noteSearch
+                OR a.subject ILIKE :noteSearch
+                OR a.outcome ILIKE :noteSearch
+                OR a.metadata::text ILIKE :noteSearch
+              )
+          )
+        )`,
+        { noteSearch },
+      );
     }
 
     // Order segment filter (SO-/LEG- based)
