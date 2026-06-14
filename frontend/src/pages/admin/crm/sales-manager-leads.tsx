@@ -93,6 +93,21 @@ const LIFECYCLE_COLORS: Record<string, string> = {
   customer: 'bg-emerald-100 text-emerald-700',
 };
 
+const FilterField = ({
+  label,
+  children,
+  className = '',
+}: {
+  label: string;
+  children: React.ReactNode;
+  className?: string;
+}) => (
+  <label className={`block ${className}`}>
+    <span className="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">{label}</span>
+    {children}
+  </label>
+);
+
 const SalesManagerLeadAssignment = () => {
   const toast = useToast();
 
@@ -113,10 +128,12 @@ const SalesManagerLeadAssignment = () => {
   const [tlFilter, setTlFilter] = useState('');
   const [lifecycleFilter, setLifecycleFilter] = useState('');
   const [productFilter, setProductFilter] = useState('');
-  const [deliveryDateFilter, setDeliveryDateFilter] = useState('');
+  const [deliveryStartFilter, setDeliveryStartFilter] = useState('');
+  const [deliveryEndFilter, setDeliveryEndFilter] = useState('');
   const [assignedFromFilter, setAssignedFromFilter] = useState('');
   const [assignedToFilter, setAssignedToFilter] = useState('');
   const [addressFilter, setAddressFilter] = useState('');
+  const [noteSearchFilter, setNoteSearchFilter] = useState('');
   const [segmentFilter, setSegmentFilter] = useState<'' | 'new' | 'legacy' | 'mixed'>('');
   const [rejectedStatusFilter, setRejectedStatusFilter] = useState<'non_rejected' | 'rejected' | 'all'>('non_rejected');
   const [lastCallFilter, setLastCallFilter] = useState<LastCallFilter>('all');
@@ -138,8 +155,8 @@ const SalesManagerLeadAssignment = () => {
 
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const fetchLeads = useCallback(async (pg = 1) => {
-    setLoading(true);
+  const fetchLeads = useCallback(async (pg = 1, options?: { silent?: boolean }) => {
+    if (!options?.silent) setLoading(true);
     try {
       const params = new URLSearchParams({
         page: String(pg),
@@ -151,10 +168,12 @@ const SalesManagerLeadAssignment = () => {
       if (tlFilter) params.set('supervisor', tlFilter);
       if (lifecycleFilter) params.set('lifecycleStage', lifecycleFilter);
       if (productFilter) params.set('productName', productFilter);
-      if (deliveryDateFilter) params.set('deliveryDate', deliveryDateFilter);
+      if (deliveryStartFilter) params.set('deliveryDateStart', deliveryStartFilter);
+      if (deliveryEndFilter) params.set('deliveryDateEnd', deliveryEndFilter);
       if (assignedFromFilter) params.set('assignedFrom', assignedFromFilter);
       if (assignedToFilter) params.set('assignedToDate', assignedToFilter);
       if (addressFilter.trim()) params.set('address', addressFilter.trim());
+      if (noteSearchFilter.trim()) params.set('noteSearch', noteSearchFilter.trim());
       if (segmentFilter) params.set('orderSegment', segmentFilter);
       if (rejectedStatusFilter !== 'non_rejected') params.set('rejectedStatus', rejectedStatusFilter);
       if (lastCallFilter !== 'all') params.set('calledStatus', lastCallFilter);
@@ -168,9 +187,9 @@ const SalesManagerLeadAssignment = () => {
     } catch {
       toast.error('Failed to load leads');
     } finally {
-      setLoading(false);
+      if (!options?.silent) setLoading(false);
     }
-  }, [search, assignmentStatus, tierFilter, tlFilter, lifecycleFilter, productFilter, deliveryDateFilter, assignedFromFilter, assignedToFilter, addressFilter, segmentFilter, rejectedStatusFilter, lastCallFilter, rowsPerPage, toast]);
+  }, [search, assignmentStatus, tierFilter, tlFilter, lifecycleFilter, productFilter, deliveryStartFilter, deliveryEndFilter, assignedFromFilter, assignedToFilter, addressFilter, noteSearchFilter, segmentFilter, rejectedStatusFilter, lastCallFilter, rowsPerPage, toast]);
 
   const fetchTeamLeaders = useCallback(async () => {
     try {
@@ -254,7 +273,7 @@ const SalesManagerLeadAssignment = () => {
       const agentName = agents.find(a => a.id === Number(bulkAgent))?.name || '';
       toast.success(`${selected.size} lead(s) assigned to ${agentName}`);
       setBulkAgent('');
-      fetchLeads(page);
+      await fetchLeads(page, { silent: true });
     } catch {
       toast.error('Assignment failed');
     } finally {
@@ -274,7 +293,7 @@ const SalesManagerLeadAssignment = () => {
       toast.success(`Assigned to ${agentName}`);
       setAssignModalLead(null);
       setAssignModalAgent('');
-      fetchLeads(page);
+      await fetchLeads(page, { silent: true });
     } catch {
       toast.error('Assignment failed');
     } finally {
@@ -290,7 +309,7 @@ const SalesManagerLeadAssignment = () => {
         customerIds: [lead.id],
       });
       toast.success('Lead unassigned successfully');
-      fetchLeads(page);
+      await fetchLeads(page, { silent: true });
     } catch {
       toast.error('Failed to unassign lead');
     }
@@ -308,7 +327,7 @@ const SalesManagerLeadAssignment = () => {
       const result = (res as any)?.data;
       toast.success(`Bulk unassign completed! ${result?.unassigned || selected.size} lead(s) unassigned.`);
       setSelected(new Set());
-      fetchLeads(page);
+      await fetchLeads(page, { silent: true });
     } catch {
       toast.error('Failed to bulk unassign leads');
     } finally {
@@ -345,65 +364,76 @@ const SalesManagerLeadAssignment = () => {
         {/* Filters Bar */}
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 mb-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 mb-3">
+            <FilterField label="Customer Search">
             {/* Search */}
             <input
               type="text"
               placeholder="Search name, email, phone…"
               value={searchInput}
               onChange={e => handleSearchChange(e.target.value)}
-              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
             />
+            </FilterField>
 
             {/* Assignment Status */}
-            <select
-              value={assignmentStatus}
-              onChange={e => setAssignmentStatus(e.target.value)}
-              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500"
-            >
-              <option value="">All (Assigned &amp; Unassigned)</option>
-              <option value="unassigned">Unassigned</option>
-              <option value="assigned">Assigned</option>
-            </select>
+            <FilterField label="Assignment Status">
+              <select
+                value={assignmentStatus}
+                onChange={e => setAssignmentStatus(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500"
+              >
+                <option value="">All (Assigned &amp; Unassigned)</option>
+                <option value="unassigned">Unassigned</option>
+                <option value="assigned">Assigned</option>
+              </select>
+            </FilterField>
 
             {/* Team Leader filter */}
-            <select
-              value={tlFilter}
-              onChange={e => setTlFilter(e.target.value)}
-              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500"
-            >
-              <option value="">All Team Leaders</option>
-              {teamLeaders.map(tl => (
-                <option key={tl.id} value={tl.id}>{tl.name}</option>
-              ))}
-            </select>
+            <FilterField label="Team Leader">
+              <select
+                value={tlFilter}
+                onChange={e => setTlFilter(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500"
+              >
+                <option value="">All Team Leaders</option>
+                {teamLeaders.map(tl => (
+                  <option key={tl.id} value={tl.id}>{tl.name}</option>
+                ))}
+              </select>
+            </FilterField>
 
             {/* Tier filter */}
-            <select
-              value={tierFilter}
-              onChange={e => setTierFilter(e.target.value)}
-              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500"
-            >
-              <option value="">All Tiers</option>
-              <option value="tier_1">Tier 1 - Highest Value</option>
-              <option value="tier_2">Tier 2</option>
-              <option value="tier_3">Tier 3</option>
-              <option value="tier_4">Tier 4</option>
-              <option value="tier_5">Tier 5</option>
-              <option value="tier_6">Tier 6 - Highest Risk</option>
-            </select>
+            <FilterField label="Tier">
+              <select
+                value={tierFilter}
+                onChange={e => setTierFilter(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500"
+              >
+                <option value="">All Tiers</option>
+                <option value="tier_1">Tier 1 - Highest Value</option>
+                <option value="tier_2">Tier 2</option>
+                <option value="tier_3">Tier 3</option>
+                <option value="tier_4">Tier 4</option>
+                <option value="tier_5">Tier 5</option>
+                <option value="tier_6">Tier 6 - Highest Risk</option>
+              </select>
+            </FilterField>
 
             {/* Lifecycle filter */}
-            <select
-              value={lifecycleFilter}
-              onChange={e => setLifecycleFilter(e.target.value)}
-              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500"
-            >
-              <option value="">All Stages</option>
-              <option value="lead">Lead</option>
-              <option value="customer">Customer</option>
-            </select>
+            <FilterField label="Lifecycle Stage">
+              <select
+                value={lifecycleFilter}
+                onChange={e => setLifecycleFilter(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500"
+              >
+                <option value="">All Stages</option>
+                <option value="lead">Lead</option>
+                <option value="customer">Customer</option>
+              </select>
+            </FilterField>
 
             {/* Customer Segment filter */}
+            <FilterField label="Customer Segment">
             <div className="relative">
               <select
                 value={segmentFilter}
@@ -429,79 +459,108 @@ const SalesManagerLeadAssignment = () => {
                 {segmentFilter === 'mixed' && <FaExchangeAlt className="text-green-500" size={12} />}
               </div>
             </div>
+            </FilterField>
 
             {/* Rejected Status filter */}
-            <select
-              value={rejectedStatusFilter}
-              onChange={e => setRejectedStatusFilter(e.target.value as 'non_rejected' | 'rejected' | 'all')}
-              className={`border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 ${
-                rejectedStatusFilter === 'rejected'
-                  ? 'border-rose-400 bg-rose-50 text-rose-800'
-                  : rejectedStatusFilter === 'all'
-                  ? 'border-yellow-400 bg-yellow-50 text-yellow-800'
-                  : 'border-gray-300 text-gray-700'
-              }`}
-            >
-              <option value="all">All Customers</option>
-              <option value="non_rejected">Non-Rejected</option>
-              <option value="rejected">Rejected Only</option>
-            </select>
+            <FilterField label="Rejected Status">
+              <select
+                value={rejectedStatusFilter}
+                onChange={e => setRejectedStatusFilter(e.target.value as 'non_rejected' | 'rejected' | 'all')}
+                className={`w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 ${
+                  rejectedStatusFilter === 'rejected'
+                    ? 'border-rose-400 bg-rose-50 text-rose-800'
+                    : rejectedStatusFilter === 'all'
+                    ? 'border-yellow-400 bg-yellow-50 text-yellow-800'
+                    : 'border-gray-300 text-gray-700'
+                }`}
+              >
+                <option value="all">All Customers</option>
+                <option value="non_rejected">Non-Rejected</option>
+                <option value="rejected">Rejected Only</option>
+              </select>
+            </FilterField>
 
             {/* Last Call filter */}
-            <select
-              value={lastCallFilter}
-              onChange={e => setLastCallFilter(e.target.value as LastCallFilter)}
-              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500"
-            >
-              <option value="all">All Last Calls</option>
-              <option value="called_today">Called Today</option>
-              <option value="called_1week">Called 1 Week Ago</option>
-              <option value="called_2weeks">Called 2 Weeks Ago</option>
-              <option value="called_3weeks">Called 3 Weeks Ago</option>
-              <option value="called_1month">Called 1 Month Ago</option>
-              <option value="never">Never Called</option>
-            </select>
+            <FilterField label="Last Call">
+              <select
+                value={lastCallFilter}
+                onChange={e => setLastCallFilter(e.target.value as LastCallFilter)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500"
+              >
+                <option value="all">All Last Calls</option>
+                <option value="called_today">Called Today</option>
+                <option value="called_1week">Called 1 Week Ago</option>
+                <option value="called_2weeks">Called 2 Weeks Ago</option>
+                <option value="called_3weeks">Called 3 Weeks Ago</option>
+                <option value="called_1month">Called 1 Month Ago</option>
+                <option value="never">Never Called</option>
+              </select>
+            </FilterField>
 
             {/* Product search — Bengali + English */}
-            <div className="xl:col-span-2">
+            <FilterField label="Product Search" className="xl:col-span-2">
               <ProductAutocomplete
                 value={productFilter}
                 onChange={val => setProductFilter(val)}
                 className="border border-gray-300 rounded-lg px-3 py-2 text-sm w-full"
               />
-            </div>
+            </FilterField>
 
-            <input
-              type="date"
-              value={deliveryDateFilter}
-              onChange={e => setDeliveryDateFilter(e.target.value)}
-              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-              title="Delivery Date"
-            />
+            <FilterField label="Delivery Start Date">
+              <input
+                type="date"
+                value={deliveryStartFilter}
+                onChange={e => setDeliveryStartFilter(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              />
+            </FilterField>
 
-            <input
-              type="date"
-              value={assignedFromFilter}
-              onChange={e => setAssignedFromFilter(e.target.value)}
-              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-              title="Assigned Start Date"
-            />
+            <FilterField label="Delivery End Date">
+              <input
+                type="date"
+                value={deliveryEndFilter}
+                onChange={e => setDeliveryEndFilter(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              />
+            </FilterField>
 
-            <input
-              type="date"
-              value={assignedToFilter}
-              onChange={e => setAssignedToFilter(e.target.value)}
-              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-              title="Assigned End Date"
-            />
+            <FilterField label="Assigned Start Date">
+              <input
+                type="date"
+                value={assignedFromFilter}
+                onChange={e => setAssignedFromFilter(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              />
+            </FilterField>
 
-            <input
-              type="text"
-              placeholder="Address, city, district..."
-              value={addressFilter}
-              onChange={e => setAddressFilter(e.target.value)}
-              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-            />
+            <FilterField label="Assigned End Date">
+              <input
+                type="date"
+                value={assignedToFilter}
+                onChange={e => setAssignedToFilter(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              />
+            </FilterField>
+
+            <FilterField label="Address Search">
+              <input
+                type="text"
+                placeholder="Address, city, district..."
+                value={addressFilter}
+                onChange={e => setAddressFilter(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              />
+            </FilterField>
+
+            <FilterField label="Call Note Search">
+              <input
+                type="text"
+                placeholder="Search call notes..."
+                value={noteSearchFilter}
+                onChange={e => setNoteSearchFilter(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              />
+            </FilterField>
           </div>
 
           <div className="flex items-center justify-between gap-3 flex-wrap">
