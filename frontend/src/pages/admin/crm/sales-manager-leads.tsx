@@ -30,6 +30,7 @@ interface Lead {
   total_spent: number;
   createdAt: string;
   last_contact_date: string | null;
+  lastDeliveryDate?: string | null;
   tier: string | null;
   soCount: number;
   legCount: number;
@@ -49,7 +50,7 @@ interface Agent {
 }
 
 const ROWS_OPTIONS = [200, 500, 750, 1000, 2000];
-type LastCallFilter = 'all' | 'called_today' | 'called_1week' | 'called_2weeks' | 'called_3weeks' | 'called_1month' | 'never';
+type LastCallFilter = 'all' | 'called_today' | 'called_yesterday' | 'called_1week' | 'called_2weeks' | 'called_3weeks' | 'called_1month' | 'never';
 
 const formatLastCalled = (dateStr?: string | null): { text: string; className: string } => {
   if (!dateStr) return { text: 'Never', className: 'text-red-600 font-medium' };
@@ -126,6 +127,7 @@ const SalesManagerLeadAssignment = () => {
   const [assignmentStatus, setAssignmentStatus] = useState('');
   const [tierFilter, setTierFilter] = useState('');
   const [tlFilter, setTlFilter] = useState('');
+  const [agentFilter, setAgentFilter] = useState('');
   const [lifecycleFilter, setLifecycleFilter] = useState('');
   const [productFilter, setProductFilter] = useState('');
   const [deliveryStartFilter, setDeliveryStartFilter] = useState('');
@@ -166,6 +168,7 @@ const SalesManagerLeadAssignment = () => {
       if (assignmentStatus) params.set('assignmentStatus', assignmentStatus);
       if (tierFilter) params.set('tier', tierFilter);
       if (tlFilter) params.set('supervisor', tlFilter);
+      if (agentFilter) params.set('agent', agentFilter);
       if (lifecycleFilter) params.set('lifecycleStage', lifecycleFilter);
       if (productFilter) params.set('productName', productFilter);
       if (deliveryStartFilter) params.set('deliveryDateStart', deliveryStartFilter);
@@ -189,7 +192,7 @@ const SalesManagerLeadAssignment = () => {
     } finally {
       if (!options?.silent) setLoading(false);
     }
-  }, [search, assignmentStatus, tierFilter, tlFilter, lifecycleFilter, productFilter, deliveryStartFilter, deliveryEndFilter, assignedFromFilter, assignedToFilter, addressFilter, noteSearchFilter, segmentFilter, rejectedStatusFilter, lastCallFilter, rowsPerPage, toast]);
+  }, [search, assignmentStatus, tierFilter, tlFilter, agentFilter, lifecycleFilter, productFilter, deliveryStartFilter, deliveryEndFilter, assignedFromFilter, assignedToFilter, addressFilter, noteSearchFilter, segmentFilter, rejectedStatusFilter, lastCallFilter, rowsPerPage, toast]);
 
   const fetchTeamLeaders = useCallback(async () => {
     try {
@@ -402,6 +405,19 @@ const SalesManagerLeadAssignment = () => {
               </select>
             </FilterField>
 
+            <FilterField label="Agent">
+              <select
+                value={agentFilter}
+                onChange={e => setAgentFilter(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500"
+              >
+                <option value="">All Agents</option>
+                {agents.map(agent => (
+                  <option key={agent.id} value={agent.id}>{agent.name}</option>
+                ))}
+              </select>
+            </FilterField>
+
             {/* Tier filter */}
             <FilterField label="Tier">
               <select
@@ -489,6 +505,7 @@ const SalesManagerLeadAssignment = () => {
               >
                 <option value="all">All Last Calls</option>
                 <option value="called_today">Called Today</option>
+                <option value="called_yesterday">Called Yesterday</option>
                 <option value="called_1week">Called 1 Week Ago</option>
                 <option value="called_2weeks">Called 2 Weeks Ago</option>
                 <option value="called_3weeks">Called 3 Weeks Ago</option>
@@ -647,7 +664,7 @@ const SalesManagerLeadAssignment = () => {
                         />
                       </th>
                       <th className="text-left py-3 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Name</th>
-                      <th className="text-left py-3 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Phone</th>
+                      <th className="text-left py-3 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Delivery Date</th>
                       <th className="text-center py-3 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Segment</th>
                       <th className="text-center py-3 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Tier</th>
                       <th className="text-left py-3 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Data Analyst</th>
@@ -675,9 +692,12 @@ const SalesManagerLeadAssignment = () => {
                           <div className="font-medium text-gray-900 text-sm">
                             {[lead.name, lead.lastName].filter(Boolean).join(' ') || '—'}
                           </div>
-                          <div className="text-xs text-gray-400">#{lead.id}</div>
+                          <div className="text-xs text-gray-500 mt-0.5">{lead.phone || 'N/A'}</div>
+                          <div className="text-[11px] text-gray-400 mt-0.5">#{lead.id}</div>
                         </td>
-                        <td className="py-3 px-3 text-sm text-gray-700 whitespace-nowrap">{lead.phone || '—'}</td>
+                        <td className="py-3 px-3 text-sm text-gray-700 whitespace-nowrap">
+                          {lead.lastDeliveryDate ? new Date(lead.lastDeliveryDate).toLocaleDateString('en-GB', { timeZone: 'Asia/Dhaka' }) : 'N/A'}
+                        </td>
                         <td className="py-3 px-3 text-center">
                           {(() => {
                             const seg = getSegment(lead);

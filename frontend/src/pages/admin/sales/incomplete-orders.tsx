@@ -311,11 +311,17 @@ export default function AdminSalesIncompleteOrders() {
         source: editForm.source,
       };
       await apiClient.put(`/lead-management/incomplete-order/${editingOrder.id}`, payload);
+      const convertRes = await apiClient.post(`/lead-management/incomplete-order/${editingOrder.id}/convert-to-order`);
+      const recoveredOrderId = convertRes.data?.orderId ?? convertRes.data?.order?.id ?? null;
       // Update local state
       setResponse(prev => {
         if (!prev) return prev;
         return {
           ...prev,
+          stats: {
+            ...prev.stats,
+            notConvertedCount: Math.max(0, Number(prev.stats?.notConvertedCount || 0) - 1),
+          },
           data: prev.data.map(item =>
             item.id === editingOrder.id
               ? {
@@ -334,6 +340,13 @@ export default function AdminSalesIncompleteOrders() {
                   cartData,
                   cart_data: cartData,
                   source: editForm.source,
+                  convertedToOrder: true,
+                  converted_to_order: true,
+                  recovered: true,
+                  recoveredOrderId,
+                  recovered_order_id: recoveredOrderId,
+                  contactedDone: true,
+                  contacted_done: true,
                 }
               : item
           ),
@@ -341,8 +354,8 @@ export default function AdminSalesIncompleteOrders() {
       });
       setEditingOrder(null);
     } catch (e) {
-      console.error('Failed to update incomplete order:', e);
-      alert('Failed to save changes.');
+      console.error('Failed to convert incomplete order:', e);
+      alert('Failed to create order from incomplete order.');
     } finally {
       setSavingEdit(false);
     }
@@ -1137,9 +1150,9 @@ export default function AdminSalesIncompleteOrders() {
                   {savingEdit ? (
                     <>
                       <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
-                      Saving...
+                      Creating Order...
                     </>
-                  ) : 'Save Changes'}
+                  ) : 'Create Order'}
                 </button>
               </div>
             </div>

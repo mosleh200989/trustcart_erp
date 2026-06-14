@@ -120,6 +120,12 @@ export class SalesManagerService {
           lastCallTomorrow: tomorrow,
         });
         break;
+      case 'called_yesterday':
+        qb.andWhere('c.last_contact_date >= :lastCallYesterday AND c.last_contact_date < :lastCallToday', {
+          lastCallYesterday: daysAgo(1),
+          lastCallToday: today,
+        });
+        break;
       case 'called_1week':
         qb.andWhere('c.last_contact_date >= :lastCall1wStart AND c.last_contact_date < :lastCall1wEnd', {
           lastCall1wStart: daysAgo(13),
@@ -380,6 +386,19 @@ export class SalesManagerService {
         'team_leader_name',
       )
       .addSelect(
+        `(
+          SELECT MAX(DATE(COALESCE(
+            so_delivered.delivered_at,
+            so_delivered.order_date::timestamp,
+            so_delivered.created_at AT TIME ZONE 'Asia/Dhaka'
+          )))
+          FROM sales_orders so_delivered
+          WHERE so_delivered.customer_id = c.id
+            AND LOWER(so_delivered.status::text) = 'delivered'
+        )`,
+        'last_delivery_date',
+      )
+      .addSelect(
         assignmentShape.assignedBy
           ? `(SELECT CONCAT(COALESCE(da.name, ''), ' ', COALESCE(da.last_name, '')) FROM users da WHERE da.id = c.assigned_by LIMIT 1)`
           : `NULL`,
@@ -578,6 +597,7 @@ export class SalesManagerService {
       teamLeaderId: raw[i]?.team_leader_id ? Number(raw[i].team_leader_id) : null,
       teamLeaderName: String(raw[i]?.team_leader_name || '').trim() || null,
       dataAnalystName: String(raw[i]?.data_analyst_name || '').trim() || null,
+      lastDeliveryDate: raw[i]?.last_delivery_date ?? null,
     }));
 
     return { items, total, page, limit, totalPages: Math.ceil(total / limit) };
