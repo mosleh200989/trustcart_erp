@@ -1699,9 +1699,18 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                   ) : compactCallLogs.length > 0 ? (
                     <div className="divide-y divide-gray-100">
                       {compactCallLogs.map((call) => (
-                        <div key={call.id || `${call.agentName}-${call.createdAt}`} className="py-2 flex items-center justify-between gap-3">
-                          <span className="text-sm font-medium text-gray-800">{call.agentName || 'Unknown Agent'}</span>
-                          <span className="text-xs text-gray-500">{call.agentId ? `ID: ${call.agentId}` : 'ID: N/A'}</span>
+                        <div key={call.id || `${call.agentName}-${call.createdAt}`} className="py-2">
+                          <div className="flex items-start justify-between gap-3">
+                            <span className="text-sm font-medium text-gray-800">{call.agentName || 'Unknown Agent'}</span>
+                            <span className="text-xs text-gray-500 whitespace-nowrap">
+                              {(call.engagementDate || call.createdAt)
+                                ? new Date(call.engagementDate || call.createdAt).toLocaleString('en-GB', { timeZone: 'Asia/Dhaka' })
+                                : 'N/A'}
+                            </span>
+                          </div>
+                          <div className="text-sm text-gray-600 mt-1 whitespace-pre-wrap">
+                            {call.notes?.trim() ? call.notes : 'No notes'}
+                          </div>
                         </div>
                       ))}
                     </div>

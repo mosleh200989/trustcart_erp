@@ -468,7 +468,7 @@ export default function CustomerTierManagementPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2">Min Cancelled Orders</label>
+              <label className="block text-sm font-medium mb-2">Cancelled Orders</label>
               <input
                 type="number"
                 min="0"
