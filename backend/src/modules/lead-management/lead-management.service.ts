@@ -532,6 +532,32 @@ export class LeadManagementService {
     tierAssignedById?: number;
     notes?: string;
   }) {
+    if (data.tier === 'no_tier' || data.tier === '' || data.tier == null) {
+      const existing = await this.customerTierRepo.findOne({
+        where: { customerId: data.customerId },
+      });
+
+      if (existing?.tier === 'rejected') {
+        await this.sessionRepo.query(
+          `UPDATE customers
+           SET customer_type = CASE WHEN customer_type = 'rejected' THEN 'new' ELSE customer_type END,
+               lead_status = NULL
+           WHERE id = $1`,
+          [data.customerId],
+        );
+      }
+
+      if (existing) {
+        await this.customerTierRepo.delete(existing.id);
+      }
+
+      return {
+        customerId: data.customerId,
+        tier: null,
+        isActive: false,
+      };
+    }
+
     if (data.tier !== 'rejected' && !this.manualTierValues.has(data.tier)) {
       throw new Error('Invalid customer tier. Use tier_1 through tier_6.');
     }
@@ -635,6 +661,11 @@ export class LeadManagementService {
     const excludeRejected = filters.tier === 'rejected'
       ? ''
       : `AND NOT EXISTS (SELECT 1 FROM customer_tiers ct_rej WHERE ct_rej.customer_id = c.id AND ct_rej.tier = 'rejected') AND (c.customer_type IS NULL OR c.customer_type != 'rejected')`;
+    const tierFilterClause = filters.tier === 'no_tier'
+      ? 'AND ct.id IS NULL'
+      : filters.tier && filters.tier !== 'all'
+        ? `AND ct.tier = '${String(filters.tier).replace(/'/g, "''")}'`
+        : '';
 
     const deliveryDateExpr = `DATE(COALESCE(so_delivered.delivered_at, so_delivered.order_date::timestamp, so_delivered.created_at AT TIME ZONE 'Asia/Dhaka'))`;
     const deliveryDateStart = String(filters.deliveryDateStart || '').trim();
@@ -690,7 +721,7 @@ export class LeadManagementService {
       FROM customers c
       LEFT JOIN customer_tiers ct ON ct.customer_id = c.id
       WHERE c.is_deleted = false
-      ${filters.tier && filters.tier !== 'all' ? `AND ct.tier = '${filters.tier}'` : ''}
+      ${tierFilterClause}
       ${excludeRejected}
       ${filters.status === 'active' ? 'AND ct.is_active = true' : ''}
       ${filters.status === 'inactive' ? 'AND ct.is_active = false' : ''}
@@ -750,7 +781,7 @@ export class LeadManagementService {
       LEFT JOIN customer_tiers ct ON ct.customer_id = c.id
       LEFT JOIN users u ON u.id = c.assigned_to
       WHERE c.is_deleted = false
-      ${filters.tier && filters.tier !== 'all' ? `AND ct.tier = '${filters.tier}'` : ''}
+      ${tierFilterClause}
       ${excludeRejected}
       ${filters.status === 'active' ? 'AND ct.is_active = true' : ''}
       ${filters.status === 'inactive' ? 'AND ct.is_active = false' : ''}

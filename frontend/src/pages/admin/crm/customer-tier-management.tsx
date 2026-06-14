@@ -205,7 +205,8 @@ export default function CustomerTierManagementPage() {
   };
 
   const handleInlineTierUpdate = async (customer: any, tier: string) => {
-    if (!tier || tier === customer.tierData?.tier) return;
+    const currentTier = customer.tierData?.tier || 'no_tier';
+    if (!tier || tier === currentTier) return;
 
     if (tier === 'rejected') {
       if (customer.tierData?.tier !== 'tier_6') {
@@ -227,8 +228,32 @@ export default function CustomerTierManagementPage() {
         isActive: tier !== 'rejected' ? (customer.tierData?.isActive ?? true) : false,
         notes: '',
       });
-      toast.success(tier === 'rejected' ? 'Customer moved to Rejected.' : 'Tier updated successfully!');
-      fetchCustomers();
+      setCustomers((prev) =>
+        prev.map((item) => {
+          if (item.id !== customer.id) return item;
+          if (tier === 'no_tier') {
+            return { ...item, tierData: null };
+          }
+          return {
+            ...item,
+            tierData: {
+              ...(item.tierData || {}),
+              tier,
+              isActive: tier !== 'rejected' ? (item.tierData?.isActive ?? true) : false,
+              tierAssignedAt: new Date().toISOString(),
+            },
+          };
+        })
+      );
+      setStats((prev) => {
+        const next = { ...prev } as any;
+        const decrementKey = currentTier === 'no_tier' ? 'noTier' : currentTier.replace('tier_', 'tier');
+        const incrementKey = tier === 'no_tier' ? 'noTier' : tier.replace('tier_', 'tier');
+        if (next[decrementKey] !== undefined) next[decrementKey] = Math.max(0, Number(next[decrementKey] || 0) - 1);
+        if (next[incrementKey] !== undefined) next[incrementKey] = Number(next[incrementKey] || 0) + 1;
+        return next;
+      });
+      toast.success(tier === 'rejected' ? 'Customer moved to Rejected.' : tier === 'no_tier' ? 'Customer tier cleared.' : 'Tier updated successfully!');
     } catch (error) {
       console.error('Error updating tier:', error);
       toast.error('Failed to update tier');
@@ -354,6 +379,7 @@ export default function CustomerTierManagementPage() {
                 className="w-full border rounded-lg p-2"
               >
                 <option value="all">All Tiers</option>
+                <option value="no_tier">No Tier</option>
                 <option value="tier_1">Tier 1 - Highest Value</option>
                 <option value="tier_2">Tier 2</option>
                 <option value="tier_3">Tier 3</option>
@@ -484,12 +510,12 @@ export default function CustomerTierManagementPage() {
                       </td>
                       <td className="px-6 py-4">
                         <select
-                          value={customer.tierData?.tier || ''}
+                          value={customer.tierData?.tier || 'no_tier'}
                           onChange={(e) => handleInlineTierUpdate(customer, e.target.value)}
                           disabled={updatingTierCustomerId === customer.id}
                           className={`min-w-[150px] border rounded-lg px-2 py-1 text-xs font-semibold uppercase disabled:opacity-60 ${getTierBadgeColor(customer.tierData?.tier || '')}`}
                         >
-                          <option value="" disabled>Not Set</option>
+                          <option value="no_tier">No Tier</option>
                           <option value="tier_1">Tier 1</option>
                           <option value="tier_2">Tier 2</option>
                           <option value="tier_3">Tier 3</option>

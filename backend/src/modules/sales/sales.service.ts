@@ -1550,6 +1550,7 @@ export class SalesService {
     source?: string;
     landingPage?: string;
     assignment?: string;
+    totalCancelledOrders?: number;
   }) {
     const page = Math.max(1, params.page || 1);
     const limit = Math.min(500, Math.max(1, params.limit || 10));
@@ -1657,6 +1658,26 @@ export class SalesService {
       qb.andWhere('o.assigned_to IS NOT NULL');
     } else if (params.assignment === 'unassigned') {
       qb.andWhere('o.assigned_to IS NULL');
+    }
+
+    if (Number.isFinite(params.totalCancelledOrders) && Number(params.totalCancelledOrders) > 0) {
+      qb.andWhere(
+        `(
+          SELECT COUNT(*)::int
+          FROM sales_orders so_cancelled
+          WHERE LOWER(so_cancelled.status::text) IN ('cancelled', 'returned')
+            AND (
+              (o.customer_id IS NOT NULL AND so_cancelled.customer_id = o.customer_id)
+              OR (
+                o.customer_id IS NULL
+                AND o.customer_phone IS NOT NULL
+                AND so_cancelled.customer_phone IS NOT NULL
+                AND REPLACE(so_cancelled.customer_phone, '+88', '') = REPLACE(o.customer_phone, '+88', '')
+              )
+            )
+        ) >= :totalCancelledOrders`,
+        { totalCancelledOrders: Number(params.totalCancelledOrders) },
+      );
     }
 
     qb.orderBy('o.order_date', 'DESC')
