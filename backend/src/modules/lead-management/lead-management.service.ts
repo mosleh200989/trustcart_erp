@@ -705,7 +705,7 @@ export class LeadManagementService {
       ? `AND os.order_count >= ${Number(filters.purchasesCount)}`
       : '';
     const cancelledOrdersCountFilter = Number.isFinite(filters.cancelledOrdersCount) && Number(filters.cancelledOrdersCount) >= 0
-      ? `AND os.cancelled_order_count >= ${Number(filters.cancelledOrdersCount)}`
+      ? `AND os.cancelled_order_count = ${Number(filters.cancelledOrdersCount)}`
       : '';
     const segment = String(filters.customerSegment || 'all').trim().toLowerCase();
     const customerSegmentFilter = segment === 'new'
