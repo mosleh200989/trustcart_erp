@@ -56,6 +56,8 @@ interface CustomerTag {
 }
 
 const ROWS_OPTIONS = [30, 50, 100, 200, 500, 750, 1000, 2000];
+const VIEWED_LEADS_STORAGE_KEY = 'sales-manager-leads-viewed-at';
+const VIEWED_LEAD_TTL_MS = 24 * 60 * 60 * 1000;
 type LastCallFilter = 'all' | 'called_today' | 'called_yesterday' | 'called_1week' | 'called_2weeks' | 'called_3weeks' | 'called_1month' | 'never';
 type CallOutcomeFilter = '' | 'connected' | 'order_placed' | 'callback_requested' | 'no_answer' | 'unreachable' | 'busy' | 'not_interested';
 
@@ -109,6 +111,17 @@ const getSegment = (lead: Lead): { label: string; className: string; Icon: React
 const LIFECYCLE_COLORS: Record<string, string> = {
   lead: 'bg-violet-100 text-violet-700',
   customer: 'bg-emerald-100 text-emerald-700',
+};
+
+const getFreshViewedLeads = (stored: Record<string, number>, now = Date.now()) => {
+  return Object.fromEntries(
+    Object.entries(stored).filter(([, viewedAt]) => now - viewedAt < VIEWED_LEAD_TTL_MS),
+  );
+};
+
+const isLeadRecentlyViewed = (viewedLeads: Record<string, number>, customerId: number) => {
+  const viewedAt = viewedLeads[String(customerId)];
+  return Boolean(viewedAt && Date.now() - viewedAt < VIEWED_LEAD_TTL_MS);
 };
 
 const FilterField = ({
@@ -170,6 +183,7 @@ const SalesManagerLeadAssignment = () => {
   // View (order) modal
   const [showOrderModal, setShowOrderModal] = useState(false);
   const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
+  const [viewedLeads, setViewedLeads] = useState<Record<string, number>>({});
 
   // Single assign modal
   const [assignModalLead, setAssignModalLead] = useState<Lead | null>(null);
@@ -256,6 +270,25 @@ const SalesManagerLeadAssignment = () => {
     fetchTags();
   }, [fetchTags]);
 
+  useEffect(() => {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(VIEWED_LEADS_STORAGE_KEY) || '{}');
+      const freshViewedLeads = getFreshViewedLeads(parsed && typeof parsed === 'object' ? parsed : {});
+      setViewedLeads(freshViewedLeads);
+      localStorage.setItem(VIEWED_LEADS_STORAGE_KEY, JSON.stringify(freshViewedLeads));
+    } catch {
+      localStorage.removeItem(VIEWED_LEADS_STORAGE_KEY);
+    }
+  }, []);
+
+  const markLeadViewed = useCallback((customerId: number) => {
+    setViewedLeads(prev => {
+      const next = getFreshViewedLeads({ ...prev, [String(customerId)]: Date.now() });
+      localStorage.setItem(VIEWED_LEADS_STORAGE_KEY, JSON.stringify(next));
+      return next;
+    });
+  }, []);
+
   // Debounced search
   const handleSearchChange = (val: string) => {
     setSearchInput(val);
@@ -286,6 +319,7 @@ const SalesManagerLeadAssignment = () => {
   };
 
   const handleViewOrder = async (customerId: number) => {
+    markLeadViewed(customerId);
     try {
       const response = await api.get(`/order-management/customer/${customerId}/orders`);
       const orders = response.data?.data || response.data || [];
@@ -749,11 +783,13 @@ const SalesManagerLeadAssignment = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50">
-                    {leads.map(lead => (
-                      <tr
-                        key={lead.id}
-                        className={`hover:bg-gray-50 transition-colors ${selected.has(lead.id) ? 'bg-indigo-50/60' : ''}`}
-                      >
+                    {leads.map(lead => {
+                      const viewed = isLeadRecentlyViewed(viewedLeads, lead.id);
+                      return (
+                        <tr
+                          key={lead.id}
+                          className={`hover:bg-gray-50 transition-colors ${selected.has(lead.id) ? 'bg-indigo-50/60' : ''}`}
+                        >
                         <td className="py-3 pl-4 pr-2">
                           <input
                             type="checkbox"
@@ -818,9 +854,13 @@ const SalesManagerLeadAssignment = () => {
                           <div className="flex items-center justify-center gap-2">
                             <button
                               onClick={() => handleViewOrder(lead.id)}
-                              className="bg-blue-600 text-white px-3 py-1.5 rounded text-sm hover:bg-blue-700 flex items-center gap-1"
+                              className={`px-3 py-1.5 rounded text-sm flex items-center gap-1 transition-colors ${
+                                viewed
+                                  ? 'bg-amber-100 text-amber-800 border border-amber-300 hover:bg-amber-200'
+                                  : 'bg-blue-600 text-white hover:bg-blue-700'
+                              }`}
                             >
-                              <FaEye size={12} /> View
+                              <FaEye size={12} /> {viewed ? 'Viewed' : 'View'}
                             </button>
                             <button
                               onClick={() => { setAssignModalLead(lead); setAssignModalAgent(''); }}
@@ -838,8 +878,9 @@ const SalesManagerLeadAssignment = () => {
                             )}
                           </div>
                         </td>
-                      </tr>
-                    ))}
+                        </tr>
+                      );
+                    })}
                     {leads.length === 0 && (
                       <tr>
                         <td colSpan={10} className="text-center py-16 text-gray-400">
