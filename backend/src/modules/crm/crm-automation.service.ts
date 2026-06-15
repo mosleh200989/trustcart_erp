@@ -532,12 +532,45 @@ export class CrmAutomationService {
   
   async getCustomerEngagementHistory(customerId: string, limit: number = 50) {
     const rows = await this.engagementRepo.query(`
-      SELECT e.*,
-             COALESCE(NULLIF(TRIM(CONCAT(u.name, ' ', COALESCE(u.last_name, ''))), ''), 'Agent #' || e.agent_id::text) AS agent_name
-      FROM customer_engagement_history e
-      LEFT JOIN users u ON u.id = e.agent_id
-      WHERE e.customer_id = $1
-      ORDER BY e.created_at DESC
+      SELECT *
+      FROM (
+        SELECT
+          e.id::text AS id,
+          e.customer_id,
+          e.engagement_type,
+          e.message_content,
+          e.metadata,
+          e.agent_id,
+          e.created_at,
+          COALESCE(NULLIF(TRIM(CONCAT(u.name, ' ', COALESCE(u.last_name, ''))), ''), 'Agent #' || e.agent_id::text) AS agent_name
+        FROM customer_engagement_history e
+        LEFT JOIN users u ON u.id = e.agent_id
+        WHERE e.customer_id = $1
+
+        UNION ALL
+
+        SELECT
+          CONCAT('telephony-', l.id)::text AS id,
+          so.customer_id::text AS customer_id,
+          'call' AS engagement_type,
+          COALESCE(NULLIF(l.notes, ''), CONCAT('Call outcome: ', COALESCE(l.outcome, ''))) AS message_content,
+          jsonb_build_object(
+            'outcome', l.outcome,
+            'notes', l.notes,
+            'product_suggestion', l.suggestion,
+            'agent_id', l.caller_user_id,
+            'source', 'telephony_assignment_call_logs'
+          ) AS metadata,
+          l.caller_user_id AS agent_id,
+          COALESCE(l.called_at, l.created_at) AS created_at,
+          COALESCE(NULLIF(l.caller_name, ''), NULLIF(TRIM(CONCAT(u2.name, ' ', COALESCE(u2.last_name, ''))), ''), 'Unknown Agent') AS agent_name
+        FROM telephony_assignment_call_logs l
+        INNER JOIN sales_orders so ON so.id = l.order_id
+        LEFT JOIN users u2 ON u2.id = l.caller_user_id
+        WHERE l.record_type = 'sales_order'
+          AND so.customer_id = CASE WHEN $1 ~ '^\\d{1,9}$' THEN $1::int ELSE NULL END
+      ) logs
+      ORDER BY logs.created_at DESC
       LIMIT $2
     `, [customerId, limit]);
     return rows;

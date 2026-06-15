@@ -884,7 +884,7 @@ export class SalesService {
          COUNT(DISTINCT l.id) FILTER (WHERE l.record_type = 'sales_order')::int AS sales_assigned_in_range,
          COUNT(DISTINCT l.id) FILTER (WHERE l.record_type = 'incomplete_order')::int AS incomplete_assigned_in_range,
          COUNT(DISTINCT so_called.id) FILTER (WHERE so_called.telephony_outcome IN ('no_answer', 'unreachable'))::int AS unreachable_outcomes,
-         COUNT(DISTINCT so_called.id) FILTER (WHERE so_called.telephony_outcome IN ('connected', 'order_placed'))::int AS positive_outcomes
+         COUNT(DISTINCT so_called.id) FILTER (WHERE so_called.telephony_outcome IN ('connected', 'connected_whatsapp', 'order_placed'))::int AS positive_outcomes
        FROM sales_teams st
        LEFT JOIN automatic_order_assignment_team_work_types twt
          ON twt.team_id = st.id
@@ -923,7 +923,7 @@ export class SalesService {
          COUNT(DISTINCT so_active.id)::int AS active_sales_orders,
          COUNT(DISTINCT io_active.id)::int AS active_incomplete_orders,
          COUNT(DISTINCT l.id)::int AS assigned_in_range,
-         COUNT(DISTINCT so_called.id) FILTER (WHERE so_called.telephony_outcome IN ('connected', 'order_placed'))::int AS positive_outcomes,
+         COUNT(DISTINCT so_called.id) FILTER (WHERE so_called.telephony_outcome IN ('connected', 'connected_whatsapp', 'order_placed'))::int AS positive_outcomes,
          COUNT(DISTINCT so_called.id) FILTER (WHERE so_called.telephony_outcome IN ('no_answer', 'unreachable'))::int AS unreachable_outcomes,
          COUNT(DISTINCT so_called.id) FILTER (WHERE so_called.telephony_called_at IS NOT NULL)::int AS calls_logged
        FROM users u

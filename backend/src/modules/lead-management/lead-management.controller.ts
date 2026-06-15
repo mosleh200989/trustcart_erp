@@ -267,7 +267,7 @@ export class LeadManagementController {
     @Query('deliveryDateStart') deliveryDateStart?: string,
     @Query('deliveryDateEnd') deliveryDateEnd?: string,
     @Query('purchasesCount') purchasesCount?: string,
-    @Query('cancelledOrdersCount') cancelledOrdersCount?: string,
+    @Query('maxCancelledOrderRatio') maxCancelledOrderRatio?: string,
     @Query('customerSegment') customerSegment?: string,
   ) {
     return this.leadService.getAllCustomersWithTiers({
@@ -280,7 +280,7 @@ export class LeadManagementController {
       deliveryDateStart,
       deliveryDateEnd,
       purchasesCount: purchasesCount ? parseInt(purchasesCount, 10) : undefined,
-      cancelledOrdersCount: cancelledOrdersCount ? parseInt(cancelledOrdersCount, 10) : undefined,
+      maxCancelledOrderRatio: maxCancelledOrderRatio ? parseFloat(maxCancelledOrderRatio) : undefined,
       customerSegment,
     });
   }

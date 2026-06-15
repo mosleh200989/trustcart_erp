@@ -80,7 +80,7 @@ export default function MyFollowupsPage() {
   // Log Call Modal (unified call action - like Agent Dashboard)
   const [showLogCallModal, setShowLogCallModal] = useState(false);
   const [selectedFollowUpForLog, setSelectedFollowUpForLog] = useState<FollowUp | null>(null);
-  const [logCallOutcome, setLogCallOutcome] = useState<'connected' | 'no_answer' | 'busy' | 'callback_requested' | 'not_interested' | 'order_placed' | ''>('');
+  const [logCallOutcome, setLogCallOutcome] = useState<'connected' | 'connected_disqualified' | 'connected_whatsapp' | 'no_answer' | 'busy' | 'callback_requested' | 'not_interested' | 'order_placed' | ''>('');
   const [logCallNotes, setLogCallNotes] = useState('');
   const [logCallFollowUpDate, setLogCallFollowUpDate] = useState('');
   const [logCallFollowUpTime, setLogCallFollowUpTime] = useState('');
@@ -485,9 +485,9 @@ export default function MyFollowupsPage() {
 
       // 4. Update lead status based on outcome
       const leadStatus = logCallOutcome === 'order_placed' ? 'converted'
-        : logCallOutcome === 'connected' ? 'qualified'
+        : logCallOutcome === 'connected' || logCallOutcome === 'connected_whatsapp' ? 'qualified'
         : logCallOutcome === 'callback_requested' ? 'follow_up'
-        : logCallOutcome === 'not_interested' ? 'not_interested'
+        : logCallOutcome === 'not_interested' || logCallOutcome === 'connected_disqualified' ? 'not_interested'
         : logCallOutcome === 'no_answer' || logCallOutcome === 'busy' ? 'no_answer'
         : 'contacted';
 
@@ -1251,6 +1251,8 @@ export default function MyFollowupsPage() {
                 >
                   <option value="">Select outcome...</option>
                   <option value="connected">Connected - Spoke with customer</option>
+                  <option value="connected_disqualified">Connected - Disqualified</option>
+                  <option value="connected_whatsapp">Connected on WhatsApp</option>
                   <option value="order_placed">Order Placed</option>
                   <option value="callback_requested">Callback Requested</option>
                   <option value="no_answer">No Answer</option>

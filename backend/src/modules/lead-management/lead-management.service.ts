@@ -645,7 +645,7 @@ export class LeadManagementService {
     deliveryDateStart?: string;
     deliveryDateEnd?: string;
     purchasesCount?: number;
-    cancelledOrdersCount?: number;
+    maxCancelledOrderRatio?: number;
     customerSegment?: string;
   } = {}) {
     const { page = 1, limit = 10 } = filters;
@@ -674,7 +674,17 @@ export class LeadManagementService {
           COUNT(*)::int AS order_count,
           COALESCE(SUM(so.total_amount), 0) AS lifetime_value,
           COUNT(CASE WHEN LOWER(so.status::text) = 'delivered' THEN 1 END)::int AS delivered_order_count,
-          COUNT(CASE WHEN LOWER(so.status::text) IN ('cancelled', 'returned') THEN 1 END)::int AS cancelled_order_count,
+          COUNT(CASE WHEN LOWER(so.status::text) = 'cancelled' THEN 1 END)::int AS cancelled_order_count,
+          ROUND(
+            (
+              COUNT(CASE WHEN LOWER(so.status::text) = 'cancelled' THEN 1 END)::numeric
+              / NULLIF(
+                COUNT(CASE WHEN LOWER(so.status::text) IN ('delivered', 'cancelled') THEN 1 END)::numeric,
+                0
+              )
+            ) * 100,
+            2
+          ) AS cancelled_order_ratio,
           COUNT(CASE WHEN so.sales_order_number LIKE 'SO-%' THEN 1 END)::int AS so_order_count,
           COUNT(CASE WHEN so.sales_order_number LIKE 'LEG-%' THEN 1 END)::int AS leg_order_count,
           MAX(DATE(COALESCE(
@@ -704,8 +714,8 @@ export class LeadManagementService {
     const purchasesCountFilter = Number.isFinite(filters.purchasesCount) && Number(filters.purchasesCount) >= 0
       ? `AND os.order_count >= ${Number(filters.purchasesCount)}`
       : '';
-    const cancelledOrdersCountFilter = Number.isFinite(filters.cancelledOrdersCount) && Number(filters.cancelledOrdersCount) >= 0
-      ? `AND os.cancelled_order_count = ${Number(filters.cancelledOrdersCount)}`
+    const maxCancelledOrderRatioFilter = Number.isFinite(filters.maxCancelledOrderRatio) && Number(filters.maxCancelledOrderRatio) >= 0
+      ? `AND COALESCE(os.cancelled_order_ratio, 0) <= ${Math.min(Number(filters.maxCancelledOrderRatio), 100)}`
       : '';
     const segment = String(filters.customerSegment || 'all').trim().toLowerCase();
     const customerSegmentFilter = segment === 'new'
@@ -718,7 +728,7 @@ export class LeadManagementService {
     const extraFilters = `
       ${deliveryDateFilter}
       ${purchasesCountFilter}
-      ${cancelledOrdersCountFilter}
+      ${maxCancelledOrderRatioFilter}
       ${customerSegmentFilter}
     `;
 
@@ -786,7 +796,9 @@ export class LeadManagementService {
         ct.days_inactive,
         ct.notes as tier_notes,
         os.order_count,
+        os.delivered_order_count,
         os.cancelled_order_count,
+        os.cancelled_order_ratio,
         os.last_delivery_date,
         os.lifetime_value,
         u.name as agent_name,
@@ -821,7 +833,9 @@ export class LeadManagementService {
         agent_name: r.agent_name ? `${r.agent_name} ${r.agent_last_name || ''}`.trim() : null,
         created_at: r.created_at,
         order_count: r.order_count,
+        delivered_order_count: r.delivered_order_count,
         cancelled_order_count: r.cancelled_order_count,
+        cancelled_order_ratio: r.cancelled_order_ratio != null ? Number(r.cancelled_order_ratio) : 0,
         last_delivery_date: r.last_delivery_date,
         lifetime_value: r.lifetime_value,
         tierData: r.tier_id ? {

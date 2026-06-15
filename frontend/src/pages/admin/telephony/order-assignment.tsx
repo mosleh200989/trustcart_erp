@@ -10,7 +10,7 @@ import { getOrderStatusColor, getOrderStatusLabel } from '@/utils/orderStatus';
 import { getDhakaDateString } from '@/utils/dhakaDate';
 
 type FilterCalledStatus = 'all' | 'called_today' | 'called_1week' | 'called_2weeks' | 'called_3weeks' | 'called_1month' | 'never';
-type FilterOutcome = 'all' | 'connected' | 'order_placed' | 'callback_requested' | 'no_answer' | 'unreachable' | 'busy' | 'not_interested';
+type FilterOutcome = 'all' | 'connected' | 'connected_disqualified' | 'connected_whatsapp' | 'order_placed' | 'callback_requested' | 'no_answer' | 'unreachable' | 'busy' | 'not_interested';
 type CallOutcome = Exclude<FilterOutcome, 'all'> | '';
 
 type AssignedOrder = {
@@ -77,6 +77,8 @@ const PAGE_COPY: Record<AssignmentType, { title: string; description: string; em
 
 const OUTCOMES = [
   { value: 'connected', label: 'Connected - Spoke with customer' },
+  { value: 'connected_disqualified', label: 'Connected - Disqualified' },
+  { value: 'connected_whatsapp', label: 'Connected on WhatsApp' },
   { value: 'order_placed', label: 'Order Placed' },
   { value: 'callback_requested', label: 'Callback Requested' },
   { value: 'no_answer', label: 'No Answer' },
