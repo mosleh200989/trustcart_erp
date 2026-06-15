@@ -173,6 +173,7 @@ const SalesManagerLeadAssignment = () => {
   const [tagFilter, setTagFilter] = useState('');
   const [callOutcomeFilter, setCallOutcomeFilter] = useState<CallOutcomeFilter>('');
   const [productSuggestionFilter, setProductSuggestionFilter] = useState('');
+  const [orderRejectedReasonFilter, setOrderRejectedReasonFilter] = useState('');
   const [rowsPerPage, setRowsPerPage] = useState(200);
 
   // Selection
@@ -218,6 +219,7 @@ const SalesManagerLeadAssignment = () => {
       if (tagFilter) params.set('tagId', tagFilter);
       if (callOutcomeFilter) params.set('callOutcome', callOutcomeFilter);
       if (productSuggestionFilter.trim()) params.set('productSuggestion', productSuggestionFilter.trim());
+      if (orderRejectedReasonFilter.trim()) params.set('orderRejectedReason', orderRejectedReasonFilter.trim());
 
       const res = await api.get(`/crm/data-analyst/unassigned-leads?${params}`);
       setLeads(res.data.items || []);
@@ -230,7 +232,7 @@ const SalesManagerLeadAssignment = () => {
     } finally {
       if (!options?.silent) setLoading(false);
     }
-  }, [search, assignmentStatus, tierFilter, tlFilter, agentFilter, lifecycleFilter, productFilter, deliveryStartFilter, deliveryEndFilter, assignedFromFilter, assignedToFilter, addressFilter, noteSearchFilter, segmentFilter, rejectedStatusFilter, lastCallFilter, tagFilter, callOutcomeFilter, productSuggestionFilter, rowsPerPage, toast]);
+  }, [search, assignmentStatus, tierFilter, tlFilter, agentFilter, lifecycleFilter, productFilter, deliveryStartFilter, deliveryEndFilter, assignedFromFilter, assignedToFilter, addressFilter, noteSearchFilter, segmentFilter, rejectedStatusFilter, lastCallFilter, tagFilter, callOutcomeFilter, productSuggestionFilter, orderRejectedReasonFilter, rowsPerPage, toast]);
 
   const fetchTeamLeaders = useCallback(async () => {
     try {
@@ -627,6 +629,16 @@ const SalesManagerLeadAssignment = () => {
                 placeholder="Search product suggestion..."
                 value={productSuggestionFilter}
                 onChange={e => setProductSuggestionFilter(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              />
+            </FilterField>
+
+            <FilterField label="Order Rejected Reason" className="xl:col-span-2">
+              <input
+                type="text"
+                placeholder="Search rejected order reason..."
+                value={orderRejectedReasonFilter}
+                onChange={e => setOrderRejectedReasonFilter(e.target.value)}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
               />
             </FilterField>

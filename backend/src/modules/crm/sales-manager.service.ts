@@ -394,20 +394,13 @@ export class SalesManagerService {
               FROM courier_tracking_history cth
               WHERE cth.order_id = so_delivered.id
                 AND LOWER(cth.status) = 'delivered'
-            )
+            ),
+            so_delivered.order_date::timestamp,
+            so_delivered.created_at AT TIME ZONE 'Asia/Dhaka'
           )))
           FROM sales_orders so_delivered
           WHERE so_delivered.customer_id = c.id
             AND LOWER(so_delivered.status::text) = 'delivered'
-            AND (
-              so_delivered.delivered_at IS NOT NULL
-              OR EXISTS (
-                SELECT 1
-                FROM courier_tracking_history cth_exists
-                WHERE cth_exists.order_id = so_delivered.id
-                  AND LOWER(cth_exists.status) = 'delivered'
-              )
-            )
         )`,
         'last_delivery_date',
       )
@@ -459,6 +452,22 @@ export class SalesManagerService {
       qb.andWhere(
         '(c.address ILIKE :address OR c.city ILIKE :address OR c.district ILIKE :address)',
         { address },
+      );
+    }
+    if (query.orderRejectedReason && String(query.orderRejectedReason).trim()) {
+      const orderRejectedReason = `%${String(query.orderRejectedReason).trim()}%`;
+      qb.andWhere(
+        `EXISTS (
+          SELECT 1
+          FROM sales_orders so_rejected_reason
+          WHERE so_rejected_reason.customer_id = c.id
+            AND LOWER(so_rejected_reason.status::text) = 'admin_cancelled'
+            AND (
+              so_rejected_reason.cancel_reason ILIKE :orderRejectedReason
+              OR so_rejected_reason.cancelled_order_note ILIKE :orderRejectedReason
+            )
+        )`,
+        { orderRejectedReason },
       );
     }
     if (query.supervisor) {
@@ -517,7 +526,9 @@ export class SalesManagerService {
         FROM courier_tracking_history cth
         WHERE cth.order_id = so_delivery.id
           AND LOWER(cth.status) = 'delivered'
-      )
+      ),
+      so_delivery.order_date::timestamp,
+      so_delivery.created_at AT TIME ZONE 'Asia/Dhaka'
     ))`;
     const deliveryDateStart = String(query.deliveryDateStart || query.deliveryFrom || query.deliveryDate || '').trim();
     const deliveryDateEnd = String(query.deliveryDateEnd || query.deliveryTo || query.deliveryDate || '').trim();
@@ -539,15 +550,6 @@ export class SalesManagerService {
           FROM sales_orders so_delivery
           WHERE so_delivery.customer_id = c.id
             AND LOWER(so_delivery.status::text) = 'delivered'
-            AND (
-              so_delivery.delivered_at IS NOT NULL
-              OR EXISTS (
-                SELECT 1
-                FROM courier_tracking_history cth_exists
-                WHERE cth_exists.order_id = so_delivery.id
-                  AND LOWER(cth_exists.status) = 'delivered'
-              )
-            )
             AND ${deliveryDateConditions.join(' AND ')}
         )`,
         deliveryDateParams,
