@@ -337,14 +337,14 @@ export class SalesManagerService {
 
   /**
    * Get leads for assignment page (all leads, with optional agent/TL/date filters)
-   * Supports large page sizes (200, 500, 750, 1000, 2000)
+   * Supports selectable page sizes used by the assignment table.
    */
   async getUnassignedLeads(query: any) {
     await this.cleanupInvalidTeamLeaderAssignments();
     const assignmentShape = await this.getAssignmentColumnShape();
 
     const page = parseInt(query.page) || 1;
-    const allowedLimits = [20, 200, 500, 750, 1000, 2000];
+    const allowedLimits = [20, 30, 50, 100, 200, 500, 750, 1000, 2000];
     const requestedLimit = parseInt(query.limit) || 200;
     const limit = allowedLimits.includes(requestedLimit) ? requestedLimit : 200;
     const offset = (page - 1) * limit;
@@ -389,12 +389,25 @@ export class SalesManagerService {
         `(
           SELECT MAX(DATE(COALESCE(
             so_delivered.delivered_at,
-            so_delivered.order_date::timestamp,
-            so_delivered.created_at AT TIME ZONE 'Asia/Dhaka'
+            (
+              SELECT MAX(cth.updated_at)
+              FROM courier_tracking_history cth
+              WHERE cth.order_id = so_delivered.id
+                AND LOWER(cth.status) = 'delivered'
+            )
           )))
           FROM sales_orders so_delivered
           WHERE so_delivered.customer_id = c.id
             AND LOWER(so_delivered.status::text) = 'delivered'
+            AND (
+              so_delivered.delivered_at IS NOT NULL
+              OR EXISTS (
+                SELECT 1
+                FROM courier_tracking_history cth_exists
+                WHERE cth_exists.order_id = so_delivered.id
+                  AND LOWER(cth_exists.status) = 'delivered'
+              )
+            )
         )`,
         'last_delivery_date',
       )
@@ -462,6 +475,19 @@ export class SalesManagerService {
     }
     this.applyLastCallFilter(qb, String(query.calledStatus || query.lastCallStatus || ''));
 
+    const tagId = String(query.tagId || query.customerTagId || '').trim();
+    if (tagId) {
+      qb.andWhere(
+        `EXISTS (
+          SELECT 1
+          FROM customer_tag_assignments cta
+          WHERE cta.customer_id = c.id
+            AND cta.tag_id = :tagId
+        )`,
+        { tagId },
+      );
+    }
+
     // Tier filter — join customer_tiers table
     if (query.tier) {
       qb.innerJoin('customer_tiers', 'ct', 'ct.customer_id = c.id')
@@ -486,8 +512,12 @@ export class SalesManagerService {
 
     const deliveryDateExpr = `DATE(COALESCE(
       so_delivery.delivered_at,
-      so_delivery.order_date::timestamp,
-      so_delivery.created_at AT TIME ZONE 'Asia/Dhaka'
+      (
+        SELECT MAX(cth.updated_at)
+        FROM courier_tracking_history cth
+        WHERE cth.order_id = so_delivery.id
+          AND LOWER(cth.status) = 'delivered'
+      )
     ))`;
     const deliveryDateStart = String(query.deliveryDateStart || query.deliveryFrom || query.deliveryDate || '').trim();
     const deliveryDateEnd = String(query.deliveryDateEnd || query.deliveryTo || query.deliveryDate || '').trim();
@@ -509,6 +539,15 @@ export class SalesManagerService {
           FROM sales_orders so_delivery
           WHERE so_delivery.customer_id = c.id
             AND LOWER(so_delivery.status::text) = 'delivered'
+            AND (
+              so_delivery.delivered_at IS NOT NULL
+              OR EXISTS (
+                SELECT 1
+                FROM courier_tracking_history cth_exists
+                WHERE cth_exists.order_id = so_delivery.id
+                  AND LOWER(cth_exists.status) = 'delivered'
+              )
+            )
             AND ${deliveryDateConditions.join(' AND ')}
         )`,
         deliveryDateParams,
@@ -520,6 +559,96 @@ export class SalesManagerService {
     }
     if (assignmentShape.assignedAt && query.assignedToDate && String(query.assignedToDate).trim()) {
       qb.andWhere('DATE(c.assigned_at) <= CAST(:assignedToDate AS date)', { assignedToDate: String(query.assignedToDate).trim() });
+    }
+
+    const callOutcome = String(query.callOutcome || query.outcome || '').trim();
+    if (callOutcome && callOutcome !== 'all') {
+      qb.andWhere(
+        `(
+          EXISTS (
+            SELECT 1
+            FROM sales_orders so_call
+            WHERE so_call.customer_id = c.id
+              AND LOWER(COALESCE(so_call.telephony_outcome, '')) = LOWER(:callOutcome)
+          )
+          OR EXISTS (
+            SELECT 1
+            FROM telephony_assignment_call_logs tl
+            INNER JOIN sales_orders so_log ON so_log.id = tl.order_id
+            WHERE tl.record_type = 'sales_order'
+              AND so_log.customer_id = c.id
+              AND LOWER(COALESCE(tl.outcome, '')) = LOWER(:callOutcome)
+          )
+          OR EXISTS (
+            SELECT 1
+            FROM crm_call_tasks t
+            WHERE (t.customer_id = c.id::text OR t.customer_id = c.phone)
+              AND LOWER(COALESCE(t.call_outcome, '')) = LOWER(:callOutcome)
+          )
+          OR EXISTS (
+            SELECT 1
+            FROM customer_engagement_history eh
+            WHERE (eh.customer_id = c.id::text OR eh.customer_id = c.phone)
+              AND eh.engagement_type = 'call'
+              AND LOWER(COALESCE(eh.metadata->>'outcome', eh.metadata->>'call_outcome', '')) = LOWER(:callOutcome)
+          )
+          OR EXISTS (
+            SELECT 1
+            FROM activities a
+            WHERE a.customer_id = c.id
+              AND a.type = 'call'
+              AND LOWER(COALESCE(a.outcome, '')) = LOWER(:callOutcome)
+          )
+        )`,
+        { callOutcome },
+      );
+    }
+
+    const productSuggestion = String(query.productSuggestion || query.suggestion || '').trim();
+    if (productSuggestion && productSuggestion !== 'all') {
+      const productSuggestionSearch = `%${productSuggestion}%`;
+      qb.andWhere(
+        `(
+          EXISTS (
+            SELECT 1
+            FROM sales_orders so_suggestion
+            WHERE so_suggestion.customer_id = c.id
+              AND so_suggestion.telephony_suggestion ILIKE :productSuggestionSearch
+          )
+          OR EXISTS (
+            SELECT 1
+            FROM telephony_assignment_call_logs tl_suggestion
+            INNER JOIN sales_orders so_log_suggestion ON so_log_suggestion.id = tl_suggestion.order_id
+            WHERE tl_suggestion.record_type = 'sales_order'
+              AND so_log_suggestion.customer_id = c.id
+              AND tl_suggestion.suggestion ILIKE :productSuggestionSearch
+          )
+          OR EXISTS (
+            SELECT 1
+            FROM customer_engagement_history eh_suggestion
+            WHERE (eh_suggestion.customer_id = c.id::text OR eh_suggestion.customer_id = c.phone)
+              AND eh_suggestion.engagement_type = 'call'
+              AND (
+                eh_suggestion.message_content ILIKE :productSuggestionSearch
+                OR eh_suggestion.metadata->>'product_suggestion' ILIKE :productSuggestionSearch
+                OR eh_suggestion.metadata->>'productSuggestion' ILIKE :productSuggestionSearch
+                OR eh_suggestion.metadata->>'suggestion' ILIKE :productSuggestionSearch
+              )
+          )
+          OR EXISTS (
+            SELECT 1
+            FROM activities a_suggestion
+            WHERE a_suggestion.customer_id = c.id
+              AND a_suggestion.type = 'call'
+              AND (
+                a_suggestion.notes ILIKE :productSuggestionSearch
+                OR a_suggestion.description ILIKE :productSuggestionSearch
+                OR a_suggestion.metadata::text ILIKE :productSuggestionSearch
+              )
+          )
+        )`,
+        { productSuggestionSearch },
+      );
     }
 
     if (query.noteSearch && String(query.noteSearch).trim()) {
@@ -710,5 +839,13 @@ export class SalesManagerService {
       phone: agent.phone,
       teamLeaderId: agent.teamLeaderId ?? null,
     }));
+  }
+
+  async getCustomerTagsForLeadFilters() {
+    return this.customerRepository.manager.query(
+      `SELECT id, name, color
+       FROM customer_tags
+       ORDER BY LOWER(name) ASC`,
+    );
   }
 }

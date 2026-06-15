@@ -27,6 +27,12 @@ export class SalesManagerController {
     return await this.salesManagerService.getAgentsForDataAnalyst();
   }
 
+  @Get('customer-tags')
+  @RequireAnyPermission('view-data-analyst-dashboard', 'view-sales-manager-dashboard')
+  async getCustomerTags() {
+    return await this.salesManagerService.getCustomerTagsForLeadFilters();
+  }
+
   @Get('unassigned-leads')
   @RequireAnyPermission('view-data-analyst-dashboard', 'view-sales-manager-dashboard')
   async getUnassignedLeads(@Query() query: any) {
