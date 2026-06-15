@@ -49,8 +49,25 @@ interface Agent {
   teamLeaderId?: number | null;
 }
 
-const ROWS_OPTIONS = [200, 500, 750, 1000, 2000];
+interface CustomerTag {
+  id: string;
+  name: string;
+  color?: string | null;
+}
+
+const ROWS_OPTIONS = [30, 50, 100, 200, 500, 750, 1000, 2000];
 type LastCallFilter = 'all' | 'called_today' | 'called_yesterday' | 'called_1week' | 'called_2weeks' | 'called_3weeks' | 'called_1month' | 'never';
+type CallOutcomeFilter = '' | 'connected' | 'order_placed' | 'callback_requested' | 'no_answer' | 'unreachable' | 'busy' | 'not_interested';
+
+const CALL_OUTCOME_OPTIONS: Array<{ value: Exclude<CallOutcomeFilter, ''>; label: string }> = [
+  { value: 'connected', label: 'Connected - Spoke with customer' },
+  { value: 'order_placed', label: 'Order Placed' },
+  { value: 'callback_requested', label: 'Callback Requested' },
+  { value: 'no_answer', label: 'No Answer' },
+  { value: 'unreachable', label: 'Unreachable' },
+  { value: 'busy', label: 'Busy / Line Engaged' },
+  { value: 'not_interested', label: 'Not Interested' },
+];
 
 const formatLastCalled = (dateStr?: string | null): { text: string; className: string } => {
   if (!dateStr) return { text: 'Never', className: 'text-red-600 font-medium' };
@@ -120,6 +137,7 @@ const SalesManagerLeadAssignment = () => {
   const [loading, setLoading] = useState(true);
   const [teamLeaders, setTeamLeaders] = useState<TeamLeader[]>([]);
   const [agents, setAgents] = useState<Agent[]>([]);
+  const [tags, setTags] = useState<CustomerTag[]>([]);
 
   // Filters
   const [search, setSearch] = useState('');
@@ -139,6 +157,9 @@ const SalesManagerLeadAssignment = () => {
   const [segmentFilter, setSegmentFilter] = useState<'' | 'new' | 'legacy' | 'mixed'>('');
   const [rejectedStatusFilter, setRejectedStatusFilter] = useState<'non_rejected' | 'rejected' | 'all'>('non_rejected');
   const [lastCallFilter, setLastCallFilter] = useState<LastCallFilter>('all');
+  const [tagFilter, setTagFilter] = useState('');
+  const [callOutcomeFilter, setCallOutcomeFilter] = useState<CallOutcomeFilter>('');
+  const [productSuggestionFilter, setProductSuggestionFilter] = useState('');
   const [rowsPerPage, setRowsPerPage] = useState(200);
 
   // Selection
@@ -180,6 +201,9 @@ const SalesManagerLeadAssignment = () => {
       if (segmentFilter) params.set('orderSegment', segmentFilter);
       if (rejectedStatusFilter !== 'non_rejected') params.set('rejectedStatus', rejectedStatusFilter);
       if (lastCallFilter !== 'all') params.set('calledStatus', lastCallFilter);
+      if (tagFilter) params.set('tagId', tagFilter);
+      if (callOutcomeFilter) params.set('callOutcome', callOutcomeFilter);
+      if (productSuggestionFilter.trim()) params.set('productSuggestion', productSuggestionFilter.trim());
 
       const res = await api.get(`/crm/data-analyst/unassigned-leads?${params}`);
       setLeads(res.data.items || []);
@@ -192,7 +216,7 @@ const SalesManagerLeadAssignment = () => {
     } finally {
       if (!options?.silent) setLoading(false);
     }
-  }, [search, assignmentStatus, tierFilter, tlFilter, agentFilter, lifecycleFilter, productFilter, deliveryStartFilter, deliveryEndFilter, assignedFromFilter, assignedToFilter, addressFilter, noteSearchFilter, segmentFilter, rejectedStatusFilter, lastCallFilter, rowsPerPage, toast]);
+  }, [search, assignmentStatus, tierFilter, tlFilter, agentFilter, lifecycleFilter, productFilter, deliveryStartFilter, deliveryEndFilter, assignedFromFilter, assignedToFilter, addressFilter, noteSearchFilter, segmentFilter, rejectedStatusFilter, lastCallFilter, tagFilter, callOutcomeFilter, productSuggestionFilter, rowsPerPage, toast]);
 
   const fetchTeamLeaders = useCallback(async () => {
     try {
@@ -212,11 +236,25 @@ const SalesManagerLeadAssignment = () => {
     }
   }, [toast]);
 
+  const fetchTags = useCallback(async () => {
+    try {
+      const res = await api.get('/crm/data-analyst/customer-tags');
+      setTags(Array.isArray(res.data) ? res.data : []);
+    } catch (error) {
+      console.error('Failed to load customer tags:', error);
+      setTags([]);
+    }
+  }, []);
+
   useEffect(() => {
     fetchLeads(1);
     fetchTeamLeaders();
     fetchAgents();
   }, [fetchLeads, fetchTeamLeaders, fetchAgents]);
+
+  useEffect(() => {
+    fetchTags();
+  }, [fetchTags]);
 
   // Debounced search
   const handleSearchChange = (val: string) => {
@@ -515,11 +553,47 @@ const SalesManagerLeadAssignment = () => {
             </FilterField>
 
             {/* Product search — Bengali + English */}
+            <FilterField label="Customer Tag">
+              <select
+                value={tagFilter}
+                onChange={e => setTagFilter(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500"
+              >
+                <option value="">All Tags</option>
+                {tags.map(tag => (
+                  <option key={tag.id} value={tag.id}>{tag.name}</option>
+                ))}
+              </select>
+            </FilterField>
+
+            <FilterField label="Call Log Outcome">
+              <select
+                value={callOutcomeFilter}
+                onChange={e => setCallOutcomeFilter(e.target.value as CallOutcomeFilter)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500"
+              >
+                <option value="">All Outcomes</option>
+                {CALL_OUTCOME_OPTIONS.map(option => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+            </FilterField>
+
             <FilterField label="Product Search" className="xl:col-span-2">
               <ProductAutocomplete
                 value={productFilter}
                 onChange={val => setProductFilter(val)}
                 className="border border-gray-300 rounded-lg px-3 py-2 text-sm w-full"
+              />
+            </FilterField>
+
+            <FilterField label="Product Suggestion" className="xl:col-span-2">
+              <input
+                type="text"
+                placeholder="Search product suggestion..."
+                value={productSuggestionFilter}
+                onChange={e => setProductSuggestionFilter(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
               />
             </FilterField>
 
