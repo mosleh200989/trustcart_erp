@@ -1472,6 +1472,28 @@ export class OrderManagementService {
     }));
   }
 
+  async getCustomerTagsForOrderModal(): Promise<Array<{ id: string; name: string; color: string | null }>> {
+    return this.salesOrderRepository.query(
+      `SELECT id, name, color
+       FROM customer_tags
+       ORDER BY LOWER(name) ASC`,
+    );
+  }
+
+  async assignCustomerTagFromOrderModal(customerId: number, tagId: string): Promise<{ success: boolean; added: number; alreadyPresent: boolean }> {
+    const rows = await this.salesOrderRepository.query(
+      `INSERT INTO customer_tag_assignments (tag_id, customer_id, created_at)
+       SELECT $1, c.id, NOW()
+       FROM customers c
+       INNER JOIN customer_tags ct ON ct.id = $1
+       WHERE c.id = $2
+       ON CONFLICT (tag_id, customer_id) DO NOTHING
+       RETURNING tag_id`,
+      [tagId, customerId],
+    );
+    return { success: true, added: rows.length, alreadyPresent: rows.length === 0 };
+  }
+
   async getOrderDetails(orderId: number): Promise<any> {
     const order = await this.salesOrderRepository.findOne({ where: { id: orderId } });
     if (!order) throw new Error('Order not found');
@@ -1627,10 +1649,10 @@ export class OrderManagementService {
     }
 
     // ──── Customer tags (by customer_id) ────
-    let customerTags: { name: string; color: string | null }[] = [];
+    let customerTags: { id: string; name: string; color: string | null }[] = [];
     if (customerId) {
-      const tagRows: { name: string; color: string | null }[] = await this.salesOrderRepository.query(
-        `SELECT ct.name, ct.color
+      const tagRows: { id: string; name: string; color: string | null }[] = await this.salesOrderRepository.query(
+        `SELECT ct.id, ct.name, ct.color
          FROM customer_tag_assignments cta
          INNER JOIN customer_tags ct ON ct.id = cta.tag_id
          WHERE cta.customer_id = $1

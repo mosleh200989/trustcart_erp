@@ -452,6 +452,21 @@ export class OrderManagementController {
     return await this.orderManagementService.getCustomerOrders(customerId);
   }
 
+  @Get('customer-tags')
+  @RequirePermissions('view-sales-orders')
+  async getCustomerTagsForOrderModal() {
+    return await this.orderManagementService.getCustomerTagsForOrderModal();
+  }
+
+  @Post('customers/:customerId/tags')
+  @RequirePermissions('edit-sales-orders')
+  async assignCustomerTagFromOrderModal(
+    @Param('customerId') customerId: number,
+    @Body() body: { tagId: string },
+  ) {
+    return await this.orderManagementService.assignCustomerTagFromOrderModal(Number(customerId), body.tagId);
+  }
+
   // ==================== ORDER DETAILS ====================
 
   @Get(':orderId/details')

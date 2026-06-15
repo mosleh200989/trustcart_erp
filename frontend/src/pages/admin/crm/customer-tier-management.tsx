@@ -37,6 +37,20 @@ interface CustomerTier {
   daysInactive: number;
 }
 
+const VIEWED_CUSTOMERS_STORAGE_KEY = 'customer-tier-management-viewed-at';
+const VIEWED_CUSTOMER_TTL_MS = 24 * 60 * 60 * 1000;
+
+const getFreshViewedCustomers = (stored: Record<string, number>, now = Date.now()) => {
+  return Object.fromEntries(
+    Object.entries(stored).filter(([, viewedAt]) => now - viewedAt < VIEWED_CUSTOMER_TTL_MS),
+  );
+};
+
+const isCustomerRecentlyViewed = (viewedCustomers: Record<string, number>, customerId: number) => {
+  const viewedAt = viewedCustomers[String(customerId)];
+  return Boolean(viewedAt && Date.now() - viewedAt < VIEWED_CUSTOMER_TTL_MS);
+};
+
 export default function CustomerTierManagementPage() {
   const toast = useToast();
   const [customers, setCustomers] = useState<any[]>([]);
@@ -47,7 +61,7 @@ export default function CustomerTierManagementPage() {
     deliveryDateStart: '',
     deliveryDateEnd: '',
     purchasesCount: '',
-    cancelledOrdersCount: '',
+    maxCancelledOrderRatio: '',
     customerSegment: 'all',
   });
   const [searchQuery, setSearchQuery] = useState('');
@@ -62,6 +76,7 @@ export default function CustomerTierManagementPage() {
   const [updatingTierCustomerId, setUpdatingTierCustomerId] = useState<number | null>(null);
   const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
   const [showOrderModal, setShowOrderModal] = useState(false);
+  const [viewedCustomers, setViewedCustomers] = useState<Record<string, number>>({});
   const { sorted: sortedTierCustomers, sortKey: tierSortKey, sortDir: tierSortDir, toggleSort: toggleTierSort } = useSortableData<any>(customers);
 
   // Pagination state
@@ -91,6 +106,17 @@ export default function CustomerTierManagementPage() {
   }, []);
 
   useEffect(() => {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(VIEWED_CUSTOMERS_STORAGE_KEY) || '{}');
+      const freshViewedCustomers = getFreshViewedCustomers(parsed && typeof parsed === 'object' ? parsed : {});
+      setViewedCustomers(freshViewedCustomers);
+      localStorage.setItem(VIEWED_CUSTOMERS_STORAGE_KEY, JSON.stringify(freshViewedCustomers));
+    } catch {
+      localStorage.removeItem(VIEWED_CUSTOMERS_STORAGE_KEY);
+    }
+  }, []);
+
+  useEffect(() => {
     fetchCustomers();
   }, [filter, currentPage, itemsPerPage, searchQuery]);
 
@@ -115,7 +141,7 @@ export default function CustomerTierManagementPage() {
       if (filter.deliveryDateStart) params.append('deliveryDateStart', filter.deliveryDateStart);
       if (filter.deliveryDateEnd) params.append('deliveryDateEnd', filter.deliveryDateEnd);
       if (filter.purchasesCount) params.append('purchasesCount', filter.purchasesCount);
-      if (filter.cancelledOrdersCount) params.append('cancelledOrdersCount', filter.cancelledOrdersCount);
+      if (filter.maxCancelledOrderRatio) params.append('maxCancelledOrderRatio', filter.maxCancelledOrderRatio);
       if (filter.customerSegment !== 'all') params.append('customerSegment', filter.customerSegment);
       if (searchQuery.trim()) params.append('search', searchQuery.trim());
       params.append('page', currentPage.toString());
@@ -265,6 +291,11 @@ export default function CustomerTierManagementPage() {
   };
 
   const handleViewCustomerOrder = async (customerId: number) => {
+    setViewedCustomers((prev) => {
+      const next = getFreshViewedCustomers({ ...prev, [String(customerId)]: Date.now() });
+      localStorage.setItem(VIEWED_CUSTOMERS_STORAGE_KEY, JSON.stringify(next));
+      return next;
+    });
     try {
       const response = await apiClient.get(`/order-management/customer/${customerId}/orders`);
       const orders = response.data?.data || response.data || [];
@@ -468,14 +499,16 @@ export default function CustomerTierManagementPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2">Cancelled Orders</label>
+              <label className="block text-sm font-medium mb-2">Max Cancelled Order Ratio</label>
               <input
                 type="number"
                 min="0"
-                value={filter.cancelledOrdersCount}
-                onChange={(e) => { setFilter({ ...filter, cancelledOrdersCount: e.target.value }); setCurrentPage(1); }}
+                max="100"
+                step="0.01"
+                value={filter.maxCancelledOrderRatio}
+                onChange={(e) => { setFilter({ ...filter, maxCancelledOrderRatio: e.target.value }); setCurrentPage(1); }}
                 className="w-full border rounded-lg p-2"
-                placeholder="Any"
+                placeholder="Any %"
               />
             </div>
           </div>
@@ -507,14 +540,16 @@ export default function CustomerTierManagementPage() {
                       <ThSort col="email" label="Contact" sortKey={tierSortKey} sortDir={tierSortDir} onSort={toggleTierSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
                       <ThSort col="tier" label="Tier" sortKey={tierSortKey} sortDir={tierSortDir} onSort={toggleTierSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
                       <ThSort col="order_count" label="Purchases" sortKey={tierSortKey} sortDir={tierSortDir} onSort={toggleTierSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
-                      <ThSort col="cancelled_order_count" label="Cancelled Orders" sortKey={tierSortKey} sortDir={tierSortDir} onSort={toggleTierSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                      <ThSort col="cancelled_order_ratio" label="Cancelled Order Ratio" sortKey={tierSortKey} sortDir={tierSortDir} onSort={toggleTierSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
                       <ThSort col="last_delivery_date" label="Last Delivery Date" sortKey={tierSortKey} sortDir={tierSortDir} onSort={toggleTierSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
                       <ThSort col="lifetime_value" label="Total Spent" sortKey={tierSortKey} sortDir={tierSortDir} onSort={toggleTierSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
-                  {sortedTierCustomers.map((customer) => (
+                  {sortedTierCustomers.map((customer) => {
+                    const viewed = isCustomerRecentlyViewed(viewedCustomers, customer.id);
+                    return (
                     <tr key={customer.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4">
                         <div className="font-medium">{customer.first_name} {customer.last_name}</div>
@@ -542,7 +577,14 @@ export default function CustomerTierManagementPage() {
                         </select>
                       </td>
                       <td className="px-6 py-4 text-sm">{customer.order_count || customer.tierData?.totalPurchases || 0}</td>
-                      <td className="px-6 py-4 text-sm">{customer.cancelled_order_count || 0}</td>
+                      <td className="px-6 py-4 text-sm">
+                        <div className="font-semibold text-red-600">
+                          {Number(customer.cancelled_order_ratio || 0).toFixed(2)}%
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          {customer.cancelled_order_count || 0} cancelled / {Number(customer.delivered_order_count || 0) + Number(customer.cancelled_order_count || 0)} completed
+                        </div>
+                      </td>
                       <td className="px-6 py-4 text-sm whitespace-nowrap">
                         {customer.last_delivery_date ? new Date(customer.last_delivery_date).toLocaleDateString('en-GB', { timeZone: 'Asia/Dhaka' }) : 'N/A'}
                       </td>
@@ -550,13 +592,18 @@ export default function CustomerTierManagementPage() {
                       <td className="px-6 py-4">
                         <button
                           onClick={() => handleViewCustomerOrder(customer.id)}
-                          className="inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 text-sm"
+                          className={`inline-flex items-center gap-2 px-4 py-2 rounded text-sm transition-colors ${
+                            viewed
+                              ? 'bg-amber-100 text-amber-800 border border-amber-300 hover:bg-amber-200'
+                              : 'bg-blue-600 text-white hover:bg-blue-700'
+                          }`}
                         >
-                          <FaEye className="text-xs" /> View
+                          <FaEye className="text-xs" /> {viewed ? 'Viewed' : 'View'}
                         </button>
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

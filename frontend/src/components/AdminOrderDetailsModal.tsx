@@ -4,7 +4,7 @@ import { useToast } from '@/contexts/ToastContext';
 import { 
   FaTimes, FaEdit, FaTrash, FaPlus, FaSave, FaCheck, FaPause, FaBan, 
   FaShippingFast, FaMapMarkerAlt, FaStickyNote, FaHistory, FaGlobe, 
-  FaMobile, FaDesktop, FaChrome, FaExclamationTriangle, FaPhone, FaPhoneSlash 
+  FaMobile, FaDesktop, FaChrome, FaExclamationTriangle, FaPhone, FaPhoneSlash, FaTag
 } from 'react-icons/fa';
 import PhoneInput, { validateBDPhone } from '@/components/PhoneInput';
 import { getOrderStatusLabel, getOrderStatusColor } from '@/utils/orderStatus';
@@ -15,6 +15,29 @@ interface OrderDetailsModalProps {
   onClose: () => void;
   onUpdate: () => void;
 }
+
+const CALL_OUTCOME_LABELS: Record<string, string> = {
+  connected: 'Connected - Spoke with customer',
+  connected_disqualified: 'Connected - Disqualified',
+  connected_whatsapp: 'Connected on WhatsApp',
+  order_placed: 'Order Placed',
+  callback_requested: 'Callback Requested',
+  no_answer: 'No Answer',
+  unreachable: 'Unreachable',
+  busy: 'Busy / Line Engaged',
+  not_interested: 'Not Interested',
+  successful: 'Successful',
+  completed: 'Completed',
+  failed: 'Failed',
+};
+
+const formatCallOutcome = (outcome?: string | null) => {
+  if (!outcome) return '';
+  return CALL_OUTCOME_LABELS[outcome] || outcome.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+};
+
+const isPositiveCallOutcome = (outcome?: string | null) =>
+  ['connected', 'connected_whatsapp', 'order_placed', 'successful', 'completed'].includes(String(outcome || ''));
 
 export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: OrderDetailsModalProps) {
   const toast = useToast();
@@ -117,7 +140,10 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
 
   // Customer badges (coupon codes + tags)
   const [activeCouponCodes, setActiveCouponCodes] = useState<string[]>([]);
-  const [customerTags, setCustomerTags] = useState<{ name: string; color: string | null }[]>([]);
+  const [customerTags, setCustomerTags] = useState<{ id?: string; name: string; color: string | null }[]>([]);
+  const [availableCustomerTags, setAvailableCustomerTags] = useState<{ id: string; name: string; color: string | null }[]>([]);
+  const [selectedTagId, setSelectedTagId] = useState('');
+  const [assigningTag, setAssigningTag] = useState(false);
 
   // Apply Coupon modal state
   const [showCouponModal, setShowCouponModal] = useState(false);
@@ -197,6 +223,46 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
       loadCallLogs();
     }
   }, [activeTab, customerRecord?.id]);
+
+  useEffect(() => {
+    if (activeTab === 'customer') {
+      loadAvailableCustomerTags();
+    }
+  }, [activeTab]);
+
+  const loadAvailableCustomerTags = async () => {
+    try {
+      const response = await apiClient.get('/order-management/customer-tags');
+      setAvailableCustomerTags(Array.isArray(response.data) ? response.data : []);
+    } catch (error) {
+      console.error('Failed to load customer tags:', error);
+      setAvailableCustomerTags([]);
+    }
+  };
+
+  const assignCustomerTag = async () => {
+    const customerId = customerRecord?.id || customer?.id;
+    if (!customerId) {
+      toast.error('Create the customer first, then add tags.');
+      return;
+    }
+    if (!selectedTagId) {
+      toast.warning('Please select a tag');
+      return;
+    }
+
+    setAssigningTag(true);
+    try {
+      await apiClient.post(`/order-management/customers/${Number(customerId)}/tags`, { tagId: selectedTagId });
+      toast.success('Tag added to customer');
+      setSelectedTagId('');
+      await loadOrderDetails();
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || 'Failed to add tag');
+    } finally {
+      setAssigningTag(false);
+    }
+  };
 
   // Load call logs for the customer
   const loadCallLogs = async () => {
@@ -1630,7 +1696,7 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                   ))}
                   {customerTags.map((tag) => (
                     <span
-                      key={tag.name}
+                      key={tag.id || tag.name}
                       className="inline-flex items-center px-2 py-1 text-xs font-bold rounded tracking-wide"
                       style={{
                         backgroundColor: tag.color ? `${tag.color}20` : '#e0e7ff',
@@ -1641,6 +1707,29 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                       🏷 {tag.name}
                     </span>
                   ))}
+                  {customerRecord?.id && (
+                    <div className="inline-flex items-center gap-2">
+                      <select
+                        value={selectedTagId}
+                        onChange={(e) => setSelectedTagId(e.target.value)}
+                        className="border border-gray-300 rounded-lg px-2 py-1 text-xs min-w-[150px]"
+                      >
+                        <option value="">Select tag...</option>
+                        {availableCustomerTags
+                          .filter((tag) => !customerTags.some((assigned) => assigned.id === tag.id))
+                          .map((tag) => (
+                            <option key={tag.id} value={tag.id}>{tag.name}</option>
+                          ))}
+                      </select>
+                      <button
+                        onClick={assignCustomerTag}
+                        disabled={!selectedTagId || assigningTag}
+                        className="inline-flex items-center gap-1 bg-indigo-600 text-white px-2 py-1 rounded-lg text-xs font-semibold hover:bg-indigo-700 disabled:opacity-50"
+                      >
+                        <FaTag size={11} /> {assigningTag ? 'Adding...' : 'Add Tag'}
+                      </button>
+                    </div>
+                  )}
                 </div>
                 {!isEditingCustomer ? (
                   <button
@@ -1701,7 +1790,20 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                       {compactCallLogs.map((call) => (
                         <div key={call.id || `${call.agentName}-${call.createdAt}`} className="py-2">
                           <div className="flex items-start justify-between gap-3">
-                            <span className="text-sm font-medium text-gray-800">{call.agentName || 'Unknown Agent'}</span>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="text-sm font-medium text-gray-800">{call.agentName || 'Unknown Agent'}</span>
+                              {call.outcome && (
+                                <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${
+                                  isPositiveCallOutcome(call.outcome)
+                                    ? 'bg-green-100 text-green-800'
+                                    : call.outcome === 'no_answer' || call.outcome === 'busy' || call.outcome === 'unreachable'
+                                    ? 'bg-yellow-100 text-yellow-800'
+                                    : 'bg-red-100 text-red-800'
+                                }`}>
+                                  {formatCallOutcome(call.outcome)}
+                                </span>
+                              )}
+                            </div>
                             <span className="text-xs text-gray-500 whitespace-nowrap">
                               {(call.engagementDate || call.createdAt)
                                 ? new Date(call.engagementDate || call.createdAt).toLocaleString('en-GB', { timeZone: 'Asia/Dhaka' })
@@ -2712,7 +2814,7 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                       <div key={call.id} className="bg-green-50 p-4 rounded-lg border-l-4 border-green-500">
                         <div className="flex justify-between items-start mb-2">
                           <div className="flex items-center gap-2">
-                            {call.outcome === 'connected' || call.outcome === 'successful' ? (
+                            {isPositiveCallOutcome(call.outcome) ? (
                               <FaPhone className="text-green-600" />
                             ) : (
                               <FaPhoneSlash className="text-red-500" />
@@ -2722,13 +2824,13 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                             </span>
                             {call.outcome && (
                               <span className={`text-xs px-2 py-1 rounded ${
-                                call.outcome === 'connected' || call.outcome === 'successful' 
+                                isPositiveCallOutcome(call.outcome) 
                                   ? 'bg-green-200 text-green-800'
-                                  : call.outcome === 'no_answer' || call.outcome === 'busy'
+                                  : call.outcome === 'no_answer' || call.outcome === 'busy' || call.outcome === 'unreachable'
                                   ? 'bg-yellow-200 text-yellow-800'
                                   : 'bg-red-200 text-red-800'
                               }`}>
-                                {call.outcome.replace(/_/g, ' ').toUpperCase()}
+                                {formatCallOutcome(call.outcome)}
                               </span>
                             )}
                           </div>

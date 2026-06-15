@@ -59,10 +59,12 @@ const ROWS_OPTIONS = [30, 50, 100, 200, 500, 750, 1000, 2000];
 const VIEWED_LEADS_STORAGE_KEY = 'sales-manager-leads-viewed-at';
 const VIEWED_LEAD_TTL_MS = 24 * 60 * 60 * 1000;
 type LastCallFilter = 'all' | 'called_today' | 'called_yesterday' | 'called_1week' | 'called_2weeks' | 'called_3weeks' | 'called_1month' | 'never';
-type CallOutcomeFilter = '' | 'connected' | 'order_placed' | 'callback_requested' | 'no_answer' | 'unreachable' | 'busy' | 'not_interested';
+type CallOutcomeFilter = '' | 'connected' | 'connected_disqualified' | 'connected_whatsapp' | 'order_placed' | 'callback_requested' | 'no_answer' | 'unreachable' | 'busy' | 'not_interested';
 
 const CALL_OUTCOME_OPTIONS: Array<{ value: Exclude<CallOutcomeFilter, ''>; label: string }> = [
   { value: 'connected', label: 'Connected - Spoke with customer' },
+  { value: 'connected_disqualified', label: 'Connected - Disqualified' },
+  { value: 'connected_whatsapp', label: 'Connected on WhatsApp' },
   { value: 'order_placed', label: 'Order Placed' },
   { value: 'callback_requested', label: 'Callback Requested' },
   { value: 'no_answer', label: 'No Answer' },
