@@ -1544,6 +1544,21 @@ export class OrderManagementService {
       customerPhone: customerPhone || matchedCustomer?.phone || null,
     };
 
+    let customerTier: string | null = null;
+    if (customerId) {
+      try {
+        const tierRows = await this.salesOrderRepository.query(
+          `SELECT tier FROM customer_tiers WHERE customer_id = $1 LIMIT 1`,
+          [customerId],
+        );
+        if (tierRows && tierRows.length > 0) {
+          customerTier = tierRows[0].tier;
+        }
+      } catch (err: any) {
+        this.logger.warn(`Failed to fetch customer tier for ID ${customerId}: ${err?.message}`);
+      }
+    }
+
     const customerRecord = matchedCustomer
       ? {
           id: matchedCustomer.id,
@@ -1573,7 +1588,7 @@ export class OrderManagementService {
           anniversaryDate: matchedCustomer.anniversaryDate,
           profession: matchedCustomer.profession,
           availableTime: matchedCustomer.availableTime,
-          customerType: matchedCustomer.customerType,
+          customerType: customerTier || matchedCustomer.customerType || 'no_tier',
           lifecycleStage: matchedCustomer.lifecycleStage,
           status: matchedCustomer.status,
           isActive: matchedCustomer.isActive,

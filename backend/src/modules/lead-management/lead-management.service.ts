@@ -682,7 +682,7 @@ export class LeadManagementService {
         SELECT
           matched.customer_id,
           COUNT(*)::int AS order_count,
-          COALESCE(SUM(matched.total_amount), 0) AS lifetime_value,
+          COALESCE(SUM(CASE WHEN LOWER(matched.status::text) = 'delivered' THEN matched.total_amount ELSE 0 END), 0) AS lifetime_value,
           COUNT(CASE WHEN LOWER(matched.status::text) = 'delivered' THEN 1 END)::int AS delivered_order_count,
           COUNT(CASE WHEN LOWER(matched.status::text) = 'cancelled' THEN 1 END)::int AS cancelled_order_count,
           ROUND(

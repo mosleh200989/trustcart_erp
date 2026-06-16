@@ -1746,19 +1746,19 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                     <div className="inline-flex items-center gap-1.5 ml-2 border-l pl-3">
                       <span className="text-xs font-semibold text-gray-500">Tier:</span>
                       <select
-                        value={customerRecord.customerType || 'new'}
+                        value={customerRecord.customerType || 'no_tier'}
                         onChange={(e) => updateCustomerTier(e.target.value)}
                         disabled={updatingTier}
                         className="border border-gray-300 rounded-lg px-2 py-1 text-xs bg-amber-50 text-amber-800 font-bold hover:bg-amber-100 disabled:opacity-50 transition-colors"
                       >
-                        <option value="new">New</option>
-                        <option value="silver">Silver</option>
-                        <option value="gold">Gold</option>
-                        <option value="platinum">Platinum</option>
-                        <option value="vip">VIP</option>
-                        <option value="normal">Normal</option>
-                        <option value="repeat">Repeat</option>
-                        <option value="rejected">Rejected</option>
+                        <option value="no_tier">No Tier</option>
+                        <option value="tier_1">Tier 1</option>
+                        <option value="tier_2">Tier 2</option>
+                        <option value="tier_3">Tier 3</option>
+                        <option value="tier_4">Tier 4</option>
+                        <option value="tier_5">Tier 5</option>
+                        <option value="tier_6">Tier 6</option>
+                        <option value="rejected" disabled={customerRecord.customerType !== 'tier_6'}>Rejected</option>
                       </select>
                     </div>
                   )}
