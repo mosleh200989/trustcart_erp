@@ -4,7 +4,8 @@ import { useToast } from '@/contexts/ToastContext';
 import { 
   FaTimes, FaEdit, FaTrash, FaPlus, FaSave, FaCheck, FaPause, FaBan, 
   FaShippingFast, FaMapMarkerAlt, FaStickyNote, FaHistory, FaGlobe, 
-  FaMobile, FaDesktop, FaChrome, FaExclamationTriangle, FaPhone, FaPhoneSlash 
+  FaMobile, FaDesktop, FaChrome, FaExclamationTriangle, FaPhone, FaPhoneSlash,
+  FaTag
 } from 'react-icons/fa';
 import PhoneInput, { validateBDPhone } from '@/components/PhoneInput';
 import { getOrderStatusLabel, getOrderStatusColor } from '@/utils/orderStatus';
@@ -117,7 +118,12 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
 
   // Customer badges (coupon codes + tags)
   const [activeCouponCodes, setActiveCouponCodes] = useState<string[]>([]);
-  const [customerTags, setCustomerTags] = useState<{ name: string; color: string | null }[]>([]);
+  const [customerTags, setCustomerTags] = useState<{ id?: string; name: string; color: string | null }[]>([]);
+  const [availableCustomerTags, setAvailableCustomerTags] = useState<{ id: string; name: string; color: string | null }[]>([]);
+  const [selectedTagId, setSelectedTagId] = useState('');
+  const [assigningTag, setAssigningTag] = useState(false);
+  const [updatingTier, setUpdatingTier] = useState(false);
+  const [removingTagId, setRemovingTagId] = useState<string | null>(null);
 
   // Apply Coupon modal state
   const [showCouponModal, setShowCouponModal] = useState(false);
@@ -197,6 +203,84 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
       loadCallLogs();
     }
   }, [activeTab, customerRecord?.id]);
+
+  useEffect(() => {
+    if (activeTab === 'customer') {
+      loadAvailableCustomerTags();
+    }
+  }, [activeTab]);
+
+  const loadAvailableCustomerTags = async () => {
+    try {
+      const response = await apiClient.get('/order-management/customer-tags');
+      setAvailableCustomerTags(Array.isArray(response.data) ? response.data : []);
+    } catch (error) {
+      console.error('Failed to load customer tags:', error);
+      setAvailableCustomerTags([]);
+    }
+  };
+
+  const assignCustomerTag = async () => {
+    const customerId = customerRecord?.id || customer?.id;
+    if (!customerId) {
+      toast.error('Create the customer first, then add tags.');
+      return;
+    }
+    if (!selectedTagId) {
+      toast.warning('Please select a tag');
+      return;
+    }
+
+    setAssigningTag(true);
+    try {
+      await apiClient.post(`/order-management/customers/${Number(customerId)}/tags`, { tagId: selectedTagId });
+      toast.success('Tag added to customer');
+      setSelectedTagId('');
+      await loadOrderDetails();
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || 'Failed to add tag');
+    } finally {
+      setAssigningTag(false);
+    }
+  };
+
+  const removeCustomerTag = async (tagId: string) => {
+    const customerId = customerRecord?.id || customer?.id;
+    if (!customerId) {
+      toast.error('Customer record is missing');
+      return;
+    }
+
+    setRemovingTagId(tagId);
+    try {
+      await apiClient.delete(`/order-management/customers/${Number(customerId)}/tags/${tagId}`);
+      toast.success('Tag removed from customer');
+      await loadOrderDetails();
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || 'Failed to remove tag');
+    } finally {
+      setRemovingTagId(null);
+    }
+  };
+
+  const updateCustomerTier = async (newTier: string) => {
+    const customerId = customerRecord?.id || customer?.id;
+    if (!customerId) {
+      toast.error('Customer record is missing');
+      return;
+    }
+
+    setUpdatingTier(true);
+    try {
+      await apiClient.put(`/order-management/customers/${Number(customerId)}/tier`, { tier: newTier });
+      toast.success('Customer tier updated successfully');
+      await loadOrderDetails();
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || 'Failed to update customer tier');
+    } finally {
+      setUpdatingTier(false);
+    }
+  };
 
   // Load call logs for the customer
   const loadCallLogs = async () => {
@@ -1613,8 +1697,8 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                   ))}
                   {customerTags.map((tag) => (
                     <span
-                      key={tag.name}
-                      className="inline-flex items-center px-2 py-1 text-xs font-bold rounded tracking-wide"
+                      key={tag.id || tag.name}
+                      className="inline-flex items-center gap-1 px-2 py-1 text-xs font-bold rounded tracking-wide"
                       style={{
                         backgroundColor: tag.color ? `${tag.color}20` : '#e0e7ff',
                         color: tag.color || '#4338ca',
@@ -1622,8 +1706,62 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                       title="Customer tag"
                     >
                       🏷 {tag.name}
+                      {tag.id && (
+                        <button
+                          onClick={() => removeCustomerTag(tag.id!)}
+                          disabled={removingTagId === tag.id}
+                          className="ml-1 hover:text-red-500 font-bold focus:outline-none text-[10px] transition-colors disabled:opacity-50"
+                          style={{ color: tag.color || '#4338ca' }}
+                          title="Remove tag"
+                        >
+                          ✕
+                        </button>
+                      )}
                     </span>
                   ))}
+                  {customerRecord?.id && (
+                    <div className="inline-flex items-center gap-2">
+                      <select
+                        value={selectedTagId}
+                        onChange={(e) => setSelectedTagId(e.target.value)}
+                        className="border border-gray-300 rounded-lg px-2 py-1 text-xs min-w-[150px]"
+                      >
+                        <option value="">Select tag...</option>
+                        {availableCustomerTags
+                          .filter((tag) => !customerTags.some((assigned) => assigned.id === tag.id))
+                          .map((tag) => (
+                            <option key={tag.id} value={tag.id}>{tag.name}</option>
+                          ))}
+                      </select>
+                      <button
+                        onClick={assignCustomerTag}
+                        disabled={!selectedTagId || assigningTag}
+                        className="inline-flex items-center gap-1 bg-indigo-600 text-white px-2 py-1 rounded-lg text-xs font-semibold hover:bg-indigo-700 disabled:opacity-50"
+                      >
+                        <FaTag size={11} /> {assigningTag ? 'Adding...' : 'Add Tag'}
+                      </button>
+                    </div>
+                  )}
+                  {customerRecord?.id && (
+                    <div className="inline-flex items-center gap-1.5 ml-2 border-l pl-3">
+                      <span className="text-xs font-semibold text-gray-500">Tier:</span>
+                      <select
+                        value={customerRecord.customerType || 'new'}
+                        onChange={(e) => updateCustomerTier(e.target.value)}
+                        disabled={updatingTier}
+                        className="border border-gray-300 rounded-lg px-2 py-1 text-xs bg-amber-50 text-amber-800 font-bold hover:bg-amber-100 disabled:opacity-50 transition-colors"
+                      >
+                        <option value="new">New</option>
+                        <option value="silver">Silver</option>
+                        <option value="gold">Gold</option>
+                        <option value="platinum">Platinum</option>
+                        <option value="vip">VIP</option>
+                        <option value="normal">Normal</option>
+                        <option value="repeat">Repeat</option>
+                        <option value="rejected">Rejected</option>
+                      </select>
+                    </div>
+                  )}
                 </div>
                 {!isEditingCustomer ? (
                   <button

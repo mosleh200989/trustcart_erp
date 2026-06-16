@@ -467,6 +467,30 @@ export class OrderManagementController {
     return await this.orderManagementService.assignCustomerTagFromOrderModal(Number(customerId), body.tagId);
   }
 
+  @Delete('customers/:customerId/tags/:tagId')
+  @RequirePermissions('edit-sales-orders')
+  async removeCustomerTagFromOrderModal(
+    @Param('customerId') customerId: number,
+    @Param('tagId') tagId: string,
+  ) {
+    return await this.orderManagementService.removeCustomerTagFromOrderModal(Number(customerId), tagId);
+  }
+
+  @Put('customers/:customerId/tier')
+  @RequirePermissions('edit-sales-orders')
+  async updateCustomerTierFromOrderModal(
+    @Param('customerId') customerId: number,
+    @Body() body: { tier: string },
+    @Req() req: Request,
+  ) {
+    const userInfo = this.getUserInfo(req);
+    return await this.orderManagementService.updateCustomerTierFromOrderModal(
+      Number(customerId),
+      body.tier,
+      userInfo.userId
+    );
+  }
+
   // ==================== ORDER DETAILS ====================
 
   @Get(':orderId/details')

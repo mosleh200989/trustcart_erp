@@ -144,6 +144,8 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
   const [availableCustomerTags, setAvailableCustomerTags] = useState<{ id: string; name: string; color: string | null }[]>([]);
   const [selectedTagId, setSelectedTagId] = useState('');
   const [assigningTag, setAssigningTag] = useState(false);
+  const [updatingTier, setUpdatingTier] = useState(false);
+  const [removingTagId, setRemovingTagId] = useState<string | null>(null);
 
   // Apply Coupon modal state
   const [showCouponModal, setShowCouponModal] = useState(false);
@@ -261,6 +263,44 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
       toast.error(error?.response?.data?.message || 'Failed to add tag');
     } finally {
       setAssigningTag(false);
+    }
+  };
+
+  const removeCustomerTag = async (tagId: string) => {
+    const customerId = customerRecord?.id || customer?.id;
+    if (!customerId) {
+      toast.error('Customer record is missing');
+      return;
+    }
+
+    setRemovingTagId(tagId);
+    try {
+      await apiClient.delete(`/order-management/customers/${Number(customerId)}/tags/${tagId}`);
+      toast.success('Tag removed from customer');
+      await loadOrderDetails();
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || 'Failed to remove tag');
+    } finally {
+      setRemovingTagId(null);
+    }
+  };
+
+  const updateCustomerTier = async (newTier: string) => {
+    const customerId = customerRecord?.id || customer?.id;
+    if (!customerId) {
+      toast.error('Customer record is missing');
+      return;
+    }
+
+    setUpdatingTier(true);
+    try {
+      await apiClient.put(`/order-management/customers/${Number(customerId)}/tier`, { tier: newTier });
+      toast.success('Customer tier updated successfully');
+      await loadOrderDetails();
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || 'Failed to update customer tier');
+    } finally {
+      setUpdatingTier(false);
     }
   };
 
@@ -1697,7 +1737,7 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                   {customerTags.map((tag) => (
                     <span
                       key={tag.id || tag.name}
-                      className="inline-flex items-center px-2 py-1 text-xs font-bold rounded tracking-wide"
+                      className="inline-flex items-center gap-1 px-2 py-1 text-xs font-bold rounded tracking-wide"
                       style={{
                         backgroundColor: tag.color ? `${tag.color}20` : '#e0e7ff',
                         color: tag.color || '#4338ca',
@@ -1705,6 +1745,17 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                       title="Customer tag"
                     >
                       🏷 {tag.name}
+                      {tag.id && (
+                        <button
+                          onClick={() => removeCustomerTag(tag.id!)}
+                          disabled={removingTagId === tag.id}
+                          className="ml-1 hover:text-red-500 font-bold focus:outline-none text-[10px] transition-colors disabled:opacity-50"
+                          style={{ color: tag.color || '#4338ca' }}
+                          title="Remove tag"
+                        >
+                          ✕
+                        </button>
+                      )}
                     </span>
                   ))}
                   {customerRecord?.id && (
@@ -1728,6 +1779,26 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                       >
                         <FaTag size={11} /> {assigningTag ? 'Adding...' : 'Add Tag'}
                       </button>
+                    </div>
+                  )}
+                  {customerRecord?.id && (
+                    <div className="inline-flex items-center gap-1.5 ml-2 border-l pl-3">
+                      <span className="text-xs font-semibold text-gray-500">Tier:</span>
+                      <select
+                        value={customerRecord.customerType || 'new'}
+                        onChange={(e) => updateCustomerTier(e.target.value)}
+                        disabled={updatingTier}
+                        className="border border-gray-300 rounded-lg px-2 py-1 text-xs bg-amber-50 text-amber-800 font-bold hover:bg-amber-100 disabled:opacity-50 transition-colors"
+                      >
+                        <option value="new">New</option>
+                        <option value="silver">Silver</option>
+                        <option value="gold">Gold</option>
+                        <option value="platinum">Platinum</option>
+                        <option value="vip">VIP</option>
+                        <option value="normal">Normal</option>
+                        <option value="repeat">Repeat</option>
+                        <option value="rejected">Rejected</option>
+                      </select>
                     </div>
                   )}
                 </div>

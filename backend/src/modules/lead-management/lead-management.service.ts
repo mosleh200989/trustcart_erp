@@ -650,11 +650,21 @@ export class LeadManagementService {
   } = {}) {
     const { page = 1, limit = 10 } = filters;
     const offset = (page - 1) * limit;
+    const customerPhoneExpr = `NULLIF(regexp_replace(regexp_replace(COALESCE(c.phone, ''), '\\D', '', 'g'), '^88', ''), '')`;
+    const orderPhoneExpr = (alias: string) => `NULLIF(regexp_replace(regexp_replace(COALESCE(${alias}.customer_phone, ''), '\\D', '', 'g'), '^88', ''), '')`;
+    const orderCustomerMatch = (alias: string) => `(
+      ${alias}.customer_id = c.id
+      OR (
+        ${alias}.customer_id IS NULL
+        AND ${customerPhoneExpr} IS NOT NULL
+        AND ${orderPhoneExpr(alias)} = ${customerPhoneExpr}
+      )
+    )`;
 
     // Build search clause
     const searchTerm = (filters.search || '').trim().toLowerCase();
     const searchClause = searchTerm
-      ? `AND (LOWER(c.name) LIKE '%${searchTerm.replace(/'/g, "''")}%' OR LOWER(c.last_name) LIKE '%${searchTerm.replace(/'/g, "''")}%' OR c.phone LIKE '%${searchTerm.replace(/'/g, "''")}%' OR LOWER(c.email) LIKE '%${searchTerm.replace(/'/g, "''")}%' OR c.id::text = '${searchTerm.replace(/'/g, "''")}' OR EXISTS (SELECT 1 FROM sales_orders so2 WHERE so2.customer_id = c.id AND LOWER(so2.sales_order_number) LIKE '%${searchTerm.replace(/'/g, "''")}%'))`
+      ? `AND (LOWER(c.name) LIKE '%${searchTerm.replace(/'/g, "''")}%' OR LOWER(c.last_name) LIKE '%${searchTerm.replace(/'/g, "''")}%' OR c.phone LIKE '%${searchTerm.replace(/'/g, "''")}%' OR LOWER(c.email) LIKE '%${searchTerm.replace(/'/g, "''")}%' OR c.id::text = '${searchTerm.replace(/'/g, "''")}' OR EXISTS (SELECT 1 FROM sales_orders so2 WHERE ${orderCustomerMatch('so2')} AND LOWER(so2.sales_order_number) LIKE '%${searchTerm.replace(/'/g, "''")}%'))`
       : '';
 
     // Rejected customers are only accessible from the Rejected Customers sub-module.
@@ -670,31 +680,59 @@ export class LeadManagementService {
     const orderStatsJoin = `
       INNER JOIN (
         SELECT
-          so.customer_id,
+          matched.customer_id,
           COUNT(*)::int AS order_count,
-          COALESCE(SUM(so.total_amount), 0) AS lifetime_value,
-          COUNT(CASE WHEN LOWER(so.status::text) = 'delivered' THEN 1 END)::int AS delivered_order_count,
-          COUNT(CASE WHEN LOWER(so.status::text) = 'cancelled' THEN 1 END)::int AS cancelled_order_count,
+          COALESCE(SUM(matched.total_amount), 0) AS lifetime_value,
+          COUNT(CASE WHEN LOWER(matched.status::text) = 'delivered' THEN 1 END)::int AS delivered_order_count,
+          COUNT(CASE WHEN LOWER(matched.status::text) = 'cancelled' THEN 1 END)::int AS cancelled_order_count,
           ROUND(
             (
-              COUNT(CASE WHEN LOWER(so.status::text) = 'cancelled' THEN 1 END)::numeric
+              COUNT(CASE WHEN LOWER(matched.status::text) = 'cancelled' THEN 1 END)::numeric
               / NULLIF(
-                COUNT(CASE WHEN LOWER(so.status::text) IN ('delivered', 'cancelled') THEN 1 END)::numeric,
+                COUNT(CASE WHEN LOWER(matched.status::text) IN ('delivered', 'cancelled') THEN 1 END)::numeric,
                 0
               )
             ) * 100,
             2
           ) AS cancelled_order_ratio,
-          COUNT(CASE WHEN so.sales_order_number LIKE 'SO-%' THEN 1 END)::int AS so_order_count,
-          COUNT(CASE WHEN so.sales_order_number LIKE 'LEG-%' THEN 1 END)::int AS leg_order_count,
+          COUNT(CASE WHEN matched.sales_order_number LIKE 'SO-%' THEN 1 END)::int AS so_order_count,
+          COUNT(CASE WHEN matched.sales_order_number LIKE 'LEG-%' THEN 1 END)::int AS leg_order_count,
           MAX(DATE(COALESCE(
+            matched.delivered_at,
+            matched.order_date::timestamp,
+            matched.created_at AT TIME ZONE 'Asia/Dhaka'
+          ))) FILTER (WHERE LOWER(matched.status::text) = 'delivered') AS last_delivery_date
+        FROM (
+          SELECT
+            so.customer_id,
+            so.total_amount,
+            so.status,
+            so.sales_order_number,
             so.delivered_at,
-            so.order_date::timestamp,
-            so.created_at AT TIME ZONE 'Asia/Dhaka'
-          ))) FILTER (WHERE LOWER(so.status::text) = 'delivered') AS last_delivery_date
-        FROM sales_orders so
-        WHERE so.customer_id IS NOT NULL
-        GROUP BY so.customer_id
+            so.order_date,
+            so.created_at
+          FROM sales_orders so
+          WHERE so.customer_id IS NOT NULL
+
+          UNION ALL
+
+          SELECT
+            c_phone.id AS customer_id,
+            so.total_amount,
+            so.status,
+            so.sales_order_number,
+            so.delivered_at,
+            so.order_date,
+            so.created_at
+          FROM sales_orders so
+          INNER JOIN customers c_phone
+            ON c_phone.is_deleted = false
+           AND NULLIF(regexp_replace(regexp_replace(COALESCE(c_phone.phone, ''), '\\D', '', 'g'), '^88', ''), '') IS NOT NULL
+           AND NULLIF(regexp_replace(regexp_replace(COALESCE(so.customer_phone, ''), '\\D', '', 'g'), '^88', ''), '') =
+               NULLIF(regexp_replace(regexp_replace(COALESCE(c_phone.phone, ''), '\\D', '', 'g'), '^88', ''), '')
+          WHERE so.customer_id IS NULL
+        ) matched
+        GROUP BY matched.customer_id
       ) os ON os.customer_id = c.id AND os.delivered_order_count > 0
     `;
 
@@ -705,7 +743,7 @@ export class LeadManagementService {
       ? `AND EXISTS (
           SELECT 1
           FROM sales_orders so_delivered
-          WHERE so_delivered.customer_id = c.id
+          WHERE ${orderCustomerMatch('so_delivered')}
             AND LOWER(so_delivered.status::text) = 'delivered'
             ${deliveryDateStart ? `AND ${deliveryDateExpr} >= '${deliveryDateStart.replace(/'/g, "''")}'::date` : ''}
             ${deliveryDateEnd ? `AND ${deliveryDateExpr} <= '${deliveryDateEnd.replace(/'/g, "''")}'::date` : ''}

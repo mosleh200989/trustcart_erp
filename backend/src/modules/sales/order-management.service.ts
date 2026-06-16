@@ -14,6 +14,7 @@ import { LoyaltyService } from '../loyalty/loyalty.service';
 import { WhatsAppService } from '../messaging/whatsapp.service';
 import { InventoryService } from '../inventory/inventory.service';
 import { MetaCapiService } from './meta-capi.service';
+import { CrmTeamService } from '../crm/crm-team.service';
 
 @Injectable()
 export class OrderManagementService {
@@ -40,6 +41,7 @@ export class OrderManagementService {
     private usersRepository: Repository<User>,
     private inventoryService: InventoryService,
     private metaCapiService: MetaCapiService,
+    private crmTeamService: CrmTeamService,
   ) {}
 
   private formatUserName(u?: Partial<User> | null): string | null {
@@ -1492,6 +1494,20 @@ export class OrderManagementService {
       [tagId, customerId],
     );
     return { success: true, added: rows.length, alreadyPresent: rows.length === 0 };
+  }
+
+  async removeCustomerTagFromOrderModal(customerId: number, tagId: string): Promise<{ success: boolean; removed: number }> {
+    const rows = await this.salesOrderRepository.query(
+      `DELETE FROM customer_tag_assignments
+       WHERE customer_id = $1 AND tag_id = $2
+       RETURNING tag_id`,
+      [customerId, tagId],
+    );
+    return { success: true, removed: rows.length };
+  }
+
+  async updateCustomerTierFromOrderModal(customerId: number, tier: string, actorUserId: number) {
+    return await this.crmTeamService.updateCustomerTier(String(customerId), tier, actorUserId);
   }
 
   async getOrderDetails(orderId: number): Promise<any> {
