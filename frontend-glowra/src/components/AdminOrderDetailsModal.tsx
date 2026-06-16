@@ -578,7 +578,6 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
         anniversaryDate: customerForm.anniversaryDate || null,
         profession: customerForm.profession || null,
         availableTime: customerForm.availableTime || null,
-        customerType: customerForm.customerType || null,
         lifecycleStage: customerForm.lifecycleStage || null,
         status: customerForm.status || null,
         priority: customerForm.priority || null,
