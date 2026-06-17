@@ -1,4 +1,5 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, OnModuleInit } from '@nestjs/common';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Customer } from '../customers/customer.entity';
@@ -8,7 +9,7 @@ import { CallTask } from './entities/call-task.entity';
 import { getDhakaDateString } from '../../common/utils/dhaka-date';
 
 @Injectable()
-export class SalesManagerService {
+export class SalesManagerService implements OnModuleInit {
   private assignmentColumnShapePromise?: Promise<{ assignedBy: boolean; assignedAt: boolean }>;
 
   constructor(
@@ -21,6 +22,21 @@ export class SalesManagerService {
     @InjectRepository(CallTask)
     private callTaskRepo: Repository<CallTask>,
   ) {}
+
+  async onModuleInit() {
+    this.cleanupInvalidTeamLeaderAssignments().catch(err => {
+      console.error('[SalesManagerService] Failed to run startup cleanup:', err);
+    });
+  }
+
+  @Cron(CronExpression.EVERY_HOUR)
+  async handleCleanupCron() {
+    console.log('[SalesManagerService] Running background cleanup of invalid team leader assignments...');
+    const cleanedCount = await this.cleanupInvalidTeamLeaderAssignments();
+    if (cleanedCount > 0) {
+      console.log(`[SalesManagerService] Cleanup completed: ${cleanedCount} assignments cleaned up.`);
+    }
+  }
 
   /**
    * Get all team leaders for visibility only. Team leaders no longer receive
