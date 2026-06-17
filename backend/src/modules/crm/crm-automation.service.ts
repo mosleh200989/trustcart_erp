@@ -28,7 +28,7 @@ export class CrmAutomationService {
   
   async getTodayCallTasks(agentId?: number) {
     const where: any = {
-      task_date: new Date().toISOString().split('T')[0],
+      scheduledDate: new Date().toISOString().split('T')[0],
       status: TaskStatus.PENDING
     };
     
@@ -239,7 +239,7 @@ export class CrmAutomationService {
       call_reason: dto.call_reason || 'Follow-up Call',
       notes: dto.notes || undefined,
       scheduled_time: dto.scheduled_time || undefined,
-      task_date: dto.task_date ? new Date(dto.task_date) : new Date(),
+      scheduledDate: dto.task_date ? new Date(dto.task_date) : new Date(),
       status: TaskStatus.PENDING,
     };
     
