@@ -328,7 +328,7 @@ import { GrnItem } from './modules/purchase/entities/grn-item.entity';
             CampaignCustomer,
           ],
           synchronize: false,
-          logging: true,
+          logging: configService.get<string>('NODE_ENV') === 'development',
           extra: {
             options: '-c timezone=Asia/Dhaka',
           },
