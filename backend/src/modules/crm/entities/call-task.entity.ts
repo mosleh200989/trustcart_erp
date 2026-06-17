@@ -25,8 +25,8 @@ export class CallTask {
   @Column({ nullable: true })
   assigned_agent_id!: number;
 
-  @Column({ type: 'date', default: () => 'CURRENT_DATE' })
-  task_date!: Date;
+  @Column({ name: 'task_date', type: 'date', default: () => 'CURRENT_DATE' })
+  scheduledDate!: Date;
 
   @Column({
     type: 'varchar',

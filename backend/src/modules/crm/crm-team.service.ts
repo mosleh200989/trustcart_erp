@@ -1,4 +1,4 @@
-﻿import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Brackets, Repository, In } from 'typeorm';
 import { Customer } from '../customers/customer.entity';
@@ -1891,7 +1891,7 @@ export class CrmTeamService {
           const task = this.callTaskRepo.create({
             customer_id: c.phone,
             assigned_agent_id: agentId,
-            task_date: date as any,
+            scheduledDate: date as any,
             priority,
             call_reason: reason,
             status: TaskStatus.PENDING,
