@@ -10,7 +10,9 @@ export class PresenceStaleStatusService implements OnModuleInit {
   constructor(private readonly presenceService: PresenceService) {}
 
   onModuleInit() {
+    this.logger.log('Starting onModuleInit for PresenceStaleStatusService');
     this.logger.log(`PresenceStaleStatusService initialized. ENABLE_BACKGROUND_JOBS=${process.env.ENABLE_BACKGROUND_JOBS}`);
+    this.logger.log('Finished onModuleInit for PresenceStaleStatusService');
   }
 
   @Cron(CronExpression.EVERY_MINUTE)

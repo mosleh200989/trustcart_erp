@@ -12,7 +12,9 @@ export class TierSchedulerService implements OnModuleInit {
   constructor(private readonly leadManagementService: LeadManagementService) {}
 
   onModuleInit() {
+    this.logger.log('Starting onModuleInit for TierSchedulerService');
     this.logger.log(`TierSchedulerService initialized. ENABLE_BACKGROUND_JOBS=${process.env.ENABLE_BACKGROUND_JOBS}`);
+    this.logger.log('Finished onModuleInit for TierSchedulerService');
   }
 
   // Runs on the old schedule but intentionally skips automatic tier changes.

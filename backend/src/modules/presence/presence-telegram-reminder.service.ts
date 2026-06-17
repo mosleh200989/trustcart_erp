@@ -30,7 +30,9 @@ export class PresenceTelegramReminderService implements OnModuleInit {
   ) {}
 
   onModuleInit() {
+    this.logger.log('Starting onModuleInit for PresenceTelegramReminderService');
     this.logger.log(`PresenceTelegramReminderService initialized. ENABLE_BACKGROUND_JOBS=${process.env.ENABLE_BACKGROUND_JOBS}`);
+    this.logger.log('Finished onModuleInit for PresenceTelegramReminderService');
   }
 
   @Cron(CronExpression.EVERY_MINUTE)
