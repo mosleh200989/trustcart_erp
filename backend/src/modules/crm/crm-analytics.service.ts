@@ -187,8 +187,8 @@ export class CrmAnalyticsService {
     try {
       todayTotalCalls = await this.callTaskRepository
         .createQueryBuilder('ct')
-        .where('ct.scheduledDate >= :today', { today })
-        .andWhere('ct.scheduledDate < :tomorrow', { tomorrow })
+        .where('ct.task_date >= :today', { today })
+        .andWhere('ct.task_date < :tomorrow', { tomorrow })
         .getCount();
     } catch (e) {
       console.error('Error getting today calls:', e);
@@ -199,8 +199,8 @@ export class CrmAnalyticsService {
     try {
       todayCompletedCalls = await this.callTaskRepository
         .createQueryBuilder('ct')
-        .where('ct.scheduledDate >= :today', { today })
-        .andWhere('ct.scheduledDate < :tomorrow', { tomorrow })
+        .where('ct.task_date >= :today', { today })
+        .andWhere('ct.task_date < :tomorrow', { tomorrow })
         .andWhere('ct.status = :completed', { completed: 'completed' })
         .getCount();
     } catch (e) {
