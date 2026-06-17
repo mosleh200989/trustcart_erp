@@ -1,5 +1,5 @@
-import { Injectable, OnModuleInit } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { Injectable } from '@nestjs/common';
+import { Cron } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Customer } from '../customers/customer.entity';
@@ -7,9 +7,11 @@ import { SalesTeam } from './entities/sales-team.entity';
 import { User } from '../users/user.entity';
 import { CallTask } from './entities/call-task.entity';
 import { getDhakaDateString } from '../../common/utils/dhaka-date';
+import { TenantService } from '../tenant/tenant.service';
+import { TenantContext } from '../tenant/tenant.context';
 
 @Injectable()
-export class SalesManagerService implements OnModuleInit {
+export class SalesManagerService {
   private assignmentColumnShapePromise?: Promise<{ assignedBy: boolean; assignedAt: boolean }>;
 
   constructor(
@@ -21,20 +23,25 @@ export class SalesManagerService implements OnModuleInit {
     private usersRepository: Repository<User>,
     @InjectRepository(CallTask)
     private callTaskRepo: Repository<CallTask>,
+    private readonly tenantService: TenantService,
   ) {}
 
-  async onModuleInit() {
-    this.cleanupInvalidTeamLeaderAssignments().catch(err => {
-      console.error('[SalesManagerService] Failed to run startup cleanup:', err);
-    });
-  }
-
-  @Cron(CronExpression.EVERY_HOUR)
+  @Cron('0 2 * * *') // Daily at 2:00 AM
   async handleCleanupCron() {
-    console.log('[SalesManagerService] Running background cleanup of invalid team leader assignments...');
-    const cleanedCount = await this.cleanupInvalidTeamLeaderAssignments();
-    if (cleanedCount > 0) {
-      console.log(`[SalesManagerService] Cleanup completed: ${cleanedCount} assignments cleaned up.`);
+    console.log('[SalesManagerService] Starting scheduled background cleanup of invalid team leader assignments...');
+    const tenants = this.tenantService.getAllTenants();
+    for (const tenant of tenants) {
+      if (!tenant.isActive) continue;
+      await TenantContext.run(tenant.id, async () => {
+        try {
+          const cleanedCount = await this.cleanupInvalidTeamLeaderAssignments();
+          if (cleanedCount > 0) {
+            console.log(`[SalesManagerService] Cleanup completed: ${cleanedCount} assignments cleaned up for tenant ${tenant.id}.`);
+          }
+        } catch (err: any) {
+          console.error(`[SalesManagerService] Cleanup failed for tenant ${tenant.id}:`, err?.message || err);
+        }
+      });
     }
   }
 
@@ -205,7 +212,6 @@ export class SalesManagerService implements OnModuleInit {
    * Main dashboard data for Sales Manager
    */
   async getDashboard() {
-    await this.cleanupInvalidTeamLeaderAssignments();
     const teamLeaders = await this.getTeamLeaders();
     const tlIds = teamLeaders.map(tl => tl.id);
 
@@ -356,7 +362,6 @@ export class SalesManagerService implements OnModuleInit {
    * Supports selectable page sizes used by the assignment table.
    */
   async getUnassignedLeads(query: any) {
-    await this.cleanupInvalidTeamLeaderAssignments();
     const assignmentShape = await this.getAssignmentColumnShape();
 
     const page = parseInt(query.page) || 1;
@@ -838,7 +843,6 @@ export class SalesManagerService implements OnModuleInit {
    * Get all team leaders list with summary info
    */
   async getTeamLeadersForManager() {
-    await this.cleanupInvalidTeamLeaderAssignments();
     const teamLeaders = await this.getTeamLeaders();
     return teamLeaders.map(tl => ({
       id: tl.id,
