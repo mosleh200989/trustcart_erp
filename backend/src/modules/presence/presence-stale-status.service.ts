@@ -1,16 +1,23 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { PresenceService } from './presence.service';
 
 @Injectable()
-export class PresenceStaleStatusService {
+export class PresenceStaleStatusService implements OnModuleInit {
   private readonly logger = new Logger(PresenceStaleStatusService.name);
   private running = false;
 
   constructor(private readonly presenceService: PresenceService) {}
 
+  onModuleInit() {
+    this.logger.log(`PresenceStaleStatusService initialized. ENABLE_BACKGROUND_JOBS=${process.env.ENABLE_BACKGROUND_JOBS}`);
+  }
+
   @Cron(CronExpression.EVERY_MINUTE)
   async markIdleUsersOffline() {
+    if (process.env.ENABLE_BACKGROUND_JOBS !== 'true') {
+      return;
+    }
     if (this.running) return;
     this.running = true;
     try {

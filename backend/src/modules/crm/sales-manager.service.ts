@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, OnModuleInit } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -11,7 +11,7 @@ import { TenantService } from '../tenant/tenant.service';
 import { TenantContext } from '../tenant/tenant.context';
 
 @Injectable()
-export class SalesManagerService {
+export class SalesManagerService implements OnModuleInit {
   private assignmentColumnShapePromise?: Promise<{ assignedBy: boolean; assignedAt: boolean }>;
 
   constructor(
@@ -26,8 +26,15 @@ export class SalesManagerService {
     private readonly tenantService: TenantService,
   ) {}
 
+  onModuleInit() {
+    console.log(`[SalesManagerService] Cleanup cron initialized. ENABLE_BACKGROUND_JOBS=${process.env.ENABLE_BACKGROUND_JOBS}`);
+  }
+
   @Cron('0 2 * * *') // Daily at 2:00 AM
   async handleCleanupCron() {
+    if (process.env.ENABLE_BACKGROUND_JOBS !== 'true') {
+      return;
+    }
     console.log('[SalesManagerService] Starting scheduled background cleanup of invalid team leader assignments...');
     const tenants = this.tenantService.getAllTenants();
     for (const tenant of tenants) {
