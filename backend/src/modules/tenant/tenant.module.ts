@@ -82,6 +82,7 @@ export class TenantModule implements NestModule, OnModuleInit {
    * additional tenants (glowra) get their own DataSources.
    */
   async onModuleInit(): Promise<void> {
+    this.logger.log('Starting onModuleInit for TenantModule');
     // Reuse the default DataSource for the primary tenant — avoids a duplicate connection.
     this.tenantService.registerDataSource('trustcart', this.defaultDataSource);
 
@@ -91,6 +92,7 @@ export class TenantModule implements NestModule, OnModuleInit {
     // synchronize=false — use pg_dump/pg_restore or migrations for schema setup.
     await this.tenantService.initializeAll(entities, false);
     this.logger.log('All tenant DataSources initialized.');
+    this.logger.log('Finished onModuleInit for TenantModule');
   }
 
   configure(consumer: MiddlewareConsumer): void {

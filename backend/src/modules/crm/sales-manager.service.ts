@@ -27,7 +27,9 @@ export class SalesManagerService implements OnModuleInit {
   ) {}
 
   onModuleInit() {
+    console.log('Starting onModuleInit for SalesManagerService');
     console.log(`[SalesManagerService] Cleanup cron initialized. ENABLE_BACKGROUND_JOBS=${process.env.ENABLE_BACKGROUND_JOBS}`);
+    console.log('Finished onModuleInit for SalesManagerService');
   }
 
   @Cron('0 2 * * *') // Daily at 2:00 AM

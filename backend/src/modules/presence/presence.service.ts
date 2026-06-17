@@ -273,8 +273,16 @@ export class PresenceService {
   async heartbeat(userId: number) {
     const userIdNum = Number(userId);
     const status = await this.getOrCreateStatus(userIdNum);
-    status.lastSeenAt = new Date();
-    const saved = await this.statusRepo.save(status);
+    const now = new Date();
+    const lastSeen = status.lastSeenAt ? new Date(status.lastSeenAt).getTime() : 0;
+
+    let saved = status;
+    // Only update lastSeenAt and save to DB if state changed or last seen was > 30 seconds ago
+    if (status.state !== 'online' || now.getTime() - lastSeen > 30_000) {
+      status.lastSeenAt = now;
+      saved = await this.statusRepo.save(status);
+    }
+
     if (saved.state === 'online') {
       await this.runAutomaticAssignmentForOnlineUser(userIdNum);
     }

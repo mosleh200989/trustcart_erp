@@ -49,9 +49,11 @@ export class InventoryModule implements OnModuleInit {
   constructor(private readonly inventoryService: InventoryService) {}
 
   onModuleInit() {
+    this.logger.log('Starting onModuleInit for InventoryModule');
     this.logger.log(`InventoryModule initialized. ENABLE_BACKGROUND_JOBS=${process.env.ENABLE_BACKGROUND_JOBS}`);
     if (process.env.ENABLE_BACKGROUND_JOBS !== 'true') {
       this.logger.log('Background inventory jobs (reservation cleanup and batch expiry alert checks) are disabled.');
+      this.logger.log('Finished onModuleInit for InventoryModule');
       return;
     }
 
@@ -89,5 +91,6 @@ export class InventoryModule implements OnModuleInit {
         this.logger.warn(`Startup inventory checks failed: ${err?.message}`);
       }
     }, 30 * 1000);
+    this.logger.log('Finished onModuleInit for InventoryModule');
   }
 }

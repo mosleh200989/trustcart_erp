@@ -57,6 +57,7 @@ const SKIP_PATTERNS = [
   /^\/api\/auth\/refresh$/,
   /^\/api\/audit-logs/,
   /^\/api\/telephony\/agents\/me\/status$/,
+  /^\/api\/presence\/heartbeat$/,
 ];
 
 /** Sensitive fields to never log values for */
