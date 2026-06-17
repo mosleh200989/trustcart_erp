@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import axios from 'axios';
@@ -12,7 +12,7 @@ import { UserPresenceStatus } from './entities/user-presence-status.entity';
 type ReminderKind = 'offline_reminder' | 'online_thank_you';
 
 @Injectable()
-export class PresenceTelegramReminderService {
+export class PresenceTelegramReminderService implements OnModuleInit {
   private readonly logger = new Logger(PresenceTelegramReminderService.name);
   private running = false;
 
@@ -29,8 +29,15 @@ export class PresenceTelegramReminderService {
     private readonly userRepo: Repository<User>,
   ) {}
 
+  onModuleInit() {
+    this.logger.log(`PresenceTelegramReminderService initialized. ENABLE_BACKGROUND_JOBS=${process.env.ENABLE_BACKGROUND_JOBS}`);
+  }
+
   @Cron(CronExpression.EVERY_MINUTE)
   async processOfficeStartReminders() {
+    if (process.env.ENABLE_BACKGROUND_JOBS !== 'true') {
+      return;
+    }
     if (this.running) return;
     this.running = true;
     try {

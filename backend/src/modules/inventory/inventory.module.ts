@@ -43,12 +43,20 @@ import { RepackOrder } from './entities/repack-order.entity';
 })
 export class InventoryModule implements OnModuleInit {
   private readonly logger = new Logger('InventoryModule');
-  private cleanupInterval: ReturnType<typeof setInterval>;
-  private expiryInterval: ReturnType<typeof setInterval>;
+  private cleanupInterval?: ReturnType<typeof setInterval>;
+  private expiryInterval?: ReturnType<typeof setInterval>;
 
   constructor(private readonly inventoryService: InventoryService) {}
 
   onModuleInit() {
+    this.logger.log(`InventoryModule initialized. ENABLE_BACKGROUND_JOBS=${process.env.ENABLE_BACKGROUND_JOBS}`);
+    if (process.env.ENABLE_BACKGROUND_JOBS !== 'true') {
+      this.logger.log('Background inventory jobs (reservation cleanup and batch expiry alert checks) are disabled.');
+      return;
+    }
+
+    this.logger.log('Starting background inventory jobs...');
+
     // Run expired reservation cleanup every 5 minutes
     this.cleanupInterval = setInterval(async () => {
       try {
