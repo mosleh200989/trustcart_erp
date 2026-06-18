@@ -74,12 +74,17 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
   const [riderInstructions, setRiderInstructions] = useState('');
   const [internalNotes, setInternalNotes] = useState('');
   const [productSuggestion, setProductSuggestion] = useState('');
+  const [productSuggestionDraft, setProductSuggestionDraft] = useState('');
   const [productSuggestionResults, setProductSuggestionResults] = useState<any[]>([]);
   const [productSuggestionLoading, setProductSuggestionLoading] = useState(false);
   const [showProductSuggestionDropdown, setShowProductSuggestionDropdown] = useState(false);
+  const [isEditingProductSuggestion, setIsEditingProductSuggestion] = useState(false);
   const [savingProductSuggestion, setSavingProductSuggestion] = useState(false);
   const productSuggestionRef = useRef<HTMLDivElement>(null);
   const productSuggestionTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const [editingCustomerNote, setEditingCustomerNote] = useState<'internal' | 'courier' | null>(null);
+  const [customerNoteDraft, setCustomerNoteDraft] = useState('');
+  const [savingCustomerNote, setSavingCustomerNote] = useState(false);
   
   // Courier
   const [showShipModal, setShowShipModal] = useState(false);
@@ -274,12 +279,12 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
   }, []);
 
   const handleProductSuggestionChange = (value: string) => {
-    setProductSuggestion(value);
+    setProductSuggestionDraft(value);
     if (productSuggestionTimerRef.current) clearTimeout(productSuggestionTimerRef.current);
     productSuggestionTimerRef.current = setTimeout(() => searchProductSuggestions(value), 250);
   };
 
-  const saveProductSuggestion = async () => {
+  const saveProductSuggestion = async (nextValue = productSuggestionDraft) => {
     if (!hasPermission('update-order-product-suggestion')) {
       toast.error('You do not have permission to update product suggestion');
       return;
@@ -288,16 +293,72 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
     setSavingProductSuggestion(true);
     try {
       await apiClient.put(`/order-management/${currentOrderId}/product-suggestion`, {
-        productSuggestion: productSuggestion.trim() || null,
+        productSuggestion: nextValue.trim() || null,
       });
-      toast.success('Product suggestion updated');
+      setProductSuggestion(nextValue.trim());
+      setProductSuggestionDraft(nextValue.trim());
+      setIsEditingProductSuggestion(false);
       setShowProductSuggestionDropdown(false);
+      toast.success(nextValue.trim() ? 'Product suggestion updated' : 'Product suggestion deleted');
       await loadOrderDetails();
       onUpdate();
     } catch (error: any) {
       toast.error(error?.response?.data?.message || 'Failed to update product suggestion');
     } finally {
       setSavingProductSuggestion(false);
+    }
+  };
+
+  const startProductSuggestionEdit = () => {
+    setProductSuggestionDraft(productSuggestion || '');
+    setIsEditingProductSuggestion(true);
+  };
+
+  const cancelProductSuggestionEdit = () => {
+    setProductSuggestionDraft(productSuggestion || '');
+    setIsEditingProductSuggestion(false);
+    setShowProductSuggestionDropdown(false);
+  };
+
+  const deleteProductSuggestion = async () => {
+    if (!confirm('Delete this product suggestion?')) return;
+    await saveProductSuggestion('');
+  };
+
+  const startCustomerNoteEdit = (type: 'internal' | 'courier') => {
+    setEditingCustomerNote(type);
+    setCustomerNoteDraft(type === 'internal' ? internalNotes : courierNotes);
+  };
+
+  const cancelCustomerNoteEdit = () => {
+    setEditingCustomerNote(null);
+    setCustomerNoteDraft('');
+  };
+
+  const saveCustomerSummaryNote = async () => {
+    if (!editingCustomerNote) return;
+    const nextInternalNotes = editingCustomerNote === 'internal' ? customerNoteDraft : internalNotes;
+    const nextCourierNotes = editingCustomerNote === 'courier' ? customerNoteDraft : courierNotes;
+
+    setSavingCustomerNote(true);
+    try {
+      await apiClient.put(`/order-management/${currentOrderId}/notes`, {
+        shippingAddress,
+        courierNotes: nextCourierNotes,
+        riderInstructions,
+        internalNotes: nextInternalNotes,
+      });
+      setInternalNotes(nextInternalNotes);
+      setCourierNotes(nextCourierNotes);
+      setEditingCustomerNote(null);
+      setCustomerNoteDraft('');
+      toast.success('Note updated');
+      await loadOrderDetails();
+      onUpdate();
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || 'Failed to update note');
+    } finally {
+      setSavingCustomerNote(false);
     }
   };
 
@@ -398,19 +459,49 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
         duration: e.metadata?.duration || e.duration || '',
         callType: e.metadata?.type || e.callType || '',
       }));
-      const seen = new Set<string>();
-      const uniqueCalls = calls.filter((call: any) => {
-        const key = [
-          call.agentId || call.agentName || '',
-          call.engagementDate || call.createdAt || '',
-          String(call.notes || '').trim(),
-          call.outcome || '',
-          call.productSuggestion || '',
-        ].join('|').toLowerCase();
-        if (seen.has(key)) return false;
-        seen.add(key);
-        return true;
-      });
+      const normalizeText = (value: any) => String(value || '').replace(/\s+/g, ' ').trim().toLowerCase();
+      const getCallTime = (call: any) => {
+        const raw = call.engagementDate || call.createdAt;
+        const time = raw ? new Date(raw).getTime() : NaN;
+        return Number.isFinite(time) ? time : 0;
+      };
+      const sortedCalls = [...calls].sort((a, b) => getCallTime(b) - getCallTime(a));
+      const uniqueCalls: any[] = [];
+      const sameCaller = (a: any, b: any) => {
+        const aId = normalizeText(a.agentId);
+        const bId = normalizeText(b.agentId);
+        const aName = normalizeText(a.agentName);
+        const bName = normalizeText(b.agentName);
+        if (aId && bId) return aId === bId;
+        if (aName && bName) return aName === bName;
+        return normalizeText(a.agentId || a.agentName || 'unknown') === normalizeText(b.agentId || b.agentName || 'unknown');
+      };
+
+      for (const call of sortedCalls) {
+        const noteKey = normalizeText(call.notes);
+        const suggestionKey = normalizeText(call.productSuggestion);
+        const callTime = getCallTime(call);
+        const duplicate = uniqueCalls.find((existing) => {
+          const existingTime = getCallTime(existing);
+          const timeCloseEnough = !callTime || !existingTime || Math.abs(existingTime - callTime) <= 5 * 60 * 1000;
+          return (
+            sameCaller(existing, call) &&
+            normalizeText(existing.notes) === noteKey &&
+            normalizeText(existing.productSuggestion) === suggestionKey &&
+            timeCloseEnough
+          );
+        });
+
+        if (duplicate) {
+          if (!duplicate.outcome && call.outcome) duplicate.outcome = call.outcome;
+          if (!duplicate.productSuggestion && call.productSuggestion) duplicate.productSuggestion = call.productSuggestion;
+          if (!duplicate.agentName && call.agentName) duplicate.agentName = call.agentName;
+          if (!duplicate.agentId && call.agentId) duplicate.agentId = call.agentId;
+          continue;
+        }
+
+        uniqueCalls.push(call);
+      }
       setCallLogs(uniqueCalls);
     } catch (error) {
       console.error('Failed to load call logs:', error);
@@ -479,6 +570,10 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
       setRiderInstructions(data.riderInstructions || '');
       setInternalNotes(data.internalNotes || '');
       setProductSuggestion(data.productSuggestion || data.telephonySuggestion || '');
+      setProductSuggestionDraft(data.productSuggestion || data.telephonySuggestion || '');
+      setIsEditingProductSuggestion(false);
+      setEditingCustomerNote(null);
+      setCustomerNoteDraft('');
 
       // Initialize tracking form for manual completion/edit
       const geo = data.geoLocation || null;
@@ -1950,21 +2045,79 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                 </div>
 
                 <div className="space-y-3">
-                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                  <div
+                    className="bg-amber-50 border border-amber-200 rounded-lg p-4 cursor-pointer transition hover:border-amber-300 hover:bg-amber-100"
+                    onClick={() => editingCustomerNote !== 'internal' && startCustomerNoteEdit('internal')}
+                    title="Click to edit internal notes"
+                  >
                     <div className="text-sm font-semibold text-amber-800 mb-2 flex items-center gap-2">
                       <FaStickyNote /> Internal Notes
                     </div>
-                    <div className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed max-h-28 overflow-y-auto">
-                      {internalNotes?.trim() ? internalNotes : 'N/A'}
-                    </div>
+                    {editingCustomerNote === 'internal' ? (
+                      <div className="space-y-2" onClick={(e) => e.stopPropagation()}>
+                        <textarea
+                          value={customerNoteDraft}
+                          onChange={(e) => setCustomerNoteDraft(e.target.value)}
+                          className="w-full rounded-lg border border-amber-300 bg-white p-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+                          rows={4}
+                          autoFocus
+                        />
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={saveCustomerSummaryNote}
+                            disabled={savingCustomerNote}
+                            className="rounded bg-amber-600 px-3 py-1 text-xs font-semibold text-white hover:bg-amber-700 disabled:opacity-50"
+                          >
+                            {savingCustomerNote ? 'Saving...' : 'Save'}
+                          </button>
+                          <button type="button" onClick={cancelCustomerNoteEdit} className="rounded bg-gray-200 px-3 py-1 text-xs font-semibold text-gray-700 hover:bg-gray-300">
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed max-h-28 overflow-y-auto">
+                        {internalNotes?.trim() ? internalNotes : 'N/A'}
+                      </div>
+                    )}
                   </div>
-                  <div className="bg-sky-50 border border-sky-200 rounded-lg p-4">
+                  <div
+                    className="bg-sky-50 border border-sky-200 rounded-lg p-4 cursor-pointer transition hover:border-sky-300 hover:bg-sky-100"
+                    onClick={() => editingCustomerNote !== 'courier' && startCustomerNoteEdit('courier')}
+                    title="Click to edit courier notes"
+                  >
                     <div className="text-sm font-semibold text-sky-800 mb-2 flex items-center gap-2">
                       <FaShippingFast /> Courier Notes
                     </div>
-                    <div className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed max-h-28 overflow-y-auto">
-                      {courierNotes?.trim() ? courierNotes : 'N/A'}
-                    </div>
+                    {editingCustomerNote === 'courier' ? (
+                      <div className="space-y-2" onClick={(e) => e.stopPropagation()}>
+                        <textarea
+                          value={customerNoteDraft}
+                          onChange={(e) => setCustomerNoteDraft(e.target.value)}
+                          className="w-full rounded-lg border border-sky-300 bg-white p-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400"
+                          rows={4}
+                          autoFocus
+                        />
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={saveCustomerSummaryNote}
+                            disabled={savingCustomerNote}
+                            className="rounded bg-sky-600 px-3 py-1 text-xs font-semibold text-white hover:bg-sky-700 disabled:opacity-50"
+                          >
+                            {savingCustomerNote ? 'Saving...' : 'Save'}
+                          </button>
+                          <button type="button" onClick={cancelCustomerNoteEdit} className="rounded bg-gray-200 px-3 py-1 text-xs font-semibold text-gray-700 hover:bg-gray-300">
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed max-h-28 overflow-y-auto">
+                        {courierNotes?.trim() ? courierNotes : 'N/A'}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1975,11 +2128,11 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                     <div className="text-sm font-semibold text-gray-900 mb-2 flex items-center gap-2">
                       <FaTag className="text-indigo-600" /> Product Suggestion
                     </div>
-                    {canUpdateProductSuggestion ? (
+                    {isEditingProductSuggestion && canUpdateProductSuggestion ? (
                       <div className="relative" ref={productSuggestionRef}>
                         <input
                           type="text"
-                          value={productSuggestion}
+                          value={productSuggestionDraft}
                           onChange={(e) => handleProductSuggestionChange(e.target.value)}
                           onFocus={() => productSuggestionResults.length > 0 && setShowProductSuggestionDropdown(true)}
                           className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
@@ -1996,7 +2149,7 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                                 key={p.id}
                                 type="button"
                                 onClick={() => {
-                                  setProductSuggestion(p.name_en || p.name || p.name_bn || '');
+                                  setProductSuggestionDraft(p.name_en || p.name || p.name_bn || '');
                                   setShowProductSuggestionDropdown(false);
                                 }}
                                 className="w-full text-left px-3 py-2 hover:bg-indigo-50 border-b last:border-b-0"
@@ -2015,14 +2168,46 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                     )}
                   </div>
                   {canUpdateProductSuggestion && (
-                    <button
-                      type="button"
-                      onClick={saveProductSuggestion}
-                      disabled={savingProductSuggestion}
-                      className="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
-                    >
-                      <FaSave /> {savingProductSuggestion ? 'Saving...' : 'Save Suggestion'}
-                    </button>
+                    isEditingProductSuggestion ? (
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => saveProductSuggestion()}
+                          disabled={savingProductSuggestion}
+                          className="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
+                        >
+                          <FaSave /> {savingProductSuggestion ? 'Saving...' : 'Save'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={cancelProductSuggestionEdit}
+                          disabled={savingProductSuggestion}
+                          className="rounded-lg bg-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-300 disabled:opacity-50"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={startProductSuggestionEdit}
+                          className="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700"
+                        >
+                          <FaEdit /> {productSuggestion?.trim() ? 'Edit' : 'Add'}
+                        </button>
+                        {productSuggestion?.trim() && (
+                          <button
+                            type="button"
+                            onClick={deleteProductSuggestion}
+                            disabled={savingProductSuggestion}
+                            className="inline-flex items-center justify-center gap-2 rounded-lg bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-100 disabled:opacity-50"
+                          >
+                            <FaTrash /> Delete
+                          </button>
+                        )}
+                      </div>
+                    )
                   )}
                 </div>
               </div>
