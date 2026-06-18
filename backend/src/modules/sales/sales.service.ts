@@ -504,7 +504,10 @@ export class SalesService {
         const reason = String(options.reason || 'online_agent_auto_assignment').slice(0, 100);
 
         const assignedOrderIds = new Set<string>();
-        while (assignedOrderIds.size < orders.length) {
+        const maxAssignmentAttempts = orders.length * Math.max(agents.length, 1);
+        let assignmentAttempts = 0;
+        while (assignedOrderIds.size < orders.length && assignmentAttempts < maxAssignmentAttempts) {
+          assignmentAttempts += 1;
           agents.sort((a, b) => {
             const loadDiff = a.activeCount - b.activeCount;
             if (loadDiff !== 0) return loadDiff;
@@ -545,6 +548,7 @@ export class SalesService {
             });
           const order = matchingOrders[0];
           if (!order) break;
+          const orderKey = `${order.record_type}:${Number(order.id)}`;
 
           const updatedRows: Array<{ id: number }> = order.record_type === 'incomplete_order'
             ? await manager.query(
@@ -576,7 +580,10 @@ export class SalesService {
                 [Number(order.id), agent.agentId, agent.teamLeaderId, this.webOrderSources],
               );
 
-          if (updatedRows.length === 0) continue;
+          if (updatedRows.length === 0) {
+            assignedOrderIds.add(orderKey);
+            continue;
+          }
 
           await manager.query(
             `INSERT INTO automatic_order_assignment_logs
@@ -592,7 +599,7 @@ export class SalesService {
             ],
           );
 
-          assignedOrderIds.add(`${order.record_type}:${Number(order.id)}`);
+          assignedOrderIds.add(orderKey);
           agent.activeCount += 1;
           agent.assignedToday += 1;
           result.assignedCount += 1;
