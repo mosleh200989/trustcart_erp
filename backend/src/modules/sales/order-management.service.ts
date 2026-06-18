@@ -1525,11 +1525,11 @@ export class OrderManagementService {
     const email = order.customerEmail ? String(order.customerEmail).trim() : '';
     const phone = order.customerPhone ? String(order.customerPhone).trim() : '';
     if (email) {
-      const customer = await this.customersService.findByEmail(email);
+      const customer = await this.customersService.findOrderDetailsSummaryByEmail(email);
       if (customer?.id) return Number(customer.id);
     }
     if (phone) {
-      const customer = await this.customersService.findByPhone(phone);
+      const customer = await this.customersService.findOrderDetailsSummaryByPhone(phone);
       if (customer?.id) return Number(customer.id);
     }
     return null;
@@ -1909,12 +1909,12 @@ export class OrderManagementService {
     let matchedCustomer: any | null = null;
     if (customerId) {
       try {
-        matchedCustomer = await this.customersService.findOne(String(customerId));
+        matchedCustomer = await this.customersService.findOrderDetailsSummaryById(customerId);
       } catch { /* not found */ }
     }
-    if (!matchedCustomer && customerEmail) matchedCustomer = await this.customersService.findByEmail(customerEmail);
+    if (!matchedCustomer && customerEmail) matchedCustomer = await this.customersService.findOrderDetailsSummaryByEmail(customerEmail);
     if (!matchedCustomer && customerPhone) {
-      matchedCustomer = await this.customersService.findByPhone(customerPhone);
+      matchedCustomer = await this.customersService.findOrderDetailsSummaryByPhone(customerPhone);
     }
 
     const matchedName = matchedCustomer

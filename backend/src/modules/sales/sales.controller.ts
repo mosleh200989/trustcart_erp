@@ -255,7 +255,7 @@ export class SalesController {
         source: source || '',
         landingPage: landingPage || '',
         assignment: assignment || '',
-        totalCancelledOrders: totalCancelledOrders ? parseInt(totalCancelledOrders, 10) : undefined,
+        totalCancelledOrders: totalCancelledOrders || '',
         orderRejectedReason: orderRejectedReason || '',
       });
     }

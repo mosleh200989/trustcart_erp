@@ -1456,6 +1456,9 @@ export default function AdminSales() {
                     { value: '1', label: '1 time' },
                     { value: '2', label: '2 times' },
                     { value: '3', label: '3 times' },
+                    { value: '4', label: '4 times' },
+                    { value: '5', label: '5 times' },
+                    { value: '6plus', label: '6+ times' },
                   ]}
                 />
                 <FormInput

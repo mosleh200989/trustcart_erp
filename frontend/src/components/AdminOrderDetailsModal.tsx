@@ -1549,7 +1549,7 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
           
           {canHoldOrCancel && order.status !== 'cancelled' && order.status !== 'admin_cancelled' && (
             <button onClick={() => setShowCancelModal(true)} className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 flex items-center gap-2">
-              <FaBan /> Cancel
+              <FaBan /> Reject
             </button>
           )}
 
@@ -3593,14 +3593,14 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
           </div>
         )}
 
-        {/* Cancel Modal */}
+        {/* Reject Modal */}
         {showCancelModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-white p-6 rounded-lg max-w-md w-full">
-              <h3 className="text-xl font-bold mb-4 text-red-600">Cancel Order</h3>
+              <h3 className="text-xl font-bold mb-4 text-red-600">Reject Order</h3>
               <div className="space-y-3">
                 <div>
-                  <label className="block font-semibold mb-1">Cancel Reason *</label>
+                  <label className="block font-semibold mb-1">Reject Reason *</label>
                   <select
                     value={cancelReason}
                     onChange={(e) => setCancelReason(e.target.value)}
@@ -3615,7 +3615,7 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
               </div>
               <div className="flex gap-3 mt-6">
                 <button onClick={cancelOrder} className="bg-red-600 text-white px-6 py-2 rounded hover:bg-red-700 flex-1">
-                  Confirm Cancel
+                  Confirm Reject
                 </button>
                 <button onClick={() => setShowCancelModal(false)} className="bg-gray-400 text-white px-6 py-2 rounded hover:bg-gray-500">
                   Close

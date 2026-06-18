@@ -3,13 +3,16 @@ import AdminLayout from '@/layouts/AdminLayout';
 import DataTable from '@/components/admin/DataTable';
 import PageSizeSelector from '@/components/admin/PageSizeSelector';
 import FormInput from '@/components/admin/FormInput';
+import Modal from '@/components/admin/Modal';
+import ProductAutocomplete from '@/components/admin/ProductAutocomplete';
 import AdminOrderDetailsModal from '@/components/AdminOrderDetailsModal';
 import { getOrderStatusLabel, getOrderStatusColor } from '@/utils/orderStatus';
-import { FaSearch, FaFilter, FaTimes, FaEye, FaStickyNote, FaExternalLinkAlt, FaCheck } from 'react-icons/fa';
+import { FaSearch, FaFilter, FaTimes, FaEye, FaStickyNote, FaExternalLinkAlt, FaCheck, FaUserCheck, FaUserEdit, FaUserSlash } from 'react-icons/fa';
 import apiClient from '@/services/api';
 import { useToast } from '@/contexts/ToastContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { getDhakaDateString } from '@/utils/dhakaDate';
+import { ORDER_REJECTION_REASON_OPTIONS } from '@/constants/adminOptions';
 
 interface SalesOrder {
   id: number;
@@ -54,6 +57,16 @@ interface SalesOrder {
   createdBy?: number | null;
   created_by_name?: string | null;
   createdByName?: string | null;
+  assigned_to?: number | null;
+  assignedTo?: number | null;
+  assigned_to_name?: string | null;
+  assignedToName?: string | null;
+  assigned_at?: string | null;
+  assignedAt?: string | null;
+  telephony_called_at?: string | null;
+  telephony_outcome?: string | null;
+  cancel_reason?: string | null;
+  cancelReason?: string | null;
 
   items?: { productName: string | null; productNameBn?: string | null; variantName?: string | null; quantity: number }[];
 
@@ -104,6 +117,9 @@ const INITIAL_FILTERS = {
   shippedTo: '',
   status: '',
   source: '',
+  cancelReason: '',
+  productName: '',
+  totalCancelledOrders: '',
 };
 
 type SalesFollowupMode = 'late-delivery' | 'cancelled-orders' | 'rejected-orders';
@@ -214,7 +230,7 @@ function parseNoteMeta(fullNote: string | null | undefined): { date: string; age
 export function SalesFollowupOrdersPage({ mode = 'late-delivery' }: { mode?: SalesFollowupMode }) {
   const config = MODE_CONFIG[mode];
   const toast = useToast();
-  const { user: authUser } = useAuth();
+  const { user: authUser, hasPermission } = useAuth();
   const [orders, setOrders] = useState<SalesOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState(INITIAL_FILTERS);
@@ -223,6 +239,16 @@ export function SalesFollowupOrdersPage({ mode = 'late-delivery' }: { mode?: Sal
   const [itemsPerPage, setItemsPerPage] = useState(50);
   const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
   const [showOrderDetails, setShowOrderDetails] = useState(false);
+  const [selectedRowIds, setSelectedRowIds] = useState<Array<number | string>>([]);
+  const [assignmentAgents, setAssignmentAgents] = useState<{ id: number; name: string; inMyTeam?: boolean }[]>([]);
+  const [assignmentOrder, setAssignmentOrder] = useState<SalesOrder | null>(null);
+  const [isBulkAssignmentOpen, setIsBulkAssignmentOpen] = useState(false);
+  const [selectedAssignAgentId, setSelectedAssignAgentId] = useState('');
+  const [savingAssignment, setSavingAssignment] = useState(false);
+  const canManageOrderAssignment = hasPermission('manage-order-assignment') || hasPermission('manage-assigned-orders');
+  const isCancelledOrdersMode = mode === 'cancelled-orders';
+  const isRejectedOrdersMode = mode === 'rejected-orders';
+  const hasAssignmentSystem = isCancelledOrdersMode || isRejectedOrdersMode;
 
   // Dedicated search state with debounce
   const [searchInput, setSearchInput] = useState('');
@@ -265,6 +291,11 @@ export function SalesFollowupOrdersPage({ mode = 'late-delivery' }: { mode?: Sal
     apiClient.get('/sales/source-options')
       .then((res) => setSourceOptions(Array.isArray(res.data) ? res.data : []))
       .catch(() => setSourceOptions([]));
+    if (hasAssignmentSystem) {
+      apiClient.get('/sales/order-assignment-agents')
+        .then((res) => setAssignmentAgents(Array.isArray(res.data) ? res.data : []))
+        .catch(() => setAssignmentAgents([]));
+    }
   }, []);
 
   const load = async () => {
@@ -343,6 +374,39 @@ export function SalesFollowupOrdersPage({ mode = 'late-delivery' }: { mode?: Sal
       setSavingStatus((prev) => ({ ...prev, [orderId]: false }));
     }
   }, [toast]);
+
+  const cancelledOrderCountByCustomer = useMemo(() => {
+    const normalizePhone = (value: any) => String(value || '').replace(/^\+88/, '').trim();
+    const getCustomerKey = (order: SalesOrder) => {
+      const customerId = Number((order as any).customer_id ?? (order as any).customerId);
+      if (Number.isFinite(customerId) && customerId > 0) return `customer:${customerId}`;
+      const phone = normalizePhone(order.customerPhone ?? order.customer_phone);
+      return phone ? `phone:${phone}` : `order:${order.id}`;
+    };
+
+    const counts = new Map<string, number>();
+    for (const order of orders) {
+      const key = getCustomerKey(order);
+      counts.set(key, (counts.get(key) || 0) + 1);
+    }
+
+    return { counts, getCustomerKey };
+  }, [orders]);
+
+  const cancelReasonOptions = useMemo(() => {
+    const knownReasons = new Set<string>(ORDER_REJECTION_REASON_OPTIONS.map((option) => option.value));
+    const extraReasons = new Set<string>();
+    for (const order of orders) {
+      const reason = String(order.cancelReason ?? order.cancel_reason ?? '').trim();
+      if (reason && !knownReasons.has(reason)) extraReasons.add(reason);
+    }
+    return [
+      ...ORDER_REJECTION_REASON_OPTIONS,
+      ...Array.from(extraReasons)
+        .sort((a, b) => a.localeCompare(b))
+        .map((reason) => ({ value: reason, label: reason })),
+    ];
+  }, [orders]);
 
   const filtered = useMemo(() => {
     const normalize = (v: any) => (v ?? '').toString().toLowerCase().trim();
@@ -424,17 +488,122 @@ export function SalesFollowupOrdersPage({ mode = 'late-delivery' }: { mode?: Sal
       if (!includes(courierCompany, filters.courierCompany)) return false;
       if (filters.source && !matchesSourceFilter(o, filters.source)) return false;
       if (!inDateRange(relevantDate, filters.shippedFrom, filters.shippedTo)) return false;
+      if (filters.cancelReason && normalize(o.cancelReason ?? o.cancel_reason) !== normalize(filters.cancelReason)) return false;
+      if (filters.productName.trim()) {
+        const productFilter = normalize(filters.productName);
+        const itemHaystack = (o.items || [])
+          .flatMap((item) => [item.productName, item.productNameBn, item.variantName])
+          .map((v) => normalize(v))
+          .join(' ');
+        if (!itemHaystack.includes(productFilter)) return false;
+      }
+      if (filters.totalCancelledOrders) {
+        const totalCancelled = cancelledOrderCountByCustomer.counts.get(cancelledOrderCountByCustomer.getCustomerKey(o)) || 0;
+        if (filters.totalCancelledOrders === '6plus') {
+          if (totalCancelled < 6) return false;
+        } else if (totalCancelled !== Number(filters.totalCancelledOrders)) {
+          return false;
+        }
+      }
 
       return true;
     });
-  }, [orders, filters, searchQuery, config]);
+  }, [orders, filters, searchQuery, config, cancelledOrderCountByCustomer]);
 
   useEffect(() => {
     setCurrentPage(1);
+    setSelectedRowIds([]);
   }, [filters, searchQuery]);
 
   const totalPages = Math.ceil(filtered.length / itemsPerPage);
   const paginated = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  const selectedOrders = useMemo(() => {
+    const selectedSet = new Set(selectedRowIds.map((id) => Number(id)));
+    return orders.filter((order) => selectedSet.has(order.id));
+  }, [orders, selectedRowIds]);
+
+  const openAssignmentModal = (order: SalesOrder) => {
+    if (!canManageOrderAssignment) {
+      toast.error('You do not have permission to assign orders');
+      return;
+    }
+    setAssignmentOrder(order);
+    setSelectedAssignAgentId(order.assigned_to ? String(order.assigned_to) : '');
+  };
+
+  const openBulkAssignmentModal = () => {
+    if (!canManageOrderAssignment) {
+      toast.error('You do not have permission to assign orders');
+      return;
+    }
+    if (selectedOrders.length === 0) {
+      toast.warning('Select at least one order');
+      return;
+    }
+    setAssignmentOrder(null);
+    setSelectedAssignAgentId('');
+    setIsBulkAssignmentOpen(true);
+  };
+
+  const closeAssignmentModal = () => {
+    setAssignmentOrder(null);
+    setIsBulkAssignmentOpen(false);
+    setSelectedAssignAgentId('');
+  };
+
+  const saveAssignment = async () => {
+    if (!assignmentOrder && !isBulkAssignmentOpen) return;
+    if (!canManageOrderAssignment) return toast.error('You do not have permission to assign orders');
+    const agentId = Number(selectedAssignAgentId);
+    if (!Number.isFinite(agentId) || agentId <= 0) return toast.warning('Select an agent first');
+
+    const targetOrders = assignmentOrder ? [assignmentOrder] : selectedOrders;
+    setSavingAssignment(true);
+    try {
+      const res = await apiClient.put('/sales/order-assignments/bulk-assign', {
+        orderIds: targetOrders.map((order) => order.id),
+        agentId,
+      });
+      toast.success(assignmentOrder
+        ? (assignmentOrder.assigned_to ? 'Assignment updated' : 'Order assigned')
+        : `Assigned ${res.data?.assignedCount ?? targetOrders.length} order(s)`);
+      setSelectedRowIds([]);
+      closeAssignmentModal();
+      await load();
+    } catch (e: any) {
+      toast.error(e?.response?.data?.message || 'Failed to save assignment');
+      await load();
+    } finally {
+      setSavingAssignment(false);
+    }
+  };
+
+  const bulkUnassignOrders = async () => {
+    if (!canManageOrderAssignment) return toast.error('You do not have permission to unassign orders');
+    const ids = selectedOrders.filter((order) => order.assigned_to).map((order) => order.id);
+    if (ids.length === 0) return toast.warning('Select at least one assigned order');
+    if (!confirm(`Unassign ${ids.length} selected order(s)?`)) return;
+    try {
+      const res = await apiClient.put('/sales/order-assignments/bulk-unassign', { orderIds: ids });
+      toast.success(`Unassigned ${res.data?.unassignedCount ?? ids.length} order(s)`);
+      setSelectedRowIds([]);
+      await load();
+    } catch (e: any) {
+      toast.error(e?.response?.data?.message || 'Failed to unassign orders');
+    }
+  };
+
+  const unassignOrder = async (orderId: number) => {
+    if (!canManageOrderAssignment) return toast.error('You do not have permission to unassign orders');
+    if (!confirm('Unassign this order?')) return;
+    try {
+      await apiClient.put('/sales/order-assignments/bulk-unassign', { orderIds: [orderId] });
+      toast.success('Order unassigned');
+      await load();
+    } catch (e: any) {
+      toast.error(e?.response?.data?.message || 'Failed to unassign order');
+    }
+  };
 
   const handleCourierLinkClick = useCallback((orderId: number) => {
     setHighlightedCourierRowId(orderId);
@@ -453,56 +622,58 @@ export function SalesFollowupOrdersPage({ mode = 'late-delivery' }: { mode?: Sal
         return <span className="text-gray-700">{phone}</span>;
       },
     },
-    {
-      key: 'courierOrderId',
-      label: 'Courier ID',
-      render: (_: any, row: SalesOrder) => {
-        const cid = row.courierOrderId ?? row.courier_order_id;
-        if (!cid) return <span className="text-gray-400">-</span>;
-        const trackingUrl = getCourierTrackingUrl(
-          row.courierCompany ?? row.courier_company,
-          row.trackingId ?? row.tracking_id,
-          row.courierOrderId ?? row.courier_order_id,
-        );
-        if (trackingUrl) {
-          return (
-            <a
-              href={trackingUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-blue-600 hover:text-blue-800 underline flex items-center gap-1"
-              onClick={(e) => {
-                e.stopPropagation();
-                handleCourierLinkClick(row.id);
-              }}
-            >
-              {cid}
-              <FaExternalLinkAlt className="text-[10px]" />
-            </a>
+    ...(!isRejectedOrdersMode ? [
+      {
+        key: 'courierOrderId',
+        label: 'Courier ID',
+        render: (_: any, row: SalesOrder) => {
+          const cid = row.courierOrderId ?? row.courier_order_id;
+          if (!cid) return <span className="text-gray-400">-</span>;
+          const trackingUrl = getCourierTrackingUrl(
+            row.courierCompany ?? row.courier_company,
+            row.trackingId ?? row.tracking_id,
+            row.courierOrderId ?? row.courier_order_id,
           );
-        }
-        return <span>{cid}</span>;
+          if (trackingUrl) {
+            return (
+              <a
+                href={trackingUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-600 hover:text-blue-800 underline flex items-center gap-1"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleCourierLinkClick(row.id);
+                }}
+              >
+                {cid}
+                <FaExternalLinkAlt className="text-[10px]" />
+              </a>
+            );
+          }
+          return <span>{cid}</span>;
+        },
       },
-    },
-    {
-      key: 'courier',
-      label: 'Courier',
-      render: (_: any, row: SalesOrder) => {
-        const company = row.courierCompany ?? row.courier_company ?? '-';
-        const colorMap: Record<string, string> = {
-          steadfast: 'bg-blue-100 text-blue-800',
-          pathao: 'bg-red-100 text-red-800',
-          redx: 'bg-orange-100 text-orange-800',
-        };
-        const key = (company || '').toLowerCase().trim();
-        const cls = Object.entries(colorMap).find(([k]) => key.includes(k))?.[1] || 'bg-gray-100 text-gray-800';
-        return (
-          <span className={`px-2 py-1 rounded-full text-xs font-semibold ${cls}`}>
-            {company}
-          </span>
-        );
+      {
+        key: 'courier',
+        label: 'Courier',
+        render: (_: any, row: SalesOrder) => {
+          const company = row.courierCompany ?? row.courier_company ?? '-';
+          const colorMap: Record<string, string> = {
+            steadfast: 'bg-blue-100 text-blue-800',
+            pathao: 'bg-red-100 text-red-800',
+            redx: 'bg-orange-100 text-orange-800',
+          };
+          const key = (company || '').toLowerCase().trim();
+          const cls = Object.entries(colorMap).find(([k]) => key.includes(k))?.[1] || 'bg-gray-100 text-gray-800';
+          return (
+            <span className={`px-2 py-1 rounded-full text-xs font-semibold ${cls}`}>
+              {company}
+            </span>
+          );
+        },
       },
-    },
+    ] : []),
     {
       key: 'shippedAt',
       label: config.dateColumnLabel,
@@ -615,6 +786,55 @@ export function SalesFollowupOrdersPage({ mode = 'late-delivery' }: { mode?: Sal
         );
       },
     },
+    ...(hasAssignmentSystem ? [{
+      key: 'assigned_to_name',
+      label: 'Assigned',
+      render: (_: any, row: SalesOrder) => {
+        const assignedAt = formatDateTime(row.assigned_at ?? row.assignedAt);
+        return (
+          <div className="min-w-[150px] text-xs">
+            <div className="mb-2">
+              {row.assigned_to ? (
+                <>
+                  <div className="font-semibold text-gray-800">{row.assigned_to_name || `User #${row.assigned_to}`}</div>
+                  {row.assigned_at && <div className="text-gray-500">{assignedAt.date}</div>}
+                  {row.telephony_called_at && <div className="text-emerald-600">Called</div>}
+                  {row.telephony_outcome && <div className="text-gray-500">{String(row.telephony_outcome).replace(/_/g, ' ')}</div>}
+                </>
+              ) : (
+                <span className="inline-flex rounded-full bg-amber-100 px-2 py-1 font-semibold text-amber-700">Unassigned</span>
+              )}
+            </div>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openAssignmentModal(row);
+                }}
+                disabled={!canManageOrderAssignment}
+                className="rounded p-1.5 text-emerald-600 hover:bg-emerald-50 hover:text-emerald-800 disabled:cursor-not-allowed disabled:opacity-35"
+                title={row.assigned_to ? 'Update assignment' : 'Assign'}
+              >
+                {row.assigned_to ? <FaUserEdit size={14} /> : <FaUserCheck size={14} />}
+              </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  unassignOrder(row.id);
+                }}
+                disabled={!row.assigned_to || !canManageOrderAssignment}
+                className="rounded p-1.5 text-red-600 hover:bg-red-50 hover:text-red-800 disabled:cursor-not-allowed disabled:opacity-35"
+                title="Unassign"
+              >
+                <FaUserSlash size={14} />
+              </button>
+            </div>
+          </div>
+        );
+      },
+    }] : []),
     {
       key: 'status',
       label: 'Status',
@@ -781,22 +1001,26 @@ export function SalesFollowupOrdersPage({ mode = 'late-delivery' }: { mode?: Sal
             <div className="p-5">
               {/* Filter grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <FormInput
-                  label="Order Status"
-                  name="status"
-                  type="select"
-                  value={filters.status}
-                  onChange={handleFilterChange}
-                  options={config.statusOptions}
-                />
-                <FormInput
-                  label="Courier Company"
-                  name="courierCompany"
-                  type="select"
-                  value={filters.courierCompany}
-                  onChange={handleFilterChange}
-                  options={COURIER_COMPANY_OPTIONS}
-                />
+                {!isRejectedOrdersMode && (
+                  <>
+                    <FormInput
+                      label="Order Status"
+                      name="status"
+                      type="select"
+                      value={filters.status}
+                      onChange={handleFilterChange}
+                      options={config.statusOptions}
+                    />
+                    <FormInput
+                      label="Courier Company"
+                      name="courierCompany"
+                      type="select"
+                      value={filters.courierCompany}
+                      onChange={handleFilterChange}
+                      options={COURIER_COMPANY_OPTIONS}
+                    />
+                  </>
+                )}
                 <FormInput
                   label="Source"
                   name="source"
@@ -808,7 +1032,72 @@ export function SalesFollowupOrdersPage({ mode = 'late-delivery' }: { mode?: Sal
                 />
                 <FormInput label={config.dateFromLabel} name="shippedFrom" type="date" value={filters.shippedFrom} onChange={handleFilterChange} />
                 <FormInput label={config.dateToLabel} name="shippedTo" type="date" value={filters.shippedTo} onChange={handleFilterChange} />
+                {(isCancelledOrdersMode || isRejectedOrdersMode) && (
+                  <>
+                    <FormInput
+                      label={isRejectedOrdersMode ? 'Rejection Reason' : 'Reject Reason'}
+                      name="cancelReason"
+                      type="select"
+                      value={filters.cancelReason}
+                      onChange={handleFilterChange}
+                      selectPlaceholder="All Reasons"
+                      options={cancelReasonOptions}
+                    />
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Product</label>
+                      <ProductAutocomplete
+                        value={filters.productName}
+                        onChange={(val) => setFilters((prev) => ({ ...prev, productName: val }))}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      />
+                    </div>
+                    <FormInput
+                      label={isRejectedOrdersMode ? 'Total Rejected Orders' : 'Total Cancelled Orders'}
+                      name="totalCancelledOrders"
+                      type="select"
+                      value={filters.totalCancelledOrders}
+                      onChange={handleFilterChange}
+                      selectPlaceholder="All"
+                      options={[
+                        { value: '1', label: '1 time' },
+                        { value: '2', label: '2 times' },
+                        { value: '3', label: '3 times' },
+                        { value: '4', label: '4 times' },
+                        { value: '5', label: '5 times' },
+                        { value: '6plus', label: '6+ times' },
+                      ]}
+                    />
+                  </>
+                )}
               </div>
+            </div>
+          </div>
+        )}
+
+        {hasAssignmentSystem && (
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+            <div className="text-sm text-gray-600">
+              <span className="font-semibold text-gray-900">{selectedRowIds.length}</span> selected
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={openBulkAssignmentModal}
+                disabled={selectedRowIds.length === 0 || !canManageOrderAssignment}
+                className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50 hover:bg-emerald-700"
+              >
+                <FaUserCheck />
+                Bulk Assign
+              </button>
+              <button
+                type="button"
+                onClick={bulkUnassignOrders}
+                disabled={selectedRowIds.length === 0 || !canManageOrderAssignment}
+                className="inline-flex items-center gap-2 rounded-lg bg-red-600 px-3 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50 hover:bg-red-700"
+              >
+                <FaUserSlash />
+                Bulk Unassign
+              </button>
             </div>
           </div>
         )}
@@ -829,6 +1118,11 @@ export function SalesFollowupOrdersPage({ mode = 'late-delivery' }: { mode?: Sal
           columns={columns}
           data={paginated}
           loading={loading}
+          selection={hasAssignmentSystem ? {
+            selectedRowIds,
+            onChange: setSelectedRowIds,
+            getRowId: (row: SalesOrder) => row.id,
+          } : undefined}
           currentPage={currentPage}
           totalPages={totalPages}
           onPageChange={setCurrentPage}
@@ -838,6 +1132,67 @@ export function SalesFollowupOrdersPage({ mode = 'late-delivery' }: { mode?: Sal
               : ''
           }
         />
+
+        {hasAssignmentSystem && (
+          <Modal
+            isOpen={assignmentOrder != null || isBulkAssignmentOpen}
+            onClose={closeAssignmentModal}
+            title={isBulkAssignmentOpen ? 'Bulk Assign Orders' : assignmentOrder?.assigned_to ? 'Update Assignment' : 'Assign Order'}
+            footer={
+              <>
+                <button
+                  type="button"
+                  onClick={closeAssignmentModal}
+                  disabled={savingAssignment}
+                  className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={saveAssignment}
+                  disabled={savingAssignment || !selectedAssignAgentId}
+                  className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {savingAssignment ? 'Saving...' : 'Save Assignment'}
+                </button>
+              </>
+            }
+          >
+            <div className="space-y-4">
+              <div className="rounded-lg bg-gray-50 p-4">
+                <div className="text-sm text-gray-500">{isBulkAssignmentOpen ? 'Selected Orders' : 'Order'}</div>
+                <div className="font-semibold text-gray-900">
+                  {isBulkAssignmentOpen
+                    ? `${selectedOrders.length} order(s)`
+                    : assignmentOrder?.sales_order_number || assignmentOrder?.salesOrderNumber || assignmentOrder?.order_number || assignmentOrder?.id}
+                </div>
+                {!isBulkAssignmentOpen && (
+                  <div className="mt-1 text-sm text-gray-600">
+                    Current: {assignmentOrder?.assigned_to_name || 'Unassigned'}
+                  </div>
+                )}
+              </div>
+
+              <FormInput
+                label="Agent"
+                name="agentId"
+                type="select"
+                value={selectedAssignAgentId}
+                onChange={(e) => setSelectedAssignAgentId(e.target.value)}
+                selectPlaceholder="Select agent"
+                options={assignmentAgents.map((agent) => ({
+                  value: agent.id,
+                  label: agent.inMyTeam === false ? `${agent.name} (other team)` : agent.name,
+                }))}
+              />
+
+              <p className="text-sm text-gray-500">
+                Choose an agent and save. If assignment permissions or team ownership changed, the server will reject the action and refresh the list.
+              </p>
+            </div>
+          </Modal>
+        )}
 
         {/* Order Details Modal */}
         {showOrderDetails && selectedOrderId && (
