@@ -117,8 +117,8 @@ const MODE_CONFIG = {
     dateFromLabel: 'Shipped From',
     dateToLabel: 'Shipped To',
     emptyLoadMessage: 'Failed to load late deliveries:',
-    notePayloadKey: 'lateDeliveryNote',
-    noteField: (row: SalesOrder) => row.late_delivery_note || row.internal_notes || '',
+    notePayloadKey: 'courierNotes',
+    noteField: (row: SalesOrder) => row.courier_notes || row.late_delivery_note || row.internal_notes || '',
     dateField: (row: SalesOrder) => row.shippedAt ?? row.shipped_at ?? null,
     statusOptions: STATUS_OPTIONS,
     manualStatusOptions: MANUAL_STATUS_OPTIONS,
@@ -302,9 +302,15 @@ export function SalesFollowupOrdersPage({ mode = 'late-delivery' }: { mode?: Sal
         [config.notePayloadKey]: formattedNote || null,
       });
 
+      const noteField =
+        String(config.notePayloadKey) === 'courierNotes'
+          ? 'courier_notes'
+          : String(config.notePayloadKey) === 'lateDeliveryNote'
+            ? 'late_delivery_note'
+            : 'cancelled_order_note';
       setOrders((prev) =>
         prev.map((o) =>
-          o.id === orderId ? { ...o, [config.notePayloadKey === 'lateDeliveryNote' ? 'late_delivery_note' : 'cancelled_order_note']: formattedNote || null } : o,
+          o.id === orderId ? { ...o, [noteField]: formattedNote || null } : o,
         ),
       );
       setEditingNotes((prev) => {
@@ -408,7 +414,7 @@ export function SalesFollowupOrdersPage({ mode = 'late-delivery' }: { mode?: Sal
       // Filter panel (q field removed, kept for old compatibility)
       const q = normalize(filters.q);
       if (q) {
-        const haystack = [o.id, customerName, customerPhone, courierCompany, o.status, o.notes, o.internal_notes]
+        const haystack = [o.id, customerName, customerPhone, courierCompany, o.status, o.notes, o.courier_notes, o.internal_notes]
           .map((v) => normalize(v))
           .join(' ');
         if (!haystack.includes(q)) return false;

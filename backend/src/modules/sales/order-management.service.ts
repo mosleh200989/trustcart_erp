@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, ConflictException, NotFoundException, HttpException, HttpStatus, Logger } from '@nestjs/common';
+import { Injectable, BadRequestException, ConflictException, NotFoundException, HttpException, HttpStatus, Logger, Inject, forwardRef } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { SalesOrder } from './sales-order.entity';
@@ -14,7 +14,7 @@ import { LoyaltyService } from '../loyalty/loyalty.service';
 import { WhatsAppService } from '../messaging/whatsapp.service';
 import { InventoryService } from '../inventory/inventory.service';
 import { MetaCapiService } from './meta-capi.service';
-import { CrmTeamService } from '../crm/crm-team.service';
+import { LeadManagementService } from '../lead-management/lead-management.service';
 
 @Injectable()
 export class OrderManagementService {
@@ -41,7 +41,8 @@ export class OrderManagementService {
     private usersRepository: Repository<User>,
     private inventoryService: InventoryService,
     private metaCapiService: MetaCapiService,
-    private crmTeamService: CrmTeamService,
+    @Inject(forwardRef(() => LeadManagementService))
+    private leadManagementService: LeadManagementService,
   ) {}
 
   private formatUserName(u?: Partial<User> | null): string | null {
@@ -1175,7 +1176,8 @@ export class OrderManagementService {
     newStatus: string,
     userId: number,
     userName: string,
-    ipAddress?: string
+    ipAddress?: string,
+    cancelReason?: string,
   ): Promise<SalesOrder> {
     const validStatuses = [
       'processing', 'approved', 'sent', 'pending', 'in_review',
@@ -1189,11 +1191,20 @@ export class OrderManagementService {
     const order = await this.salesOrderRepository.findOne({ where: { id: orderId } });
     if (!order) throw new NotFoundException('Order not found');
 
+    if (newStatus === 'admin_cancelled' && !String(cancelReason || '').trim()) {
+      throw new BadRequestException('Reject reason is required');
+    }
+
     const oldStatus = order.status;
     order.status = newStatus;
     if (newStatus === 'approved' && !order.approvedAt) {
       order.approvedBy = userId;
       order.approvedAt = new Date();
+    }
+    if (newStatus === 'admin_cancelled') {
+      order.cancelReason = String(cancelReason || '').trim();
+      order.cancelledBy = userId;
+      order.cancelledAt = new Date();
     }
     const updatedOrder = await this.salesOrderRepository.save(order);
     if (newStatus === 'approved') {
@@ -1209,6 +1220,7 @@ export class OrderManagementService {
       actorId: userId,
       ipAddress,
       source: 'manual update',
+      extraNewValue: newStatus === 'admin_cancelled' ? { cancelReason: order.cancelReason } : undefined,
     });
 
     if (oldStatus !== newStatus) {
@@ -1459,6 +1471,35 @@ export class OrderManagementService {
     return updatedOrder;
   }
 
+  async updateOrderProductSuggestion(data: {
+    orderId: number;
+    productSuggestion?: string | null;
+    userId: number;
+    userName: string;
+    ipAddress?: string;
+  }): Promise<SalesOrder> {
+    const order = await this.salesOrderRepository.findOne({ where: { id: data.orderId } });
+    if (!order) throw new Error('Order not found');
+
+    const oldValue = order.telephonySuggestion || null;
+    const nextValue = data.productSuggestion == null ? null : String(data.productSuggestion).trim().slice(0, 100);
+    order.telephonySuggestion = nextValue || null;
+    const updatedOrder = await this.salesOrderRepository.save(order);
+
+    await this.logActivity({
+      orderId: data.orderId,
+      actionType: 'product_suggestion_updated',
+      actionDescription: `Product suggestion updated by ${data.userName}`,
+      oldValue: { productSuggestion: oldValue },
+      newValue: { productSuggestion: updatedOrder.telephonySuggestion },
+      performedBy: data.userId,
+      performedByName: data.userName,
+      ipAddress: data.ipAddress,
+    });
+
+    return updatedOrder;
+  }
+
   // ==================== ACTIVITY LOG ====================
 
   async logActivity(data: {
@@ -1573,7 +1614,12 @@ export class OrderManagementService {
   }
 
   async updateCustomerTierFromOrderModal(customerId: number, tier: string, actorUserId: number) {
-    return await this.crmTeamService.updateCustomerTier(String(customerId), tier, actorUserId);
+    return await this.leadManagementService.updateCustomerTier({
+      customerId,
+      tier,
+      isActive: tier !== 'no_tier' && tier !== '',
+      tierAssignedById: actorUserId,
+    });
   }
 
   async getOrderDetails(orderId: number): Promise<any> {
@@ -1783,6 +1829,7 @@ export class OrderManagementService {
       lastBoughtProduct,
       activeCouponCodes,
       customerTags,
+      productSuggestion: orderWithCourierSync.telephonySuggestion || null,
     };
   }
 

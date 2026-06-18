@@ -73,6 +73,13 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
   const [courierNotes, setCourierNotes] = useState('');
   const [riderInstructions, setRiderInstructions] = useState('');
   const [internalNotes, setInternalNotes] = useState('');
+  const [productSuggestion, setProductSuggestion] = useState('');
+  const [productSuggestionResults, setProductSuggestionResults] = useState<any[]>([]);
+  const [productSuggestionLoading, setProductSuggestionLoading] = useState(false);
+  const [showProductSuggestionDropdown, setShowProductSuggestionDropdown] = useState(false);
+  const [savingProductSuggestion, setSavingProductSuggestion] = useState(false);
+  const productSuggestionRef = useRef<HTMLDivElement>(null);
+  const productSuggestionTimerRef = useRef<NodeJS.Timeout | null>(null);
   
   // Courier
   const [showShipModal, setShowShipModal] = useState(false);
@@ -90,6 +97,8 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
   // Cancel
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
+  const [showRejectStatusModal, setShowRejectStatusModal] = useState(false);
+  const [rejectStatusReason, setRejectStatusReason] = useState('');
 
   // Manual status update
   const [manualStatus, setManualStatus] = useState('');
@@ -232,6 +241,66 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
     }
   }, [activeTab]);
 
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (productSuggestionRef.current && !productSuggestionRef.current.contains(e.target as Node)) {
+        setShowProductSuggestionDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const searchProductSuggestions = useCallback(async (query: string) => {
+    if (query.trim().length < 2) {
+      setProductSuggestionResults([]);
+      setShowProductSuggestionDropdown(false);
+      return;
+    }
+
+    setProductSuggestionLoading(true);
+    try {
+      const response = await apiClient.get(`/products/admin/search?q=${encodeURIComponent(query)}`);
+      const products = Array.isArray(response.data) ? response.data : (response.data?.data || []);
+      setProductSuggestionResults(products.slice(0, 8));
+      setShowProductSuggestionDropdown(products.length > 0);
+    } catch (error) {
+      console.error('Product suggestion search failed:', error);
+      setProductSuggestionResults([]);
+      setShowProductSuggestionDropdown(false);
+    } finally {
+      setProductSuggestionLoading(false);
+    }
+  }, []);
+
+  const handleProductSuggestionChange = (value: string) => {
+    setProductSuggestion(value);
+    if (productSuggestionTimerRef.current) clearTimeout(productSuggestionTimerRef.current);
+    productSuggestionTimerRef.current = setTimeout(() => searchProductSuggestions(value), 250);
+  };
+
+  const saveProductSuggestion = async () => {
+    if (!hasPermission('update-order-product-suggestion')) {
+      toast.error('You do not have permission to update product suggestion');
+      return;
+    }
+
+    setSavingProductSuggestion(true);
+    try {
+      await apiClient.put(`/order-management/${currentOrderId}/product-suggestion`, {
+        productSuggestion: productSuggestion.trim() || null,
+      });
+      toast.success('Product suggestion updated');
+      setShowProductSuggestionDropdown(false);
+      await loadOrderDetails();
+      onUpdate();
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || 'Failed to update product suggestion');
+    } finally {
+      setSavingProductSuggestion(false);
+    }
+  };
+
   const loadAvailableCustomerTags = async () => {
     try {
       const response = await apiClient.get('/order-management/customer-tags');
@@ -329,7 +398,20 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
         duration: e.metadata?.duration || e.duration || '',
         callType: e.metadata?.type || e.callType || '',
       }));
-      setCallLogs(calls);
+      const seen = new Set<string>();
+      const uniqueCalls = calls.filter((call: any) => {
+        const key = [
+          call.agentId || call.agentName || '',
+          call.engagementDate || call.createdAt || '',
+          String(call.notes || '').trim(),
+          call.outcome || '',
+          call.productSuggestion || '',
+        ].join('|').toLowerCase();
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+      setCallLogs(uniqueCalls);
     } catch (error) {
       console.error('Failed to load call logs:', error);
       setCallLogs([]);
@@ -396,6 +478,7 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
       setCourierNotes(data.courierNotes || '');
       setRiderInstructions(data.riderInstructions || '');
       setInternalNotes(data.internalNotes || '');
+      setProductSuggestion(data.productSuggestion || data.telephonySuggestion || '');
 
       // Initialize tracking form for manual completion/edit
       const geo = data.geoLocation || null;
@@ -1021,6 +1104,11 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
 
   const handleManualStatusUpdate = async () => {
     if (!manualStatus) return;
+    if (manualStatus === 'admin_cancelled') {
+      setRejectStatusReason('');
+      setShowRejectStatusModal(true);
+      return;
+    }
     const statusLabel = getOrderStatusLabel(manualStatus);
     if (!confirm(`Change order status to "${statusLabel}"?`)) return;
     try {
@@ -1031,6 +1119,28 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
       onUpdate();
     } catch (error: any) {
       toast.error(error.response?.data?.message || 'Failed to update status');
+    }
+  };
+
+  const confirmRejectStatusUpdate = async () => {
+    if (!rejectStatusReason.trim()) {
+      toast.warning('Please select a reject reason');
+      return;
+    }
+
+    try {
+      await apiClient.put(`/order-management/${currentOrderId}/change-status`, {
+        status: 'admin_cancelled',
+        cancelReason: rejectStatusReason,
+      });
+      toast.success('Order rejected');
+      setShowRejectStatusModal(false);
+      setRejectStatusReason('');
+      setManualStatus('');
+      loadOrderDetails();
+      onUpdate();
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || 'Failed to reject order');
     }
   };
 
@@ -1227,6 +1337,7 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
   const totalQuantity = items.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
   const lastBoughtProduct = order?.lastBoughtProduct || null;
   const compactCallLogs = callLogs.slice(0, 5);
+  const canUpdateProductSuggestion = hasPermission('update-order-product-suggestion');
 
   const canHoldOrCancel = !['picked', 'in_transit', 'delivered'].includes(order.status);
 
@@ -1838,13 +1949,81 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                   </div>
                 </div>
 
-                <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-                  <div className="text-sm font-semibold text-amber-800 mb-2 flex items-center gap-2">
-                    <FaStickyNote /> Internal Notes
+                <div className="space-y-3">
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                    <div className="text-sm font-semibold text-amber-800 mb-2 flex items-center gap-2">
+                      <FaStickyNote /> Internal Notes
+                    </div>
+                    <div className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed max-h-28 overflow-y-auto">
+                      {internalNotes?.trim() ? internalNotes : 'N/A'}
+                    </div>
                   </div>
-                  <div className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed max-h-32 overflow-y-auto">
-                    {internalNotes?.trim() ? internalNotes : 'N/A'}
+                  <div className="bg-sky-50 border border-sky-200 rounded-lg p-4">
+                    <div className="text-sm font-semibold text-sky-800 mb-2 flex items-center gap-2">
+                      <FaShippingFast /> Courier Notes
+                    </div>
+                    <div className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed max-h-28 overflow-y-auto">
+                      {courierNotes?.trim() ? courierNotes : 'N/A'}
+                    </div>
                   </div>
+                </div>
+              </div>
+
+              <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+                  <div className="flex-1">
+                    <div className="text-sm font-semibold text-gray-900 mb-2 flex items-center gap-2">
+                      <FaTag className="text-indigo-600" /> Product Suggestion
+                    </div>
+                    {canUpdateProductSuggestion ? (
+                      <div className="relative" ref={productSuggestionRef}>
+                        <input
+                          type="text"
+                          value={productSuggestion}
+                          onChange={(e) => handleProductSuggestionChange(e.target.value)}
+                          onFocus={() => productSuggestionResults.length > 0 && setShowProductSuggestionDropdown(true)}
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                          placeholder="Type product suggestion..."
+                          autoComplete="off"
+                        />
+                        {productSuggestionLoading && (
+                          <span className="absolute right-3 top-2.5 text-xs text-gray-400">Searching...</span>
+                        )}
+                        {showProductSuggestionDropdown && productSuggestionResults.length > 0 && (
+                          <div className="absolute z-50 left-0 right-0 mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-64 overflow-y-auto">
+                            {productSuggestionResults.map((p: any) => (
+                              <button
+                                key={p.id}
+                                type="button"
+                                onClick={() => {
+                                  setProductSuggestion(p.name_en || p.name || p.name_bn || '');
+                                  setShowProductSuggestionDropdown(false);
+                                }}
+                                className="w-full text-left px-3 py-2 hover:bg-indigo-50 border-b last:border-b-0"
+                              >
+                                <div className="text-sm font-semibold text-gray-900">{p.name_en || p.name || 'Product'}</div>
+                                {p.name_bn && <div className="text-xs text-gray-500">{p.name_bn}</div>}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-800 min-h-[40px]">
+                        {productSuggestion?.trim() ? productSuggestion : 'N/A'}
+                      </div>
+                    )}
+                  </div>
+                  {canUpdateProductSuggestion && (
+                    <button
+                      type="button"
+                      onClick={saveProductSuggestion}
+                      disabled={savingProductSuggestion}
+                      className="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
+                    >
+                      <FaSave /> {savingProductSuggestion ? 'Saving...' : 'Save Suggestion'}
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -2530,8 +2709,21 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                 />
               </div>
 
+              <div>
+                <label className="font-bold mb-2 flex items-center gap-2">
+                  <FaShippingFast className="text-blue-600" /> Courier Notes
+                </label>
+                <textarea
+                  value={courierNotes}
+                  onChange={(e) => setCourierNotes(e.target.value)}
+                  className="w-full border p-3 rounded-lg"
+                  rows={5}
+                  placeholder="Courier-facing notes, late delivery follow-up, delivery handling, etc..."
+                />
+              </div>
+
               <button onClick={saveNotes} className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 flex items-center gap-2">
-                <FaSave /> Save Internal Notes
+                <FaSave /> Save Notes
               </button>
             </div>
           )}
@@ -3158,6 +3350,47 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                   Confirm Cancel
                 </button>
                 <button onClick={() => setShowCancelModal(false)} className="bg-gray-400 text-white px-6 py-2 rounded hover:bg-gray-500">
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Manual Reject Status Modal */}
+        {showRejectStatusModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white p-6 rounded-lg max-w-md w-full">
+              <h3 className="text-xl font-bold mb-4 text-red-600">Reject Order</h3>
+              <div>
+                <label className="block font-semibold mb-1">Reject Reason *</label>
+                <select
+                  value={rejectStatusReason}
+                  onChange={(e) => setRejectStatusReason(e.target.value)}
+                  className="w-full border p-2 rounded"
+                >
+                  <option value="">Select Reason</option>
+                  <option value="customer_request">Customer Request</option>
+                  <option value="out_of_stock">Out of Stock</option>
+                  <option value="wrong_address">Wrong Address</option>
+                  <option value="payment_issue">Payment Issue</option>
+                  <option value="duplicate_order">Duplicate Order</option>
+                  <option value="fraud_detected">Fraud Detected</option>
+                  <option value="customer_unreachable">Customer Unreachable</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+              <div className="flex gap-3 mt-6">
+                <button onClick={confirmRejectStatusUpdate} className="bg-red-600 text-white px-6 py-2 rounded hover:bg-red-700 flex-1">
+                  Confirm Reject
+                </button>
+                <button
+                  onClick={() => {
+                    setShowRejectStatusModal(false);
+                    setRejectStatusReason('');
+                  }}
+                  className="bg-gray-400 text-white px-6 py-2 rounded hover:bg-gray-500"
+                >
                   Close
                 </button>
               </div>
