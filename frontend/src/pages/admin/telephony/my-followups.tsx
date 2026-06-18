@@ -15,6 +15,7 @@ import {
 } from 'react-icons/fa';
 import AdminOrderDetailsModal from '@/components/AdminOrderDetailsModal';
 import { getDhakaDateString } from '@/utils/dhakaDate';
+import { CALL_OUTCOME_OPTIONS, type CallOutcomeValue } from '@/constants/adminOptions';
 
 interface FollowUp {
   id: number;
@@ -80,7 +81,7 @@ export default function MyFollowupsPage() {
   // Log Call Modal (unified call action - like Agent Dashboard)
   const [showLogCallModal, setShowLogCallModal] = useState(false);
   const [selectedFollowUpForLog, setSelectedFollowUpForLog] = useState<FollowUp | null>(null);
-  const [logCallOutcome, setLogCallOutcome] = useState<'connected' | 'connected_disqualified' | 'connected_whatsapp' | 'no_answer' | 'busy' | 'callback_requested' | 'not_interested' | 'order_placed' | ''>('');
+  const [logCallOutcome, setLogCallOutcome] = useState<CallOutcomeValue | ''>('');
   const [logCallNotes, setLogCallNotes] = useState('');
   const [logCallFollowUpDate, setLogCallFollowUpDate] = useState('');
   const [logCallFollowUpTime, setLogCallFollowUpTime] = useState('');
@@ -1250,14 +1251,9 @@ export default function MyFollowupsPage() {
                   required
                 >
                   <option value="">Select outcome...</option>
-                  <option value="connected">Connected - Spoke with customer</option>
-                  <option value="connected_disqualified">Connected - Disqualified</option>
-                  <option value="connected_whatsapp">Connected on WhatsApp</option>
-                  <option value="order_placed">Order Placed</option>
-                  <option value="callback_requested">Callback Requested</option>
-                  <option value="no_answer">No Answer</option>
-                  <option value="busy">Busy / Line Engaged</option>
-                  <option value="not_interested">Not Interested</option>
+                  {CALL_OUTCOME_OPTIONS.filter((option) => option.value !== 'unreachable').map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
                 </select>
               </div>
 
