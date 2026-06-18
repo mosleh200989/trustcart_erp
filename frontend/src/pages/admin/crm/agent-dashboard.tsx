@@ -17,6 +17,7 @@ import { getTelephonySocket, type IncomingCallPayload } from '@/services/telepho
 import { useToast } from '@/contexts/ToastContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { getDhakaDateString } from '@/utils/dhakaDate';
+import { CALL_OUTCOME_OPTIONS, type CallOutcomeValue } from '@/constants/adminOptions';
 
 interface CallTask {
   id: number;
@@ -212,7 +213,7 @@ export default function AgentDashboard() {
   const [callActionFollowUpTime, setCallActionFollowUpTime] = useState('');
   const [callActionNotes, setCallActionNotes] = useState('');
   const [callActionProductSuggestion, setCallActionProductSuggestion] = useState('');
-  const [callActionOutcome, setCallActionOutcome] = useState<'connected' | 'connected_disqualified' | 'connected_whatsapp' | 'no_answer' | 'busy' | 'callback_requested' | 'not_interested' | 'order_placed' | ''>('');
+  const [callActionOutcome, setCallActionOutcome] = useState<CallOutcomeValue | ''>('');
   const [savingCallAction, setSavingCallAction] = useState(false);
   const [markingLeadAsCalled, setMarkingLeadAsCalled] = useState<number | null>(null);
 
@@ -1998,14 +1999,9 @@ export default function AgentDashboard() {
                     required
                   >
                     <option value="">Select outcome...</option>
-                    <option value="connected">Connected - Spoke with customer</option>
-                    <option value="connected_disqualified">Connected - Disqualified</option>
-                    <option value="connected_whatsapp">Connected on WhatsApp</option>
-                    <option value="order_placed">Order Placed</option>
-                    <option value="callback_requested">Callback Requested</option>
-                    <option value="no_answer">No Answer</option>
-                    <option value="busy">Busy / Line Engaged</option>
-                    <option value="not_interested">Not Interested</option>
+                    {CALL_OUTCOME_OPTIONS.filter((option) => option.value !== 'unreachable').map((option) => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
                   </select>
                 </div>
 

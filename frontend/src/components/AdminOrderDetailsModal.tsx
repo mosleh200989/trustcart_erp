@@ -9,27 +9,13 @@ import {
 import PhoneInput, { validateBDPhone } from '@/components/PhoneInput';
 import { getOrderStatusLabel, getOrderStatusColor } from '@/utils/orderStatus';
 import { useAuth } from '@/contexts/AuthContext';
+import { CALL_OUTCOME_LABELS, ORDER_REJECTION_REASON_OPTIONS } from '@/constants/adminOptions';
 
 interface OrderDetailsModalProps {
   orderId: number;
   onClose: () => void;
   onUpdate: () => void;
 }
-
-const CALL_OUTCOME_LABELS: Record<string, string> = {
-  connected: 'Connected - Spoke with customer',
-  connected_disqualified: 'Connected - Disqualified',
-  connected_whatsapp: 'Connected on WhatsApp',
-  order_placed: 'Order Placed',
-  callback_requested: 'Callback Requested',
-  no_answer: 'No Answer',
-  unreachable: 'Unreachable',
-  busy: 'Busy / Line Engaged',
-  not_interested: 'Not Interested',
-  successful: 'Successful',
-  completed: 'Completed',
-  failed: 'Failed',
-};
 
 const formatCallOutcome = (outcome?: string | null) => {
   if (!outcome) return '';
@@ -3519,14 +3505,9 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                     className="w-full border p-2 rounded"
                   >
                     <option value="">Select Reason</option>
-                    <option value="customer_request">Customer Request</option>
-                    <option value="out_of_stock">Out of Stock</option>
-                    <option value="wrong_address">Wrong Address</option>
-                    <option value="payment_issue">Payment Issue</option>
-                    <option value="duplicate_order">Duplicate Order</option>
-                    <option value="fraud_detected">Fraud Detected</option>
-                    <option value="customer_unreachable">Customer Unreachable</option>
-                    <option value="other">Other</option>
+                    {ORDER_REJECTION_REASON_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
                   </select>
                 </div>
               </div>
@@ -3555,14 +3536,9 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                   className="w-full border p-2 rounded"
                 >
                   <option value="">Select Reason</option>
-                  <option value="customer_request">Customer Request</option>
-                  <option value="out_of_stock">Out of Stock</option>
-                  <option value="wrong_address">Wrong Address</option>
-                  <option value="payment_issue">Payment Issue</option>
-                  <option value="duplicate_order">Duplicate Order</option>
-                  <option value="fraud_detected">Fraud Detected</option>
-                  <option value="customer_unreachable">Customer Unreachable</option>
-                  <option value="other">Other</option>
+                  {ORDER_REJECTION_REASON_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
                 </select>
               </div>
               <div className="flex gap-3 mt-6">

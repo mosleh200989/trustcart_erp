@@ -5,6 +5,7 @@ import { useToast } from '@/contexts/ToastContext';
 import AdminOrderDetailsModal from '@/components/AdminOrderDetailsModal';
 import ProductAutocomplete from '@/components/admin/ProductAutocomplete';
 import { FaEye, FaUsers, FaGlobe, FaExchangeAlt } from 'react-icons/fa';
+import { CALL_OUTCOME_OPTIONS, type CallOutcomeValue, ORDER_REJECTION_REASON_OPTIONS } from '@/constants/adminOptions';
 
 interface Lead {
   id: number;
@@ -59,19 +60,7 @@ const ROWS_OPTIONS = [30, 50, 100, 200, 500, 750, 1000, 2000];
 const VIEWED_LEADS_STORAGE_KEY = 'sales-manager-leads-viewed-at';
 const VIEWED_LEAD_TTL_MS = 24 * 60 * 60 * 1000;
 type LastCallFilter = 'all' | 'called_today' | 'called_yesterday' | 'called_1week' | 'called_2weeks' | 'called_3weeks' | 'called_1month' | 'never';
-type CallOutcomeFilter = '' | 'connected' | 'connected_disqualified' | 'connected_whatsapp' | 'order_placed' | 'callback_requested' | 'no_answer' | 'unreachable' | 'busy' | 'not_interested';
-
-const CALL_OUTCOME_OPTIONS: Array<{ value: Exclude<CallOutcomeFilter, ''>; label: string }> = [
-  { value: 'connected', label: 'Connected - Spoke with customer' },
-  { value: 'connected_disqualified', label: 'Connected - Disqualified' },
-  { value: 'connected_whatsapp', label: 'Connected on WhatsApp' },
-  { value: 'order_placed', label: 'Order Placed' },
-  { value: 'callback_requested', label: 'Callback Requested' },
-  { value: 'no_answer', label: 'No Answer' },
-  { value: 'unreachable', label: 'Unreachable' },
-  { value: 'busy', label: 'Busy / Line Engaged' },
-  { value: 'not_interested', label: 'Not Interested' },
-];
+type CallOutcomeFilter = '' | CallOutcomeValue;
 
 const formatLastCalled = (dateStr?: string | null): { text: string; className: string } => {
   if (!dateStr) return { text: 'Never', className: 'text-red-600 font-medium' };
@@ -636,13 +625,16 @@ const SalesManagerLeadAssignment = () => {
             </FilterField>
 
             <FilterField label="Order Rejected Reason" className="xl:col-span-2">
-              <input
-                type="text"
-                placeholder="Search rejected order reason..."
+              <select
                 value={orderRejectedReasonFilter}
                 onChange={e => setOrderRejectedReasonFilter(e.target.value)}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-              />
+              >
+                <option value="">All Reasons</option>
+                {ORDER_REJECTION_REASON_OPTIONS.map(option => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
             </FilterField>
 
             <FilterField label="Delivery Start Date">
