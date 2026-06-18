@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import AdminLayout from '@/layouts/AdminLayout';
 import apiClient from '@/services/api';
-import { FaBoxOpen, FaChartBar, FaDownload, FaSearch, FaSyncAlt, FaTimes } from 'react-icons/fa';
+import { FaBoxOpen, FaChartBar, FaDownload, FaSearch, FaSyncAlt, FaTimes, FaUser } from 'react-icons/fa';
 
 interface ProductOption {
   id: number;
@@ -27,6 +27,7 @@ interface CrossSellProductRow {
 }
 
 interface CrossSellAnalysisReport {
+  agentId?: number | null;
   selectedProduct: {
     id: number;
     name: string;
@@ -45,10 +46,18 @@ interface CrossSellAnalysisReport {
   products: CrossSellProductRow[];
 }
 
+interface AgentOption {
+  id: number;
+  name: string;
+  email?: string | null;
+  teamLeaderId?: number | null;
+}
+
 const fmt = (value: number) => new Intl.NumberFormat('en-BD').format(Math.round(Number(value) || 0));
 const money = (value: number) => `BDT ${fmt(value)}`;
 const productLabel = (product: ProductOption) =>
   product.name_en || product.name_bn || product.sku || product.product_code || `Product #${product.id}`;
+const agentLabel = (agent: AgentOption) => agent.name || agent.email || `Agent #${agent.id}`;
 
 export default function CrossSellAnalysisPage() {
   const [selectedProduct, setSelectedProduct] = useState<ProductOption | null>(null);
@@ -56,12 +65,18 @@ export default function CrossSellAnalysisPage() {
   const [productResults, setProductResults] = useState<ProductOption[]>([]);
   const [showProductResults, setShowProductResults] = useState(false);
   const [searching, setSearching] = useState(false);
+  const [selectedAgent, setSelectedAgent] = useState<AgentOption | null>(null);
+  const [agentQuery, setAgentQuery] = useState('');
+  const [agentResults, setAgentResults] = useState<AgentOption[]>([]);
+  const [showAgentResults, setShowAgentResults] = useState(false);
+  const [searchingAgents, setSearchingAgents] = useState(false);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [data, setData] = useState<CrossSellAnalysisReport | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const agentSearchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const searchProducts = useCallback(async (query: string) => {
     const q = query.trim();
@@ -89,6 +104,32 @@ export default function CrossSellAnalysisPage() {
     searchTimerRef.current = setTimeout(() => searchProducts(value), 250);
   };
 
+  const searchAgents = useCallback(async (query: string) => {
+    const q = query.trim();
+    if (q.length < 1) {
+      setAgentResults([]);
+      setShowAgentResults(false);
+      return;
+    }
+    setSearchingAgents(true);
+    try {
+      const res = await apiClient.get('/sales/cross-sell-analysis-agents', { params: { q } });
+      setAgentResults(Array.isArray(res.data) ? res.data : []);
+      setShowAgentResults(true);
+    } catch (err) {
+      console.error('Failed to search agents', err);
+      setAgentResults([]);
+    } finally {
+      setSearchingAgents(false);
+    }
+  }, []);
+
+  const handleAgentQueryChange = (value: string) => {
+    setAgentQuery(value);
+    if (agentSearchTimerRef.current) clearTimeout(agentSearchTimerRef.current);
+    agentSearchTimerRef.current = setTimeout(() => searchAgents(value), 250);
+  };
+
   const fetchReport = useCallback(async () => {
     if (!selectedProduct?.id) {
       setData(null);
@@ -100,6 +141,7 @@ export default function CrossSellAnalysisPage() {
       const params = new URLSearchParams({ productId: String(selectedProduct.id) });
       if (startDate) params.set('startDate', startDate);
       if (endDate) params.set('endDate', endDate);
+      if (selectedAgent?.id) params.set('agentId', String(selectedAgent.id));
       const res = await apiClient.get(`/sales/cross-sell-analysis?${params.toString()}`);
       setData(res.data);
     } catch (err: any) {
@@ -108,7 +150,7 @@ export default function CrossSellAnalysisPage() {
     } finally {
       setLoading(false);
     }
-  }, [selectedProduct?.id, startDate, endDate]);
+  }, [selectedProduct?.id, startDate, endDate, selectedAgent?.id]);
 
   useEffect(() => {
     fetchReport();
@@ -116,6 +158,7 @@ export default function CrossSellAnalysisPage() {
 
   useEffect(() => () => {
     if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+    if (agentSearchTimerRef.current) clearTimeout(agentSearchTimerRef.current);
   }, []);
 
   const sortedProducts = useMemo(
@@ -151,6 +194,13 @@ export default function CrossSellAnalysisPage() {
     setShowProductResults(false);
   };
 
+  const selectAgent = (agent: AgentOption) => {
+    setSelectedAgent(agent);
+    setAgentQuery(agentLabel(agent));
+    setAgentResults([]);
+    setShowAgentResults(false);
+  };
+
   return (
     <AdminLayout>
       <div className="space-y-6">
@@ -181,7 +231,7 @@ export default function CrossSellAnalysisPage() {
         </div>
 
         <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_180px_180px]">
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(220px,0.7fr)_180px_180px]">
             <div className="relative">
               <label className="mb-1 block text-sm font-medium text-gray-700">Select Product</label>
               <div className="relative">
@@ -230,6 +280,58 @@ export default function CrossSellAnalysisPage() {
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-sm font-semibold text-gray-900">{productLabel(product)}</span>
                         <span className="block truncate text-xs text-gray-500">{product.sku || product.product_code || 'No SKU'}{product.status ? ` - ${product.status}` : ''}</span>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="relative">
+              <label className="mb-1 block text-sm font-medium text-gray-700">Agent</label>
+              <div className="relative">
+                <FaUser className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  value={selectedAgent ? agentLabel(selectedAgent) : agentQuery}
+                  onChange={(e) => {
+                    setSelectedAgent(null);
+                    handleAgentQueryChange(e.target.value);
+                  }}
+                  onFocus={() => agentResults.length > 0 && !selectedAgent && setShowAgentResults(true)}
+                  placeholder="Type agent name or ID..."
+                  className="w-full rounded-lg border border-gray-300 bg-white py-2.5 pl-10 pr-10 text-sm text-gray-900 outline-none transition-all focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500"
+                />
+                {(agentQuery || selectedAgent) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAgentQuery('');
+                      setSelectedAgent(null);
+                      setAgentResults([]);
+                      setShowAgentResults(false);
+                    }}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700"
+                  >
+                    <FaTimes />
+                  </button>
+                )}
+              </div>
+              {showAgentResults && !selectedAgent && (
+                <div className="absolute z-20 mt-2 max-h-72 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-xl">
+                  {searchingAgents && <div className="px-4 py-3 text-sm text-gray-500">Searching...</div>}
+                  {!searchingAgents && agentResults.length === 0 && <div className="px-4 py-3 text-sm text-gray-500">No agents found</div>}
+                  {!searchingAgents && agentResults.map((agent) => (
+                    <button
+                      key={agent.id}
+                      type="button"
+                      onClick={() => selectAgent(agent)}
+                      className="flex w-full items-center gap-3 border-b border-gray-100 px-4 py-3 text-left hover:bg-emerald-50"
+                    >
+                      <span className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-50 text-emerald-700">
+                        <FaUser />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-semibold text-gray-900">{agentLabel(agent)}</span>
+                        <span className="block truncate text-xs text-gray-500">{agent.email || `ID: ${agent.id}`}</span>
                       </span>
                     </button>
                   ))}

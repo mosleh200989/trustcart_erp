@@ -18,6 +18,7 @@ export const ORDER_REJECTION_REASON_OPTIONS = [
   { value: 'duplicate_order', label: 'Duplicate Order' },
   { value: 'fraud_detected', label: 'Fraud Detected' },
   { value: 'customer_unreachable', label: 'Customer Unreachable' },
+  { value: 'pickup_failed', label: 'Pickup Failed' },
   { value: 'customer_unwilling_to_pay_delivery_charge', label: 'Customer Unwilling to Pay Delivery Charge' },
   { value: 'refused_mandatory_cross_sell', label: 'Refused Mandatory Cross Sell' },
 ] as const;
