@@ -25,6 +25,19 @@ const formatCallOutcome = (outcome?: string | null) => {
 const isPositiveCallOutcome = (outcome?: string | null) =>
   ['connected', 'connected_whatsapp', 'order_placed', 'successful', 'completed'].includes(String(outcome || ''));
 
+type ProductSuggestionItem = {
+  id: number | string;
+  productId?: number | null;
+  productName?: string | null;
+  productSuggestion?: string | null;
+  suggestion?: string | null;
+  createdByName?: string | null;
+  updatedByName?: string | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+  legacy?: boolean;
+};
+
 export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: OrderDetailsModalProps) {
   const toast = useToast();
   const { hasPermission } = useAuth();
@@ -60,11 +73,14 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
   const [riderInstructions, setRiderInstructions] = useState('');
   const [internalNotes, setInternalNotes] = useState('');
   const [productSuggestion, setProductSuggestion] = useState('');
+  const [productSuggestions, setProductSuggestions] = useState<ProductSuggestionItem[]>([]);
   const [productSuggestionDraft, setProductSuggestionDraft] = useState('');
+  const [productSuggestionProductId, setProductSuggestionProductId] = useState<number | null>(null);
   const [productSuggestionResults, setProductSuggestionResults] = useState<any[]>([]);
   const [productSuggestionLoading, setProductSuggestionLoading] = useState(false);
   const [showProductSuggestionDropdown, setShowProductSuggestionDropdown] = useState(false);
   const [isEditingProductSuggestion, setIsEditingProductSuggestion] = useState(false);
+  const [editingProductSuggestionId, setEditingProductSuggestionId] = useState<number | string | null>(null);
   const [savingProductSuggestion, setSavingProductSuggestion] = useState(false);
   const productSuggestionRef = useRef<HTMLDivElement>(null);
   const productSuggestionTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -270,22 +286,44 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
     productSuggestionTimerRef.current = setTimeout(() => searchProductSuggestions(value), 250);
   };
 
+  const getSuggestionText = (suggestion: ProductSuggestionItem) =>
+    String(suggestion.productSuggestion ?? suggestion.suggestion ?? '').trim();
+
+  const updateSuggestionStateFromResponse = (data: any) => {
+    const nextSuggestions = Array.isArray(data?.productSuggestions) ? data.productSuggestions : [];
+    setProductSuggestions(nextSuggestions);
+    const summary = nextSuggestions.map(getSuggestionText).filter(Boolean).join(', ');
+    setProductSuggestion(summary || '');
+    setProductSuggestionDraft('');
+    setProductSuggestionProductId(null);
+    setEditingProductSuggestionId(null);
+    setIsEditingProductSuggestion(false);
+    setShowProductSuggestionDropdown(false);
+  };
+
   const saveProductSuggestion = async (nextValue = productSuggestionDraft) => {
     if (!hasPermission('update-order-product-suggestion')) {
       toast.error('You do not have permission to update product suggestion');
       return;
     }
 
+    const trimmed = nextValue.trim();
+    if (!trimmed) {
+      toast.error('Product suggestion is required');
+      return;
+    }
+
     setSavingProductSuggestion(true);
     try {
-      await apiClient.put(`/order-management/${currentOrderId}/product-suggestion`, {
-        productSuggestion: nextValue.trim() || null,
-      });
-      setProductSuggestion(nextValue.trim());
-      setProductSuggestionDraft(nextValue.trim());
-      setIsEditingProductSuggestion(false);
-      setShowProductSuggestionDropdown(false);
-      toast.success(nextValue.trim() ? 'Product suggestion updated' : 'Product suggestion deleted');
+      const payload = {
+        productSuggestion: trimmed,
+        productId: productSuggestionProductId,
+      };
+      const response = editingProductSuggestionId && editingProductSuggestionId !== 'new'
+        ? await apiClient.put(`/order-management/${currentOrderId}/product-suggestions/${encodeURIComponent(String(editingProductSuggestionId))}`, payload)
+        : await apiClient.post(`/order-management/${currentOrderId}/product-suggestions`, payload);
+      updateSuggestionStateFromResponse(response.data);
+      toast.success(editingProductSuggestionId && editingProductSuggestionId !== 'new' ? 'Product suggestion updated' : 'Product suggestion added');
       await loadOrderDetails();
       onUpdate();
     } catch (error: any) {
@@ -295,20 +333,41 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
     }
   };
 
-  const startProductSuggestionEdit = () => {
-    setProductSuggestionDraft(productSuggestion || '');
+  const startProductSuggestionEdit = (suggestion?: ProductSuggestionItem) => {
+    if (suggestion) {
+      setProductSuggestionDraft(getSuggestionText(suggestion));
+      setProductSuggestionProductId(suggestion.productId ?? null);
+      setEditingProductSuggestionId(suggestion.id);
+    } else {
+      setProductSuggestionDraft('');
+      setProductSuggestionProductId(null);
+      setEditingProductSuggestionId('new');
+    }
     setIsEditingProductSuggestion(true);
   };
 
   const cancelProductSuggestionEdit = () => {
-    setProductSuggestionDraft(productSuggestion || '');
+    setProductSuggestionDraft('');
+    setProductSuggestionProductId(null);
+    setEditingProductSuggestionId(null);
     setIsEditingProductSuggestion(false);
     setShowProductSuggestionDropdown(false);
   };
 
-  const deleteProductSuggestion = async () => {
+  const deleteProductSuggestion = async (suggestion: ProductSuggestionItem) => {
     if (!confirm('Delete this product suggestion?')) return;
-    await saveProductSuggestion('');
+    setSavingProductSuggestion(true);
+    try {
+      const response = await apiClient.delete(`/order-management/${currentOrderId}/product-suggestions/${encodeURIComponent(String(suggestion.id))}`);
+      updateSuggestionStateFromResponse(response.data);
+      toast.success('Product suggestion deleted');
+      await loadOrderDetails();
+      onUpdate();
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || 'Failed to delete product suggestion');
+    } finally {
+      setSavingProductSuggestion(false);
+    }
   };
 
   const startCustomerNoteEdit = (type: 'internal' | 'courier') => {
@@ -555,8 +614,22 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
       setCourierNotes(data.courierNotes || '');
       setRiderInstructions(data.riderInstructions || '');
       setInternalNotes(data.internalNotes || '');
-      setProductSuggestion(data.productSuggestion || data.telephonySuggestion || '');
-      setProductSuggestionDraft(data.productSuggestion || data.telephonySuggestion || '');
+      const loadedSuggestions = Array.isArray(data.productSuggestions)
+        ? data.productSuggestions
+        : ((data.productSuggestion || data.telephonySuggestion)
+          ? [{
+              id: 'legacy',
+              productSuggestion: data.productSuggestion || data.telephonySuggestion,
+              suggestion: data.productSuggestion || data.telephonySuggestion,
+              legacy: true,
+            }]
+          : []);
+      setProductSuggestions(loadedSuggestions);
+      const suggestionSummary = loadedSuggestions.map(getSuggestionText).filter(Boolean).join(', ');
+      setProductSuggestion(suggestionSummary || data.productSuggestion || data.telephonySuggestion || '');
+      setProductSuggestionDraft('');
+      setProductSuggestionProductId(null);
+      setEditingProductSuggestionId(null);
       setIsEditingProductSuggestion(false);
       setEditingCustomerNote(null);
       setCustomerNoteDraft('');
@@ -2109,12 +2182,24 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
               </div>
 
               <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
-                <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-                  <div className="flex-1">
-                    <div className="text-sm font-semibold text-gray-900 mb-2 flex items-center gap-2">
-                      <FaTag className="text-indigo-600" /> Product Suggestion
-                    </div>
-                    {isEditingProductSuggestion && canUpdateProductSuggestion ? (
+                <div className="flex items-center justify-between gap-3">
+                  <div className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+                    <FaTag className="text-indigo-600" /> Product Suggestions
+                  </div>
+                  {canUpdateProductSuggestion && !isEditingProductSuggestion && (
+                    <button
+                      type="button"
+                      onClick={() => startProductSuggestionEdit()}
+                      className="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700"
+                    >
+                      <FaPlus /> Add Suggestion
+                    </button>
+                  )}
+                </div>
+
+                <div className="mt-3 space-y-2">
+                  {isEditingProductSuggestion && canUpdateProductSuggestion && (
+                    <div className="rounded-lg border border-indigo-200 bg-indigo-50/40 p-3">
                       <div className="relative" ref={productSuggestionRef}>
                         <input
                           type="text"
@@ -2136,6 +2221,7 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                                 type="button"
                                 onClick={() => {
                                   setProductSuggestionDraft(p.name_en || p.name || p.name_bn || '');
+                                  setProductSuggestionProductId(p.id ? Number(p.id) : null);
                                   setShowProductSuggestionDropdown(false);
                                 }}
                                 className="w-full text-left px-3 py-2 hover:bg-indigo-50 border-b last:border-b-0"
@@ -2147,15 +2233,7 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                           </div>
                         )}
                       </div>
-                    ) : (
-                      <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-800 min-h-[40px]">
-                        {productSuggestion?.trim() ? productSuggestion : 'N/A'}
-                      </div>
-                    )}
-                  </div>
-                  {canUpdateProductSuggestion && (
-                    isEditingProductSuggestion ? (
-                      <div className="flex flex-wrap gap-2">
+                      <div className="mt-3 flex flex-wrap gap-2">
                         <button
                           type="button"
                           onClick={() => saveProductSuggestion()}
@@ -2173,27 +2251,51 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                           Cancel
                         </button>
                       </div>
-                    ) : (
-                      <div className="flex flex-wrap gap-2">
-                        <button
-                          type="button"
-                          onClick={startProductSuggestionEdit}
-                          className="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700"
-                        >
-                          <FaEdit /> {productSuggestion?.trim() ? 'Edit' : 'Add'}
-                        </button>
-                        {productSuggestion?.trim() && (
-                          <button
-                            type="button"
-                            onClick={deleteProductSuggestion}
-                            disabled={savingProductSuggestion}
-                            className="inline-flex items-center justify-center gap-2 rounded-lg bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-100 disabled:opacity-50"
-                          >
-                            <FaTrash /> Delete
-                          </button>
-                        )}
-                      </div>
-                    )
+                    </div>
+                  )}
+
+                  {productSuggestions.length > 0 ? (
+                    <div className="divide-y divide-gray-100 rounded-lg border border-gray-200 bg-gray-50">
+                      {productSuggestions.map((suggestion) => {
+                        const text = getSuggestionText(suggestion);
+                        return (
+                          <div key={String(suggestion.id)} className="flex flex-col gap-2 p-3 sm:flex-row sm:items-start sm:justify-between">
+                            <div className="min-w-0">
+                              <div className="text-sm font-semibold text-gray-900">{text || suggestion.productName || 'Product suggestion'}</div>
+                              <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-500">
+                                {suggestion.productName && suggestion.productName !== text && <span>{suggestion.productName}</span>}
+                                {suggestion.updatedByName && <span>Updated by {suggestion.updatedByName}</span>}
+                                {suggestion.legacy && <span>Legacy suggestion</span>}
+                              </div>
+                            </div>
+                            {canUpdateProductSuggestion && (
+                              <div className="flex shrink-0 gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => startProductSuggestionEdit(suggestion)}
+                                  disabled={savingProductSuggestion || isEditingProductSuggestion}
+                                  className="inline-flex items-center gap-1 rounded-md bg-white px-2.5 py-1.5 text-xs font-semibold text-indigo-700 ring-1 ring-indigo-200 hover:bg-indigo-50 disabled:opacity-50"
+                                >
+                                  <FaEdit /> Edit
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => deleteProductSuggestion(suggestion)}
+                                  disabled={savingProductSuggestion || isEditingProductSuggestion}
+                                  className="inline-flex items-center gap-1 rounded-md bg-white px-2.5 py-1.5 text-xs font-semibold text-red-700 ring-1 ring-red-200 hover:bg-red-50 disabled:opacity-50"
+                                >
+                                  <FaTrash /> Delete
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-500">
+                      N/A
+                    </div>
                   )}
                 </div>
               </div>
