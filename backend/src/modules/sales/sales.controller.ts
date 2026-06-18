@@ -453,12 +453,20 @@ export class SalesController {
     @Query('productId') productId?: string,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
+    @Query('agentId') agentId?: string,
   ) {
     return this.salesService.getCrossSellAnalysisReport({
       productId: productId ? parseInt(productId, 10) : undefined,
       startDate: startDate || undefined,
       endDate: endDate || undefined,
+      agentId: agentId ? parseInt(agentId, 10) : undefined,
     });
+  }
+
+  @Get('cross-sell-analysis-agents')
+  @RequirePermissions('view-sales-reports')
+  async searchCrossSellAnalysisAgents(@Query('q') q?: string) {
+    return this.salesService.searchCrossSellAnalysisAgents(q || '');
   }
 
   @Get(':id')

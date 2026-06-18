@@ -4737,6 +4737,7 @@ export class SalesService {
     productId?: number;
     startDate?: string;
     endDate?: string;
+    agentId?: number;
   }) {
     const toNum = (value: any) => Number(value || 0);
     const productId = Number(params.productId);
@@ -4768,6 +4769,16 @@ export class SalesService {
       dateConditions.push(`${deliveredDateExpr} <= $${values.length}`);
     }
     const dateFilter = dateConditions.length ? `AND ${dateConditions.join(' AND ')}` : '';
+    const agentId = Number(params.agentId);
+    const crossSellItemConditions: string[] = [
+      `COALESCE(oi.is_cross_sell, false) = true`,
+      `COALESCE(oi.product_id, 0) <> $1`,
+    ];
+    if (Number.isFinite(agentId) && agentId > 0) {
+      values.push(agentId);
+      crossSellItemConditions.push(`oi.added_by = $${values.length}`);
+    }
+    const crossSellItemFilter = crossSellItemConditions.join('\n        AND ');
 
     const selectedOrdersCte = `
       WITH selected_orders AS (
@@ -4803,8 +4814,7 @@ export class SalesService {
        FROM selected_orders so
        LEFT JOIN order_items oi
          ON oi.order_id = so.id
-        AND COALESCE(oi.is_cross_sell, false) = true
-        AND COALESCE(oi.product_id, 0) <> $1`,
+        AND ${crossSellItemFilter}`,
       values,
     );
 
@@ -4822,8 +4832,7 @@ export class SalesService {
        FROM selected_orders so
        INNER JOIN order_items oi
          ON oi.order_id = so.id
-        AND COALESCE(oi.is_cross_sell, false) = true
-        AND COALESCE(oi.product_id, 0) <> $1
+        AND ${crossSellItemFilter}
        LEFT JOIN products p ON p.id = oi.product_id
        GROUP BY
          oi.product_id,
@@ -4842,6 +4851,7 @@ export class SalesService {
       productId,
       startDate: params.startDate || null,
       endDate: params.endDate || null,
+      agentId: Number.isFinite(agentId) && agentId > 0 ? agentId : null,
       selectedProduct: {
         id: toNum(selectedProduct.id),
         name: selectedProduct.name_en || selectedProduct.name_bn || selectedProduct.sku || `Product #${productId}`,
@@ -4878,5 +4888,48 @@ export class SalesService {
         };
       }),
     };
+  }
+
+  async searchCrossSellAnalysisAgents(searchTerm: string) {
+    const values: any[] = [];
+    const whereParts = [
+      `u.is_deleted = false`,
+      `u.status = 'active'`,
+      `r.slug = 'sales-executive'`,
+    ];
+
+    const term = String(searchTerm || '').trim().toLowerCase();
+    if (term) {
+      values.push(`%${term}%`);
+      whereParts.push(`(
+        LOWER(COALESCE(u.name, '')) LIKE $${values.length}
+        OR LOWER(COALESCE(u.last_name, '')) LIKE $${values.length}
+        OR LOWER(CONCAT(COALESCE(u.name, ''), ' ', COALESCE(u.last_name, ''))) LIKE $${values.length}
+        OR LOWER(COALESCE(u.email, '')) LIKE $${values.length}
+        OR CAST(u.id AS TEXT) LIKE $${values.length}
+      )`);
+    }
+
+    const rows = await this.salesRepository.manager.query(
+      `SELECT
+         u.id,
+         u.name,
+         u.last_name,
+         u.email,
+         u.team_leader_id
+       FROM users u
+       LEFT JOIN roles r ON r.id = u.role_id
+       WHERE ${whereParts.join(' AND ')}
+       ORDER BY u.name ASC, u.last_name ASC
+       LIMIT 20`,
+      values,
+    );
+
+    return rows.map((row: any) => ({
+      id: Number(row.id || 0),
+      name: `${row.name || ''} ${row.last_name || ''}`.trim() || row.email || `Agent #${row.id}`,
+      email: row.email || null,
+      teamLeaderId: row.team_leader_id == null ? null : Number(row.team_leader_id || 0),
+    }));
   }
 }
