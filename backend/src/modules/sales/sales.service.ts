@@ -1558,6 +1558,7 @@ export class SalesService {
     landingPage?: string;
     assignment?: string;
     totalCancelledOrders?: number;
+    orderRejectedReason?: string;
   }) {
     const page = Math.max(1, params.page || 1);
     const limit = Math.min(500, Math.max(1, params.limit || 10));
@@ -1667,12 +1668,30 @@ export class SalesService {
       qb.andWhere('o.assigned_to IS NULL');
     }
 
+    if (params.orderRejectedReason && params.orderRejectedReason.trim()) {
+      const reason = params.orderRejectedReason.trim().toLowerCase();
+      const readableReason = reason.replace(/_/g, ' ');
+      const alternateReason = reason === 'connected_disqualified' ? 'connected but discharged' : readableReason;
+      qb.andWhere(
+        `(
+          LOWER(COALESCE(o.cancel_reason, '')) = :rejectionReason
+          OR LOWER(COALESCE(o.cancel_reason, '')) = :readableRejectionReason
+          OR LOWER(COALESCE(o.cancel_reason, '')) = :alternateRejectionReason
+        )`,
+        {
+          rejectionReason: reason,
+          readableRejectionReason: readableReason,
+          alternateRejectionReason: alternateReason,
+        },
+      );
+    }
+
     if (Number.isFinite(params.totalCancelledOrders) && Number(params.totalCancelledOrders) > 0) {
       qb.andWhere(
         `(
           SELECT COUNT(*)::int
           FROM sales_orders so_cancelled
-          WHERE LOWER(so_cancelled.status::text) IN ('cancelled', 'returned')
+          WHERE LOWER(so_cancelled.status::text) IN ('cancelled', 'admin_cancelled', 'returned')
             AND (
               (o.customer_id IS NOT NULL AND so_cancelled.customer_id = o.customer_id)
               OR (
@@ -1682,7 +1701,7 @@ export class SalesService {
                 AND REPLACE(so_cancelled.customer_phone, '+88', '') = REPLACE(o.customer_phone, '+88', '')
               )
             )
-        ) >= :totalCancelledOrders`,
+        ) = :totalCancelledOrders`,
         { totalCancelledOrders: Number(params.totalCancelledOrders) },
       );
     }

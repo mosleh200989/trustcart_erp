@@ -1500,6 +1500,278 @@ export class OrderManagementService {
     return updatedOrder;
   }
 
+  private formatProductSuggestionRow(row: any) {
+    const suggestion = row.suggestion ?? row.product_suggestion ?? '';
+    return {
+      id: row.id,
+      productId: row.product_id ?? null,
+      productName: row.product_name || row.name_en || null,
+      productSuggestion: suggestion,
+      suggestion,
+      createdBy: row.created_by ?? null,
+      createdByName: row.created_by_name || null,
+      updatedBy: row.updated_by ?? null,
+      updatedByName: row.updated_by_name || null,
+      createdAt: row.created_at || null,
+      updatedAt: row.updated_at || null,
+      legacy: !!row.legacy,
+    };
+  }
+
+  private async resolveProductSuggestionCustomerId(order: SalesOrder): Promise<number | null> {
+    const rawCustomerId = order.customerId != null ? Number(order.customerId) : NaN;
+    if (Number.isFinite(rawCustomerId) && rawCustomerId > 0) return rawCustomerId;
+
+    const email = order.customerEmail ? String(order.customerEmail).trim() : '';
+    const phone = order.customerPhone ? String(order.customerPhone).trim() : '';
+    if (email) {
+      const customer = await this.customersService.findByEmail(email);
+      if (customer?.id) return Number(customer.id);
+    }
+    if (phone) {
+      const customer = await this.customersService.findByPhone(phone);
+      if (customer?.id) return Number(customer.id);
+    }
+    return null;
+  }
+
+  private async getCustomerProductSuggestions(customerId: number | null, legacySuggestion?: string | null) {
+    const legacyText = String(legacySuggestion || '').trim();
+    const legacyRows = legacyText
+      ? [this.formatProductSuggestionRow({
+          id: 'legacy',
+          suggestion: legacyText,
+          created_at: null,
+          updated_at: null,
+          legacy: true,
+        })]
+      : [];
+
+    if (!customerId) return legacyRows;
+
+    try {
+      const rows = await this.salesOrderRepository.query(
+        `SELECT cps.id,
+                cps.customer_id,
+                cps.product_id,
+                cps.suggestion,
+                cps.created_by,
+                cps.updated_by,
+                cps.created_at,
+                cps.updated_at,
+                p.name_en AS product_name,
+                NULLIF(CONCAT_WS(' ', cu.name, cu.last_name), '') AS created_by_name,
+                NULLIF(CONCAT_WS(' ', uu.name, uu.last_name), '') AS updated_by_name
+         FROM customer_product_suggestions cps
+         LEFT JOIN products p ON p.id = cps.product_id
+         LEFT JOIN users cu ON cu.id = cps.created_by
+         LEFT JOIN users uu ON uu.id = cps.updated_by
+         WHERE cps.customer_id = $1
+         ORDER BY cps.updated_at DESC, cps.created_at DESC, cps.id DESC`,
+        [customerId],
+      );
+      if (rows.length > 0) return rows.map((row: any) => this.formatProductSuggestionRow(row));
+    } catch (err: any) {
+      this.logger.warn(`Failed to load customer product suggestions: ${err?.message}`);
+    }
+
+    return legacyRows;
+  }
+
+  private async syncOrderProductSuggestionSummary(orderId: number, customerId: number | null) {
+    if (!customerId) return;
+    const rows: { suggestion: string }[] = await this.salesOrderRepository.query(
+      `SELECT suggestion
+       FROM customer_product_suggestions
+       WHERE customer_id = $1
+       ORDER BY updated_at DESC, created_at DESC, id DESC`,
+      [customerId],
+    );
+    const summary = rows
+      .map((row) => String(row.suggestion || '').trim())
+      .filter(Boolean)
+      .join(', ')
+      .slice(0, 100) || null;
+    await this.salesOrderRepository.update({ id: orderId }, { telephonySuggestion: summary });
+  }
+
+  async getOrderProductSuggestions(orderId: number) {
+    const order = await this.salesOrderRepository.findOne({ where: { id: orderId } });
+    if (!order) throw new NotFoundException('Order not found');
+    const customerId = await this.resolveProductSuggestionCustomerId(order);
+    return {
+      productSuggestions: await this.getCustomerProductSuggestions(customerId, order.telephonySuggestion),
+    };
+  }
+
+  async addOrderProductSuggestion(data: {
+    orderId: number;
+    productSuggestion?: string | null;
+    productId?: number | null;
+    userId: number;
+    userName: string;
+    ipAddress?: string;
+  }) {
+    const order = await this.salesOrderRepository.findOne({ where: { id: data.orderId } });
+    if (!order) throw new NotFoundException('Order not found');
+
+    const customerId = await this.resolveProductSuggestionCustomerId(order);
+    if (!customerId) throw new BadRequestException('A customer record is required to add product suggestions');
+
+    const suggestion = String(data.productSuggestion || '').trim();
+    if (!suggestion) throw new BadRequestException('Product suggestion is required');
+
+    const rawProductId = data.productId == null ? NaN : Number(data.productId);
+    const productId = Number.isFinite(rawProductId) && rawProductId > 0 ? rawProductId : null;
+
+    const inserted = await this.salesOrderRepository.query(
+      `INSERT INTO customer_product_suggestions
+        (customer_id, product_id, suggestion, created_by, updated_by, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $4, NOW(), NOW())
+       RETURNING id`,
+      [customerId, productId, suggestion, data.userId],
+    );
+
+    await this.syncOrderProductSuggestionSummary(data.orderId, customerId);
+
+    await this.logActivity({
+      orderId: data.orderId,
+      actionType: 'product_suggestion_added',
+      actionDescription: `Product suggestion added by ${data.userName}`,
+      newValue: { suggestionId: inserted?.[0]?.id, productSuggestion: suggestion, productId },
+      performedBy: data.userId,
+      performedByName: data.userName,
+      ipAddress: data.ipAddress,
+    });
+
+    return this.getOrderProductSuggestions(data.orderId);
+  }
+
+  async updateCustomerProductSuggestion(data: {
+    orderId: number;
+    suggestionId: string;
+    productSuggestion?: string | null;
+    productId?: number | null;
+    userId: number;
+    userName: string;
+    ipAddress?: string;
+  }) {
+    const order = await this.salesOrderRepository.findOne({ where: { id: data.orderId } });
+    if (!order) throw new NotFoundException('Order not found');
+
+    if (data.suggestionId === 'legacy') {
+      await this.updateOrderProductSuggestion({
+        orderId: data.orderId,
+        productSuggestion: data.productSuggestion,
+        userId: data.userId,
+        userName: data.userName,
+        ipAddress: data.ipAddress,
+      });
+      return this.getOrderProductSuggestions(data.orderId);
+    }
+
+    const customerId = await this.resolveProductSuggestionCustomerId(order);
+    if (!customerId) throw new BadRequestException('A customer record is required to update product suggestions');
+
+    const suggestionId = Number(data.suggestionId);
+    if (!Number.isFinite(suggestionId) || suggestionId <= 0) throw new BadRequestException('Invalid product suggestion');
+
+    const existing = await this.salesOrderRepository.query(
+      `SELECT id, customer_id, product_id, suggestion
+       FROM customer_product_suggestions
+       WHERE id = $1`,
+      [suggestionId],
+    );
+    if (!existing.length || Number(existing[0].customer_id) !== Number(customerId)) {
+      throw new NotFoundException('Product suggestion not found');
+    }
+
+    const suggestion = String(data.productSuggestion || '').trim();
+    if (!suggestion) throw new BadRequestException('Product suggestion is required');
+
+    const rawProductId = data.productId == null ? NaN : Number(data.productId);
+    const productId = Number.isFinite(rawProductId) && rawProductId > 0 ? rawProductId : null;
+
+    await this.salesOrderRepository.query(
+      `UPDATE customer_product_suggestions
+       SET suggestion = $1,
+           product_id = $2,
+           updated_by = $3,
+           updated_at = NOW()
+       WHERE id = $4`,
+      [suggestion, productId, data.userId, suggestionId],
+    );
+
+    await this.syncOrderProductSuggestionSummary(data.orderId, customerId);
+
+    await this.logActivity({
+      orderId: data.orderId,
+      actionType: 'product_suggestion_updated',
+      actionDescription: `Product suggestion updated by ${data.userName}`,
+      oldValue: { productSuggestion: existing[0].suggestion, productId: existing[0].product_id },
+      newValue: { suggestionId, productSuggestion: suggestion, productId },
+      performedBy: data.userId,
+      performedByName: data.userName,
+      ipAddress: data.ipAddress,
+    });
+
+    return this.getOrderProductSuggestions(data.orderId);
+  }
+
+  async deleteCustomerProductSuggestion(data: {
+    orderId: number;
+    suggestionId: string;
+    userId: number;
+    userName: string;
+    ipAddress?: string;
+  }) {
+    const order = await this.salesOrderRepository.findOne({ where: { id: data.orderId } });
+    if (!order) throw new NotFoundException('Order not found');
+
+    if (data.suggestionId === 'legacy') {
+      const oldValue = order.telephonySuggestion || null;
+      await this.salesOrderRepository.update({ id: data.orderId }, { telephonySuggestion: null });
+      await this.logActivity({
+        orderId: data.orderId,
+        actionType: 'product_suggestion_deleted',
+        actionDescription: `Product suggestion deleted by ${data.userName}`,
+        oldValue: { productSuggestion: oldValue },
+        performedBy: data.userId,
+        performedByName: data.userName,
+        ipAddress: data.ipAddress,
+      });
+      return this.getOrderProductSuggestions(data.orderId);
+    }
+
+    const customerId = await this.resolveProductSuggestionCustomerId(order);
+    if (!customerId) throw new BadRequestException('A customer record is required to delete product suggestions');
+
+    const suggestionId = Number(data.suggestionId);
+    if (!Number.isFinite(suggestionId) || suggestionId <= 0) throw new BadRequestException('Invalid product suggestion');
+
+    const existing = await this.salesOrderRepository.query(
+      `DELETE FROM customer_product_suggestions
+       WHERE id = $1 AND customer_id = $2
+       RETURNING id, product_id, suggestion`,
+      [suggestionId, customerId],
+    );
+    if (!existing.length) throw new NotFoundException('Product suggestion not found');
+
+    await this.syncOrderProductSuggestionSummary(data.orderId, customerId);
+
+    await this.logActivity({
+      orderId: data.orderId,
+      actionType: 'product_suggestion_deleted',
+      actionDescription: `Product suggestion deleted by ${data.userName}`,
+      oldValue: { suggestionId, productSuggestion: existing[0].suggestion, productId: existing[0].product_id },
+      performedBy: data.userId,
+      performedByName: data.userName,
+      ipAddress: data.ipAddress,
+    });
+
+    return this.getOrderProductSuggestions(data.orderId);
+  }
+
   // ==================== ACTIVITY LOG ====================
 
   async logActivity(data: {
@@ -1805,6 +2077,12 @@ export class OrderManagementService {
       customerTags = tagRows;
     }
 
+    const suggestionCustomerId = customerId || (matchedCustomer?.id ? Number(matchedCustomer.id) : null);
+    const productSuggestions = await this.getCustomerProductSuggestions(
+      suggestionCustomerId && Number.isFinite(suggestionCustomerId) ? suggestionCustomerId : null,
+      orderWithCourierSync.telephonySuggestion || null,
+    );
+
     return {
       ...orderWithCourierSync,
       deliveryCharge: resolvedDeliveryCharge,
@@ -1829,6 +2107,7 @@ export class OrderManagementService {
       lastBoughtProduct,
       activeCouponCodes,
       customerTags,
+      productSuggestions,
       productSuggestion: orderWithCourierSync.telephonySuggestion || null,
     };
   }

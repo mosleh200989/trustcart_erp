@@ -452,6 +452,61 @@ export class OrderManagementController {
     });
   }
 
+  @Get(':orderId/product-suggestions')
+  @RequirePermissions('view-sales-orders')
+  async getOrderProductSuggestions(@Param('orderId') orderId: number) {
+    return await this.orderManagementService.getOrderProductSuggestions(Number(orderId));
+  }
+
+  @Post(':orderId/product-suggestions')
+  @RequirePermissions('update-order-product-suggestion')
+  async addOrderProductSuggestion(
+    @Param('orderId') orderId: number,
+    @Body() body: { productSuggestion?: string | null; productId?: number | null },
+    @Req() req: Request
+  ) {
+    const userInfo = this.getUserInfo(req);
+    return await this.orderManagementService.addOrderProductSuggestion({
+      orderId: Number(orderId),
+      productSuggestion: body.productSuggestion,
+      productId: body.productId,
+      ...userInfo,
+    });
+  }
+
+  @Put(':orderId/product-suggestions/:suggestionId')
+  @RequirePermissions('update-order-product-suggestion')
+  async updateCustomerProductSuggestion(
+    @Param('orderId') orderId: number,
+    @Param('suggestionId') suggestionId: string,
+    @Body() body: { productSuggestion?: string | null; productId?: number | null },
+    @Req() req: Request
+  ) {
+    const userInfo = this.getUserInfo(req);
+    return await this.orderManagementService.updateCustomerProductSuggestion({
+      orderId: Number(orderId),
+      suggestionId,
+      productSuggestion: body.productSuggestion,
+      productId: body.productId,
+      ...userInfo,
+    });
+  }
+
+  @Delete(':orderId/product-suggestions/:suggestionId')
+  @RequirePermissions('update-order-product-suggestion')
+  async deleteCustomerProductSuggestion(
+    @Param('orderId') orderId: number,
+    @Param('suggestionId') suggestionId: string,
+    @Req() req: Request
+  ) {
+    const userInfo = this.getUserInfo(req);
+    return await this.orderManagementService.deleteCustomerProductSuggestion({
+      orderId: Number(orderId),
+      suggestionId,
+      ...userInfo,
+    });
+  }
+
   // ==================== ACTIVITY LOGS ====================
 
   @Get(':orderId/activity-logs')

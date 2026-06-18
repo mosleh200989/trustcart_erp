@@ -18,6 +18,7 @@ import apiClient from '@/services/api';
 import { getOrderStatusLabel, getOrderStatusColor } from '@/utils/orderStatus';
 import { getDhakaDateString } from '@/utils/dhakaDate';
 import { fetchLandingPageOptions, LandingPageOption } from '@/services/landingPageOptions';
+import { ORDER_REJECTION_REASON_OPTIONS } from '@/constants/adminOptions';
 
 const INITIAL_FILTERS = {
   q: '',
@@ -31,6 +32,7 @@ const INITIAL_FILTERS = {
   landingPage: '',
   assignment: '',
   totalCancelledOrders: '',
+  orderRejectedReason: '',
 };
 
 function formatDate(value?: string | null) {
@@ -310,6 +312,7 @@ export default function AdminSales() {
       if (f.landingPage) params.landingPage = f.landingPage;
       if (f.assignment) params.assignment = f.assignment;
       if (f.totalCancelledOrders) params.totalCancelledOrders = f.totalCancelledOrders;
+      if (f.orderRejectedReason) params.orderRejectedReason = f.orderRejectedReason;
 
       const response = await apiClient.get('/sales', { params });
       const body = response.data;
@@ -1454,6 +1457,15 @@ export default function AdminSales() {
                     { value: '2', label: '2 times' },
                     { value: '3', label: '3 times' },
                   ]}
+                />
+                <FormInput
+                  label="Order Rejection Reason"
+                  name="orderRejectedReason"
+                  type="select"
+                  value={filters.orderRejectedReason}
+                  onChange={handleFilterChange}
+                  selectPlaceholder="All Reasons"
+                  options={[...ORDER_REJECTION_REASON_OPTIONS]}
                 />
               </div>
 
