@@ -89,6 +89,82 @@ export class OrderManagementService {
     return this.roundMoney(Math.max(0, itemsSubtotal + deliveryCharge - discountAmount));
   }
 
+  private isReservationStatus(status: unknown): boolean {
+    const normalized = String(status || '').trim().toLowerCase().replace(/\s+/g, '_');
+    if (!normalized) return true;
+    return ![
+      'sent',
+      'shipped',
+      'picked',
+      'in_transit',
+      'delivered',
+      'partial_delivered',
+      'completed',
+      'cancelled',
+      'admin_cancelled',
+      'returned',
+      'rejected',
+    ].includes(normalized);
+  }
+
+  private aggregateInventoryItems(items: Array<{ productId?: number | null; product_id?: number | null; quantity?: number | null }>) {
+    const quantities = new Map<number, number>();
+    for (const item of items) {
+      const productId = Number(item.productId ?? item.product_id ?? 0);
+      const quantity = Number(item.quantity || 0);
+      if (!Number.isFinite(productId) || productId <= 0 || !Number.isFinite(quantity) || quantity <= 0) continue;
+      quantities.set(productId, (quantities.get(productId) || 0) + quantity);
+    }
+
+    return Array.from(quantities.entries()).map(([product_id, quantity]) => ({ product_id, quantity }));
+  }
+
+  private async getInventoryItemsForOrder(orderId: number): Promise<Array<{ product_id: number; quantity: number }>> {
+    const adminItems = await this.orderItemRepository.find({ where: { orderId } });
+    if (adminItems.length > 0) {
+      return this.aggregateInventoryItems(adminItems);
+    }
+
+    const checkoutItems = await this.salesOrderItemRepository.find({ where: { salesOrderId: orderId } });
+    return this.aggregateInventoryItems(checkoutItems);
+  }
+
+  private async syncInventoryReservationForOrder(orderId: number): Promise<void> {
+    try {
+      const order = await this.salesOrderRepository.findOne({ where: { id: orderId } });
+      if (!order) return;
+
+      await this.inventoryService.releaseReservation(orderId);
+
+      if (!this.isReservationStatus(order.status)) return;
+
+      const items = await this.getInventoryItemsForOrder(orderId);
+      if (items.length === 0) return;
+
+      await this.inventoryService.reserveStock({
+        salesOrderId: orderId,
+        items,
+      });
+    } catch (err) {
+      this.logger.warn(`Failed to sync inventory reservation for order #${orderId}: ${(err as any)?.message || err}`);
+    }
+  }
+
+  private async dispatchInventoryForOrder(orderId: number, performedBy: number, context: string): Promise<void> {
+    try {
+      const dispatchItems = await this.getInventoryItemsForOrder(orderId);
+      if (dispatchItems.length === 0) return;
+
+      await this.inventoryService.dispatchStock({
+        salesOrderId: orderId,
+        items: dispatchItems,
+        performedBy,
+      });
+    } catch (err) {
+      this.logger.warn(`Stock dispatch failed for order #${orderId} (${context}): ${(err as any)?.message || err}`);
+    }
+  }
+
   private async enrichActivityLogs(logs: OrderActivityLog[]): Promise<any[]> {
     const performerIds = Array.from(
       new Set(logs.map((l) => (l.performedBy != null ? Number(l.performedBy) : NaN)).filter((n) => Number.isFinite(n))),
@@ -494,6 +570,8 @@ export class OrderManagementService {
       },
     });
 
+    await this.dispatchInventoryForOrder(order.id, data.userId, 'Steadfast send');
+
     return {
       success: true,
       message: resData?.message || 'Sent to Steadfast',
@@ -683,6 +761,8 @@ export class OrderManagementService {
       ipAddress: data.ipAddress,
     });
 
+    await this.syncInventoryReservationForOrder(data.orderId);
+
     return savedItem;
   }
 
@@ -813,6 +893,8 @@ export class OrderManagementService {
       ipAddress: data.ipAddress,
     });
 
+    await this.syncInventoryReservationForOrder(item.orderId);
+
     return updatedItem;
   }
 
@@ -840,6 +922,8 @@ export class OrderManagementService {
       performedByName: userName,
       ipAddress,
     });
+
+    await this.syncInventoryReservationForOrder(orderId);
   }
 
   // ==================== DELIVERY CHARGE ====================
@@ -1139,10 +1223,8 @@ export class OrderManagementService {
       }
       if (newStatus === 'returned' && oldStatus !== 'returned') {
         // Restock returned items (default: Grade A restock to warehouse 1)
-        const orderItems = await this.salesOrderItemRepository.find({ where: { salesOrderId: orderId } });
-        const restockItems = orderItems
-          .filter(oi => oi.productId && oi.quantity > 0)
-          .map(oi => ({ product_id: oi.productId!, quantity: oi.quantity, condition: 'restock' as const }));
+        const restockItems = (await this.getInventoryItemsForOrder(orderId))
+          .map(item => ({ ...item, condition: 'restock' as const }));
         if (restockItems.length > 0) {
           await this.inventoryService.restockReturn({
             salesOrderId: orderId,
@@ -1204,23 +1286,7 @@ export class OrderManagementService {
     });
 
     // Dispatch stock: deduct via FEFO, release reservations, record movements
-    try {
-      const orderItems = await this.salesOrderItemRepository.find({
-        where: { salesOrderId: data.orderId },
-      });
-      const dispatchItems = orderItems
-        .filter(oi => oi.productId && oi.quantity > 0)
-        .map(oi => ({ product_id: oi.productId!, quantity: oi.quantity }));
-      if (dispatchItems.length > 0) {
-        await this.inventoryService.dispatchStock({
-          salesOrderId: data.orderId,
-          items: dispatchItems,
-          performedBy: data.userId,
-        });
-      }
-    } catch (err: any) {
-      this.logger.warn(`Stock dispatch failed for order #${data.orderId}: ${err?.message}`);
-    }
+    await this.dispatchInventoryForOrder(data.orderId, data.userId, 'manual courier shipment');
 
     return updatedOrder;
   }
@@ -2714,6 +2780,8 @@ export class OrderManagementService {
         courierDeliveryFee: deliveryFee,
       },
     });
+
+    await this.dispatchInventoryForOrder(order.id, data.userId, 'Pathao send');
 
     return {
       success: true,

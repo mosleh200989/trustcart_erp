@@ -164,7 +164,6 @@ export class CustomersService {
     const skip = (page - 1) * limit;
 
     const qb = this.customersRepository.createQueryBuilder('c')
-      .leftJoin('sales_orders', 'so', 'so.customer_id = c.id')
       .leftJoin('customer_tiers', 'ct', 'ct.customer_id = c.id')
       .leftJoin('users', 'u', 'u.id = c.assigned_to')
       .leftJoin('users', 'sup', 'sup.id = c.assigned_supervisor_id')
@@ -184,8 +183,8 @@ export class CustomersService {
         'c.assigned_to as "assignedTo"',
         'c.assigned_supervisor_id as "assignedSupervisorId"',
         'c.created_at as "createdAt"',
-        'COUNT(so.id) as "totalOrders"',
-        'COALESCE(SUM(so.total_amount), 0) as "totalSpent"',
+        '(SELECT COUNT(*)::int FROM sales_orders so_count WHERE so_count.customer_id = c.id) as "totalOrders"',
+        '(SELECT COALESCE(SUM(so_sum.total_amount), 0) FROM sales_orders so_sum WHERE so_sum.customer_id = c.id) as "totalSpent"',
         "TRIM(COALESCE(u.name, '') || ' ' || COALESCE(u.last_name, '')) as \"agentName\"",
         "TRIM(COALESCE(sup.name, '') || ' ' || COALESCE(sup.last_name, '')) as \"teamLeaderName\"",
         `CASE
@@ -220,8 +219,7 @@ export class CustomersService {
       .addSelect('(SELECT ct2.tier FROM customer_tiers ct2 WHERE ct2.customer_id = c.id LIMIT 1)', 'tier')
       .where('c.is_deleted = :deleted', { deleted: false })
       .andWhere(`NOT EXISTS (SELECT 1 FROM customer_tiers ct_rej WHERE ct_rej.customer_id = c.id AND ct_rej.tier = 'rejected')`)
-      .andWhere(`(c.customer_type IS NULL OR c.customer_type != 'rejected')`)
-      .groupBy('c.id, u.name, u.last_name, sup.name, sup.last_name');
+      .andWhere(`(c.customer_type IS NULL OR c.customer_type != 'rejected')`);
 
     if (search) {
       const normalizedPhone = `%${search.replace(/^\+88/, '')}%`;

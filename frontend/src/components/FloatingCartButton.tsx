@@ -1,10 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
-import { FaArrowLeft, FaArrowRight, FaMinus, FaPlus, FaShoppingBag, FaTimes } from 'react-icons/fa';
+import { FaArrowRight, FaMinus, FaPlus, FaShoppingBag, FaTimes } from 'react-icons/fa';
 import { useCart } from '@/contexts/CartContext';
-import apiClient from '@/services/api';
 
 const hiddenPathPrefixes = [
   '/admin',
@@ -24,24 +23,8 @@ function shouldHideFloatingCart(pathname: string, asPath: string) {
 
 export default function FloatingCartButton() {
   const router = useRouter();
-  const { items, subtotal, addItem, removeItem, updateQuantity } = useCart();
+  const { items, subtotal, removeItem, updateQuantity } = useCart();
   const [isOpen, setIsOpen] = useState(false);
-  const [suggestedProducts, setSuggestedProducts] = useState<any[]>([]);
-  const suggestionsRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!isOpen || suggestedProducts.length > 0) return;
-
-    apiClient
-      .get('/products/featured/suggested?limit=8')
-      .then((response) => setSuggestedProducts(Array.isArray(response.data) ? response.data : []))
-      .catch(() => {
-        apiClient
-          .get('/products')
-          .then((response) => setSuggestedProducts((Array.isArray(response.data) ? response.data : []).slice(0, 8)))
-          .catch(() => setSuggestedProducts([]));
-      });
-  }, [isOpen, suggestedProducts.length]);
 
   if (shouldHideFloatingCart(router.pathname, router.asPath)) {
     return null;
@@ -49,19 +32,6 @@ export default function FloatingCartButton() {
 
   const itemCount = items.reduce((sum, item) => sum + (item.quantity || 1), 0);
   const formatMoney = (amount: number) => `৳${amount.toLocaleString('en-BD', { maximumFractionDigits: 0 })}`;
-  const normalizeProduct = (product: any) => ({
-    id: Number(product.id),
-    name: product.name_en || product.nameEn || product.name || product.name_bn || 'Product',
-    price: Number(product.price || product.sale_price || 0),
-    image: product.image_url || product.image || product.thumbnail || '/default-product.png',
-    url: `/products/${product.slug || product.id}`,
-  });
-  const scrollSuggestions = (direction: 'left' | 'right') => {
-    suggestionsRef.current?.scrollBy({
-      left: direction === 'left' ? -300 : 300,
-      behavior: 'smooth',
-    });
-  };
 
   return (
     <>
@@ -145,78 +115,66 @@ export default function FloatingCartButton() {
             </div>
 
             <footer className="border-t border-gray-200 bg-white p-6">
-              {suggestedProducts.length > 0 && (
-                <div className="mb-4">
-                  <div className="mb-3 flex items-center justify-between">
-                    <div>
-                      <h3 className="font-bold text-gray-900">You May Also Like</h3>
-                      <div className="mt-1 h-0.5 w-10 bg-orange-500" />
-                    </div>
-                    <div className="hidden items-center gap-2 sm:flex">
-                      <button
-                        type="button"
-                        onClick={() => scrollSuggestions('left')}
-                        className="flex h-8 w-8 items-center justify-center rounded-full bg-orange-500 text-white hover:bg-orange-600"
-                        aria-label="Previous suggested products"
-                      >
-                        <FaArrowLeft size={13} />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => scrollSuggestions('right')}
-                        className="flex h-8 w-8 items-center justify-center rounded-full bg-orange-500 text-white hover:bg-orange-600"
-                        aria-label="Next suggested products"
-                      >
-                        <FaArrowRight size={13} />
-                      </button>
-                    </div>
-                  </div>
-                  <div ref={suggestionsRef} className="flex gap-3 overflow-x-auto scroll-smooth pb-1">
-                    {suggestedProducts.map((product) => {
-                      const normalized = normalizeProduct(product);
-                      return (
-                        <Link
-                          key={normalized.id}
-                          href={normalized.url}
-                          onClick={() => setIsOpen(false)}
-                          className="flex min-w-[280px] items-center gap-3 rounded-lg border border-gray-200 p-3 transition hover:border-orange-300 hover:shadow-sm"
-                        >
-                          <div className="relative h-14 w-16 shrink-0">
-                            <Image src={normalized.image} alt={normalized.name} fill sizes="64px" className="object-contain" />
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <p className="line-clamp-2 text-xs font-medium text-gray-800">{normalized.name}</p>
-                            <p className="mt-1 text-xs text-gray-500">{formatMoney(normalized.price)}</p>
-                            <button
-                              type="button"
-                              onClick={(event) => {
-                                event.preventDefault();
-                                event.stopPropagation();
-                                addItem({ id: normalized.id, name: normalized.name, price: normalized.price, image: normalized.image, quantity: 1 });
-                              }}
-                              className="mt-1 rounded-full bg-orange-500 px-3 py-1 text-xs font-bold text-white hover:bg-orange-600"
-                            >
-                              + Add
-                            </button>
-                          </div>
-                        </Link>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
               <div className="mb-5 flex items-center justify-between text-sm">
                 <span className="font-semibold text-gray-900">Total:</span>
                 <span className="text-xl font-extrabold text-gray-900">{formatMoney(subtotal)}</span>
               </div>
-              <Link href="/checkout" onClick={() => setIsOpen(false)} className="block w-full rounded-md bg-orange-500 py-3 text-center text-sm font-bold uppercase text-white hover:bg-orange-600">
+              <Link
+                href="/checkout"
+                onClick={() => setIsOpen(false)}
+                className="checkout-cta block w-full rounded-md bg-orange-500 py-3 text-center text-sm font-extrabold uppercase tracking-wide text-white shadow-lg shadow-orange-500/30 transition hover:bg-orange-600 focus:outline-none focus:ring-4 focus:ring-orange-200"
+              >
                 Checkout
               </Link>
             </footer>
           </aside>
         </div>
       )}
+      <style jsx global>{`
+        .checkout-cta {
+          position: relative;
+          display: block;
+          overflow: hidden;
+          background: linear-gradient(135deg, #f97316 0%, #fb8500 48%, #ff6b00 100%);
+          box-shadow: 0 10px 24px rgba(249, 115, 22, 0.34), 0 0 0 1px rgba(255, 255, 255, 0.25) inset;
+          animation: checkoutGlow 2.2s ease-in-out infinite;
+          transition: transform 180ms ease, box-shadow 180ms ease, filter 180ms ease;
+        }
+
+        .checkout-cta::before {
+          content: '';
+          position: absolute;
+          inset: 0;
+          pointer-events: none;
+          background: linear-gradient(115deg, transparent 0%, transparent 34%, rgba(255, 255, 255, 0.36) 48%, transparent 62%, transparent 100%);
+          transform: translateX(-120%);
+          animation: checkoutShine 2.8s ease-in-out infinite;
+        }
+
+        .checkout-cta:hover {
+          transform: translateY(-2px) scale(1.01);
+          filter: saturate(1.08);
+          box-shadow: 0 14px 30px rgba(249, 115, 22, 0.46), 0 0 0 1px rgba(255, 255, 255, 0.35) inset;
+        }
+
+        @keyframes checkoutGlow {
+          0%, 100% {
+            box-shadow: 0 10px 24px rgba(249, 115, 22, 0.34), 0 0 0 1px rgba(255, 255, 255, 0.25) inset;
+          }
+          50% {
+            box-shadow: 0 14px 34px rgba(249, 115, 22, 0.58), 0 0 0 1px rgba(255, 255, 255, 0.36) inset;
+          }
+        }
+
+        @keyframes checkoutShine {
+          0%, 42% {
+            transform: translateX(-120%);
+          }
+          72%, 100% {
+            transform: translateX(120%);
+          }
+        }
+      `}</style>
     </>
   );
 }
