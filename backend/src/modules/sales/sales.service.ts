@@ -1557,7 +1557,7 @@ export class SalesService {
     source?: string;
     landingPage?: string;
     assignment?: string;
-    totalCancelledOrders?: number;
+    totalCancelledOrders?: string;
     orderRejectedReason?: string;
   }) {
     const page = Math.max(1, params.page || 1);
@@ -1686,23 +1686,31 @@ export class SalesService {
       );
     }
 
-    if (Number.isFinite(params.totalCancelledOrders) && Number(params.totalCancelledOrders) > 0) {
+    const totalCancelledFilter = String(params.totalCancelledOrders || '').trim();
+    const totalCancelledCount = totalCancelledFilter === '6plus' ? 6 : Number(totalCancelledFilter);
+    if ((totalCancelledFilter === '6plus') || (Number.isFinite(totalCancelledCount) && totalCancelledCount > 0)) {
       qb.andWhere(
         `(
           SELECT COUNT(*)::int
           FROM sales_orders so_cancelled
-          WHERE LOWER(so_cancelled.status::text) IN ('cancelled', 'admin_cancelled', 'returned')
+          WHERE LOWER(so_cancelled.status::text) IN ('cancelled', 'returned')
             AND (
               (o.customer_id IS NOT NULL AND so_cancelled.customer_id = o.customer_id)
               OR (
                 o.customer_id IS NULL
-                AND o.customer_phone IS NOT NULL
-                AND so_cancelled.customer_phone IS NOT NULL
-                AND REPLACE(so_cancelled.customer_phone, '+88', '') = REPLACE(o.customer_phone, '+88', '')
+                AND NULLIF(REPLACE(COALESCE(o.customer_phone, ''), '+88', ''), '') IS NOT NULL
+                AND so_cancelled.customer_id IS NULL
+                AND REPLACE(COALESCE(so_cancelled.customer_phone, ''), '+88', '') =
+                    REPLACE(COALESCE(o.customer_phone, ''), '+88', '')
+              )
+              OR (
+                o.customer_id IS NULL
+                AND NULLIF(REPLACE(COALESCE(o.customer_phone, ''), '+88', ''), '') IS NULL
+                AND so_cancelled.id = o.id
               )
             )
-        ) = :totalCancelledOrders`,
-        { totalCancelledOrders: Number(params.totalCancelledOrders) },
+        ) ${totalCancelledFilter === '6plus' ? '>=' : '='} :totalCancelledOrders`,
+        { totalCancelledOrders: totalCancelledCount },
       );
     }
 
@@ -2531,11 +2539,13 @@ export class SalesService {
       (order as any)._items = itemsByOrderId.get(order.id) || [];
     }
 
-    // Batch-fetch creator names for order source display
-    const creatorIds = [...new Set(orders.map(o => o.createdBy).filter((id): id is number => id != null))];
+    // Batch-fetch user names for source and assignment display.
+    const creatorIds = [...new Set(orders.flatMap(o => [o.createdBy, o.assignedTo, o.assignedBy]).filter((id): id is number => id != null))];
     const creatorMap = await this.getUserNameMap(creatorIds);
     for (const order of orders) {
       (order as any).createdByName = order.createdBy ? (creatorMap.get(order.createdBy) ?? null) : null;
+      (order as any).assignedToName = order.assignedTo ? (creatorMap.get(order.assignedTo) ?? null) : null;
+      (order as any).assignedByName = order.assignedBy ? (creatorMap.get(order.assignedBy) ?? null) : null;
     }
 
     return orders.map((order) => this.toAdminListDto(order));
@@ -2558,10 +2568,12 @@ export class SalesService {
       (order as any)._items = itemsByOrderId.get(order.id) || [];
     }
 
-    const creatorIds = [...new Set(orders.map(o => o.createdBy).filter((id): id is number => id != null))];
+    const creatorIds = [...new Set(orders.flatMap(o => [o.createdBy, o.assignedTo, o.assignedBy]).filter((id): id is number => id != null))];
     const creatorMap = await this.getUserNameMap(creatorIds);
     for (const order of orders) {
       (order as any).createdByName = order.createdBy ? (creatorMap.get(order.createdBy) ?? null) : null;
+      (order as any).assignedToName = order.assignedTo ? (creatorMap.get(order.assignedTo) ?? null) : null;
+      (order as any).assignedByName = order.assignedBy ? (creatorMap.get(order.assignedBy) ?? null) : null;
     }
 
     return orders.map((order) => this.toAdminListDto(order));
@@ -2584,10 +2596,12 @@ export class SalesService {
       (order as any)._items = itemsByOrderId.get(order.id) || [];
     }
 
-    const creatorIds = [...new Set(orders.map(o => o.createdBy).filter((id): id is number => id != null))];
+    const creatorIds = [...new Set(orders.flatMap(o => [o.createdBy, o.assignedTo, o.assignedBy]).filter((id): id is number => id != null))];
     const creatorMap = await this.getUserNameMap(creatorIds);
     for (const order of orders) {
       (order as any).createdByName = order.createdBy ? (creatorMap.get(order.createdBy) ?? null) : null;
+      (order as any).assignedToName = order.assignedTo ? (creatorMap.get(order.assignedTo) ?? null) : null;
+      (order as any).assignedByName = order.assignedBy ? (creatorMap.get(order.assignedBy) ?? null) : null;
     }
 
     return orders.map((order) => this.toAdminListDto(order));

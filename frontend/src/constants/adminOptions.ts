@@ -15,14 +15,11 @@ export type CallOutcomeValue = typeof CALL_OUTCOME_OPTIONS[number]['value'];
 export const ORDER_REJECTION_REASON_OPTIONS = [
   { value: 'customer_request', label: 'Customer Request' },
   { value: 'out_of_stock', label: 'Out of Stock' },
-  { value: 'wrong_address', label: 'Wrong Address' },
-  { value: 'payment_issue', label: 'Payment Issue' },
   { value: 'duplicate_order', label: 'Duplicate Order' },
   { value: 'fraud_detected', label: 'Fraud Detected' },
   { value: 'customer_unreachable', label: 'Customer Unreachable' },
-  { value: 'connected_disqualified', label: 'Connected but Discharged' },
-  { value: 'connected_whatsapp', label: 'Connected on WhatsApp' },
-  { value: 'other', label: 'Other' },
+  { value: 'customer_unwilling_to_pay_delivery_charge', label: 'Customer Unwilling to Pay Delivery Charge' },
+  { value: 'refused_mandatory_cross_sell', label: 'Refused Mandatory Cross Sell' },
 ] as const;
 
 export type OrderRejectionReasonValue = typeof ORDER_REJECTION_REASON_OPTIONS[number]['value'];

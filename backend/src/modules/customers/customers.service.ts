@@ -81,6 +81,67 @@ export class CustomersService {
     return this.customersRepository.findOne({ where: { phone: normalized } });
   }
 
+  private async findSummary(whereSql: string, params: any[]) {
+    const rows = await this.customersRepository.query(
+      `SELECT
+         id,
+         uuid,
+         title,
+         name,
+         last_name AS "lastName",
+         company_name AS "companyName",
+         email,
+         phone,
+         mobile,
+         website,
+         source,
+         rating,
+         total_spent,
+         customer_lifetime_value,
+         preferred_contact_method,
+         notes,
+         last_contact_date,
+         next_follow_up,
+         address,
+         district,
+         city,
+         gender,
+         date_of_birth AS "dateOfBirth",
+         marital_status AS "maritalStatus",
+         anniversary_date AS "anniversaryDate",
+         profession,
+         available_time AS "availableTime",
+         customer_type AS "customerType",
+         lifecycle_stage AS "lifecycleStage",
+         lead_status AS "leadStatus",
+         status,
+         is_active AS "isActive",
+         priority
+       FROM customers
+       WHERE ${whereSql}
+       LIMIT 1`,
+      params,
+    );
+    return rows?.[0] ?? null;
+  }
+
+  async findOrderDetailsSummaryById(id: number) {
+    if (!Number.isFinite(Number(id))) return null;
+    return this.findSummary('id = $1 AND is_deleted = false', [Number(id)]);
+  }
+
+  async findOrderDetailsSummaryByEmail(email: string) {
+    const normalized = typeof email === 'string' ? email.trim() : '';
+    if (!normalized) return null;
+    return this.findSummary('email = $1 AND is_deleted = false', [normalized]);
+  }
+
+  async findOrderDetailsSummaryByPhone(phone: string) {
+    const normalized = typeof phone === 'string' ? phone.trim() : '';
+    if (!normalized) return null;
+    return this.findSummary('phone = $1 AND is_deleted = false', [normalized]);
+  }
+
   /**
    * Ensures a customer record exists for a delivered order.
    * If the order already has a customer_id, returns it.
