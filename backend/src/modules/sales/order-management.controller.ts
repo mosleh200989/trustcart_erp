@@ -342,7 +342,7 @@ export class OrderManagementController {
   @RequirePermissions('change-order-status')
   async changeOrderStatus(
     @Param('orderId') orderId: number,
-    @Body() body: { status: string },
+    @Body() body: { status: string; cancelReason?: string },
     @Req() req: Request
   ) {
     const userInfo = this.getUserInfo(req);
@@ -351,7 +351,8 @@ export class OrderManagementController {
       body.status,
       userInfo.userId,
       userInfo.userName,
-      userInfo.ipAddress
+      userInfo.ipAddress,
+      body.cancelReason
     );
   }
 
@@ -432,6 +433,21 @@ export class OrderManagementController {
     return await this.orderManagementService.updateOrderNotes({
       orderId,
       ...body,
+      ...userInfo,
+    });
+  }
+
+  @Put(':orderId/product-suggestion')
+  @RequirePermissions('update-order-product-suggestion')
+  async updateOrderProductSuggestion(
+    @Param('orderId') orderId: number,
+    @Body() body: { productSuggestion?: string | null },
+    @Req() req: Request
+  ) {
+    const userInfo = this.getUserInfo(req);
+    return await this.orderManagementService.updateOrderProductSuggestion({
+      orderId,
+      productSuggestion: body.productSuggestion,
       ...userInfo,
     });
   }
