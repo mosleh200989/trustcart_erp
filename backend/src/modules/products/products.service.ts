@@ -54,8 +54,6 @@ export class ProductsService {
 
   async findAll() {
     try {
-      console.log('Starting findAll query...');
-      
       // Use raw query with slug column included and JOIN with categories
       const rawResults = await this.productsRepository.query(`
         SELECT 
@@ -98,14 +96,7 @@ export class ProductsService {
           p.created_at DESC
         LIMIT 100
       `);
-      console.log(`Raw query found ${rawResults.length} products`);
-      
-      if (rawResults.length > 0) {
-        console.log('First product:', JSON.stringify(rawResults[0], null, 2));
-        return rawResults;
-      }
-      
-      return [];
+      return rawResults;
     } catch (error) {
       console.error('Error fetching products:', error);
       if (error instanceof Error) {
