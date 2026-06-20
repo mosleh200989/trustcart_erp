@@ -60,7 +60,7 @@ export default function CustomerTierManagementPage() {
     agent: 'all',
     deliveryDateStart: '',
     deliveryDateEnd: '',
-    purchasesCount: '',
+    minDeliveredCount: '',
     maxCancelledOrderRatio: '',
     customerSegment: 'all',
   });
@@ -140,7 +140,7 @@ export default function CustomerTierManagementPage() {
       if (filter.agent !== 'all') params.append('assignedTo', filter.agent);
       if (filter.deliveryDateStart) params.append('deliveryDateStart', filter.deliveryDateStart);
       if (filter.deliveryDateEnd) params.append('deliveryDateEnd', filter.deliveryDateEnd);
-      if (filter.purchasesCount) params.append('purchasesCount', filter.purchasesCount);
+      if (filter.minDeliveredCount) params.append('minDeliveredCount', filter.minDeliveredCount);
       if (filter.maxCancelledOrderRatio) params.append('maxCancelledOrderRatio', filter.maxCancelledOrderRatio);
       if (filter.customerSegment !== 'all') params.append('customerSegment', filter.customerSegment);
       if (searchQuery.trim()) params.append('search', searchQuery.trim());
@@ -487,12 +487,12 @@ export default function CustomerTierManagementPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2">Min Purchases Count</label>
+              <label className="block text-sm font-medium mb-2">Min Delivered Count</label>
               <input
                 type="number"
                 min="0"
-                value={filter.purchasesCount}
-                onChange={(e) => { setFilter({ ...filter, purchasesCount: e.target.value }); setCurrentPage(1); }}
+                value={filter.minDeliveredCount}
+                onChange={(e) => { setFilter({ ...filter, minDeliveredCount: e.target.value }); setCurrentPage(1); }}
                 className="w-full border rounded-lg p-2"
                 placeholder="Any"
               />
@@ -539,7 +539,7 @@ export default function CustomerTierManagementPage() {
                       <ThSort col="first_name" label="Customer" sortKey={tierSortKey} sortDir={tierSortDir} onSort={toggleTierSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
                       <ThSort col="email" label="Contact" sortKey={tierSortKey} sortDir={tierSortDir} onSort={toggleTierSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
                       <ThSort col="tier" label="Tier" sortKey={tierSortKey} sortDir={tierSortDir} onSort={toggleTierSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
-                      <ThSort col="order_count" label="Purchases" sortKey={tierSortKey} sortDir={tierSortDir} onSort={toggleTierSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                      <ThSort col="delivered_order_count" label="Delivered" sortKey={tierSortKey} sortDir={tierSortDir} onSort={toggleTierSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
                       <ThSort col="cancelled_order_ratio" label="Cancelled Order Ratio" sortKey={tierSortKey} sortDir={tierSortDir} onSort={toggleTierSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
                       <ThSort col="last_delivery_date" label="Last Delivery Date" sortKey={tierSortKey} sortDir={tierSortDir} onSort={toggleTierSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
                       <ThSort col="lifetime_value" label="Total Spent" sortKey={tierSortKey} sortDir={tierSortDir} onSort={toggleTierSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
@@ -576,7 +576,7 @@ export default function CustomerTierManagementPage() {
                           <option value="rejected" disabled={customer.tierData?.tier !== 'tier_6'}>Rejected</option>
                         </select>
                       </td>
-                      <td className="px-6 py-4 text-sm">{customer.order_count || customer.tierData?.totalPurchases || 0}</td>
+                      <td className="px-6 py-4 text-sm">{customer.delivered_order_count || 0}</td>
                       <td className="px-6 py-4 text-sm">
                         <div className="font-semibold text-red-600">
                           {Number(customer.cancelled_order_ratio || 0).toFixed(2)}%
