@@ -183,8 +183,16 @@ const SalesManagerLeadAssignment = () => {
   const [assigningSingle, setAssigningSingle] = useState(false);
 
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hasLoadedInitialLeads = useRef(false);
+  const pageRef = useRef(page);
+  const leadsRequestRef = useRef(0);
+
+  useEffect(() => {
+    pageRef.current = page;
+  }, [page]);
 
   const fetchLeads = useCallback(async (pg = 1, options?: { silent?: boolean }) => {
+    const requestId = ++leadsRequestRef.current;
     if (!options?.silent) setLoading(true);
     try {
       const params = new URLSearchParams({
@@ -213,15 +221,23 @@ const SalesManagerLeadAssignment = () => {
       if (orderRejectedReasonFilter.trim()) params.set('orderRejectedReason', orderRejectedReasonFilter.trim());
 
       const res = await api.get(`/crm/data-analyst/unassigned-leads?${params}`);
+      if (requestId !== leadsRequestRef.current) return;
+      const nextTotal = res.data.total || 0;
+      const nextTotalPages = Math.max(1, res.data.totalPages || 1);
+      if (nextTotal > 0 && pg > nextTotalPages) {
+        await fetchLeads(nextTotalPages, options);
+        return;
+      }
       setLeads(res.data.items || []);
-      setTotal(res.data.total || 0);
-      setTotalPages(res.data.totalPages || 1);
+      setTotal(nextTotal);
+      setTotalPages(nextTotalPages);
       setPage(pg);
       setSelected(new Set());
     } catch {
+      if (requestId !== leadsRequestRef.current) return;
       toast.error('Failed to load leads');
     } finally {
-      if (!options?.silent) setLoading(false);
+      if (requestId === leadsRequestRef.current) setLoading(false);
     }
   }, [search, assignmentStatus, tierFilter, tlFilter, agentFilter, lifecycleFilter, productFilter, deliveryStartFilter, deliveryEndFilter, assignedFromFilter, assignedToFilter, addressFilter, noteSearchFilter, segmentFilter, rejectedStatusFilter, lastCallFilter, tagFilter, callOutcomeFilter, productSuggestionFilter, orderRejectedReasonFilter, rowsPerPage, toast]);
 
@@ -254,10 +270,18 @@ const SalesManagerLeadAssignment = () => {
   }, []);
 
   useEffect(() => {
-    fetchLeads(1);
     fetchTeamLeaders();
     fetchAgents();
-  }, [fetchLeads, fetchTeamLeaders, fetchAgents]);
+  }, [fetchTeamLeaders, fetchAgents]);
+
+  useEffect(() => {
+    if (!hasLoadedInitialLeads.current) {
+      hasLoadedInitialLeads.current = true;
+      fetchLeads(1);
+      return;
+    }
+    fetchLeads(pageRef.current, { silent: true });
+  }, [fetchLeads]);
 
   useEffect(() => {
     fetchTags();
@@ -708,7 +732,7 @@ const SalesManagerLeadAssignment = () => {
               </select>
             </div>
             <button
-              onClick={() => fetchLeads(1)}
+              onClick={() => fetchLeads(page, { silent: true })}
               className="bg-indigo-600 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors"
             >
               Apply Filters
