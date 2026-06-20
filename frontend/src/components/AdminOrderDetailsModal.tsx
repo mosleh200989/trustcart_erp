@@ -2264,6 +2264,39 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                     <span className="font-semibold text-blue-700 min-w-[70px]">Phone:</span>
                     <span className="text-gray-900">{viewCustomer.phone || viewCustomer.mobile || 'N/A'}</span>
                   </div>
+                  <div className="border-t border-blue-200 pt-3">
+                    <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-blue-800">
+                      <FaTag /> Product Suggestions
+                    </div>
+                    {productSuggestions.length > 0 ? (
+                      <div className="flex flex-wrap gap-2">
+                        {productSuggestions.map((suggestion) => {
+                          const text = getSuggestionText(suggestion) || suggestion.productName || 'Product suggestion';
+                          return (
+                            <span
+                              key={String(suggestion.id)}
+                              className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-blue-200 bg-white px-2.5 py-1 text-xs font-semibold text-blue-800 shadow-sm"
+                            >
+                              <span className="truncate">{text}</span>
+                              {canUpdateProductSuggestion && (
+                                <button
+                                  type="button"
+                                  onClick={() => deleteProductSuggestion(suggestion)}
+                                  disabled={savingProductSuggestion}
+                                  className="rounded-full px-1 text-blue-500 transition-colors hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+                                  title="Remove product suggestion"
+                                >
+                                  x
+                                </button>
+                              )}
+                            </span>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="text-sm text-gray-500">N/A</div>
+                    )}
+                  </div>
                 </div>
 
                 <div className="space-y-3">

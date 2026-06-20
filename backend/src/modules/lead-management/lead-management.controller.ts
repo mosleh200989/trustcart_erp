@@ -267,6 +267,7 @@ export class LeadManagementController {
     @Query('deliveryDateStart') deliveryDateStart?: string,
     @Query('deliveryDateEnd') deliveryDateEnd?: string,
     @Query('purchasesCount') purchasesCount?: string,
+    @Query('minDeliveredCount') minDeliveredCount?: string,
     @Query('maxCancelledOrderRatio') maxCancelledOrderRatio?: string,
     @Query('customerSegment') customerSegment?: string,
   ) {
@@ -280,6 +281,7 @@ export class LeadManagementController {
       deliveryDateStart,
       deliveryDateEnd,
       purchasesCount: purchasesCount ? parseInt(purchasesCount, 10) : undefined,
+      minDeliveredCount: minDeliveredCount ? parseInt(minDeliveredCount, 10) : undefined,
       maxCancelledOrderRatio: maxCancelledOrderRatio ? parseFloat(maxCancelledOrderRatio) : undefined,
       customerSegment,
     });

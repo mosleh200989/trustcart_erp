@@ -645,6 +645,7 @@ export class LeadManagementService {
     deliveryDateStart?: string;
     deliveryDateEnd?: string;
     purchasesCount?: number;
+    minDeliveredCount?: number;
     maxCancelledOrderRatio?: number;
     customerSegment?: string;
   } = {}) {
@@ -749,8 +750,11 @@ export class LeadManagementService {
             ${deliveryDateEnd ? `AND ${deliveryDateExpr} <= '${deliveryDateEnd.replace(/'/g, "''")}'::date` : ''}
         )`
       : '';
-    const purchasesCountFilter = Number.isFinite(filters.purchasesCount) && Number(filters.purchasesCount) >= 0
-      ? `AND os.order_count >= ${Number(filters.purchasesCount)}`
+    const deliveredCountFilterValue = Number.isFinite(filters.minDeliveredCount)
+      ? Number(filters.minDeliveredCount)
+      : Number(filters.purchasesCount);
+    const purchasesCountFilter = Number.isFinite(deliveredCountFilterValue) && deliveredCountFilterValue >= 0
+      ? `AND os.delivered_order_count >= ${deliveredCountFilterValue}`
       : '';
     const maxCancelledOrderRatioFilter = Number.isFinite(filters.maxCancelledOrderRatio) && Number(filters.maxCancelledOrderRatio) >= 0
       ? `AND COALESCE(os.cancelled_order_ratio, 0) <= ${Math.min(Number(filters.maxCancelledOrderRatio), 100)}`
