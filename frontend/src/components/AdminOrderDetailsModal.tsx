@@ -84,6 +84,16 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
   const [savingProductSuggestion, setSavingProductSuggestion] = useState(false);
   const productSuggestionRef = useRef<HTMLDivElement>(null);
   const productSuggestionTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const [quickProductSuggestionQuery, setQuickProductSuggestionQuery] = useState('');
+  const [quickProductSuggestionProductId, setQuickProductSuggestionProductId] = useState<number | null>(null);
+  const [quickProductSuggestionOptionKey, setQuickProductSuggestionOptionKey] = useState('');
+  const [quickProductSuggestionProducts, setQuickProductSuggestionProducts] = useState<any[]>([]);
+  const [quickProductSuggestionResults, setQuickProductSuggestionResults] = useState<any[]>([]);
+  const [quickProductSuggestionLoading, setQuickProductSuggestionLoading] = useState(false);
+  const [showQuickProductSuggestionDropdown, setShowQuickProductSuggestionDropdown] = useState(false);
+  const [quickProductSuggestionExpandedId, setQuickProductSuggestionExpandedId] = useState<number | null>(null);
+  const quickProductSuggestionRef = useRef<HTMLDivElement>(null);
+  const quickProductSuggestionTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [editingCustomerNote, setEditingCustomerNote] = useState<'internal' | 'courier' | null>(null);
   const [customerNoteDraft, setCustomerNoteDraft] = useState('');
   const [savingCustomerNote, setSavingCustomerNote] = useState(false);
@@ -245,6 +255,7 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
   useEffect(() => {
     if (activeTab === 'customer') {
       loadAvailableCustomerTags();
+      loadQuickProductSuggestionProducts();
     }
   }, [activeTab]);
 
@@ -253,10 +264,70 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
       if (productSuggestionRef.current && !productSuggestionRef.current.contains(e.target as Node)) {
         setShowProductSuggestionDropdown(false);
       }
+      if (quickProductSuggestionRef.current && !quickProductSuggestionRef.current.contains(e.target as Node)) {
+        setShowQuickProductSuggestionDropdown(false);
+      }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  const getProductVariants = (product: any): Array<{ name: string; price: number; stock?: number; sku_suffix?: string }> => {
+    let variants = product?.size_variants;
+    if (!variants) return [];
+    if (typeof variants === 'string') {
+      try {
+        variants = JSON.parse(variants);
+      } catch {
+        return [];
+      }
+    }
+    if (!Array.isArray(variants)) return [];
+    return variants.filter((variant: any) =>
+      variant
+      && typeof variant.name === 'string'
+      && variant.name.trim().length > 0
+      && variant.price != null
+      && Number(variant.price) > 0,
+    );
+  };
+
+  const getQuickProductSuggestionOptions = () => {
+    const options: Array<{ key: string; label: string; productId: number | null }> = [];
+    quickProductSuggestionProducts.forEach((product: any) => {
+      const productId = product.id ? Number(product.id) : null;
+      const productName = product.name_en || product.name || product.name_bn || `Product #${product.id}`;
+      const variants = getProductVariants(product);
+      options.push({
+        key: `${product.id || productName}::base`,
+        label: productName,
+        productId,
+      });
+      variants.forEach((variant, index) => {
+        options.push({
+          key: `${product.id || productName}::variant::${index}`,
+          label: `${productName} (${variant.name})`,
+          productId,
+        });
+      });
+    });
+    return options;
+  };
+
+  const loadQuickProductSuggestionProducts = async () => {
+    if (quickProductSuggestionProducts.length > 0 || quickProductSuggestionLoading) return;
+    setQuickProductSuggestionLoading(true);
+    try {
+      const response = await apiClient.get('/products/admin/suggestion-options');
+      const products = Array.isArray(response.data) ? response.data : (response.data?.data || []);
+      setQuickProductSuggestionProducts(products);
+    } catch (error) {
+      console.error('Failed to load product suggestion options:', error);
+      setQuickProductSuggestionProducts([]);
+    } finally {
+      setQuickProductSuggestionLoading(false);
+    }
+  };
 
   const searchProductSuggestions = useCallback(async (query: string) => {
     if (query.trim().length < 2) {
@@ -280,10 +351,58 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
     }
   }, []);
 
+  const searchQuickProductSuggestions = useCallback(async (query: string) => {
+    if (query.trim().length < 2) {
+      setQuickProductSuggestionResults([]);
+      setShowQuickProductSuggestionDropdown(false);
+      return;
+    }
+
+    setQuickProductSuggestionLoading(true);
+    try {
+      const response = await apiClient.get(`/products/admin/search?q=${encodeURIComponent(query)}`);
+      const products = Array.isArray(response.data) ? response.data : (response.data?.data || []);
+      const filtered = products.slice(0, 8);
+      setQuickProductSuggestionResults(filtered);
+      setShowQuickProductSuggestionDropdown(filtered.length > 0);
+    } catch (error) {
+      console.error('Quick product suggestion search failed:', error);
+      setQuickProductSuggestionResults([]);
+      setShowQuickProductSuggestionDropdown(false);
+    } finally {
+      setQuickProductSuggestionLoading(false);
+    }
+  }, []);
+
   const handleProductSuggestionChange = (value: string) => {
     setProductSuggestionDraft(value);
     if (productSuggestionTimerRef.current) clearTimeout(productSuggestionTimerRef.current);
     productSuggestionTimerRef.current = setTimeout(() => searchProductSuggestions(value), 250);
+  };
+
+  const handleQuickProductSuggestionChange = (value: string) => {
+    setQuickProductSuggestionQuery(value);
+    setQuickProductSuggestionProductId(null);
+    if (quickProductSuggestionTimerRef.current) clearTimeout(quickProductSuggestionTimerRef.current);
+    quickProductSuggestionTimerRef.current = setTimeout(() => searchQuickProductSuggestions(value), 250);
+  };
+
+  const selectQuickProductSuggestion = (product: any, variant?: { name: string; price: number }) => {
+    const productName = product.name_en || product.name || product.name_bn || '';
+    const suggestionText = variant?.name ? `${productName} (${variant.name})` : productName;
+    setQuickProductSuggestionQuery(suggestionText);
+    setQuickProductSuggestionProductId(product.id ? Number(product.id) : null);
+    setQuickProductSuggestionOptionKey('');
+    setQuickProductSuggestionResults([]);
+    setShowQuickProductSuggestionDropdown(false);
+    setQuickProductSuggestionExpandedId(null);
+  };
+
+  const selectQuickProductSuggestionOption = (key: string) => {
+    const selectedOption = getQuickProductSuggestionOptions().find((option) => option.key === key);
+    setQuickProductSuggestionOptionKey(key);
+    setQuickProductSuggestionQuery(selectedOption?.label || '');
+    setQuickProductSuggestionProductId(selectedOption?.productId ?? null);
   };
 
   const getSuggestionText = (suggestion: ProductSuggestionItem) =>
@@ -301,36 +420,54 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
     setShowProductSuggestionDropdown(false);
   };
 
-  const saveProductSuggestion = async (nextValue = productSuggestionDraft) => {
+  const saveProductSuggestion = async (
+    nextValue = productSuggestionDraft,
+    nextProductId = productSuggestionProductId,
+    targetSuggestionId: number | string | null = editingProductSuggestionId,
+  ) => {
     if (!hasPermission('update-order-product-suggestion')) {
       toast.error('You do not have permission to update product suggestion');
-      return;
+      return false;
     }
 
     const trimmed = nextValue.trim();
     if (!trimmed) {
       toast.error('Product suggestion is required');
-      return;
+      return false;
     }
 
     setSavingProductSuggestion(true);
     try {
       const payload = {
         productSuggestion: trimmed,
-        productId: productSuggestionProductId,
+        productId: nextProductId,
       };
-      const response = editingProductSuggestionId && editingProductSuggestionId !== 'new'
-        ? await apiClient.put(`/order-management/${currentOrderId}/product-suggestions/${encodeURIComponent(String(editingProductSuggestionId))}`, payload)
+      const isUpdatingSuggestion = targetSuggestionId && targetSuggestionId !== 'new';
+      const response = isUpdatingSuggestion
+        ? await apiClient.put(`/order-management/${currentOrderId}/product-suggestions/${encodeURIComponent(String(targetSuggestionId))}`, payload)
         : await apiClient.post(`/order-management/${currentOrderId}/product-suggestions`, payload);
       updateSuggestionStateFromResponse(response.data);
-      toast.success(editingProductSuggestionId && editingProductSuggestionId !== 'new' ? 'Product suggestion updated' : 'Product suggestion added');
+      toast.success(isUpdatingSuggestion ? 'Product suggestion updated' : 'Product suggestion added');
       await loadOrderDetails();
       onUpdate();
+      return true;
     } catch (error: any) {
       toast.error(error?.response?.data?.message || 'Failed to update product suggestion');
+      return false;
     } finally {
       setSavingProductSuggestion(false);
     }
+  };
+
+  const saveQuickProductSuggestion = async () => {
+    const saved = await saveProductSuggestion(quickProductSuggestionQuery, quickProductSuggestionProductId, 'new');
+    if (!saved) return;
+    setQuickProductSuggestionQuery('');
+    setQuickProductSuggestionProductId(null);
+    setQuickProductSuggestionOptionKey('');
+    setQuickProductSuggestionResults([]);
+    setShowQuickProductSuggestionDropdown(false);
+    setQuickProductSuggestionExpandedId(null);
   };
 
   const startProductSuggestionEdit = (suggestion?: ProductSuggestionItem) => {
@@ -2045,6 +2182,32 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                       </button>
                     </div>
                   )}
+                  {customerRecord?.id && canUpdateProductSuggestion && (
+                    <div className="inline-flex items-center gap-2">
+                      <select
+                        value={quickProductSuggestionOptionKey}
+                        onFocus={loadQuickProductSuggestionProducts}
+                        onChange={(e) => selectQuickProductSuggestionOption(e.target.value)}
+                        disabled={quickProductSuggestionLoading}
+                        className="border border-gray-300 rounded-lg px-2 py-1 text-xs min-w-[260px] max-w-[360px]"
+                      >
+                        <option value="">
+                          {quickProductSuggestionLoading ? 'Loading products...' : 'Select product suggestion...'}
+                        </option>
+                        {getQuickProductSuggestionOptions().map((option) => (
+                          <option key={option.key} value={option.key}>{option.label}</option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        onClick={saveQuickProductSuggestion}
+                        disabled={!quickProductSuggestionOptionKey || savingProductSuggestion}
+                        className="inline-flex items-center gap-1 bg-indigo-600 text-white px-2 py-1 rounded-lg text-xs font-semibold hover:bg-indigo-700 disabled:opacity-50"
+                      >
+                        <FaPlus size={11} /> {savingProductSuggestion ? 'Saving...' : 'Add Suggestion'}
+                      </button>
+                    </div>
+                  )}
                   {customerRecord?.id && (
                     <div className="inline-flex items-center gap-1.5 ml-2 border-l pl-3">
                       <span className="text-xs font-semibold text-gray-500">Tier:</span>
@@ -2181,6 +2344,8 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                 </div>
               </div>
 
+              {/* Lower Product Suggestions section hidden per request; upper dropdown now owns suggestion creation. */}
+              {false && (
               <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
                 <div className="flex items-center justify-between gap-3">
                   <div className="text-sm font-semibold text-gray-900 flex items-center gap-2">
@@ -2299,6 +2464,7 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                   )}
                 </div>
               </div>
+              )}
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
