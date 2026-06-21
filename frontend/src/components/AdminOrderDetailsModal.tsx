@@ -2229,7 +2229,7 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                         <option value="tier_4">Tier 4</option>
                         <option value="tier_5">Tier 5</option>
                         <option value="tier_6">Tier 6</option>
-                        <option value="rejected" disabled={customerRecord.customerType !== 'tier_6'}>Rejected</option>
+                        <option value="rejected">Rejected</option>
                       </select>
                     </div>
                   )}

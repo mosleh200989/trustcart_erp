@@ -14,7 +14,7 @@ import { CustomerTier } from './entities/customer-tier.entity';
 
 @Injectable()
 export class LeadManagementService {
-  private readonly manualTierValues = new Set(['tier_1', 'tier_2', 'tier_3', 'tier_4', 'tier_5', 'tier_6']);
+  private readonly manualTierValues = new Set(['tier_1', 'tier_2', 'tier_3', 'tier_4', 'tier_5', 'tier_6', 'rejected']);
 
   constructor(
     @InjectRepository(CustomerSession)
@@ -558,8 +558,8 @@ export class LeadManagementService {
       };
     }
 
-    if (data.tier !== 'rejected' && !this.manualTierValues.has(data.tier)) {
-      throw new Error('Invalid customer tier. Use tier_1 through tier_6.');
+    if (!this.manualTierValues.has(data.tier)) {
+      throw new Error('Invalid customer tier. Use tier_1 through tier_6 or rejected.');
     }
 
     const existing = await this.customerTierRepo.findOne({
@@ -568,10 +568,6 @@ export class LeadManagementService {
 
     // When rejecting a customer: unassign from agent and team leader
     if (data.tier === 'rejected') {
-      if (!existing || existing.tier !== 'tier_6') {
-        throw new Error('Only Tier 6 customers can be moved to the rejected list.');
-      }
-
       await this.sessionRepo.query(
         `UPDATE customers
          SET assigned_to = NULL,
