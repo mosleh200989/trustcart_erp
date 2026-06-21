@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import AdminLayout from '@/layouts/AdminLayout';
+import AdminDateInput from '@/components/admin/AdminDateInput';
 import apiClient from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/contexts/ToastContext';
@@ -335,9 +336,9 @@ export default function DollarConsumptionPage() {
             <div className="rounded-lg bg-white p-6 shadow">
               <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-4">
                 <input value={filters.search} onChange={(e) => setFilters((p) => ({ ...p, search: e.target.value }))} className="rounded-md border border-gray-300 px-3 py-2 md:col-span-2" placeholder="Search title, vendor, reference" />
-                <input type="date" value={filters.startDate} onChange={(e) => setFilters((p) => ({ ...p, startDate: e.target.value }))} className="rounded-md border border-gray-300 px-3 py-2" />
+                <AdminDateInput value={filters.startDate} onValueChange={(value) => setFilters((p) => ({ ...p, startDate: value }))} className="rounded-md border border-gray-300 px-3 py-2" />
                 <div className="flex gap-2">
-                  <input type="date" value={filters.endDate} onChange={(e) => setFilters((p) => ({ ...p, endDate: e.target.value }))} className="min-w-0 flex-1 rounded-md border border-gray-300 px-3 py-2" />
+                  <AdminDateInput value={filters.endDate} onValueChange={(value) => setFilters((p) => ({ ...p, endDate: value }))} className="min-w-0 flex-1 rounded-md border border-gray-300 px-3 py-2" />
                   <button onClick={loadData} className="rounded-md bg-gray-800 px-4 py-2 text-sm font-semibold text-white">Filter</button>
                 </div>
               </div>

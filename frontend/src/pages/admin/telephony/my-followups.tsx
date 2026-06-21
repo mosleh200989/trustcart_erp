@@ -4,6 +4,7 @@ import AdminLayout from '@/layouts/AdminLayout';
 import { wrapCustomerName } from '@/utils/wrapCustomerName';
 import Pagination from '@/components/admin/Pagination';
 import ThSort from '@/components/admin/ThSort';
+import AdminDateInput from '@/components/admin/AdminDateInput';
 import { useSortableData } from '@/hooks/useSortableData';
 import apiClient from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
@@ -680,12 +681,11 @@ export default function MyFollowupsPage() {
               {/* Specific Date Filter */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Specific Date</label>
-                <input
-                  type="date"
+                <AdminDateInput
                   value={specificDate}
-                  onChange={(e) => {
-                    setSpecificDate(e.target.value);
-                    if (e.target.value) setDateRangeFilter('');
+                  onValueChange={(value) => {
+                    setSpecificDate(value);
+                    if (value) setDateRangeFilter('');
                   }}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />

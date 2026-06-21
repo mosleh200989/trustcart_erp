@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import AdminLayout from '@/layouts/AdminLayout';
 import apiClient from '@/services/api';
+import AdminDateInput from '@/components/admin/AdminDateInput';
 import { addDhakaDays, getDhakaDateString } from '@/utils/dhakaDate';
 import {
   ResponsiveContainer,
@@ -351,10 +352,9 @@ export default function AgentWiseReportPage() {
               <label className="block text-gray-500 text-xs mb-1">Start Date</label>
               <div className="relative">
                 <FaCalendarAlt className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs" />
-                <input
-                  type="date"
+                <AdminDateInput
                   value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
+                  onValueChange={setStartDate}
                   className="bg-white border border-gray-300 text-gray-900 rounded-lg pl-9 pr-3 py-2 text-sm focus:ring-2 focus:ring-violet-500 outline-none"
                 />
               </div>
@@ -363,10 +363,9 @@ export default function AgentWiseReportPage() {
               <label className="block text-gray-500 text-xs mb-1">End Date</label>
               <div className="relative">
                 <FaCalendarAlt className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs" />
-                <input
-                  type="date"
+                <AdminDateInput
                   value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
+                  onValueChange={setEndDate}
                   className="bg-white border border-gray-300 text-gray-900 rounded-lg pl-9 pr-3 py-2 text-sm focus:ring-2 focus:ring-violet-500 outline-none"
                 />
               </div>

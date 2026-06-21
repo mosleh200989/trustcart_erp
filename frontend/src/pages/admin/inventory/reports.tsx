@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import AdminLayout from '@/layouts/AdminLayout';
+import AdminDateInput from '@/components/admin/AdminDateInput';
 import { inventoryReports } from '@/services/api';
 import { useToast } from '@/contexts/ToastContext';
 import { FaChartBar, FaDownload, FaFilter, FaSync } from 'react-icons/fa';
@@ -121,12 +122,12 @@ export default function ReportsPage() {
               <>
                 <div>
                   <label className="block text-xs font-medium text-gray-500 mb-1">From</label>
-                  <input type="date" value={filters.date_from} onChange={(e) => setFilters({ ...filters, date_from: e.target.value })}
+                  <AdminDateInput value={filters.date_from} onValueChange={(value) => setFilters({ ...filters, date_from: value })}
                     className="border rounded-lg px-3 py-1.5 text-sm" />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-500 mb-1">To</label>
-                  <input type="date" value={filters.date_to} onChange={(e) => setFilters({ ...filters, date_to: e.target.value })}
+                  <AdminDateInput value={filters.date_to} onValueChange={(value) => setFilters({ ...filters, date_to: value })}
                     className="border rounded-lg px-3 py-1.5 text-sm" />
                 </div>
               </>

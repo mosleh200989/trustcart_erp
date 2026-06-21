@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
 import AdminLayout from '@/layouts/AdminLayout';
+import AdminDateInput from '@/components/admin/AdminDateInput';
 import { wrapCustomerName } from '@/utils/wrapCustomerName';
 import { getDhakaDateString } from '@/utils/dhakaDate';
 import apiClient from '@/services/api';
@@ -482,8 +483,7 @@ export default function AdminReports() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Date From</label>
-                <input
-                  type="date"
+                <AdminDateInput
                   name="dateFrom"
                   value={filters.dateFrom}
                   onChange={handleFilterChange}
@@ -492,8 +492,7 @@ export default function AdminReports() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Date To</label>
-                <input
-                  type="date"
+                <AdminDateInput
                   name="dateTo"
                   value={filters.dateTo}
                   onChange={handleFilterChange}

@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import AdminLayout from '@/layouts/AdminLayout';
 import apiClient from '@/services/api';
+import AdminDateInput from '@/components/admin/AdminDateInput';
 import { fetchLandingPageOptions, LandingPageOption } from '@/services/landingPageOptions';
 import { addDhakaDays, getDhakaDateString } from '@/utils/dhakaDate';
 import {
@@ -301,10 +302,9 @@ export default function LandingPageReportsPage() {
               <label className="text-xs font-medium text-gray-500 dark:text-gray-400 flex items-center gap-1">
                 <FaCalendarAlt className="text-indigo-400" /> From
               </label>
-              <input
-                type="date"
+              <AdminDateInput
                 value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
+                onValueChange={setStartDate}
                 className="border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
             </div>
@@ -312,10 +312,9 @@ export default function LandingPageReportsPage() {
               <label className="text-xs font-medium text-gray-500 dark:text-gray-400 flex items-center gap-1">
                 <FaCalendarAlt className="text-indigo-400" /> To
               </label>
-              <input
-                type="date"
+              <AdminDateInput
                 value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
+                onValueChange={setEndDate}
                 className="border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
             </div>

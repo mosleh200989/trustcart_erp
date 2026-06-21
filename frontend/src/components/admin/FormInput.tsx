@@ -1,5 +1,6 @@
 import React from 'react';
 import PasswordInput from '@/components/common/PasswordInput';
+import AdminDateInput from './AdminDateInput';
 
 interface FormInputProps {
   label: string;
@@ -79,6 +80,17 @@ export default function FormInput({
             required={required}
             disabled={disabled}
             inputClassName={`${baseInputClasses} ${errorClasses}`}
+          />
+        ) : type === 'date' ? (
+          <AdminDateInput
+            id={name}
+            name={name}
+            value={String(value || '')}
+            onChange={onChange as React.ChangeEventHandler<HTMLInputElement>}
+            placeholder={placeholder}
+            required={required}
+            disabled={disabled}
+            className={`${baseInputClasses} ${errorClasses}`}
           />
         ) : (
           <input

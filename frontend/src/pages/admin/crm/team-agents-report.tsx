@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import AdminLayout from '@/layouts/AdminLayout';
+import AdminDateInput from '@/components/admin/AdminDateInput';
 import apiClient from '@/services/api';
 import { addDhakaDays, getDhakaDateString } from '@/utils/dhakaDate';
 import { FaPhone, FaUser, FaChartBar, FaHistory, FaFilter, FaSync } from 'react-icons/fa';
@@ -215,18 +216,16 @@ export default function TeamAgentsReportPage() {
         <div className="bg-white rounded-lg shadow p-4 flex flex-wrap items-center gap-4">
           <FaFilter className="text-gray-500" />
           <span className="text-sm font-medium text-gray-700">Date Range:</span>
-          <input
-            type="date"
+          <AdminDateInput
             value={dateFrom}
-            onChange={(e) => { setDateFrom(e.target.value); setTodayOnly(false); }}
+            onValueChange={(value) => { setDateFrom(value); setTodayOnly(false); }}
             disabled={todayOnly}
             className="px-3 py-2 border rounded-lg text-sm disabled:bg-gray-100 disabled:text-gray-400"
           />
           <span className="text-gray-500">to</span>
-          <input
-            type="date"
+          <AdminDateInput
             value={dateTo}
-            onChange={(e) => { setDateTo(e.target.value); setTodayOnly(false); }}
+            onValueChange={(value) => { setDateTo(value); setTodayOnly(false); }}
             disabled={todayOnly}
             className="px-3 py-2 border rounded-lg text-sm disabled:bg-gray-100 disabled:text-gray-400"
           />

@@ -4,6 +4,7 @@ import api from '../../../services/api';
 import { useToast } from '@/contexts/ToastContext';
 import AdminOrderDetailsModal from '@/components/AdminOrderDetailsModal';
 import ProductAutocomplete from '@/components/admin/ProductAutocomplete';
+import AdminDateInput from '@/components/admin/AdminDateInput';
 import { FaEye, FaUsers, FaGlobe, FaExchangeAlt } from 'react-icons/fa';
 import { CALL_OUTCOME_OPTIONS, type CallOutcomeValue, ORDER_REJECTION_REASON_OPTIONS } from '@/constants/adminOptions';
 
@@ -822,37 +823,33 @@ const SalesManagerLeadAssignment = () => {
             </FilterField>
 
             <FilterField label="Delivery Start Date">
-              <input
-                type="date"
+              <AdminDateInput
                 value={deliveryStartFilter}
-                onChange={e => setDeliveryStartFilter(e.target.value)}
+                onValueChange={setDeliveryStartFilter}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
               />
             </FilterField>
 
             <FilterField label="Delivery End Date">
-              <input
-                type="date"
+              <AdminDateInput
                 value={deliveryEndFilter}
-                onChange={e => setDeliveryEndFilter(e.target.value)}
+                onValueChange={setDeliveryEndFilter}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
               />
             </FilterField>
 
             <FilterField label="Assigned Start Date">
-              <input
-                type="date"
+              <AdminDateInput
                 value={assignedFromFilter}
-                onChange={e => setAssignedFromFilter(e.target.value)}
+                onValueChange={setAssignedFromFilter}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
               />
             </FilterField>
 
             <FilterField label="Assigned End Date">
-              <input
-                type="date"
+              <AdminDateInput
                 value={assignedToFilter}
-                onChange={e => setAssignedToFilter(e.target.value)}
+                onValueChange={setAssignedToFilter}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
               />
             </FilterField>

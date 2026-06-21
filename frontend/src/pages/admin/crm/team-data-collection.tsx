@@ -9,6 +9,7 @@ import {
   FaUserCheck,
 } from 'react-icons/fa';
 import AdminLayout from '@/layouts/AdminLayout';
+import AdminDateInput from '@/components/admin/AdminDateInput';
 import apiClient from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/contexts/ToastContext';
@@ -206,11 +207,11 @@ export default function TeamDataCollectionPage() {
             )}
             <div>
               <label className="mb-1 block text-xs font-medium uppercase text-gray-500">From</label>
-              <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="rounded-lg border px-3 py-2 text-sm" />
+              <AdminDateInput value={from} onValueChange={setFrom} className="rounded-lg border px-3 py-2 text-sm" />
             </div>
             <div>
               <label className="mb-1 block text-xs font-medium uppercase text-gray-500">To</label>
-              <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="rounded-lg border px-3 py-2 text-sm" />
+              <AdminDateInput value={to} onValueChange={setTo} className="rounded-lg border px-3 py-2 text-sm" />
             </div>
             <button onClick={loadReport} disabled={loading} className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50">
               <FaRedo /> Refresh
