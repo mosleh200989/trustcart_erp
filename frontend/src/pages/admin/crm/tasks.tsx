@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
 import { Plus, Filter, Search, Calendar, User, CheckCircle, Circle, Clock, AlertCircle, X, ChevronDown, Edit2, Trash2, Users, MessageSquare } from 'lucide-react';
 import AdminLayout from '@/layouts/AdminLayout';
-import { format } from 'date-fns';
 import apiClient from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/contexts/ToastContext';
 import ThSort from '@/components/admin/ThSort';
 import { useSortableData } from '@/hooks/useSortableData';
+import { formatDhakaDate } from '@/utils/dhakaDate';
 
 interface TeamMember {
   id: number;
@@ -559,7 +559,7 @@ const TaskManagement = () => {
                           {task.dueDate ? (
                             <div className="flex items-center text-sm text-gray-700">
                               <Calendar className="w-4 h-4 mr-1" />
-                              {format(new Date(task.dueDate), 'MMM dd, yyyy')}
+                              {formatDhakaDate(task.dueDate, undefined, { day: '2-digit', month: '2-digit', year: 'numeric' })}
                               {task.dueTime && <span className="ml-1 text-gray-500">{task.dueTime}</span>}
                             </div>
                           ) : (
@@ -690,7 +690,7 @@ const TaskManagement = () => {
                         {task.dueDate && (
                           <p className="text-xs text-gray-500 flex items-center mb-2">
                             <Calendar className="w-3 h-3 mr-1" />
-                            {format(new Date(task.dueDate), 'MMM dd')}
+                            {formatDhakaDate(task.dueDate, undefined, { day: '2-digit', month: '2-digit', year: 'numeric' })}
                           </p>
                         )}
                         <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">

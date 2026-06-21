@@ -10,9 +10,18 @@ import { getDhakaDateString } from '../../common/utils/dhaka-date';
 import { TenantService } from '../tenant/tenant.service';
 import { TenantContext } from '../tenant/tenant.context';
 
+interface ScheduledLeadAssignmentJob {
+  id: number;
+  customer_id: number;
+  action: 'assign' | 'unassign';
+  agent_id: number | null;
+  scheduled_by: number | null;
+}
+
 @Injectable()
 export class SalesManagerService implements OnModuleInit {
   private assignmentColumnShapePromise?: Promise<{ assignedBy: boolean; assignedAt: boolean }>;
+  private scheduledLeadAssignmentSchemaReady?: Promise<void>;
 
   constructor(
     @InjectRepository(Customer)
@@ -49,6 +58,24 @@ export class SalesManagerService implements OnModuleInit {
           }
         } catch (err: any) {
           console.error(`[SalesManagerService] Cleanup failed for tenant ${tenant.id}:`, err?.message || err);
+        }
+      });
+    }
+  }
+
+  @Cron('* * * * *')
+  async handleScheduledLeadAssignmentsCron() {
+    if (process.env.ENABLE_BACKGROUND_JOBS !== 'true') {
+      return;
+    }
+    const tenants = this.tenantService.getAllTenants();
+    for (const tenant of tenants) {
+      if (!tenant.isActive) continue;
+      await TenantContext.run(tenant.id, async () => {
+        try {
+          await this.processDueScheduledLeadAssignments(100);
+        } catch (err: any) {
+          console.error(`[SalesManagerService] Scheduled lead assignment processing failed for tenant ${tenant.id}:`, err?.message || err);
         }
       });
     }
@@ -121,6 +148,39 @@ export class SalesManagerService implements OnModuleInit {
     return this.assignmentColumnShapePromise;
   }
 
+  private async ensureScheduledLeadAssignmentSchema() {
+    if (!this.scheduledLeadAssignmentSchemaReady) {
+      this.scheduledLeadAssignmentSchemaReady = this.customerRepository.query(`
+        CREATE TABLE IF NOT EXISTS scheduled_lead_assignments (
+          id BIGSERIAL PRIMARY KEY,
+          customer_id INTEGER NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+          action VARCHAR(20) NOT NULL CHECK (action IN ('assign', 'unassign')),
+          agent_id INTEGER NULL REFERENCES users(id) ON DELETE SET NULL,
+          scheduled_at TIMESTAMPTZ NOT NULL,
+          status VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'processing', 'processed', 'failed', 'cancelled')),
+          scheduled_by INTEGER NULL REFERENCES users(id) ON DELETE SET NULL,
+          processed_at TIMESTAMPTZ NULL,
+          cancelled_at TIMESTAMPTZ NULL,
+          error_message TEXT NULL,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_scheduled_lead_assignments_customer
+          ON scheduled_lead_assignments(customer_id);
+
+        CREATE INDEX IF NOT EXISTS idx_scheduled_lead_assignments_pending_due
+          ON scheduled_lead_assignments(status, scheduled_at)
+          WHERE status = 'pending';
+
+        CREATE INDEX IF NOT EXISTS idx_scheduled_lead_assignments_filters
+          ON scheduled_lead_assignments(status, action, agent_id, scheduled_at);
+      `).then(() => undefined);
+    }
+
+    return this.scheduledLeadAssignmentSchemaReady;
+  }
+
   private setCustomerAssignmentFields(
     assignmentShape: { assignedBy: boolean; assignedAt: boolean },
     dataAnalystId: number | null,
@@ -129,6 +189,149 @@ export class SalesManagerService implements OnModuleInit {
     if (assignmentShape.assignedBy) fields.assigned_by = dataAnalystId;
     if (assignmentShape.assignedAt) fields.assigned_at = dataAnalystId == null ? null : new Date();
     return fields;
+  }
+
+  private normalizeCustomerIds(customerIds: number[] = []) {
+    return Array.from(
+      new Set(
+        customerIds
+          .map((id) => Number(id))
+          .filter((id) => Number.isInteger(id) && id > 0),
+      ),
+    );
+  }
+
+  private parseScheduledAt(value: string | Date) {
+    const scheduledAt = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(scheduledAt.getTime())) {
+      throw new Error('Invalid scheduled date/time');
+    }
+    return scheduledAt;
+  }
+
+  async scheduleLeadAssignmentAction(input: {
+    customerIds: number[];
+    action: 'assign' | 'unassign';
+    agentId?: number | null;
+    scheduledAt: string | Date;
+    scheduledBy: number;
+  }) {
+    await this.ensureScheduledLeadAssignmentSchema();
+
+    const customerIds = this.normalizeCustomerIds(input.customerIds);
+    if (customerIds.length === 0) {
+      return { scheduled: 0 };
+    }
+
+    const action = input.action;
+    if (action !== 'assign' && action !== 'unassign') {
+      throw new Error('Invalid scheduled action');
+    }
+
+    const agentId = input.agentId ? Number(input.agentId) : null;
+    if (action === 'assign') {
+      if (!agentId) throw new Error('Agent is required for scheduled assignment');
+      const agent = (await this.getAgents()).find((item) => item.id === agentId);
+      if (!agent) throw new Error('Invalid agent ID');
+    }
+
+    const scheduledAt = this.parseScheduledAt(input.scheduledAt);
+
+    await this.customerRepository.manager.transaction(async (manager) => {
+      await manager.query(
+        `UPDATE scheduled_lead_assignments
+         SET status = 'cancelled',
+             cancelled_at = NOW(),
+             updated_at = NOW(),
+             error_message = 'Superseded by a newer scheduled action'
+         WHERE customer_id = ANY($1::int[])
+           AND status = 'pending'`,
+        [customerIds],
+      );
+
+      await manager.query(
+        `INSERT INTO scheduled_lead_assignments
+          (customer_id, action, agent_id, scheduled_at, scheduled_by)
+         SELECT UNNEST($1::int[]), $2, $3, $4, $5`,
+        [customerIds, action, agentId, scheduledAt, input.scheduledBy],
+      );
+    });
+
+    return { scheduled: customerIds.length, action, agentId, scheduledAt };
+  }
+
+  async processDueScheduledLeadAssignments(limit = 100): Promise<{ checked: number; processed: number; failed: number }> {
+    await this.ensureScheduledLeadAssignmentSchema();
+
+    const claimJobs = () => this.customerRepository.query(
+        `UPDATE scheduled_lead_assignments sla
+         SET status = 'processing',
+             updated_at = NOW()
+         WHERE sla.id IN (
+           SELECT id
+           FROM scheduled_lead_assignments
+           WHERE status = 'pending'
+             AND scheduled_at <= NOW()
+           ORDER BY scheduled_at ASC, id ASC
+           LIMIT $1
+           FOR UPDATE SKIP LOCKED
+         )
+         RETURNING id, customer_id, action, agent_id, scheduled_by`,
+        [Math.max(1, Math.min(Number(limit) || 100, 500))],
+      ) as Promise<ScheduledLeadAssignmentJob[]>;
+
+    let jobs: ScheduledLeadAssignmentJob[];
+    try {
+      jobs = await claimJobs();
+    } catch (error: any) {
+      if (String(error?.message || '').includes('scheduled_lead_assignments_status_check')) {
+        await this.customerRepository.query(`
+          ALTER TABLE scheduled_lead_assignments DROP CONSTRAINT IF EXISTS scheduled_lead_assignments_status_check;
+          ALTER TABLE scheduled_lead_assignments ADD CONSTRAINT scheduled_lead_assignments_status_check
+            CHECK (status IN ('pending', 'processing', 'processed', 'failed', 'cancelled'));
+        `);
+        jobs = await claimJobs();
+      } else {
+        throw error;
+      }
+    }
+
+    let processed = 0;
+    let failed = 0;
+
+    for (const job of jobs) {
+      try {
+        if (job.action === 'assign') {
+          await this.assignLeadToAgent([Number(job.customer_id)], Number(job.agent_id), Number(job.scheduled_by || 0));
+        } else {
+          await this.unassignLeadsFromAgent([Number(job.customer_id)], Number(job.scheduled_by || 0));
+        }
+
+        await this.customerRepository.query(
+          `UPDATE scheduled_lead_assignments
+           SET status = 'processed',
+               processed_at = NOW(),
+               updated_at = NOW(),
+               error_message = NULL
+           WHERE id = $1`,
+          [job.id],
+        );
+        processed += 1;
+      } catch (error: any) {
+        await this.customerRepository.query(
+          `UPDATE scheduled_lead_assignments
+           SET status = 'failed',
+               processed_at = NOW(),
+               updated_at = NOW(),
+               error_message = LEFT($2, 1000)
+           WHERE id = $1`,
+          [job.id, String(error?.message || error || 'Failed to process scheduled assignment')],
+        );
+        failed += 1;
+      }
+    }
+
+    return { checked: jobs.length, processed, failed };
   }
 
   private applyLastCallFilter(qb: any, calledStatus: string): void {
@@ -372,6 +575,7 @@ export class SalesManagerService implements OnModuleInit {
    */
   async getUnassignedLeads(query: any) {
     const assignmentShape = await this.getAssignmentColumnShape();
+    await this.processDueScheduledLeadAssignments(100);
 
     const page = parseInt(query.page) || 1;
     const allowedLimits = [20, 30, 50, 100, 200, 500, 750, 1000, 2000];
@@ -439,6 +643,30 @@ export class SalesManagerService implements OnModuleInit {
           ? `(SELECT CONCAT(COALESCE(da.name, ''), ' ', COALESCE(da.last_name, '')) FROM users da WHERE da.id = c.assigned_by LIMIT 1)`
           : `NULL`,
         'data_analyst_name',
+      )
+      .addSelect(
+        `(SELECT sla.id FROM scheduled_lead_assignments sla WHERE sla.customer_id = c.id AND sla.status = 'pending' ORDER BY sla.scheduled_at ASC, sla.id ASC LIMIT 1)`,
+        'scheduled_assignment_id',
+      )
+      .addSelect(
+        `(SELECT sla.action FROM scheduled_lead_assignments sla WHERE sla.customer_id = c.id AND sla.status = 'pending' ORDER BY sla.scheduled_at ASC, sla.id ASC LIMIT 1)`,
+        'scheduled_assignment_action',
+      )
+      .addSelect(
+        `(SELECT sla.status FROM scheduled_lead_assignments sla WHERE sla.customer_id = c.id AND sla.status = 'pending' ORDER BY sla.scheduled_at ASC, sla.id ASC LIMIT 1)`,
+        'scheduled_assignment_status',
+      )
+      .addSelect(
+        `(SELECT sla.scheduled_at FROM scheduled_lead_assignments sla WHERE sla.customer_id = c.id AND sla.status = 'pending' ORDER BY sla.scheduled_at ASC, sla.id ASC LIMIT 1)`,
+        'scheduled_assignment_at',
+      )
+      .addSelect(
+        `(SELECT sla.agent_id FROM scheduled_lead_assignments sla WHERE sla.customer_id = c.id AND sla.status = 'pending' ORDER BY sla.scheduled_at ASC, sla.id ASC LIMIT 1)`,
+        'scheduled_assignment_agent_id',
+      )
+      .addSelect(
+        `(SELECT CONCAT(COALESCE(agent.name, ''), ' ', COALESCE(agent.last_name, '')) FROM scheduled_lead_assignments sla LEFT JOIN users agent ON agent.id = sla.agent_id WHERE sla.customer_id = c.id AND sla.status = 'pending' ORDER BY sla.scheduled_at ASC, sla.id ASC LIMIT 1)`,
+        'scheduled_assignment_agent_name',
       )
       // Only customers who have at least one delivered order
       .andWhere(
@@ -593,6 +821,76 @@ export class SalesManagerService implements OnModuleInit {
       qb.andWhere('DATE(c.assigned_at) <= CAST(:assignedToDate AS date)', { assignedToDate: String(query.assignedToDate).trim() });
     }
 
+    const scheduledStatus = String(query.scheduledAssignmentStatus || '').trim();
+    if (scheduledStatus === 'none') {
+      qb.andWhere(`NOT EXISTS (SELECT 1 FROM scheduled_lead_assignments sla_filter WHERE sla_filter.customer_id = c.id AND sla_filter.status = 'pending')`);
+    } else if (scheduledStatus === 'any') {
+      qb.andWhere(`EXISTS (SELECT 1 FROM scheduled_lead_assignments sla_filter WHERE sla_filter.customer_id = c.id)`);
+    } else if (scheduledStatus) {
+      qb.andWhere(
+        `EXISTS (
+          SELECT 1
+          FROM scheduled_lead_assignments sla_filter
+          WHERE sla_filter.customer_id = c.id
+            AND sla_filter.status = :scheduledStatus
+        )`,
+        { scheduledStatus },
+      );
+    }
+
+    const scheduledAction = String(query.scheduledAssignmentAction || '').trim();
+    if (scheduledAction === 'assign' || scheduledAction === 'unassign') {
+      qb.andWhere(
+        `EXISTS (
+          SELECT 1
+          FROM scheduled_lead_assignments sla_filter_action
+          WHERE sla_filter_action.customer_id = c.id
+            AND sla_filter_action.action = :scheduledAction
+            AND sla_filter_action.status = 'pending'
+        )`,
+        { scheduledAction },
+      );
+    }
+
+    if (query.scheduledAgent && String(query.scheduledAgent).trim()) {
+      qb.andWhere(
+        `EXISTS (
+          SELECT 1
+          FROM scheduled_lead_assignments sla_filter_agent
+          WHERE sla_filter_agent.customer_id = c.id
+            AND sla_filter_agent.agent_id = :scheduledAgent
+            AND sla_filter_agent.status = 'pending'
+        )`,
+        { scheduledAgent: Number(query.scheduledAgent) },
+      );
+    }
+
+    if (query.scheduledFrom && String(query.scheduledFrom).trim()) {
+      qb.andWhere(
+        `EXISTS (
+          SELECT 1
+          FROM scheduled_lead_assignments sla_filter_from
+          WHERE sla_filter_from.customer_id = c.id
+            AND sla_filter_from.scheduled_at >= CAST(:scheduledFrom AS timestamptz)
+            AND sla_filter_from.status = 'pending'
+        )`,
+        { scheduledFrom: String(query.scheduledFrom).trim() },
+      );
+    }
+
+    if (query.scheduledTo && String(query.scheduledTo).trim()) {
+      qb.andWhere(
+        `EXISTS (
+          SELECT 1
+          FROM scheduled_lead_assignments sla_filter_to
+          WHERE sla_filter_to.customer_id = c.id
+            AND sla_filter_to.scheduled_at <= CAST(:scheduledTo AS timestamptz)
+            AND sla_filter_to.status = 'pending'
+        )`,
+        { scheduledTo: String(query.scheduledTo).trim() },
+      );
+    }
+
     const callOutcome = String(query.callOutcome || query.outcome || '').trim();
     if (callOutcome && callOutcome !== 'all') {
       qb.andWhere(
@@ -638,14 +936,36 @@ export class SalesManagerService implements OnModuleInit {
 
     const productSuggestion = String(query.productSuggestion || query.suggestion || '').trim();
     if (productSuggestion && productSuggestion !== 'all') {
-      const productSuggestionSearch = `%${productSuggestion}%`;
-      qb.andWhere(
-        `(
+      const match = (alias: string, searchClause = '') =>
+        searchClause ? `AND (${searchClause.replace(/__alias__/g, alias)})` : '';
+      const hasProductSuggestionSql = (searchClause = '') => {
+        const activitySearchSql = searchClause ? `
+          OR EXISTS (
+            SELECT 1
+            FROM activities a_suggestion
+            WHERE a_suggestion.customer_id = c.id
+              AND a_suggestion.type = 'call'
+              AND (
+                ${searchClause.replace(/__alias__/g, 'a_suggestion.notes')}
+                OR ${searchClause.replace(/__alias__/g, 'a_suggestion.description')}
+                OR ${searchClause.replace(/__alias__/g, 'a_suggestion.metadata::text')}
+              )
+          )` : '';
+
+        return `(
           EXISTS (
+            SELECT 1
+            FROM customer_product_suggestions cps_suggestion
+            WHERE cps_suggestion.customer_id = c.id
+              AND NULLIF(TRIM(cps_suggestion.suggestion), '') IS NOT NULL
+              ${match('cps_suggestion.suggestion', searchClause)}
+          )
+          OR EXISTS (
             SELECT 1
             FROM sales_orders so_suggestion
             WHERE so_suggestion.customer_id = c.id
-              AND so_suggestion.telephony_suggestion ILIKE :productSuggestionSearch
+              AND NULLIF(TRIM(so_suggestion.telephony_suggestion), '') IS NOT NULL
+              ${match('so_suggestion.telephony_suggestion', searchClause)}
           )
           OR EXISTS (
             SELECT 1
@@ -653,7 +973,8 @@ export class SalesManagerService implements OnModuleInit {
             INNER JOIN sales_orders so_log_suggestion ON so_log_suggestion.id = tl_suggestion.order_id
             WHERE tl_suggestion.record_type = 'sales_order'
               AND so_log_suggestion.customer_id = c.id
-              AND tl_suggestion.suggestion ILIKE :productSuggestionSearch
+              AND NULLIF(TRIM(tl_suggestion.suggestion), '') IS NOT NULL
+              ${match('tl_suggestion.suggestion', searchClause)}
           )
           OR EXISTS (
             SELECT 1
@@ -661,26 +982,33 @@ export class SalesManagerService implements OnModuleInit {
             WHERE (eh_suggestion.customer_id = c.id::text OR eh_suggestion.customer_id = c.phone)
               AND eh_suggestion.engagement_type = 'call'
               AND (
-                eh_suggestion.message_content ILIKE :productSuggestionSearch
-                OR eh_suggestion.metadata->>'product_suggestion' ILIKE :productSuggestionSearch
-                OR eh_suggestion.metadata->>'productSuggestion' ILIKE :productSuggestionSearch
-                OR eh_suggestion.metadata->>'suggestion' ILIKE :productSuggestionSearch
+                NULLIF(TRIM(eh_suggestion.metadata->>'product_suggestion'), '') IS NOT NULL
+                OR NULLIF(TRIM(eh_suggestion.metadata->>'productSuggestion'), '') IS NOT NULL
+                OR NULLIF(TRIM(eh_suggestion.metadata->>'suggestion'), '') IS NOT NULL
               )
+              ${searchClause ? `AND (
+                ${searchClause.replace(/__alias__/g, 'eh_suggestion.message_content')}
+                OR ${searchClause.replace(/__alias__/g, "eh_suggestion.metadata->>'product_suggestion'")}
+                OR ${searchClause.replace(/__alias__/g, "eh_suggestion.metadata->>'productSuggestion'")}
+                OR ${searchClause.replace(/__alias__/g, "eh_suggestion.metadata->>'suggestion'")}
+              )` : ''}
           )
-          OR EXISTS (
-            SELECT 1
-            FROM activities a_suggestion
-            WHERE a_suggestion.customer_id = c.id
-              AND a_suggestion.type = 'call'
-              AND (
-                a_suggestion.notes ILIKE :productSuggestionSearch
-                OR a_suggestion.description ILIKE :productSuggestionSearch
-                OR a_suggestion.metadata::text ILIKE :productSuggestionSearch
-              )
-          )
-        )`,
-        { productSuggestionSearch },
-      );
+          ${activitySearchSql}
+        )`;
+      };
+
+      if (productSuggestion === '__any__') {
+        qb.andWhere(hasProductSuggestionSql());
+      } else if (productSuggestion === '__none__') {
+        qb.andWhere(`NOT ${hasProductSuggestionSql()}`);
+      } else {
+        const productSuggestionSearch = `%${productSuggestion}%`;
+        const searchClause = `__alias__ ILIKE :productSuggestionSearch`;
+        qb.andWhere(
+          hasProductSuggestionSql(searchClause),
+          { productSuggestionSearch },
+        );
+      }
     }
 
     if (query.noteSearch && String(query.noteSearch).trim()) {
@@ -759,6 +1087,12 @@ export class SalesManagerService implements OnModuleInit {
       teamLeaderName: String(raw[i]?.team_leader_name || '').trim() || null,
       dataAnalystName: String(raw[i]?.data_analyst_name || '').trim() || null,
       lastDeliveryDate: raw[i]?.last_delivery_date ?? null,
+      scheduledAssignmentId: raw[i]?.scheduled_assignment_id ? Number(raw[i].scheduled_assignment_id) : null,
+      scheduledAssignmentAction: raw[i]?.scheduled_assignment_action ?? null,
+      scheduledAssignmentStatus: raw[i]?.scheduled_assignment_status ?? null,
+      scheduledAssignmentAt: raw[i]?.scheduled_assignment_at ?? null,
+      scheduledAssignmentAgentId: raw[i]?.scheduled_assignment_agent_id ? Number(raw[i].scheduled_assignment_agent_id) : null,
+      scheduledAssignmentAgentName: String(raw[i]?.scheduled_assignment_agent_name || '').trim() || null,
     }));
 
     return { items, total, page, limit, totalPages: Math.ceil(total / limit) };

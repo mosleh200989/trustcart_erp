@@ -77,4 +77,19 @@ export class SalesManagerController {
       req.user.id,
     );
   }
+
+  @Post('schedule-lead-assignment')
+  @RequireAnyPermission('assign-leads-data-analyst', 'view-data-analyst-dashboard', 'view-sales-manager-dashboard')
+  async scheduleLeadAssignment(
+    @Body() body: { customerIds: number[]; action: 'assign' | 'unassign'; agentId?: number; scheduledAt: string },
+    @Request() req: any,
+  ) {
+    return await this.salesManagerService.scheduleLeadAssignmentAction({
+      customerIds: body.customerIds,
+      action: body.action,
+      agentId: body.agentId,
+      scheduledAt: body.scheduledAt,
+      scheduledBy: req.user.id,
+    });
+  }
 }

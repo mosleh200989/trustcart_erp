@@ -110,10 +110,7 @@ export default function CommissionPaymentHistoryPage() {
   const formatMonth = (month: string | null) => {
     if (!month || !/^\d{4}-\d{2}$/.test(month)) return '-';
     const [year, monthNum] = month.split('-').map(Number);
-    return new Date(year, monthNum - 1, 1).toLocaleDateString('en-US', {
-      month: 'long',
-      year: 'numeric',
-    });
+    return `${String(monthNum).padStart(2, '0')}/${year}`;
   };
 
   const openMonthEditor = (record: PaymentRecord) => {

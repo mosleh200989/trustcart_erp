@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Plus, Send, Mail, Eye, MousePointerClick, Reply, X, Search, Filter } from 'lucide-react';
 import AdminLayout from '@/layouts/AdminLayout';
-import { format } from 'date-fns';
 import apiClient from '@/services/api';
+import { formatDhakaDateTime } from '@/utils/dhakaDate';
 
 interface Email {
   id: number;
@@ -216,7 +216,13 @@ const EmailCampaigns = () => {
                         To: <span className="font-medium">{email.customer.name}</span> ({email.toAddress})
                       </p>
                       <p className="text-sm text-gray-500">
-                        Sent: {format(new Date(email.sentAt), 'MMM dd, yyyy h:mm a')}
+                        Sent: {formatDhakaDateTime(email.sentAt, undefined, {
+                          day: '2-digit',
+                          month: '2-digit',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
                       </p>
                       {email.templateUsed && (
                         <p className="text-xs text-gray-500 mt-1">Template: {email.templateUsed}</p>
@@ -233,16 +239,34 @@ const EmailCampaigns = () => {
                   {(email.firstOpenedAt || (email?.clickedLinks?.length as number) > 0) && (
                     <div className="mt-4 pt-4 border-t border-gray-100 text-xs text-gray-600 space-y-1">
                       {email.firstOpenedAt && (
-                        <p>First opened: {format(new Date(email.firstOpenedAt), 'MMM dd, h:mm a')}</p>
+                        <p>First opened: {formatDhakaDateTime(email.firstOpenedAt, undefined, {
+                          day: '2-digit',
+                          month: '2-digit',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}</p>
                       )}
                       {email.lastOpenedAt && email.openCount > 1 && (
-                        <p>Last opened: {format(new Date(email.lastOpenedAt), 'MMM dd, h:mm a')}</p>
+                        <p>Last opened: {formatDhakaDateTime(email.lastOpenedAt, undefined, {
+                          day: '2-digit',
+                          month: '2-digit',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}</p>
                       )}
                       {email.clickedLinks && email.clickedLinks.length > 0 && (
                         <p>Clicked links: {email.clickedLinks.join(', ')}</p>
                       )}
                       {email.repliedAt && (
-                        <p>Replied: {format(new Date(email.repliedAt), 'MMM dd, h:mm a')}</p>
+                        <p>Replied: {formatDhakaDateTime(email.repliedAt, undefined, {
+                          day: '2-digit',
+                          month: '2-digit',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}</p>
                       )}
                     </div>
                   )}

@@ -3125,6 +3125,18 @@ export class SalesService {
         becameDelivered = from !== 'delivered' && to === 'delivered';
         shouldDispatchApproved = from !== 'approved' && to === 'approved';
 
+        if (to === 'admin_cancelled') {
+          const rejectReason = String(updateSalesDto.cancelReason ?? updateSalesDto.cancel_reason ?? '').trim();
+          if (!rejectReason) {
+            throw new BadRequestException('Reject reason is required');
+          }
+          if (rejectReason.length > 255) {
+            throw new BadRequestException('Reject reason is too long');
+          }
+          updateSalesDto.cancelReason = rejectReason;
+          delete updateSalesDto.cancel_reason;
+        }
+
         if (to === 'approved' && !current.approvedAt) {
           updateSalesDto.approvedAt = new Date();
         }

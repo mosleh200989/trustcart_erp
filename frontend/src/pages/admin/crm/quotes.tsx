@@ -4,7 +4,7 @@ import AdminLayout from '@/layouts/AdminLayout';
 import apiClient from '@/services/api';
 import { useToast } from '@/contexts/ToastContext';
 // import { addQuoteNotification } from '@/components/QuoteNotifications'; // DISABLED
-import { format } from 'date-fns';
+import { formatDhakaDate } from '@/utils/dhakaDate';
 
 interface Quote {
   id: number;
@@ -244,7 +244,7 @@ const QuoteManagement = () => {
                         <p className="text-sm text-gray-500">Deal: {quote.deal.name}</p>
                       )}
                       <p className="text-sm text-gray-500 mt-2">
-                        Valid Until: {format(new Date(quote.validUntil), 'MMM dd, yyyy')}
+                        Valid Until: {formatDhakaDate(quote.validUntil, undefined, { day: '2-digit', month: '2-digit', year: 'numeric' })}
                       </p>
                     </div>
 
@@ -252,9 +252,9 @@ const QuoteManagement = () => {
                       <p className="text-2xl font-bold text-gray-900">${quote.total.toLocaleString()}</p>
                       <p className="text-sm text-gray-500">{quote.currency}</p>
                       <div className="mt-3 text-xs text-gray-500">
-                        {quote.sentAt && <p>Sent: {format(new Date(quote.sentAt), 'MMM dd')}</p>}
-                        {quote.viewedAt && <p>Viewed: {format(new Date(quote.viewedAt), 'MMM dd')}</p>}
-                        {quote.acceptedAt && <p>Accepted: {format(new Date(quote.acceptedAt), 'MMM dd')}</p>}
+                        {quote.sentAt && <p>Sent: {formatDhakaDate(quote.sentAt, undefined, { day: '2-digit', month: '2-digit', year: 'numeric' })}</p>}
+                        {quote.viewedAt && <p>Viewed: {formatDhakaDate(quote.viewedAt, undefined, { day: '2-digit', month: '2-digit', year: 'numeric' })}</p>}
+                        {quote.acceptedAt && <p>Accepted: {formatDhakaDate(quote.acceptedAt, undefined, { day: '2-digit', month: '2-digit', year: 'numeric' })}</p>}
                       </div>
                     </div>
                   </div>
@@ -604,7 +604,7 @@ const QuoteDetailModal = ({ quote, onClose }: { quote: Quote; onClose: () => voi
             </div>
             <div>
               <p className="text-sm text-gray-600">Valid Until</p>
-              <p className="font-semibold text-gray-900">{format(new Date(quote.validUntil), 'MMM dd, yyyy')}</p>
+              <p className="font-semibold text-gray-900">{formatDhakaDate(quote.validUntil, undefined, { day: '2-digit', month: '2-digit', year: 'numeric' })}</p>
             </div>
           </div>
 

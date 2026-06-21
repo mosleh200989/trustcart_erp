@@ -215,7 +215,7 @@ export default function ElectroNavbar() {
                           )}
                           <p className="text-orange-600 font-bold mt-1">৳{parseFloat(product.base_price || product.price).toFixed(2)}</p>
                         </div>
-                        {product.stock_quantity > 0 ? (
+                        {(product.is_in_stock ?? Number(product.total_available ?? product.stock_quantity ?? 0) > 0) ? (
                           <span className="text-green-600 text-sm font-semibold">In Stock</span>
                         ) : (
                           <span className="text-red-600 text-sm font-semibold">Out of Stock</span>

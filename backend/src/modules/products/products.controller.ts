@@ -120,7 +120,7 @@ export class ProductsController {
   }
 
   @Get('admin/suggestion-options')
-  @RequireAnyPermission('view-products', 'view-sales-orders', 'create-sales-orders', 'edit-sales-orders')
+  @RequireAnyPermission('view-products', 'view-sales-orders', 'create-sales-orders', 'edit-sales-orders', 'view-data-analyst-dashboard', 'view-sales-manager-dashboard')
   async getSuggestionOptions() {
     return await this.productsService.getProductSuggestionShortlistOptions();
   }

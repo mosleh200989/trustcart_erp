@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import apiClient from '@/services/api';
 import { FaTimes, FaCalendarAlt, FaUsers, FaShoppingCart, FaDollarSign, FaChevronDown, FaChevronUp, FaFileExport } from 'react-icons/fa';
-import { addDhakaDays, getDhakaDateString } from '@/utils/dhakaDate';
+import { addDhakaDays, formatDhakaDate, getDhakaDateString } from '@/utils/dhakaDate';
 
 interface CustomerReportEntry {
   id: number;
@@ -81,8 +81,11 @@ export default function CustomerReportModal({ isOpen, onClose }: Props) {
     new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'BDT', maximumFractionDigits: 0 }).format(val);
 
   const formatDate = (dateStr: string) => {
-    const d = new Date(dateStr + 'T00:00:00');
-    return d.toLocaleDateString('en-US', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' });
+    return formatDhakaDate(`${dateStr}T00:00:00`, undefined, {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    });
   };
 
   const getPriorityBadge = (priority: string | null) => {

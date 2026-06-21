@@ -11,9 +11,10 @@ import {
   FaTasks, FaExclamationTriangle, FaEdit, FaCalendarAlt, FaSortAmountDown, FaShoppingCart, FaEye
 } from 'react-icons/fa';
 import Link from 'next/link';
-import { format, isToday, isTomorrow, isPast, isThisWeek, addDays, startOfDay } from 'date-fns';
+import { isToday, isTomorrow, isPast, isThisWeek, addDays, startOfDay } from 'date-fns';
 import AdminOrderDetailsModal from '@/components/AdminOrderDetailsModal';
 import apiClient from '@/services/api';
+import { formatDhakaDate } from '@/utils/dhakaDate';
 
 // CRM Task interface
 interface CrmTask {
@@ -366,7 +367,7 @@ export default function AllTasksPage() {
               {task.dueDate && (
                 <span className={`flex items-center gap-1 ${isOverdue ? 'text-red-600 font-medium' : ''}`}>
                   <FaClock size={12} />
-                  {format(new Date(task.dueDate), 'MMM dd, yyyy')}
+                  {formatDhakaDate(task.dueDate, undefined, { day: '2-digit', month: '2-digit', year: 'numeric' })}
                   {task.dueTime && ` at ${task.dueTime}`}
                 </span>
               )}

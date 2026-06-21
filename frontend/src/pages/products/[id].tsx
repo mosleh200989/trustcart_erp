@@ -62,6 +62,28 @@ export default function ProductDetailsPage() {
   const shareMenuRef = useRef<HTMLDivElement>(null);
   const isHoveringGallery = useRef(false);
 
+  const getVariantStock = (variantName?: string | null) => {
+    if (!variantName || !product?.variant_stock || typeof product.variant_stock !== "object") {
+      return undefined;
+    }
+    const direct = product.variant_stock[variantName];
+    if (direct !== undefined && direct !== null) return Number(direct);
+
+    const normalizedName = variantName.trim().toLowerCase();
+    const match = Object.entries(product.variant_stock).find(
+      ([key]) => key.trim().toLowerCase() === normalizedName
+    );
+    return match ? Number(match[1]) : undefined;
+  };
+
+  const getProductStock = () => {
+    const value =
+      product?.total_available ??
+      product?.available_stock ??
+      product?.stock_quantity;
+    return value === null || value === undefined ? Infinity : Number(value);
+  };
+
   const getSlidesPerView = () => {
     if (typeof window === "undefined") return 4;
     const width = window.innerWidth;
@@ -228,9 +250,12 @@ export default function ProductDetailsPage() {
   };
 
   // Derived stock values
-  const maxStock = selectedVariant?.stock !== undefined
-    ? selectedVariant.stock
-    : (product?.stock_quantity ?? Infinity);
+  const selectedVariantStock = selectedVariant
+    ? getVariantStock(selectedVariant.name) ?? selectedVariant.stock
+    : undefined;
+  const maxStock = selectedVariantStock !== undefined
+    ? Number(selectedVariantStock)
+    : getProductStock();
   const isOutOfStock = maxStock <= 0;
   const isLowStock = maxStock > 0 && maxStock <= 10;
 
@@ -876,7 +901,10 @@ export default function ProductDetailsPage() {
                       Select Size
                     </label>
                     <div className="flex flex-wrap gap-2">
-                      {sizeVariants.map((variant, idx) => (
+                      {sizeVariants.map((variant, idx) => {
+                        const variantStock = getVariantStock(variant.name) ?? variant.stock;
+                        const variantOutOfStock = variantStock !== undefined && Number(variantStock) <= 0;
+                        return (
                         <button
                           key={idx}
                           onClick={() => setSelectedVariant(variant)}
@@ -885,19 +913,20 @@ export default function ProductDetailsPage() {
                               ? 'border-orange-500 bg-orange-50 text-orange-700'
                               : 'border-gray-300 hover:border-orange-300 text-gray-700'
                           } ${
-                            variant.stock !== undefined && variant.stock <= 0
+                            variantOutOfStock
                               ? 'opacity-50 cursor-not-allowed'
                               : ''
                           }`}
-                          disabled={variant.stock !== undefined && variant.stock <= 0}
+                          disabled={variantOutOfStock}
                         >
                           <span className="block">{variant.name}</span>
                           <span className="block text-sm text-gray-500">৳{variant.price.toFixed(0)}</span>
-                          {variant.stock !== undefined && variant.stock <= 0 && (
+                          {variantOutOfStock && (
                             <span className="block text-xs text-red-500">Out of Stock</span>
                           )}
                         </button>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 )}

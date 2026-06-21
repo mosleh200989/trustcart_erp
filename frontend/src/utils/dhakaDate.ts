@@ -1,4 +1,5 @@
 export const DHAKA_TIME_ZONE = 'Asia/Dhaka';
+export const DHAKA_DISPLAY_LOCALE = 'en-GB';
 
 type DateInput = Date | string | number | null | undefined;
 
@@ -29,13 +30,17 @@ function withDhakaTimeZone(options?: Intl.DateTimeFormatOptions): Intl.DateTimeF
   return options?.timeZone ? options : { ...(options || {}), timeZone: DHAKA_TIME_ZONE };
 }
 
-export function formatDhakaDate(input: DateInput, locale = 'en-GB', options?: Intl.DateTimeFormatOptions): string {
+function withDhakaDisplayLocale(locales?: Intl.LocalesArgument): Intl.LocalesArgument {
+  return locales ?? DHAKA_DISPLAY_LOCALE;
+}
+
+export function formatDhakaDate(input: DateInput, locale = DHAKA_DISPLAY_LOCALE, options?: Intl.DateTimeFormatOptions): string {
   const date = input instanceof Date ? input : new Date(input ?? Date.now());
   if (Number.isNaN(date.getTime())) return '';
   return date.toLocaleDateString(locale, withDhakaTimeZone(options));
 }
 
-export function formatDhakaDateTime(input: DateInput, locale = 'en-GB', options?: Intl.DateTimeFormatOptions): string {
+export function formatDhakaDateTime(input: DateInput, locale = DHAKA_DISPLAY_LOCALE, options?: Intl.DateTimeFormatOptions): string {
   const date = input instanceof Date ? input : new Date(input ?? Date.now());
   if (Number.isNaN(date.getTime())) return '';
   return date.toLocaleString(locale, withDhakaTimeZone(options));
@@ -58,15 +63,15 @@ export function initDhakaTimezoneDefaults() {
   const originalToLocaleTimeString = Date.prototype.toLocaleTimeString;
 
   Date.prototype.toLocaleString = function (locales?: Intl.LocalesArgument, options?: Intl.DateTimeFormatOptions) {
-    return originalToLocaleString.call(this, locales, withDhakaTimeZone(options));
+    return originalToLocaleString.call(this, withDhakaDisplayLocale(locales), withDhakaTimeZone(options));
   };
 
   Date.prototype.toLocaleDateString = function (locales?: Intl.LocalesArgument, options?: Intl.DateTimeFormatOptions) {
-    return originalToLocaleDateString.call(this, locales, withDhakaTimeZone(options));
+    return originalToLocaleDateString.call(this, withDhakaDisplayLocale(locales), withDhakaTimeZone(options));
   };
 
   Date.prototype.toLocaleTimeString = function (locales?: Intl.LocalesArgument, options?: Intl.DateTimeFormatOptions) {
-    return originalToLocaleTimeString.call(this, locales, withDhakaTimeZone(options));
+    return originalToLocaleTimeString.call(this, withDhakaDisplayLocale(locales), withDhakaTimeZone(options));
   };
 
   proto.__dhakaTimezoneDefaultsApplied = true;

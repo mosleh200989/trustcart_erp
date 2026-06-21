@@ -217,7 +217,7 @@ export default function CommissionPaymentRequestsPage() {
     if (!month) return '-';
     const [year, monthNumber] = month.split('-').map(Number);
     if (!year || !monthNumber) return month;
-    return new Date(year, monthNumber - 1, 1).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+    return `${String(monthNumber).padStart(2, '0')}/${year}`;
   };
 
   const columns = [

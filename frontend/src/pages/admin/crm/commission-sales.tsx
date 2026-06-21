@@ -8,6 +8,7 @@ import AdminOrderDetailsModal from '@/components/AdminOrderDetailsModal';
 import { FaSearch, FaFileExcel, FaFilePdf, FaCheck, FaTimes } from 'react-icons/fa';
 import apiClient from '@/services/api';
 import { ORDER_STATUS_MAP, getOrderStatusLabel, getOrderStatusColor } from '@/utils/orderStatus';
+import { formatDhakaDate, formatDhakaDateTime } from '@/utils/dhakaDate';
 
 interface CommissionSale {
   commissionId: number;
@@ -190,12 +191,15 @@ export default function CommissionSalesPage() {
 
   const formatDate = (dateStr: string | null) => {
     if (!dateStr) return '-';
-    try {
-      const d = new Date(dateStr);
-      return d.toLocaleString('en-CA', { timeZone: 'Asia/Dhaka', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
-    } catch {
-      return dateStr;
-    }
+    return formatDhakaDateTime(dateStr, undefined, {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+    }) || dateStr;
   };
 
   const columns = [
@@ -314,7 +318,7 @@ export default function CommissionSalesPage() {
             </span>
             {isPaid && row.commissionPaidAt && (
               <div className="text-[10px] text-gray-500 mt-0.5">
-                {new Date(row.commissionPaidAt).toLocaleDateString('en-CA', { timeZone: 'Asia/Dhaka' })}
+                {formatDhakaDate(row.commissionPaidAt, undefined, { day: '2-digit', month: '2-digit', year: 'numeric' })}
               </div>
             )}
             {isPaid && row.commissionTrxId && (

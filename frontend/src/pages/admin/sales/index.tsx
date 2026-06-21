@@ -166,6 +166,9 @@ export default function AdminSales() {
   const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
   const [selectedRowIds, setSelectedRowIds] = useState<Array<number | string>>([]);
   const [bulkAction, setBulkAction] = useState<'delete' | 'processing' | 'completed' | 'cancelled' | 'admin_cancelled' | ''>('');
+  const [showBulkRejectModal, setShowBulkRejectModal] = useState(false);
+  const [bulkRejectReason, setBulkRejectReason] = useState('');
+  const [bulkRejecting, setBulkRejecting] = useState(false);
   const [itemsPerPage, setItemsPerPage] = useState(50);
 
   // Print & Pack state
@@ -573,6 +576,12 @@ export default function AdminSales() {
       return;
     }
 
+    if (bulkAction === 'admin_cancelled') {
+      setBulkRejectReason('');
+      setShowBulkRejectModal(true);
+      return;
+    }
+
     // Status updates
     try {
       await Promise.all(ids.map((id) => apiClient.put(`/sales/${id}`, { status: bulkAction })));
@@ -580,8 +589,43 @@ export default function AdminSales() {
       setBulkAction('');
       await loadOrders();
       toast.success('Selected orders updated');
-    } catch (e) {
-      toast.error('Failed to update selected orders');
+    } catch (e: any) {
+      toast.error(e?.response?.data?.message || 'Failed to update selected orders');
+    }
+  };
+
+  const confirmBulkReject = async () => {
+    const reason = bulkRejectReason.trim();
+    if (!reason) {
+      toast.warning('Please select a reject reason');
+      return;
+    }
+
+    const ids = selectedRowIds
+      .map((id) => Number(id))
+      .filter((id) => Number.isFinite(id));
+    if (ids.length === 0) {
+      toast.warning('Select at least one order');
+      return;
+    }
+
+    setBulkRejecting(true);
+    try {
+      await Promise.all(ids.map((id) => apiClient.put(`/sales/${id}`, {
+        status: 'admin_cancelled',
+        cancelReason: reason,
+        cancel_reason: reason,
+      })));
+      setSelectedRowIds([]);
+      setBulkAction('');
+      setBulkRejectReason('');
+      setShowBulkRejectModal(false);
+      await loadOrders();
+      toast.success('Selected orders rejected');
+    } catch (e: any) {
+      toast.error(e?.response?.data?.message || 'Failed to reject selected orders');
+    } finally {
+      setBulkRejecting(false);
     }
   };
 
@@ -2055,6 +2099,49 @@ export default function AdminSales() {
             }}
             onUpdate={() => loadOrders()}
           />
+        )}
+
+        {showBulkRejectModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
+              <h3 className="text-xl font-bold mb-4 text-red-600">Reject Selected Orders</h3>
+              <p className="text-sm text-gray-600 mb-4">
+                Select a reject reason for {selectedRowIds.length} selected order(s).
+              </p>
+              <label className="block font-semibold mb-1">Reject Reason *</label>
+              <select
+                value={bulkRejectReason}
+                onChange={(e) => setBulkRejectReason(e.target.value)}
+                className="w-full border rounded px-3 py-2 mb-4"
+              >
+                <option value="">Select Reason</option>
+                {ORDER_REJECTION_REASON_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={confirmBulkReject}
+                  disabled={bulkRejecting || !bulkRejectReason}
+                  className="bg-red-600 text-white px-6 py-2 rounded hover:bg-red-700 flex-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {bulkRejecting ? 'Rejecting...' : 'Confirm Reject'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowBulkRejectModal(false);
+                    setBulkRejectReason('');
+                  }}
+                  disabled={bulkRejecting}
+                  className="bg-gray-300 px-6 py-2 rounded hover:bg-gray-400 flex-1 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
         )}
 
         {/* Invoice Print Modal */}
