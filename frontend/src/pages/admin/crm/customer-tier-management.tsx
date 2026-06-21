@@ -7,6 +7,7 @@ import Pagination from '@/components/admin/Pagination';
 import ThSort from '@/components/admin/ThSort';
 import { useSortableData } from '@/hooks/useSortableData';
 import AdminOrderDetailsModal from '@/components/AdminOrderDetailsModal';
+import AdminDateInput from '@/components/admin/AdminDateInput';
 import { FaEye } from 'react-icons/fa';
 
 interface Customer {
@@ -458,20 +459,18 @@ export default function CustomerTierManagementPage() {
 
             <div>
               <label className="block text-sm font-medium mb-2">Delivery Date Start</label>
-              <input
-                type="date"
+              <AdminDateInput
                 value={filter.deliveryDateStart}
-                onChange={(e) => { setFilter({ ...filter, deliveryDateStart: e.target.value }); setCurrentPage(1); }}
+                onValueChange={(value) => { setFilter({ ...filter, deliveryDateStart: value }); setCurrentPage(1); }}
                 className="w-full border rounded-lg p-2"
               />
             </div>
 
             <div>
               <label className="block text-sm font-medium mb-2">Delivery Date End</label>
-              <input
-                type="date"
+              <AdminDateInput
                 value={filter.deliveryDateEnd}
-                onChange={(e) => { setFilter({ ...filter, deliveryDateEnd: e.target.value }); setCurrentPage(1); }}
+                onValueChange={(value) => { setFilter({ ...filter, deliveryDateEnd: value }); setCurrentPage(1); }}
                 className="w-full border rounded-lg p-2"
               />
             </div>

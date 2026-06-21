@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import apiClient from '@/services/api';
+import AdminDateInput from '@/components/admin/AdminDateInput';
 import { FaTimes, FaCalendarAlt, FaUsers, FaShoppingCart, FaDollarSign, FaChevronDown, FaChevronUp, FaFileExport } from 'react-icons/fa';
 import { addDhakaDays, formatDhakaDate, getDhakaDateString } from '@/utils/dhakaDate';
 
@@ -144,19 +145,17 @@ export default function CustomerReportModal({ isOpen, onClose }: Props) {
           <div className="flex flex-wrap items-end gap-4">
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">From</label>
-              <input
-                type="date"
+              <AdminDateInput
                 value={dateFrom}
-                onChange={(e) => setDateFrom(e.target.value)}
+                onValueChange={setDateFrom}
                 className="border rounded-lg px-3 py-1.5 text-sm"
               />
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">To</label>
-              <input
-                type="date"
+              <AdminDateInput
                 value={dateTo}
-                onChange={(e) => setDateTo(e.target.value)}
+                onValueChange={setDateTo}
                 className="border rounded-lg px-3 py-1.5 text-sm"
               />
             </div>

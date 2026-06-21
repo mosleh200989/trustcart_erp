@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import AdminLayout from '@/layouts/AdminLayout';
+import AdminDateInput from '@/components/admin/AdminDateInput';
 import InventoryProductPicker from '@/components/admin/InventoryProductPicker';
 import { inventoryAuditTrail, products as productsApi, warehouses } from '@/services/api';
 import { useToast } from '@/contexts/ToastContext';
@@ -121,18 +122,16 @@ export default function AuditTrailPage() {
                 <option key={warehouse.id} value={warehouse.id}>{warehouse.name}</option>
               ))}
             </select>
-            <input
-              type="date"
+            <AdminDateInput
               placeholder="Date From"
               value={filters.date_from}
-              onChange={(e) => setFilters({ ...filters, date_from: e.target.value })}
+              onValueChange={(value) => setFilters({ ...filters, date_from: value })}
               className="border rounded px-3 py-2 text-sm"
             />
-            <input
-              type="date"
+            <AdminDateInput
               placeholder="Date To"
               value={filters.date_to}
-              onChange={(e) => setFilters({ ...filters, date_to: e.target.value })}
+              onValueChange={(value) => setFilters({ ...filters, date_to: value })}
               className="border rounded px-3 py-2 text-sm"
             />
             <button

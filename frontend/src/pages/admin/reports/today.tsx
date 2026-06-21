@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import AdminLayout from '@/layouts/AdminLayout';
 import apiClient from '@/services/api';
+import AdminDateInput from '@/components/admin/AdminDateInput';
 import {
   ResponsiveContainer,
   BarChart,
@@ -291,10 +292,9 @@ export default function TodaysReportPage() {
           <div className="flex flex-wrap items-center gap-3">
             <div className="relative">
               <FaCalendarAlt className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input
-                type="date"
+              <AdminDateInput
                 value={date}
-                onChange={(e) => setDate(e.target.value)}
+                onValueChange={setDate}
                 className="rounded-lg border border-gray-300 bg-white py-2.5 pl-10 pr-4 text-gray-900 outline-none transition-all focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500"
               />
             </div>

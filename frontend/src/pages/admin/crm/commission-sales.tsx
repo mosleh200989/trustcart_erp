@@ -3,6 +3,7 @@ import { useRouter } from 'next/router';
 import AdminLayout from '@/layouts/AdminLayout';
 import DataTable from '@/components/admin/DataTable';
 import PageSizeSelector from '@/components/admin/PageSizeSelector';
+import AdminDateInput from '@/components/admin/AdminDateInput';
 import { useToast } from '@/contexts/ToastContext';
 import AdminOrderDetailsModal from '@/components/AdminOrderDetailsModal';
 import { FaSearch, FaFileExcel, FaFilePdf, FaCheck, FaTimes } from 'react-icons/fa';
@@ -417,20 +418,18 @@ export default function CommissionSalesPage() {
 
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Start Date</label>
-              <input
-                type="date"
+              <AdminDateInput
                 value={startDate}
-                onChange={(e) => { setStartDate(e.target.value); if (e.target.value) setMonthFilter(''); }}
+                onValueChange={(value) => { setStartDate(value); if (value) setMonthFilter(''); }}
                 className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
 
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">End Date</label>
-              <input
-                type="date"
+              <AdminDateInput
                 value={endDate}
-                onChange={(e) => { setEndDate(e.target.value); if (e.target.value) setMonthFilter(''); }}
+                onValueChange={(value) => { setEndDate(value); if (value) setMonthFilter(''); }}
                 className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>

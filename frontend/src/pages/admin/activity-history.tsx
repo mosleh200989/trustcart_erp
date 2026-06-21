@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import AdminLayout from '@/layouts/AdminLayout';
 import apiClient from '@/services/api';
+import AdminDateInput from '@/components/admin/AdminDateInput';
 import {
   FaHistory, FaSearch, FaFilter,
   FaTimes, FaEye,
@@ -326,11 +327,11 @@ export default function ActivityHistoryPage() {
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">From Date</label>
-                  <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm" />
+                  <AdminDateInput value={startDate} onValueChange={setStartDate} className="w-full border rounded-lg px-3 py-2 text-sm" />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">To Date</label>
-                  <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm" />
+                  <AdminDateInput value={endDate} onValueChange={setEndDate} className="w-full border rounded-lg px-3 py-2 text-sm" />
                 </div>
               </div>
             )}

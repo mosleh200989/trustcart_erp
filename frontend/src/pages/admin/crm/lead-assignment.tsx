@@ -6,6 +6,7 @@ import Pagination from '@/components/admin/Pagination';
 import AdminOrderDetailsModal from '@/components/AdminOrderDetailsModal';
 import ProductAutocomplete from '@/components/admin/ProductAutocomplete';
 import CustomerReportModal from '@/components/admin/crm/CustomerReportModal';
+import AdminDateInput from '@/components/admin/AdminDateInput';
 import apiClient from '@/services/api';
 import { useToast } from '@/contexts/ToastContext';
 import { FaEye, FaChartBar, FaChevronDown, FaChevronRight, FaBoxOpen } from 'react-icons/fa';
@@ -686,11 +687,10 @@ export default function LeadAssignmentPage() {
             {/* Date From */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Order Date From</label>
-              <input
-                type="date"
+              <AdminDateInput
                 value={dateFrom}
-                onChange={(e) => {
-                  setDateFrom(e.target.value);
+                onValueChange={(value) => {
+                  setDateFrom(value);
                   setPage(1);
                 }}
                 className="w-full border rounded-lg px-3 py-2"
@@ -700,11 +700,10 @@ export default function LeadAssignmentPage() {
             {/* Date To */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Order Date To</label>
-              <input
-                type="date"
+              <AdminDateInput
                 value={dateTo}
-                onChange={(e) => {
-                  setDateTo(e.target.value);
+                onValueChange={(value) => {
+                  setDateTo(value);
                   setPage(1);
                 }}
                 className="w-full border rounded-lg px-3 py-2"

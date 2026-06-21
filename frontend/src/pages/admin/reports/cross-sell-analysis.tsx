@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import AdminLayout from '@/layouts/AdminLayout';
 import apiClient from '@/services/api';
+import AdminDateInput from '@/components/admin/AdminDateInput';
 import { FaBoxOpen, FaChartBar, FaDownload, FaSearch, FaSyncAlt, FaTimes, FaUser } from 'react-icons/fa';
 
 interface ProductOption {
@@ -340,19 +341,17 @@ export default function CrossSellAnalysisPage() {
             </div>
             <div>
               <label className="mb-1 block text-sm font-medium text-gray-700">Start Date</label>
-              <input
-                type="date"
+              <AdminDateInput
                 value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
+                onValueChange={setStartDate}
                 className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500"
               />
             </div>
             <div>
               <label className="mb-1 block text-sm font-medium text-gray-700">End Date</label>
-              <input
-                type="date"
+              <AdminDateInput
                 value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
+                onValueChange={setEndDate}
                 className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500"
               />
             </div>
