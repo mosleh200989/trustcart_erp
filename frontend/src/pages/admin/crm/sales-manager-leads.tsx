@@ -521,6 +521,7 @@ const SalesManagerLeadAssignment = () => {
                 <option value="tier_4">Tier 4</option>
                 <option value="tier_5">Tier 5</option>
                 <option value="tier_6">Tier 6 - Highest Risk</option>
+                <option value="rejected">Rejected</option>
               </select>
             </FilterField>
 

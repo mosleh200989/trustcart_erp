@@ -202,11 +202,6 @@ export default function CustomerTierManagementPage() {
     if (!selectedCustomer) return;
 
     if (tierForm.tier === 'rejected') {
-      if (selectedCustomer.tierData?.tier !== 'tier_6') {
-        toast.error('Only Tier 6 customers can be moved to the rejected list.');
-        return;
-      }
-
       const confirmed = confirm(
         `Are you sure you want to mark "${selectedCustomer.first_name} ${selectedCustomer.last_name}" as Rejected?\n\nThis will:\n• Unassign the customer from their agent and team leader\n• Remove them from all CRM and Telephony views\n• Move them to the Rejected Customers sub-module only`
       );
@@ -237,11 +232,6 @@ export default function CustomerTierManagementPage() {
     if (!tier || tier === currentTier) return;
 
     if (tier === 'rejected') {
-      if (customer.tierData?.tier !== 'tier_6') {
-        toast.error('Only Tier 6 customers can be moved to the rejected list.');
-        return;
-      }
-
       const confirmed = confirm(
         `Are you sure you want to mark "${customer.first_name} ${customer.last_name}" as Rejected?\n\nThis will:\n- Unassign the customer from their agent and team leader\n- Remove them from all CRM and Telephony views\n- Move them to the Rejected Customers sub-module only`
       );
@@ -573,7 +563,7 @@ export default function CustomerTierManagementPage() {
                           <option value="tier_4">Tier 4</option>
                           <option value="tier_5">Tier 5</option>
                           <option value="tier_6">Tier 6</option>
-                          <option value="rejected" disabled={customer.tierData?.tier !== 'tier_6'}>Rejected</option>
+                          <option value="rejected">Rejected</option>
                         </select>
                       </td>
                       <td className="px-6 py-4 text-sm">{customer.delivered_order_count || 0}</td>
@@ -646,7 +636,7 @@ export default function CustomerTierManagementPage() {
                     <option value="tier_4">Tier 4</option>
                     <option value="tier_5">Tier 5</option>
                     <option value="tier_6">Tier 6 - Highest Risk</option>
-                    <option value="rejected" disabled={selectedCustomer.tierData?.tier !== 'tier_6'}>Rejected - Tier 6 only</option>
+                    <option value="rejected">Rejected</option>
                   </select>
                   {tierForm.tier === 'rejected' && (
                     <p className="mt-1.5 text-xs text-orange-600 bg-orange-50 border border-orange-200 rounded px-3 py-2">
