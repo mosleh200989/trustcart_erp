@@ -382,7 +382,7 @@ export const DEFAULT_ADMIN_MENU: AdminMenuSeedNode[] = [
       { title: 'Incomplete Assignment', icon: 'FaPhone', path: '/admin/telephony/incomplete-assignment', requiredPermissions: ['view-order-assignment'] },
       { title: 'Cancelled Assignment', icon: 'FaPhone', path: '/admin/telephony/cancelled-assignment', requiredPermissions: ['view-order-assignment'] },
       { title: 'Rejected Assignment', icon: 'FaPhone', path: '/admin/telephony/rejected-assignment', requiredPermissions: ['view-order-assignment'] },
-      { title: 'PBX Call Logs', icon: 'FaPhone', path: '/admin/telephony/calls' },
+      { title: 'PBX Call Logs', icon: 'FaPhone', path: '/admin/telephony/calls', requiredPermissions: ['view-call-logs'] },
       { title: 'Reports', icon: 'FaChartBar', path: '/admin/telephony/reports' },
       { title: 'Agent Dashboard', icon: 'FaPhone', path: '/admin/crm/agent-dashboard' },
     ],

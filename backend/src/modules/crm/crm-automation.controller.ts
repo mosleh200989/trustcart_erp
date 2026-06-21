@@ -1,6 +1,8 @@
 import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards, Request } from '@nestjs/common';
 import { CrmAutomationService } from './crm-automation.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { PermissionsGuard } from '../../common/guards/permissions.guard';
+import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 
 @Controller('crm/automation')
 export class CrmAutomationController {
@@ -163,6 +165,8 @@ export class CrmAutomationController {
     return await this.automationService.markCustomerAsCalled(customerId, agentId, body.notes, body.taskId);
   }
   
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions('view-call-logs')
   @Get('engagement/:customerId')
   async getEngagementHistory(
     @Param('customerId') customerId: string,

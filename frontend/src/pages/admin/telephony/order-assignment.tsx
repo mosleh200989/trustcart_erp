@@ -6,6 +6,7 @@ import ProductAutocomplete from '@/components/admin/ProductAutocomplete';
 import AdminOrderDetailsModal from '@/components/AdminOrderDetailsModal';
 import apiClient from '@/services/api';
 import { useToast } from '@/contexts/ToastContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { getOrderStatusColor, getOrderStatusLabel } from '@/utils/orderStatus';
 import { getDhakaDateString } from '@/utils/dhakaDate';
 import { CALL_OUTCOME_OPTIONS, type CallOutcomeValue } from '@/constants/adminOptions';
@@ -101,6 +102,8 @@ function formatSource(value?: string | null) {
 
 export default function TelephonyOrderAssignmentPage({ assignmentType = 'order' }: { assignmentType?: AssignmentType }) {
   const toast = useToast();
+  const { hasPermission } = useAuth();
+  const canViewCallLogs = hasPermission('view-call-logs');
   const pageCopy = PAGE_COPY[assignmentType] || PAGE_COPY.order;
   const [orders, setOrders] = useState<AssignedOrder[]>([]);
   const [loading, setLoading] = useState(false);
@@ -193,6 +196,7 @@ export default function TelephonyOrderAssignmentPage({ assignmentType = 'order' 
   };
 
   const getPreviousCallLog = (order: AssignedOrder | null): AssignmentCallLog | null => {
+    if (!canViewCallLogs) return null;
     if (!order) return null;
     if (order.lastCallLog) return order.lastCallLog;
     if (!order.notes) return null;
@@ -208,6 +212,7 @@ export default function TelephonyOrderAssignmentPage({ assignmentType = 'order' 
   };
 
   const openCallHistory = async (order: AssignedOrder) => {
+    if (!canViewCallLogs) return;
     setHistoryOrder(order);
     setCallHistory([]);
     setLoadingCallHistory(true);
@@ -434,7 +439,9 @@ export default function TelephonyOrderAssignmentPage({ assignmentType = 'order' 
                           </td>
                           <td className="max-w-[260px] px-4 py-3 text-sm text-gray-700">{order.shippingAddress || '-'}</td>
                           <td className="px-4 py-3 text-sm">
-                            {order.calledAt ? <span className="text-emerald-700">{formatDate(order.calledAt)}</span> : <span className="text-gray-400">Never</span>}
+                            {canViewCallLogs
+                              ? (order.calledAt ? <span className="text-emerald-700">{formatDate(order.calledAt)}</span> : <span className="text-gray-400">Never</span>)
+                              : <span className="text-gray-400">Restricted</span>}
                           </td>
                           <td className="px-4 py-3 text-sm">
                             <span className="inline-flex rounded-full bg-gray-100 px-2 py-1 text-xs font-semibold text-gray-700">
@@ -511,13 +518,15 @@ export default function TelephonyOrderAssignmentPage({ assignmentType = 'order' 
                               >
                                 <FaPhone size={10} /> Log Call
                               </button>
-                              <button
-                                type="button"
-                                className="flex items-center gap-1 rounded border border-purple-200 px-3 py-1.5 text-xs font-medium text-purple-700 hover:bg-purple-50"
-                                onClick={() => openCallHistory(order)}
-                              >
-                                <FaHistory size={10} /> History
-                              </button>
+                              {canViewCallLogs && (
+                                <button
+                                  type="button"
+                                  className="flex items-center gap-1 rounded border border-purple-200 px-3 py-1.5 text-xs font-medium text-purple-700 hover:bg-purple-50"
+                                  onClick={() => openCallHistory(order)}
+                                >
+                                  <FaHistory size={10} /> History
+                                </button>
+                              )}
                               {assignmentType === 'order' && order.recordType !== 'incomplete_order' && order.canHandoffNoAnswer && (
                                 <button
                                   type="button"

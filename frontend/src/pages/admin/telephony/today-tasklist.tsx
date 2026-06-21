@@ -71,7 +71,8 @@ type FilterOutcome = '' | 'positive' | 'negative' | 'neutral' | 'no_answer';
 
 export default function TodayTasklistPage() {
   const toast = useToast();
-  const { user: authUser } = useAuth();
+  const { user: authUser, hasPermission } = useAuth();
+  const canViewCallLogs = hasPermission('view-call-logs');
   const [loading, setLoading] = useState(true);
   
   // Data
@@ -1024,12 +1025,14 @@ export default function TodayTasklistPage() {
             >
               View Customers
             </Link>
-            <Link
-              href="/admin/telephony/calls"
-              className="px-4 py-2 bg-gray-600 text-white rounded text-sm hover:bg-gray-700"
-            >
-              Call Logs
-            </Link>
+            {canViewCallLogs && (
+              <Link
+                href="/admin/telephony/calls"
+                className="px-4 py-2 bg-gray-600 text-white rounded text-sm hover:bg-gray-700"
+              >
+                Call Logs
+              </Link>
+            )}
           </div>
         </div>
       </div>

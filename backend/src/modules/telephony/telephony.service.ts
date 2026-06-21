@@ -201,6 +201,7 @@ export class TelephonyService {
     suggestion?: string;
     page?: number;
     limit?: number;
+    includeCallLogs?: boolean;
   }) {
     const assignmentType = String(params?.assignmentType || 'order').trim().toLowerCase();
     if (assignmentType === 'incomplete') {
@@ -349,7 +350,10 @@ export class TelephonyService {
 
     const [orders, total] = await qb.skip(skip).take(safeLimit).getManyAndCount();
     const itemsByOrderId = await this.fetchOrderItems(orders.map((order) => order.id));
-    const latestLogsByOrderId = await this.fetchLatestAssignmentCallLogs('sales_order', orders.map((order) => order.id));
+    const includeCallLogs = params?.includeCallLogs === true;
+    const latestLogsByOrderId = includeCallLogs
+      ? await this.fetchLatestAssignmentCallLogs('sales_order', orders.map((order) => order.id))
+      : new Map<number, any>();
     const orderCountsByPhone = await this.fetchCustomerTotalOrdersByPhone(orders.map((order) => order.customerPhone));
 
     return {
@@ -378,11 +382,11 @@ export class TelephonyService {
           totalAmount: Number(order.totalAmount || 0),
           orderDate: order.orderDate,
           assignedAt: order.assignedAt,
-          calledAt: order.telephonyCalledAt,
-          callStatus: order.telephonyCallStatus || (order.telephonyCalledAt ? 'called' : 'not_called'),
-          outcome: order.telephonyOutcome,
-          suggestion: order.telephonySuggestion,
-          notes: order.telephonyNotes,
+          calledAt: includeCallLogs ? order.telephonyCalledAt : null,
+          callStatus: includeCallLogs ? (order.telephonyCallStatus || (order.telephonyCalledAt ? 'called' : 'not_called')) : null,
+          outcome: includeCallLogs ? order.telephonyOutcome : null,
+          suggestion: includeCallLogs ? order.telephonySuggestion : null,
+          notes: includeCallLogs ? order.telephonyNotes : null,
           lastCallLog: latestLogsByOrderId.get(order.id) || null,
           items: itemsByOrderId.get(order.id) || [],
         };
@@ -420,6 +424,7 @@ export class TelephonyService {
     suggestion?: string;
     page?: number;
     limit?: number;
+    includeCallLogs?: boolean;
   }) {
     const safeLimit = Number.isFinite(params?.limit) ? Math.max(1, Math.min(200, Number(params?.limit))) : 50;
     const safePage = Number.isFinite(params?.page) ? Math.max(1, Number(params?.page)) : 1;
@@ -507,7 +512,10 @@ export class TelephonyService {
     );
 
     const total = Number(countRows[0]?.count || 0);
-    const latestLogsByOrderId = await this.fetchLatestAssignmentCallLogs('incomplete_order', rows.map((row: any) => Number(row.id)));
+    const includeCallLogs = params?.includeCallLogs === true;
+    const latestLogsByOrderId = includeCallLogs
+      ? await this.fetchLatestAssignmentCallLogs('incomplete_order', rows.map((row: any) => Number(row.id)))
+      : new Map<number, any>();
     const orderCountsByPhone = await this.fetchCustomerTotalOrdersByPhone(rows.map((row: any) => row.phone));
     return {
       data: rows.map((row: any) => ({
@@ -523,11 +531,11 @@ export class TelephonyService {
         totalAmount: Number(row.total_amount || 0),
         orderDate: row.created_at,
         assignedAt: row.assigned_at,
-        calledAt: row.telephony_called_at,
-        callStatus: row.telephony_call_status || (row.telephony_called_at ? 'called' : 'not_called'),
-        outcome: row.telephony_outcome,
-        suggestion: row.telephony_suggestion,
-        notes: row.telephony_notes || row.note,
+        calledAt: includeCallLogs ? row.telephony_called_at : null,
+        callStatus: includeCallLogs ? (row.telephony_call_status || (row.telephony_called_at ? 'called' : 'not_called')) : null,
+        outcome: includeCallLogs ? row.telephony_outcome : null,
+        suggestion: includeCallLogs ? row.telephony_suggestion : null,
+        notes: includeCallLogs ? (row.telephony_notes || row.note) : null,
         lastCallLog: latestLogsByOrderId.get(Number(row.id)) || null,
         items: this.parseIncompleteOrderItems(row.cart_data),
       })),
