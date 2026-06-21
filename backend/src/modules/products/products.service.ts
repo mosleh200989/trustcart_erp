@@ -303,6 +303,168 @@ export class ProductsService {
     }
   }
 
+  private normalizeSuggestionVariantName(value?: string | null) {
+    const text = String(value || '').trim();
+    return text.length > 0 ? text : null;
+  }
+
+  private async getNextSuggestionShortlistOrder() {
+    const rows = await this.productsRepository.query(
+      `SELECT COALESCE(MAX(display_order), -1) + 1 AS next_order FROM product_suggestion_shortlist`,
+    );
+    return Number(rows?.[0]?.next_order || 0);
+  }
+
+  async getProductSuggestionShortlist() {
+    const rows = await this.productsRepository.query(`
+      SELECT
+        pss.id,
+        pss.product_id,
+        pss.variant_name,
+        pss.variant_key,
+        pss.display_order,
+        pss.is_active,
+        pss.created_at,
+        pss.updated_at,
+        p.id AS product_id_check,
+        p.slug,
+        p.sku,
+        p.product_code,
+        p.name_en,
+        p.name_bn,
+        p.base_price,
+        p.sale_price,
+        p.stock_quantity,
+        p.status,
+        p.size_variants,
+        COALESCE(p.image_url, pi.image_url) AS image_url,
+        c.name_en AS category_name
+      FROM product_suggestion_shortlist pss
+      INNER JOIN products p ON p.id = pss.product_id
+      LEFT JOIN LATERAL (
+        SELECT image_url
+        FROM product_images
+        WHERE product_id = p.id
+        ORDER BY is_primary DESC, display_order ASC
+        LIMIT 1
+      ) pi ON TRUE
+      LEFT JOIN categories c ON c.id = p.category_id
+      ORDER BY pss.display_order ASC, pss.created_at ASC, pss.id ASC
+    `);
+
+    return (rows || []).map((row: any) => ({
+      id: Number(row.id),
+      productId: Number(row.product_id),
+      variantName: row.variant_name || null,
+      variantKey: row.variant_key || '',
+      displayOrder: Number(row.display_order || 0),
+      isActive: row.is_active !== false,
+      slug: row.slug,
+      sku: row.sku,
+      productCode: row.product_code,
+      name_en: row.name_en,
+      name_bn: row.name_bn,
+      base_price: row.base_price,
+      price: row.base_price,
+      sale_price: row.sale_price,
+      stock_quantity: row.stock_quantity,
+      status: row.status,
+      size_variants: row.size_variants,
+      image_url: row.image_url,
+      category_name: row.category_name,
+      created_at: row.created_at,
+      updated_at: row.updated_at,
+      suggestionOptionKey: `shortlist:${row.id}`,
+      suggestionOptionLabel: `${row.name_en || row.name_bn || `Product #${row.product_id}`}${row.variant_name ? ` (${row.variant_name})` : ''}`,
+    }));
+  }
+
+  async getProductSuggestionShortlistOptions() {
+    const rows = await this.getProductSuggestionShortlist();
+    return rows
+      .filter((row: any) => row.isActive && String(row.status || '').toLowerCase() === 'active')
+      .map((row: any) => ({
+        ...row,
+        id: row.productId,
+        productId: row.productId,
+        size_variants: [],
+        suggestionVariantName: row.variantName,
+      }));
+  }
+
+  async addProductSuggestionShortlistItem(data: { productId: number; variantName?: string | null; userId?: number | null }) {
+    if (!Number.isFinite(data.productId) || data.productId <= 0) {
+      throw new BadRequestException('Invalid product');
+    }
+
+    const product = await this.productsRepository.findOne({ where: { id: data.productId } });
+    if (!product) {
+      throw new BadRequestException('Product not found');
+    }
+
+    const variantName = this.normalizeSuggestionVariantName(data.variantName);
+    const variantKey = variantName || '';
+    const displayOrder = await this.getNextSuggestionShortlistOrder();
+
+    const rows = await this.productsRepository.query(
+      `INSERT INTO product_suggestion_shortlist
+        (product_id, variant_name, variant_key, display_order, is_active, created_by, updated_by, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, TRUE, $5, $5, NOW(), NOW())
+       ON CONFLICT (product_id, variant_key) DO UPDATE SET
+         is_active = TRUE,
+         variant_name = EXCLUDED.variant_name,
+         updated_by = EXCLUDED.updated_by,
+         updated_at = NOW()
+       RETURNING id`,
+      [data.productId, variantName, variantKey, displayOrder, data.userId || null],
+    );
+
+    const id = Number(rows?.[0]?.id);
+    const shortlist = await this.getProductSuggestionShortlist();
+    return shortlist.find((item: any) => Number(item.id) === id) || { id };
+  }
+
+  async updateProductSuggestionShortlistItem(
+    id: number,
+    data: { isActive?: boolean; displayOrder?: number; userId?: number | null },
+  ) {
+    if (!Number.isFinite(id) || id <= 0) {
+      throw new BadRequestException('Invalid shortlist item');
+    }
+
+    const updates: string[] = ['updated_at = NOW()', `updated_by = $2`];
+    const params: any[] = [id, data.userId || null];
+    if (typeof data.isActive === 'boolean') {
+      params.push(data.isActive);
+      updates.push(`is_active = $${params.length}`);
+    }
+    if (data.displayOrder != null && Number.isFinite(Number(data.displayOrder))) {
+      params.push(Number(data.displayOrder));
+      updates.push(`display_order = $${params.length}`);
+    }
+    if (updates.length <= 2) {
+      throw new BadRequestException('Nothing to update');
+    }
+
+    await this.productsRepository.query(
+      `UPDATE product_suggestion_shortlist SET ${updates.join(', ')} WHERE id = $1`,
+      params,
+    );
+
+    const shortlist = await this.getProductSuggestionShortlist();
+    const item = shortlist.find((row: any) => Number(row.id) === id);
+    if (!item) throw new BadRequestException('Shortlist item not found');
+    return item;
+  }
+
+  async deleteProductSuggestionShortlistItem(id: number) {
+    if (!Number.isFinite(id) || id <= 0) {
+      throw new BadRequestException('Invalid shortlist item');
+    }
+    await this.productsRepository.query(`DELETE FROM product_suggestion_shortlist WHERE id = $1`, [id]);
+    return { success: true };
+  }
+
   async getSectionOrder(sectionKeyInput: string) {
     const sectionKey = this.normalizeSectionKey(sectionKeyInput);
     const section = this.productOrderSections.get(sectionKey)!;
