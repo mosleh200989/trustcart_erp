@@ -3,6 +3,7 @@ import { Plus, Calendar as CalendarIcon, Search, Clock, Users, Video, MapPin, Ch
 import AdminLayout from '@/layouts/AdminLayout';
 import { format, addDays, startOfWeek, addWeeks } from 'date-fns';
 import apiClient from '@/services/api';
+import { formatDhakaDate } from '@/utils/dhakaDate';
 
 interface Meeting {
   id: number;
@@ -141,7 +142,7 @@ const MeetingScheduler = () => {
               ← Previous
             </button>
             <span className="px-4 py-2 font-medium text-gray-700">
-              {format(weekDays[0], 'MMM dd')} - {format(weekDays[6], 'MMM dd, yyyy')}
+              {formatDhakaDate(weekDays[0], undefined, { day: '2-digit', month: '2-digit', year: 'numeric' })} - {formatDhakaDate(weekDays[6], undefined, { day: '2-digit', month: '2-digit', year: 'numeric' })}
             </span>
             <button
               onClick={() => setCurrentWeek(addWeeks(currentWeek, 1))}
@@ -218,7 +219,7 @@ const MeetingScheduler = () => {
                       <div className="flex items-center gap-4 text-sm text-gray-600 mt-2">
                         <span className="flex items-center gap-1">
                           <CalendarIcon className="w-4 h-4" />
-                          {format(new Date(meeting.startTime), 'MMM dd, yyyy')}
+                          {formatDhakaDate(meeting.startTime, undefined, { day: '2-digit', month: '2-digit', year: 'numeric' })}
                         </span>
                         <span className="flex items-center gap-1">
                           <Clock className="w-4 h-4" />

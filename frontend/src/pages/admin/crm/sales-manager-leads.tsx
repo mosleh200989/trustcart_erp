@@ -35,6 +35,12 @@ interface Lead {
   tier: string | null;
   soCount: number;
   legCount: number;
+  scheduledAssignmentId?: number | null;
+  scheduledAssignmentAction?: 'assign' | 'unassign' | null;
+  scheduledAssignmentStatus?: string | null;
+  scheduledAssignmentAt?: string | null;
+  scheduledAssignmentAgentId?: number | null;
+  scheduledAssignmentAgentName?: string | null;
 }
 
 interface TeamLeader {
@@ -54,6 +60,11 @@ interface CustomerTag {
   id: string;
   name: string;
   color?: string | null;
+}
+
+interface ProductSuggestionOption {
+  key: string;
+  label: string;
 }
 
 const ROWS_OPTIONS = [30, 50, 100, 200, 500, 750, 1000, 2000];
@@ -142,6 +153,7 @@ const SalesManagerLeadAssignment = () => {
   const [teamLeaders, setTeamLeaders] = useState<TeamLeader[]>([]);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [tags, setTags] = useState<CustomerTag[]>([]);
+  const [productSuggestionOptions, setProductSuggestionOptions] = useState<ProductSuggestionOption[]>([]);
 
   // Filters
   const [search, setSearch] = useState('');
@@ -165,11 +177,17 @@ const SalesManagerLeadAssignment = () => {
   const [callOutcomeFilter, setCallOutcomeFilter] = useState<CallOutcomeFilter>('');
   const [productSuggestionFilter, setProductSuggestionFilter] = useState('');
   const [orderRejectedReasonFilter, setOrderRejectedReasonFilter] = useState('');
+  const [scheduledAssignmentStatusFilter, setScheduledAssignmentStatusFilter] = useState('');
+  const [scheduledAssignmentActionFilter, setScheduledAssignmentActionFilter] = useState('');
+  const [scheduledAssignmentAgentFilter, setScheduledAssignmentAgentFilter] = useState('');
+  const [scheduledFromFilter, setScheduledFromFilter] = useState('');
+  const [scheduledToFilter, setScheduledToFilter] = useState('');
   const [rowsPerPage, setRowsPerPage] = useState(200);
 
   // Selection
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [bulkAgent, setBulkAgent] = useState<number | ''>('');
+  const [bulkScheduleAt, setBulkScheduleAt] = useState('');
   const [assigning, setAssigning] = useState(false);
 
   // View (order) modal
@@ -180,7 +198,11 @@ const SalesManagerLeadAssignment = () => {
   // Single assign modal
   const [assignModalLead, setAssignModalLead] = useState<Lead | null>(null);
   const [assignModalAgent, setAssignModalAgent] = useState<number | ''>('');
+  const [assignModalScheduleAt, setAssignModalScheduleAt] = useState('');
   const [assigningSingle, setAssigningSingle] = useState(false);
+  const [unassignModalLead, setUnassignModalLead] = useState<Lead | null>(null);
+  const [unassignModalScheduleAt, setUnassignModalScheduleAt] = useState('');
+  const [unassigningSingle, setUnassigningSingle] = useState(false);
 
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasLoadedInitialLeads = useRef(false);
@@ -219,6 +241,11 @@ const SalesManagerLeadAssignment = () => {
       if (callOutcomeFilter) params.set('callOutcome', callOutcomeFilter);
       if (productSuggestionFilter.trim()) params.set('productSuggestion', productSuggestionFilter.trim());
       if (orderRejectedReasonFilter.trim()) params.set('orderRejectedReason', orderRejectedReasonFilter.trim());
+      if (scheduledAssignmentStatusFilter) params.set('scheduledAssignmentStatus', scheduledAssignmentStatusFilter);
+      if (scheduledAssignmentActionFilter) params.set('scheduledAssignmentAction', scheduledAssignmentActionFilter);
+      if (scheduledAssignmentAgentFilter) params.set('scheduledAgent', scheduledAssignmentAgentFilter);
+      if (scheduledFromFilter) params.set('scheduledFrom', scheduledFromFilter);
+      if (scheduledToFilter) params.set('scheduledTo', scheduledToFilter);
 
       const res = await api.get(`/crm/data-analyst/unassigned-leads?${params}`);
       if (requestId !== leadsRequestRef.current) return;
@@ -239,7 +266,7 @@ const SalesManagerLeadAssignment = () => {
     } finally {
       if (requestId === leadsRequestRef.current) setLoading(false);
     }
-  }, [search, assignmentStatus, tierFilter, tlFilter, agentFilter, lifecycleFilter, productFilter, deliveryStartFilter, deliveryEndFilter, assignedFromFilter, assignedToFilter, addressFilter, noteSearchFilter, segmentFilter, rejectedStatusFilter, lastCallFilter, tagFilter, callOutcomeFilter, productSuggestionFilter, orderRejectedReasonFilter, rowsPerPage, toast]);
+  }, [search, assignmentStatus, tierFilter, tlFilter, agentFilter, lifecycleFilter, productFilter, deliveryStartFilter, deliveryEndFilter, assignedFromFilter, assignedToFilter, addressFilter, noteSearchFilter, segmentFilter, rejectedStatusFilter, lastCallFilter, tagFilter, callOutcomeFilter, productSuggestionFilter, orderRejectedReasonFilter, scheduledAssignmentStatusFilter, scheduledAssignmentActionFilter, scheduledAssignmentAgentFilter, scheduledFromFilter, scheduledToFilter, rowsPerPage, toast]);
 
   const fetchTeamLeaders = useCallback(async () => {
     try {
@@ -269,6 +296,20 @@ const SalesManagerLeadAssignment = () => {
     }
   }, []);
 
+  const fetchProductSuggestionOptions = useCallback(async () => {
+    try {
+      const res = await api.get('/products/admin/suggestion-options');
+      const rows = Array.isArray(res.data) ? res.data : (res.data?.data || []);
+      setProductSuggestionOptions(rows.map((row: any) => ({
+        key: String(row.suggestionOptionKey || `${row.productId || row.id}::${row.suggestionVariantName || ''}`),
+        label: String(row.suggestionOptionLabel || row.name_en || row.name_bn || `Product #${row.productId || row.id}`),
+      })));
+    } catch (error) {
+      console.error('Failed to load product suggestion options:', error);
+      setProductSuggestionOptions([]);
+    }
+  }, []);
+
   useEffect(() => {
     fetchTeamLeaders();
     fetchAgents();
@@ -286,6 +327,10 @@ const SalesManagerLeadAssignment = () => {
   useEffect(() => {
     fetchTags();
   }, [fetchTags]);
+
+  useEffect(() => {
+    fetchProductSuggestionOptions();
+  }, [fetchProductSuggestionOptions]);
 
   useEffect(() => {
     try {
@@ -373,6 +418,32 @@ const SalesManagerLeadAssignment = () => {
     }
   };
 
+  const handleBulkScheduleAssign = async () => {
+    if (selected.size === 0 || !bulkAgent || !bulkScheduleAt) {
+      toast.error('Select leads, an agent, and a schedule date/time');
+      return;
+    }
+    setAssigning(true);
+    try {
+      await api.post('/crm/data-analyst/schedule-lead-assignment', {
+        customerIds: Array.from(selected),
+        action: 'assign',
+        agentId: Number(bulkAgent),
+        scheduledAt: bulkScheduleAt,
+      });
+      const agentName = agents.find(a => a.id === Number(bulkAgent))?.name || '';
+      toast.success(`${selected.size} lead(s) scheduled to assign to ${agentName}`);
+      setBulkAgent('');
+      setBulkScheduleAt('');
+      setSelected(new Set());
+      await fetchLeads(page, { silent: true });
+    } catch {
+      toast.error('Failed to schedule assignment');
+    } finally {
+      setAssigning(false);
+    }
+  };
+
   const handleSingleAssign = async () => {
     if (!assignModalLead || !assignModalAgent) return;
     setAssigningSingle(true);
@@ -393,9 +464,32 @@ const SalesManagerLeadAssignment = () => {
     }
   };
 
+  const handleSingleScheduleAssign = async () => {
+    if (!assignModalLead || !assignModalAgent || !assignModalScheduleAt) return;
+    setAssigningSingle(true);
+    try {
+      await api.post('/crm/data-analyst/schedule-lead-assignment', {
+        customerIds: [assignModalLead.id],
+        action: 'assign',
+        agentId: Number(assignModalAgent),
+        scheduledAt: assignModalScheduleAt,
+      });
+      const agentName = agents.find(a => a.id === Number(assignModalAgent))?.name || '';
+      toast.success(`Scheduled assignment to ${agentName}`);
+      setAssignModalLead(null);
+      setAssignModalAgent('');
+      setAssignModalScheduleAt('');
+      await fetchLeads(page, { silent: true });
+    } catch {
+      toast.error('Failed to schedule assignment');
+    } finally {
+      setAssigningSingle(false);
+    }
+  };
+
   // Single unassign (sales manager level — removes supervisor assignment)
   const handleUnassign = async (lead: Lead) => {
-    if (!confirm(`Unassign lead "${lead.name || ''} ${lead.lastName || ''}" from their agent?`)) return;
+    if (!confirm(`Unassign lead "${lead.name || ''} ${lead.lastName || ''}" from their agent now?`)) return;
     try {
       await api.post('/crm/data-analyst/unassign-leads', {
         customerIds: [lead.id],
@@ -404,6 +498,26 @@ const SalesManagerLeadAssignment = () => {
       await fetchLeads(page, { silent: true });
     } catch {
       toast.error('Failed to unassign lead');
+    }
+  };
+
+  const handleSingleScheduleUnassign = async () => {
+    if (!unassignModalLead || !unassignModalScheduleAt) return;
+    setUnassigningSingle(true);
+    try {
+      await api.post('/crm/data-analyst/schedule-lead-assignment', {
+        customerIds: [unassignModalLead.id],
+        action: 'unassign',
+        scheduledAt: unassignModalScheduleAt,
+      });
+      toast.success('Scheduled unassign successfully');
+      setUnassignModalLead(null);
+      setUnassignModalScheduleAt('');
+      await fetchLeads(page, { silent: true });
+    } catch {
+      toast.error('Failed to schedule unassign');
+    } finally {
+      setUnassigningSingle(false);
     }
   };
 
@@ -427,9 +541,46 @@ const SalesManagerLeadAssignment = () => {
     }
   };
 
+  const handleBulkScheduleUnassign = async () => {
+    if (selected.size === 0 || !bulkScheduleAt) {
+      toast.error('Select leads and a schedule date/time');
+      return;
+    }
+    setAssigning(true);
+    try {
+      await api.post('/crm/data-analyst/schedule-lead-assignment', {
+        customerIds: Array.from(selected),
+        action: 'unassign',
+        scheduledAt: bulkScheduleAt,
+      });
+      toast.success(`${selected.size} lead(s) scheduled to unassign`);
+      setBulkScheduleAt('');
+      setSelected(new Set());
+      await fetchLeads(page, { silent: true });
+    } catch {
+      toast.error('Failed to schedule bulk unassign');
+    } finally {
+      setAssigning(false);
+    }
+  };
+
   const personName = (name?: string | null, fallback = 'Unassigned') => (
     name ? <span className="text-xs text-gray-800 font-medium">{name}</span> : <span className="text-gray-400 text-xs">{fallback}</span>
   );
+
+  const formatScheduleDateTime = (value?: string | null) => {
+    if (!value) return '';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    return date.toLocaleString('en-GB', {
+      timeZone: 'Asia/Dhaka',
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
 
   return (
     <AdminLayout>
@@ -640,13 +791,21 @@ const SalesManagerLeadAssignment = () => {
             </FilterField>
 
             <FilterField label="Product Suggestion" className="xl:col-span-2">
-              <input
-                type="text"
-                placeholder="Search product suggestion..."
+              <select
                 value={productSuggestionFilter}
                 onChange={e => setProductSuggestionFilter(e.target.value)}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-              />
+              >
+                <option value="">All suggestion states</option>
+                <option value="__none__">No suggestion yet</option>
+                <option value="__any__">All products with suggestion</option>
+                {productSuggestionOptions.length > 0 && (
+                  <option disabled value="__separator__">-- Shortlisted products --</option>
+                )}
+                {productSuggestionOptions.map(option => (
+                  <option key={option.key} value={option.label}>{option.label}</option>
+                ))}
+              </select>
             </FilterField>
 
             <FilterField label="Order Rejected Reason" className="xl:col-span-2">
@@ -694,6 +853,65 @@ const SalesManagerLeadAssignment = () => {
                 type="date"
                 value={assignedToFilter}
                 onChange={e => setAssignedToFilter(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              />
+            </FilterField>
+
+            <FilterField label="Scheduled Status">
+              <select
+                value={scheduledAssignmentStatusFilter}
+                onChange={e => setScheduledAssignmentStatusFilter(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500"
+              >
+                <option value="">All Scheduled Statuses</option>
+                <option value="pending">Pending Scheduled</option>
+                <option value="none">No Pending Schedule</option>
+                <option value="processed">Processed</option>
+                <option value="failed">Failed</option>
+                <option value="cancelled">Cancelled</option>
+                <option value="any">Any Schedule History</option>
+              </select>
+            </FilterField>
+
+            <FilterField label="Scheduled Action">
+              <select
+                value={scheduledAssignmentActionFilter}
+                onChange={e => setScheduledAssignmentActionFilter(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500"
+              >
+                <option value="">All Scheduled Actions</option>
+                <option value="assign">Assign</option>
+                <option value="unassign">Unassign</option>
+              </select>
+            </FilterField>
+
+            <FilterField label="Scheduled Agent">
+              <select
+                value={scheduledAssignmentAgentFilter}
+                onChange={e => setScheduledAssignmentAgentFilter(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500"
+              >
+                <option value="">All Scheduled Agents</option>
+                {agents.map(agent => (
+                  <option key={agent.id} value={agent.id}>{agent.name}</option>
+                ))}
+              </select>
+            </FilterField>
+
+            <FilterField label="Scheduled Start">
+              <input
+                type="datetime-local"
+                value={scheduledFromFilter}
+                onChange={e => setScheduledFromFilter(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              />
+            </FilterField>
+
+            <FilterField label="Scheduled End">
+              <input
+                type="datetime-local"
+                value={scheduledToFilter}
+                onChange={e => setScheduledToFilter(e.target.value)}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
               />
             </FilterField>
@@ -757,6 +975,13 @@ const SalesManagerLeadAssignment = () => {
                 <option key={agent.id} value={agent.id}>{agent.name}</option>
               ))}
             </select>
+            <input
+              type="datetime-local"
+              value={bulkScheduleAt}
+              onChange={e => setBulkScheduleAt(e.target.value)}
+              className="border border-indigo-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 bg-white"
+              title="Schedule date and time"
+            />
             <button
               onClick={handleBulkAssign}
               disabled={assigning || !bulkAgent}
@@ -770,6 +995,20 @@ const SalesManagerLeadAssignment = () => {
               className="bg-red-600 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {assigning ? 'Unassigning…' : `Unassign ${selected.size} Lead${selected.size !== 1 ? 's' : ''}`}
+            </button>
+            <button
+              onClick={handleBulkScheduleAssign}
+              disabled={assigning || !bulkAgent || !bulkScheduleAt}
+              className="bg-emerald-600 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              Schedule Assign
+            </button>
+            <button
+              onClick={handleBulkScheduleUnassign}
+              disabled={assigning || !bulkScheduleAt}
+              className="bg-orange-600 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              Schedule Unassign
             </button>
             <button
               onClick={() => setSelected(new Set())}
@@ -809,6 +1048,7 @@ const SalesManagerLeadAssignment = () => {
                       <th className="text-left py-3 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Data Analyst</th>
                       <th className="text-left py-3 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Team Leader</th>
                       <th className="text-left py-3 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Assigned Agent</th>
+                      <th className="text-left py-3 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Scheduled</th>
                       <th className="text-left py-3 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Last Call</th>
                       <th className="text-center py-3 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Action</th>
                     </tr>
@@ -866,6 +1106,27 @@ const SalesManagerLeadAssignment = () => {
                         </td>
                         <td className="py-3 px-3">{personName(lead.teamLeaderName)}</td>
                         <td className="py-3 px-3">{personName(lead.assignedAgentName)}</td>
+                        <td className="py-3 px-3 text-xs">
+                          {lead.scheduledAssignmentId ? (
+                            <div className="space-y-1">
+                              <span className={`inline-flex px-2 py-0.5 rounded-full font-semibold capitalize ${
+                                lead.scheduledAssignmentAction === 'assign'
+                                  ? 'bg-emerald-100 text-emerald-700'
+                                  : 'bg-orange-100 text-orange-700'
+                              }`}>
+                                {lead.scheduledAssignmentAction}
+                              </span>
+                              <div className="text-gray-700">{formatScheduleDateTime(lead.scheduledAssignmentAt)}</div>
+                              {lead.scheduledAssignmentAction === 'assign' && (
+                                <div className="text-gray-500">
+                                  To: {lead.scheduledAssignmentAgentName || `Agent #${lead.scheduledAssignmentAgentId}`}
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-gray-300">—</span>
+                          )}
+                        </td>
                         <td className="py-3 px-3 text-sm">
                           {(() => {
                             const lastCall = formatLastCalled(lead.last_contact_date);
@@ -894,18 +1155,26 @@ const SalesManagerLeadAssignment = () => {
                               <FaEye size={12} /> {viewed ? 'Viewed' : 'View'}
                             </button>
                             <button
-                              onClick={() => { setAssignModalLead(lead); setAssignModalAgent(''); }}
+                              onClick={() => { setAssignModalLead(lead); setAssignModalAgent(''); setAssignModalScheduleAt(''); }}
                               className="bg-green-600 text-white px-3 py-1.5 rounded text-sm hover:bg-green-700"
                             >
                               {lead.assigned_to ? 'Reassign' : 'Assign'}
                             </button>
                             {lead.assigned_to && (
-                              <button
-                                onClick={() => handleUnassign(lead)}
-                                className="bg-red-600 text-white px-3 py-1.5 rounded text-sm hover:bg-red-700"
-                              >
-                                Unassign
-                              </button>
+                              <>
+                                <button
+                                  onClick={() => handleUnassign(lead)}
+                                  className="bg-red-600 text-white px-3 py-1.5 rounded text-sm hover:bg-red-700"
+                                >
+                                  Unassign
+                                </button>
+                                <button
+                                  onClick={() => { setUnassignModalLead(lead); setUnassignModalScheduleAt(''); }}
+                                  className="bg-orange-600 text-white px-3 py-1.5 rounded text-sm hover:bg-orange-700"
+                                >
+                                  Schedule Unassign
+                                </button>
+                              </>
                             )}
                           </div>
                         </td>
@@ -914,7 +1183,7 @@ const SalesManagerLeadAssignment = () => {
                     })}
                     {leads.length === 0 && (
                       <tr>
-                        <td colSpan={10} className="text-center py-16 text-gray-400">
+                        <td colSpan={11} className="text-center py-16 text-gray-400">
                           No leads found. Try adjusting your filters.
                         </td>
                       </tr>
@@ -1022,10 +1291,18 @@ const SalesManagerLeadAssignment = () => {
                 className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 mb-5"
               >
                 <option value="">Choose Agent</option>
-                {agents.map(agent => (
+              {agents.map(agent => (
                   <option key={agent.id} value={agent.id}>{agent.name}</option>
                 ))}
               </select>
+
+              <label className="block text-sm font-medium text-gray-700 mb-2">Schedule Date &amp; Time</label>
+              <input
+                type="datetime-local"
+                value={assignModalScheduleAt}
+                onChange={e => setAssignModalScheduleAt(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 mb-5"
+              />
 
               <div className="flex gap-3 justify-end">
                 <button
@@ -1035,11 +1312,70 @@ const SalesManagerLeadAssignment = () => {
                   Cancel
                 </button>
                 <button
+                  onClick={handleSingleScheduleAssign}
+                  disabled={assigningSingle || !assignModalAgent || !assignModalScheduleAt}
+                  className="bg-emerald-600 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  Schedule
+                </button>
+                <button
                   onClick={handleSingleAssign}
                   disabled={assigningSingle || !assignModalAgent}
                   className="bg-green-600 text-white px-6 py-2 rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                   {assigningSingle ? 'Assigning…' : 'Assign Lead'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Single Schedule Unassign Modal */}
+      {unassignModalLead && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+            <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-gray-900">Schedule Unassign</h3>
+              <button
+                onClick={() => { setUnassignModalLead(null); setUnassignModalScheduleAt(''); }}
+                className="text-gray-400 hover:text-gray-600 text-xl leading-none"
+              >
+                x
+              </button>
+            </div>
+            <div className="px-6 py-5">
+              <div className="bg-gray-50 rounded-lg p-3 mb-5">
+                <div className="font-medium text-gray-900 text-sm">
+                  {[unassignModalLead.name, unassignModalLead.lastName].filter(Boolean).join(' ')}
+                </div>
+                <div className="text-sm text-gray-500">{unassignModalLead.phone}</div>
+                <div className="text-xs text-indigo-600 mt-1">
+                  Currently: {unassignModalLead.assignedAgentName || `Agent #${unassignModalLead.assigned_to}`}
+                </div>
+              </div>
+
+              <label className="block text-sm font-medium text-gray-700 mb-2">Schedule Date &amp; Time</label>
+              <input
+                type="datetime-local"
+                value={unassignModalScheduleAt}
+                onChange={e => setUnassignModalScheduleAt(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 mb-5"
+              />
+
+              <div className="flex gap-3 justify-end">
+                <button
+                  onClick={() => { setUnassignModalLead(null); setUnassignModalScheduleAt(''); }}
+                  className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSingleScheduleUnassign}
+                  disabled={unassigningSingle || !unassignModalScheduleAt}
+                  className="bg-orange-600 text-white px-6 py-2 rounded-lg text-sm font-medium hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {unassigningSingle ? 'Scheduling...' : 'Schedule Unassign'}
                 </button>
               </div>
             </div>

@@ -11,10 +11,9 @@ import {
   FaChevronLeft, FaChevronRight
 } from 'react-icons/fa';
 import Link from 'next/link';
-import { format } from 'date-fns';
 import AdminOrderDetailsModal from '@/components/AdminOrderDetailsModal';
 import apiClient from '@/services/api';
-import { getDhakaDateString } from '@/utils/dhakaDate';
+import { formatDhakaDate, formatDhakaDateTime, getDhakaDateString } from '@/utils/dhakaDate';
 
 // CRM Task interface
 interface CrmTask {
@@ -523,7 +522,7 @@ export default function TodayTasklistPage() {
             {task.dueDate && (
               <span className={`flex items-center gap-1 ${isOverdue ? 'text-red-600 font-medium' : ''}`}>
                 <FaClock size={12} />
-                Due: {format(new Date(task.dueDate), 'MMM dd, yyyy')}
+                Due: {formatDhakaDate(task.dueDate, undefined, { day: '2-digit', month: '2-digit', year: 'numeric' })}
                 {task.dueTime && ` at ${task.dueTime}`}
               </span>
             )}
@@ -600,7 +599,13 @@ export default function TodayTasklistPage() {
           
           {(lead.assignedAt || lead.assigned_at) && (
             <div className="text-sm text-gray-500 mt-2">
-              Assigned: {format(new Date(lead.assignedAt || lead.assigned_at || ''), 'MMM dd, yyyy h:mm a')}
+              Assigned: {formatDhakaDateTime(lead.assignedAt || lead.assigned_at || '', undefined, {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+              })}
             </div>
           )}
           
@@ -792,7 +797,7 @@ export default function TodayTasklistPage() {
               Today's Tasklist
             </h1>
             <p className="text-gray-600 mt-1">
-              {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+              {formatDhakaDate(new Date(), undefined, { day: '2-digit', month: '2-digit', year: 'numeric' })}
             </p>
           </div>
           

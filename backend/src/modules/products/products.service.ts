@@ -52,6 +52,39 @@ export class ProductsService {
     return `CASE WHEN pso.display_order IS NULL THEN 1 ELSE 0 END, pso.display_order ASC, ${fallback}`;
   }
 
+  private availabilityJoin(alias = 'p') {
+    return `LEFT JOIN LATERAL (
+      SELECT
+        SUM(v.available)::int AS available_stock,
+        COALESCE(
+          jsonb_object_agg(v.variant_key, v.available) FILTER (WHERE v.variant_key IS NOT NULL),
+          '{}'::jsonb
+        ) AS variant_stock
+      FROM (
+        SELECT
+          sl.variant_key,
+          SUM(GREATEST(COALESCE(sl.quantity, 0) - COALESCE(sl.reserved_quantity, 0), 0))::int AS available
+        FROM stock_levels sl
+        WHERE sl.product_id = ${alias}.id
+        GROUP BY sl.variant_key
+      ) v
+    ) inv ON TRUE`;
+  }
+
+  private availabilitySelect(alias = 'p') {
+    return `
+      COALESCE(inv.available_stock, ${alias}.stock_quantity, 0)::int AS stock_quantity,
+      COALESCE(inv.available_stock, ${alias}.stock_quantity, 0)::int AS total_available,
+      (COALESCE(inv.available_stock, ${alias}.stock_quantity, 0) > 0) AS is_in_stock,
+      COALESCE(inv.variant_stock, '{}'::jsonb) AS variant_stock,
+      ${alias}.stock_quantity AS product_stock_quantity
+    `;
+  }
+
+  private availabilityExpression(alias = 'p') {
+    return `COALESCE(inv.available_stock, ${alias}.stock_quantity, 0)`;
+  }
+
   async findAll() {
     try {
       // Use raw query with slug column included and JOIN with categories
@@ -65,7 +98,7 @@ export class ProductsService {
           p.base_price as price,
           p.base_price as selling_price,
           p.wholesale_price, 
-          p.stock_quantity,
+          ${this.availabilitySelect('p')},
           p.display_position,
           p.additional_info,
           p.status, 
@@ -85,6 +118,7 @@ export class ProductsService {
           ORDER BY is_primary DESC, display_order ASC
           LIMIT 1
         ) pi ON TRUE
+        ${this.availabilityJoin('p')}
         LEFT JOIN categories c ON p.category_id = c.id
         ${this.sectionOrderJoin('products_page')}
         WHERE p.status = 'active'
@@ -158,7 +192,7 @@ export class ProductsService {
       }
 
       if (inStock) {
-        conditions.push(`p.stock_quantity > 0`);
+        conditions.push(`${this.availabilityExpression('p')} > 0`);
       }
 
       if (isCombo) {
@@ -191,6 +225,7 @@ export class ProductsService {
       const countResult = await this.productsRepository.query(
         `SELECT COUNT(*)::int as total
          FROM products p
+         ${this.availabilityJoin('p')}
          LEFT JOIN categories c ON p.category_id = c.id
          WHERE ${whereClause}`,
         queryParams,
@@ -208,7 +243,7 @@ export class ProductsService {
           p.base_price as price,
           p.base_price as selling_price,
           p.wholesale_price,
-          p.stock_quantity,
+          ${this.availabilitySelect('p')},
           p.display_position,
           p.additional_info,
           p.status,
@@ -230,6 +265,7 @@ export class ProductsService {
           ORDER BY is_primary DESC, display_order ASC
           LIMIT 1
         ) pi ON TRUE
+        ${this.availabilityJoin('p')}
         LEFT JOIN categories c ON p.category_id = c.id
         ${this.sectionOrderJoin(sectionKey)}
         WHERE ${whereClause}
@@ -382,7 +418,7 @@ export class ProductsService {
   async getProductSuggestionShortlistOptions() {
     const rows = await this.getProductSuggestionShortlist();
     return rows
-      .filter((row: any) => row.isActive && String(row.status || '').toLowerCase() === 'active')
+      .filter((row: any) => row.isActive)
       .map((row: any) => ({
         ...row,
         id: row.productId,
@@ -553,7 +589,44 @@ export class ProductsService {
     if (!Number.isFinite(numericId)) {
       throw new BadRequestException('Invalid product id');
     }
-    return this.productsRepository.findOne({ where: { id: numericId } });
+    const result = await this.productsRepository.query(`
+      SELECT 
+        p.id, p.slug, p.sku, p.product_code, 
+        p.name_en, p.name_bn, 
+        p.description_en, p.description_bn, p.short_description,
+        p.category_id,
+        c.name_en as category_name,
+        p.base_price, 
+        p.base_price as price,
+        p.base_price as selling_price,
+        p.wholesale_price, 
+        ${this.availabilitySelect('p')},
+        p.display_position,
+        p.brand, p.unit_of_measure, 
+        COALESCE(p.image_url, pi.image_url) as image_url,
+        p.status,
+        p.additional_info,
+        p.size_variants,
+        p.discount_type,
+        p.discount_value,
+        p.sale_price,
+        p.landing_page_delivery_charge,
+        p.landing_page_delivery_charge_outside,
+        p.created_at
+      FROM products p
+      LEFT JOIN LATERAL (
+        SELECT image_url
+        FROM product_images
+        WHERE product_id = p.id
+        ORDER BY is_primary DESC, display_order ASC
+        LIMIT 1
+      ) pi ON TRUE
+      ${this.availabilityJoin('p')}
+      LEFT JOIN categories c ON p.category_id = c.id
+      WHERE p.id = $1 
+      LIMIT 1
+    `, [numericId]);
+    return result?.[0] || null;
   }
 
   async searchProducts(query: string, options?: { includeInactive?: boolean }) {
@@ -569,7 +642,7 @@ export class ProductsService {
           p.base_price, 
           p.base_price as price,
           p.wholesale_price, 
-          p.stock_quantity,
+          ${this.availabilitySelect('p')},
           COALESCE(p.image_url, pi.image_url) as image_url, 
           p.additional_info,
           p.status,
@@ -588,6 +661,7 @@ export class ProductsService {
           ORDER BY is_primary DESC, display_order ASC
           LIMIT 1
         ) pi ON TRUE
+        ${this.availabilityJoin('p')}
         LEFT JOIN categories c ON p.category_id = c.id
         WHERE ${statusFilter} (
             LOWER(p.name_en) LIKE $1 
@@ -620,7 +694,7 @@ export class ProductsService {
           p.base_price as price,
           p.base_price as selling_price,
           p.wholesale_price, 
-          p.stock_quantity,
+          ${this.availabilitySelect('p')},
           p.display_position,
           p.brand, p.unit_of_measure, 
           COALESCE(p.image_url, pi.image_url) as image_url,
@@ -641,6 +715,7 @@ export class ProductsService {
           ORDER BY is_primary DESC, display_order ASC
           LIMIT 1
         ) pi ON TRUE
+        ${this.availabilityJoin('p')}
         LEFT JOIN categories c ON p.category_id = c.id
         WHERE p.slug = $1 
         LIMIT 1
@@ -756,6 +831,7 @@ export class ProductsService {
         SELECT p.id, p.slug, p.sku, p.name_en, p.name_bn, p.description_en, p.base_price, p.selling_price, 
                p.deal_price, p.deal_expires_at,
                COALESCE(p.image_url, pi.image_url) as image_url,
+               ${this.availabilitySelect('p')},
                p.status
         FROM products p
         LEFT JOIN LATERAL (
@@ -765,6 +841,7 @@ export class ProductsService {
           ORDER BY is_primary DESC, display_order ASC
           LIMIT 1
         ) pi ON TRUE
+        ${this.availabilityJoin('p')}
         WHERE is_deal_of_day = TRUE 
           AND status = 'active'
           AND (deal_expires_at IS NULL OR deal_expires_at > NOW())
@@ -783,6 +860,7 @@ export class ProductsService {
       const results = await this.productsRepository.query(`
         SELECT p.id, p.slug, p.sku, p.name_en, p.name_bn, p.description_en, p.base_price, p.selling_price,
                COALESCE(p.image_url, pi.image_url) as image_url,
+               ${this.availabilitySelect('p')},
                p.status
         FROM products p
         LEFT JOIN LATERAL (
@@ -792,6 +870,7 @@ export class ProductsService {
           ORDER BY is_primary DESC, display_order ASC
           LIMIT 1
         ) pi ON TRUE
+        ${this.availabilityJoin('p')}
         ${this.sectionOrderJoin('popular_products')}
         WHERE is_popular = TRUE AND status = 'active'
         ORDER BY ${this.sectionOrderClause('p.created_at DESC')}
@@ -809,6 +888,7 @@ export class ProductsService {
       const results = await this.productsRepository.query(`
         SELECT p.id, p.slug, p.sku, p.name_en, p.name_bn, p.description_en, p.base_price, p.selling_price,
                COALESCE(p.image_url, pi.image_url) as image_url,
+               ${this.availabilitySelect('p')},
                p.status
         FROM products p
         LEFT JOIN LATERAL (
@@ -818,6 +898,7 @@ export class ProductsService {
           ORDER BY is_primary DESC, display_order ASC
           LIMIT 1
         ) pi ON TRUE
+        ${this.availabilityJoin('p')}
         ${this.sectionOrderJoin('new_arrivals')}
         WHERE is_new_arrival = TRUE AND status = 'active'
         ORDER BY ${this.sectionOrderClause('p.created_at DESC')}
@@ -835,6 +916,7 @@ export class ProductsService {
       const results = await this.productsRepository.query(`
         SELECT p.id, p.slug, p.sku, p.name_en, p.name_bn, p.description_en, p.base_price, p.selling_price,
                COALESCE(p.image_url, pi.image_url) as image_url,
+               ${this.availabilitySelect('p')},
                p.status
         FROM products p
         LEFT JOIN LATERAL (
@@ -844,6 +926,7 @@ export class ProductsService {
           ORDER BY is_primary DESC, display_order ASC
           LIMIT 1
         ) pi ON TRUE
+        ${this.availabilityJoin('p')}
         ${this.sectionOrderJoin('featured_products')}
         WHERE is_featured = TRUE AND status = 'active'
         ORDER BY ${this.sectionOrderClause('p.created_at DESC')}
@@ -860,7 +943,7 @@ export class ProductsService {
     try {
       const results = await this.productsRepository.query(`
         SELECT p.id, p.slug, p.sku, p.name_en, p.name_bn, p.description_en,
-               p.base_price, p.sale_price, p.stock_quantity, p.size_variants,
+               p.base_price, p.sale_price, ${this.availabilitySelect('p')}, p.size_variants,
                COALESCE(p.image_url, pi.image_url) as image_url,
                p.status, c.name_en as category_name
         FROM products p
@@ -871,6 +954,7 @@ export class ProductsService {
           ORDER BY is_primary DESC, display_order ASC
           LIMIT 1
         ) pi ON TRUE
+        ${this.availabilityJoin('p')}
         LEFT JOIN categories c ON p.category_id = c.id
         ${this.sectionOrderJoin('combo_products')}
         WHERE p.is_combo = TRUE AND p.status = 'active'
@@ -890,7 +974,7 @@ export class ProductsService {
         SELECT p.id, p.slug, p.sku, p.name_en, p.name_bn, p.description_en, 
                p.base_price, p.sale_price, p.discount_type, p.discount_value,
                COALESCE(p.image_url, pi.image_url) as image_url,
-               p.status, p.stock_quantity, c.name_en as category_name
+               p.status, ${this.availabilitySelect('p')}, c.name_en as category_name
         FROM products p
         LEFT JOIN LATERAL (
           SELECT image_url
@@ -899,6 +983,7 @@ export class ProductsService {
           ORDER BY is_primary DESC, display_order ASC
           LIMIT 1
         ) pi ON TRUE
+        ${this.availabilityJoin('p')}
         LEFT JOIN categories c ON p.category_id = c.id
         WHERE p.status = 'active' 
           AND p.id != $1
@@ -918,7 +1003,7 @@ export class ProductsService {
       const results = await this.productsRepository.query(`
         SELECT p.id, p.slug, p.sku, p.name_en, p.name_bn, p.description_en, p.base_price, p.sale_price, p.discount_type, p.discount_value,
                COALESCE(p.image_url, pi.image_url) as image_url,
-               p.status, p.stock_quantity, c.name_en as category_name
+               p.status, ${this.availabilitySelect('p')}, c.name_en as category_name
         FROM products p
         LEFT JOIN LATERAL (
           SELECT image_url
@@ -927,6 +1012,7 @@ export class ProductsService {
           ORDER BY is_primary DESC, display_order ASC
           LIMIT 1
         ) pi ON TRUE
+        ${this.availabilityJoin('p')}
         LEFT JOIN categories c ON p.category_id = c.id
         WHERE p.status = 'active'
         ORDER BY RANDOM()
@@ -945,6 +1031,7 @@ export class ProductsService {
         SELECT DISTINCT p.id, p.slug, p.sku, p.name_en, p.name_bn, p.description_en, 
                p.base_price, p.selling_price,
                COALESCE(p.image_url, pi.image_url) as image_url,
+               ${this.availabilitySelect('p')},
                p.status, upv.viewed_at
         FROM products p
         LEFT JOIN LATERAL (
@@ -954,6 +1041,7 @@ export class ProductsService {
           ORDER BY is_primary DESC, display_order ASC
           LIMIT 1
         ) pi ON TRUE
+        ${this.availabilityJoin('p')}
         INNER JOIN user_product_views upv ON p.id = upv.product_id
         WHERE p.status = 'active'
       `;
@@ -1118,9 +1206,10 @@ export class ProductsService {
         SELECT 
           p.id, p.slug, p.sku, p.name_en, p.name_bn, 
           p.base_price, p.sale_price, p.discount_type, p.discount_value,
-          p.brand, p.image_url, p.stock_quantity, p.status,
+          p.brand, p.image_url, ${this.availabilitySelect('p')}, p.status,
           c.name_en as category_name
         FROM products p
+        ${this.availabilityJoin('p')}
         LEFT JOIN categories c ON p.category_id = c.id
         WHERE p.id = $1 AND p.status = 'active'
       `, [Number(deal.product_id)]);
@@ -1201,10 +1290,11 @@ export class ProductsService {
           hd.id, hd.product_id, hd.special_price, hd.discount_percent,
           hd.display_order, hd.start_date, hd.end_date, hd.is_active,
           p.name_en, p.name_bn, p.slug, p.sku, p.base_price, p.sale_price,
-          p.image_url, p.stock_quantity,
+          p.image_url, ${this.availabilitySelect('p')},
           c.name_en as category_name
         FROM hot_deals hd
         JOIN products p ON hd.product_id = p.id
+        ${this.availabilityJoin('p')}
         LEFT JOIN categories c ON p.category_id = c.id
         ${this.sectionOrderJoin('hot_deals')}
         WHERE hd.is_active = true
@@ -1317,7 +1407,7 @@ export class ProductsService {
           p.base_price, 
           p.base_price as price,
           p.wholesale_price, 
-          p.stock_quantity,
+          ${this.availabilitySelect('p')},
           COALESCE(p.image_url, pi.image_url) as image_url,
           p.status,
           p.discount_type,
@@ -1334,6 +1424,7 @@ export class ProductsService {
           ORDER BY is_primary DESC, display_order ASC
           LIMIT 1
         ) pi ON TRUE
+        ${this.availabilityJoin('p')}
         WHERE ps.product_id = $1 AND p.status = 'active'
         ORDER BY ps.display_order ASC, ps.created_at ASC
       `, [productId]);

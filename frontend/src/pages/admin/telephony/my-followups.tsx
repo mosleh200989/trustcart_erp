@@ -14,7 +14,7 @@ import {
   FaWhatsapp, FaSms, FaEnvelope, FaChevronLeft, FaChevronRight
 } from 'react-icons/fa';
 import AdminOrderDetailsModal from '@/components/AdminOrderDetailsModal';
-import { getDhakaDateString } from '@/utils/dhakaDate';
+import { formatDhakaDate, getDhakaDateString } from '@/utils/dhakaDate';
 import { CALL_OUTCOME_OPTIONS, type CallOutcomeValue } from '@/constants/adminOptions';
 
 interface FollowUp {
@@ -513,7 +513,11 @@ export default function MyFollowupsPage() {
           customer_id: String(customerId),
           priority: selectedFollowUpForLog.priority || 'warm',
           call_reason: 'Follow-up Call',
-          notes: `Follow-up from call on ${new Date().toLocaleDateString()}. Previous outcome: ${logCallOutcome}`,
+          notes: `Follow-up from call on ${formatDhakaDate(new Date(), undefined, {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+          })}. Previous outcome: ${logCallOutcome}`,
           scheduled_time: logCallFollowUpTime || '09:00',
           task_date: logCallFollowUpDate
         });
@@ -537,9 +541,9 @@ export default function MyFollowupsPage() {
 
   const formatDate = (dateStr?: string) => {
     if (!dateStr) return 'N/A';
-    return new Date(dateStr).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
+    return formatDhakaDate(dateStr, undefined, {
+      day: '2-digit',
+      month: '2-digit',
       year: 'numeric',
     });
   };
