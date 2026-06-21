@@ -299,6 +299,14 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
     const options: Array<{ key: string; label: string; productId: number | null }> = [];
     quickProductSuggestionProducts.forEach((product: any) => {
       const productId = product.id ? Number(product.id) : null;
+      if (product.suggestionOptionKey || product.suggestionOptionLabel) {
+        options.push({
+          key: String(product.suggestionOptionKey || `${product.productId || product.id}::${product.suggestionVariantName || 'base'}`),
+          label: String(product.suggestionOptionLabel || product.name_en || product.name || product.name_bn || `Product #${product.id}`),
+          productId: product.productId ? Number(product.productId) : productId,
+        });
+        return;
+      }
       const productName = product.name_en || product.name || product.name_bn || `Product #${product.id}`;
       const variants = getProductVariants(product);
       options.push({

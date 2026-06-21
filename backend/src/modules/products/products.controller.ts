@@ -1,4 +1,5 @@
-import { Controller, Get, Post, Body, Param, Put, Delete, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Put, Delete, Query, Req, UseGuards } from '@nestjs/common';
+import type { Request } from 'express';
 import { ProductsService } from './products.service';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -52,7 +53,7 @@ export class ProductsController {
   }
 
   @Get('admin/all')
-  @RequireAnyPermission('view-products', 'view-inventory')
+  @RequireAnyPermission('view-products', 'view-inventory', 'manage-product-suggestion-shortlist', 'update-order-product-suggestion')
   async findAllAdmin() {
     const products = await this.productsService.findAllAdmin();
     console.log(`Admin controller returning ${products.length} products (including inactive)`);
@@ -121,7 +122,46 @@ export class ProductsController {
   @Get('admin/suggestion-options')
   @RequireAnyPermission('view-products', 'view-sales-orders', 'create-sales-orders', 'edit-sales-orders')
   async getSuggestionOptions() {
-    return await this.productsService.findAllAdmin();
+    return await this.productsService.getProductSuggestionShortlistOptions();
+  }
+
+  @Get('admin/suggestion-shortlist')
+  @RequireAnyPermission('manage-product-suggestion-shortlist', 'update-order-product-suggestion', 'view-products')
+  async getProductSuggestionShortlist() {
+    return await this.productsService.getProductSuggestionShortlist();
+  }
+
+  @Post('admin/suggestion-shortlist')
+  @RequireAnyPermission('manage-product-suggestion-shortlist', 'update-order-product-suggestion')
+  async addProductSuggestionShortlistItem(
+    @Body() body: { productId?: number; variantName?: string | null },
+    @Req() req: Request,
+  ) {
+    return await this.productsService.addProductSuggestionShortlistItem({
+      productId: Number(body.productId),
+      variantName: body.variantName,
+      userId: Number((req as any).user?.id) || null,
+    });
+  }
+
+  @Put('admin/suggestion-shortlist/:id')
+  @RequireAnyPermission('manage-product-suggestion-shortlist', 'update-order-product-suggestion')
+  async updateProductSuggestionShortlistItem(
+    @Param('id') id: string,
+    @Body() body: { isActive?: boolean; displayOrder?: number },
+    @Req() req: Request,
+  ) {
+    return await this.productsService.updateProductSuggestionShortlistItem(Number(id), {
+      isActive: body.isActive,
+      displayOrder: body.displayOrder,
+      userId: Number((req as any).user?.id) || null,
+    });
+  }
+
+  @Delete('admin/suggestion-shortlist/:id')
+  @RequireAnyPermission('manage-product-suggestion-shortlist', 'update-order-product-suggestion')
+  async deleteProductSuggestionShortlistItem(@Param('id') id: string) {
+    return await this.productsService.deleteProductSuggestionShortlistItem(Number(id));
   }
 
   @Get('by-slug/:slug')

@@ -368,7 +368,7 @@ const menuItems: MenuItem[] = [
   {
     title: 'CRM',
     icon: FaHandshake,
-    requiredPermissions: ['view-leads', 'view-customers', 'view-crm-reports', 'manage-team-members', 'view-team-leader-dashboard', 'view-team-performance', 'assign-leads-to-team', 'view-sales-manager-dashboard', 'view-data-analyst-dashboard'],
+    requiredPermissions: ['view-leads', 'view-customers', 'view-crm-reports', 'manage-team-members', 'view-team-leader-dashboard', 'view-team-performance', 'assign-leads-to-team', 'view-sales-manager-dashboard', 'view-data-analyst-dashboard', 'manage-product-suggestion-shortlist', 'update-order-product-suggestion'],
     children: [
       { title: 'Dashboard', icon: FaTachometerAlt, path: '/admin/crm' },
       { title: 'Data Analyst', icon: FaChartBar, path: '/admin/crm/sales-manager-dashboard', requiredPermissions: ['view-data-analyst-dashboard', 'view-sales-manager-dashboard'] },
@@ -379,6 +379,7 @@ const menuItems: MenuItem[] = [
       { title: 'Automatic Assignment', icon: FaUserCheck, path: '/admin/crm/automatic-assignment', requiredPermissions: ['view-auto-order-assignment', 'manage-auto-order-assignment'] },
       { title: 'Team Data Collection', icon: FaBullseye, path: '/admin/crm/team-data-collection', requiredPermissions: ['view-team-performance'] },
       { title: 'Commission Settings', icon: FaMoneyBillWave, path: '/admin/crm/commission-settings', requiredPermissions: ['manage-commission-settings'] },
+      { title: 'Product Suggestion Shortlist', icon: FaTags, path: '/admin/crm/product-suggestion-shortlist', requiredPermissions: ['manage-product-suggestion-shortlist', 'update-order-product-suggestion'] },
       { title: 'Tier Management', icon: FaTachometerAlt, path: '/admin/crm/customer-tier-management', requiredPermissions: ['view-customers'] },
       { title: 'Rejected Customers', icon: FaBan, path: '/admin/crm/rejected-customers', requiredPermissions: ['view-customers'] },
       { title: 'Customer Segments', icon: FaUsers, path: '/admin/crm/customer-segments', requiredPermissions: ['view-customers'] },

@@ -338,7 +338,7 @@ export const DEFAULT_ADMIN_MENU: AdminMenuSeedNode[] = [
   {
     title: 'CRM',
     icon: 'FaHandshake',
-    requiredPermissions: ['view-leads', 'view-customers', 'view-crm-reports', 'receive-new-leads'],
+    requiredPermissions: ['view-leads', 'view-customers', 'view-crm-reports', 'receive-new-leads', 'manage-product-suggestion-shortlist', 'update-order-product-suggestion'],
     children: [
       { title: 'Dashboard', icon: 'FaTachometerAlt', path: '/admin/crm' },
       { title: 'Customers', icon: 'FaUsers', path: '/admin/crm/customers' },
@@ -352,6 +352,12 @@ export const DEFAULT_ADMIN_MENU: AdminMenuSeedNode[] = [
       },
       { title: 'Team Data Collection', icon: 'FaBullseye', path: '/admin/crm/team-data-collection' },
       { title: 'Tier Management', icon: 'FaTachometerAlt', path: '/admin/crm/customer-tier-management' },
+      {
+        title: 'Product Suggestion Shortlist',
+        icon: 'FaTags',
+        path: '/admin/crm/product-suggestion-shortlist',
+        requiredPermissions: ['manage-product-suggestion-shortlist', 'update-order-product-suggestion'],
+      },
       { title: 'Pipeline', icon: 'FaBullseye', path: '/admin/crm/pipeline' },
       { title: 'Tasks', icon: 'FaBullseye', path: '/admin/crm/tasks' },
       { title: 'Analytics', icon: 'FaTachometerAlt', path: '/admin/crm/analytics' },
