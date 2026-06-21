@@ -1,6 +1,9 @@
 import { Body, Controller, Get, Headers, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
 import type { Request as ExpressRequest } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { PermissionsGuard } from '../../common/guards/permissions.guard';
+import { RequirePermissions } from '../../common/decorators/permissions.decorator';
+import { RbacService } from '../rbac/rbac.service';
 import { TelephonyService } from './telephony.service';
 import { TelephonyReportsService } from './telephony-reports.service';
 
@@ -9,6 +12,7 @@ export class TelephonyController {
   constructor(
     private readonly telephonyService: TelephonyService,
     private readonly telephonyReports: TelephonyReportsService,
+    private readonly rbacService: RbacService,
   ) {}
 
   @Get('stats')
@@ -21,7 +25,8 @@ export class TelephonyController {
   }
 
   @Get('calls')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions('view-call-logs')
   async listCalls(
     @Query('status') status?: string,
     @Query('direction') direction?: string,
@@ -45,7 +50,8 @@ export class TelephonyController {
   }
 
   @Get('calls/:id')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions('view-call-logs')
   async getCall(@Param('id') id: string) {
     return this.telephonyService.getCallById(Number(id));
   }
@@ -85,6 +91,8 @@ export class TelephonyController {
     @Query('page') page?: string,
     @Query('limit') limit?: string,
   ) {
+    const userId = Number((req as any).user?.id);
+    const canViewCallLogs = await this.rbacService.checkPermission(userId, 'view-call-logs');
     return this.telephonyService.listMyOrderAssignments(Number((req as any).user?.id), {
       assignmentType,
       q,
@@ -96,6 +104,7 @@ export class TelephonyController {
       suggestion,
       page: page != null ? Number(page) : undefined,
       limit: limit != null ? Number(limit) : undefined,
+      includeCallLogs: canViewCallLogs,
     });
   }
 
@@ -110,7 +119,8 @@ export class TelephonyController {
   }
 
   @Get('order-assignments/:orderId/call-history')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions('view-call-logs')
   async listOrderAssignmentCallHistory(
     @Req() req: ExpressRequest,
     @Param('orderId') orderId: string,
@@ -148,7 +158,8 @@ export class TelephonyController {
   // =========================
 
   @Get('reports/cdr')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions('view-call-logs')
   async getCdr(
     @Query('from') from?: string,
     @Query('to') to?: string,

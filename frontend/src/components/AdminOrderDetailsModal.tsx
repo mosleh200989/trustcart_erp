@@ -41,6 +41,7 @@ type ProductSuggestionItem = {
 export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: OrderDetailsModalProps) {
   const toast = useToast();
   const { hasPermission } = useAuth();
+  const canViewCallLogs = hasPermission('view-call-logs');
   const [order, setOrder] = useState<any>(null);
   const [items, setItems] = useState<any[]>([]);
   const [activityLogs, setActivityLogs] = useState<any[]>([]);
@@ -247,10 +248,12 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
 
   // Load call logs when the customer summary or logs tab is opened
   useEffect(() => {
-    if ((activeTab === 'customer' || activeTab === 'logs') && customerRecord?.id) {
+    if (canViewCallLogs && (activeTab === 'customer' || activeTab === 'logs') && customerRecord?.id) {
       loadCallLogs();
+    } else if (!canViewCallLogs) {
+      setCallLogs([]);
     }
-  }, [activeTab, customerRecord?.id]);
+  }, [activeTab, customerRecord?.id, canViewCallLogs]);
 
   useEffect(() => {
     if (activeTab === 'customer') {
@@ -618,7 +621,7 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
 
   // Load call logs for the customer
   const loadCallLogs = async () => {
-    if (!customerRecord?.id) return;
+    if (!customerRecord?.id || !canViewCallLogs) return;
     try {
       setCallLogsLoading(true);
       const response = await apiClient.get(`/crm/automation/engagement/${customerRecord.id}`);
@@ -685,8 +688,10 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
         uniqueCalls.push(call);
       }
       setCallLogs(uniqueCalls);
-    } catch (error) {
-      console.error('Failed to load call logs:', error);
+    } catch (error: any) {
+      if (error?.response?.status !== 403) {
+        console.error('Failed to load call logs:', error);
+      }
       setCallLogs([]);
     } finally {
       setCallLogsLoading(false);
@@ -2500,47 +2505,49 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
               )}
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
-                  <div className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                    <FaPhone className="text-green-600" /> Call Logs
-                  </div>
-                  {callLogsLoading ? (
-                    <div className="text-sm text-gray-500 py-3">Loading call logs...</div>
-                  ) : compactCallLogs.length > 0 ? (
-                    <div className="divide-y divide-gray-100">
-                      {compactCallLogs.map((call) => (
-                        <div key={call.id || `${call.agentName}-${call.createdAt}`} className="py-2">
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <span className="text-sm font-medium text-gray-800">{call.agentName || 'Unknown Agent'}</span>
-                              {call.outcome && (
-                                <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${
-                                  isPositiveCallOutcome(call.outcome)
-                                    ? 'bg-green-100 text-green-800'
-                                    : call.outcome === 'no_answer' || call.outcome === 'busy' || call.outcome === 'unreachable'
-                                    ? 'bg-yellow-100 text-yellow-800'
-                                    : 'bg-red-100 text-red-800'
-                                }`}>
-                                  {formatCallOutcome(call.outcome)}
-                                </span>
-                              )}
-                            </div>
-                            <span className="text-xs text-gray-500 whitespace-nowrap">
-                              {(call.engagementDate || call.createdAt)
-                                ? new Date(call.engagementDate || call.createdAt).toLocaleString('en-GB', { timeZone: 'Asia/Dhaka' })
-                                : 'N/A'}
-                            </span>
-                          </div>
-                          <div className="text-sm text-gray-600 mt-1 whitespace-pre-wrap">
-                            {call.notes?.trim() ? call.notes : 'No notes'}
-                          </div>
-                        </div>
-                      ))}
+                {canViewCallLogs && (
+                  <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+                    <div className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                      <FaPhone className="text-green-600" /> Call Logs
                     </div>
-                  ) : (
-                    <div className="text-sm text-gray-500 py-3">No call logs found</div>
-                  )}
-                </div>
+                    {callLogsLoading ? (
+                      <div className="text-sm text-gray-500 py-3">Loading call logs...</div>
+                    ) : compactCallLogs.length > 0 ? (
+                      <div className="divide-y divide-gray-100">
+                        {compactCallLogs.map((call) => (
+                          <div key={call.id || `${call.agentName}-${call.createdAt}`} className="py-2">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="text-sm font-medium text-gray-800">{call.agentName || 'Unknown Agent'}</span>
+                                {call.outcome && (
+                                  <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${
+                                    isPositiveCallOutcome(call.outcome)
+                                      ? 'bg-green-100 text-green-800'
+                                      : call.outcome === 'no_answer' || call.outcome === 'busy' || call.outcome === 'unreachable'
+                                      ? 'bg-yellow-100 text-yellow-800'
+                                      : 'bg-red-100 text-red-800'
+                                  }`}>
+                                    {formatCallOutcome(call.outcome)}
+                                  </span>
+                                )}
+                              </div>
+                              <span className="text-xs text-gray-500 whitespace-nowrap">
+                                {(call.engagementDate || call.createdAt)
+                                  ? new Date(call.engagementDate || call.createdAt).toLocaleString('en-GB', { timeZone: 'Asia/Dhaka' })
+                                  : 'N/A'}
+                              </span>
+                            </div>
+                            <div className="text-sm text-gray-600 mt-1 whitespace-pre-wrap">
+                              {call.notes?.trim() ? call.notes : 'No notes'}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-sm text-gray-500 py-3">No call logs found</div>
+                    )}
+                  </div>
+                )}
 
                 <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
                   <div className="text-sm font-semibold text-gray-900 mb-3">Last Bought Product</div>
@@ -3535,75 +3542,77 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
               </div>
 
               {/* Call Logs Section */}
-              <div className="mt-8 border-t pt-6">
-                <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
-                  <FaPhone className="text-green-600" /> Call Logs
-                </h3>
-                
-                {callLogsLoading ? (
-                  <div className="text-center py-8 text-gray-500">Loading call logs...</div>
-                ) : callLogs.length > 0 ? (
-                  <div className="space-y-3">
-                    {callLogs.map((call) => (
-                      <div key={call.id} className="bg-green-50 p-4 rounded-lg border-l-4 border-green-500">
-                        <div className="flex justify-between items-start mb-2">
-                          <div className="flex items-center gap-2">
-                            {isPositiveCallOutcome(call.outcome) ? (
-                              <FaPhone className="text-green-600" />
-                            ) : (
-                              <FaPhoneSlash className="text-red-500" />
-                            )}
-                            <span className="font-semibold text-green-800 uppercase">
-                              {call.engagementType?.replace(/_/g, ' ') || 'Call'}
+              {canViewCallLogs && (
+                <div className="mt-8 border-t pt-6">
+                  <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
+                    <FaPhone className="text-green-600" /> Call Logs
+                  </h3>
+
+                  {callLogsLoading ? (
+                    <div className="text-center py-8 text-gray-500">Loading call logs...</div>
+                  ) : callLogs.length > 0 ? (
+                    <div className="space-y-3">
+                      {callLogs.map((call) => (
+                        <div key={call.id} className="bg-green-50 p-4 rounded-lg border-l-4 border-green-500">
+                          <div className="flex justify-between items-start mb-2">
+                            <div className="flex items-center gap-2">
+                              {isPositiveCallOutcome(call.outcome) ? (
+                                <FaPhone className="text-green-600" />
+                              ) : (
+                                <FaPhoneSlash className="text-red-500" />
+                              )}
+                              <span className="font-semibold text-green-800 uppercase">
+                                {call.engagementType?.replace(/_/g, ' ') || 'Call'}
+                              </span>
+                              {call.outcome && (
+                                <span className={`text-xs px-2 py-1 rounded ${
+                                  isPositiveCallOutcome(call.outcome) 
+                                    ? 'bg-green-200 text-green-800'
+                                    : call.outcome === 'no_answer' || call.outcome === 'busy' || call.outcome === 'unreachable'
+                                    ? 'bg-yellow-200 text-yellow-800'
+                                    : 'bg-red-200 text-red-800'
+                                }`}>
+                                  {formatCallOutcome(call.outcome)}
+                                </span>
+                              )}
+                            </div>
+                            <span className="text-xs text-gray-500">
+                              {new Date(call.engagementDate || call.createdAt).toLocaleString('en-GB', { timeZone: 'Asia/Dhaka' })}
                             </span>
-                            {call.outcome && (
-                              <span className={`text-xs px-2 py-1 rounded ${
-                                isPositiveCallOutcome(call.outcome) 
-                                  ? 'bg-green-200 text-green-800'
-                                  : call.outcome === 'no_answer' || call.outcome === 'busy' || call.outcome === 'unreachable'
-                                  ? 'bg-yellow-200 text-yellow-800'
-                                  : 'bg-red-200 text-red-800'
-                              }`}>
-                                {formatCallOutcome(call.outcome)}
+                          </div>
+
+                          {call.notes && (
+                            <p className="text-gray-700 mt-2">{call.notes}</p>
+                          )}
+
+                          {call.productSuggestion && (
+                            <div className="mt-2 p-2 bg-amber-50 border border-amber-200 rounded">
+                              <span className="text-xs font-medium text-amber-700">Product Suggestion:</span>
+                              <p className="text-sm text-amber-900 mt-0.5">{call.productSuggestion}</p>
+                            </div>
+                          )}
+
+                          <div className="flex items-center gap-4 text-sm text-gray-600 mt-2">
+                            {call.agentName && (
+                              <span className="inline-flex items-center gap-1 bg-blue-50 text-blue-700 px-2 py-0.5 rounded font-medium">
+                                <strong>Sales Executive:</strong> {call.agentName}
                               </span>
                             )}
+                            {call.duration && (
+                              <span><strong>Duration:</strong> {call.duration}s</span>
+                            )}
+                            {call.callType && (
+                              <span><strong>Type:</strong> {call.callType}</span>
+                            )}
                           </div>
-                          <span className="text-xs text-gray-500">
-                            {new Date(call.engagementDate || call.createdAt).toLocaleString('en-GB', { timeZone: 'Asia/Dhaka' })}
-                          </span>
                         </div>
-                        
-                        {call.notes && (
-                          <p className="text-gray-700 mt-2">{call.notes}</p>
-                        )}
-
-                        {call.productSuggestion && (
-                          <div className="mt-2 p-2 bg-amber-50 border border-amber-200 rounded">
-                            <span className="text-xs font-medium text-amber-700">Product Suggestion:</span>
-                            <p className="text-sm text-amber-900 mt-0.5">{call.productSuggestion}</p>
-                          </div>
-                        )}
-                        
-                        <div className="flex items-center gap-4 text-sm text-gray-600 mt-2">
-                          {call.agentName && (
-                            <span className="inline-flex items-center gap-1 bg-blue-50 text-blue-700 px-2 py-0.5 rounded font-medium">
-                              <strong>Sales Executive:</strong> {call.agentName}
-                            </span>
-                          )}
-                          {call.duration && (
-                            <span><strong>Duration:</strong> {call.duration}s</span>
-                          )}
-                          {call.callType && (
-                            <span><strong>Type:</strong> {call.callType}</span>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-gray-500 text-center py-8">No call logs found for this customer</p>
-                )}
-              </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-gray-500 text-center py-8">No call logs found for this customer</p>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>

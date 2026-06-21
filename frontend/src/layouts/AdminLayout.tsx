@@ -409,7 +409,7 @@ const menuItems: MenuItem[] = [
   {
     title: 'Telephony',
     icon: FaPhone,
-    requiredPermissions: ['view-leads', 'manage-call-logs', 'manage-follow-ups', 'view-order-assignment'],
+    requiredPermissions: ['view-leads', 'manage-call-logs', 'view-call-logs', 'manage-follow-ups', 'view-order-assignment'],
     children: [
       { title: 'Today Tasklist', icon: FaPhone, path: '/admin/telephony/today-tasklist' },
       { title: 'All Tasks', icon: FaList, path: '/admin/telephony/all-tasks' },
@@ -418,7 +418,7 @@ const menuItems: MenuItem[] = [
       { title: 'Incomplete Assignment', icon: FaPhone, path: '/admin/telephony/incomplete-assignment', requiredPermissions: ['view-order-assignment'] },
       { title: 'Cancelled Assignment', icon: FaPhone, path: '/admin/telephony/cancelled-assignment', requiredPermissions: ['view-order-assignment'] },
       { title: 'Rejected Assignment', icon: FaPhone, path: '/admin/telephony/rejected-assignment', requiredPermissions: ['view-order-assignment'] },
-      { title: 'PBX Call Logs', icon: FaPhone, path: '/admin/telephony/calls', requiredPermissions: ['manage-call-logs'] },
+      { title: 'PBX Call Logs', icon: FaPhone, path: '/admin/telephony/calls', requiredPermissions: ['view-call-logs'] },
       { title: 'Reports', icon: FaChartBar, path: '/admin/telephony/reports', requiredPermissions: ['view-crm-reports'] },
       { title: 'Agent Dashboard', icon: FaPhone, path: '/admin/crm/agent-dashboard' },
     ],

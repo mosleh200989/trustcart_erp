@@ -14,9 +14,10 @@ import { Activity } from '../crm/entities/activity.entity';
 import { TelephonyReportsService } from './telephony-reports.service';
 import { SalesOrder } from '../sales/sales-order.entity';
 import { SalesModule } from '../sales/sales.module';
+import { RbacModule } from '../rbac/rbac.module';
 
 @Module({
-  imports: [TenantTypeOrmModule.forFeature([TelephonyCall, TelephonyAgentPresenceEvent, CallTask, User, Activity, SalesOrder]), CustomersModule, SalesModule],
+  imports: [TenantTypeOrmModule.forFeature([TelephonyCall, TelephonyAgentPresenceEvent, CallTask, User, Activity, SalesOrder]), CustomersModule, SalesModule, RbacModule],
   controllers: [TelephonyController, BracknetCallContractController, BracknetWebhookContractController],
   providers: [TelephonyService, TelephonyReportsService, TelephonyGateway, TelephonyPresenceService],
   exports: [TelephonyService, TelephonyPresenceService],

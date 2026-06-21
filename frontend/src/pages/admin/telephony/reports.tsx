@@ -2,11 +2,14 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import AdminLayout from '@/layouts/AdminLayout';
 import apiClient from '@/services/api';
+import { useAuth } from '@/contexts/AuthContext';
 import { FaChevronLeft, FaChevronRight } from 'react-icons/fa';
 import ThSort from '@/components/admin/ThSort';
 import { useSortableData } from '@/hooks/useSortableData';
 
 export default function TelephonyReportsPage() {
+  const { hasPermission } = useAuth();
+  const canViewCallLogs = hasPermission('view-call-logs');
   const [rangeDays, setRangeDays] = useState<number>(7);
   const [loading, setLoading] = useState<boolean>(false);
 
@@ -31,7 +34,9 @@ export default function TelephonyReportsPage() {
     setLoading(true);
     try {
       const [cdrRes, queuesRes, trunksRes, agentCallsRes, agentPresenceRes, waitHoldRes] = await Promise.all([
-        apiClient.get(`/telephony/reports/cdr?${qs}&limit=${cdrLimit}&page=${cdrPage}`),
+        canViewCallLogs
+          ? apiClient.get(`/telephony/reports/cdr?${qs}&limit=${cdrLimit}&page=${cdrPage}`)
+          : Promise.resolve({ data: null }),
         apiClient.get(`/telephony/reports/queues?${qs}`),
         apiClient.get(`/telephony/reports/trunks?${qs}`),
         apiClient.get(`/telephony/reports/agents/calls?${qs}`),
@@ -55,7 +60,7 @@ export default function TelephonyReportsPage() {
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [qs, cdrPage, cdrLimit]);
+  }, [qs, cdrPage, cdrLimit, canViewCallLogs]);
 
   const fmt = (value: any) => {
     if (!value) return '—';
@@ -112,6 +117,7 @@ export default function TelephonyReportsPage() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {canViewCallLogs && (
           <div className="bg-white rounded-lg shadow p-4">
             <div className="text-xs text-gray-500">CDR Calls (last {rangeDays} days)</div>
             <div className="text-2xl font-bold text-gray-900 mt-1">{cdr?.total ?? '—'}</div>
@@ -121,6 +127,7 @@ export default function TelephonyReportsPage() {
               ))}
             </div>
           </div>
+          )}
 
           <div className="bg-white rounded-lg shadow p-4">
             <div className="text-xs text-gray-500">Queues</div>
@@ -135,6 +142,7 @@ export default function TelephonyReportsPage() {
           </div>
         </div>
 
+        {canViewCallLogs && (
         <div className="bg-white rounded-lg shadow overflow-hidden">
           <div className="px-4 py-3 border-b flex items-center justify-between">
             <div>
@@ -229,6 +237,7 @@ export default function TelephonyReportsPage() {
             </div>
           )}
         </div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="bg-white rounded-lg shadow overflow-hidden">
