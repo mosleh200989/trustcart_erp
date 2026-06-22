@@ -10,6 +10,8 @@ const DOMAIN_LANDING_PAGES: Record<string, string> = {
   'www.herbolin.com': 'Harbora-kosthogut',
   'arabiankhalta.com': 'arabiankhalta',
   'www.arabiankhalta.com': 'arabiankhalta',
+  'veshoj.site': 'veshoj',
+  'www.veshoj.site': 'veshoj',
 };
 
 /**
