@@ -31,6 +31,9 @@ export function buildTenantRegistry(configService: ConfigService): TenantConfig[
         'api.herbolin.com',
         'arabiankhalta.com',
         'www.arabiankhalta.com',
+        'veshoj.site',
+        'www.veshoj.site',
+        'api.veshoj.site',
         'localhost:3000',   // local frontend dev
         'localhost:3001',   // local backend dev
       ],

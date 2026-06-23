@@ -13,6 +13,8 @@ type MetaPixelConfig = {
   pixelId: string;
   accessToken: string;
   testEventCode?: string;
+  landingPageSlugs?: string[];
+  domains?: string[];
 };
 
 type OrderLifecycleEvent = {
@@ -42,9 +44,12 @@ export class MetaCapiService {
 
     if (!this.isEnabled()) return;
 
-    const configs = this.getPixelConfigs();
+    const order = await this.orderRepository.findOne({ where: { id: orderId } });
+    if (!order) return;
+
+    const configs = this.getPixelConfigs(order);
     if (configs.length === 0) {
-      this.logger.warn('Meta CAPI is enabled, but no pixel/access token is configured.');
+      this.logger.warn(`Meta CAPI is enabled, but no pixel/access token is configured for order #${orderId}.`);
       return;
     }
 
@@ -57,9 +62,6 @@ export class MetaCapiService {
     });
     if (existing && existing.status === 'sent') return;
     if (existing && existing.status === 'pending') return;
-
-    const order = await this.orderRepository.findOne({ where: { id: orderId } });
-    if (!order) return;
 
     const event = existing || this.eventRepository.create({
       orderId,
@@ -130,7 +132,7 @@ export class MetaCapiService {
     return null;
   }
 
-  private getPixelConfigs(): MetaPixelConfig[] {
+  private getPixelConfigs(order: SalesOrder): MetaPixelConfig[] {
     const rawGroups = this.configService.get<string>('META_CAPI_PIXEL_GROUPS');
     if (rawGroups) {
       try {
@@ -141,8 +143,11 @@ export class MetaCapiService {
               pixelId: String(item.pixelId || item.pixel_id || '').trim(),
               accessToken: String(item.accessToken || item.access_token || '').trim(),
               testEventCode: item.testEventCode || item.test_event_code ? String(item.testEventCode || item.test_event_code).trim() : undefined,
+              landingPageSlugs: this.normalizeConfigList(item.landingPageSlugs || item.landing_page_slugs || item.landingPageSlug || item.landing_page_slug),
+              domains: this.normalizeConfigList(item.domains || item.domain || item.hosts || item.host),
             }))
-            .filter((item) => item.pixelId && item.accessToken);
+            .filter((item) => item.pixelId && item.accessToken)
+            .filter((item) => this.pixelConfigAppliesToOrder(item, order));
         }
       } catch {
         this.logger.warn('META_CAPI_PIXEL_GROUPS is not valid JSON. Falling back to META_CAPI_PIXEL_ID/META_CAPI_ACCESS_TOKEN.');
@@ -153,6 +158,75 @@ export class MetaCapiService {
     const accessToken = String(this.configService.get<string>('META_CAPI_ACCESS_TOKEN') || '').trim();
     const testEventCode = String(this.configService.get<string>('META_CAPI_TEST_EVENT_CODE') || '').trim();
     return pixelId && accessToken ? [{ pixelId, accessToken, testEventCode: testEventCode || undefined }] : [];
+  }
+
+  private normalizeConfigList(value: unknown): string[] {
+    if (value == null) return [];
+    const values = Array.isArray(value) ? value : String(value).split(',');
+    return values
+      .map((item) => String(item || '').trim().toLowerCase())
+      .filter(Boolean);
+  }
+
+  private pixelConfigAppliesToOrder(config: MetaPixelConfig, order: SalesOrder): boolean {
+    const slugScope = config.landingPageSlugs || [];
+    const domainScope = config.domains || [];
+    if (slugScope.length === 0 && domainScope.length === 0) return true;
+
+    if (String(order.orderSource || '').trim().toLowerCase() !== 'landing_page') {
+      return false;
+    }
+
+    const slugMatches = slugScope.length === 0 || this.orderMatchesLandingPageSlug(order, slugScope);
+    const domainMatches = domainScope.length === 0 || this.orderMatchesDomain(order, domainScope);
+    return slugMatches && domainMatches;
+  }
+
+  private orderMatchesLandingPageSlug(order: SalesOrder, slugs: string[]): boolean {
+    const slugSet = new Set(slugs.map((slug) => slug.toLowerCase()));
+    const candidates = [
+      order.utmSource,
+      order.utmCampaign,
+      order.metaAttribution?.landingPageSlug,
+      order.metaAttribution?.landing_page_slug,
+      order.metaAttribution?.utm_source,
+    ];
+
+    return candidates.some((candidate) => {
+      const normalized = String(candidate || '').trim().toLowerCase();
+      return normalized && slugSet.has(normalized);
+    });
+  }
+
+  private orderMatchesDomain(order: SalesOrder, domains: string[]): boolean {
+    const domainSet = new Set(domains.map((domain) => domain.replace(/^www\./, '').toLowerCase()));
+    const urls = [
+      order.metaEventSourceUrl,
+      order.metaLandingUrl,
+      order.referrerUrl,
+      order.metaAttribution?.eventSourceUrl,
+      order.metaAttribution?.event_source_url,
+      order.metaAttribution?.landingUrl,
+      order.metaAttribution?.landing_url,
+      order.metaAttribution?.currentUrl,
+      order.metaAttribution?.current_url,
+    ];
+
+    return urls.some((url) => {
+      const host = this.extractHostname(url);
+      return Boolean(host && domainSet.has(host.replace(/^www\./, '')));
+    });
+  }
+
+  private extractHostname(value: unknown): string {
+    const raw = String(value || '').trim();
+    if (!raw) return '';
+
+    try {
+      return new URL(raw).hostname.toLowerCase();
+    } catch {
+      return '';
+    }
   }
 
   private async buildPayload(order: SalesOrder, eventName: string, eventId: string) {

@@ -1557,6 +1557,7 @@ export class SalesService {
     source?: string;
     landingPage?: string;
     assignment?: string;
+    assignedTo?: string;
     totalCancelledOrders?: string;
     orderRejectedReason?: string;
   }) {
@@ -1666,6 +1667,11 @@ export class SalesService {
       qb.andWhere('o.assigned_to IS NOT NULL');
     } else if (params.assignment === 'unassigned') {
       qb.andWhere('o.assigned_to IS NULL');
+    }
+
+    const assignedToId = Number(params.assignedTo);
+    if (params.assignedTo && Number.isFinite(assignedToId) && assignedToId > 0) {
+      qb.andWhere('o.assigned_to = :assignedToId', { assignedToId });
     }
 
     if (params.orderRejectedReason && params.orderRejectedReason.trim()) {

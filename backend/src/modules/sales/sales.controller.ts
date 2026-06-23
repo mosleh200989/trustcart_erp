@@ -237,11 +237,12 @@ export class SalesController {
     @Query('source') source?: string,
     @Query('landingPage') landingPage?: string,
     @Query('assignment') assignment?: string,
+    @Query('assignedTo') assignedTo?: string,
     @Query('totalCancelledOrders') totalCancelledOrders?: string,
     @Query('orderRejectedReason') orderRejectedReason?: string,
   ) {
     // If pagination params are provided, use the paginated method
-    if (page || limit || q || status || startDate || endDate || todayOnly || productName || sourceGroup || source || landingPage || assignment || totalCancelledOrders || orderRejectedReason) {
+    if (page || limit || q || status || startDate || endDate || todayOnly || productName || sourceGroup || source || landingPage || assignment || assignedTo || totalCancelledOrders || orderRejectedReason) {
       return this.salesService.findAllPaginated({
         page: page ? parseInt(page, 10) : 1,
         limit: limit ? parseInt(limit, 10) : 10,
@@ -255,6 +256,7 @@ export class SalesController {
         source: source || '',
         landingPage: landingPage || '',
         assignment: assignment || '',
+        assignedTo: assignedTo || '',
         totalCancelledOrders: totalCancelledOrders || '',
         orderRejectedReason: orderRejectedReason || '',
       });

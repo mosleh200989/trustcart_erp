@@ -31,6 +31,7 @@ const INITIAL_FILTERS = {
   source: '',
   landingPage: '',
   assignment: '',
+  assignedTo: '',
   totalCancelledOrders: '',
   orderRejectedReason: '',
 };
@@ -314,6 +315,7 @@ export default function AdminSales() {
       if (f.source) params.source = f.source;
       if (f.landingPage) params.landingPage = f.landingPage;
       if (f.assignment) params.assignment = f.assignment;
+      if (f.assignedTo) params.assignedTo = f.assignedTo;
       if (f.totalCancelledOrders) params.totalCancelledOrders = f.totalCancelledOrders;
       if (f.orderRejectedReason) params.orderRejectedReason = f.orderRejectedReason;
 
@@ -1471,6 +1473,19 @@ export default function AdminSales() {
                     { value: 'assigned', label: 'Assigned' },
                     { value: 'unassigned', label: 'Unassigned' },
                   ]}
+                />
+
+                <FormInput
+                  label="Assigned To"
+                  name="assignedTo"
+                  type="select"
+                  value={filters.assignedTo}
+                  onChange={handleFilterChange}
+                  selectPlaceholder="All Agents"
+                  options={assignmentAgents.map((agent) => ({
+                    value: String(agent.id),
+                    label: agent.name,
+                  }))}
                 />
 
                 <FormInput

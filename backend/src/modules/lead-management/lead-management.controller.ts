@@ -270,6 +270,8 @@ export class LeadManagementController {
     @Query('minDeliveredCount') minDeliveredCount?: string,
     @Query('maxCancelledOrderRatio') maxCancelledOrderRatio?: string,
     @Query('customerSegment') customerSegment?: string,
+    @Query('productName') productName?: string,
+    @Query('productSuggestion') productSuggestion?: string,
   ) {
     return this.leadService.getAllCustomersWithTiers({
       tier,
@@ -284,6 +286,8 @@ export class LeadManagementController {
       minDeliveredCount: minDeliveredCount ? parseInt(minDeliveredCount, 10) : undefined,
       maxCancelledOrderRatio: maxCancelledOrderRatio ? parseFloat(maxCancelledOrderRatio) : undefined,
       customerSegment,
+      productName,
+      productSuggestion,
     });
   }
 
