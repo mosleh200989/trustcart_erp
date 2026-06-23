@@ -644,6 +644,8 @@ export class LeadManagementService {
     minDeliveredCount?: number;
     maxCancelledOrderRatio?: number;
     customerSegment?: string;
+    productName?: string;
+    productSuggestion?: string;
   } = {}) {
     const { page = 1, limit = 10 } = filters;
     const offset = (page - 1) * limit;
@@ -763,11 +765,118 @@ export class LeadManagementService {
         : segment === 'converted'
           ? 'AND os.so_order_count > 0 AND os.leg_order_count > 0'
           : '';
+    const productTerm = String(filters.productName || '').trim();
+    const escapedProductTerm = productTerm.replace(/'/g, "''");
+    const productNameFilter = productTerm
+      ? `AND EXISTS (
+          SELECT 1
+          FROM sales_orders so_product
+          WHERE ${orderCustomerMatch('so_product')}
+            AND (
+              EXISTS (
+                SELECT 1
+                FROM order_items oi_product
+                LEFT JOIN products p_product ON p_product.id = oi_product.product_id
+                WHERE oi_product.order_id = so_product.id
+                  AND (
+                    p_product.name_en ILIKE '%${escapedProductTerm}%'
+                    OR p_product.name_bn ILIKE '%${escapedProductTerm}%'
+                    OR p_product.sku ILIKE '%${escapedProductTerm}%'
+                    OR oi_product.product_name ILIKE '%${escapedProductTerm}%'
+                  )
+              )
+              OR EXISTS (
+                SELECT 1
+                FROM sales_order_items soi_product
+                LEFT JOIN products p2_product ON p2_product.id = soi_product.product_id
+                WHERE soi_product.sales_order_id = so_product.id
+                  AND (
+                    p2_product.name_en ILIKE '%${escapedProductTerm}%'
+                    OR p2_product.name_bn ILIKE '%${escapedProductTerm}%'
+                    OR p2_product.sku ILIKE '%${escapedProductTerm}%'
+                    OR soi_product.product_name ILIKE '%${escapedProductTerm}%'
+                  )
+              )
+            )
+        )`
+      : '';
+    const productSuggestion = String(filters.productSuggestion || '').trim();
+    const hasProductSuggestionSql = (searchTerm = '') => {
+      const escapedSearchTerm = searchTerm.replace(/'/g, "''");
+      const customerSuggestionMatch = searchTerm ? `AND cps_suggestion.suggestion ILIKE '%${escapedSearchTerm}%'` : '';
+      const orderSuggestionMatch = searchTerm ? `AND so_suggestion.telephony_suggestion ILIKE '%${escapedSearchTerm}%'` : '';
+      const logSuggestionMatch = searchTerm ? `AND tl_suggestion.suggestion ILIKE '%${escapedSearchTerm}%'` : '';
+      const engagementSuggestionMatch = searchTerm ? `AND (
+        eh_suggestion.message_content ILIKE '%${escapedSearchTerm}%'
+        OR eh_suggestion.metadata->>'product_suggestion' ILIKE '%${escapedSearchTerm}%'
+        OR eh_suggestion.metadata->>'productSuggestion' ILIKE '%${escapedSearchTerm}%'
+        OR eh_suggestion.metadata->>'suggestion' ILIKE '%${escapedSearchTerm}%'
+      )` : '';
+      const activitySuggestionMatch = searchTerm ? `AND (
+        a_suggestion.notes ILIKE '%${escapedSearchTerm}%'
+        OR a_suggestion.description ILIKE '%${escapedSearchTerm}%'
+        OR a_suggestion.metadata::text ILIKE '%${escapedSearchTerm}%'
+      )` : '';
+
+      return `(
+        EXISTS (
+          SELECT 1
+          FROM customer_product_suggestions cps_suggestion
+          WHERE cps_suggestion.customer_id = c.id
+            AND NULLIF(TRIM(cps_suggestion.suggestion), '') IS NOT NULL
+            ${customerSuggestionMatch}
+        )
+        OR EXISTS (
+          SELECT 1
+          FROM sales_orders so_suggestion
+          WHERE ${orderCustomerMatch('so_suggestion')}
+            AND NULLIF(TRIM(so_suggestion.telephony_suggestion), '') IS NOT NULL
+            ${orderSuggestionMatch}
+        )
+        OR EXISTS (
+          SELECT 1
+          FROM telephony_assignment_call_logs tl_suggestion
+          INNER JOIN sales_orders so_log_suggestion ON so_log_suggestion.id = tl_suggestion.order_id
+          WHERE tl_suggestion.record_type = 'sales_order'
+            AND ${orderCustomerMatch('so_log_suggestion')}
+            AND NULLIF(TRIM(tl_suggestion.suggestion), '') IS NOT NULL
+            ${logSuggestionMatch}
+        )
+        OR EXISTS (
+          SELECT 1
+          FROM customer_engagement_history eh_suggestion
+          WHERE (eh_suggestion.customer_id = c.id::text OR eh_suggestion.customer_id = c.phone)
+            AND eh_suggestion.engagement_type = 'call'
+            AND (
+              NULLIF(TRIM(eh_suggestion.metadata->>'product_suggestion'), '') IS NOT NULL
+              OR NULLIF(TRIM(eh_suggestion.metadata->>'productSuggestion'), '') IS NOT NULL
+              OR NULLIF(TRIM(eh_suggestion.metadata->>'suggestion'), '') IS NOT NULL
+            )
+            ${engagementSuggestionMatch}
+        )
+        OR EXISTS (
+          SELECT 1
+          FROM activities a_suggestion
+          WHERE a_suggestion.customer_id = c.id
+            AND a_suggestion.type = 'call'
+            ${activitySuggestionMatch}
+        )
+      )`;
+    };
+    const productSuggestionFilter = productSuggestion && productSuggestion !== 'all'
+      ? productSuggestion === '__any__'
+        ? `AND ${hasProductSuggestionSql()}`
+        : productSuggestion === '__none__'
+          ? `AND NOT ${hasProductSuggestionSql()}`
+          : `AND ${hasProductSuggestionSql(productSuggestion)}`
+      : '';
     const extraFilters = `
       ${deliveryDateFilter}
       ${purchasesCountFilter}
       ${maxCancelledOrderRatioFilter}
       ${customerSegmentFilter}
+      ${productNameFilter}
+      ${productSuggestionFilter}
     `;
 
     // Stats query: always returns counts for ALL tiers regardless of tier filter,

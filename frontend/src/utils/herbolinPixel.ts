@@ -1,5 +1,6 @@
 const HERBOLIN_PIXEL_ID = ['1433976858485', '362'].join('');
 const ARABIAN_KHALTA_PIXEL_ID = ['227057045377', '2206'].join('');
+const VESHOJ_PIXEL_ID = ['339637066199', '40423'].join('');
 
 const HERBOLIN_HOSTS = new Set(['herbolin.com', 'www.herbolin.com']);
 const HERBOLIN_LANDING_PAGE_SLUGS = new Set(['Harbora-kosthogut']);
@@ -7,6 +8,10 @@ const HERBOLIN_LANDING_PAGE_SLUGS = new Set(['Harbora-kosthogut']);
 const ARABIAN_KHALTA_HOSTS = new Set(['arabiankhalta.com', 'www.arabiankhalta.com']);
 const ARABIAN_KHALTA_LANDING_PAGE_SLUGS = new Set(['arabiankhalta']);
 const ARABIAN_KHALTA_PATHS = new Set(['/arabiankhalta']);
+
+const VESHOJ_HOSTS = new Set(['veshoj.site', 'www.veshoj.site']);
+const VESHOJ_LANDING_PAGE_SLUGS = new Set(['veshoj']);
+const VESHOJ_LANDING_PATHS = new Set(['/', '/lp/veshoj', '/veshoj']);
 
 let lastTrackedPageKey = '';
 
@@ -39,12 +44,20 @@ export function isArabianKhaltaHost() {
   return typeof window !== 'undefined' && ARABIAN_KHALTA_HOSTS.has(window.location.hostname);
 }
 
+export function isVeshojHost() {
+  return typeof window !== 'undefined' && VESHOJ_HOSTS.has(window.location.hostname);
+}
+
 export function isHerbolinLandingPageSlug(slug?: string | null) {
   return Boolean(slug && HERBOLIN_LANDING_PAGE_SLUGS.has(slug));
 }
 
 export function isArabianKhaltaLandingPageSlug(slug?: string | null) {
   return Boolean(slug && ARABIAN_KHALTA_LANDING_PAGE_SLUGS.has(slug));
+}
+
+export function isVeshojLandingPageSlug(slug?: string | null) {
+  return Boolean(slug && VESHOJ_LANDING_PAGE_SLUGS.has(slug));
 }
 
 export function isLandingPagePixelSlug(slug?: string | null) {
@@ -78,13 +91,34 @@ export function isArabianKhaltaPixelSurface() {
   return isArabianKhaltaHost();
 }
 
+export function isVeshojPixelSurface() {
+  if (typeof window === 'undefined') return false;
+
+  const pathname = currentPathname();
+  const routeSlug = currentRouteSlug();
+  const querySlug = currentQuerySlug();
+
+  if (!isVeshojHost()) {
+    return false;
+  }
+
+  return (
+    VESHOJ_LANDING_PATHS.has(pathname) ||
+    isVeshojLandingPageSlug(routeSlug) ||
+    isVeshojLandingPageSlug(querySlug)
+  );
+}
+
 export function isLandingPagePixelSurface() {
-  return isHerbolinPixelSurface() || isArabianKhaltaPixelSurface();
+  return isHerbolinPixelSurface() || isArabianKhaltaPixelSurface() || isVeshojPixelSurface();
 }
 
 function getLandingPagePixelId(slug?: string | null) {
   if (isArabianKhaltaPixelSurface()) {
     return ARABIAN_KHALTA_PIXEL_ID;
+  }
+  if (isVeshojPixelSurface() && (!slug || isVeshojLandingPageSlug(slug))) {
+    return VESHOJ_PIXEL_ID;
   }
   if (isHerbolinPixelSurface() || isHerbolinLandingPageSlug(slug)) {
     return HERBOLIN_PIXEL_ID;

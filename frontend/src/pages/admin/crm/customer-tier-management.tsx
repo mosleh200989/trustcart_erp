@@ -8,6 +8,7 @@ import ThSort from '@/components/admin/ThSort';
 import { useSortableData } from '@/hooks/useSortableData';
 import AdminOrderDetailsModal from '@/components/AdminOrderDetailsModal';
 import AdminDateInput from '@/components/admin/AdminDateInput';
+import ProductAutocomplete from '@/components/admin/ProductAutocomplete';
 import { FaEye } from 'react-icons/fa';
 
 interface Customer {
@@ -38,6 +39,11 @@ interface CustomerTier {
   daysInactive: number;
 }
 
+interface ProductSuggestionOption {
+  key: string;
+  label: string;
+}
+
 const VIEWED_CUSTOMERS_STORAGE_KEY = 'customer-tier-management-viewed-at';
 const VIEWED_CUSTOMER_TTL_MS = 24 * 60 * 60 * 1000;
 
@@ -64,6 +70,8 @@ export default function CustomerTierManagementPage() {
     minDeliveredCount: '',
     maxCancelledOrderRatio: '',
     customerSegment: 'all',
+    productName: '',
+    productSuggestion: '',
   });
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
@@ -88,6 +96,7 @@ export default function CustomerTierManagementPage() {
 
   // Agents state
   const [agents, setAgents] = useState<Agent[]>([]);
+  const [productSuggestionOptions, setProductSuggestionOptions] = useState<ProductSuggestionOption[]>([]);
 
   const [stats, setStats] = useState({
     totalActive: 0,
@@ -104,6 +113,7 @@ export default function CustomerTierManagementPage() {
 
   useEffect(() => {
     fetchAgents();
+    fetchProductSuggestionOptions();
   }, []);
 
   useEffect(() => {
@@ -130,6 +140,20 @@ export default function CustomerTierManagementPage() {
     }
   };
 
+  const fetchProductSuggestionOptions = async () => {
+    try {
+      const res = await apiClient.get('/products/admin/suggestion-options');
+      const rows = Array.isArray(res.data) ? res.data : (res.data?.data || []);
+      setProductSuggestionOptions(rows.map((row: any) => ({
+        key: String(row.suggestionOptionKey || `${row.productId || row.id}::${row.suggestionVariantName || ''}`),
+        label: String(row.suggestionOptionLabel || row.name_en || row.name_bn || `Product #${row.productId || row.id}`),
+      })));
+    } catch (error) {
+      console.error('Failed to load product suggestion options:', error);
+      setProductSuggestionOptions([]);
+    }
+  };
+
   const fetchCustomers = async () => {
     try {
       setLoading(true);
@@ -144,6 +168,8 @@ export default function CustomerTierManagementPage() {
       if (filter.minDeliveredCount) params.append('minDeliveredCount', filter.minDeliveredCount);
       if (filter.maxCancelledOrderRatio) params.append('maxCancelledOrderRatio', filter.maxCancelledOrderRatio);
       if (filter.customerSegment !== 'all') params.append('customerSegment', filter.customerSegment);
+      if (filter.productName.trim()) params.append('productName', filter.productName.trim());
+      if (filter.productSuggestion.trim()) params.append('productSuggestion', filter.productSuggestion.trim());
       if (searchQuery.trim()) params.append('search', searchQuery.trim());
       params.append('page', currentPage.toString());
       params.append('limit', itemsPerPage.toString());
@@ -499,6 +525,34 @@ export default function CustomerTierManagementPage() {
                 className="w-full border rounded-lg p-2"
                 placeholder="Any %"
               />
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium mb-2">Product Search</label>
+              <ProductAutocomplete
+                value={filter.productName}
+                onChange={(value) => { setFilter({ ...filter, productName: value }); setCurrentPage(1); }}
+                className="w-full border rounded-lg p-2"
+              />
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium mb-2">Product Suggestion</label>
+              <select
+                value={filter.productSuggestion}
+                onChange={(e) => { setFilter({ ...filter, productSuggestion: e.target.value }); setCurrentPage(1); }}
+                className="w-full border rounded-lg p-2"
+              >
+                <option value="">All suggestion states</option>
+                <option value="__none__">No suggestion yet</option>
+                <option value="__any__">All products with suggestion</option>
+                {productSuggestionOptions.length > 0 && (
+                  <option disabled value="__separator__">-- Shortlisted products --</option>
+                )}
+                {productSuggestionOptions.map(option => (
+                  <option key={option.key} value={option.label}>{option.label}</option>
+                ))}
+              </select>
             </div>
           </div>
         </div>

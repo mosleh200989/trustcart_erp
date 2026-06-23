@@ -32,10 +32,14 @@ function isLandingPagePixelUrl() {
   const params = new URLSearchParams(window.location.search);
   const routeSlug = pathname.startsWith('/lp/') ? pathname.split('/').filter(Boolean).pop() : null;
   const querySlug = params.get('landing_page') || params.get('landing_page_intl') || params.get('cartflows_step');
+  const isVeshojLandingPage =
+    (hostname === 'veshoj.site' || hostname === 'www.veshoj.site') &&
+    (pathname === '/' || pathname === '/lp/veshoj' || pathname === '/veshoj' || routeSlug === 'veshoj' || querySlug === 'veshoj');
 
   return (
     hostname === 'herbolin.com' ||
     hostname === 'www.herbolin.com' ||
+    isVeshojLandingPage ||
     routeSlug === 'Harbora-kosthogut' ||
     querySlug === 'Harbora-kosthogut'
   );
