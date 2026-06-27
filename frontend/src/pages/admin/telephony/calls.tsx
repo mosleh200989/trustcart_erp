@@ -3,6 +3,7 @@ import Link from 'next/link';
 import AdminLayout from '@/layouts/AdminLayout';
 import apiClient from '@/services/api';
 import ThSort from '@/components/admin/ThSort';
+import PageSizeSelector from '@/components/admin/PageSizeSelector';
 import { useSortableData } from '@/hooks/useSortableData';
 
 type CallRow = any;
@@ -103,15 +104,13 @@ export default function TelephonyCallsPage() {
               />
             </div>
             <div>
-              <label className="block text-xs text-gray-600 mb-1">Page Size</label>
-              <select className="w-full border rounded px-3 py-2 text-sm" value={String(limit)} onChange={(e) => { setPage(1); setLimit(Number(e.target.value)); }}>
-                <option value="25">25</option>
-                <option value="50">50</option>
-                <option value="100">100</option>
-                <option value="150">150</option>
-                <option value="200">200</option>
-                <option value="300">300</option>
-              </select>
+              <PageSizeSelector
+                label="Page Size"
+                value={limit}
+                onChange={(size) => { setPage(1); setLimit(size); }}
+                options={[25, 50, 100, 150, 200, 300, 500, 1000, 2000]}
+                className="w-full"
+              />
             </div>
           </div>
         </div>

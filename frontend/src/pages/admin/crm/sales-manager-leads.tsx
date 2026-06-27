@@ -5,6 +5,7 @@ import { useToast } from '@/contexts/ToastContext';
 import AdminOrderDetailsModal from '@/components/AdminOrderDetailsModal';
 import ProductAutocomplete from '@/components/admin/ProductAutocomplete';
 import AdminDateInput from '@/components/admin/AdminDateInput';
+import PageSizeSelector from '@/components/admin/PageSizeSelector';
 import { FaEye, FaUsers, FaGlobe, FaExchangeAlt } from 'react-icons/fa';
 import { CALL_OUTCOME_OPTIONS, type CallOutcomeValue, ORDER_REJECTION_REASON_OPTIONS } from '@/constants/adminOptions';
 
@@ -1035,18 +1036,12 @@ const SalesManagerLeadAssignment = () => {
           </div>
 
           <div className="flex items-center justify-between gap-3 flex-wrap">
-            <div className="flex items-center gap-2 text-sm text-gray-600">
-              <span>Rows:</span>
-              <select
-                value={rowsPerPage}
-                onChange={e => setRowsPerPage(Number(e.target.value))}
-                className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500"
-              >
-                {ROWS_OPTIONS.map(n => (
-                  <option key={n} value={n}>{n}</option>
-                ))}
-              </select>
-            </div>
+            <PageSizeSelector
+              label="Rows"
+              value={rowsPerPage}
+              onChange={setRowsPerPage}
+              options={ROWS_OPTIONS}
+            />
             <button
               onClick={() => fetchLeads(page, { silent: true })}
               className="bg-indigo-600 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors"

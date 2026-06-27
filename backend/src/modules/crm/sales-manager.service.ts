@@ -618,9 +618,8 @@ export class SalesManagerService implements OnModuleInit {
     }
 
     const page = parseInt(query.page) || 1;
-    const allowedLimits = [20, 30, 50, 100, 200, 500, 750, 1000, 2000];
     const requestedLimit = parseInt(query.limit) || 50;
-    const limit = allowedLimits.includes(requestedLimit) ? requestedLimit : 50;
+    const limit = Math.max(1, Math.min(requestedLimit, 2000));
     const offset = (page - 1) * limit;
 
     const selectedFields = [

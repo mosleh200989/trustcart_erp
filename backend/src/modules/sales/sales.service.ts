@@ -1562,7 +1562,7 @@ export class SalesService {
     orderRejectedReason?: string;
   }) {
     const page = Math.max(1, params.page || 1);
-    const limit = Math.min(500, Math.max(1, params.limit || 10));
+    const limit = Math.min(2000, Math.max(1, params.limit || 10));
     const skip = (page - 1) * limit;
 
     const qb = this.salesRepository.createQueryBuilder('o');
@@ -1855,7 +1855,7 @@ export class SalesService {
   }, user: any) {
     const access = await this.getAssignedOrdersAccess(user);
     const page = Math.max(1, params.page || 1);
-    const limit = Math.min(500, Math.max(1, params.limit || 50));
+    const limit = Math.min(2000, Math.max(1, params.limit || 50));
     const skip = (page - 1) * limit;
     const qb = this.salesRepository.createQueryBuilder('o');
     this.selectAssignedOrderColumns(qb);
@@ -2405,7 +2405,7 @@ export class SalesService {
     shippedTo?: string;
   }) {
     const page = Math.max(1, params?.page || 1);
-    const limit = Math.min(500, Math.max(1, params?.limit || 50));
+    const limit = Math.min(2000, Math.max(1, params?.limit || 50));
     const skip = (page - 1) * limit;
 
     const qb = this.salesRepository.createQueryBuilder('o');

@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import AdminLayout from '@/layouts/AdminLayout';
 import apiClient from '@/services/api';
 import AdminDateInput from '@/components/admin/AdminDateInput';
+import PageSizeSelector from '@/components/admin/PageSizeSelector';
 import {
   FaHistory, FaSearch, FaFilter,
   FaTimes, FaEye,
@@ -345,19 +346,12 @@ export default function ActivityHistoryPage() {
                 : 'No entries found'}
               {hasActiveFilters && <span className="ml-1 text-indigo-600">(filtered)</span>}
             </div>
-            <div className="flex items-center gap-2">
-              <label className="text-xs">Rows per page:</label>
-              <select
-                value={limit}
-                onChange={(e) => { setLimit(Number(e.target.value)); setPage(1); setHasMore(true); setTimeout(() => loadLogs(1), 0); }}
-                className="border rounded px-2 py-1 text-xs"
-              >
-                <option value={50}>50</option>
-                <option value={100}>100</option>
-                <option value={200}>200</option>
-                <option value={500}>500</option>
-              </select>
-            </div>
+            <PageSizeSelector
+              value={limit}
+              onChange={(size) => { setLimit(size); setPage(1); setHasMore(true); setTimeout(() => loadLogs(1), 0); }}
+              options={[50, 100, 200, 500, 1000, 2000]}
+              className="text-xs"
+            />
           </div>
 
           {/* Table */}

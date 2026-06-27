@@ -1844,7 +1844,7 @@ export class InventoryService {
 
     const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
     const rawLimit = Number(filters.limit || 100);
-    const limit = Number.isFinite(rawLimit) ? Math.min(Math.max(Math.trunc(rawLimit), 1), 500) : 100;
+    const limit = Number.isFinite(rawLimit) ? Math.min(Math.max(Math.trunc(rawLimit), 1), 2000) : 100;
 
     return this.dataSource.query(
       `SELECT sm.*, p.name_en as product_name, p.sku as product_sku,
