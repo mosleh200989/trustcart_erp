@@ -22,6 +22,8 @@ interface ScheduledLeadAssignmentJob {
 export class SalesManagerService implements OnModuleInit {
   private assignmentColumnShapePromise?: Promise<{ assignedBy: boolean; assignedAt: boolean }>;
   private scheduledLeadAssignmentSchemaReady?: Promise<void>;
+  private leadFilterIndexesReady?: Promise<void>;
+  private lastInlineScheduledLeadProcessingAt = 0;
 
   constructor(
     @InjectRepository(Customer)
@@ -179,6 +181,40 @@ export class SalesManagerService implements OnModuleInit {
     }
 
     return this.scheduledLeadAssignmentSchemaReady;
+  }
+
+  private async ensureLeadFilterIndexes() {
+    if (!this.leadFilterIndexesReady) {
+      const statements = [
+        `CREATE INDEX IF NOT EXISTS idx_customers_assigned_to ON customers(assigned_to)`,
+        `CREATE INDEX IF NOT EXISTS idx_customers_assigned_supervisor ON customers(assigned_supervisor_id)`,
+        `CREATE INDEX IF NOT EXISTS idx_customers_customer_type ON customers(customer_type)`,
+        `CREATE INDEX IF NOT EXISTS idx_customers_lifecycle_stage ON customers(lifecycle_stage)`,
+        `CREATE INDEX IF NOT EXISTS idx_users_team_leader ON users(team_leader_id)`,
+        `CREATE INDEX IF NOT EXISTS idx_customer_tiers_customer_tier ON customer_tiers(customer_id, tier)`,
+        `CREATE INDEX IF NOT EXISTS idx_customer_tag_assignments_customer_tag ON customer_tag_assignments(customer_id, tag_id)`,
+        `CREATE INDEX IF NOT EXISTS idx_sales_orders_customer_status ON sales_orders(customer_id, status)`,
+        `CREATE INDEX IF NOT EXISTS idx_sales_orders_customer_lower_status ON sales_orders(customer_id, LOWER(status::text))`,
+        `CREATE INDEX IF NOT EXISTS idx_sales_orders_customer_number ON sales_orders(customer_id, sales_order_number)`,
+        `CREATE INDEX IF NOT EXISTS idx_order_items_order_product ON order_items(order_id, product_id)`,
+        `CREATE INDEX IF NOT EXISTS idx_sales_order_items_order_product ON sales_order_items(sales_order_id, product_id)`,
+        `CREATE INDEX IF NOT EXISTS idx_telephony_logs_order_record_outcome ON telephony_assignment_call_logs(order_id, record_type, outcome)`,
+        `CREATE INDEX IF NOT EXISTS idx_crm_call_tasks_customer_outcome ON crm_call_tasks(customer_id, call_outcome)`,
+        `CREATE INDEX IF NOT EXISTS idx_customer_engagement_customer_type ON customer_engagement_history(customer_id, engagement_type)`,
+        `CREATE INDEX IF NOT EXISTS idx_activities_customer_type ON activities(customer_id, type)`,
+      ];
+      this.leadFilterIndexesReady = (async () => {
+        for (const statement of statements) {
+          try {
+            await this.customerRepository.query(statement);
+          } catch (error: any) {
+            console.warn('[SalesManagerService] Failed to ensure lead filter index:', error?.message || error);
+          }
+        }
+      })();
+    }
+
+    return this.leadFilterIndexesReady;
   }
 
   private setCustomerAssignmentFields(
@@ -575,7 +611,11 @@ export class SalesManagerService implements OnModuleInit {
    */
   async getUnassignedLeads(query: any) {
     const assignmentShape = await this.getAssignmentColumnShape();
-    await this.processDueScheduledLeadAssignments(100);
+    await this.ensureLeadFilterIndexes();
+    if (Date.now() - this.lastInlineScheduledLeadProcessingAt > 30000) {
+      this.lastInlineScheduledLeadProcessingAt = Date.now();
+      await this.processDueScheduledLeadAssignments(100);
+    }
 
     const page = parseInt(query.page) || 1;
     const allowedLimits = [20, 30, 50, 100, 200, 500, 750, 1000, 2000];
@@ -670,7 +710,12 @@ export class SalesManagerService implements OnModuleInit {
       )
       // Only customers who have at least one delivered order
       .andWhere(
-        `c.id IN (SELECT so.customer_id FROM sales_orders so WHERE LOWER(so.status::text) = 'delivered')`,
+        `EXISTS (
+          SELECT 1
+          FROM sales_orders so_delivered_base
+          WHERE so_delivered_base.customer_id = c.id
+            AND LOWER(so_delivered_base.status::text) = 'delivered'
+        )`,
       )
       // Rejected visibility controlled by rejectedStatus query param
       // 'non_rejected' (default) = exclude rejected; 'rejected' = only rejected; 'all' = no filter
