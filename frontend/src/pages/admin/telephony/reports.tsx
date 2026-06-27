@@ -5,6 +5,7 @@ import apiClient from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { FaChevronLeft, FaChevronRight } from 'react-icons/fa';
 import ThSort from '@/components/admin/ThSort';
+import PageSizeSelector from '@/components/admin/PageSizeSelector';
 import { useSortableData } from '@/hooks/useSortableData';
 
 export default function TelephonyReportsPage() {
@@ -202,19 +203,11 @@ export default function TelephonyReportsPage() {
           {/* CDR Pagination */}
           {(cdr?.total ?? 0) > 0 && (
             <div className="bg-gray-50 px-4 py-3 border-t flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-700">Show</span>
-                <select
-                  value={cdrLimit}
-                  onChange={(e) => { setCdrLimit(Number(e.target.value)); setCdrPage(1); }}
-                  className="border rounded px-2 py-1 text-sm"
-                >
-                  <option value={25}>25</option>
-                  <option value={50}>50</option>
-                  <option value={100}>100</option>
-                </select>
-                <span className="text-sm text-gray-700">per page</span>
-              </div>
+              <PageSizeSelector
+                value={cdrLimit}
+                onChange={(size) => { setCdrLimit(size); setCdrPage(1); }}
+                options={[25, 50, 100, 200, 500, 1000, 2000]}
+              />
               <div className="flex items-center gap-2">
                 <span className="text-sm text-gray-700">
                   Page {cdrPage} of {Math.ceil((cdr?.total ?? 0) / cdrLimit)} ({cdr?.total ?? 0} total)

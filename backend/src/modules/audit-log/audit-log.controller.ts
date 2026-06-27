@@ -24,7 +24,7 @@ export class AuditLogController {
   ) {
     return this.auditLogService.findAll({
       page: page ? parseInt(page, 10) : 1,
-      limit: limit ? Math.min(parseInt(limit, 10), 100) : 30,
+      limit: limit ? Math.min(Math.max(parseInt(limit, 10), 1), 2000) : 30,
       search,
       module,
       action,

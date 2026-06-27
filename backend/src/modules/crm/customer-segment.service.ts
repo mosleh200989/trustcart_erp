@@ -17,7 +17,7 @@ export class CustomerSegmentService {
     params: { page?: number; limit?: number; search?: string },
   ) {
     const page = Math.max(1, params.page || 1);
-    const limit = Math.min(200, Math.max(1, params.limit || 50));
+    const limit = Math.min(2000, Math.max(1, params.limit || 50));
     const offset = (page - 1) * limit;
     const searchTerm = (params.search || '').trim();
 

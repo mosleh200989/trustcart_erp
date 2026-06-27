@@ -110,7 +110,7 @@ export class AccountingService {
 
   async findDollarConsumptions(query?: { page?: number; limit?: number; startDate?: string; endDate?: string; search?: string }) {
     const { page = 1, limit = 30, startDate, endDate, search } = query || {};
-    const take = Math.min(Math.max(Number(limit) || 30, 1), 100);
+    const take = Math.min(Math.max(Number(limit) || 30, 1), 2000);
     const qb = this.dollarConsumptionRepo.createQueryBuilder('dc');
 
     if (startDate) qb.andWhere('dc.calculation_date >= :startDate', { startDate });

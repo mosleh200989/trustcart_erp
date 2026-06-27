@@ -112,7 +112,7 @@ export class ActivityService {
   }
 
   async getRecentActivities(params?: { userId?: number; rangeDays?: number; limit?: number }) {
-    const safeLimit = Number.isFinite(params?.limit) ? Math.max(1, Math.min(50, Number(params?.limit))) : 10;
+    const safeLimit = Number.isFinite(params?.limit) ? Math.max(1, Math.min(2000, Number(params?.limit))) : 10;
     const safeRangeDays = Number.isFinite(params?.rangeDays)
       ? Math.max(1, Math.min(3650, Number(params?.rangeDays)))
       : undefined;

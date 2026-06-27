@@ -431,7 +431,7 @@ export class LoyaltyService {
 
   async listDueProductReminders(asOfDate?: string, limit = 100) {
     const asOf = (asOfDate || this.getTodayDateString()).slice(0, 10);
-    const lim = Math.max(1, Math.min(1000, Number(limit) || 100));
+    const lim = Math.max(1, Math.min(2000, Number(limit) || 100));
 
     const rows = await this.membershipRepo.query(
       `
@@ -949,7 +949,7 @@ export class LoyaltyService {
     const id = Number(agentUserId);
     if (!Number.isFinite(id) || id <= 0) return [];
 
-    const take = Number.isFinite(limit) ? Math.max(1, Math.min(500, Math.floor(limit))) : 100;
+    const take = Number.isFinite(limit) ? Math.max(1, Math.min(2000, Math.floor(limit))) : 100;
     const rows = await this.referralRepo.query(
       `SELECT * FROM customer_referrals
        WHERE agent_user_id = $1
@@ -1348,7 +1348,7 @@ export class LoyaltyService {
 
     const from = input?.from ? new Date(input.from) : null;
     const to = input?.to ? new Date(input.to) : null;
-    const limit = input?.limit != null && Number.isFinite(Number(input.limit)) ? Math.max(1, Math.min(500, Math.floor(Number(input.limit)))) : 50;
+    const limit = input?.limit != null && Number.isFinite(Number(input.limit)) ? Math.max(1, Math.min(2000, Math.floor(Number(input.limit)))) : 50;
 
     // Funnel stats from referral_events
     const funnelRows = await this.referralRepo.query(

@@ -5,6 +5,7 @@ import { wrapCustomerName } from '@/utils/wrapCustomerName';
 import Pagination from '@/components/admin/Pagination';
 import ThSort from '@/components/admin/ThSort';
 import AdminDateInput from '@/components/admin/AdminDateInput';
+import PageSizeSelector from '@/components/admin/PageSizeSelector';
 import { useSortableData } from '@/hooks/useSortableData';
 import apiClient from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
@@ -945,19 +946,11 @@ export default function MyFollowupsPage() {
             {/* Pagination */}
             {totalPages > 1 && (
               <div className="bg-gray-50 px-4 py-3 border-t flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-gray-700">Show</span>
-                  <select
-                    value={itemsPerPage}
-                    onChange={(e) => { setItemsPerPage(Number(e.target.value)); setCurrentPage(1); }}
-                    className="border rounded px-2 py-1 text-sm"
-                  >
-                    <option value={25}>25</option>
-                    <option value={50}>50</option>
-                    <option value={100}>100</option>
-                  </select>
-                  <span className="text-sm text-gray-700">per page</span>
-                </div>
+                <PageSizeSelector
+                  value={itemsPerPage}
+                  onChange={(size) => { setItemsPerPage(size); setCurrentPage(1); }}
+                  options={[25, 50, 100, 200, 500, 1000, 2000]}
+                />
                 <Pagination
                   currentPage={currentPage}
                   totalPages={totalPages}
