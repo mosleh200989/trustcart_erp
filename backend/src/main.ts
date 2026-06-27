@@ -12,7 +12,9 @@ import { join } from 'path';
 import * as fs from 'fs';
 
 async function bootstrap() {
-  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    rawBody: true,
+  });
   const port = process.env.PORT || 3001;
 
   // Set global API prefix

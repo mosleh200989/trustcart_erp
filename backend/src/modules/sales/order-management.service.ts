@@ -1,6 +1,6 @@
 import { Injectable, BadRequestException, ConflictException, NotFoundException, HttpException, HttpStatus, Logger, Inject, forwardRef } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { DataSource, In, Repository } from 'typeorm';
 import { SalesOrder } from './sales-order.entity';
 import { OrderItem } from './entities/order-item.entity';
 import { OrderActivityLog } from './entities/order-activity-log.entity';
@@ -43,6 +43,7 @@ export class OrderManagementService {
     private metaCapiService: MetaCapiService,
     @Inject(forwardRef(() => LeadManagementService))
     private leadManagementService: LeadManagementService,
+    private dataSource: DataSource,
   ) {}
 
   private formatUserName(u?: Partial<User> | null): string | null {
@@ -2901,10 +2902,36 @@ export class OrderManagementService {
     userName: string;
     ipAddress?: string;
   }): Promise<any> {
+    const lockRunner = this.dataSource.createQueryRunner();
+    await lockRunner.connect();
+    try {
+      await lockRunner.query('SELECT pg_advisory_lock(42501, $1)', [Number(data.orderId)]);
+      return await this.sendToPathaoLocked(data);
+    } finally {
+      try {
+        await lockRunner.query('SELECT pg_advisory_unlock(42501, $1)', [Number(data.orderId)]);
+      } catch (error) {
+        this.logger.warn(`[Pathao] Failed to release send lock for order #${data.orderId}: ${(error as any)?.message || error}`);
+      }
+      await lockRunner.release();
+    }
+  }
+
+  private async sendToPathaoLocked(data: {
+    orderId: number;
+    storeId?: number;
+    recipientCity?: number;
+    recipientZone?: number;
+    recipientArea?: number;
+    itemWeight?: number;
+    userId: number;
+    userName: string;
+    ipAddress?: string;
+  }): Promise<any> {
     const order = await this.salesOrderRepository.findOne({ where: { id: data.orderId } });
     if (!order) throw new Error('Order not found');
 
-    if (order.courierCompany && String(order.courierCompany).toLowerCase() === 'pathao' && order.trackingId) {
+    if (order.courierCompany && String(order.courierCompany).toLowerCase() === 'pathao' && (order.courierOrderId || order.trackingId)) {
       return {
         success: true,
         message: 'Order already sent to Pathao',
@@ -3077,6 +3104,7 @@ export class OrderManagementService {
     order.courierCompany = 'Pathao';
     order.courierOrderId = String(consignmentId);
     order.trackingId = String(consignmentId);
+    order.courierStatus = orderStatus ? this.mapPathaoStatus(orderStatus) : 'sent';
 
     await this.salesOrderRepository.save(order);
 
@@ -3149,10 +3177,22 @@ export class OrderManagementService {
       pickuprequested: 'sent',
       assignedforpickup: 'sent',
       pickupassigned: 'sent',
-      pickupfailed: 'sent',
+      pickupfailed: 'hold',
+      pickuponhold: 'hold',
+      pickuphold: 'hold',
+      pickupcancelled: 'cancelled',
+      pickupcanceled: 'cancelled',
       atthehub: 'in_transit',
+      atsortinghub: 'in_transit',
+      atthesortinghub: 'in_transit',
+      receivedathub: 'in_transit',
+      receivedatlasthub: 'in_transit',
+      receivedatlastmilehub: 'in_transit',
+      receivedatthelastmilehub: 'in_transit',
       intransit: 'in_transit',
       deliveryinprogress: 'in_transit',
+      assignedfordelivery: 'in_transit',
+      deliveryassigned: 'in_transit',
       outfordelivery: 'in_transit',
       ontheway: 'in_transit',
       delivered: 'delivered',
@@ -3162,8 +3202,12 @@ export class OrderManagementService {
       returnintransit: 'returned',
       returntransit: 'returned',
       returnedtomerchant: 'returned',
+      returndelivered: 'returned',
+      paidreturn: 'returned',
+      deliveryfailed: 'hold',
       onhold: 'hold',
       hold: 'hold',
+      pickuphub: 'picked',
       cancelled: 'cancelled',
       canceled: 'cancelled',
       partialdelivered: 'partial_delivered',
@@ -3200,35 +3244,65 @@ export class OrderManagementService {
     );
     this.logger.debug(`[Pathao Webhook] Full payload: ${JSON.stringify(dto)}`);
 
-    if (!consignmentId) {
-      this.logger.warn('[Pathao Webhook] Missing consignment_id in payload');
-      return { status: 'error', message: 'Missing consignment_id in webhook payload' };
-    }
+    let order: SalesOrder | null = null;
 
-    // Find the order by courier order ID (consignment_id)
-    const order = await this.salesOrderRepository.findOne({
-      where: {
-        courierCompany: 'Pathao',
-        courierOrderId: String(consignmentId),
-      },
-    });
-
-    if (!order) {
-      // Try by tracking_id
-      const orderByTracking = await this.salesOrderRepository.findOne({
+    if (consignmentId) {
+      order = await this.salesOrderRepository.findOne({
         where: {
           courierCompany: 'Pathao',
-          trackingId: String(consignmentId),
+          courierOrderId: String(consignmentId),
         },
       });
 
-      if (!orderByTracking) {
-        const msg = `Order not found for Pathao consignment ${consignmentId}`;
-        this.logger.warn(`[Pathao Webhook] ${msg}`);
-        return { status: 'error', message: msg };
+      if (!order) {
+        order = await this.salesOrderRepository.findOne({
+          where: {
+            courierCompany: 'Pathao',
+            trackingId: String(consignmentId),
+          },
+        });
+      }
+    }
+
+    if (!order && merchantOrderId) {
+      const merchantOrder = String(merchantOrderId).trim();
+      const merchantOrderWhere: any[] = [{ salesOrderNumber: merchantOrder }];
+      if (/^\d+$/.test(merchantOrder)) {
+        merchantOrderWhere.push({ id: Number(merchantOrder) });
+      }
+      order = await this.salesOrderRepository.findOne({
+        where: merchantOrderWhere,
+      });
+
+      if (order && !order.courierCompany && consignmentId) {
+        order.courierCompany = 'Pathao';
       }
 
-      return this.processPathaoStatusUpdate(orderByTracking, dto);
+      if (order && String(order.courierCompany || '').toLowerCase() === 'pathao' && consignmentId) {
+        const previousCourierOrderId = order.courierOrderId;
+        const previousTrackingId = order.trackingId;
+        const nextConsignmentId = String(consignmentId);
+        if (previousCourierOrderId !== nextConsignmentId || previousTrackingId !== nextConsignmentId) {
+          order.courierOrderId = nextConsignmentId;
+          order.trackingId = nextConsignmentId;
+          await this.salesOrderRepository.save(order);
+          await this.logActivity({
+            orderId: order.id,
+            actionType: 'pathao_consignment_relinked',
+            actionDescription: `Pathao webhook relinked consignment by merchant_order_id ${merchantOrder}`,
+            oldValue: { courierOrderId: previousCourierOrderId, trackingId: previousTrackingId },
+            newValue: { courierOrderId: nextConsignmentId, trackingId: nextConsignmentId },
+            performedBy: undefined,
+            performedByName: 'Pathao Webhook',
+          });
+        }
+      }
+    }
+
+    if (!order) {
+      const msg = `Order not found for Pathao webhook: CID=${consignmentId ?? '—'}, merchant_order_id=${merchantOrderId ?? '—'}`;
+      this.logger.warn(`[Pathao Webhook] ${msg}`);
+      return { status: 'success', message: msg };
     }
 
     return this.processPathaoStatusUpdate(order, dto);
@@ -3262,29 +3336,7 @@ export class OrderManagementService {
     // never overwrite the customer-facing sales_orders.delivery_charge.
     if (numericCodAmount != null) order.codAmount = numericCodAmount;
 
-    // Check sticker condition.
-    const stickerPrinted = (order as any).stickerPrinted === true;
-
-    if (!stickerPrinted) {
-      await this.salesOrderRepository.save(order);
-      this.logger.log(
-        `[Pathao Webhook] Order #${order.id} not ready (stickerPrinted=${stickerPrinted}) — status stays '${order.status}'`,
-      );
-
-      await this.courierTrackingRepository.save({
-        orderId: order.id,
-        courierCompany: 'Pathao',
-        trackingId: order.trackingId,
-        status: newStatus,
-        codAmount: numericCodAmount,
-        deliveryCharge: numericDeliveryFee,
-        consignmentId: consignmentId != null ? String(consignmentId) : null,
-        rawPayload: dto,
-        remarks: `Pathao webhook: status=${newStatus} (NOT applied — stickerPrinted=${stickerPrinted})`,
-      });
-
-      return { status: 'success', message: 'Order not ready for status update, COD/tracking fields updated' };
-    }
+    order.courierStatus = newStatus;
 
     const prevStatus = order.status;
     const statusChanged = String(prevStatus || '').trim() !== newStatus.trim();
@@ -3401,30 +3453,29 @@ export class OrderManagementService {
         }
 
         const newStatus = this.mapPathaoStatus(rawStatus);
+        order.courierStatus = newStatus;
 
         if (String(order.status || '').trim() !== newStatus.trim()) {
-          const stickerPrinted = (order as any).stickerPrinted === true;
+          const prevStatus = order.status;
+          order.status = newStatus;
 
-          if (stickerPrinted) {
-            const prevStatus = order.status;
-            order.status = newStatus;
-
-            if (this.isDeliveredStatus(newStatus) && prevStatus !== 'delivered') {
-              order.deliveredAt = new Date();
-            }
-
-            await this.salesOrderRepository.save(order);
-            await this.logStatusChange({
-              orderId: order.id,
-              actionType: 'courier_status_synced',
-              oldStatus: prevStatus,
-              newStatus,
-              actorName: 'Pathao Sync',
-              source: 'Pathao polling sync',
-            });
-
-            await this.dispatchMetaCapiForStatus(order.id, order.status);
+          if (this.isDeliveredStatus(newStatus) && prevStatus !== 'delivered') {
+            order.deliveredAt = new Date();
           }
+
+          await this.salesOrderRepository.save(order);
+          await this.logStatusChange({
+            orderId: order.id,
+            actionType: 'courier_status_synced',
+            oldStatus: prevStatus,
+            newStatus,
+            actorName: 'Pathao Sync',
+            source: 'Pathao polling sync',
+          });
+
+          await this.dispatchMetaCapiForStatus(order.id, order.status);
+        } else {
+          await this.salesOrderRepository.save(order);
         }
 
         results.synced++;
