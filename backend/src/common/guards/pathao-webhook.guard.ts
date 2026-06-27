@@ -42,7 +42,11 @@ export class PathaoWebhookGuard implements CanActivate {
       return true;
     }
 
-    const integrationHeader = request.headers['x-pathao-merchant-webhook-integration-secret'] as string | undefined;
+    const integrationHeader = (
+      request.headers['x-pathao-merchant-webhook-integration-secret'] ||
+      request.headers['x-pathao-webhook-integration-secret'] ||
+      request.headers['x-pathao-webhook-secret']
+    ) as string | undefined;
     if (integrationHeader) {
       if (integrationSecret && integrationHeader === integrationSecret) {
         return true;
@@ -60,17 +64,25 @@ export class PathaoWebhookGuard implements CanActivate {
     }
 
     // Method 1: HMAC signature header
-    const signature = request.headers['x-pathao-signature'] as string | undefined;
+    const signature = (
+      request.headers['x-pathao-signature'] ||
+      request.headers['x-pathao-webhook-signature']
+    ) as string | undefined;
     if (signature) {
       const rawBody =
-        typeof (request as any).rawBody === 'string'
+        Buffer.isBuffer((request as any).rawBody)
           ? (request as any).rawBody
-          : JSON.stringify(request.body);
+          : typeof (request as any).rawBody === 'string'
+            ? Buffer.from((request as any).rawBody)
+            : Buffer.from(JSON.stringify(request.body));
       const expected = crypto
         .createHmac('sha256', secret)
         .update(rawBody)
         .digest('hex');
-      const signatureBuffer = Buffer.from(signature);
+      const normalizedSignature = signature.startsWith('sha256=')
+        ? signature.slice('sha256='.length)
+        : signature;
+      const signatureBuffer = Buffer.from(normalizedSignature);
       const expectedBuffer = Buffer.from(expected);
       if (
         signatureBuffer.length === expectedBuffer.length &&
