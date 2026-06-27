@@ -531,7 +531,28 @@ export class CrmAutomationService {
   }
   
   async getCustomerEngagementHistory(customerId: string, limit: number = 50) {
+    const safeLimit = Math.max(1, Math.min(Number(limit) || 50, 2000));
     const rows = await this.engagementRepo.query(`
+      WITH input_key AS (
+        SELECT NULLIF(regexp_replace(regexp_replace($1, '\\D', '', 'g'), '^88', ''), '') AS normalized_phone
+      ),
+      target_customer AS (
+        SELECT
+          c.id,
+          c.phone,
+          NULLIF(regexp_replace(regexp_replace(COALESCE(c.phone, ''), '\\D', '', 'g'), '^88', ''), '') AS normalized_phone
+        FROM customers c
+        CROSS JOIN input_key ik
+        WHERE (
+          ($1 ~ '^\\d{1,9}$' AND c.id = $1::int)
+          OR c.phone = $1
+          OR NULLIF(regexp_replace(regexp_replace(COALESCE(c.phone, ''), '\\D', '', 'g'), '^88', ''), '') = ik.normalized_phone
+        )
+        ORDER BY
+          CASE WHEN $1 ~ '^\\d{1,9}$' AND c.id = $1::int THEN 0 ELSE 1 END,
+          c.id DESC
+        LIMIT 1
+      )
       SELECT *
       FROM (
         SELECT
@@ -544,8 +565,14 @@ export class CrmAutomationService {
           e.created_at,
           COALESCE(NULLIF(TRIM(CONCAT(u.name, ' ', COALESCE(u.last_name, ''))), ''), 'Agent #' || e.agent_id::text) AS agent_name
         FROM customer_engagement_history e
+        CROSS JOIN input_key ik
         LEFT JOIN users u ON u.id = e.agent_id
+        LEFT JOIN target_customer tc ON TRUE
         WHERE e.customer_id = $1
+          OR e.customer_id = tc.id::text
+          OR e.customer_id = tc.phone
+          OR NULLIF(regexp_replace(regexp_replace(COALESCE(e.customer_id, ''), '\\D', '', 'g'), '^88', ''), '') = tc.normalized_phone
+          OR NULLIF(regexp_replace(regexp_replace(COALESCE(e.customer_id, ''), '\\D', '', 'g'), '^88', ''), '') = ik.normalized_phone
 
         UNION ALL
 
@@ -565,14 +592,131 @@ export class CrmAutomationService {
           COALESCE(l.called_at, l.created_at) AS created_at,
           COALESCE(NULLIF(l.caller_name, ''), NULLIF(TRIM(CONCAT(u2.name, ' ', COALESCE(u2.last_name, ''))), ''), 'Unknown Agent') AS agent_name
         FROM telephony_assignment_call_logs l
+        CROSS JOIN input_key ik
         INNER JOIN sales_orders so ON so.id = l.order_id
+        LEFT JOIN target_customer tc ON TRUE
         LEFT JOIN users u2 ON u2.id = l.caller_user_id
         WHERE l.record_type = 'sales_order'
-          AND so.customer_id = CASE WHEN $1 ~ '^\\d{1,9}$' THEN $1::int ELSE NULL END
+          AND (
+            so.customer_id = tc.id
+            OR NULLIF(regexp_replace(regexp_replace(COALESCE(so.customer_phone, ''), '\\D', '', 'g'), '^88', ''), '') = tc.normalized_phone
+            OR NULLIF(regexp_replace(regexp_replace(COALESCE(so.customer_phone, ''), '\\D', '', 'g'), '^88', ''), '') = ik.normalized_phone
+          )
+
+        UNION ALL
+
+        SELECT
+          CONCAT('telephony-incomplete-', l.id)::text AS id,
+          COALESCE(io.customer_id::text, tc.id::text, io.phone, $1) AS customer_id,
+          'call' AS engagement_type,
+          COALESCE(NULLIF(l.notes, ''), CONCAT('Call outcome: ', COALESCE(l.outcome, ''))) AS message_content,
+          jsonb_build_object(
+            'outcome', l.outcome,
+            'notes', l.notes,
+            'product_suggestion', l.suggestion,
+            'agent_id', l.caller_user_id,
+            'source', 'telephony_assignment_call_logs',
+            'record_type', l.record_type
+          ) AS metadata,
+          l.caller_user_id AS agent_id,
+          COALESCE(l.called_at, l.created_at) AS created_at,
+          COALESCE(NULLIF(l.caller_name, ''), NULLIF(TRIM(CONCAT(u3.name, ' ', COALESCE(u3.last_name, ''))), ''), 'Unknown Agent') AS agent_name
+        FROM telephony_assignment_call_logs l
+        CROSS JOIN input_key ik
+        INNER JOIN incomplete_orders io ON io.id = l.order_id
+        LEFT JOIN target_customer tc ON TRUE
+        LEFT JOIN users u3 ON u3.id = l.caller_user_id
+        WHERE l.record_type = 'incomplete_order'
+          AND (
+            io.customer_id = tc.id
+            OR NULLIF(regexp_replace(regexp_replace(COALESCE(io.phone, ''), '\\D', '', 'g'), '^88', ''), '') = tc.normalized_phone
+            OR NULLIF(regexp_replace(regexp_replace(COALESCE(io.phone, ''), '\\D', '', 'g'), '^88', ''), '') = ik.normalized_phone
+          )
+
+        UNION ALL
+
+        SELECT
+          CONCAT('order-activity-', oal.id)::text AS id,
+          COALESCE(so.customer_id::text, tc.id::text, so.customer_phone, $1) AS customer_id,
+          'call' AS engagement_type,
+          COALESCE(NULLIF(oal.new_value->>'notes', ''), oal.action_description) AS message_content,
+          jsonb_build_object(
+            'outcome', oal.new_value->>'outcome',
+            'notes', COALESCE(NULLIF(oal.new_value->>'notes', ''), oal.action_description),
+            'product_suggestion', oal.new_value->>'suggestion',
+            'agent_id', oal.performed_by,
+            'source', 'order_activity_logs'
+          ) AS metadata,
+          oal.performed_by AS agent_id,
+          oal.created_at AS created_at,
+          COALESCE(NULLIF(oal.performed_by_name, ''), NULLIF(TRIM(CONCAT(u4.name, ' ', COALESCE(u4.last_name, ''))), ''), 'Unknown Agent') AS agent_name
+        FROM order_activity_logs oal
+        CROSS JOIN input_key ik
+        INNER JOIN sales_orders so ON so.id = oal.order_id
+        LEFT JOIN target_customer tc ON TRUE
+        LEFT JOIN users u4 ON u4.id = oal.performed_by
+        WHERE oal.action_type = 'telephony_call_logged'
+          AND (
+            so.customer_id = tc.id
+            OR NULLIF(regexp_replace(regexp_replace(COALESCE(so.customer_phone, ''), '\\D', '', 'g'), '^88', ''), '') = tc.normalized_phone
+            OR NULLIF(regexp_replace(regexp_replace(COALESCE(so.customer_phone, ''), '\\D', '', 'g'), '^88', ''), '') = ik.normalized_phone
+          )
+
+        UNION ALL
+
+        SELECT
+          CONCAT('sales-order-telephony-', so.id)::text AS id,
+          COALESCE(so.customer_id::text, tc.id::text, so.customer_phone, $1) AS customer_id,
+          'call' AS engagement_type,
+          COALESCE(NULLIF(so.telephony_notes, ''), CONCAT('Call outcome: ', COALESCE(so.telephony_outcome, 'called'))) AS message_content,
+          jsonb_build_object(
+            'outcome', so.telephony_outcome,
+            'notes', COALESCE(NULLIF(so.telephony_notes, ''), CONCAT('Call outcome: ', COALESCE(so.telephony_outcome, 'called'))),
+            'product_suggestion', so.telephony_suggestion,
+            'source', 'sales_orders'
+          ) AS metadata,
+          NULL::integer AS agent_id,
+          so.telephony_called_at AS created_at,
+          'Unknown Agent' AS agent_name
+        FROM sales_orders so
+        CROSS JOIN input_key ik
+        LEFT JOIN target_customer tc ON TRUE
+        WHERE so.telephony_called_at IS NOT NULL
+          AND (
+            so.customer_id = tc.id
+            OR NULLIF(regexp_replace(regexp_replace(COALESCE(so.customer_phone, ''), '\\D', '', 'g'), '^88', ''), '') = tc.normalized_phone
+            OR NULLIF(regexp_replace(regexp_replace(COALESCE(so.customer_phone, ''), '\\D', '', 'g'), '^88', ''), '') = ik.normalized_phone
+          )
+
+        UNION ALL
+
+        SELECT
+          CONCAT('incomplete-order-telephony-', io.id)::text AS id,
+          COALESCE(io.customer_id::text, tc.id::text, io.phone, $1) AS customer_id,
+          'call' AS engagement_type,
+          COALESCE(NULLIF(io.telephony_notes, ''), CONCAT('Call outcome: ', COALESCE(io.telephony_outcome, 'called'))) AS message_content,
+          jsonb_build_object(
+            'outcome', io.telephony_outcome,
+            'notes', COALESCE(NULLIF(io.telephony_notes, ''), CONCAT('Call outcome: ', COALESCE(io.telephony_outcome, 'called'))),
+            'product_suggestion', io.telephony_suggestion,
+            'source', 'incomplete_orders'
+          ) AS metadata,
+          NULL::integer AS agent_id,
+          io.telephony_called_at AS created_at,
+          'Unknown Agent' AS agent_name
+        FROM incomplete_orders io
+        CROSS JOIN input_key ik
+        LEFT JOIN target_customer tc ON TRUE
+        WHERE io.telephony_called_at IS NOT NULL
+          AND (
+            io.customer_id = tc.id
+            OR NULLIF(regexp_replace(regexp_replace(COALESCE(io.phone, ''), '\\D', '', 'g'), '^88', ''), '') = tc.normalized_phone
+            OR NULLIF(regexp_replace(regexp_replace(COALESCE(io.phone, ''), '\\D', '', 'g'), '^88', ''), '') = ik.normalized_phone
+          )
       ) logs
       ORDER BY logs.created_at DESC
       LIMIT $2
-    `, [customerId, limit]);
+    `, [customerId, safeLimit]);
     return rows;
   }
   

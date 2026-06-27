@@ -1,8 +1,9 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { Fragment, useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import AdminLayout from '@/layouts/AdminLayout';
 import apiClient from '@/services/api';
 import {
   FaCalendarAlt,
+  FaChevronDown,
   FaChevronLeft,
   FaChevronRight,
   FaDownload,
@@ -45,6 +46,8 @@ interface SourceMonthlyRow extends SourceSummary {
 interface AgentMonthly {
   agentId: number;
   agentName: string;
+  teamLeaderId?: number | null;
+  teamLeaderName?: string | null;
   dailyOrders: Record<number, number>;
   total: number;
   delivered: number;
@@ -78,6 +81,7 @@ export default function AgentMonthlyReportPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const tableRef = useRef<HTMLDivElement>(null);
+  const [collapsedTeams, setCollapsedTeams] = useState<Set<string>>(new Set());
 
   const [webData, setWebData] = useState<WebsiteMonthlyData | null>(null);
   const [webLoading, setWebLoading] = useState(false);
@@ -159,8 +163,9 @@ export default function AgentMonthlyReportPage() {
   const exportCSV = () => {
     if (!data) return;
     const days = Array.from({ length: data.daysInMonth }, (_, i) => i + 1);
-    const headers = ['Name', ...days.map(String), 'Total', 'Delivered', 'Partial Delivered', 'Cancelled', 'Cancelled Ratio'];
+    const headers = ['Team Leader', 'Name', ...days.map(String), 'Total', 'Delivered', 'Partial Delivered', 'Cancelled', 'Cancelled Ratio'];
     const rows = data.agents.map(a => [
+      a.teamLeaderName || 'Unassigned Team Leader',
       a.agentName,
       ...days.map(d => a.dailyOrders[d] || ''),
       a.total,
@@ -172,6 +177,7 @@ export default function AgentMonthlyReportPage() {
     // Grand total row
     rows.push([
       'TOTAL',
+      '',
       ...days.map(d => data.agents.reduce((s, a) => s + (a.dailyOrders[d] || 0), 0) || ''),
       data.grandTotal,
       data.grandDelivered,
@@ -190,6 +196,38 @@ export default function AgentMonthlyReportPage() {
   };
 
   const days = data ? Array.from({ length: data.daysInMonth }, (_, i) => i + 1) : [];
+  const groupedAgents = useMemo(() => {
+    if (!data?.agents) return [];
+    const groups = new Map<string, { key: string; teamLeaderId: number | null; teamLeaderName: string; agents: AgentMonthly[] }>();
+    for (const agent of data.agents) {
+      const teamLeaderId = agent.teamLeaderId ?? null;
+      const key = teamLeaderId ? `tl-${teamLeaderId}` : 'unassigned';
+      if (!groups.has(key)) {
+        groups.set(key, {
+          key,
+          teamLeaderId,
+          teamLeaderName: agent.teamLeaderName || 'Unassigned Team Leader',
+          agents: [],
+        });
+      }
+      groups.get(key)!.agents.push(agent);
+    }
+    return Array.from(groups.values()).sort((a, b) => {
+      if (a.key === 'unassigned') return 1;
+      if (b.key === 'unassigned') return -1;
+      const totalDiff = b.agents.reduce((sum, agent) => sum + agent.total, 0) - a.agents.reduce((sum, agent) => sum + agent.total, 0);
+      return totalDiff || a.teamLeaderName.localeCompare(b.teamLeaderName);
+    });
+  }, [data?.agents]);
+
+  const toggleTeamCollapse = (key: string) => {
+    setCollapsedTeams(prev => {
+      const next = new Set(prev);
+      next.has(key) ? next.delete(key) : next.add(key);
+      return next;
+    });
+  };
+
   const webDays = webData ? Array.from({ length: webData.daysInMonth }, (_, i) => i + 1) : [];
   const webRows: SourceMonthlyRow[] = webData ? [
     {
@@ -396,45 +434,100 @@ export default function AgentMonthlyReportPage() {
                       </td>
                     </tr>
                   )}
-                  {data.agents.map((agent, idx) => {
-                    const cancelRatio = getCancelledRatioNum(agent);
+                  {groupedAgents.map((group) => {
+                    const isCollapsed = collapsedTeams.has(group.key);
+                    const groupDailyOrders = days.reduce<Record<number, number>>((acc, day) => {
+                      acc[day] = group.agents.reduce((sum, agent) => sum + (agent.dailyOrders[day] || 0), 0);
+                      return acc;
+                    }, {});
+                    const totals = group.agents.reduce((acc, agent) => ({
+                      total: acc.total + agent.total,
+                      delivered: acc.delivered + agent.delivered,
+                      partialDelivered: acc.partialDelivered + agent.partialDelivered,
+                      cancelled: acc.cancelled + agent.cancelled,
+                    }), { total: 0, delivered: 0, partialDelivered: 0, cancelled: 0 });
+                    const groupCancelRatio = totals.total ? (totals.cancelled / totals.total) * 100 : 0;
                     return (
-                      <tr
-                        key={agent.agentId}
-                        className={`${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'} hover:bg-indigo-50/40 transition-colors`}
-                      >
-                        <td className={`sticky left-0 z-10 ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'} px-3 py-2 font-medium text-gray-900 whitespace-nowrap border-r border-gray-200`}>
-                          {agent.agentName}
-                        </td>
-                        {days.map(d => {
-                          const count = agent.dailyOrders[d] || 0;
-                          return (
-                            <td
-                              key={d}
-                              className={`px-1 py-2 text-center text-xs tabular-nums border-r border-gray-100 ${getDayCellStyle(count)}`}
+                      <Fragment key={group.key}>
+                        <tr className="bg-indigo-50/90 border-y border-indigo-100">
+                          <td className="sticky left-0 z-20 bg-indigo-50 px-3 py-2.5 font-semibold text-indigo-900 whitespace-nowrap border-r border-indigo-100">
+                            <button
+                              type="button"
+                              onClick={() => toggleTeamCollapse(group.key)}
+                              className="flex items-center gap-2 text-left hover:text-indigo-950"
                             >
-                              {count || ''}
+                              {isCollapsed ? <FaChevronRight className="text-xs" /> : <FaChevronDown className="text-xs" />}
+                              <span>{group.teamLeaderName}</span>
+                              <span className="rounded-full bg-white px-2 py-0.5 text-[11px] font-medium text-indigo-600 border border-indigo-100">
+                                {group.agents.length} agent{group.agents.length === 1 ? '' : 's'}
+                              </span>
+                            </button>
+                          </td>
+                          {days.map(d => (
+                            <td key={d} className={`px-1 py-2 text-center text-xs tabular-nums border-r border-indigo-100 ${getDayCellStyle(groupDailyOrders[d] || 0)}`}>
+                              {groupDailyOrders[d] || ''}
                             </td>
+                          ))}
+                          <td className="px-2 py-2 text-center font-bold text-sm tabular-nums text-indigo-900 border-l-2 border-indigo-200 bg-indigo-100/70">
+                            {totals.total || ''}
+                          </td>
+                          <td className="px-2 py-2 text-center font-semibold text-sm tabular-nums text-emerald-700 bg-emerald-50/70">
+                            {totals.delivered || ''}
+                          </td>
+                          <td className="px-2 py-2 text-center font-semibold text-sm tabular-nums text-lime-700 bg-lime-50/70">
+                            {totals.partialDelivered || ''}
+                          </td>
+                          <td className="px-2 py-2 text-center font-semibold text-sm tabular-nums text-red-700 bg-red-50/60">
+                            {totals.cancelled || ''}
+                          </td>
+                          <td className="px-2 py-2 text-center text-sm tabular-nums bg-white/60">
+                            <span className={`inline-block px-2 py-0.5 rounded text-xs font-semibold ${getCancelledBadge(groupCancelRatio)}`}>
+                              {groupCancelRatio.toFixed(2)}%
+                            </span>
+                          </td>
+                        </tr>
+                        {!isCollapsed && group.agents.map((agent, idx) => {
+                          const cancelRatio = getCancelledRatioNum(agent);
+                          return (
+                            <tr
+                              key={agent.agentId}
+                              className={`${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'} hover:bg-indigo-50/40 transition-colors`}
+                            >
+                              <td className={`sticky left-0 z-10 ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'} px-3 py-2 font-medium text-gray-900 whitespace-nowrap border-r border-gray-200`}>
+                                <span className="pl-5">{agent.agentName}</span>
+                              </td>
+                              {days.map(d => {
+                                const count = agent.dailyOrders[d] || 0;
+                                return (
+                                  <td
+                                    key={d}
+                                    className={`px-1 py-2 text-center text-xs tabular-nums border-r border-gray-100 ${getDayCellStyle(count)}`}
+                                  >
+                                    {count || ''}
+                                  </td>
+                                );
+                              })}
+                              <td className="px-2 py-2 text-center font-bold text-sm tabular-nums text-slate-800 border-l-2 border-gray-200 bg-slate-50">
+                                {agent.total || ''}
+                              </td>
+                              <td className="px-2 py-2 text-center font-semibold text-sm tabular-nums text-emerald-700 bg-emerald-50/50">
+                                {agent.delivered || ''}
+                              </td>
+                              <td className="px-2 py-2 text-center font-semibold text-sm tabular-nums text-lime-700 bg-lime-50/60">
+                                {agent.partialDelivered || ''}
+                              </td>
+                              <td className="px-2 py-2 text-center font-semibold text-sm tabular-nums text-red-700 bg-red-50/40">
+                                {agent.cancelled || ''}
+                              </td>
+                              <td className="px-2 py-2 text-center text-sm tabular-nums">
+                                <span className={`inline-block px-2 py-0.5 rounded text-xs font-semibold ${getCancelledBadge(cancelRatio)}`}>
+                                  {getCancelledRatio(agent)}
+                                </span>
+                              </td>
+                            </tr>
                           );
                         })}
-                        <td className="px-2 py-2 text-center font-bold text-sm tabular-nums text-slate-800 border-l-2 border-gray-200 bg-slate-50">
-                          {agent.total || ''}
-                        </td>
-                        <td className="px-2 py-2 text-center font-semibold text-sm tabular-nums text-emerald-700 bg-emerald-50/50">
-                          {agent.delivered || ''}
-                        </td>
-                        <td className="px-2 py-2 text-center font-semibold text-sm tabular-nums text-lime-700 bg-lime-50/60">
-                          {agent.partialDelivered || ''}
-                        </td>
-                        <td className="px-2 py-2 text-center font-semibold text-sm tabular-nums text-red-700 bg-red-50/40">
-                          {agent.cancelled || ''}
-                        </td>
-                        <td className="px-2 py-2 text-center text-sm tabular-nums">
-                          <span className={`inline-block px-2 py-0.5 rounded text-xs font-semibold ${getCancelledBadge(cancelRatio)}`}>
-                            {getCancelledRatio(agent)}
-                          </span>
-                        </td>
-                      </tr>
+                      </Fragment>
                     );
                   })}
                 </tbody>

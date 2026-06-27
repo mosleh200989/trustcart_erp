@@ -325,7 +325,13 @@ export class TelephonyService {
           qb.andWhere("o.telephony_called_at >= CURRENT_DATE - INTERVAL '27 days' AND o.telephony_called_at < CURRENT_DATE - INTERVAL '20 days'");
           break;
         case 'called_1month':
-          qb.andWhere("o.telephony_called_at < CURRENT_DATE - INTERVAL '27 days'");
+          qb.andWhere("o.telephony_called_at >= CURRENT_DATE - INTERVAL '59 days' AND o.telephony_called_at < CURRENT_DATE - INTERVAL '27 days'");
+          break;
+        case 'called_2months':
+          qb.andWhere("o.telephony_called_at >= CURRENT_DATE - INTERVAL '89 days' AND o.telephony_called_at < CURRENT_DATE - INTERVAL '59 days'");
+          break;
+        case 'called_3months_plus':
+          qb.andWhere("o.telephony_called_at < CURRENT_DATE - INTERVAL '89 days'");
           break;
         case 'not_called':
         case 'not_called_today':
@@ -363,7 +369,7 @@ export class TelephonyService {
         const assignmentWorkType =
           status === 'admin_cancelled'
             ? 'rejected_recovery'
-            : status === 'processing' && ['no_answer', 'unreachable'].includes(outcome)
+            : status === 'processing' && ['no_answer', 'line_busy', 'number_switched_off', 'busy', 'unreachable'].includes(outcome)
               ? 'unreachable_followup'
               : 'primary_leads';
 
@@ -475,7 +481,13 @@ export class TelephonyService {
           where.push("io.telephony_called_at >= CURRENT_DATE - INTERVAL '27 days' AND io.telephony_called_at < CURRENT_DATE - INTERVAL '20 days'");
           break;
         case 'called_1month':
-          where.push("io.telephony_called_at < CURRENT_DATE - INTERVAL '27 days'");
+          where.push("io.telephony_called_at >= CURRENT_DATE - INTERVAL '59 days' AND io.telephony_called_at < CURRENT_DATE - INTERVAL '27 days'");
+          break;
+        case 'called_2months':
+          where.push("io.telephony_called_at >= CURRENT_DATE - INTERVAL '89 days' AND io.telephony_called_at < CURRENT_DATE - INTERVAL '59 days'");
+          break;
+        case 'called_3months_plus':
+          where.push("io.telephony_called_at < CURRENT_DATE - INTERVAL '89 days'");
           break;
         case 'not_called':
         case 'not_called_today':
@@ -637,8 +649,10 @@ export class TelephonyService {
     suggestion?: string | null;
     notes?: string | null;
   }) {
-    const notes = String(params.notes || '').trim();
-    if (!notes) return null;
+    const notes = String(params.notes || '').trim()
+      || (params.outcome ? `Call outcome: ${String(params.outcome).replace(/_/g, ' ')}` : '')
+      || (params.suggestion ? `Product suggestion: ${params.suggestion}` : '')
+      || 'Call logged.';
     const callerName = await this.getCallerDisplayName(params.callerUserId);
     const rows = await this.salesOrderRepo.manager.query(
       `INSERT INTO telephony_assignment_call_logs
@@ -667,8 +681,10 @@ export class TelephonyService {
     suggestion?: string | null;
     notes?: string | null;
   }) {
-    const notes = String(params.notes || '').trim();
-    if (!notes) return;
+    const notes = String(params.notes || '').trim()
+      || (params.outcome ? `Call outcome: ${String(params.outcome).replace(/_/g, ' ')}` : '')
+      || (params.suggestion ? `Product suggestion: ${params.suggestion}` : '')
+      || 'Call logged.';
 
     await this.salesOrderRepo.manager.query(
       `INSERT INTO order_activity_logs
@@ -778,6 +794,35 @@ export class TelephonyService {
         map.set(Number(row.order_id), this.mapAssignmentCallLog(row));
       }
     }
+
+    const stillMissingOrderIds = orderIds.filter((orderId) => !map.has(Number(orderId)));
+    if (stillMissingOrderIds.length === 0) return;
+
+    const telephonyRows = await this.salesOrderRepo.manager.query(
+      `SELECT
+          id,
+          'sales_order' AS record_type,
+          NULL AS assignment_type,
+          id AS order_id,
+          NULL AS caller_user_id,
+          NULL AS caller_name,
+          telephony_outcome AS outcome,
+          telephony_suggestion AS suggestion,
+          COALESCE(NULLIF(telephony_notes, ''), CONCAT('Call outcome: ', COALESCE(telephony_outcome, 'called'))) AS notes,
+          telephony_called_at AS called_at,
+          telephony_called_at AS created_at
+       FROM sales_orders
+       WHERE id = ANY($1::int[])
+         AND telephony_called_at IS NOT NULL
+       ORDER BY telephony_called_at DESC, id DESC`,
+      [stillMissingOrderIds],
+    );
+
+    for (const row of telephonyRows || []) {
+      if (!map.has(Number(row.order_id))) {
+        map.set(Number(row.order_id), this.mapAssignmentCallLog(row));
+      }
+    }
   }
 
   async listOrderAssignmentCallHistory(userId: number, orderId: number, assignmentType?: string) {
@@ -821,6 +866,27 @@ export class TelephonyService {
     );
 
     if (recordType === 'incomplete_order' || rows?.length) {
+      if (recordType === 'incomplete_order' && !rows?.length) {
+        const incompleteFallbackRows = await this.salesOrderRepo.manager.query(
+          `SELECT
+              id,
+              'incomplete_order' AS record_type,
+              'incomplete' AS assignment_type,
+              id AS order_id,
+              NULL AS caller_user_id,
+              NULL AS caller_name,
+              telephony_outcome AS outcome,
+              telephony_suggestion AS suggestion,
+              COALESCE(NULLIF(telephony_notes, ''), CONCAT('Call outcome: ', COALESCE(telephony_outcome, 'called'))) AS notes,
+              telephony_called_at AS called_at,
+              telephony_called_at AS created_at
+           FROM incomplete_orders
+           WHERE id = $1
+             AND telephony_called_at IS NOT NULL`,
+          [orderId],
+        );
+        return (incompleteFallbackRows || []).map((row: any) => this.mapAssignmentCallLog(row));
+      }
       return (rows || []).map((row: any) => this.mapAssignmentCallLog(row));
     }
 
@@ -844,7 +910,30 @@ export class TelephonyService {
       [orderId],
     );
 
-    return (activityRows || []).map((row: any) => this.mapAssignmentCallLog(row));
+    if (activityRows?.length) {
+      return (activityRows || []).map((row: any) => this.mapAssignmentCallLog(row));
+    }
+
+    const telephonyRows = await this.salesOrderRepo.manager.query(
+      `SELECT
+          id,
+          'sales_order' AS record_type,
+          NULL AS assignment_type,
+          id AS order_id,
+          NULL AS caller_user_id,
+          NULL AS caller_name,
+          telephony_outcome AS outcome,
+          telephony_suggestion AS suggestion,
+          COALESCE(NULLIF(telephony_notes, ''), CONCAT('Call outcome: ', COALESCE(telephony_outcome, 'called'))) AS notes,
+          telephony_called_at AS called_at,
+          telephony_called_at AS created_at
+       FROM sales_orders
+       WHERE id = $1
+         AND telephony_called_at IS NOT NULL`,
+      [orderId],
+    );
+
+    return (telephonyRows || []).map((row: any) => this.mapAssignmentCallLog(row));
   }
 
   async updateOrderAssignmentOutcome(userId: number, orderId: number, body: {
@@ -881,7 +970,7 @@ export class TelephonyService {
       return { success: true, orderId };
     }
 
-    const shouldMoveToUnreachableQueue = ['no_answer', 'unreachable'].includes(normalizedOutcome);
+    const shouldMoveToUnreachableQueue = ['no_answer', 'line_busy', 'number_switched_off', 'busy', 'unreachable'].includes(normalizedOutcome);
     const result = shouldMoveToUnreachableQueue
       ? await this.salesOrderRepo.manager.query(
           `UPDATE sales_orders
@@ -945,10 +1034,15 @@ export class TelephonyService {
 
   async handoffUnreachableOrderAssignment(userId: number, orderId: number, body: { outcome?: string; notes?: string } = {}) {
     const normalizedOutcome = String(body.outcome || 'no_answer').trim().toLowerCase();
-    const outcome = normalizedOutcome === 'unreachable' ? 'unreachable' : 'no_answer';
-    const notes = String(body.notes || '').trim() || (outcome === 'unreachable'
-      ? 'Customer was unreachable. Passed to unreachable follow-up queue.'
-      : 'Customer did not receive the call. Passed to unreachable follow-up queue.');
+    const outcome = ['line_busy', 'number_switched_off', 'busy', 'unreachable'].includes(normalizedOutcome)
+      ? normalizedOutcome
+      : 'no_answer';
+    const notes = String(body.notes || '').trim()
+      || (outcome === 'number_switched_off' || outcome === 'unreachable'
+        ? 'Customer number was unavailable. Passed to unreachable follow-up queue.'
+        : outcome === 'line_busy' || outcome === 'busy'
+          ? 'Customer line was busy. Passed to unreachable follow-up queue.'
+          : 'Customer did not receive the call. Passed to unreachable follow-up queue.');
 
     const result = await this.salesOrderRepo.manager.query(
       `UPDATE sales_orders so

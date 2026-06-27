@@ -25,6 +25,7 @@ export const ORDER_STATUS_MAP: Record<string, StatusConfig> = {
   hold:              { label: 'On Hold',            color: 'bg-orange-100 text-orange-800' },
   cancelled:         { label: 'Cancelled',          color: 'bg-red-100 text-red-800' },
   admin_cancelled:   { label: 'Order Rejected',     color: 'bg-red-200 text-red-900' },
+  pickup_failed:     { label: 'Pickup Failed',      color: 'bg-rose-100 text-rose-800' },
   returned:          { label: 'Returned',           color: 'bg-gray-100 text-gray-800' },
   unknown:           { label: 'Unknown',            color: 'bg-gray-100 text-gray-800' },
 };

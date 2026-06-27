@@ -448,7 +448,7 @@ export class SalesService {
                     CASE
                       WHEN LOWER(status::text) = 'admin_cancelled' THEN 'rejected_recovery'
                       WHEN LOWER(status::text) = 'processing'
-                       AND LOWER(COALESCE(telephony_outcome, '')) IN ('no_answer', 'unreachable') THEN 'unreachable_followup'
+                       AND LOWER(COALESCE(telephony_outcome, '')) IN ('no_answer', 'line_busy', 'number_switched_off', 'busy', 'unreachable') THEN 'unreachable_followup'
                       ELSE 'primary_leads'
                     END AS work_type,
                     created_at
@@ -463,7 +463,7 @@ export class SalesService {
                  CASE
                    WHEN LOWER(status::text) = 'admin_cancelled' THEN 'rejected_recovery'
                    WHEN LOWER(status::text) = 'processing'
-                    AND LOWER(COALESCE(telephony_outcome, '')) IN ('no_answer', 'unreachable') THEN 'unreachable_followup'
+                    AND LOWER(COALESCE(telephony_outcome, '')) IN ('no_answer', 'line_busy', 'number_switched_off', 'busy', 'unreachable') THEN 'unreachable_followup'
                    ELSE 'primary_leads'
                  END
                ) = ANY($3)
@@ -850,7 +850,7 @@ export class SalesService {
          SELECT CASE
                   WHEN LOWER(status::text) = 'admin_cancelled' THEN 'rejected_recovery'
                   WHEN LOWER(status::text) = 'processing'
-                   AND LOWER(COALESCE(telephony_outcome, '')) IN ('no_answer', 'unreachable') THEN 'unreachable_followup'
+                   AND LOWER(COALESCE(telephony_outcome, '')) IN ('no_answer', 'line_busy', 'number_switched_off', 'busy', 'unreachable') THEN 'unreachable_followup'
                   ELSE 'primary_leads'
                 END AS work_type
          FROM sales_orders
@@ -890,8 +890,8 @@ export class SalesService {
          COUNT(DISTINCT l.id)::int AS assigned_in_range,
          COUNT(DISTINCT l.id) FILTER (WHERE l.record_type = 'sales_order')::int AS sales_assigned_in_range,
          COUNT(DISTINCT l.id) FILTER (WHERE l.record_type = 'incomplete_order')::int AS incomplete_assigned_in_range,
-         COUNT(DISTINCT so_called.id) FILTER (WHERE so_called.telephony_outcome IN ('no_answer', 'unreachable'))::int AS unreachable_outcomes,
-         COUNT(DISTINCT so_called.id) FILTER (WHERE so_called.telephony_outcome IN ('connected', 'connected_whatsapp', 'order_placed'))::int AS positive_outcomes
+         COUNT(DISTINCT so_called.id) FILTER (WHERE so_called.telephony_outcome IN ('no_answer', 'line_busy', 'number_switched_off', 'busy', 'unreachable'))::int AS unreachable_outcomes,
+         COUNT(DISTINCT so_called.id) FILTER (WHERE so_called.telephony_outcome IN ('connected', 'whatsapp_message_sent', 'connected_whatsapp', 'order_confirmed', 'order_placed'))::int AS positive_outcomes
        FROM sales_teams st
        LEFT JOIN automatic_order_assignment_team_work_types twt
          ON twt.team_id = st.id
@@ -930,8 +930,8 @@ export class SalesService {
          COUNT(DISTINCT so_active.id)::int AS active_sales_orders,
          COUNT(DISTINCT io_active.id)::int AS active_incomplete_orders,
          COUNT(DISTINCT l.id)::int AS assigned_in_range,
-         COUNT(DISTINCT so_called.id) FILTER (WHERE so_called.telephony_outcome IN ('connected', 'connected_whatsapp', 'order_placed'))::int AS positive_outcomes,
-         COUNT(DISTINCT so_called.id) FILTER (WHERE so_called.telephony_outcome IN ('no_answer', 'unreachable'))::int AS unreachable_outcomes,
+         COUNT(DISTINCT so_called.id) FILTER (WHERE so_called.telephony_outcome IN ('connected', 'whatsapp_message_sent', 'connected_whatsapp', 'order_confirmed', 'order_placed'))::int AS positive_outcomes,
+         COUNT(DISTINCT so_called.id) FILTER (WHERE so_called.telephony_outcome IN ('no_answer', 'line_busy', 'number_switched_off', 'busy', 'unreachable'))::int AS unreachable_outcomes,
          COUNT(DISTINCT so_called.id) FILTER (WHERE so_called.telephony_called_at IS NOT NULL)::int AS calls_logged
        FROM users u
        LEFT JOIN sales_teams st ON st.id = u.team_id
@@ -1677,7 +1677,15 @@ export class SalesService {
     if (params.orderRejectedReason && params.orderRejectedReason.trim()) {
       const reason = params.orderRejectedReason.trim().toLowerCase();
       const readableReason = reason.replace(/_/g, ' ');
-      const alternateReason = reason === 'connected_disqualified' ? 'connected but discharged' : readableReason;
+      const alternateReason = reason === 'connected_disqualified'
+        ? 'customer hung up'
+        : reason === 'order_placed'
+          ? 'order confirmed'
+          : reason === 'busy'
+            ? 'line busy'
+            : reason === 'unreachable'
+              ? 'number switched off'
+              : readableReason;
       qb.andWhere(
         `(
           LOWER(COALESCE(o.cancel_reason, '')) = :rejectionReason
@@ -3753,10 +3761,14 @@ export class SalesService {
     const agentQb = this.salesRepository
       .createQueryBuilder('o')
       .innerJoin('users', 'u', 'u.id = o.created_by')
+      .leftJoin('users', 'tl', 'tl.id = u.team_leader_id')
       .select([
         'o.created_by AS agent_id',
         `u.name AS agent_name`,
         `u.last_name AS agent_last_name`,
+        'u.team_leader_id AS team_leader_id',
+        'tl.name AS team_leader_name',
+        'tl.last_name AS team_leader_last_name',
         'COUNT(o.id) AS total_orders',
         'COALESCE(SUM(o.total_amount), 0) AS total_revenue',
         'COALESCE(AVG(o.total_amount), 0) AS avg_order_value',
@@ -3783,6 +3795,9 @@ export class SalesService {
       .groupBy('o.created_by')
       .addGroupBy('u.name')
       .addGroupBy('u.last_name')
+      .addGroupBy('u.team_leader_id')
+      .addGroupBy('tl.name')
+      .addGroupBy('tl.last_name')
       .orderBy('total_orders', 'DESC');
 
     const agentRows = await agentQb.getRawMany();
@@ -4020,9 +4035,17 @@ export class SalesService {
 
     const agentNameRows: any[] = agentIds.size
       ? await this.salesRepository.manager.query(
-          `SELECT id, name, last_name, email
-           FROM users
-           WHERE id = ANY($1::int[])`,
+          `SELECT
+             u.id,
+             u.name,
+             u.last_name,
+             u.email,
+             u.team_leader_id,
+             tl.name AS team_leader_name,
+             tl.last_name AS team_leader_last_name
+           FROM users u
+           LEFT JOIN users tl ON tl.id = u.team_leader_id
+           WHERE u.id = ANY($1::int[])`,
           [Array.from(agentIds)],
         )
       : [];
@@ -4046,6 +4069,11 @@ export class SalesService {
       return {
         agentId,
         agentName,
+        teamLeaderId: r.team_leader_id == null && userRow.team_leader_id == null ? null : toNum(r.team_leader_id ?? userRow.team_leader_id),
+        teamLeaderName: [
+          r.team_leader_name ?? userRow.team_leader_name,
+          r.team_leader_last_name ?? userRow.team_leader_last_name,
+        ].filter(Boolean).join(' ').trim() || null,
         totalOrders,
         totalRevenue: toNum(r.total_revenue),
         avgOrderValue: toNum(r.avg_order_value),
@@ -4140,10 +4168,14 @@ export class SalesService {
     const dailyQb = this.salesRepository
       .createQueryBuilder('o')
       .innerJoin('users', 'u', 'u.id = o.created_by')
+      .leftJoin('users', 'tl', 'tl.id = u.team_leader_id')
       .select([
         'o.created_by AS agent_id',
         'u.name AS agent_name',
         'u.last_name AS agent_last_name',
+        'u.team_leader_id AS team_leader_id',
+        'tl.name AS team_leader_name',
+        'tl.last_name AS team_leader_last_name',
         'EXTRACT(DAY FROM o.order_date) AS day',
         'COUNT(o.id) AS order_count',
       ])
@@ -4154,6 +4186,9 @@ export class SalesService {
       .groupBy('o.created_by')
       .addGroupBy('u.name')
       .addGroupBy('u.last_name')
+      .addGroupBy('u.team_leader_id')
+      .addGroupBy('tl.name')
+      .addGroupBy('tl.last_name')
       .addGroupBy('EXTRACT(DAY FROM o.order_date)')
       .orderBy('u.name', 'ASC');
 
@@ -4163,10 +4198,14 @@ export class SalesService {
     const summaryQb = this.salesRepository
       .createQueryBuilder('o')
       .innerJoin('users', 'u', 'u.id = o.created_by')
+      .leftJoin('users', 'tl', 'tl.id = u.team_leader_id')
       .select([
         'o.created_by AS agent_id',
         'u.name AS agent_name',
         'u.last_name AS agent_last_name',
+        'u.team_leader_id AS team_leader_id',
+        'tl.name AS team_leader_name',
+        'tl.last_name AS team_leader_last_name',
         'COUNT(o.id) AS total_orders',
         `COUNT(CASE WHEN LOWER(o.status::text) = 'delivered' THEN 1 END) AS delivered_orders`,
         `COUNT(CASE WHEN LOWER(o.status::text) = 'partial_delivered' THEN 1 END) AS partial_delivered_orders`,
@@ -4179,6 +4218,9 @@ export class SalesService {
       .groupBy('o.created_by')
       .addGroupBy('u.name')
       .addGroupBy('u.last_name')
+      .addGroupBy('u.team_leader_id')
+      .addGroupBy('tl.name')
+      .addGroupBy('tl.last_name')
       .orderBy('u.name', 'ASC');
 
     const summaryRows = await summaryQb.getRawMany();
@@ -4192,6 +4234,8 @@ export class SalesService {
       delivered: number;
       partialDelivered: number;
       cancelled: number;
+      teamLeaderId: number | null;
+      teamLeaderName: string | null;
     }>();
 
     // Populate from summary
@@ -4200,6 +4244,8 @@ export class SalesService {
       agentMap.set(id, {
         agentId: id,
         agentName: [r.agent_name, r.agent_last_name].filter(Boolean).join(' ') || `Agent #${id}`,
+        teamLeaderId: r.team_leader_id == null ? null : toNum(r.team_leader_id),
+        teamLeaderName: [r.team_leader_name, r.team_leader_last_name].filter(Boolean).join(' ').trim() || null,
         dailyOrders: {},
         total: toNum(r.total_orders),
         delivered: toNum(r.delivered_orders),

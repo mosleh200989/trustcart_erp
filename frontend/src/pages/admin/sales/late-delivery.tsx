@@ -79,10 +79,12 @@ interface SalesOrder {
 const STATUS_OPTIONS = [
   { value: 'pending', label: 'Pending' },
   { value: 'in_review', label: 'In Review' },
+  { value: 'pickup_failed', label: 'Pickup Failed' },
 ];
 
 const CANCELLED_STATUS_OPTIONS = [
   { value: 'cancelled', label: 'Cancelled' },
+  { value: 'pickup_failed', label: 'Pickup Failed' },
   { value: 'returned', label: 'Returned' },
 ];
 
@@ -99,10 +101,12 @@ const MANUAL_STATUS_OPTIONS = [
   { value: 'partial_delivered', label: 'Partial Delivered' },
   { value: 'cancelled', label: 'Cancelled' },
   { value: 'admin_cancelled', label: 'Order Rejected' },
+  { value: 'pickup_failed', label: 'Pickup Failed' },
 ];
 
 const CANCELLED_MANUAL_STATUS_OPTIONS = [
   { value: 'cancelled', label: 'Cancelled' },
+  { value: 'pickup_failed', label: 'Pickup Failed' },
   { value: 'returned', label: 'Returned' },
 ];
 

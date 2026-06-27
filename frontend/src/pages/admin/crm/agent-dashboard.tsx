@@ -8,6 +8,7 @@ import {
 import apiClient, { users as usersApi } from '@/services/api';
 import AdminOrderDetailsModal from '@/components/AdminOrderDetailsModal';
 import PageSizeSelector from '@/components/admin/PageSizeSelector';
+import CallOutcomeSelect from '@/components/admin/CallOutcomeSelect';
 import ThSort from '@/components/admin/ThSort';
 import { useSortableData } from '@/hooks/useSortableData';
 import ProductAutocomplete from '@/components/admin/ProductAutocomplete';
@@ -17,7 +18,7 @@ import { getTelephonySocket, type IncomingCallPayload } from '@/services/telepho
 import { useToast } from '@/contexts/ToastContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { getDhakaDateString } from '@/utils/dhakaDate';
-import { CALL_OUTCOME_OPTIONS, type CallOutcomeValue } from '@/constants/adminOptions';
+import { type CallOutcomeValue } from '@/constants/adminOptions';
 
 interface CallTask {
   id: number;
@@ -113,7 +114,7 @@ interface CommissionRecord {
 }
 
 // Filter types for leads
-type FilterCalledStatus = 'all' | 'called_today' | 'called_1week' | 'called_2weeks' | 'called_3weeks' | 'called_1month' | 'never';
+type FilterCalledStatus = 'all' | 'called_today' | 'called_1week' | 'called_2weeks' | 'called_3weeks' | 'called_1month' | 'called_2months' | 'called_3months_plus' | 'never';
 type FilterOutcome = 'all' | 'positive' | 'negative' | 'neutral' | 'no_answer';
 
 // Helper function to format last called date
@@ -638,11 +639,11 @@ export default function AgentDashboard() {
       });
       
       // 4. Update lead status based on outcome
-      const leadStatus = callActionOutcome === 'order_placed' ? 'converted'
-        : callActionOutcome === 'connected' || callActionOutcome === 'connected_whatsapp' ? 'qualified'
+      const leadStatus = ['order_confirmed', 'order_placed'].includes(callActionOutcome) ? 'converted'
+        : ['connected', 'whatsapp_message_sent', 'connected_whatsapp'].includes(callActionOutcome) ? 'qualified'
         : callActionOutcome === 'callback_requested' ? 'follow_up'
-        : callActionOutcome === 'not_interested' || callActionOutcome === 'connected_disqualified' ? 'not_interested'
-        : callActionOutcome === 'no_answer' || callActionOutcome === 'busy' ? 'no_answer'
+        : ['not_interested', 'customer_hung_up', 'wrong_number', 'connected_disqualified'].includes(callActionOutcome) ? 'not_interested'
+        : ['no_answer', 'line_busy', 'number_switched_off', 'busy', 'unreachable'].includes(callActionOutcome) ? 'no_answer'
         : 'contacted';
       
       await apiClient.put(`/customers/${selectedLeadForAction.id}`, {
@@ -1166,6 +1167,8 @@ export default function AgentDashboard() {
                   <option value="called_2weeks">Called 2 Weeks Ago</option>
                   <option value="called_3weeks">Called 3 Weeks Ago</option>
                   <option value="called_1month">Called 1 Month Ago</option>
+                  <option value="called_2months">Called 2 Months Ago</option>
+                  <option value="called_3months_plus">Called 3+ Months Ago</option>
                   <option value="never">Never Called</option>
                 </select>
               </div>
@@ -1992,17 +1995,10 @@ export default function AgentDashboard() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Call Outcome <span className="text-red-500">*</span>
                   </label>
-                  <select
+                  <CallOutcomeSelect
                     value={callActionOutcome}
-                    onChange={(e) => setCallActionOutcome(e.target.value as any)}
-                    className="w-full px-3 py-2 border rounded-lg"
-                    required
-                  >
-                    <option value="">Select outcome...</option>
-                    {CALL_OUTCOME_OPTIONS.filter((option) => option.value !== 'unreachable').map((option) => (
-                      <option key={option.value} value={option.value}>{option.label}</option>
-                    ))}
-                  </select>
+                    onChange={setCallActionOutcome}
+                  />
                 </div>
 
                 {/* Call Notes - Required */}

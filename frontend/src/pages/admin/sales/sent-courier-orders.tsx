@@ -53,6 +53,7 @@ interface SalesOrder {
 
 const STATUS_OPTIONS = [
   { value: 'sent', label: 'Sent' },
+  { value: 'pickup_failed', label: 'Pickup Failed' },
 ];
 
 const COURIER_COMPANY_OPTIONS = [
@@ -68,6 +69,7 @@ const MANUAL_STATUS_OPTIONS = [
   { value: 'delivered', label: 'Delivered' },
   { value: 'cancelled', label: 'Cancelled' },
   { value: 'admin_cancelled', label: 'Order Rejected' },
+  { value: 'pickup_failed', label: 'Pickup Failed' },
   { value: 'deleted', label: 'Deleted' },
 ];
 

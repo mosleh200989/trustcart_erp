@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { Fragment, useEffect, useState, useCallback, useMemo } from 'react';
 import AdminLayout from '@/layouts/AdminLayout';
 import apiClient from '@/services/api';
 import AdminDateInput from '@/components/admin/AdminDateInput';
@@ -37,6 +37,8 @@ import {
   FaTimesCircle,
   FaUserTie,
   FaArrowUp,
+  FaChevronDown,
+  FaChevronRight,
 
   FaTrophy,
 
@@ -47,6 +49,8 @@ import {
 interface AgentRow {
   agentId: number;
   agentName: string;
+  teamLeaderId?: number | null;
+  teamLeaderName?: string | null;
   totalOrders: number;
   totalRevenue: number;
   avgOrderValue: number;
@@ -154,6 +158,7 @@ export default function AgentWiseReportPage() {
   const [showCompare, setShowCompare] = useState(false);
   const [productSearch, setProductSearch] = useState('');
   const [activeTab, setActiveTab] = useState<'overview' | 'comparison' | 'products'>('overview');
+  const [collapsedTeams, setCollapsedTeams] = useState<Set<string>>(new Set());
 
   // Fetch users list
   useEffect(() => {
@@ -230,6 +235,37 @@ export default function AgentWiseReportPage() {
         : String(bv).localeCompare(String(av));
     });
   }, [data?.agents, sortKey, sortDir]);
+
+  const groupedAgents = useMemo(() => {
+    const groups = new Map<string, { key: string; teamLeaderId: number | null; teamLeaderName: string; agents: AgentRow[] }>();
+    for (const agent of sortedAgents) {
+      const teamLeaderId = agent.teamLeaderId ?? null;
+      const key = teamLeaderId ? `tl-${teamLeaderId}` : 'unassigned';
+      if (!groups.has(key)) {
+        groups.set(key, {
+          key,
+          teamLeaderId,
+          teamLeaderName: agent.teamLeaderName || 'Unassigned Team Leader',
+          agents: [],
+        });
+      }
+      groups.get(key)!.agents.push(agent);
+    }
+    return Array.from(groups.values()).sort((a, b) => {
+      if (a.key === 'unassigned') return 1;
+      if (b.key === 'unassigned') return -1;
+      const totalDiff = b.agents.reduce((s, agent) => s + agent.totalOrders, 0) - a.agents.reduce((s, agent) => s + agent.totalOrders, 0);
+      return totalDiff || a.teamLeaderName.localeCompare(b.teamLeaderName);
+    });
+  }, [sortedAgents]);
+
+  const toggleTeamCollapse = (key: string) => {
+    setCollapsedTeams(prev => {
+      const next = new Set(prev);
+      next.has(key) ? next.delete(key) : next.add(key);
+      return next;
+    });
+  };
 
   // Comparison data
   const comparedAgents = useMemo(() => {
@@ -510,44 +546,94 @@ export default function AgentWiseReportPage() {
                             </td>
                           </tr>
                         ) : (
-                          sortedAgents.map((a, idx) => {
-                            const isTop = idx === 0 && sortKey === 'totalOrders' && sortDir === 'desc';
-                            return (
-                              <tr key={a.agentId} className={`hover:bg-gray-50 transition-colors ${isTop ? 'bg-violet-50/50' : ''}`}>
-                                <td className="px-3 py-3 text-center">
-                                  <input
-                                    type="checkbox"
-                                    checked={compareIds.includes(a.agentId)}
-                                    onChange={() => toggleCompare(a.agentId)}
-                                    className="w-3.5 h-3.5 rounded border-gray-300 text-violet-500 focus:ring-violet-500 bg-white cursor-pointer"
-                                  />
-                                </td>
-                                <td className="px-3 py-3 text-center text-gray-500 text-xs">
-                                  {idx === 0 && isTop ? <FaTrophy className="text-yellow-400 mx-auto" /> : idx + 1}
-                                </td>
-                                <td className="px-3 py-3">
-                                  <div className="flex items-center gap-2">
-                                    <div
-                                      className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
-                                      style={{ backgroundColor: AGENT_COLORS[idx % AGENT_COLORS.length] }}
-                                    >
-                                      {a.agentName.charAt(0).toUpperCase()}
-                                    </div>
-                                    <span className="text-gray-900 font-medium truncate max-w-[120px]" title={a.agentName}>
-                                      {a.agentName}
-                                    </span>
-                                  </div>
-                                </td>
-                                <td className="px-3 py-3 text-center font-semibold text-gray-900">{a.totalOrders}</td>
-                                <td className="px-3 py-3 text-center font-medium text-gray-700">{a.productsQty}</td>
-                                <td className="px-3 py-3 text-center font-medium text-amber-600">{a.upsellQty}</td>
-                                <td className="px-3 py-3 text-center font-medium text-pink-600">{a.crossSellQty}</td>
-                                <td className="px-3 py-3 text-center font-medium text-emerald-600">{a.deliveredOrders}</td>
-                                <td className="px-3 py-3 text-center font-medium text-rose-600">{a.rejectedOrders}</td>
-                                <td className="px-3 py-3 text-center font-medium text-red-600">{a.cancelledOrders}</td>
-                              </tr>
-                            );
-                          })
+                          (() => {
+                            let rank = 0;
+                            return groupedAgents.map((group) => {
+                              const isCollapsed = collapsedTeams.has(group.key);
+                              const totals = group.agents.reduce((acc, agent) => ({
+                                totalOrders: acc.totalOrders + agent.totalOrders,
+                                productsQty: acc.productsQty + agent.productsQty,
+                                upsellQty: acc.upsellQty + agent.upsellQty,
+                                crossSellQty: acc.crossSellQty + agent.crossSellQty,
+                                deliveredOrders: acc.deliveredOrders + agent.deliveredOrders,
+                                rejectedOrders: acc.rejectedOrders + agent.rejectedOrders,
+                                cancelledOrders: acc.cancelledOrders + agent.cancelledOrders,
+                              }), {
+                                totalOrders: 0,
+                                productsQty: 0,
+                                upsellQty: 0,
+                                crossSellQty: 0,
+                                deliveredOrders: 0,
+                                rejectedOrders: 0,
+                                cancelledOrders: 0,
+                              });
+                              return (
+                                <Fragment key={group.key}>
+                                  <tr className="bg-violet-50/80 border-y border-violet-100">
+                                    <td colSpan={3} className="px-3 py-3">
+                                      <button
+                                        type="button"
+                                        onClick={() => toggleTeamCollapse(group.key)}
+                                        className="flex items-center gap-2 text-left font-semibold text-violet-800 hover:text-violet-950"
+                                      >
+                                        {isCollapsed ? <FaChevronRight className="text-xs" /> : <FaChevronDown className="text-xs" />}
+                                        <span>{group.teamLeaderName}</span>
+                                        <span className="rounded-full bg-white px-2 py-0.5 text-[11px] font-medium text-violet-600 border border-violet-100">
+                                          {group.agents.length} agent{group.agents.length === 1 ? '' : 's'}
+                                        </span>
+                                      </button>
+                                    </td>
+                                    <td className="px-3 py-3 text-center font-bold text-violet-900">{totals.totalOrders}</td>
+                                    <td className="px-3 py-3 text-center font-semibold text-gray-700">{totals.productsQty}</td>
+                                    <td className="px-3 py-3 text-center font-semibold text-amber-700">{totals.upsellQty}</td>
+                                    <td className="px-3 py-3 text-center font-semibold text-pink-700">{totals.crossSellQty}</td>
+                                    <td className="px-3 py-3 text-center font-semibold text-emerald-700">{totals.deliveredOrders}</td>
+                                    <td className="px-3 py-3 text-center font-semibold text-rose-700">{totals.rejectedOrders}</td>
+                                    <td className="px-3 py-3 text-center font-semibold text-red-700">{totals.cancelledOrders}</td>
+                                  </tr>
+                                  {!isCollapsed && group.agents.map((a) => {
+                                    const idx = rank++;
+                                    const isTop = idx === 0 && sortKey === 'totalOrders' && sortDir === 'desc';
+                                    return (
+                                      <tr key={a.agentId} className={`hover:bg-gray-50 transition-colors ${isTop ? 'bg-violet-50/50' : ''}`}>
+                                        <td className="px-3 py-3 text-center">
+                                          <input
+                                            type="checkbox"
+                                            checked={compareIds.includes(a.agentId)}
+                                            onChange={() => toggleCompare(a.agentId)}
+                                            className="w-3.5 h-3.5 rounded border-gray-300 text-violet-500 focus:ring-violet-500 bg-white cursor-pointer"
+                                          />
+                                        </td>
+                                        <td className="px-3 py-3 text-center text-gray-500 text-xs">
+                                          {idx === 0 && isTop ? <FaTrophy className="text-yellow-400 mx-auto" /> : idx + 1}
+                                        </td>
+                                        <td className="px-3 py-3">
+                                          <div className="flex items-center gap-2 pl-3">
+                                            <div
+                                              className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
+                                              style={{ backgroundColor: AGENT_COLORS[idx % AGENT_COLORS.length] }}
+                                            >
+                                              {a.agentName.charAt(0).toUpperCase()}
+                                            </div>
+                                            <span className="text-gray-900 font-medium truncate max-w-[120px]" title={a.agentName}>
+                                              {a.agentName}
+                                            </span>
+                                          </div>
+                                        </td>
+                                        <td className="px-3 py-3 text-center font-semibold text-gray-900">{a.totalOrders}</td>
+                                        <td className="px-3 py-3 text-center font-medium text-gray-700">{a.productsQty}</td>
+                                        <td className="px-3 py-3 text-center font-medium text-amber-600">{a.upsellQty}</td>
+                                        <td className="px-3 py-3 text-center font-medium text-pink-600">{a.crossSellQty}</td>
+                                        <td className="px-3 py-3 text-center font-medium text-emerald-600">{a.deliveredOrders}</td>
+                                        <td className="px-3 py-3 text-center font-medium text-rose-600">{a.rejectedOrders}</td>
+                                        <td className="px-3 py-3 text-center font-medium text-red-600">{a.cancelledOrders}</td>
+                                      </tr>
+                                    );
+                                  })}
+                                </Fragment>
+                              );
+                            });
+                          })()
                         )}
                       </tbody>
                       {sortedAgents.length > 1 && (

@@ -54,6 +54,7 @@ const STATUS_OPTIONS = [
   { value: 'delivered', label: getOrderStatusLabel('delivered'), color: getOrderStatusColor('delivered'), icon: FaCheck },
   { value: 'cancelled', label: getOrderStatusLabel('cancelled'), color: getOrderStatusColor('cancelled'), icon: FaTimes },
   { value: 'admin_cancelled', label: getOrderStatusLabel('admin_cancelled'), color: getOrderStatusColor('admin_cancelled'), icon: FaTimes },
+  { value: 'pickup_failed', label: getOrderStatusLabel('pickup_failed'), color: getOrderStatusColor('pickup_failed'), icon: FaTimes },
   { value: 'returned', label: getOrderStatusLabel('returned'), color: getOrderStatusColor('returned'), icon: FaUndo },
 ];
 

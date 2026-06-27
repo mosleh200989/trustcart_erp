@@ -58,6 +58,13 @@ const isCustomerRecentlyViewed = (viewedCustomers: Record<string, number>, custo
   return Boolean(viewedAt && Date.now() - viewedAt < VIEWED_CUSTOMER_TTL_MS);
 };
 
+const formatDhakaDate = (value?: string | null) => {
+  if (!value) return 'N/A';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'N/A';
+  return date.toLocaleDateString('en-GB', { timeZone: 'Asia/Dhaka' });
+};
+
 export default function CustomerTierManagementPage() {
   const toast = useToast();
   const [customers, setCustomers] = useState<any[]>([]);
@@ -67,6 +74,8 @@ export default function CustomerTierManagementPage() {
     agent: 'all',
     deliveryDateStart: '',
     deliveryDateEnd: '',
+    tierUpdatedFrom: '',
+    tierUpdatedTo: '',
     minDeliveredCount: '',
     maxCancelledOrderRatio: '',
     customerSegment: 'all',
@@ -165,6 +174,8 @@ export default function CustomerTierManagementPage() {
       if (filter.agent !== 'all') params.append('assignedTo', filter.agent);
       if (filter.deliveryDateStart) params.append('deliveryDateStart', filter.deliveryDateStart);
       if (filter.deliveryDateEnd) params.append('deliveryDateEnd', filter.deliveryDateEnd);
+      if (filter.tierUpdatedFrom) params.append('tierUpdatedFrom', filter.tierUpdatedFrom);
+      if (filter.tierUpdatedTo) params.append('tierUpdatedTo', filter.tierUpdatedTo);
       if (filter.minDeliveredCount) params.append('minDeliveredCount', filter.minDeliveredCount);
       if (filter.maxCancelledOrderRatio) params.append('maxCancelledOrderRatio', filter.maxCancelledOrderRatio);
       if (filter.customerSegment !== 'all') params.append('customerSegment', filter.customerSegment);
@@ -277,15 +288,17 @@ export default function CustomerTierManagementPage() {
         prev.map((item) => {
           if (item.id !== customer.id) return item;
           if (tier === 'no_tier') {
-            return { ...item, tierData: null };
+            return { ...item, tierData: null, tierAssignedAt: null };
           }
+          const tierAssignedAt = new Date().toISOString();
           return {
             ...item,
+            tierAssignedAt,
             tierData: {
               ...(item.tierData || {}),
               tier,
               isActive: tier !== 'rejected' ? (item.tierData?.isActive ?? true) : false,
-              tierAssignedAt: new Date().toISOString(),
+              tierAssignedAt,
             },
           };
         })
@@ -502,6 +515,24 @@ export default function CustomerTierManagementPage() {
             </div>
 
             <div>
+              <label className="block text-sm font-medium mb-2">Tier Updated From</label>
+              <AdminDateInput
+                value={filter.tierUpdatedFrom}
+                onValueChange={(value) => { setFilter({ ...filter, tierUpdatedFrom: value }); setCurrentPage(1); }}
+                className="w-full border rounded-lg p-2"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-2">Tier Updated To</label>
+              <AdminDateInput
+                value={filter.tierUpdatedTo}
+                onValueChange={(value) => { setFilter({ ...filter, tierUpdatedTo: value }); setCurrentPage(1); }}
+                className="w-full border rounded-lg p-2"
+              />
+            </div>
+
+            <div>
               <label className="block text-sm font-medium mb-2">Min Delivered Count</label>
               <input
                 type="number"
@@ -582,6 +613,7 @@ export default function CustomerTierManagementPage() {
                       <ThSort col="first_name" label="Customer" sortKey={tierSortKey} sortDir={tierSortDir} onSort={toggleTierSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
                       <ThSort col="email" label="Contact" sortKey={tierSortKey} sortDir={tierSortDir} onSort={toggleTierSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
                       <ThSort col="tier" label="Tier" sortKey={tierSortKey} sortDir={tierSortDir} onSort={toggleTierSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
+                      <ThSort col="tierAssignedAt" label="Tier Updated" sortKey={tierSortKey} sortDir={tierSortDir} onSort={toggleTierSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
                       <ThSort col="delivered_order_count" label="Delivered" sortKey={tierSortKey} sortDir={tierSortDir} onSort={toggleTierSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
                       <ThSort col="cancelled_order_ratio" label="Cancelled Order Ratio" sortKey={tierSortKey} sortDir={tierSortDir} onSort={toggleTierSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
                       <ThSort col="last_delivery_date" label="Last Delivery Date" sortKey={tierSortKey} sortDir={tierSortDir} onSort={toggleTierSort} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase" />
@@ -619,6 +651,9 @@ export default function CustomerTierManagementPage() {
                           <option value="rejected">Rejected</option>
                         </select>
                       </td>
+                      <td className="px-6 py-4 text-sm whitespace-nowrap">
+                        {customer.tierAssignedAt || customer.tierData?.tierAssignedAt ? formatDhakaDate(customer.tierAssignedAt || customer.tierData?.tierAssignedAt) : 'N/A'}
+                      </td>
                       <td className="px-6 py-4 text-sm">{customer.delivered_order_count || 0}</td>
                       <td className="px-6 py-4 text-sm">
                         <div className="font-semibold text-red-600">
@@ -629,7 +664,7 @@ export default function CustomerTierManagementPage() {
                         </div>
                       </td>
                       <td className="px-6 py-4 text-sm whitespace-nowrap">
-                        {customer.last_delivery_date ? new Date(customer.last_delivery_date).toLocaleDateString('en-GB', { timeZone: 'Asia/Dhaka' }) : 'N/A'}
+                        {formatDhakaDate(customer.last_delivery_date)}
                       </td>
                       <td className="px-6 py-4 text-sm">৳{Number(customer.lifetime_value || customer.tierData?.totalSpent || 0).toLocaleString()}</td>
                       <td className="px-6 py-4">

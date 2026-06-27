@@ -166,7 +166,7 @@ export default function AdminSales() {
   const [showOrderDetails, setShowOrderDetails] = useState(false);
   const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
   const [selectedRowIds, setSelectedRowIds] = useState<Array<number | string>>([]);
-  const [bulkAction, setBulkAction] = useState<'delete' | 'processing' | 'completed' | 'cancelled' | 'admin_cancelled' | ''>('');
+  const [bulkAction, setBulkAction] = useState<'delete' | 'processing' | 'completed' | 'cancelled' | 'admin_cancelled' | 'pickup_failed' | ''>('');
   const [showBulkRejectModal, setShowBulkRejectModal] = useState(false);
   const [bulkRejectReason, setBulkRejectReason] = useState('');
   const [bulkRejecting, setBulkRejecting] = useState(false);
@@ -1351,6 +1351,7 @@ export default function AdminSales() {
               <option value="processing">Mark as Processing</option>
               <option value="completed">Mark as Completed</option>
               <option value="admin_cancelled">Mark as Order Rejected</option>
+              <option value="pickup_failed">Mark as Pickup Failed</option>
             </select>
             <button
               type="button"
@@ -1458,6 +1459,7 @@ export default function AdminSales() {
                     { value: 'partial_delivered', label: 'Partial Delivered' },
                     { value: 'cancelled', label: 'Cancelled' },
                     { value: 'admin_cancelled', label: 'Order Rejected' },
+                    { value: 'pickup_failed', label: 'Pickup Failed' },
                     { value: 'completed', label: 'Completed' },
                     { value: 'returned', label: 'Returned' },
                   ]}
@@ -2096,7 +2098,8 @@ export default function AdminSales() {
                   options={[
                     { value: 'processing', label: 'Processing' },
                     { value: 'completed', label: 'Completed' },
-                    { value: 'admin_cancelled', label: 'Order Rejected' }
+                    { value: 'admin_cancelled', label: 'Order Rejected' },
+                    { value: 'pickup_failed', label: 'Pickup Failed' }
                   ]}
                 />
               </div>

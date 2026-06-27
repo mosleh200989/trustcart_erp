@@ -23,7 +23,7 @@ const formatCallOutcome = (outcome?: string | null) => {
 };
 
 const isPositiveCallOutcome = (outcome?: string | null) =>
-  ['connected', 'connected_whatsapp', 'order_placed', 'successful', 'completed'].includes(String(outcome || ''));
+  ['connected', 'whatsapp_message_sent', 'connected_whatsapp', 'order_confirmed', 'order_placed', 'successful', 'completed'].includes(String(outcome || ''));
 
 type ProductSuggestionItem = {
   id: number | string;
@@ -1744,6 +1744,7 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
             <option value="completed">Completed</option>
             <option value="cancelled">Cancelled</option>
             <option value="admin_cancelled">Order Rejected</option>
+            <option value="pickup_failed">Pickup Failed</option>
             <option value="returned">Returned</option>
           </select>
           <button
@@ -2531,7 +2532,7 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                                   <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${
                                     isPositiveCallOutcome(call.outcome)
                                       ? 'bg-green-100 text-green-800'
-                                      : call.outcome === 'no_answer' || call.outcome === 'busy' || call.outcome === 'unreachable'
+                                      : ['no_answer', 'line_busy', 'number_switched_off', 'busy', 'unreachable'].includes(call.outcome)
                                       ? 'bg-yellow-100 text-yellow-800'
                                       : 'bg-red-100 text-red-800'
                                   }`}>
@@ -3029,7 +3030,7 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                             >
                               View
                             </button>
-                            {h.status && !['approved', 'sent', 'shipped', 'in_transit', 'picked', 'delivered', 'partial_delivered', 'completed', 'cancelled', 'admin_cancelled'].includes(h.status.toLowerCase()) && (
+                            {h.status && !['approved', 'sent', 'shipped', 'in_transit', 'picked', 'delivered', 'partial_delivered', 'completed', 'cancelled', 'admin_cancelled', 'pickup_failed'].includes(h.status.toLowerCase()) && (
                               <button
                                 onClick={async () => {
                                   if (!confirm(`Approve order #${h.salesOrderNumber || h.id}?`)) return;
@@ -3576,7 +3577,7 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                                 <span className={`text-xs px-2 py-1 rounded ${
                                   isPositiveCallOutcome(call.outcome) 
                                     ? 'bg-green-200 text-green-800'
-                                    : call.outcome === 'no_answer' || call.outcome === 'busy' || call.outcome === 'unreachable'
+                                    : ['no_answer', 'line_busy', 'number_switched_off', 'busy', 'unreachable'].includes(call.outcome)
                                     ? 'bg-yellow-200 text-yellow-800'
                                     : 'bg-red-200 text-red-800'
                                 }`}>

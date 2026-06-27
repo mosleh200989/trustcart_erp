@@ -227,7 +227,7 @@ export class LandingPagesService {
     const revenueResult = await this.ordersRepository
       .createQueryBuilder('o')
       .select('COALESCE(SUM(o.total_amount), 0)', 'totalRevenue')
-      .where('o.status NOT IN (:...excluded)', { excluded: ['cancelled', 'admin_cancelled', 'returned'] })
+      .where('o.status NOT IN (:...excluded)', { excluded: ['cancelled', 'admin_cancelled', 'pickup_failed', 'returned'] })
       .getRawOne();
 
     return {
