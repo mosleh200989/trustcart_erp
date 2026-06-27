@@ -239,7 +239,16 @@ export class TelephonyService {
     } else if (assignmentType === 'rejected') {
       qb.andWhere("LOWER(o.status::text) = 'admin_cancelled'");
     } else {
-      qb.andWhere("o.assigned_at >= NOW() - INTERVAL '24 hours'");
+      qb.andWhere(`
+        LOWER(o.status::text) NOT IN (
+          'cancelled',
+          'returned',
+          'admin_cancelled',
+          'delivered',
+          'completed',
+          'partial_delivered'
+        )
+      `);
     }
 
     if (params?.q?.trim()) {
@@ -377,7 +386,7 @@ export class TelephonyService {
           id: order.id,
           recordType: 'sales_order',
           assignmentWorkType,
-          canHandoffNoAnswer: assignmentWorkType === 'primary_leads',
+          canHandoffNoAnswer: assignmentWorkType === 'primary_leads' && status === 'processing',
           salesOrderNumber: order.salesOrderNumber,
           customerName: order.customerName,
           customerPhone: order.customerPhone,
@@ -971,35 +980,43 @@ export class TelephonyService {
     }
 
     const shouldMoveToUnreachableQueue = ['no_answer', 'line_busy', 'number_switched_off', 'busy', 'unreachable'].includes(normalizedOutcome);
-    const result = shouldMoveToUnreachableQueue
-      ? await this.salesOrderRepo.manager.query(
-          `UPDATE sales_orders
-           SET telephony_called_at = NOW(),
-               telephony_call_status = 'called',
-               telephony_outcome = $3,
-               telephony_suggestion = $4,
-               telephony_notes = $5,
-               assigned_to = NULL,
-               assigned_by = NULL,
-               assigned_at = NULL,
-               updated_at = NOW()
-           WHERE id = $1
-             AND assigned_to = $2
-             AND LOWER(status::text) = 'processing'`,
-          [orderId, userId, body.outcome || null, body.suggestion || null, body.notes || null],
-        )
-      : await this.salesOrderRepo.manager.query(
-          `UPDATE sales_orders
-           SET telephony_called_at = NOW(),
-               telephony_call_status = 'called',
-               telephony_outcome = $3,
-               telephony_suggestion = $4,
-               telephony_notes = $5,
-               updated_at = NOW()
-           WHERE id = $1
-             AND assigned_to = $2`,
-          [orderId, userId, body.outcome || null, body.suggestion || null, body.notes || null],
-        );
+    let movedToUnreachableQueue = false;
+    let result: any;
+
+    if (shouldMoveToUnreachableQueue) {
+      result = await this.salesOrderRepo.manager.query(
+        `UPDATE sales_orders
+         SET telephony_called_at = NOW(),
+             telephony_call_status = 'called',
+             telephony_outcome = $3,
+             telephony_suggestion = $4,
+             telephony_notes = $5,
+             assigned_to = NULL,
+             assigned_by = NULL,
+             assigned_at = NULL,
+             updated_at = NOW()
+         WHERE id = $1
+           AND assigned_to = $2
+           AND LOWER(status::text) = 'processing'`,
+        [orderId, userId, body.outcome || null, body.suggestion || null, body.notes || null],
+      );
+      movedToUnreachableQueue = Boolean(result?.[1]);
+    }
+
+    if (!movedToUnreachableQueue) {
+      result = await this.salesOrderRepo.manager.query(
+        `UPDATE sales_orders
+         SET telephony_called_at = NOW(),
+             telephony_call_status = 'called',
+             telephony_outcome = $3,
+             telephony_suggestion = $4,
+             telephony_notes = $5,
+             updated_at = NOW()
+         WHERE id = $1
+           AND assigned_to = $2`,
+        [orderId, userId, body.outcome || null, body.suggestion || null, body.notes || null],
+      );
+    }
 
     if (!result?.[1]) throw new NotFoundException('Assigned order not found');
 
@@ -1021,7 +1038,7 @@ export class TelephonyService {
       notes: body.notes || null,
     });
 
-    if (shouldMoveToUnreachableQueue) {
+    if (movedToUnreachableQueue) {
       await this.salesService.runAutomaticAssignmentQueue({
         orderId,
         limit: 50,
