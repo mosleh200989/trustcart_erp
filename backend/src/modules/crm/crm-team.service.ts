@@ -81,7 +81,8 @@ export class CrmTeamService {
    * Apply "Called Status" filter to any QueryBuilder that has `c` aliased to the customers table.
    * Supported values: called_today,
    *                   called_1week (7-13 days ago), called_2weeks (14-20 days ago),
-   *                   called_3weeks (21-27 days ago), called_1month (28+ days ago),
+   *                   called_3weeks (21-27 days ago), called_1month (28-59 days ago),
+   *                   called_2months (60-89 days ago), called_3months_plus (90+ days ago),
    *                   never,
    *                   (legacy: called → called_today, not_called / not_called_today / not_called_week kept for backward compat)
    */
@@ -111,9 +112,15 @@ export class CrmTeamService {
       case 'called_3weeks':
         qb.andWhere('c.last_contact_date >= :cs3wStart AND c.last_contact_date < :cs3wEnd', { cs3wStart: daysAgo(27), cs3wEnd: daysAgo(20) });
         break;
-      // Called ~1 month ago: 28+ days ago
+      // Called ~1 month ago: 28-59 days ago
       case 'called_1month':
-        qb.andWhere('c.last_contact_date < :cs1mEnd', { cs1mEnd: daysAgo(27) });
+        qb.andWhere('c.last_contact_date >= :cs1mStart AND c.last_contact_date < :cs1mEnd', { cs1mStart: daysAgo(59), cs1mEnd: daysAgo(27) });
+        break;
+      case 'called_2months':
+        qb.andWhere('c.last_contact_date >= :cs2mStart AND c.last_contact_date < :cs2mEnd', { cs2mStart: daysAgo(89), cs2mEnd: daysAgo(59) });
+        break;
+      case 'called_3months_plus':
+        qb.andWhere('c.last_contact_date < :cs3mEnd', { cs3mEnd: daysAgo(89) });
         break;
       // Legacy / backward compat
       case 'not_called':

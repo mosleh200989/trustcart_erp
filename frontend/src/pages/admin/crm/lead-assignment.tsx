@@ -13,7 +13,7 @@ import { FaEye, FaChartBar, FaChevronDown, FaChevronRight, FaBoxOpen } from 'rea
 import { getOrderStatusLabel, getOrderStatusColor } from '@/utils/orderStatus';
 import ThSort from '@/components/admin/ThSort';
 
-type FilterCalledStatus = 'all' | 'called_today' | 'called_1week' | 'called_2weeks' | 'called_3weeks' | 'called_1month' | 'never';
+type FilterCalledStatus = 'all' | 'called_today' | 'called_1week' | 'called_2weeks' | 'called_3weeks' | 'called_1month' | 'called_2months' | 'called_3months_plus' | 'never';
 
 const formatLastCalled = (dateStr?: string | null): { text: string; color: string } => {
   if (!dateStr) return { text: 'Never', color: 'text-red-600' };
@@ -603,6 +603,8 @@ export default function LeadAssignmentPage() {
                 <option value="called_2weeks">Called 2 Weeks Ago</option>
                 <option value="called_3weeks">Called 3 Weeks Ago</option>
                 <option value="called_1month">Called 1 Month Ago</option>
+                <option value="called_2months">Called 2 Months Ago</option>
+                <option value="called_3months_plus">Called 3+ Months Ago</option>
                 <option value="never">Never Called</option>
               </select>
             </div>

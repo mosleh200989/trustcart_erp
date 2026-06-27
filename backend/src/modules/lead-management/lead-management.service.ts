@@ -646,6 +646,10 @@ export class LeadManagementService {
     customerSegment?: string;
     productName?: string;
     productSuggestion?: string;
+    tierUpdatedFrom?: string;
+    tierUpdatedTo?: string;
+    tierUpdateStart?: string;
+    tierUpdateEnd?: string;
   } = {}) {
     const { page = 1, limit = 10 } = filters;
     const offset = (page - 1) * limit;
@@ -870,6 +874,14 @@ export class LeadManagementService {
           ? `AND NOT ${hasProductSuggestionSql()}`
           : `AND ${hasProductSuggestionSql(productSuggestion)}`
       : '';
+    const tierUpdatedDateExpr = `DATE(ct.tier_assigned_at AT TIME ZONE 'Asia/Dhaka')`;
+    const tierUpdatedFrom = String(filters.tierUpdatedFrom || filters.tierUpdateStart || '').trim();
+    const tierUpdatedTo = String(filters.tierUpdatedTo || filters.tierUpdateEnd || '').trim();
+    const tierUpdatedFilter = tierUpdatedFrom || tierUpdatedTo
+      ? `AND ct.tier_assigned_at IS NOT NULL
+        ${tierUpdatedFrom ? `AND ${tierUpdatedDateExpr} >= '${tierUpdatedFrom.replace(/'/g, "''")}'::date` : ''}
+        ${tierUpdatedTo ? `AND ${tierUpdatedDateExpr} <= '${tierUpdatedTo.replace(/'/g, "''")}'::date` : ''}`
+      : '';
     const extraFilters = `
       ${deliveryDateFilter}
       ${purchasesCountFilter}
@@ -877,6 +889,7 @@ export class LeadManagementService {
       ${customerSegmentFilter}
       ${productNameFilter}
       ${productSuggestionFilter}
+      ${tierUpdatedFilter}
     `;
 
     // Stats query: always returns counts for ALL tiers regardless of tier filter,
@@ -985,6 +998,7 @@ export class LeadManagementService {
         cancelled_order_ratio: r.cancelled_order_ratio != null ? Number(r.cancelled_order_ratio) : 0,
         last_delivery_date: r.last_delivery_date,
         lifetime_value: r.lifetime_value,
+        tierAssignedAt: r.tier_assigned_at,
         tierData: r.tier_id ? {
           id: r.tier_id,
           tier: r.tier,

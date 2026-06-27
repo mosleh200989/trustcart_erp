@@ -1183,7 +1183,7 @@ export class OrderManagementService {
     const validStatuses = [
       'processing', 'approved', 'sent', 'pending', 'in_review',
       'in_transit', 'picked', 'hold', 'shipped', 'delivered',
-      'partial_delivered', 'completed', 'cancelled', 'admin_cancelled', 'returned',
+      'partial_delivered', 'completed', 'cancelled', 'admin_cancelled', 'pickup_failed', 'returned',
     ];
     if (!validStatuses.includes(newStatus)) {
       throw new BadRequestException(`Invalid status: ${newStatus}`);
@@ -3856,7 +3856,7 @@ export class OrderManagementService {
       const activeQb = this.salesOrderRepository.createQueryBuilder('ao');
       const phoneLikeConditions = phoneArr.map((_, i) => `REPLACE(ao.customer_phone, '+88', '') = :ph${i}`).join(' OR ');
       activeQb.where(`(${phoneLikeConditions})`, phoneArr.reduce((acc, ph, i) => ({ ...acc, [`ph${i}`]: ph }), {} as Record<string, string>));
-      activeQb.andWhere("ao.status NOT IN ('delivered', 'cancelled', 'admin_cancelled', 'partial_delivered', 'completed', 'returned')");
+      activeQb.andWhere("ao.status NOT IN ('delivered', 'cancelled', 'admin_cancelled', 'pickup_failed', 'partial_delivered', 'completed', 'returned')");
       activeQb.orderBy('ao.created_at', 'ASC');
       const activeOrders = await activeQb.getMany();
 

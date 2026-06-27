@@ -59,7 +59,7 @@ export class LandingPageOrder {
 
   @Column({
     type: 'enum',
-    enum: ['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled', 'admin_cancelled', 'returned'],
+    enum: ['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled', 'admin_cancelled', 'pickup_failed', 'returned'],
     default: 'pending',
   })
   status!: string;

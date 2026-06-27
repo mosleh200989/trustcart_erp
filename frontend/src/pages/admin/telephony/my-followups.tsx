@@ -6,6 +6,7 @@ import Pagination from '@/components/admin/Pagination';
 import ThSort from '@/components/admin/ThSort';
 import AdminDateInput from '@/components/admin/AdminDateInput';
 import PageSizeSelector from '@/components/admin/PageSizeSelector';
+import CallOutcomeSelect from '@/components/admin/CallOutcomeSelect';
 import { useSortableData } from '@/hooks/useSortableData';
 import apiClient from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
@@ -17,7 +18,7 @@ import {
 } from 'react-icons/fa';
 import AdminOrderDetailsModal from '@/components/AdminOrderDetailsModal';
 import { formatDhakaDate, getDhakaDateString } from '@/utils/dhakaDate';
-import { CALL_OUTCOME_OPTIONS, type CallOutcomeValue } from '@/constants/adminOptions';
+import { type CallOutcomeValue } from '@/constants/adminOptions';
 
 interface FollowUp {
   id: number;
@@ -487,11 +488,11 @@ export default function MyFollowupsPage() {
       });
 
       // 4. Update lead status based on outcome
-      const leadStatus = logCallOutcome === 'order_placed' ? 'converted'
-        : logCallOutcome === 'connected' || logCallOutcome === 'connected_whatsapp' ? 'qualified'
+      const leadStatus = ['order_confirmed', 'order_placed'].includes(logCallOutcome) ? 'converted'
+        : ['connected', 'whatsapp_message_sent', 'connected_whatsapp'].includes(logCallOutcome) ? 'qualified'
         : logCallOutcome === 'callback_requested' ? 'follow_up'
-        : logCallOutcome === 'not_interested' || logCallOutcome === 'connected_disqualified' ? 'not_interested'
-        : logCallOutcome === 'no_answer' || logCallOutcome === 'busy' ? 'no_answer'
+        : ['not_interested', 'customer_hung_up', 'wrong_number', 'connected_disqualified'].includes(logCallOutcome) ? 'not_interested'
+        : ['no_answer', 'line_busy', 'number_switched_off', 'busy', 'unreachable'].includes(logCallOutcome) ? 'no_answer'
         : 'contacted';
 
       await apiClient.put(`/customers/${customerId}`, {
@@ -499,7 +500,7 @@ export default function MyFollowupsPage() {
       });
 
       // 5. Update current task status to completed
-      const taskStatus = logCallOutcome === 'no_answer' || logCallOutcome === 'busy' ? 'failed' : 'completed';
+      const taskStatus = ['no_answer', 'line_busy', 'number_switched_off', 'busy', 'unreachable'].includes(logCallOutcome) ? 'failed' : 'completed';
       await apiClient.put(`/crm/automation/tasks/${selectedFollowUpForLog.id}/status`, {
         status: taskStatus,
         notes: logCallNotes
@@ -1241,17 +1242,10 @@ export default function MyFollowupsPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Call Outcome <span className="text-red-500">*</span>
                 </label>
-                <select
+                <CallOutcomeSelect
                   value={logCallOutcome}
-                  onChange={(e) => setLogCallOutcome(e.target.value as any)}
-                  className="w-full px-3 py-2 border rounded-lg"
-                  required
-                >
-                  <option value="">Select outcome...</option>
-                  {CALL_OUTCOME_OPTIONS.filter((option) => option.value !== 'unreachable').map((option) => (
-                    <option key={option.value} value={option.value}>{option.label}</option>
-                  ))}
-                </select>
+                  onChange={setLogCallOutcome}
+                />
               </div>
 
               {/* Call Notes - Required */}

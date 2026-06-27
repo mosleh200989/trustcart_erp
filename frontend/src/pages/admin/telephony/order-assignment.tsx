@@ -3,6 +3,7 @@ import { FaCalendarAlt, FaCheckCircle, FaCopy, FaHistory, FaPhone, FaShare, FaSm
 import AdminLayout from '@/layouts/AdminLayout';
 import PageSizeSelector from '@/components/admin/PageSizeSelector';
 import ProductAutocomplete from '@/components/admin/ProductAutocomplete';
+import CallOutcomeSelect from '@/components/admin/CallOutcomeSelect';
 import AdminOrderDetailsModal from '@/components/AdminOrderDetailsModal';
 import apiClient from '@/services/api';
 import { useToast } from '@/contexts/ToastContext';
@@ -11,7 +12,7 @@ import { getOrderStatusColor, getOrderStatusLabel } from '@/utils/orderStatus';
 import { getDhakaDateString } from '@/utils/dhakaDate';
 import { CALL_OUTCOME_OPTIONS, type CallOutcomeValue } from '@/constants/adminOptions';
 
-type FilterCalledStatus = 'all' | 'called_today' | 'called_1week' | 'called_2weeks' | 'called_3weeks' | 'called_1month' | 'never';
+type FilterCalledStatus = 'all' | 'called_today' | 'called_1week' | 'called_2weeks' | 'called_3weeks' | 'called_1month' | 'called_2months' | 'called_3months_plus' | 'never';
 type FilterOutcome = 'all' | CallOutcomeValue;
 type CallOutcome = Exclude<FilterOutcome, 'all'> | '';
 
@@ -333,6 +334,8 @@ export default function TelephonyOrderAssignmentPage({ assignmentType = 'order' 
                   <option value="called_2weeks">Called 2 Weeks Ago</option>
                   <option value="called_3weeks">Called 3 Weeks Ago</option>
                   <option value="called_1month">Called 1 Month Ago</option>
+                  <option value="called_2months">Called 2 Months Ago</option>
+                  <option value="called_3months_plus">Called 3+ Months Ago</option>
                   <option value="never">Never Called</option>
                 </select>
               </div>
@@ -348,6 +351,7 @@ export default function TelephonyOrderAssignmentPage({ assignmentType = 'order' 
                   <option value="partial_delivered">Partial Delivered</option>
                   <option value="cancelled">Cancelled</option>
                   <option value="admin_cancelled">Rejected</option>
+                  <option value="pickup_failed">Pickup Failed</option>
                   <option value="hold">On Hold</option>
                   <option value="returned">Returned</option>
                 </select>
@@ -581,15 +585,10 @@ export default function TelephonyOrderAssignmentPage({ assignmentType = 'order' 
                   <label className="mb-1 block text-sm font-medium text-gray-700">
                     Call Outcome <span className="text-red-500">*</span>
                   </label>
-                  <select
-                    value={callActionOutcome}
-                    onChange={(e) => setCallActionOutcome(e.target.value as CallOutcome)}
-                    className="w-full rounded-lg border px-3 py-2"
-                    required
-                  >
-                    <option value="">Select outcome...</option>
-                    {OUTCOMES.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-                  </select>
+                  <CallOutcomeSelect
+                    value={callActionOutcome as any}
+                    onChange={(next) => setCallActionOutcome(next as CallOutcome)}
+                  />
                 </div>
 
                 <div>

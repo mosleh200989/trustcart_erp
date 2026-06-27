@@ -416,7 +416,19 @@ export class SalesManagerService implements OnModuleInit {
         });
         break;
       case 'called_1month':
-        qb.andWhere('c.last_contact_date < :lastCall1mEnd', { lastCall1mEnd: daysAgo(27) });
+        qb.andWhere('c.last_contact_date >= :lastCall1mStart AND c.last_contact_date < :lastCall1mEnd', {
+          lastCall1mStart: daysAgo(59),
+          lastCall1mEnd: daysAgo(27),
+        });
+        break;
+      case 'called_2months':
+        qb.andWhere('c.last_contact_date >= :lastCall2mStart AND c.last_contact_date < :lastCall2mEnd', {
+          lastCall2mStart: daysAgo(89),
+          lastCall2mEnd: daysAgo(59),
+        });
+        break;
+      case 'called_3months_plus':
+        qb.andWhere('c.last_contact_date < :lastCall3mEnd', { lastCall3mEnd: daysAgo(89) });
         break;
       case 'not_called':
       case 'not_called_today':
@@ -639,6 +651,10 @@ export class SalesManagerService implements OnModuleInit {
         'tier',
       )
       .addSelect(
+        '(SELECT ct.tier_assigned_at FROM customer_tiers ct WHERE ct.customer_id = c.id LIMIT 1)',
+        'tier_assigned_at',
+      )
+      .addSelect(
         `(SELECT COUNT(*)::int FROM sales_orders so WHERE so.customer_id = c.id AND so.sales_order_number LIKE 'SO-%')`,
         'so_count',
       )
@@ -803,6 +819,31 @@ export class SalesManagerService implements OnModuleInit {
     if (query.tier) {
       qb.innerJoin('customer_tiers', 'ct', 'ct.customer_id = c.id')
         .andWhere('ct.tier = :tier', { tier: query.tier });
+    }
+
+    const tierUpdatedDateExpr = `DATE(ct_tier_date.tier_assigned_at AT TIME ZONE 'Asia/Dhaka')`;
+    const tierUpdatedFrom = String(query.tierUpdatedFrom || query.tierUpdateStart || query.tierUpdatedStart || '').trim();
+    const tierUpdatedTo = String(query.tierUpdatedTo || query.tierUpdateEnd || query.tierUpdatedEnd || '').trim();
+    if (tierUpdatedFrom || tierUpdatedTo) {
+      const tierUpdatedConditions: string[] = [];
+      const tierUpdatedParams: Record<string, string> = {};
+      if (tierUpdatedFrom) {
+        tierUpdatedConditions.push(`${tierUpdatedDateExpr} >= CAST(:tierUpdatedFrom AS date)`);
+        tierUpdatedParams.tierUpdatedFrom = tierUpdatedFrom;
+      }
+      if (tierUpdatedTo) {
+        tierUpdatedConditions.push(`${tierUpdatedDateExpr} <= CAST(:tierUpdatedTo AS date)`);
+        tierUpdatedParams.tierUpdatedTo = tierUpdatedTo;
+      }
+      qb.andWhere(
+        `EXISTS (
+          SELECT 1
+          FROM customer_tiers ct_tier_date
+          WHERE ct_tier_date.customer_id = c.id
+            AND ${tierUpdatedConditions.join(' AND ')}
+        )`,
+        tierUpdatedParams,
+      );
     }
 
     // Product name filter — customers who ordered a specific product (Bengali + English)
@@ -1124,6 +1165,7 @@ export class SalesManagerService implements OnModuleInit {
     const items = entities.map((entity, i) => ({
       ...entity,
       tier: raw[i]?.tier ?? null,
+      tierAssignedAt: raw[i]?.tier_assigned_at ?? null,
       soCount: Number(raw[i]?.so_count ?? 0),
       legCount: Number(raw[i]?.leg_count ?? 0),
       assignedAgentName: String(raw[i]?.assigned_agent_name || '').trim() || null,

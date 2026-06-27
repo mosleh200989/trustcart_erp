@@ -35,6 +35,7 @@ interface Lead {
   last_contact_date: string | null;
   lastDeliveryDate?: string | null;
   tier: string | null;
+  tierAssignedAt?: string | null;
   soCount: number;
   legCount: number;
   scheduledAssignmentId?: number | null;
@@ -72,7 +73,7 @@ interface ProductSuggestionOption {
 const ROWS_OPTIONS = [30, 50, 100, 200, 500, 750, 1000, 2000];
 const VIEWED_LEADS_STORAGE_KEY = 'sales-manager-leads-viewed-at';
 const VIEWED_LEAD_TTL_MS = 24 * 60 * 60 * 1000;
-type LastCallFilter = 'all' | 'called_today' | 'called_yesterday' | 'called_1week' | 'called_2weeks' | 'called_3weeks' | 'called_1month' | 'never';
+type LastCallFilter = 'all' | 'called_today' | 'called_yesterday' | 'called_1week' | 'called_2weeks' | 'called_3weeks' | 'called_1month' | 'called_2months' | 'called_3months_plus' | 'never';
 type CallOutcomeFilter = '' | CallOutcomeValue;
 
 const formatLastCalled = (dateStr?: string | null): { text: string; className: string } => {
@@ -91,6 +92,13 @@ const formatLastCalled = (dateStr?: string | null): { text: string; className: s
   if (diffDays < 14) return { text: '1 week ago', className: 'text-orange-700' };
   if (diffDays < 28) return { text: `${Math.floor(diffDays / 7)} weeks ago`, className: 'text-red-500' };
   return { text: `${Math.floor(diffDays / 30)} months ago`, className: 'text-red-600' };
+};
+
+const formatDhakaDate = (value?: string | null) => {
+  if (!value) return 'N/A';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'N/A';
+  return date.toLocaleDateString('en-GB', { timeZone: 'Asia/Dhaka' });
 };
 
 const TIER_COLORS: Record<string, string> = {
@@ -168,6 +176,8 @@ const SalesManagerLeadAssignment = () => {
   const [productFilter, setProductFilter] = useState('');
   const [deliveryStartFilter, setDeliveryStartFilter] = useState('');
   const [deliveryEndFilter, setDeliveryEndFilter] = useState('');
+  const [tierUpdatedFromFilter, setTierUpdatedFromFilter] = useState('');
+  const [tierUpdatedToFilter, setTierUpdatedToFilter] = useState('');
   const [assignedFromFilter, setAssignedFromFilter] = useState('');
   const [assignedToFilter, setAssignedToFilter] = useState('');
   const [addressFilter, setAddressFilter] = useState('');
@@ -229,6 +239,8 @@ const SalesManagerLeadAssignment = () => {
       productFilter,
       deliveryStartFilter,
       deliveryEndFilter,
+      tierUpdatedFromFilter,
+      tierUpdatedToFilter,
       assignedFromFilter,
       assignedToFilter,
       addressFilter,
@@ -247,7 +259,7 @@ const SalesManagerLeadAssignment = () => {
       scheduledToFilter,
       rowsPerPage,
     }),
-    [search, assignmentStatus, tierFilter, tlFilter, agentFilter, lifecycleFilter, productFilter, deliveryStartFilter, deliveryEndFilter, assignedFromFilter, assignedToFilter, addressFilter, noteSearchFilter, segmentFilter, rejectedStatusFilter, lastCallFilter, tagFilter, callOutcomeFilter, productSuggestionFilter, orderRejectedReasonFilter, scheduledAssignmentStatusFilter, scheduledAssignmentActionFilter, scheduledAssignmentAgentFilter, scheduledFromFilter, scheduledToFilter, rowsPerPage],
+    [search, assignmentStatus, tierFilter, tlFilter, agentFilter, lifecycleFilter, productFilter, deliveryStartFilter, deliveryEndFilter, tierUpdatedFromFilter, tierUpdatedToFilter, assignedFromFilter, assignedToFilter, addressFilter, noteSearchFilter, segmentFilter, rejectedStatusFilter, lastCallFilter, tagFilter, callOutcomeFilter, productSuggestionFilter, orderRejectedReasonFilter, scheduledAssignmentStatusFilter, scheduledAssignmentActionFilter, scheduledAssignmentAgentFilter, scheduledFromFilter, scheduledToFilter, rowsPerPage],
   );
 
   const fetchLeads = useCallback(async (pg = 1, options?: { silent?: boolean }) => {
@@ -270,6 +282,8 @@ const SalesManagerLeadAssignment = () => {
       if (productFilter) params.set('productName', productFilter);
       if (deliveryStartFilter) params.set('deliveryDateStart', deliveryStartFilter);
       if (deliveryEndFilter) params.set('deliveryDateEnd', deliveryEndFilter);
+      if (tierUpdatedFromFilter) params.set('tierUpdatedFrom', tierUpdatedFromFilter);
+      if (tierUpdatedToFilter) params.set('tierUpdatedTo', tierUpdatedToFilter);
       if (assignedFromFilter) params.set('assignedFrom', assignedFromFilter);
       if (assignedToFilter) params.set('assignedToDate', assignedToFilter);
       if (addressFilter.trim()) params.set('address', addressFilter.trim());
@@ -310,7 +324,7 @@ const SalesManagerLeadAssignment = () => {
       if (requestId === leadsRequestRef.current) setLoading(false);
       if (leadsAbortRef.current === abortController) leadsAbortRef.current = null;
     }
-  }, [search, assignmentStatus, tierFilter, tlFilter, agentFilter, lifecycleFilter, productFilter, deliveryStartFilter, deliveryEndFilter, assignedFromFilter, assignedToFilter, addressFilter, noteSearchFilter, segmentFilter, rejectedStatusFilter, lastCallFilter, tagFilter, callOutcomeFilter, productSuggestionFilter, orderRejectedReasonFilter, scheduledAssignmentStatusFilter, scheduledAssignmentActionFilter, scheduledAssignmentAgentFilter, scheduledFromFilter, scheduledToFilter, rowsPerPage, toast]);
+  }, [search, assignmentStatus, tierFilter, tlFilter, agentFilter, lifecycleFilter, productFilter, deliveryStartFilter, deliveryEndFilter, tierUpdatedFromFilter, tierUpdatedToFilter, assignedFromFilter, assignedToFilter, addressFilter, noteSearchFilter, segmentFilter, rejectedStatusFilter, lastCallFilter, tagFilter, callOutcomeFilter, productSuggestionFilter, orderRejectedReasonFilter, scheduledAssignmentStatusFilter, scheduledAssignmentActionFilter, scheduledAssignmentAgentFilter, scheduledFromFilter, scheduledToFilter, rowsPerPage, toast]);
 
   const fetchTeamLeaders = useCallback(async () => {
     try {
@@ -853,6 +867,8 @@ const SalesManagerLeadAssignment = () => {
                 <option value="called_2weeks">Called 2 Weeks Ago</option>
                 <option value="called_3weeks">Called 3 Weeks Ago</option>
                 <option value="called_1month">Called 1 Month Ago</option>
+                <option value="called_2months">Called 2 Months Ago</option>
+                <option value="called_3months_plus">Called 3+ Months Ago</option>
                 <option value="never">Never Called</option>
               </select>
             </FilterField>
@@ -935,6 +951,22 @@ const SalesManagerLeadAssignment = () => {
               <AdminDateInput
                 value={deliveryEndFilter}
                 onValueChange={setDeliveryEndFilter}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              />
+            </FilterField>
+
+            <FilterField label="Tier Updated From">
+              <AdminDateInput
+                value={tierUpdatedFromFilter}
+                onValueChange={setTierUpdatedFromFilter}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              />
+            </FilterField>
+
+            <FilterField label="Tier Updated To">
+              <AdminDateInput
+                value={tierUpdatedToFilter}
+                onValueChange={setTierUpdatedToFilter}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
               />
             </FilterField>
@@ -1137,6 +1169,7 @@ const SalesManagerLeadAssignment = () => {
                       <th className="text-left py-3 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Delivery Date</th>
                       <th className="text-center py-3 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Segment</th>
                       <th className="text-center py-3 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Tier</th>
+                      <th className="text-left py-3 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Tier Updated</th>
                       <th className="text-left py-3 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Data Analyst</th>
                       <th className="text-left py-3 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Team Leader</th>
                       <th className="text-left py-3 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Assigned Agent</th>
@@ -1169,7 +1202,7 @@ const SalesManagerLeadAssignment = () => {
                           <div className="text-[11px] text-gray-400 mt-0.5">#{lead.id}</div>
                         </td>
                         <td className="py-3 px-3 text-sm text-gray-700 whitespace-nowrap">
-                          {lead.lastDeliveryDate ? new Date(lead.lastDeliveryDate).toLocaleDateString('en-GB', { timeZone: 'Asia/Dhaka' }) : 'N/A'}
+                          {formatDhakaDate(lead.lastDeliveryDate)}
                         </td>
                         <td className="py-3 px-3 text-center">
                           {(() => {
@@ -1192,9 +1225,12 @@ const SalesManagerLeadAssignment = () => {
                             <span className="text-gray-300 text-xs">—</span>
                           )}
                         </td>
+                        <td className="py-3 px-3 text-sm text-gray-700 whitespace-nowrap">
+                          {lead.tierAssignedAt ? formatDhakaDate(lead.tierAssignedAt) : <span className="text-gray-300 text-xs">N/A</span>}
+                        </td>
                         <td className="py-3 px-3">
                           {personName(lead.dataAnalystName)}
-                          {lead.assigned_at && <div className="text-[11px] text-gray-400">{new Date(lead.assigned_at).toLocaleDateString()}</div>}
+                          {lead.assigned_at && <div className="text-[11px] text-gray-400">{formatDhakaDate(lead.assigned_at)}</div>}
                         </td>
                         <td className="py-3 px-3">{personName(lead.teamLeaderName)}</td>
                         <td className="py-3 px-3">{personName(lead.assignedAgentName)}</td>
@@ -1227,7 +1263,7 @@ const SalesManagerLeadAssignment = () => {
                                 <div className={lastCall.className}>{lastCall.text}</div>
                                 {lead.last_contact_date && (
                                   <div className="text-[11px] text-gray-400">
-                                    {new Date(lead.last_contact_date).toLocaleDateString()}
+                                    {formatDhakaDate(lead.last_contact_date)}
                                   </div>
                                 )}
                               </>
@@ -1275,7 +1311,7 @@ const SalesManagerLeadAssignment = () => {
                     })}
                     {leads.length === 0 && (
                       <tr>
-                        <td colSpan={11} className="text-center py-16 text-gray-400">
+                        <td colSpan={12} className="text-center py-16 text-gray-400">
                           No leads found. Try adjusting your filters.
                         </td>
                       </tr>
