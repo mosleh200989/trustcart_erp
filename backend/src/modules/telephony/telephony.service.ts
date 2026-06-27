@@ -199,6 +199,8 @@ export class TelephonyService {
     calledStatus?: string;
     outcome?: string;
     suggestion?: string;
+    startDate?: string;
+    endDate?: string;
     page?: number;
     limit?: number;
     includeCallLogs?: boolean;
@@ -223,6 +225,7 @@ export class TelephonyService {
         'o.orderSource',
         'o.totalAmount',
         'o.orderDate',
+        'o.createdAt',
         'o.assignedAt',
         'o.telephonyCalledAt',
         'o.telephonyCallStatus',
@@ -363,6 +366,14 @@ export class TelephonyService {
       qb.andWhere('o.telephony_suggestion = :suggestion', { suggestion: params.suggestion });
     }
 
+    if (params?.startDate) {
+      qb.andWhere("DATE(o.created_at AT TIME ZONE 'Asia/Dhaka') >= :startDate", { startDate: params.startDate });
+    }
+
+    if (params?.endDate) {
+      qb.andWhere("DATE(o.created_at AT TIME ZONE 'Asia/Dhaka') <= :endDate", { endDate: params.endDate });
+    }
+
     const [orders, total] = await qb.skip(skip).take(safeLimit).getManyAndCount();
     const itemsByOrderId = await this.fetchOrderItems(orders.map((order) => order.id));
     const includeCallLogs = params?.includeCallLogs === true;
@@ -396,6 +407,7 @@ export class TelephonyService {
           customerTotalOrders: orderCountsByPhone.get(this.normalizeCustomerPhone(order.customerPhone)) || 0,
           totalAmount: Number(order.totalAmount || 0),
           orderDate: order.orderDate,
+          createdAt: order.createdAt,
           assignedAt: order.assignedAt,
           calledAt: includeCallLogs ? order.telephonyCalledAt : null,
           callStatus: includeCallLogs ? (order.telephonyCallStatus || (order.telephonyCalledAt ? 'called' : 'not_called')) : null,
@@ -437,6 +449,8 @@ export class TelephonyService {
     calledStatus?: string;
     outcome?: string;
     suggestion?: string;
+    startDate?: string;
+    endDate?: string;
     page?: number;
     limit?: number;
     includeCallLogs?: boolean;
@@ -518,6 +532,14 @@ export class TelephonyService {
       where.push(`io.telephony_suggestion = ${addValue(params.suggestion)}`);
     }
 
+    if (params?.startDate) {
+      where.push(`DATE(io.created_at AT TIME ZONE 'Asia/Dhaka') >= ${addValue(params.startDate)}`);
+    }
+
+    if (params?.endDate) {
+      where.push(`DATE(io.created_at AT TIME ZONE 'Asia/Dhaka') <= ${addValue(params.endDate)}`);
+    }
+
     const whereSql = where.join(' AND ');
     const countRows: Array<{ count: string }> = await this.salesOrderRepo.manager.query(
       `SELECT COUNT(*)::text AS count FROM incomplete_orders io WHERE ${whereSql}`,
@@ -551,6 +573,7 @@ export class TelephonyService {
         customerTotalOrders: orderCountsByPhone.get(this.normalizeCustomerPhone(row.phone)) || 0,
         totalAmount: Number(row.total_amount || 0),
         orderDate: row.created_at,
+        createdAt: row.created_at,
         assignedAt: row.assigned_at,
         calledAt: includeCallLogs ? row.telephony_called_at : null,
         callStatus: includeCallLogs ? (row.telephony_call_status || (row.telephony_called_at ? 'called' : 'not_called')) : null,

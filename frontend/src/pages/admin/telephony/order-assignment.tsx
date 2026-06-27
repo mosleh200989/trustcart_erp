@@ -30,6 +30,7 @@ type AssignedOrder = {
   orderSource?: string | null;
   totalAmount: number;
   orderDate?: string;
+  createdAt?: string;
   assignedAt?: string;
   calledAt?: string | null;
   outcome?: string | null;
@@ -87,6 +88,38 @@ function formatDate(value?: string | null) {
   return d.toLocaleDateString('en-GB', { timeZone: 'Asia/Dhaka', day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
+function formatTime(value?: string | null) {
+  if (!value) return '-';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return '-';
+  return d.toLocaleTimeString('en-GB', { timeZone: 'Asia/Dhaka', hour: '2-digit', minute: '2-digit', hour12: true });
+}
+
+function parseDisplayDate(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+  const match = trimmed.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!match) return '';
+  const [, day, month, year] = match;
+  const parsed = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day)));
+  if (
+    Number.isNaN(parsed.getTime())
+    || parsed.getUTCFullYear() !== Number(year)
+    || parsed.getUTCMonth() + 1 !== Number(month)
+    || parsed.getUTCDate() !== Number(day)
+  ) {
+    return '';
+  }
+  return `${year}-${month}-${day}`;
+}
+
+function formatDateFilterInput(value: string) {
+  const digits = value.replace(/\D/g, '').slice(0, 8);
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+  return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
+}
+
 function toBackendCalledStatus(value: FilterCalledStatus) {
   if (value === 'never') return 'never';
   return value === 'all' ? '' : value;
@@ -118,7 +151,18 @@ export default function TelephonyOrderAssignmentPage({ assignmentType = 'order' 
   const [statusFilter, setStatusFilter] = useState('');
   const [calledFilter, setCalledFilter] = useState<FilterCalledStatus>('all');
   const [outcomeFilter, setOutcomeFilter] = useState<FilterOutcome>('all');
-  const [appliedFilters, setAppliedFilters] = useState({ searchTerm: '', productFilter: '', tierFilter: '', statusFilter: '', calledFilter: 'all' as FilterCalledStatus, outcomeFilter: 'all' as FilterOutcome });
+  const [startDateFilter, setStartDateFilter] = useState('');
+  const [endDateFilter, setEndDateFilter] = useState('');
+  const [appliedFilters, setAppliedFilters] = useState({
+    searchTerm: '',
+    productFilter: '',
+    tierFilter: '',
+    statusFilter: '',
+    calledFilter: 'all' as FilterCalledStatus,
+    outcomeFilter: 'all' as FilterOutcome,
+    startDateFilter: '',
+    endDateFilter: '',
+  });
   const [selectedOrder, setSelectedOrder] = useState<AssignedOrder | null>(null);
   const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
   const [callActionFollowUpDate, setCallActionFollowUpDate] = useState('');
@@ -144,6 +188,10 @@ export default function TelephonyOrderAssignmentPage({ assignmentType = 'order' 
       const calledStatus = toBackendCalledStatus(filters.calledFilter);
       if (calledStatus) params.calledStatus = calledStatus;
       if (filters.outcomeFilter !== 'all') params.outcome = filters.outcomeFilter;
+      const startDate = parseDisplayDate(filters.startDateFilter);
+      const endDate = parseDisplayDate(filters.endDateFilter);
+      if (startDate) params.startDate = startDate;
+      if (endDate) params.endDate = endDate;
       const res = await apiClient.get('/telephony/order-assignments', { params });
       setOrders(Array.isArray(res.data?.data) ? res.data.data : []);
       setTotalPages(res.data?.totalPages || 1);
@@ -162,10 +210,10 @@ export default function TelephonyOrderAssignmentPage({ assignmentType = 'order' 
   useEffect(() => {
     const timer = setTimeout(() => {
       setPage(1);
-      setAppliedFilters({ searchTerm, productFilter, tierFilter, statusFilter, calledFilter, outcomeFilter });
-    }, searchTerm.trim() || productFilter.trim() ? 400 : 0);
+      setAppliedFilters({ searchTerm, productFilter, tierFilter, statusFilter, calledFilter, outcomeFilter, startDateFilter, endDateFilter });
+    }, searchTerm.trim() || productFilter.trim() || startDateFilter.trim() || endDateFilter.trim() ? 400 : 0);
     return () => clearTimeout(timer);
-  }, [searchTerm, productFilter, tierFilter, statusFilter, calledFilter, outcomeFilter]);
+  }, [searchTerm, productFilter, tierFilter, statusFilter, calledFilter, outcomeFilter, startDateFilter, endDateFilter]);
 
   const clearFilters = () => {
     setSearchTerm('');
@@ -174,8 +222,10 @@ export default function TelephonyOrderAssignmentPage({ assignmentType = 'order' 
     setStatusFilter('');
     setCalledFilter('all');
     setOutcomeFilter('all');
+    setStartDateFilter('');
+    setEndDateFilter('');
     setPage(1);
-    setAppliedFilters({ searchTerm: '', productFilter: '', tierFilter: '', statusFilter: '', calledFilter: 'all', outcomeFilter: 'all' });
+    setAppliedFilters({ searchTerm: '', productFilter: '', tierFilter: '', statusFilter: '', calledFilter: 'all', outcomeFilter: 'all', startDateFilter: '', endDateFilter: '' });
   };
 
   const openCallActionModal = (order: AssignedOrder) => {
@@ -280,7 +330,7 @@ export default function TelephonyOrderAssignmentPage({ assignmentType = 'order' 
     }
   };
 
-  const hasFilters = appliedFilters.searchTerm || appliedFilters.productFilter || appliedFilters.tierFilter || appliedFilters.statusFilter || appliedFilters.calledFilter !== 'all' || appliedFilters.outcomeFilter !== 'all';
+  const hasFilters = appliedFilters.searchTerm || appliedFilters.productFilter || appliedFilters.tierFilter || appliedFilters.statusFilter || appliedFilters.calledFilter !== 'all' || appliedFilters.outcomeFilter !== 'all' || appliedFilters.startDateFilter || appliedFilters.endDateFilter;
 
   return (
     <AdminLayout>
@@ -310,6 +360,28 @@ export default function TelephonyOrderAssignmentPage({ assignmentType = 'order' 
               <div className="w-64">
                 <label className="mb-1 block text-xs font-medium text-gray-600">Product</label>
                 <ProductAutocomplete value={productFilter} onChange={setProductFilter} className="w-full rounded-lg border px-3 py-2 text-sm" />
+              </div>
+              <div className="w-36">
+                <label className="mb-1 block text-xs font-medium text-gray-600">Start Date</label>
+                <input
+                  value={startDateFilter}
+                  onChange={(e) => setStartDateFilter(formatDateFilterInput(e.target.value))}
+                  placeholder="dd/mm/yyyy"
+                  inputMode="numeric"
+                  maxLength={10}
+                  className="w-full rounded-lg border px-3 py-2 text-sm"
+                />
+              </div>
+              <div className="w-36">
+                <label className="mb-1 block text-xs font-medium text-gray-600">End Date</label>
+                <input
+                  value={endDateFilter}
+                  onChange={(e) => setEndDateFilter(formatDateFilterInput(e.target.value))}
+                  placeholder="dd/mm/yyyy"
+                  inputMode="numeric"
+                  maxLength={10}
+                  className="w-full rounded-lg border px-3 py-2 text-sm"
+                />
               </div>
               <div className="w-40">
                 <label className="mb-1 block text-xs font-medium text-gray-600">Tier</label>
@@ -386,8 +458,7 @@ export default function TelephonyOrderAssignmentPage({ assignmentType = 'order' 
                   <thead className="bg-gray-50">
                     <tr>
                       <th className="px-4 py-2 text-left text-xs font-medium uppercase text-gray-500">Order ID</th>
-                      <th className="px-4 py-2 text-left text-xs font-medium uppercase text-gray-500">Date</th>
-                      <th className="px-4 py-2 text-left text-xs font-medium uppercase text-gray-500">Customer</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium uppercase text-gray-500">Date & Customer</th>
                       <th className="px-4 py-2 text-center text-xs font-medium uppercase text-gray-500">Order Count</th>
                       <th className="px-4 py-2 text-left text-xs font-medium uppercase text-gray-500">Status</th>
                       <th className="px-4 py-2 text-left text-xs font-medium uppercase text-gray-500">Products</th>
@@ -401,14 +472,17 @@ export default function TelephonyOrderAssignmentPage({ assignmentType = 'order' 
                     {orders.map((order) => {
                       const phone = String(order.customerPhone || '').trim();
                       const waPhone = phone.replace(/[^0-9]/g, '');
+                      const activityDate = order.createdAt || order.orderDate || order.assignedAt;
                       return (
                         <tr key={order.id} className="hover:bg-gray-50">
                           <td className="px-4 py-3">
                             <div className="font-semibold text-gray-900">#{order.id}</div>
                           </td>
-                          <td className="px-4 py-3 text-sm text-gray-700">{formatDate(order.orderDate || order.assignedAt)}</td>
                           <td className="px-4 py-3">
-                            <div className="font-medium text-gray-900">{order.customerName || '-'}</div>
+                            <div className="min-w-[220px]">
+                              <div className="font-semibold text-gray-900">{formatDate(activityDate)}</div>
+                              <div className="text-xs text-gray-500">{formatTime(activityDate)}</div>
+                              <div className="mt-2 font-medium text-gray-900">{order.customerName || '-'}</div>
                             {phone && (
                               <div className="mt-0.5 flex items-center gap-1 text-xs text-gray-600">
                                 <FaPhone className="text-[10px]" />
@@ -418,6 +492,7 @@ export default function TelephonyOrderAssignmentPage({ assignmentType = 'order' 
                                 </button>
                               </div>
                             )}
+                            </div>
                           </td>
                           <td className="px-4 py-3 text-center">
                             <span className="inline-flex min-w-[28px] items-center justify-center rounded-full bg-indigo-100 px-1.5 py-0.5 text-xs font-semibold text-indigo-700">
