@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import AdminLayout from '../../../layouts/AdminLayout';
 import api from '../../../services/api';
 import { useToast } from '@/contexts/ToastContext';
@@ -206,6 +206,9 @@ const SalesManagerLeadAssignment = () => {
   const [unassigningSingle, setUnassigningSingle] = useState(false);
 
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const filtersTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const leadsAbortRef = useRef<AbortController | null>(null);
+  const lastFilterSignatureRef = useRef('');
   const hasLoadedInitialLeads = useRef(false);
   const pageRef = useRef(page);
   const leadsRequestRef = useRef(0);
@@ -214,8 +217,43 @@ const SalesManagerLeadAssignment = () => {
     pageRef.current = page;
   }, [page]);
 
+  const filterSignature = useMemo(
+    () => JSON.stringify({
+      search,
+      assignmentStatus,
+      tierFilter,
+      tlFilter,
+      agentFilter,
+      lifecycleFilter,
+      productFilter,
+      deliveryStartFilter,
+      deliveryEndFilter,
+      assignedFromFilter,
+      assignedToFilter,
+      addressFilter,
+      noteSearchFilter,
+      segmentFilter,
+      rejectedStatusFilter,
+      lastCallFilter,
+      tagFilter,
+      callOutcomeFilter,
+      productSuggestionFilter,
+      orderRejectedReasonFilter,
+      scheduledAssignmentStatusFilter,
+      scheduledAssignmentActionFilter,
+      scheduledAssignmentAgentFilter,
+      scheduledFromFilter,
+      scheduledToFilter,
+      rowsPerPage,
+    }),
+    [search, assignmentStatus, tierFilter, tlFilter, agentFilter, lifecycleFilter, productFilter, deliveryStartFilter, deliveryEndFilter, assignedFromFilter, assignedToFilter, addressFilter, noteSearchFilter, segmentFilter, rejectedStatusFilter, lastCallFilter, tagFilter, callOutcomeFilter, productSuggestionFilter, orderRejectedReasonFilter, scheduledAssignmentStatusFilter, scheduledAssignmentActionFilter, scheduledAssignmentAgentFilter, scheduledFromFilter, scheduledToFilter, rowsPerPage],
+  );
+
   const fetchLeads = useCallback(async (pg = 1, options?: { silent?: boolean }) => {
     const requestId = ++leadsRequestRef.current;
+    leadsAbortRef.current?.abort();
+    const abortController = new AbortController();
+    leadsAbortRef.current = abortController;
     if (!options?.silent) setLoading(true);
     try {
       const params = new URLSearchParams({
@@ -248,7 +286,9 @@ const SalesManagerLeadAssignment = () => {
       if (scheduledFromFilter) params.set('scheduledFrom', scheduledFromFilter);
       if (scheduledToFilter) params.set('scheduledTo', scheduledToFilter);
 
-      const res = await api.get(`/crm/data-analyst/unassigned-leads?${params}`);
+      const res = await api.get(`/crm/data-analyst/unassigned-leads?${params}`, {
+        signal: abortController.signal,
+      });
       if (requestId !== leadsRequestRef.current) return;
       const nextTotal = res.data.total || 0;
       const nextTotalPages = Math.max(1, res.data.totalPages || 1);
@@ -261,11 +301,13 @@ const SalesManagerLeadAssignment = () => {
       setTotalPages(nextTotalPages);
       setPage(pg);
       setSelected(new Set());
-    } catch {
+    } catch (error: any) {
       if (requestId !== leadsRequestRef.current) return;
+      if (error?.name === 'CanceledError' || error?.code === 'ERR_CANCELED') return;
       toast.error('Failed to load leads');
     } finally {
       if (requestId === leadsRequestRef.current) setLoading(false);
+      if (leadsAbortRef.current === abortController) leadsAbortRef.current = null;
     }
   }, [search, assignmentStatus, tierFilter, tlFilter, agentFilter, lifecycleFilter, productFilter, deliveryStartFilter, deliveryEndFilter, assignedFromFilter, assignedToFilter, addressFilter, noteSearchFilter, segmentFilter, rejectedStatusFilter, lastCallFilter, tagFilter, callOutcomeFilter, productSuggestionFilter, orderRejectedReasonFilter, scheduledAssignmentStatusFilter, scheduledAssignmentActionFilter, scheduledAssignmentAgentFilter, scheduledFromFilter, scheduledToFilter, rowsPerPage, toast]);
 
@@ -319,11 +361,24 @@ const SalesManagerLeadAssignment = () => {
   useEffect(() => {
     if (!hasLoadedInitialLeads.current) {
       hasLoadedInitialLeads.current = true;
+      lastFilterSignatureRef.current = filterSignature;
       fetchLeads(1);
       return;
     }
-    fetchLeads(pageRef.current, { silent: true });
-  }, [fetchLeads]);
+    if (filtersTimer.current) clearTimeout(filtersTimer.current);
+    const filtersChanged = lastFilterSignatureRef.current !== filterSignature;
+    filtersTimer.current = setTimeout(() => {
+      if (filtersChanged) {
+        lastFilterSignatureRef.current = filterSignature;
+        fetchLeads(1, { silent: true });
+      } else {
+        fetchLeads(pageRef.current, { silent: true });
+      }
+    }, 250);
+    return () => {
+      if (filtersTimer.current) clearTimeout(filtersTimer.current);
+    };
+  }, [fetchLeads, filterSignature]);
 
   useEffect(() => {
     fetchTags();
@@ -381,6 +436,46 @@ const SalesManagerLeadAssignment = () => {
     });
   };
 
+  const refreshCurrentPage = useCallback(async () => {
+    await fetchLeads(pageRef.current, { silent: true });
+  }, [fetchLeads]);
+
+  const applyAssignedLeadsLocally = useCallback((customerIds: number[], agentId: number) => {
+    const ids = new Set(customerIds);
+    const agent = agents.find(a => a.id === agentId);
+    const agentName = agent?.name || `Agent #${agentId}`;
+
+    if (assignmentStatus === 'unassigned') {
+      setLeads(prev => prev.filter(lead => !ids.has(lead.id)));
+      setTotal(prev => Math.max(0, prev - ids.size));
+    } else {
+      setLeads(prev => prev.map(lead => (
+        ids.has(lead.id)
+          ? { ...lead, assigned_to: agentId, assignedAgentName: agentName, leadStatus: 'assigned' }
+          : lead
+      )));
+    }
+
+    setSelected(prev => new Set([...prev].filter(id => !ids.has(id))));
+  }, [agents, assignmentStatus]);
+
+  const applyUnassignedLeadsLocally = useCallback((customerIds: number[]) => {
+    const ids = new Set(customerIds);
+
+    if (assignmentStatus === 'assigned') {
+      setLeads(prev => prev.filter(lead => !ids.has(lead.id)));
+      setTotal(prev => Math.max(0, prev - ids.size));
+    } else {
+      setLeads(prev => prev.map(lead => (
+        ids.has(lead.id)
+          ? { ...lead, assigned_to: null, assignedAgentName: null, leadStatus: 'unassigned' }
+          : lead
+      )));
+    }
+
+    setSelected(prev => new Set([...prev].filter(id => !ids.has(id))));
+  }, [assignmentStatus]);
+
   const handleViewOrder = async (customerId: number) => {
     markLeadViewed(customerId);
     try {
@@ -404,14 +499,16 @@ const SalesManagerLeadAssignment = () => {
     }
     setAssigning(true);
     try {
+      const customerIds = Array.from(selected);
       await api.post('/crm/data-analyst/assign-leads', {
-        customerIds: Array.from(selected),
+        customerIds,
         agentId: Number(bulkAgent),
       });
       const agentName = agents.find(a => a.id === Number(bulkAgent))?.name || '';
       toast.success(`${selected.size} lead(s) assigned to ${agentName}`);
+      applyAssignedLeadsLocally(customerIds, Number(bulkAgent));
       setBulkAgent('');
-      await fetchLeads(page, { silent: true });
+      await refreshCurrentPage();
     } catch {
       toast.error('Assignment failed');
     } finally {
@@ -437,7 +534,7 @@ const SalesManagerLeadAssignment = () => {
       setBulkAgent('');
       setBulkScheduleAt('');
       setSelected(new Set());
-      await fetchLeads(page, { silent: true });
+      await refreshCurrentPage();
     } catch {
       toast.error('Failed to schedule assignment');
     } finally {
@@ -455,9 +552,10 @@ const SalesManagerLeadAssignment = () => {
       });
       const agentName = agents.find(a => a.id === Number(assignModalAgent))?.name || '';
       toast.success(`Assigned to ${agentName}`);
+      applyAssignedLeadsLocally([assignModalLead.id], Number(assignModalAgent));
       setAssignModalLead(null);
       setAssignModalAgent('');
-      await fetchLeads(page, { silent: true });
+      await refreshCurrentPage();
     } catch {
       toast.error('Assignment failed');
     } finally {
@@ -480,7 +578,7 @@ const SalesManagerLeadAssignment = () => {
       setAssignModalLead(null);
       setAssignModalAgent('');
       setAssignModalScheduleAt('');
-      await fetchLeads(page, { silent: true });
+      await refreshCurrentPage();
     } catch {
       toast.error('Failed to schedule assignment');
     } finally {
@@ -496,7 +594,8 @@ const SalesManagerLeadAssignment = () => {
         customerIds: [lead.id],
       });
       toast.success('Lead unassigned successfully');
-      await fetchLeads(page, { silent: true });
+      applyUnassignedLeadsLocally([lead.id]);
+      await refreshCurrentPage();
     } catch {
       toast.error('Failed to unassign lead');
     }
@@ -514,7 +613,7 @@ const SalesManagerLeadAssignment = () => {
       toast.success('Scheduled unassign successfully');
       setUnassignModalLead(null);
       setUnassignModalScheduleAt('');
-      await fetchLeads(page, { silent: true });
+      await refreshCurrentPage();
     } catch {
       toast.error('Failed to schedule unassign');
     } finally {
@@ -528,13 +627,14 @@ const SalesManagerLeadAssignment = () => {
     if (!confirm(`Unassign ${selected.size} selected lead(s) from their agents?`)) return;
     setAssigning(true);
     try {
+      const customerIds = Array.from(selected);
       const res = await api.post('/crm/data-analyst/unassign-leads', {
-        customerIds: Array.from(selected),
+        customerIds,
       });
       const result = (res as any)?.data;
       toast.success(`Bulk unassign completed! ${result?.unassigned || selected.size} lead(s) unassigned.`);
-      setSelected(new Set());
-      await fetchLeads(page, { silent: true });
+      applyUnassignedLeadsLocally(customerIds);
+      await refreshCurrentPage();
     } catch {
       toast.error('Failed to bulk unassign leads');
     } finally {
@@ -557,7 +657,7 @@ const SalesManagerLeadAssignment = () => {
       toast.success(`${selected.size} lead(s) scheduled to unassign`);
       setBulkScheduleAt('');
       setSelected(new Set());
-      await fetchLeads(page, { silent: true });
+      await refreshCurrentPage();
     } catch {
       toast.error('Failed to schedule bulk unassign');
     } finally {
