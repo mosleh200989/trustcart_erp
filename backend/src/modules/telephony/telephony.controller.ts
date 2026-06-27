@@ -88,6 +88,8 @@ export class TelephonyController {
     @Query('calledStatus') calledStatus?: string,
     @Query('outcome') outcome?: string,
     @Query('suggestion') suggestion?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
   ) {
@@ -102,6 +104,8 @@ export class TelephonyController {
       calledStatus,
       outcome,
       suggestion,
+      startDate,
+      endDate,
       page: page != null ? Number(page) : undefined,
       limit: limit != null ? Number(limit) : undefined,
       includeCallLogs: canViewCallLogs,
