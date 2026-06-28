@@ -50,8 +50,10 @@ interface AgentMonthly {
   teamLeaderName?: string | null;
   dailyOrders: Record<number, number>;
   total: number;
+  approved: number;
   delivered: number;
   partialDelivered: number;
+  rejected: number;
   cancelled: number;
 }
 
@@ -61,8 +63,12 @@ interface MonthlyReportData {
   daysInMonth: number;
   agents: AgentMonthly[];
   grandTotal: number;
+  grandApproved: number;
+  grandApprovedRatio: number;
   grandDelivered: number;
   grandPartialDelivered: number;
+  grandRejected: number;
+  grandRejectedRatio: number;
   grandCancelled: number;
   grandCancelledRatio: number;
 }
@@ -138,6 +144,26 @@ export default function AgentMonthlyReportPage() {
     return (agent.cancelled / agent.total) * 100;
   };
 
+  const getApprovedRatio = (agent: AgentMonthly) => {
+    if (agent.total === 0) return '0%';
+    return ((agent.approved / agent.total) * 100).toFixed(2) + '%';
+  };
+
+  const getApprovedRatioNum = (agent: AgentMonthly) => {
+    if (agent.total === 0) return 0;
+    return (agent.approved / agent.total) * 100;
+  };
+
+  const getRejectedRatio = (agent: AgentMonthly) => {
+    if (agent.total === 0) return '0%';
+    return ((agent.rejected / agent.total) * 100).toFixed(2) + '%';
+  };
+
+  const getRejectedRatioNum = (agent: AgentMonthly) => {
+    if (agent.total === 0) return 0;
+    return (agent.rejected / agent.total) * 100;
+  };
+
   /* ── Professional color logic ── */
   // Cell with orders: subtle blue-to-indigo gradient based on count
   const getDayCellStyle = (count: number): string => {
@@ -159,18 +185,30 @@ export default function AgentMonthlyReportPage() {
     return 'bg-red-100 text-red-800';
   };
 
+  const getApprovedBadge = (ratio: number): string => {
+    if (ratio >= 80) return 'bg-emerald-100 text-emerald-800';
+    if (ratio >= 60) return 'bg-lime-100 text-lime-800';
+    if (ratio >= 40) return 'bg-amber-100 text-amber-800';
+    if (ratio > 0) return 'bg-orange-100 text-orange-800';
+    return 'bg-gray-100 text-gray-600';
+  };
+
   /* ── CSV Export ── */
   const exportCSV = () => {
     if (!data) return;
     const days = Array.from({ length: data.daysInMonth }, (_, i) => i + 1);
-    const headers = ['Team Leader', 'Name', ...days.map(String), 'Total', 'Delivered', 'Partial Delivered', 'Cancelled', 'Cancelled Ratio'];
+    const headers = ['Team Leader', 'Name', ...days.map(String), 'Total', 'Approved', 'Approved %', 'Delivered', 'Partial Delivered', 'Rejected', 'Rejected %', 'Cancelled', 'Cancelled Ratio'];
     const rows = data.agents.map(a => [
       a.teamLeaderName || 'Unassigned Team Leader',
       a.agentName,
       ...days.map(d => a.dailyOrders[d] || ''),
       a.total,
+      a.approved,
+      getApprovedRatio(a),
       a.delivered,
       a.partialDelivered,
+      a.rejected,
+      getRejectedRatio(a),
       a.cancelled,
       getCancelledRatio(a),
     ]);
@@ -180,8 +218,12 @@ export default function AgentMonthlyReportPage() {
       '',
       ...days.map(d => data.agents.reduce((s, a) => s + (a.dailyOrders[d] || 0), 0) || ''),
       data.grandTotal,
+      data.grandApproved,
+      data.grandApprovedRatio + '%',
       data.grandDelivered,
       data.grandPartialDelivered,
+      data.grandRejected,
+      data.grandRejectedRatio + '%',
       data.grandCancelled,
       data.grandCancelledRatio + '%',
     ]);
@@ -412,11 +454,23 @@ export default function AgentMonthlyReportPage() {
                     <th className="px-3 py-2.5 text-center text-xs font-semibold uppercase tracking-wider whitespace-nowrap border-l-2 border-slate-600 bg-slate-900 min-w-[60px]">
                       Total
                     </th>
+                    <th className="px-3 py-2.5 text-center text-xs font-semibold uppercase tracking-wider whitespace-nowrap bg-teal-900/70 min-w-[72px]">
+                      Approved
+                    </th>
+                    <th className="px-3 py-2.5 text-center text-xs font-semibold uppercase tracking-wider whitespace-nowrap bg-teal-900/50 min-w-[86px]">
+                      Approved %
+                    </th>
                     <th className="px-3 py-2.5 text-center text-xs font-semibold uppercase tracking-wider whitespace-nowrap bg-emerald-900/70 min-w-[70px]">
                       Delivered
                     </th>
                     <th className="px-3 py-2.5 text-center text-xs font-semibold uppercase tracking-wider whitespace-nowrap bg-lime-900/70 min-w-[96px]">
                       Partial Delivered
+                    </th>
+                    <th className="px-3 py-2.5 text-center text-xs font-semibold uppercase tracking-wider whitespace-nowrap bg-rose-900/70 min-w-[72px]">
+                      Rejected
+                    </th>
+                    <th className="px-3 py-2.5 text-center text-xs font-semibold uppercase tracking-wider whitespace-nowrap bg-rose-900/50 min-w-[86px]">
+                      Rejected %
                     </th>
                     <th className="px-3 py-2.5 text-center text-xs font-semibold uppercase tracking-wider whitespace-nowrap bg-red-900/60 min-w-[72px]">
                       Cancelled
@@ -429,7 +483,7 @@ export default function AgentMonthlyReportPage() {
                 <tbody className="divide-y divide-gray-100">
                   {data.agents.length === 0 && (
                     <tr>
-                      <td colSpan={days.length + 6} className="text-center py-12 text-gray-400">
+                      <td colSpan={days.length + 10} className="text-center py-12 text-gray-400">
                         No agent data found for this month.
                       </td>
                     </tr>
@@ -442,10 +496,14 @@ export default function AgentMonthlyReportPage() {
                     }, {});
                     const totals = group.agents.reduce((acc, agent) => ({
                       total: acc.total + agent.total,
+                      approved: acc.approved + agent.approved,
                       delivered: acc.delivered + agent.delivered,
                       partialDelivered: acc.partialDelivered + agent.partialDelivered,
+                      rejected: acc.rejected + agent.rejected,
                       cancelled: acc.cancelled + agent.cancelled,
-                    }), { total: 0, delivered: 0, partialDelivered: 0, cancelled: 0 });
+                    }), { total: 0, approved: 0, delivered: 0, partialDelivered: 0, rejected: 0, cancelled: 0 });
+                    const groupApprovedRatio = totals.total ? (totals.approved / totals.total) * 100 : 0;
+                    const groupRejectedRatio = totals.total ? (totals.rejected / totals.total) * 100 : 0;
                     const groupCancelRatio = totals.total ? (totals.cancelled / totals.total) * 100 : 0;
                     return (
                       <Fragment key={group.key}>
@@ -471,11 +529,27 @@ export default function AgentMonthlyReportPage() {
                           <td className="px-2 py-2 text-center font-bold text-sm tabular-nums text-indigo-900 border-l-2 border-indigo-200 bg-indigo-100/70">
                             {totals.total || ''}
                           </td>
+                          <td className="px-2 py-2 text-center font-semibold text-sm tabular-nums text-teal-700 bg-teal-50/70">
+                            {totals.approved || ''}
+                          </td>
+                          <td className="px-2 py-2 text-center text-sm tabular-nums bg-white/60">
+                            <span className={`inline-block px-2 py-0.5 rounded text-xs font-semibold ${getApprovedBadge(groupApprovedRatio)}`}>
+                              {groupApprovedRatio.toFixed(2)}%
+                            </span>
+                          </td>
                           <td className="px-2 py-2 text-center font-semibold text-sm tabular-nums text-emerald-700 bg-emerald-50/70">
                             {totals.delivered || ''}
                           </td>
                           <td className="px-2 py-2 text-center font-semibold text-sm tabular-nums text-lime-700 bg-lime-50/70">
                             {totals.partialDelivered || ''}
+                          </td>
+                          <td className="px-2 py-2 text-center font-semibold text-sm tabular-nums text-rose-700 bg-rose-50/70">
+                            {totals.rejected || ''}
+                          </td>
+                          <td className="px-2 py-2 text-center text-sm tabular-nums bg-white/60">
+                            <span className={`inline-block px-2 py-0.5 rounded text-xs font-semibold ${getCancelledBadge(groupRejectedRatio)}`}>
+                              {groupRejectedRatio.toFixed(2)}%
+                            </span>
                           </td>
                           <td className="px-2 py-2 text-center font-semibold text-sm tabular-nums text-red-700 bg-red-50/60">
                             {totals.cancelled || ''}
@@ -487,6 +561,8 @@ export default function AgentMonthlyReportPage() {
                           </td>
                         </tr>
                         {!isCollapsed && group.agents.map((agent, idx) => {
+                          const approvedRatio = getApprovedRatioNum(agent);
+                          const rejectedRatio = getRejectedRatioNum(agent);
                           const cancelRatio = getCancelledRatioNum(agent);
                           return (
                             <tr
@@ -510,11 +586,27 @@ export default function AgentMonthlyReportPage() {
                               <td className="px-2 py-2 text-center font-bold text-sm tabular-nums text-slate-800 border-l-2 border-gray-200 bg-slate-50">
                                 {agent.total || ''}
                               </td>
+                              <td className="px-2 py-2 text-center font-semibold text-sm tabular-nums text-teal-700 bg-teal-50/50">
+                                {agent.approved || ''}
+                              </td>
+                              <td className="px-2 py-2 text-center text-sm tabular-nums">
+                                <span className={`inline-block px-2 py-0.5 rounded text-xs font-semibold ${getApprovedBadge(approvedRatio)}`}>
+                                  {getApprovedRatio(agent)}
+                                </span>
+                              </td>
                               <td className="px-2 py-2 text-center font-semibold text-sm tabular-nums text-emerald-700 bg-emerald-50/50">
                                 {agent.delivered || ''}
                               </td>
                               <td className="px-2 py-2 text-center font-semibold text-sm tabular-nums text-lime-700 bg-lime-50/60">
                                 {agent.partialDelivered || ''}
+                              </td>
+                              <td className="px-2 py-2 text-center font-semibold text-sm tabular-nums text-rose-700 bg-rose-50/60">
+                                {agent.rejected || ''}
+                              </td>
+                              <td className="px-2 py-2 text-center text-sm tabular-nums">
+                                <span className={`inline-block px-2 py-0.5 rounded text-xs font-semibold ${getCancelledBadge(rejectedRatio)}`}>
+                                  {getRejectedRatio(agent)}
+                                </span>
                               </td>
                               <td className="px-2 py-2 text-center font-semibold text-sm tabular-nums text-red-700 bg-red-50/40">
                                 {agent.cancelled || ''}
@@ -549,11 +641,23 @@ export default function AgentMonthlyReportPage() {
                       <td className="px-2 py-2.5 text-center text-sm tabular-nums border-l-2 border-slate-600 bg-slate-900">
                         {data.grandTotal}
                       </td>
+                      <td className="px-2 py-2.5 text-center text-sm tabular-nums bg-teal-900/70">
+                        {data.grandApproved}
+                      </td>
+                      <td className="px-2 py-2.5 text-center text-sm tabular-nums bg-teal-900/50">
+                        {data.grandApprovedRatio}%
+                      </td>
                       <td className="px-2 py-2.5 text-center text-sm tabular-nums bg-emerald-900/70">
                         {data.grandDelivered}
                       </td>
                       <td className="px-2 py-2.5 text-center text-sm tabular-nums bg-lime-900/70">
                         {data.grandPartialDelivered}
+                      </td>
+                      <td className="px-2 py-2.5 text-center text-sm tabular-nums bg-rose-900/70">
+                        {data.grandRejected}
+                      </td>
+                      <td className="px-2 py-2.5 text-center text-sm tabular-nums bg-rose-900/50">
+                        {data.grandRejectedRatio}%
                       </td>
                       <td className="px-2 py-2.5 text-center text-sm tabular-nums bg-red-900/60">
                         {data.grandCancelled}
