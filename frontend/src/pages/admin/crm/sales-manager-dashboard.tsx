@@ -191,7 +191,7 @@ export default function SalesManagerDashboard() {
           <div>
             <h1 className="flex items-center gap-2 text-2xl font-bold text-gray-900">
               <FaSitemap className="text-indigo-600" />
-              Sales Manager Dashboard
+              Data Analyst Dashboard
             </h1>
             <p className="mt-1 text-sm text-gray-500">
               Lead movement, assignment quality, verification health, and team performance in one view.
