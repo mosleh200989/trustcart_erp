@@ -2,6 +2,7 @@ import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react
 import AdminLayout from '@/layouts/AdminLayout';
 import AdminDateInput from '@/components/admin/AdminDateInput';
 import apiClient from '@/services/api';
+import { useAuth } from '@/contexts/AuthContext';
 import { getDhakaDateString } from '@/utils/dhakaDate';
 import { FaChartBar, FaDownload, FaMoneyBillWave, FaRedo, FaSyncAlt, FaTruck, FaUndo, FaUserTie } from 'react-icons/fa';
 
@@ -69,6 +70,8 @@ function ratioClass(value: number, goodHigh = true) {
 }
 
 export default function ReportsDashboardPage() {
+  const { hasPermission, isLoading: authLoading } = useAuth();
+  const canViewReportsDashboard = hasPermission('view-reports-dashboard');
   const [startDate, setStartDate] = useState(firstDayOfMonth);
   const [endDate, setEndDate] = useState(() => getDhakaDateString());
   const [data, setData] = useState<DashboardData | null>(null);
@@ -76,6 +79,7 @@ export default function ReportsDashboardPage() {
   const [error, setError] = useState('');
 
   const loadDashboard = useCallback(async () => {
+    if (!canViewReportsDashboard) return;
     setLoading(true);
     setError('');
     try {
@@ -89,7 +93,7 @@ export default function ReportsDashboardPage() {
     } finally {
       setLoading(false);
     }
-  }, [startDate, endDate]);
+  }, [canViewReportsDashboard, startDate, endDate]);
 
   useEffect(() => {
     loadDashboard();
@@ -156,6 +160,24 @@ export default function ReportsDashboardPage() {
     a.click();
     URL.revokeObjectURL(url);
   };
+
+  if (authLoading) {
+    return (
+      <AdminLayout>
+        <div className="flex h-64 items-center justify-center text-gray-500">Checking permissions...</div>
+      </AdminLayout>
+    );
+  }
+
+  if (!canViewReportsDashboard) {
+    return (
+      <AdminLayout>
+        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+          You do not have permission to view Reports Dashboard.
+        </div>
+      </AdminLayout>
+    );
+  }
 
   return (
     <AdminLayout>
