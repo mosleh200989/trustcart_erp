@@ -5,28 +5,46 @@ import apiClient from '@/services/api';
 import { getDhakaDateString } from '@/utils/dhakaDate';
 import { FaChartBar, FaDownload, FaMoneyBillWave, FaRedo, FaSyncAlt, FaTruck, FaUndo, FaUserTie } from 'react-icons/fa';
 
-type DashboardRow = {
-  agentId: number;
-  agent: string;
+type PerformanceRow = {
   orders: number;
   products: number;
   grossSales: number;
+  sentParcels: number;
+  courierParcelAmount: number;
   delivered: number;
+  deliveredGross: number;
   deliveryPercent: number;
   cancel: number;
+  cancelledGross: number;
   cancelPercent: number;
   reject: number;
   rejectPercent: number;
   return: number;
   returnAmount: number;
+  partialDelivered: number;
+  partialCollectedAmount: number;
+  partialReturnAmount: number;
   netRevenue: number;
+};
+
+type DashboardRow = PerformanceRow & {
+  agentId: number;
+  agent: string;
+};
+
+type SourceDashboardRow = PerformanceRow & {
+  sourceKey: string;
+  sourceType: 'website' | 'landing_page' | string;
+  sourceLabel: string;
 };
 
 type DashboardData = {
   startDate: string;
   endDate: string;
   rows: DashboardRow[];
-  totals: Omit<DashboardRow, 'agentId' | 'agent'>;
+  totals: PerformanceRow;
+  sourceRows: SourceDashboardRow[];
+  sourceTotals: PerformanceRow;
 };
 
 const fmt = (value: number) => new Intl.NumberFormat('en-BD').format(Math.round(Number(value) || 0));
@@ -79,47 +97,57 @@ export default function ReportsDashboardPage() {
 
   const rows = data?.rows || [];
   const totals = data?.totals;
+  const sourceRows = data?.sourceRows || [];
+  const sourceTotals = data?.sourceTotals;
 
   const topNetRevenue = useMemo(() => {
-    return [...rows].sort((a, b) => b.netRevenue - a.netRevenue)[0];
-  }, [rows]);
+    return [...rows, ...sourceRows].sort((a, b) => b.netRevenue - a.netRevenue)[0];
+  }, [rows, sourceRows]);
+  const topNetRevenueLabel = topNetRevenue
+    ? 'agent' in topNetRevenue
+      ? topNetRevenue.agent
+      : topNetRevenue.sourceLabel
+    : '';
 
   const exportCsv = () => {
     if (!data) return;
-    const headers = ['Agent', 'Orders', 'Products', 'Gross Sales', 'Delivered', 'Delivery %', 'Cancel', 'Cancel %', 'Reject', 'Reject %', 'Return', 'Return Amount', 'Net Revenue'];
-    const csvRows = rows.map((row) => [
-      row.agent,
+    const headers = ['Name', 'Orders', 'Products', 'Gross Sales', 'Sent Parcels', 'Courier Parcel Amount', 'Delivered', 'Delivered Gross', 'Delivery %', 'Cancel', 'Cancelled Gross', 'Cancel %', 'Reject', 'Reject %', 'Return', 'Return Amount', 'Partial Delivered', 'Partial Collected Amount', 'Partial Returned Amount', 'Net Revenue'];
+    const toCsvRow = (name: string, row: PerformanceRow) => [
+      name,
       row.orders,
       row.products,
       row.grossSales,
+      row.sentParcels,
+      row.courierParcelAmount,
       row.delivered,
+      row.deliveredGross,
       `${row.deliveryPercent}%`,
       row.cancel,
+      row.cancelledGross,
       `${row.cancelPercent}%`,
       row.reject,
       `${row.rejectPercent}%`,
       row.return,
       row.returnAmount,
+      row.partialDelivered,
+      row.partialCollectedAmount,
+      row.partialReturnAmount,
       row.netRevenue,
-    ]);
+    ];
+    const csvRows: Array<Array<string | number>> = [
+      ['Agent Performance'],
+      headers,
+      ...rows.map((row) => toCsvRow(row.agent, row)),
+    ];
     if (totals) {
-      csvRows.push([
-        'TOTAL',
-        totals.orders,
-        totals.products,
-        totals.grossSales,
-        totals.delivered,
-        `${totals.deliveryPercent}%`,
-        totals.cancel,
-        `${totals.cancelPercent}%`,
-        totals.reject,
-        `${totals.rejectPercent}%`,
-        totals.return,
-        totals.returnAmount,
-        totals.netRevenue,
-      ]);
+      csvRows.push(toCsvRow('TOTAL', totals));
     }
-    const csv = [headers, ...csvRows].map((line) => line.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n');
+    csvRows.push([], ['Website / Landing Page Performance'], headers);
+    csvRows.push(...sourceRows.map((row) => toCsvRow(row.sourceLabel, row)));
+    if (sourceTotals) {
+      csvRows.push(toCsvRow('TOTAL', sourceTotals));
+    }
+    const csv = csvRows.map((line) => line.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -172,83 +200,42 @@ export default function ReportsDashboardPage() {
 
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
           <MetricCard icon={<FaUserTie />} label="Agents" value={fmt(rows.length)} />
-          <MetricCard icon={<FaTruck />} label="Delivered" value={fmt(totals?.delivered || 0)} />
-          <MetricCard icon={<FaMoneyBillWave />} label="Gross Sales" value={money(totals?.grossSales || 0)} />
-          <MetricCard icon={<FaUndo />} label="Return Amount" value={money(totals?.returnAmount || 0)} />
-          <MetricCard icon={<FaRedo />} label="Net Revenue" value={money(totals?.netRevenue || 0)} accent />
+          <MetricCard icon={<FaTruck />} label="Sent Parcels" value={fmt((totals?.sentParcels || 0) + (sourceTotals?.sentParcels || 0))} />
+          <MetricCard icon={<FaMoneyBillWave />} label="Courier Parcel Amount" value={money((totals?.courierParcelAmount || 0) + (sourceTotals?.courierParcelAmount || 0))} />
+          <MetricCard icon={<FaUndo />} label="Partial Returned Amount" value={money((totals?.partialReturnAmount || 0) + (sourceTotals?.partialReturnAmount || 0))} />
+          <MetricCard icon={<FaRedo />} label="Net Revenue" value={money((totals?.netRevenue || 0) + (sourceTotals?.netRevenue || 0))} accent />
         </div>
 
         {topNetRevenue && (
           <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-            Top net revenue: <span className="font-bold">{topNetRevenue.agent}</span> with <span className="font-bold">{money(topNetRevenue.netRevenue)}</span>
+            Top net revenue: <span className="font-bold">{topNetRevenueLabel}</span> with <span className="font-bold">{money(topNetRevenue.netRevenue)}</span>
           </div>
         )}
 
-        <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-          <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3">
-            <div>
-              <h2 className="text-sm font-bold uppercase tracking-wide text-gray-800">Agent Performance Table</h2>
-              <p className="text-xs text-gray-500">Range: {data?.startDate || startDate} to {data?.endDate || endDate}</p>
-            </div>
-            {loading && <div className="h-5 w-5 animate-spin rounded-full border-2 border-indigo-200 border-t-indigo-600" />}
-          </div>
-          <div className="overflow-x-auto">
-            <table className="min-w-[1280px] w-full text-sm">
-              <thead className="bg-slate-800 text-white">
-                <tr>
-                  {['Agent', 'Orders', 'Products', 'Gross Sales', 'Delivered', 'Delivery %', 'Cancel', 'Cancel %', 'Reject', 'Reject %', 'Return', 'Return Amount', 'Net Revenue'].map((header, index) => (
-                    <th key={header} className={`px-3 py-3 text-xs font-semibold uppercase tracking-wide ${index === 0 ? 'sticky left-0 z-10 bg-slate-800 text-left' : 'text-right'}`}>
-                      {header}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {!loading && rows.length === 0 && (
-                  <tr>
-                    <td colSpan={13} className="px-4 py-12 text-center text-gray-400">No dashboard data found for this date range.</td>
-                  </tr>
-                )}
-                {rows.map((row, index) => (
-                  <tr key={row.agentId} className={`${index % 2 === 0 ? 'bg-white' : 'bg-gray-50/60'} hover:bg-indigo-50/40`}>
-                    <td className={`sticky left-0 z-10 px-3 py-3 font-semibold text-gray-900 ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>{row.agent}</td>
-                    <NumberCell value={row.orders} />
-                    <NumberCell value={row.products} />
-                    <MoneyCell value={row.grossSales} strong />
-                    <NumberCell value={row.delivered} tone="emerald" />
-                    <PercentCell value={row.deliveryPercent} />
-                    <NumberCell value={row.cancel} tone="red" />
-                    <PercentCell value={row.cancelPercent} goodHigh={false} />
-                    <NumberCell value={row.reject} tone="rose" />
-                    <PercentCell value={row.rejectPercent} goodHigh={false} />
-                    <NumberCell value={row.return} tone="orange" />
-                    <MoneyCell value={row.returnAmount} />
-                    <MoneyCell value={row.netRevenue} strong tone="emerald" />
-                  </tr>
-                ))}
-              </tbody>
-              {totals && rows.length > 0 && (
-                <tfoot className="bg-slate-900 text-white">
-                  <tr>
-                    <td className="sticky left-0 z-10 bg-slate-900 px-3 py-3 font-bold uppercase">Total</td>
-                    <FooterCell>{fmt(totals.orders)}</FooterCell>
-                    <FooterCell>{fmt(totals.products)}</FooterCell>
-                    <FooterCell>{money(totals.grossSales)}</FooterCell>
-                    <FooterCell>{fmt(totals.delivered)}</FooterCell>
-                    <FooterCell>{percent(totals.deliveryPercent)}</FooterCell>
-                    <FooterCell>{fmt(totals.cancel)}</FooterCell>
-                    <FooterCell>{percent(totals.cancelPercent)}</FooterCell>
-                    <FooterCell>{fmt(totals.reject)}</FooterCell>
-                    <FooterCell>{percent(totals.rejectPercent)}</FooterCell>
-                    <FooterCell>{fmt(totals.return)}</FooterCell>
-                    <FooterCell>{money(totals.returnAmount)}</FooterCell>
-                    <FooterCell>{money(totals.netRevenue)}</FooterCell>
-                  </tr>
-                </tfoot>
-              )}
-            </table>
-          </div>
-        </div>
+        <PerformanceTable
+          title="Agent Performance Table"
+          subtitle="Agent/admin orders with courier sent amount, status counts, gross amounts, and partial delivery returns."
+          firstColumn="Agent"
+          rows={rows}
+          totals={totals}
+          loading={loading}
+          getKey={(row) => String(row.agentId)}
+          getLabel={(row) => row.agent}
+          emptyText="No agent performance data found for this date range."
+        />
+
+        <PerformanceTable
+          title="Website / Landing Page Performance Table"
+          subtitle="Website total and landing-page-wise rows with the same courier and return metrics."
+          firstColumn="Source"
+          rows={sourceRows}
+          totals={sourceTotals}
+          loading={loading}
+          getKey={(row) => row.sourceKey}
+          getLabel={(row) => row.sourceLabel}
+          getBadge={(row) => row.sourceType === 'website' ? 'Website' : 'Landing Page'}
+          emptyText="No website or landing page data found for this date range."
+        />
       </div>
     </AdminLayout>
   );
@@ -264,8 +251,143 @@ function MetricCard({ icon, label, value, accent = false }: { icon: ReactNode; l
   );
 }
 
-function NumberCell({ value, tone }: { value: number; tone?: 'emerald' | 'red' | 'rose' | 'orange' }) {
-  const toneClass = tone === 'emerald' ? 'text-emerald-700' : tone === 'red' ? 'text-red-700' : tone === 'rose' ? 'text-rose-700' : tone === 'orange' ? 'text-orange-700' : 'text-gray-800';
+function PerformanceTable<T extends PerformanceRow>({
+  title,
+  subtitle,
+  firstColumn,
+  rows,
+  totals,
+  loading,
+  getKey,
+  getLabel,
+  getBadge,
+  emptyText,
+}: {
+  title: string;
+  subtitle: string;
+  firstColumn: string;
+  rows: T[];
+  totals?: PerformanceRow;
+  loading: boolean;
+  getKey: (row: T) => string;
+  getLabel: (row: T) => string;
+  getBadge?: (row: T) => string | undefined;
+  emptyText: string;
+}) {
+  const headers = [
+    firstColumn,
+    'Orders',
+    'Products',
+    'Gross Sales',
+    'Sent',
+    'Courier Amount',
+    'Delivered',
+    'Delivered Gross',
+    'Delivery %',
+    'Cancel',
+    'Cancelled Gross',
+    'Cancel %',
+    'Reject',
+    'Reject %',
+    'Return',
+    'Return Amount',
+    'Partial Delivered',
+    'Partial Collected',
+    'Partial Returned',
+    'Net Revenue',
+  ];
+
+  return (
+    <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+      <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3">
+        <div>
+          <h2 className="text-sm font-bold uppercase tracking-wide text-gray-800">{title}</h2>
+          <p className="text-xs text-gray-500">{subtitle}</p>
+        </div>
+        {loading && <div className="h-5 w-5 animate-spin rounded-full border-2 border-indigo-200 border-t-indigo-600" />}
+      </div>
+      <div className="overflow-x-auto">
+        <table className="min-w-[1900px] w-full text-sm">
+          <thead className="bg-slate-800 text-white">
+            <tr>
+              {headers.map((header, index) => (
+                <th key={header} className={`px-3 py-3 text-xs font-semibold uppercase tracking-wide ${index === 0 ? 'sticky left-0 z-10 bg-slate-800 text-left' : 'text-right'}`}>
+                  {header}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {!loading && rows.length === 0 && (
+              <tr>
+                <td colSpan={headers.length} className="px-4 py-12 text-center text-gray-400">{emptyText}</td>
+              </tr>
+            )}
+            {rows.map((row, index) => {
+              const badge = getBadge?.(row);
+              return (
+                <tr key={getKey(row)} className={`${index % 2 === 0 ? 'bg-white' : 'bg-gray-50/60'} hover:bg-indigo-50/40`}>
+                  <td className={`sticky left-0 z-10 px-3 py-3 font-semibold text-gray-900 ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
+                    <div>{getLabel(row)}</div>
+                    {badge && <span className="mt-1 inline-flex rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] font-semibold text-indigo-700">{badge}</span>}
+                  </td>
+                  <NumberCell value={row.orders} />
+                  <NumberCell value={row.products} />
+                  <MoneyCell value={row.grossSales} strong />
+                  <NumberCell value={row.sentParcels} tone="blue" />
+                  <MoneyCell value={row.courierParcelAmount} />
+                  <NumberCell value={row.delivered} tone="emerald" />
+                  <MoneyCell value={row.deliveredGross} />
+                  <PercentCell value={row.deliveryPercent} />
+                  <NumberCell value={row.cancel} tone="red" />
+                  <MoneyCell value={row.cancelledGross} />
+                  <PercentCell value={row.cancelPercent} goodHigh={false} />
+                  <NumberCell value={row.reject} tone="rose" />
+                  <PercentCell value={row.rejectPercent} goodHigh={false} />
+                  <NumberCell value={row.return} tone="orange" />
+                  <MoneyCell value={row.returnAmount} />
+                  <NumberCell value={row.partialDelivered} tone="orange" />
+                  <MoneyCell value={row.partialCollectedAmount} />
+                  <MoneyCell value={row.partialReturnAmount} />
+                  <MoneyCell value={row.netRevenue} strong tone="emerald" />
+                </tr>
+              );
+            })}
+          </tbody>
+          {totals && rows.length > 0 && (
+            <tfoot className="bg-slate-900 text-white">
+              <tr>
+                <td className="sticky left-0 z-10 bg-slate-900 px-3 py-3 font-bold uppercase">Total</td>
+                <FooterCell>{fmt(totals.orders)}</FooterCell>
+                <FooterCell>{fmt(totals.products)}</FooterCell>
+                <FooterCell>{money(totals.grossSales)}</FooterCell>
+                <FooterCell>{fmt(totals.sentParcels)}</FooterCell>
+                <FooterCell>{money(totals.courierParcelAmount)}</FooterCell>
+                <FooterCell>{fmt(totals.delivered)}</FooterCell>
+                <FooterCell>{money(totals.deliveredGross)}</FooterCell>
+                <FooterCell>{percent(totals.deliveryPercent)}</FooterCell>
+                <FooterCell>{fmt(totals.cancel)}</FooterCell>
+                <FooterCell>{money(totals.cancelledGross)}</FooterCell>
+                <FooterCell>{percent(totals.cancelPercent)}</FooterCell>
+                <FooterCell>{fmt(totals.reject)}</FooterCell>
+                <FooterCell>{percent(totals.rejectPercent)}</FooterCell>
+                <FooterCell>{fmt(totals.return)}</FooterCell>
+                <FooterCell>{money(totals.returnAmount)}</FooterCell>
+                <FooterCell>{fmt(totals.partialDelivered)}</FooterCell>
+                <FooterCell>{money(totals.partialCollectedAmount)}</FooterCell>
+                <FooterCell>{money(totals.partialReturnAmount)}</FooterCell>
+                <FooterCell>{money(totals.netRevenue)}</FooterCell>
+              </tr>
+            </tfoot>
+          )}
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function NumberCell({ value, tone }: { value: number; tone?: 'emerald' | 'red' | 'rose' | 'orange' | 'blue' }) {
+  const toneClass = tone === 'emerald' ? 'text-emerald-700' : tone === 'red' ? 'text-red-700' : tone === 'rose' ? 'text-rose-700' : tone === 'orange' ? 'text-orange-700' : tone === 'blue' ? 'text-blue-700' : 'text-gray-800';
   return <td className={`px-3 py-3 text-right font-semibold tabular-nums ${toneClass}`}>{fmt(value)}</td>;
 }
 

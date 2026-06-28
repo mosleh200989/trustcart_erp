@@ -4181,11 +4181,18 @@ export class SalesService {
       email: string | null;
       orders: string;
       gross_sales: string;
+      sent_parcels: string;
+      courier_parcel_amount: string;
       delivered: string;
+      delivered_gross: string;
       cancel: string;
+      cancelled_gross: string;
       reject: string;
       return_count: string;
       return_amount: string;
+      partial_delivered: string;
+      partial_collected_amount: string;
+      partial_return_amount: string;
       net_revenue: string;
     }> = await this.salesRepository.manager.query(
       `SELECT
@@ -4195,18 +4202,33 @@ export class SalesService {
          u.email,
          COUNT(o.id)::text AS orders,
          COALESCE(SUM(o.total_amount), 0)::text AS gross_sales,
-         COUNT(CASE WHEN LOWER(o.status::text) = 'delivered' THEN 1 END)::text AS delivered,
+         COUNT(CASE WHEN (
+           o.shipped_at IS NOT NULL
+           OR NULLIF(o.courier_company, '') IS NOT NULL
+           OR NULLIF(o.courier_order_id, '') IS NOT NULL
+           OR LOWER(o.status::text) IN ('sent', 'picked', 'in_transit', 'shipped', 'delivered', 'partial_delivered', 'returned', 'cancelled')
+         ) THEN 1 END)::text AS sent_parcels,
+         COALESCE(SUM(CASE WHEN (
+           o.shipped_at IS NOT NULL
+           OR NULLIF(o.courier_company, '') IS NOT NULL
+           OR NULLIF(o.courier_order_id, '') IS NOT NULL
+           OR LOWER(o.status::text) IN ('sent', 'picked', 'in_transit', 'shipped', 'delivered', 'partial_delivered', 'returned', 'cancelled')
+         ) THEN COALESCE(o.cod_amount, o.total_amount, 0) ELSE 0 END), 0)::text AS courier_parcel_amount,
+         COUNT(CASE WHEN LOWER(o.status::text) IN ('delivered', 'completed') THEN 1 END)::text AS delivered,
+         COALESCE(SUM(CASE WHEN LOWER(o.status::text) IN ('delivered', 'completed') THEN o.total_amount ELSE 0 END), 0)::text AS delivered_gross,
          COUNT(CASE WHEN LOWER(o.status::text) = 'cancelled' THEN 1 END)::text AS cancel,
+         COALESCE(SUM(CASE WHEN LOWER(o.status::text) = 'cancelled' THEN o.total_amount ELSE 0 END), 0)::text AS cancelled_gross,
          COUNT(CASE WHEN LOWER(o.status::text) = 'admin_cancelled' THEN 1 END)::text AS reject,
          COUNT(CASE WHEN LOWER(o.status::text) = 'returned' THEN 1 END)::text AS return_count,
          COALESCE(SUM(CASE WHEN LOWER(o.status::text) = 'returned' THEN o.total_amount ELSE 0 END), 0)::text AS return_amount,
-         (
-           COALESCE(SUM(CASE
-             WHEN LOWER(o.status::text) IN ('delivered', 'completed', 'partial_delivered') THEN o.total_amount
-             ELSE 0
-           END), 0)
-           - COALESCE(SUM(CASE WHEN LOWER(o.status::text) = 'returned' THEN o.total_amount ELSE 0 END), 0)
-         )::text AS net_revenue
+         COUNT(CASE WHEN LOWER(o.status::text) = 'partial_delivered' THEN 1 END)::text AS partial_delivered,
+         COALESCE(SUM(CASE WHEN LOWER(o.status::text) = 'partial_delivered' THEN COALESCE(o.cod_amount, o.total_amount, 0) ELSE 0 END), 0)::text AS partial_collected_amount,
+         COALESCE(SUM(CASE WHEN LOWER(o.status::text) = 'partial_delivered' THEN GREATEST(COALESCE(o.total_amount, 0) - COALESCE(o.cod_amount, o.total_amount, 0), 0) ELSE 0 END), 0)::text AS partial_return_amount,
+         COALESCE(SUM(CASE
+           WHEN LOWER(o.status::text) IN ('delivered', 'completed') THEN o.total_amount
+           WHEN LOWER(o.status::text) = 'partial_delivered' THEN COALESCE(o.cod_amount, o.total_amount, 0)
+           ELSE 0
+         END), 0)::text AS net_revenue
        FROM sales_orders o
        INNER JOIN users u ON u.id = o.created_by
        WHERE o.created_by IS NOT NULL
@@ -4244,68 +4266,246 @@ export class SalesService {
       [startDate, endDate],
     );
 
-    const productsByAgent = new Map(productRows.map((row) => [Number(row.agent_id), toNum(row.products)]));
-    const rows = orderRows.map((row) => {
+    const sourceOrderRows: Array<{
+      source_key: string;
+      source_type: string;
+      source_label: string;
+      orders: string;
+      gross_sales: string;
+      sent_parcels: string;
+      courier_parcel_amount: string;
+      delivered: string;
+      delivered_gross: string;
+      cancel: string;
+      cancelled_gross: string;
+      reject: string;
+      return_count: string;
+      return_amount: string;
+      partial_delivered: string;
+      partial_collected_amount: string;
+      partial_return_amount: string;
+      net_revenue: string;
+    }> = await this.salesRepository.manager.query(
+      `SELECT
+         CASE
+           WHEN o.order_source = 'website' THEN 'website'
+           ELSE 'landing:' || COALESCE(NULLIF(o.utm_source, ''), 'unknown')
+         END AS source_key,
+         CASE WHEN o.order_source = 'website' THEN 'website' ELSE 'landing_page' END AS source_type,
+         CASE
+           WHEN o.order_source = 'website' THEN 'Website'
+           ELSE COALESCE(lp.title, NULLIF(o.utm_campaign, ''), NULLIF(o.utm_source, ''), 'Unknown Landing Page')
+         END AS source_label,
+         COUNT(o.id)::text AS orders,
+         COALESCE(SUM(o.total_amount), 0)::text AS gross_sales,
+         COUNT(CASE WHEN (
+           o.shipped_at IS NOT NULL
+           OR NULLIF(o.courier_company, '') IS NOT NULL
+           OR NULLIF(o.courier_order_id, '') IS NOT NULL
+           OR LOWER(o.status::text) IN ('sent', 'picked', 'in_transit', 'shipped', 'delivered', 'partial_delivered', 'returned', 'cancelled')
+         ) THEN 1 END)::text AS sent_parcels,
+         COALESCE(SUM(CASE WHEN (
+           o.shipped_at IS NOT NULL
+           OR NULLIF(o.courier_company, '') IS NOT NULL
+           OR NULLIF(o.courier_order_id, '') IS NOT NULL
+           OR LOWER(o.status::text) IN ('sent', 'picked', 'in_transit', 'shipped', 'delivered', 'partial_delivered', 'returned', 'cancelled')
+         ) THEN COALESCE(o.cod_amount, o.total_amount, 0) ELSE 0 END), 0)::text AS courier_parcel_amount,
+         COUNT(CASE WHEN LOWER(o.status::text) IN ('delivered', 'completed') THEN 1 END)::text AS delivered,
+         COALESCE(SUM(CASE WHEN LOWER(o.status::text) IN ('delivered', 'completed') THEN o.total_amount ELSE 0 END), 0)::text AS delivered_gross,
+         COUNT(CASE WHEN LOWER(o.status::text) = 'cancelled' THEN 1 END)::text AS cancel,
+         COALESCE(SUM(CASE WHEN LOWER(o.status::text) = 'cancelled' THEN o.total_amount ELSE 0 END), 0)::text AS cancelled_gross,
+         COUNT(CASE WHEN LOWER(o.status::text) = 'admin_cancelled' THEN 1 END)::text AS reject,
+         COUNT(CASE WHEN LOWER(o.status::text) = 'returned' THEN 1 END)::text AS return_count,
+         COALESCE(SUM(CASE WHEN LOWER(o.status::text) = 'returned' THEN o.total_amount ELSE 0 END), 0)::text AS return_amount,
+         COUNT(CASE WHEN LOWER(o.status::text) = 'partial_delivered' THEN 1 END)::text AS partial_delivered,
+         COALESCE(SUM(CASE WHEN LOWER(o.status::text) = 'partial_delivered' THEN COALESCE(o.cod_amount, o.total_amount, 0) ELSE 0 END), 0)::text AS partial_collected_amount,
+         COALESCE(SUM(CASE WHEN LOWER(o.status::text) = 'partial_delivered' THEN GREATEST(COALESCE(o.total_amount, 0) - COALESCE(o.cod_amount, o.total_amount, 0), 0) ELSE 0 END), 0)::text AS partial_return_amount,
+         COALESCE(SUM(CASE
+           WHEN LOWER(o.status::text) IN ('delivered', 'completed') THEN o.total_amount
+           WHEN LOWER(o.status::text) = 'partial_delivered' THEN COALESCE(o.cod_amount, o.total_amount, 0)
+           ELSE 0
+         END), 0)::text AS net_revenue
+       FROM sales_orders o
+       LEFT JOIN landing_pages lp ON lp.slug = o.utm_source
+       WHERE o.order_source IN ('website', 'landing_page')
+         AND DATE(o.order_date) >= $1
+         AND DATE(o.order_date) <= $2
+       GROUP BY
+         CASE WHEN o.order_source = 'website' THEN 'website' ELSE 'landing:' || COALESCE(NULLIF(o.utm_source, ''), 'unknown') END,
+         CASE WHEN o.order_source = 'website' THEN 'website' ELSE 'landing_page' END,
+         CASE WHEN o.order_source = 'website' THEN 'Website' ELSE COALESCE(lp.title, NULLIF(o.utm_campaign, ''), NULLIF(o.utm_source, ''), 'Unknown Landing Page') END
+       ORDER BY COALESCE(SUM(o.total_amount), 0) DESC, COUNT(o.id) DESC`,
+      [startDate, endDate],
+    );
+
+    const sourceProductRows: Array<{ source_key: string; products: string }> = await this.salesRepository.manager.query(
+      `SELECT source_key, COALESCE(SUM(quantity), 0)::text AS products
+       FROM (
+         SELECT
+           CASE WHEN o.order_source = 'website' THEN 'website' ELSE 'landing:' || COALESCE(NULLIF(o.utm_source, ''), 'unknown') END AS source_key,
+           COALESCE(soi.quantity, 0) AS quantity
+         FROM sales_order_items soi
+         INNER JOIN sales_orders o ON o.id = soi.sales_order_id
+         WHERE o.order_source IN ('website', 'landing_page')
+           AND DATE(o.order_date) >= $1
+           AND DATE(o.order_date) <= $2
+         UNION ALL
+         SELECT
+           CASE WHEN o.order_source = 'website' THEN 'website' ELSE 'landing:' || COALESCE(NULLIF(o.utm_source, ''), 'unknown') END AS source_key,
+           COALESCE(oi.quantity, 0) AS quantity
+         FROM order_items oi
+         INNER JOIN sales_orders o ON o.id = oi.order_id
+         WHERE o.order_source IN ('website', 'landing_page')
+           AND DATE(o.order_date) >= $1
+           AND DATE(o.order_date) <= $2
+       ) items
+       GROUP BY source_key`,
+      [startDate, endDate],
+    );
+
+    const mapDashboardRow = (row: {
+      orders: string;
+      gross_sales: string;
+      sent_parcels: string;
+      courier_parcel_amount: string;
+      delivered: string;
+      delivered_gross: string;
+      cancel: string;
+      cancelled_gross: string;
+      reject: string;
+      return_count: string;
+      return_amount: string;
+      partial_delivered: string;
+      partial_collected_amount: string;
+      partial_return_amount: string;
+      net_revenue: string;
+    }, products: number) => {
       const orders = toNum(row.orders);
       const delivered = toNum(row.delivered);
       const cancel = toNum(row.cancel);
       const reject = toNum(row.reject);
       return {
-        agentId: Number(row.agent_id),
-        agent: [row.agent_name, row.agent_last_name].filter(Boolean).join(' ').trim() || row.email || `Agent #${row.agent_id}`,
         orders,
-        products: productsByAgent.get(Number(row.agent_id)) || 0,
+        products,
         grossSales: roundMoney(toNum(row.gross_sales)),
+        sentParcels: toNum(row.sent_parcels),
+        courierParcelAmount: roundMoney(toNum(row.courier_parcel_amount)),
         delivered,
+        deliveredGross: roundMoney(toNum(row.delivered_gross)),
         deliveryPercent: orders ? Number(((delivered / orders) * 100).toFixed(1)) : 0,
         cancel,
+        cancelledGross: roundMoney(toNum(row.cancelled_gross)),
         cancelPercent: orders ? Number(((cancel / orders) * 100).toFixed(1)) : 0,
         reject,
         rejectPercent: orders ? Number(((reject / orders) * 100).toFixed(1)) : 0,
         return: toNum(row.return_count),
         returnAmount: roundMoney(toNum(row.return_amount)),
+        partialDelivered: toNum(row.partial_delivered),
+        partialCollectedAmount: roundMoney(toNum(row.partial_collected_amount)),
+        partialReturnAmount: roundMoney(toNum(row.partial_return_amount)),
         netRevenue: roundMoney(toNum(row.net_revenue)),
+      };
+    };
+
+    const productsByAgent = new Map(productRows.map((row) => [Number(row.agent_id), toNum(row.products)]));
+    const rows = orderRows.map((row) => {
+      return {
+        agentId: Number(row.agent_id),
+        agent: [row.agent_name, row.agent_last_name].filter(Boolean).join(' ').trim() || row.email || `Agent #${row.agent_id}`,
+        ...mapDashboardRow(row, productsByAgent.get(Number(row.agent_id)) || 0),
       };
     });
 
-    const totals = rows.reduce((acc, row) => {
+    const buildTotals = <T extends {
+      orders: number;
+      products: number;
+      grossSales: number;
+      sentParcels: number;
+      courierParcelAmount: number;
+      delivered: number;
+      deliveredGross: number;
+      cancel: number;
+      cancelledGross: number;
+      reject: number;
+      return: number;
+      returnAmount: number;
+      partialDelivered: number;
+      partialCollectedAmount: number;
+      partialReturnAmount: number;
+      netRevenue: number;
+    }>(items: T[]) => {
+      const totals = items.reduce((acc, row) => {
       acc.orders += row.orders;
       acc.products += row.products;
       acc.grossSales += row.grossSales;
+      acc.sentParcels += row.sentParcels;
+      acc.courierParcelAmount += row.courierParcelAmount;
       acc.delivered += row.delivered;
+      acc.deliveredGross += row.deliveredGross;
       acc.cancel += row.cancel;
+      acc.cancelledGross += row.cancelledGross;
       acc.reject += row.reject;
       acc.return += row.return;
       acc.returnAmount += row.returnAmount;
+      acc.partialDelivered += row.partialDelivered;
+      acc.partialCollectedAmount += row.partialCollectedAmount;
+      acc.partialReturnAmount += row.partialReturnAmount;
       acc.netRevenue += row.netRevenue;
       return acc;
     }, {
       orders: 0,
       products: 0,
       grossSales: 0,
+      sentParcels: 0,
+      courierParcelAmount: 0,
       delivered: 0,
+      deliveredGross: 0,
       deliveryPercent: 0,
       cancel: 0,
+      cancelledGross: 0,
       cancelPercent: 0,
       reject: 0,
       rejectPercent: 0,
       return: 0,
       returnAmount: 0,
+      partialDelivered: 0,
+      partialCollectedAmount: 0,
+      partialReturnAmount: 0,
       netRevenue: 0,
     });
 
-    totals.deliveryPercent = totals.orders ? Number(((totals.delivered / totals.orders) * 100).toFixed(1)) : 0;
-    totals.cancelPercent = totals.orders ? Number(((totals.cancel / totals.orders) * 100).toFixed(1)) : 0;
-    totals.rejectPercent = totals.orders ? Number(((totals.reject / totals.orders) * 100).toFixed(1)) : 0;
-    totals.grossSales = roundMoney(totals.grossSales);
-    totals.returnAmount = roundMoney(totals.returnAmount);
-    totals.netRevenue = roundMoney(totals.netRevenue);
+      totals.deliveryPercent = totals.orders ? Number(((totals.delivered / totals.orders) * 100).toFixed(1)) : 0;
+      totals.cancelPercent = totals.orders ? Number(((totals.cancel / totals.orders) * 100).toFixed(1)) : 0;
+      totals.rejectPercent = totals.orders ? Number(((totals.reject / totals.orders) * 100).toFixed(1)) : 0;
+      totals.grossSales = roundMoney(totals.grossSales);
+      totals.courierParcelAmount = roundMoney(totals.courierParcelAmount);
+      totals.deliveredGross = roundMoney(totals.deliveredGross);
+      totals.cancelledGross = roundMoney(totals.cancelledGross);
+      totals.returnAmount = roundMoney(totals.returnAmount);
+      totals.partialCollectedAmount = roundMoney(totals.partialCollectedAmount);
+      totals.partialReturnAmount = roundMoney(totals.partialReturnAmount);
+      totals.netRevenue = roundMoney(totals.netRevenue);
+      return totals;
+    };
+
+    const sourceProductsByKey = new Map(sourceProductRows.map((row) => [row.source_key, toNum(row.products)]));
+    const sourceRows = sourceOrderRows.map((row) => ({
+      sourceKey: row.source_key,
+      sourceType: row.source_type,
+      sourceLabel: row.source_label,
+      ...mapDashboardRow(row, sourceProductsByKey.get(row.source_key) || 0),
+    }));
+
+    const totals = buildTotals(rows);
+    const sourceTotals = buildTotals(sourceRows);
 
     return {
       startDate,
       endDate,
       rows,
       totals,
+      sourceRows,
+      sourceTotals,
     };
   }
 
