@@ -414,6 +414,18 @@ export class SalesController {
     });
   }
 
+  @Get('reports-dashboard')
+  @RequirePermissions('view-sales-reports')
+  async getReportsDashboard(
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+  ) {
+    return this.salesService.getReportsDashboard({
+      startDate: startDate || undefined,
+      endDate: endDate || undefined,
+    });
+  }
+
   @Get('agent-monthly-report')
   @RequirePermissions('view-sales-reports')
   async getAgentMonthlyReport(

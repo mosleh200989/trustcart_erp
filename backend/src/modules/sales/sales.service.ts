@@ -4150,6 +4150,150 @@ export class SalesService {
     };
   }
 
+  async getReportsDashboard(params: { startDate?: string; endDate?: string }) {
+    const today = this.currentDhakaDateString();
+    const current = new Date(`${today}T00:00:00`);
+    const defaultStartDate = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}-01`;
+    const startDate = params.startDate || defaultStartDate;
+    const endDate = params.endDate || today;
+    const toNum = (v: any) => parseFloat(v) || 0;
+    const roundMoney = (value: number) => Math.round(value * 100) / 100;
+
+    const orderRows: Array<{
+      agent_id: number;
+      agent_name: string | null;
+      agent_last_name: string | null;
+      email: string | null;
+      orders: string;
+      gross_sales: string;
+      delivered: string;
+      cancel: string;
+      reject: string;
+      return_count: string;
+      return_amount: string;
+      net_revenue: string;
+    }> = await this.salesRepository.manager.query(
+      `SELECT
+         o.created_by AS agent_id,
+         u.name AS agent_name,
+         u.last_name AS agent_last_name,
+         u.email,
+         COUNT(o.id)::text AS orders,
+         COALESCE(SUM(o.total_amount), 0)::text AS gross_sales,
+         COUNT(CASE WHEN LOWER(o.status::text) = 'delivered' THEN 1 END)::text AS delivered,
+         COUNT(CASE WHEN LOWER(o.status::text) = 'cancelled' THEN 1 END)::text AS cancel,
+         COUNT(CASE WHEN LOWER(o.status::text) = 'admin_cancelled' THEN 1 END)::text AS reject,
+         COUNT(CASE WHEN LOWER(o.status::text) = 'returned' THEN 1 END)::text AS return_count,
+         COALESCE(SUM(CASE WHEN LOWER(o.status::text) = 'returned' THEN o.total_amount ELSE 0 END), 0)::text AS return_amount,
+         (
+           COALESCE(SUM(CASE
+             WHEN LOWER(o.status::text) IN ('delivered', 'completed', 'partial_delivered') THEN o.total_amount
+             ELSE 0
+           END), 0)
+           - COALESCE(SUM(CASE WHEN LOWER(o.status::text) = 'returned' THEN o.total_amount ELSE 0 END), 0)
+         )::text AS net_revenue
+       FROM sales_orders o
+       INNER JOIN users u ON u.id = o.created_by
+       WHERE o.created_by IS NOT NULL
+         AND o.order_source IN ('admin_panel', 'agent_dashboard')
+         AND DATE(o.order_date) >= $1
+         AND DATE(o.order_date) <= $2
+       GROUP BY o.created_by, u.name, u.last_name, u.email
+       ORDER BY gross_sales::numeric DESC, orders::numeric DESC`,
+      [startDate, endDate],
+    );
+
+    const productRows: Array<{ agent_id: number; products: string }> = await this.salesRepository.manager.query(
+      `SELECT agent_id, COALESCE(SUM(quantity), 0)::text AS products
+       FROM (
+         SELECT o.created_by AS agent_id, COALESCE(soi.quantity, 0) AS quantity
+         FROM sales_order_items soi
+         INNER JOIN sales_orders o ON o.id = soi.sales_order_id
+         WHERE o.created_by IS NOT NULL
+           AND o.order_source IN ('admin_panel', 'agent_dashboard')
+           AND DATE(o.order_date) >= $1
+           AND DATE(o.order_date) <= $2
+           AND NOT EXISTS (
+             SELECT 1 FROM order_items oi_existing WHERE oi_existing.order_id = o.id
+           )
+         UNION ALL
+         SELECT o.created_by AS agent_id, COALESCE(oi.quantity, 0) AS quantity
+         FROM order_items oi
+         INNER JOIN sales_orders o ON o.id = oi.order_id
+         WHERE o.created_by IS NOT NULL
+           AND o.order_source IN ('admin_panel', 'agent_dashboard')
+           AND DATE(o.order_date) >= $1
+           AND DATE(o.order_date) <= $2
+       ) items
+       GROUP BY agent_id`,
+      [startDate, endDate],
+    );
+
+    const productsByAgent = new Map(productRows.map((row) => [Number(row.agent_id), toNum(row.products)]));
+    const rows = orderRows.map((row) => {
+      const orders = toNum(row.orders);
+      const delivered = toNum(row.delivered);
+      const cancel = toNum(row.cancel);
+      const reject = toNum(row.reject);
+      return {
+        agentId: Number(row.agent_id),
+        agent: [row.agent_name, row.agent_last_name].filter(Boolean).join(' ').trim() || row.email || `Agent #${row.agent_id}`,
+        orders,
+        products: productsByAgent.get(Number(row.agent_id)) || 0,
+        grossSales: roundMoney(toNum(row.gross_sales)),
+        delivered,
+        deliveryPercent: orders ? Number(((delivered / orders) * 100).toFixed(1)) : 0,
+        cancel,
+        cancelPercent: orders ? Number(((cancel / orders) * 100).toFixed(1)) : 0,
+        reject,
+        rejectPercent: orders ? Number(((reject / orders) * 100).toFixed(1)) : 0,
+        return: toNum(row.return_count),
+        returnAmount: roundMoney(toNum(row.return_amount)),
+        netRevenue: roundMoney(toNum(row.net_revenue)),
+      };
+    });
+
+    const totals = rows.reduce((acc, row) => {
+      acc.orders += row.orders;
+      acc.products += row.products;
+      acc.grossSales += row.grossSales;
+      acc.delivered += row.delivered;
+      acc.cancel += row.cancel;
+      acc.reject += row.reject;
+      acc.return += row.return;
+      acc.returnAmount += row.returnAmount;
+      acc.netRevenue += row.netRevenue;
+      return acc;
+    }, {
+      orders: 0,
+      products: 0,
+      grossSales: 0,
+      delivered: 0,
+      deliveryPercent: 0,
+      cancel: 0,
+      cancelPercent: 0,
+      reject: 0,
+      rejectPercent: 0,
+      return: 0,
+      returnAmount: 0,
+      netRevenue: 0,
+    });
+
+    totals.deliveryPercent = totals.orders ? Number(((totals.delivered / totals.orders) * 100).toFixed(1)) : 0;
+    totals.cancelPercent = totals.orders ? Number(((totals.cancel / totals.orders) * 100).toFixed(1)) : 0;
+    totals.rejectPercent = totals.orders ? Number(((totals.reject / totals.orders) * 100).toFixed(1)) : 0;
+    totals.grossSales = roundMoney(totals.grossSales);
+    totals.returnAmount = roundMoney(totals.returnAmount);
+    totals.netRevenue = roundMoney(totals.netRevenue);
+
+    return {
+      startDate,
+      endDate,
+      rows,
+      totals,
+    };
+  }
+
   /**
    * Individual Monthly Order Report
    * Returns per-agent, per-day order counts for a given month/year,
