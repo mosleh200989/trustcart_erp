@@ -595,6 +595,290 @@ export class SalesManagerService implements OnModuleInit {
       take: 10,
     });
 
+    const [
+      leadsBySourceRows,
+      leadStatusFunnelRows,
+      agentPerformanceRows,
+      leadQualityRows,
+      unassignedSourceRows,
+      unassignedAgeRows,
+      recentActivityRows,
+      duplicateLeadRows,
+      leadVerificationRows,
+      leadScoringRows,
+      lossReasonRows,
+    ] = await Promise.all([
+      this.customerRepository.query(`
+        SELECT COALESCE(NULLIF(TRIM(source), ''), 'Unknown') AS label,
+               COUNT(*)::int AS count
+        FROM customers c
+        WHERE COALESCE(c.is_deleted, false) = false
+          AND COALESCE(c.lifecycle_stage, 'lead') = 'lead'
+          AND NOT EXISTS (SELECT 1 FROM customer_tiers ct WHERE ct.customer_id = c.id AND ct.tier = 'rejected')
+          AND (c.customer_type IS NULL OR c.customer_type != 'rejected')
+        GROUP BY 1
+        ORDER BY count DESC, label ASC
+        LIMIT 10
+      `),
+      this.customerRepository.query(`
+        SELECT status AS label,
+               COUNT(*)::int AS count
+        FROM (
+          SELECT CASE
+            WHEN COALESCE(c.lifecycle_stage, '') = 'customer' THEN 'Converted'
+            WHEN LOWER(COALESCE(c.lead_status, '')) IN ('lost', 'not_interested') THEN 'Lost'
+            WHEN c.assigned_to IS NULL THEN 'Unassigned'
+            WHEN c.last_contact_date IS NOT NULL THEN 'Contacted'
+            WHEN c.assigned_to IS NOT NULL THEN 'Assigned'
+            ELSE 'New'
+          END AS status
+          FROM customers c
+          WHERE COALESCE(c.is_deleted, false) = false
+            AND NOT EXISTS (SELECT 1 FROM customer_tiers ct WHERE ct.customer_id = c.id AND ct.tier = 'rejected')
+            AND (c.customer_type IS NULL OR c.customer_type != 'rejected')
+        ) funnel
+        GROUP BY status
+        ORDER BY CASE status
+          WHEN 'New' THEN 1
+          WHEN 'Unassigned' THEN 2
+          WHEN 'Assigned' THEN 3
+          WHEN 'Contacted' THEN 4
+          WHEN 'Converted' THEN 5
+          WHEN 'Lost' THEN 6
+          ELSE 7
+        END
+      `),
+      this.customerRepository.query(`
+        SELECT u.id,
+               TRIM(CONCAT(COALESCE(u.name, ''), ' ', COALESCE(u.last_name, ''))) AS name,
+               TRIM(CONCAT(COALESCE(tl.name, ''), ' ', COALESCE(tl.last_name, ''))) AS team_leader_name,
+               COUNT(DISTINCT c.id)::int AS assigned_leads,
+               COUNT(DISTINCT CASE WHEN COALESCE(c.lifecycle_stage, '') = 'customer' THEN c.id END)::int AS converted_leads,
+               COUNT(DISTINCT CASE WHEN c.last_contact_date IS NOT NULL THEN c.id END)::int AS contacted_leads,
+               COUNT(DISTINCT CASE WHEN t.created_at >= CURRENT_DATE THEN t.id END)::int AS calls_today,
+               COUNT(DISTINCT CASE WHEN t.created_at >= DATE_TRUNC('month', CURRENT_DATE) THEN t.id END)::int AS calls_month
+        FROM users u
+        INNER JOIN roles r ON r.id = u.role_id
+        LEFT JOIN users tl ON tl.id = u.team_leader_id
+        LEFT JOIN customers c ON c.assigned_to = u.id AND COALESCE(c.is_deleted, false) = false
+        LEFT JOIN crm_call_tasks t ON t.assigned_agent_id = u.id
+        WHERE r.slug = 'sales-executive'
+          AND u.status = 'active'
+          AND COALESCE(u.is_deleted, false) = false
+        GROUP BY u.id, u.name, u.last_name, tl.name, tl.last_name
+        ORDER BY converted_leads DESC, assigned_leads DESC, calls_month DESC, name ASC
+        LIMIT 12
+      `),
+      this.customerRepository.query(`
+        SELECT COALESCE(NULLIF(priority::text, ''), 'unrated') AS label,
+               COUNT(*)::int AS count
+        FROM customers c
+        WHERE COALESCE(c.is_deleted, false) = false
+          AND COALESCE(c.lifecycle_stage, 'lead') = 'lead'
+          AND NOT EXISTS (SELECT 1 FROM customer_tiers ct WHERE ct.customer_id = c.id AND ct.tier = 'rejected')
+          AND (c.customer_type IS NULL OR c.customer_type != 'rejected')
+        GROUP BY 1
+        ORDER BY CASE COALESCE(NULLIF(priority::text, ''), 'unrated')
+          WHEN 'hot' THEN 1
+          WHEN 'warm' THEN 2
+          WHEN 'cold' THEN 3
+          ELSE 4
+        END
+      `),
+      this.customerRepository.query(`
+        SELECT COALESCE(NULLIF(TRIM(source), ''), 'Unknown') AS label,
+               COUNT(*)::int AS count
+        FROM customers c
+        WHERE COALESCE(c.is_deleted, false) = false
+          AND COALESCE(c.lifecycle_stage, 'lead') = 'lead'
+          AND c.assigned_to IS NULL
+          AND NOT EXISTS (SELECT 1 FROM customer_tiers ct WHERE ct.customer_id = c.id AND ct.tier = 'rejected')
+          AND (c.customer_type IS NULL OR c.customer_type != 'rejected')
+        GROUP BY 1
+        ORDER BY count DESC, label ASC
+        LIMIT 8
+      `),
+      this.customerRepository.query(`
+        SELECT bucket AS label,
+               COUNT(*)::int AS count
+        FROM (
+          SELECT CASE
+            WHEN c.created_at >= NOW() - INTERVAL '7 days' THEN '0-7 days'
+            WHEN c.created_at >= NOW() - INTERVAL '14 days' THEN '8-14 days'
+            WHEN c.created_at >= NOW() - INTERVAL '30 days' THEN '15-30 days'
+            ELSE '30+ days'
+          END AS bucket
+          FROM customers c
+          WHERE COALESCE(c.is_deleted, false) = false
+            AND COALESCE(c.lifecycle_stage, 'lead') = 'lead'
+            AND c.assigned_to IS NULL
+            AND NOT EXISTS (SELECT 1 FROM customer_tiers ct WHERE ct.customer_id = c.id AND ct.tier = 'rejected')
+            AND (c.customer_type IS NULL OR c.customer_type != 'rejected')
+        ) queue
+        GROUP BY bucket
+        ORDER BY CASE bucket
+          WHEN '0-7 days' THEN 1
+          WHEN '8-14 days' THEN 2
+          WHEN '15-30 days' THEN 3
+          ELSE 4
+        END
+      `),
+      this.customerRepository.query(`
+        SELECT *
+        FROM (
+          SELECT 'Call Task' AS type,
+                 COALESCE(c.name, CONCAT('Customer #', t.customer_id)) AS customer_name,
+                 c.phone AS customer_phone,
+                 COALESCE(t.call_outcome, t.status, t.call_reason, 'Task updated') AS detail,
+                 TRIM(CONCAT(COALESCE(u.name, ''), ' ', COALESCE(u.last_name, ''))) AS actor_name,
+                 t.updated_at AS activity_at
+          FROM crm_call_tasks t
+          LEFT JOIN customers c ON c.id::text = t.customer_id
+          LEFT JOIN users u ON u.id = t.assigned_agent_id
+          UNION ALL
+          SELECT INITCAP(REPLACE(COALESCE(eh.engagement_type, 'engagement'), '_', ' ')) AS type,
+                 COALESCE(c.name, CONCAT('Customer #', eh.customer_id)) AS customer_name,
+                 c.phone AS customer_phone,
+                 COALESCE(eh.status, eh.channel, 'Engagement recorded') AS detail,
+                 TRIM(CONCAT(COALESCE(u.name, ''), ' ', COALESCE(u.last_name, ''))) AS actor_name,
+                 eh.created_at AS activity_at
+          FROM customer_engagement_history eh
+          LEFT JOIN customers c ON c.id::text = eh.customer_id
+          LEFT JOIN users u ON u.id = eh.agent_id
+          UNION ALL
+          SELECT INITCAP(REPLACE(COALESCE(a.type, 'activity'), '_', ' ')) AS type,
+                 COALESCE(c.name, 'Unknown customer') AS customer_name,
+                 c.phone AS customer_phone,
+                 COALESCE(a.outcome, a.subject, a.description, 'Activity recorded') AS detail,
+                 TRIM(CONCAT(COALESCE(u.name, ''), ' ', COALESCE(u.last_name, ''))) AS actor_name,
+                 a.created_at AS activity_at
+          FROM activities a
+          LEFT JOIN customers c ON c.id = a.customer_id
+          LEFT JOIN users u ON u.id = a.user_id
+        ) activity
+        WHERE activity_at IS NOT NULL
+        ORDER BY activity_at DESC
+        LIMIT 12
+      `),
+      this.customerRepository.query(`
+        WITH normalized AS (
+          SELECT id, name, phone, email,
+                 NULLIF(REGEXP_REPLACE(REPLACE(COALESCE(phone, ''), '+88', ''), '\\D', '', 'g'), '') AS phone_key,
+                 NULLIF(LOWER(TRIM(COALESCE(email, ''))), '') AS email_key
+          FROM customers
+          WHERE COALESCE(is_deleted, false) = false
+        ),
+        duplicate_groups AS (
+          SELECT 'Phone' AS kind,
+                 phone_key AS match_key,
+                 COUNT(*)::int AS count,
+                 JSONB_AGG(JSONB_BUILD_OBJECT('id', id, 'name', name, 'phone', phone, 'email', email) ORDER BY id DESC) AS customers
+          FROM normalized
+          WHERE phone_key IS NOT NULL
+          GROUP BY phone_key
+          HAVING COUNT(*) > 1
+          UNION ALL
+          SELECT 'Email' AS kind,
+                 email_key AS match_key,
+                 COUNT(*)::int AS count,
+                 JSONB_AGG(JSONB_BUILD_OBJECT('id', id, 'name', name, 'phone', phone, 'email', email) ORDER BY id DESC) AS customers
+          FROM normalized
+          WHERE email_key IS NOT NULL
+          GROUP BY email_key
+          HAVING COUNT(*) > 1
+        )
+        SELECT *
+        FROM duplicate_groups
+        ORDER BY count DESC, kind ASC
+        LIMIT 10
+      `),
+      this.customerRepository.query(`
+        SELECT COUNT(*)::int AS total,
+               COUNT(CASE WHEN NULLIF(REGEXP_REPLACE(REPLACE(COALESCE(phone, ''), '+88', ''), '\\D', '', 'g'), '') IS NOT NULL THEN 1 END)::int AS phone_present,
+               COUNT(CASE WHEN NULLIF(TRIM(COALESCE(email, '')), '') IS NOT NULL THEN 1 END)::int AS email_present,
+               COUNT(CASE WHEN NULLIF(TRIM(COALESCE(address, '')), '') IS NOT NULL OR NULLIF(TRIM(COALESCE(district, '')), '') IS NOT NULL THEN 1 END)::int AS address_present,
+               COUNT(CASE WHEN NULLIF(TRIM(COALESCE(name, '')), '') IS NOT NULL THEN 1 END)::int AS name_present,
+               COUNT(CASE WHEN last_contact_date IS NOT NULL THEN 1 END)::int AS contacted,
+               COUNT(CASE WHEN NULLIF(REGEXP_REPLACE(REPLACE(COALESCE(phone, ''), '+88', ''), '\\D', '', 'g'), '') IS NOT NULL
+                         AND NULLIF(TRIM(COALESCE(name, '')), '') IS NOT NULL
+                         AND (NULLIF(TRIM(COALESCE(address, '')), '') IS NOT NULL OR NULLIF(TRIM(COALESCE(district, '')), '') IS NOT NULL)
+                    THEN 1 END)::int AS verified
+        FROM customers c
+        WHERE COALESCE(c.is_deleted, false) = false
+          AND COALESCE(c.lifecycle_stage, 'lead') = 'lead'
+      `),
+      this.customerRepository.query(`
+        WITH scored AS (
+          SELECT LEAST(100,
+            CASE COALESCE(priority::text, '')
+              WHEN 'hot' THEN 40
+              WHEN 'warm' THEN 25
+              WHEN 'cold' THEN 10
+              ELSE 15
+            END
+            + CASE WHEN NULLIF(REGEXP_REPLACE(REPLACE(COALESCE(phone, ''), '+88', ''), '\\D', '', 'g'), '') IS NOT NULL THEN 15 ELSE 0 END
+            + CASE WHEN NULLIF(TRIM(COALESCE(name, '')), '') IS NOT NULL THEN 10 ELSE 0 END
+            + CASE WHEN NULLIF(TRIM(COALESCE(address, '')), '') IS NOT NULL OR NULLIF(TRIM(COALESCE(district, '')), '') IS NOT NULL THEN 10 ELSE 0 END
+            + CASE WHEN last_contact_date IS NOT NULL THEN 10 ELSE 0 END
+            + CASE WHEN COALESCE(total_spent, 0) > 0 THEN 15 ELSE 0 END
+          ) AS score
+          FROM customers c
+          WHERE COALESCE(c.is_deleted, false) = false
+            AND COALESCE(c.lifecycle_stage, 'lead') = 'lead'
+        )
+        SELECT label,
+               COUNT(*)::int AS count,
+               ROUND(AVG(score), 1)::float AS average_score
+        FROM (
+          SELECT score,
+                 CASE
+                   WHEN score >= 80 THEN 'High Intent'
+                   WHEN score >= 55 THEN 'Qualified'
+                   WHEN score >= 30 THEN 'Needs Nurture'
+                   ELSE 'Low Signal'
+                 END AS label
+          FROM scored
+        ) bucketed
+        GROUP BY label
+        ORDER BY CASE
+          WHEN label = 'High Intent' THEN 1
+          WHEN label = 'Qualified' THEN 2
+          WHEN label = 'Needs Nurture' THEN 3
+          ELSE 4
+        END
+      `),
+      this.customerRepository.query(`
+        WITH reasons AS (
+          SELECT COALESCE(NULLIF(TRIM(lead_status), ''), NULL) AS reason
+          FROM customers
+          WHERE LOWER(COALESCE(lead_status, '')) IN ('lost', 'not_interested', 'no_answer', 'rejected')
+          UNION ALL
+          SELECT COALESCE(NULLIF(TRIM(call_outcome), ''), NULL) AS reason
+          FROM crm_call_tasks
+          WHERE LOWER(COALESCE(call_outcome, '')) IN ('not_interested', 'wrong_number', 'no_answer', 'customer_hung_up', 'line_busy', 'number_switched_off')
+          UNION ALL
+          SELECT COALESCE(NULLIF(TRIM(lost_reason), ''), NULL) AS reason
+          FROM deals
+          WHERE NULLIF(TRIM(COALESCE(lost_reason, '')), '') IS NOT NULL
+        )
+        SELECT INITCAP(REPLACE(reason, '_', ' ')) AS label,
+               COUNT(*)::int AS count
+        FROM reasons
+        WHERE reason IS NOT NULL
+        GROUP BY reason
+        ORDER BY count DESC, label ASC
+        LIMIT 8
+      `),
+    ]);
+
+    const toNumber = (value: any) => Number(value || 0);
+    const mapCountRows = (rows: any[]) => rows.map((row) => ({
+      label: row.label || 'Unknown',
+      count: toNumber(row.count),
+    }));
+    const verification = leadVerificationRows?.[0] || {};
+    const verificationTotal = toNumber(verification.total);
+
     return {
       overview: {
         totalCustomers,
@@ -614,6 +898,63 @@ export class SalesManagerService implements OnModuleInit {
         escalated_at: (e as any).escalated_at,
         assigned_supervisor_id: (e as any).assigned_supervisor_id,
       })),
+      analytics: {
+        leadsBySource: mapCountRows(leadsBySourceRows),
+        leadStatusFunnel: mapCountRows(leadStatusFunnelRows),
+        topTeamLeaders: [...teamLeaderStats]
+          .sort((a, b) => (b.converted - a.converted) || (b.leads - a.leads) || (b.totalCustomers - a.totalCustomers))
+          .slice(0, 8),
+        agentPerformance: agentPerformanceRows.map((row: any) => {
+          const assignedLeads = toNumber(row.assigned_leads);
+          const convertedLeads = toNumber(row.converted_leads);
+          return {
+            id: toNumber(row.id),
+            name: row.name || `Agent #${row.id}`,
+            teamLeaderName: row.team_leader_name || 'Unassigned',
+            assignedLeads,
+            contactedLeads: toNumber(row.contacted_leads),
+            convertedLeads,
+            callsToday: toNumber(row.calls_today),
+            callsMonth: toNumber(row.calls_month),
+            conversionRate: assignedLeads ? Number(((convertedLeads / assignedLeads) * 100).toFixed(1)) : 0,
+          };
+        }),
+        leadQualityDistribution: mapCountRows(leadQualityRows),
+        unassignedQueueBreakdown: {
+          bySource: mapCountRows(unassignedSourceRows),
+          byAge: mapCountRows(unassignedAgeRows),
+        },
+        recentActivities: recentActivityRows.map((row: any) => ({
+          type: row.type || 'Activity',
+          customerName: row.customer_name || 'Unknown customer',
+          customerPhone: row.customer_phone || null,
+          detail: row.detail || '',
+          actorName: row.actor_name || '',
+          activityAt: row.activity_at || null,
+        })),
+        duplicateLeads: duplicateLeadRows.map((row: any) => ({
+          kind: row.kind || 'Duplicate',
+          matchKey: row.match_key || '',
+          count: toNumber(row.count),
+          customers: Array.isArray(row.customers) ? row.customers : [],
+        })),
+        leadVerification: {
+          total: verificationTotal,
+          phonePresent: toNumber(verification.phone_present),
+          emailPresent: toNumber(verification.email_present),
+          addressPresent: toNumber(verification.address_present),
+          namePresent: toNumber(verification.name_present),
+          contacted: toNumber(verification.contacted),
+          verified: toNumber(verification.verified),
+          verificationRate: verificationTotal ? Number(((toNumber(verification.verified) / verificationTotal) * 100).toFixed(1)) : 0,
+        },
+        leadScoring: leadScoringRows.map((row: any) => ({
+          label: row.label || 'Unknown',
+          count: toNumber(row.count),
+          averageScore: Number(row.average_score || 0),
+        })),
+        lossReasonAnalysis: mapCountRows(lossReasonRows),
+      },
     };
   }
 
