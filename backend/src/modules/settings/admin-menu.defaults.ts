@@ -63,6 +63,7 @@ export const DEFAULT_ADMIN_MENU: AdminMenuSeedNode[] = [
     icon: 'FaChartBar',
     children: [
       { title: 'Dashboard', icon: 'FaChartBar', path: '/admin/reports/dashboard', requiredPermissions: ['view-sales-reports'] },
+      { title: "Today's Report", icon: 'FaChartBar', path: '/admin/reports/today', requiredPermissions: ['view-todays-report'] },
       {
         title: 'Overview',
         icon: 'FaChartBar',

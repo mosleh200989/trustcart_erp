@@ -394,7 +394,7 @@ export class SalesController {
   }
 
   @Get('daily-report')
-  @RequirePermissions('view-sales-reports')
+  @RequirePermissions('view-todays-report')
   async getDailyReport(
     @Query('date') date?: string,
     @Query('startDate') startDate?: string,
