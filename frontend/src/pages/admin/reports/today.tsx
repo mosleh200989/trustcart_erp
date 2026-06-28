@@ -101,6 +101,8 @@ interface CombinedProductRow {
 
 interface DailyReport {
   date: string;
+  startDate?: string;
+  endDate?: string;
   summary: Summary;
   agentSummary?: Summary;
   products: ProductRow[];
@@ -122,28 +124,53 @@ const productLabel = (row: Pick<AgentProductRow, 'productId' | 'productName'>) =
 
 export default function TodaysReportPage() {
   const [date, setDate] = useState(() => getDhakaDateString());
+  const [rangeStartDate, setRangeStartDate] = useState('');
+  const [rangeEndDate, setRangeEndDate] = useState('');
   const [data, setData] = useState<DailyReport | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [productSearch, setProductSearch] = useState('');
   const [sourceFilter, setSourceFilter] = useState<'all' | 'landing_page' | 'website'>('all');
 
-  const fetchReport = useCallback(async (reportDate: string) => {
+  const isRangeMode = Boolean(rangeStartDate && rangeEndDate);
+
+  const fetchReport = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
-      const res = await apiClient.get(`/sales/daily-report?date=${reportDate}`);
+      const params = new URLSearchParams();
+      if (isRangeMode) {
+        const start = rangeStartDate <= rangeEndDate ? rangeStartDate : rangeEndDate;
+        const end = rangeStartDate <= rangeEndDate ? rangeEndDate : rangeStartDate;
+        params.set('startDate', start);
+        params.set('endDate', end);
+      } else {
+        params.set('date', date);
+      }
+      const res = await apiClient.get(`/sales/daily-report?${params.toString()}`);
       setData(res.data);
     } catch (err: any) {
       setError(err?.response?.data?.message || err.message || 'Failed to load report');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [date, isRangeMode, rangeEndDate, rangeStartDate]);
 
   useEffect(() => {
-    fetchReport(date);
-  }, [date, fetchReport]);
+    fetchReport();
+  }, [fetchReport]);
+
+  const handleSingleDateChange = (value: string) => {
+    setDate(value);
+    setRangeStartDate('');
+    setRangeEndDate('');
+  };
+
+  const handleToday = () => {
+    setDate(getDhakaDateString());
+    setRangeStartDate('');
+    setRangeEndDate('');
+  };
 
   const summaryCards = useMemo(() => {
     const buildCards = (summary?: Summary) => {
@@ -257,6 +284,10 @@ export default function TodaysReportPage() {
     return Array.from(grouped.values()).sort((a, b) => b.totalQty - a.totalQty);
   }, [data]);
 
+  const reportRangeLabel = isRangeMode
+    ? `${data?.startDate || rangeStartDate} to ${data?.endDate || rangeEndDate}`
+    : data?.date || date;
+
   const handleExportCSV = () => {
     if (!productRows.length) return;
     const headers = ['Product Name', 'Total Orders', 'Total Qty', 'Delivered', 'Cancelled + Returned', 'Pending', 'Approved'];
@@ -273,7 +304,10 @@ export default function TodaysReportPage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `daily-report-${data?.date || date}.csv`;
+    const exportDateLabel = isRangeMode
+      ? `${data?.startDate || rangeStartDate}-to-${data?.endDate || rangeEndDate}`
+      : data?.date || date;
+    a.download = `daily-report-${exportDateLabel}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -287,19 +321,41 @@ export default function TodaysReportPage() {
               <span className="rounded-lg bg-indigo-600 p-2 text-white"><FaChartLine /></span>
               Today&apos;s Report
             </h1>
-            <p className="mt-1 text-sm text-gray-500">Daily order, product, source, and agent-product performance.</p>
+            <p className="mt-1 text-sm text-gray-500">Order, product, source, and agent-product performance for {reportRangeLabel}.</p>
           </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="relative">
-              <FaCalendarAlt className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <div className="flex flex-wrap items-end gap-3">
+            <label className="block">
+              <span className="mb-1 block text-xs font-semibold uppercase text-gray-500">Specific Date</span>
+              <div className="relative">
+                <FaCalendarAlt className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <AdminDateInput
+                  value={date}
+                  onValueChange={handleSingleDateChange}
+                  className="rounded-lg border border-gray-300 bg-white py-2.5 pl-10 pr-4 text-gray-900 outline-none transition-all focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs font-semibold uppercase text-gray-500">Range Start</span>
               <AdminDateInput
-                value={date}
-                onValueChange={setDate}
-                className="rounded-lg border border-gray-300 bg-white py-2.5 pl-10 pr-4 text-gray-900 outline-none transition-all focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500"
+                value={rangeStartDate}
+                onValueChange={setRangeStartDate}
+                className="w-36 rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-gray-900 outline-none transition-all focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500"
               />
-            </div>
-            <button onClick={() => setDate(getDhakaDateString())} className="rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-indigo-700">Today</button>
-            <button onClick={() => fetchReport(date)} disabled={loading} className="flex items-center gap-2 rounded-lg bg-gray-100 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-200 disabled:opacity-50">
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs font-semibold uppercase text-gray-500">Range End</span>
+              <AdminDateInput
+                value={rangeEndDate}
+                onValueChange={setRangeEndDate}
+                className="w-36 rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-gray-900 outline-none transition-all focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500"
+              />
+            </label>
+            <button onClick={handleToday} className="rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-indigo-700">Today</button>
+            {isRangeMode && (
+              <button onClick={() => { setRangeStartDate(''); setRangeEndDate(''); }} className="rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50">Use Specific Date</button>
+            )}
+            <button onClick={fetchReport} disabled={loading} className="flex items-center gap-2 rounded-lg bg-gray-100 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-200 disabled:opacity-50">
               <FaSyncAlt className={loading ? 'animate-spin' : ''} /> Refresh
             </button>
             <button onClick={handleExportCSV} disabled={!productRows.length} className="flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50">
@@ -438,7 +494,7 @@ export default function TodaysReportPage() {
                   ))}
                   {combinedProductRows.length === 0 && (
                     <tr>
-                      <td colSpan={5} className="px-4 py-12 text-center text-gray-500">No combined product sales found for this date.</td>
+                      <td colSpan={5} className="px-4 py-12 text-center text-gray-500">No combined product sales found for this period.</td>
                     </tr>
                   )}
                 </tbody>
@@ -464,7 +520,7 @@ export default function TodaysReportPage() {
                   </AreaChart>
                 </ResponsiveContainer>
               </ChartCard>
-              <ChartCard title="Top Products by Quantity" subtitle="The strongest movers for the selected day.">
+              <ChartCard title="Top Products by Quantity" subtitle="The strongest movers for the selected period.">
                 <ResponsiveContainer width="100%" height={300}>
                   <BarChart data={productRows.slice(0, 10)} layout="vertical" margin={{ top: 5, right: 30, left: 5, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />

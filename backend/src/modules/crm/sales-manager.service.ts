@@ -588,12 +588,22 @@ export class SalesManagerService implements OnModuleInit {
       });
     }
 
-    // Recent escalations
-    const recentEscalations = await this.customerRepository.find({
-      where: { is_escalated: true } as any,
-      order: { escalated_at: 'DESC' } as any,
-      take: 10,
-    });
+    // Recent escalations: select only stable columns because older databases may not
+    // have optional assignment audit columns mapped on the Customer entity.
+    const recentEscalations = await this.customerRepository
+      .createQueryBuilder('c')
+      .select([
+        'c.id AS id',
+        'c.name AS name',
+        'c.email AS email',
+        'c.phone AS phone',
+        'c.escalated_at AS escalated_at',
+        'c.assigned_supervisor_id AS assigned_supervisor_id',
+      ])
+      .where('c.is_escalated = true')
+      .orderBy('c.escalated_at', 'DESC')
+      .limit(10)
+      .getRawMany();
 
     const [
       leadsBySourceRows,
@@ -895,8 +905,8 @@ export class SalesManagerService implements OnModuleInit {
         name: e.name,
         email: e.email,
         phone: e.phone,
-        escalated_at: (e as any).escalated_at,
-        assigned_supervisor_id: (e as any).assigned_supervisor_id,
+        escalated_at: e.escalated_at,
+        assigned_supervisor_id: e.assigned_supervisor_id,
       })),
       analytics: {
         leadsBySource: mapCountRows(leadsBySourceRows),

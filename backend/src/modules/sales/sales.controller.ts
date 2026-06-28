@@ -395,9 +395,13 @@ export class SalesController {
 
   @Get('daily-report')
   @RequirePermissions('view-sales-reports')
-  async getDailyReport(@Query('date') date?: string) {
+  async getDailyReport(
+    @Query('date') date?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+  ) {
     const reportDate = date || this.getDhakaDateString();
-    return this.salesService.getDailyReport(reportDate);
+    return this.salesService.getDailyReport(reportDate, startDate || undefined, endDate || undefined);
   }
 
   @Get('agent-wise-report')

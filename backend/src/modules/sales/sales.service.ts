@@ -3387,9 +3387,11 @@ export class SalesService {
   /**
    * Daily report: product-wise sales breakdown for a given date.
    */
-  async getDailyReport(date: string) {
-    // date is YYYY-MM-DD
+  async getDailyReport(date: string, startDate?: string, endDate?: string) {
+    // date/startDate/endDate are YYYY-MM-DD. Without a complete range, this stays as a single-day report.
     const reportDate = date || this.currentDhakaDateString();
+    const rangeStartDate = startDate && endDate ? startDate : reportDate;
+    const rangeEndDate = startDate && endDate ? endDate : reportDate;
 
     // 1) Product-wise breakdown for agent/admin orders only.
     // Combine both item tables because agent/admin orders may be stored in either.
@@ -3423,7 +3425,8 @@ export class SalesService {
          FROM sales_order_items soi
          INNER JOIN sales_orders o ON o.id = soi.sales_order_id
          LEFT JOIN products p ON p.id = soi.product_id
-         WHERE DATE(o.order_date) = $1
+         WHERE DATE(o.order_date) >= $1
+           AND DATE(o.order_date) <= $2
            AND o.order_source IN ('admin_panel', 'agent_dashboard')
            AND NOT EXISTS (
              SELECT 1 FROM order_items oi_existing WHERE oi_existing.order_id = o.id
@@ -3441,12 +3444,13 @@ export class SalesService {
          FROM order_items oi
          INNER JOIN sales_orders o ON o.id = oi.order_id
          LEFT JOIN products p ON p.id = oi.product_id
-         WHERE DATE(o.order_date) = $1
+         WHERE DATE(o.order_date) >= $1
+           AND DATE(o.order_date) <= $2
            AND o.order_source IN ('admin_panel', 'agent_dashboard')
        ) normalized
        GROUP BY product_id, product_name
        ORDER BY total_orders DESC`,
-      [reportDate],
+      [rangeStartDate, rangeEndDate],
     );
 
     const approvedEverCondition = `(
@@ -3484,14 +3488,16 @@ export class SalesService {
     const summaryRaw = await this.salesRepository
       .createQueryBuilder('o')
       .select(dailySummarySelect)
-      .where('DATE(o.order_date) = :reportDate', { reportDate })
+      .where('DATE(o.order_date) >= :startDate', { startDate: rangeStartDate })
+      .andWhere('DATE(o.order_date) <= :endDate', { endDate: rangeEndDate })
       .andWhere("o.order_source IN ('website', 'landing_page')")
       .getRawOne();
 
     const agentSummaryRaw = await this.salesRepository
       .createQueryBuilder('o')
       .select(dailySummarySelect)
-      .where('DATE(o.order_date) = :reportDate', { reportDate })
+      .where('DATE(o.order_date) >= :startDate', { startDate: rangeStartDate })
+      .andWhere('DATE(o.order_date) <= :endDate', { endDate: rangeEndDate })
       .andWhere("o.order_source IN ('admin_panel', 'agent_dashboard')")
       .getRawOne();
 
@@ -3503,7 +3509,8 @@ export class SalesService {
         'COUNT(o.id) AS orders',
         'COALESCE(SUM(o.total_amount), 0) AS revenue',
       ])
-      .where('DATE(o.order_date) = :reportDate', { reportDate })
+      .where('DATE(o.order_date) >= :startDate', { startDate: rangeStartDate })
+      .andWhere('DATE(o.order_date) <= :endDate', { endDate: rangeEndDate })
       .groupBy('hour')
       .orderBy('hour', 'ASC')
       .getRawMany();
@@ -3516,7 +3523,8 @@ export class SalesService {
         'COUNT(o.id) AS orders',
         'COALESCE(SUM(o.total_amount), 0) AS revenue',
       ])
-      .where('DATE(o.order_date) = :reportDate', { reportDate })
+      .where('DATE(o.order_date) >= :startDate', { startDate: rangeStartDate })
+      .andWhere('DATE(o.order_date) <= :endDate', { endDate: rangeEndDate })
       .groupBy('source')
       .orderBy('orders', 'DESC')
       .getRawMany();
@@ -3528,7 +3536,8 @@ export class SalesService {
         `COALESCE(o.status, 'unknown') AS status`,
         'COUNT(o.id) AS orders',
       ])
-      .where('DATE(o.order_date) = :reportDate', { reportDate })
+      .where('DATE(o.order_date) >= :startDate', { startDate: rangeStartDate })
+      .andWhere('DATE(o.order_date) <= :endDate', { endDate: rangeEndDate })
       .andWhere("o.courier_company IS NOT NULL AND o.courier_company != ''")
       .groupBy('status')
       .orderBy('orders', 'DESC')
@@ -3546,7 +3555,8 @@ export class SalesService {
         'SUM(soi.line_total) AS total_revenue',
       ])
       .leftJoin('products', 'p', 'p.id = soi.product_id')
-      .where('DATE(o.order_date) = :reportDate', { reportDate })
+      .where('DATE(o.order_date) >= :startDate', { startDate: rangeStartDate })
+      .andWhere('DATE(o.order_date) <= :endDate', { endDate: rangeEndDate })
       .andWhere("o.order_source = 'landing_page'")
       .groupBy('soi.product_id')
       .addGroupBy(`COALESCE(NULLIF(p.name_en, ''), NULLIF(p.name_bn, ''), NULLIF(soi.product_name, ''), 'Unknown Product')`)
@@ -3565,7 +3575,8 @@ export class SalesService {
         'SUM(soi.line_total) AS total_revenue',
       ])
       .leftJoin('products', 'p', 'p.id = soi.product_id')
-      .where('DATE(o.order_date) = :reportDate', { reportDate })
+      .where('DATE(o.order_date) >= :startDate', { startDate: rangeStartDate })
+      .andWhere('DATE(o.order_date) <= :endDate', { endDate: rangeEndDate })
       .andWhere("o.order_source = 'website'")
       .groupBy('soi.product_id')
       .addGroupBy(`COALESCE(NULLIF(p.name_en, ''), NULLIF(p.name_bn, ''), NULLIF(soi.product_name, ''), 'Unknown Product')`)
@@ -3624,7 +3635,8 @@ export class SalesService {
              COALESCE(soi.line_total, soi.unit_price * soi.quantity, 0) AS total_revenue
            FROM sales_order_items soi
            INNER JOIN sales_orders o ON o.id = soi.sales_order_id
-           WHERE DATE(o.order_date) = $1
+           WHERE DATE(o.order_date) >= $1
+             AND DATE(o.order_date) <= $2
              AND o.created_by IS NOT NULL
              AND o.order_source IN ('admin_panel', 'agent_dashboard')
              AND NOT EXISTS (
@@ -3640,7 +3652,8 @@ export class SalesService {
              COALESCE(oi.subtotal, oi.unit_price * oi.quantity, 0) AS total_revenue
            FROM order_items oi
            INNER JOIN sales_orders o ON o.id = oi.order_id
-           WHERE DATE(o.order_date) = $1
+           WHERE DATE(o.order_date) >= $1
+             AND DATE(o.order_date) <= $2
              AND o.created_by IS NOT NULL
              AND o.order_source IN ('admin_panel', 'agent_dashboard')
          ) i
@@ -3651,7 +3664,7 @@ export class SalesService {
          AND normalized.agent_name !~* '^deleted\\+'
        GROUP BY normalized.agent_id, normalized.agent_name, normalized.product_id, normalized.product_name
        ORDER BY total_qty DESC`,
-      [reportDate],
+      [rangeStartDate, rangeEndDate],
     );
 
     const toNum = (v: any) => parseFloat(v) || 0;
@@ -3685,6 +3698,8 @@ export class SalesService {
 
     return {
       date: reportDate,
+      startDate: rangeStartDate,
+      endDate: rangeEndDate,
       summary: mapSummary(summaryRaw),
       agentSummary: mapSummary(agentSummaryRaw),
       products: productRows.map((r: any) => ({
@@ -4199,7 +4214,7 @@ export class SalesService {
          AND DATE(o.order_date) >= $1
          AND DATE(o.order_date) <= $2
        GROUP BY o.created_by, u.name, u.last_name, u.email
-       ORDER BY gross_sales::numeric DESC, orders::numeric DESC`,
+       ORDER BY COALESCE(SUM(o.total_amount), 0) DESC, COUNT(o.id) DESC`,
       [startDate, endDate],
     );
 
