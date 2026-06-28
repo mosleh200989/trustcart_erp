@@ -4153,7 +4153,7 @@ export class SalesService {
   /**
    * Individual Monthly Order Report
    * Returns per-agent, per-day order counts for a given month/year,
-   * along with total, delivered, partial delivered, cancelled, and cancelled ratio.
+   * along with total, approved, delivered, partial delivered, rejected, cancelled, and ratios.
    */
   async getAgentMonthlyReport(params: { month: number; year: number }) {
     const { month, year } = params;
@@ -4194,7 +4194,12 @@ export class SalesService {
 
     const dailyRows = await dailyQb.getRawMany();
 
-    // 2) Per-agent summary (total, delivered, cancelled)
+    const approvedEverCondition = `(
+      o.approved_at IS NOT NULL
+      OR LOWER(o.status::text) IN ('approved', 'sent', 'picked', 'in_transit', 'partial_delivered', 'shipped', 'delivered', 'completed')
+    )`;
+
+    // 2) Per-agent summary
     const summaryQb = this.salesRepository
       .createQueryBuilder('o')
       .innerJoin('users', 'u', 'u.id = o.created_by')
@@ -4207,8 +4212,10 @@ export class SalesService {
         'tl.name AS team_leader_name',
         'tl.last_name AS team_leader_last_name',
         'COUNT(o.id) AS total_orders',
+        `COUNT(CASE WHEN ${approvedEverCondition} THEN 1 END) AS approved_orders`,
         `COUNT(CASE WHEN LOWER(o.status::text) = 'delivered' THEN 1 END) AS delivered_orders`,
         `COUNT(CASE WHEN LOWER(o.status::text) = 'partial_delivered' THEN 1 END) AS partial_delivered_orders`,
+        `COUNT(CASE WHEN LOWER(o.status::text) = 'admin_cancelled' THEN 1 END) AS rejected_orders`,
         `COUNT(CASE WHEN LOWER(o.status::text) = 'cancelled' THEN 1 END) AS cancelled_orders`,
       ])
       .where('o.created_by IS NOT NULL')
@@ -4231,8 +4238,10 @@ export class SalesService {
       agentName: string;
       dailyOrders: Record<number, number>; // day -> count
       total: number;
+      approved: number;
       delivered: number;
       partialDelivered: number;
+      rejected: number;
       cancelled: number;
       teamLeaderId: number | null;
       teamLeaderName: string | null;
@@ -4248,8 +4257,10 @@ export class SalesService {
         teamLeaderName: [r.team_leader_name, r.team_leader_last_name].filter(Boolean).join(' ').trim() || null,
         dailyOrders: {},
         total: toNum(r.total_orders),
+        approved: toNum(r.approved_orders),
         delivered: toNum(r.delivered_orders),
         partialDelivered: toNum(r.partial_delivered_orders),
+        rejected: toNum(r.rejected_orders),
         cancelled: toNum(r.cancelled_orders),
       });
     }
@@ -4270,8 +4281,10 @@ export class SalesService {
 
     // Grand totals
     const grandTotal = agents.reduce((s, a) => s + a.total, 0);
+    const grandApproved = agents.reduce((s, a) => s + a.approved, 0);
     const grandDelivered = agents.reduce((s, a) => s + a.delivered, 0);
     const grandPartialDelivered = agents.reduce((s, a) => s + a.partialDelivered, 0);
+    const grandRejected = agents.reduce((s, a) => s + a.rejected, 0);
     const grandCancelled = agents.reduce((s, a) => s + a.cancelled, 0);
 
     return {
@@ -4280,8 +4293,16 @@ export class SalesService {
       daysInMonth: lastDay,
       agents,
       grandTotal,
+      grandApproved,
+      grandApprovedRatio: grandTotal > 0
+        ? parseFloat(((grandApproved / grandTotal) * 100).toFixed(2))
+        : 0,
       grandDelivered,
       grandPartialDelivered,
+      grandRejected,
+      grandRejectedRatio: grandTotal > 0
+        ? parseFloat(((grandRejected / grandTotal) * 100).toFixed(2))
+        : 0,
       grandCancelled,
       grandCancelledRatio: grandTotal > 0
         ? parseFloat(((grandCancelled / grandTotal) * 100).toFixed(2))
