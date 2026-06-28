@@ -2,7 +2,6 @@ import { useEffect, useState, useCallback, useMemo } from 'react';
 import AdminLayout from '@/layouts/AdminLayout';
 import apiClient from '@/services/api';
 import AdminDateInput from '@/components/admin/AdminDateInput';
-import { useAuth } from '@/contexts/AuthContext';
 import {
   ResponsiveContainer,
   BarChart,
@@ -124,8 +123,6 @@ const productLabel = (row: Pick<AgentProductRow, 'productId' | 'productName'>) =
   hasReadableText(row.productName) ? row.productName : `Product #${row.productId || 'Unknown'}`;
 
 export default function TodaysReportPage() {
-  const { hasPermission, isLoading: authLoading } = useAuth();
-  const canViewTodaysReport = hasPermission('view-todays-report');
   const [date, setDate] = useState(() => getDhakaDateString());
   const [rangeStartDate, setRangeStartDate] = useState('');
   const [rangeEndDate, setRangeEndDate] = useState('');
@@ -138,7 +135,6 @@ export default function TodaysReportPage() {
   const isRangeMode = Boolean(rangeStartDate && rangeEndDate);
 
   const fetchReport = useCallback(async () => {
-    if (!canViewTodaysReport) return;
     setLoading(true);
     setError('');
     try {
@@ -158,7 +154,7 @@ export default function TodaysReportPage() {
     } finally {
       setLoading(false);
     }
-  }, [canViewTodaysReport, date, isRangeMode, rangeEndDate, rangeStartDate]);
+  }, [date, isRangeMode, rangeEndDate, rangeStartDate]);
 
   useEffect(() => {
     fetchReport();
@@ -315,24 +311,6 @@ export default function TodaysReportPage() {
     a.click();
     URL.revokeObjectURL(url);
   };
-
-  if (authLoading) {
-    return (
-      <AdminLayout>
-        <div className="flex h-64 items-center justify-center text-gray-500">Checking permissions...</div>
-      </AdminLayout>
-    );
-  }
-
-  if (!canViewTodaysReport) {
-    return (
-      <AdminLayout>
-        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-          You do not have permission to view Today&apos;s Report.
-        </div>
-      </AdminLayout>
-    );
-  }
 
   return (
     <AdminLayout>
