@@ -17,6 +17,7 @@ const TIERS = [
   { value: 'gold', label: 'Gold', icon: '🥇', color: 'yellow' },
   { value: 'platinum', label: 'Platinum', icon: '💎', color: 'blue' },
   { value: 'sales_team_tier', label: 'Sales Team', icon: '👥', color: 'indigo' },
+  { value: 'night_moderator_tier', label: 'Night Shift Moderator', icon: '🌙', color: 'slate' },
   { value: 'website_sale', label: 'Website Sale', icon: '🌐', color: 'green' },
 ];
 
@@ -324,7 +325,7 @@ export default function CommissionSettingsPage() {
             <li>Commission is calculated separately for Orders, Upsells, and Cross-sells based on their respective counts.</li>
             <li>Each slab is applied progressively: only the count inside that Min and Max range uses that slab&apos;s commission.</li>
             <li>For example, 550 orders with 1-300 at ৳20 and 301-600 at ৳25 gives ৳6,000 + ৳6,250 = ৳12,250.</li>
-            <li>Different tiers (Silver, Gold, Platinum, Sales Team) can have different rates for the same count range.</li>
+            <li>Different tiers (Silver, Gold, Platinum, Sales Team, Night Shift Moderator) can have different rates for the same count range.</li>
           </ul>
         </div>
 

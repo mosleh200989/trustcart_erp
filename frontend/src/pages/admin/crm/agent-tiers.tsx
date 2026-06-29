@@ -19,6 +19,7 @@ const TIERS = [
   { value: 'gold', label: 'Gold', color: 'bg-yellow-100 text-yellow-800', icon: '🥇' },
   { value: 'platinum', label: 'Platinum', color: 'bg-blue-100 text-blue-800', icon: '💎' },
   { value: 'sales_team_tier', label: 'Sales Team Tier', color: 'bg-indigo-100 text-indigo-800', icon: '👥' },
+  { value: 'night_moderator_tier', label: 'Night Shift Moderator Tier', color: 'bg-slate-100 text-slate-800', icon: '🌙' },
   { value: 'website_sale', label: 'Website Sale', color: 'bg-green-100 text-green-800', icon: '🌐' },
 ];
 
@@ -80,12 +81,12 @@ export default function AgentTiersPage() {
             <h1 className="text-2xl font-bold text-amber-700">Agents Tiers</h1>
           </div>
           <p className="text-gray-500 text-sm">
-            Manage agent tiers (Silver, Gold, Platinum, Sales Team Tier). Changing an agent&apos;s tier will unassign all their customers.
+            Manage agent tiers (Silver, Gold, Platinum, Sales Team Tier, Night Shift Moderator Tier). Changing an agent&apos;s tier will unassign all their customers.
           </p>
         </div>
 
         {/* Tier Summary */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-6">
           {TIERS.map(tier => {
             const count = agents.filter(a => a.tier === tier.value).length;
             return (
@@ -156,6 +157,7 @@ export default function AgentTiersPage() {
                               className={`px-2.5 py-1 rounded text-xs font-medium border transition disabled:opacity-50 ${
                                 t.value === 'platinum' ? 'border-blue-300 text-blue-700 hover:bg-blue-50' :
                                 t.value === 'sales_team_tier' ? 'border-indigo-300 text-indigo-700 hover:bg-indigo-50' :
+                                t.value === 'night_moderator_tier' ? 'border-slate-300 text-slate-700 hover:bg-slate-50' :
                                 t.value === 'website_sale' ? 'border-green-300 text-green-700 hover:bg-green-50' :
                                 t.value === 'gold' ? 'border-yellow-300 text-yellow-700 hover:bg-yellow-50' :
                                 'border-gray-300 text-gray-700 hover:bg-gray-50'
