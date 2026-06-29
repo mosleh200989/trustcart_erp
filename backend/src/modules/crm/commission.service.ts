@@ -246,7 +246,7 @@ export class CommissionService {
     maxOrderCount: number | null;
     commissionAmount: number;
   }>, adminUserId: number): Promise<CommissionSlab[]> {
-    const validTiers = ['silver', 'gold', 'platinum', 'sales_team_tier', 'website_sale'];
+    const validTiers = ['silver', 'gold', 'platinum', 'sales_team_tier', 'night_moderator_tier', 'website_sale'];
     const validRoles = ['agent', 'team_leader'];
     const validSlabTypes = ['order', 'upsell', 'cross_sell'];
     if (!validRoles.includes(roleType)) {

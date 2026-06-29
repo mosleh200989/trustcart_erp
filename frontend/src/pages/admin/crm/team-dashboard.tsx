@@ -78,6 +78,7 @@ const ITEMS_PER_PAGE = 10;
 const formatAgentTier = (tier: string) => {
   const labels: Record<string, string> = {
     sales_team_tier: 'Sales Team Tier',
+    night_moderator_tier: 'Night Shift Moderator Tier',
     website_sale: 'Website Sale',
   };
   return labels[tier] || tier.split('_').map(part => part.charAt(0).toUpperCase() + part.slice(1)).join(' ');
@@ -292,6 +293,7 @@ const SalesTeamLeaderDashboard = () => {
               platinum: 'bg-indigo-100 text-indigo-800 border-indigo-300',
               gold: 'bg-amber-100 text-amber-800 border-amber-300',
               sales_team_tier: 'bg-indigo-100 text-indigo-800 border-indigo-300',
+              night_moderator_tier: 'bg-slate-100 text-slate-800 border-slate-300',
               website_sale: 'bg-green-100 text-green-800 border-green-300',
               silver: 'bg-gray-100 text-gray-700 border-gray-300',
               bronze: 'bg-orange-100 text-orange-800 border-orange-300',

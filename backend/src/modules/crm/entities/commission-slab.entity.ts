@@ -9,7 +9,7 @@ export class CommissionSlab {
   roleType!: string; // 'agent' | 'team_leader'
 
   @Column({ name: 'agent_tier', type: 'varchar', length: 20, default: 'silver' })
-  agentTier!: string; // 'silver' | 'gold' | 'platinum' | 'sales_team_tier' | 'website_sale'
+  agentTier!: string; // 'silver' | 'gold' | 'platinum' | 'sales_team_tier' | 'night_moderator_tier' | 'website_sale'
 
   @Column({ name: 'slab_type', type: 'varchar', length: 20, default: 'order' })
   slabType!: string; // 'order' | 'upsell' | 'cross_sell'
