@@ -97,6 +97,22 @@ interface TLBreakdownData {
   grandTotal: number;
 }
 
+const formatAgentTier = (tier: string) => {
+  const labels: Record<string, string> = {
+    sales_team_tier: 'Sales Team Tier',
+    website_sale: 'Website Sale',
+  };
+  return labels[tier] || tier.split('_').map(part => part.charAt(0).toUpperCase() + part.slice(1)).join(' ');
+};
+
+const getAgentTierBadgeClass = (tier: string) => {
+  if (tier === 'platinum') return 'bg-purple-100 text-purple-800';
+  if (tier === 'gold') return 'bg-yellow-100 text-yellow-800';
+  if (tier === 'sales_team_tier') return 'bg-indigo-100 text-indigo-800';
+  if (tier === 'website_sale') return 'bg-green-100 text-green-800';
+  return 'bg-gray-100 text-gray-800';
+};
+
 function getCurrentMonth() {
   const now = new Date();
   const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Dhaka', year: 'numeric', month: '2-digit' }).formatToParts(now);
@@ -266,13 +282,8 @@ export default function CommissionPaymentBreakdownPage() {
               <div className="flex flex-wrap items-center gap-4 mb-4">
                 <h2 className="text-lg font-semibold">{data.agent.name}</h2>
                 <span className="text-sm text-gray-500">{data.agent.phone}</span>
-                <span className={`text-xs font-medium px-2 py-1 rounded-full ${
-                  data.agent.tier === 'platinum' ? 'bg-purple-100 text-purple-800' :
-                  data.agent.tier === 'gold' ? 'bg-yellow-100 text-yellow-800' :
-                  data.agent.tier === 'website_sale' ? 'bg-green-100 text-green-800' :
-                  'bg-gray-100 text-gray-800'
-                }`}>
-                  {data.agent.tier === 'website_sale' ? 'Website Sale' : data.agent.tier.charAt(0).toUpperCase() + data.agent.tier.slice(1)}
+                <span className={`text-xs font-medium px-2 py-1 rounded-full ${getAgentTierBadgeClass(data.agent.tier)}`}>
+                  {formatAgentTier(data.agent.tier)}
                 </span>
               </div>
 
