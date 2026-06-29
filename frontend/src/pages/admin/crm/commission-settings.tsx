@@ -16,6 +16,7 @@ const TIERS = [
   { value: 'silver', label: 'Silver', icon: '🥈', color: 'gray' },
   { value: 'gold', label: 'Gold', icon: '🥇', color: 'yellow' },
   { value: 'platinum', label: 'Platinum', icon: '💎', color: 'blue' },
+  { value: 'sales_team_tier', label: 'Sales Team', icon: '👥', color: 'indigo' },
   { value: 'website_sale', label: 'Website Sale', icon: '🌐', color: 'green' },
 ];
 
@@ -49,19 +50,23 @@ export default function CommissionSettingsPage() {
       const data = response.data;
 
       const mapSlabs = (slabs: any[]): SlabRow[] => {
-        if (!slabs || slabs.length === 0) {
-          // Start with one empty row per tier per slab type
-          const rows: SlabRow[] = [];
-          TIERS.forEach(t => SLAB_TYPES.forEach(st => rows.push(emptySlabRow(t.value, st.value))));
-          return rows;
-        }
-        return slabs.map((s: any) => ({
+        const rows = (slabs || []).map((s: any) => ({
           agentTier: s.agentTier,
           slabType: s.slabType || 'order',
           minOrderCount: s.minOrderCount !== undefined && s.minOrderCount !== null ? String(Number(s.minOrderCount)) : '0',
           maxOrderCount: s.maxOrderCount !== null && s.maxOrderCount !== undefined ? String(Number(s.maxOrderCount)) : '',
           commissionAmount: s.commissionAmount !== undefined && s.commissionAmount !== null ? String(Number(s.commissionAmount)) : '0',
         }));
+
+        TIERS.forEach(t => {
+          SLAB_TYPES.forEach(st => {
+            if (!rows.some(row => row.agentTier === t.value && row.slabType === st.value)) {
+              rows.push(emptySlabRow(t.value, st.value));
+            }
+          });
+        });
+
+        return rows;
       };
 
       const tlSlabsRaw = data.teamLeader || [];
@@ -142,7 +147,7 @@ export default function CommissionSettingsPage() {
         const max = slab.maxOrderCount ? Number(slab.maxOrderCount) : null;
         const c = Number(slab.commissionAmount);
         if (isNaN(min) || min < 0) { toast.error('Min count must be a valid non-negative number'); return; }
-        if (max !== null && (isNaN(max) || max <= min)) { toast.error('Max count must be greater than min'); return; }
+        if (max !== null && (isNaN(max) || max < min)) { toast.error('Max count must be greater than or equal to min'); return; }
         if (isNaN(c) || c < 0) { toast.error('Commission must be a valid non-negative number'); return; }
       }
       
@@ -191,7 +196,7 @@ export default function CommissionSettingsPage() {
       const max = slab.maxOrderCount ? Number(slab.maxOrderCount) : null;
       const comm = Number(slab.commissionAmount);
       if (isNaN(min) || min < 0) { toast.error('Min count must be a valid non-negative number'); return; }
-      if (max !== null && (isNaN(max) || max <= min)) { toast.error('Max count must be greater than min'); return; }
+      if (max !== null && (isNaN(max) || max < min)) { toast.error('Max count must be greater than or equal to min'); return; }
       if (isNaN(comm) || comm < 0) { toast.error('Commission must be a valid non-negative number'); return; }
     }
 
@@ -317,9 +322,9 @@ export default function CommissionSettingsPage() {
           <p className="font-medium mb-1">How commission calculation works:</p>
           <ul className="list-disc ml-5 space-y-0.5 text-blue-700">
             <li>Commission is calculated separately for Orders, Upsells, and Cross-sells based on their respective counts.</li>
-            <li>Each count is matched against the slab where it falls between Min and Max Count for the agent&apos;s tier.</li>
-            <li>The commission amount (৳) from the matching slab is applied as a fixed amount per item.</li>
-            <li>Different tiers (Silver, Gold, Platinum) can have different rates for the same count range.</li>
+            <li>Each slab is applied progressively: only the count inside that Min and Max range uses that slab&apos;s commission.</li>
+            <li>For example, 550 orders with 1-300 at ৳20 and 301-600 at ৳25 gives ৳6,000 + ৳6,250 = ৳12,250.</li>
+            <li>Different tiers (Silver, Gold, Platinum, Sales Team) can have different rates for the same count range.</li>
           </ul>
         </div>
 
@@ -374,8 +379,8 @@ export default function CommissionSettingsPage() {
                   <div className="mt-4 bg-gray-50 rounded-lg p-4 text-sm text-gray-600">
                     <p className="font-semibold text-gray-700 mb-2">Example:</p>
                     <div className="space-y-1">
-                      <p>• Silver agent takes 300+ orders → Matches Order slab min=300, max=400 → ৳10 per order</p>
-                      <p>• Same agent has 50 upsells → Matches Upsell slab min=50, max=100 → ৳20 per upsell</p>
+                      <p>• Silver agent takes 550 orders → 1-300 uses the first rate, and 301-550 uses the next rate.</p>
+                      <p>• Upsell and cross-sell slabs are calculated progressively in the same way.</p>
                       <p>• Leave &quot;Max Count&quot; empty for the last slab to handle all counts above that minimum.</p>
                     </div>
                   </div>

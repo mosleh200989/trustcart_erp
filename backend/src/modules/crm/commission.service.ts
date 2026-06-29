@@ -54,6 +54,65 @@ export class CommissionService {
   // Commission calculations start from this date; all data before this is nullified
   private readonly COMMISSION_CUTOFF_DATE = '2026-03-01';
 
+  private roundCommission(value: number): number {
+    return Math.round((Number(value) || 0) * 100) / 100;
+  }
+
+  private normalizeSlabCount(value: number): number {
+    const count = Math.floor(Number(value) || 0);
+    return count > 0 ? count : 0;
+  }
+
+  private calculateProgressiveSlabCommission(count: number, slabs: CommissionSlab[]): number {
+    const totalCount = this.normalizeSlabCount(count);
+    if (totalCount <= 0 || slabs.length === 0) return 0;
+
+    const sortedSlabs = [...slabs]
+      .filter(s => s.isActive !== false)
+      .sort((a, b) => Number(a.minOrderCount || 0) - Number(b.minOrderCount || 0));
+
+    let commission = 0;
+    let lastCoveredCount = 0;
+
+    for (const slab of sortedSlabs) {
+      const slabMin = Math.max(1, Math.floor(Number(slab.minOrderCount) || 0));
+      const slabMax = slab.maxOrderCount === null || slab.maxOrderCount === undefined
+        ? totalCount
+        : Math.floor(Number(slab.maxOrderCount));
+
+      if (!Number.isFinite(slabMax) || slabMax < slabMin) continue;
+
+      const fromCount = Math.max(slabMin, lastCoveredCount + 1);
+      const toCount = Math.min(totalCount, slabMax);
+
+      if (toCount >= fromCount) {
+        commission += (toCount - fromCount + 1) * (Number(slab.commissionAmount) || 0);
+        lastCoveredCount = Math.max(lastCoveredCount, toCount);
+      }
+
+      if (lastCoveredCount >= totalCount) break;
+    }
+
+    return this.roundCommission(commission);
+  }
+
+  private calculateProgressiveSlabDelta(previousCount: number, addedCount: number, slabs: CommissionSlab[]): number {
+    const previous = this.normalizeSlabCount(previousCount);
+    const added = this.normalizeSlabCount(addedCount);
+    if (added <= 0) return 0;
+
+    return this.roundCommission(
+      this.calculateProgressiveSlabCommission(previous + added, slabs)
+      - this.calculateProgressiveSlabCommission(previous, slabs),
+    );
+  }
+
+  private calculateEffectiveSlabRate(count: number, slabs: CommissionSlab[]): number {
+    const totalCount = this.normalizeSlabCount(count);
+    if (totalCount <= 0) return 0;
+    return this.roundCommission(this.calculateProgressiveSlabCommission(totalCount, slabs) / totalCount);
+  }
+
   // ==================== COMMISSION SETTINGS (ADMIN) ====================
 
   /**
@@ -187,7 +246,7 @@ export class CommissionService {
     maxOrderCount: number | null;
     commissionAmount: number;
   }>, adminUserId: number): Promise<CommissionSlab[]> {
-    const validTiers = ['silver', 'gold', 'platinum', 'website_sale'];
+    const validTiers = ['silver', 'gold', 'platinum', 'sales_team_tier', 'website_sale'];
     const validRoles = ['agent', 'team_leader'];
     const validSlabTypes = ['order', 'upsell', 'cross_sell'];
     if (!validRoles.includes(roleType)) {
@@ -204,8 +263,8 @@ export class CommissionService {
       if (slab.minOrderCount < 0 || slab.commissionAmount < 0) {
         throw new BadRequestException('Values cannot be negative');
       }
-      if (slab.maxOrderCount !== null && slab.maxOrderCount <= slab.minOrderCount) {
-        throw new BadRequestException('Max order count must be greater than min');
+      if (slab.maxOrderCount !== null && slab.maxOrderCount < slab.minOrderCount) {
+        throw new BadRequestException('Max order count must be greater than or equal to min');
       }
     }
 
@@ -234,18 +293,12 @@ export class CommissionService {
    * Calculate commission using slab system for an agent/team_leader
    */
   async calculateSlabCommission(orderCount: number, agentTier: string, roleType: string = 'agent', slabType: string = 'order'): Promise<number> {
-    const slab = await this.slabRepository
-      .createQueryBuilder('s')
-      .where('s.role_type = :roleType', { roleType })
-      .andWhere('s.agent_tier = :agentTier', { agentTier })
-      .andWhere('s.slab_type = :slabType', { slabType })
-      .andWhere('s.is_active = true')
-      .andWhere('s.min_order_count <= :orderCount', { orderCount })
-      .andWhere('(s.max_order_count IS NULL OR s.max_order_count > :orderCount)', { orderCount })
-      .getOne();
+    const slabs = await this.slabRepository.find({
+      where: { roleType, agentTier, slabType, isActive: true },
+      order: { minOrderCount: 'ASC' },
+    });
 
-    if (!slab) return 0;
-    return Number(slab.commissionAmount);
+    return this.calculateProgressiveSlabCommission(orderCount, slabs);
   }
 
   // ==================== COMMISSION CALCULATION ====================
@@ -737,37 +790,45 @@ export class CommissionService {
       };
     });
 
-    // Find matching slabs based on total month counts
-    const findSlabRate = (slabType: string, count: number): number => {
-      const typeSlabs = slabs.filter(s => s.slabType === slabType);
-      const matched = typeSlabs.find(s =>
-        count >= s.minOrderCount && (s.maxOrderCount === null || count < s.maxOrderCount)
-      );
-      return matched ? Number(matched.commissionAmount) : 0;
-    };
+    const orderSlabs = slabs.filter(s => s.slabType === 'order');
+    const upsellSlabs = slabs.filter(s => s.slabType === 'upsell');
+    const crossSellSlabs = slabs.filter(s => s.slabType === 'cross_sell');
 
-    const orderRate = findSlabRate('order', monthOrderCount);
-    const upsellRate = findSlabRate('upsell', monthUpsellCount);
-    const crossSellRate = findSlabRate('cross_sell', monthCrossSellCount);
+    const orderRate = this.calculateEffectiveSlabRate(monthOrderCount, orderSlabs);
+    const upsellRate = this.calculateEffectiveSlabRate(monthUpsellCount, upsellSlabs);
+    const crossSellRate = this.calculateEffectiveSlabRate(monthCrossSellCount, crossSellSlabs);
 
-    // Build breakdown rows with daily commission
-    const breakdown = dailyData.map((d: any) => ({
-      date: d.date,
-      orderCount: d.orderCount,
-      orderRate,
-      orderCommission: d.orderCount * orderRate,
-      upsellCount: d.upsellCount,
-      upsellRate,
-      upsellCommission: d.upsellCount * upsellRate,
-      crossSellCount: d.crossSellCount,
-      crossSellRate,
-      crossSellCommission: d.crossSellCount * crossSellRate,
-      dailyTotal: (d.orderCount * orderRate) + (d.upsellCount * upsellRate) + (d.crossSellCount * crossSellRate),
-    }));
+    let runningOrderCount = 0;
+    let runningUpsellCount = 0;
+    let runningCrossSellCount = 0;
 
-    const totalOrderCommission = breakdown.reduce((sum: number, b: any) => sum + b.orderCommission, 0);
-    const totalUpsellCommission = breakdown.reduce((sum: number, b: any) => sum + b.upsellCommission, 0);
-    const totalCrossSellCommission = breakdown.reduce((sum: number, b: any) => sum + b.crossSellCommission, 0);
+    const breakdown = dailyData.map((d: any) => {
+      const orderCommission = this.calculateProgressiveSlabDelta(runningOrderCount, d.orderCount, orderSlabs);
+      const upsellCommission = this.calculateProgressiveSlabDelta(runningUpsellCount, d.upsellCount, upsellSlabs);
+      const crossSellCommission = this.calculateProgressiveSlabDelta(runningCrossSellCount, d.crossSellCount, crossSellSlabs);
+
+      runningOrderCount += d.orderCount;
+      runningUpsellCount += d.upsellCount;
+      runningCrossSellCount += d.crossSellCount;
+
+      return {
+        date: d.date,
+        orderCount: d.orderCount,
+        orderRate: d.orderCount > 0 ? this.roundCommission(orderCommission / d.orderCount) : 0,
+        orderCommission,
+        upsellCount: d.upsellCount,
+        upsellRate: d.upsellCount > 0 ? this.roundCommission(upsellCommission / d.upsellCount) : 0,
+        upsellCommission,
+        crossSellCount: d.crossSellCount,
+        crossSellRate: d.crossSellCount > 0 ? this.roundCommission(crossSellCommission / d.crossSellCount) : 0,
+        crossSellCommission,
+        dailyTotal: this.roundCommission(orderCommission + upsellCommission + crossSellCommission),
+      };
+    });
+
+    const totalOrderCommission = this.calculateProgressiveSlabCommission(monthOrderCount, orderSlabs);
+    const totalUpsellCommission = this.calculateProgressiveSlabCommission(monthUpsellCount, upsellSlabs);
+    const totalCrossSellCommission = this.calculateProgressiveSlabCommission(monthCrossSellCount, crossSellSlabs);
 
     // Fetch extra partial amount for this agent/month
     const extraRows = await this.dataSource.query(
@@ -999,18 +1060,14 @@ export class CommissionService {
     const dataParams = [...searchParam, limitNum, offset];
     const rows = await this.dataSource.query(dataSql, dataParams);
 
-    // Load all active slabs to calculate commission per agent using slab rates
+    // Load all active slabs to calculate progressive commission per agent
     const allSlabs = await this.slabRepository.find({
       where: { roleType: 'agent', isActive: true },
       order: { slabType: 'ASC', minOrderCount: 'ASC' },
     });
 
-    const findSlabRate = (tier: string, slabType: string, count: number): number => {
-      const tierSlabs = allSlabs.filter(s => s.agentTier === tier && s.slabType === slabType);
-      const matched = tierSlabs.find(s =>
-        count >= s.minOrderCount && (s.maxOrderCount === null || count < s.maxOrderCount)
-      );
-      return matched ? Number(matched.commissionAmount) : 0;
+    const getTierSlabs = (tier: string, slabType: string): CommissionSlab[] => {
+      return allSlabs.filter(s => s.agentTier === tier && s.slabType === slabType);
     };
 
     return {
@@ -1026,11 +1083,16 @@ export class CommissionService {
         const paymentRequestId = r.payment_request_id ? Number(r.payment_request_id) : null;
 
         // Slab-based commission calculation (matches Payment Breakdown) — based on delivered orders
-        const orderRate = findSlabRate(tier, 'order', deliveredOrders);
-        const upsellRate = findSlabRate(tier, 'upsell', upsellQty);
-        const crossSellRate = findSlabRate(tier, 'cross_sell', crossSellQty);
+        const orderSlabs = getTierSlabs(tier, 'order');
+        const upsellSlabs = getTierSlabs(tier, 'upsell');
+        const crossSellSlabs = getTierSlabs(tier, 'cross_sell');
         const extraPartial = parseFloat(r.extra_partial || '0');
-        const totalCommission = (deliveredOrders * orderRate) + (upsellQty * upsellRate) + (crossSellQty * crossSellRate) + extraPartial;
+        const totalCommission = this.roundCommission(
+          this.calculateProgressiveSlabCommission(deliveredOrders, orderSlabs)
+          + this.calculateProgressiveSlabCommission(upsellQty, upsellSlabs)
+          + this.calculateProgressiveSlabCommission(crossSellQty, crossSellSlabs)
+          + extraPartial,
+        );
 
         return {
           agentId: r.agent_id,
@@ -1196,18 +1258,14 @@ export class CommissionService {
     });
     const tlRate = tlSlabs.length > 0 ? Number(tlSlabs[0].commissionAmount) : 0;
 
-    // Slab-based rates for TL's own sales (website_sale tier)
+    // Progressive slab rates for TL's own sales (website_sale tier)
     const wsTierSlabs = await this.slabRepository.find({
       where: { roleType: 'team_leader', agentTier: 'website_sale' as any, isActive: true },
       order: { slabType: 'ASC', minOrderCount: 'ASC' },
     });
 
-    const findTLSlabRate = (slabType: string, count: number): number => {
-      const typeSlabs = wsTierSlabs.filter(s => s.slabType === slabType);
-      const matched = typeSlabs.find(s =>
-        count >= s.minOrderCount && (s.maxOrderCount === null || count < s.maxOrderCount)
-      );
-      return matched ? Number(matched.commissionAmount) : 0;
+    const getWebsiteSaleSlabs = (slabType: string): CommissionSlab[] => {
+      return wsTierSlabs.filter(s => s.slabType === slabType);
     };
 
     return {
@@ -1222,12 +1280,15 @@ export class CommissionService {
         const supervisionCommission = agentOrders * tlRate;
 
         // 2) Own sales commission: slab-based order/upsell/cross-sell
-        const ownOrderRate = findTLSlabRate('order', ownOrders);
-        const ownUpsellRate = findTLSlabRate('upsell', ownUpsellQty);
-        const ownCrossSellRate = findTLSlabRate('cross_sell', ownCrossSellQty);
-        const ownOrderCommission = ownOrders * ownOrderRate;
-        const ownUpsellCommission = ownUpsellQty * ownUpsellRate;
-        const ownCrossSellCommission = ownCrossSellQty * ownCrossSellRate;
+        const ownOrderSlabs = getWebsiteSaleSlabs('order');
+        const ownUpsellSlabs = getWebsiteSaleSlabs('upsell');
+        const ownCrossSellSlabs = getWebsiteSaleSlabs('cross_sell');
+        const ownOrderRate = this.calculateEffectiveSlabRate(ownOrders, ownOrderSlabs);
+        const ownUpsellRate = this.calculateEffectiveSlabRate(ownUpsellQty, ownUpsellSlabs);
+        const ownCrossSellRate = this.calculateEffectiveSlabRate(ownCrossSellQty, ownCrossSellSlabs);
+        const ownOrderCommission = this.calculateProgressiveSlabCommission(ownOrders, ownOrderSlabs);
+        const ownUpsellCommission = this.calculateProgressiveSlabCommission(ownUpsellQty, ownUpsellSlabs);
+        const ownCrossSellCommission = this.calculateProgressiveSlabCommission(ownCrossSellQty, ownCrossSellSlabs);
         const ownSalesCommission = ownOrderCommission + ownUpsellCommission + ownCrossSellCommission;
 
         const totalCommission = supervisionCommission + ownSalesCommission;
@@ -1397,35 +1458,44 @@ export class CommissionService {
       return { date: row?.order_date || dateKey, orderCount, upsellCount, crossSellCount };
     });
 
-    const findTLSlabRate = (slabType: string, count: number): number => {
-      const typeSlabs = wsTierSlabs.filter(s => s.slabType === slabType);
-      const matched = typeSlabs.find(s =>
-        count >= s.minOrderCount && (s.maxOrderCount === null || count < s.maxOrderCount)
-      );
-      return matched ? Number(matched.commissionAmount) : 0;
-    };
+    const ownOrderSlabs = wsTierSlabs.filter(s => s.slabType === 'order');
+    const ownUpsellSlabs = wsTierSlabs.filter(s => s.slabType === 'upsell');
+    const ownCrossSellSlabs = wsTierSlabs.filter(s => s.slabType === 'cross_sell');
+    const ownOrderRate = this.calculateEffectiveSlabRate(monthOwnOrders, ownOrderSlabs);
+    const ownUpsellRate = this.calculateEffectiveSlabRate(monthOwnUpsells, ownUpsellSlabs);
+    const ownCrossSellRate = this.calculateEffectiveSlabRate(monthOwnCrossSells, ownCrossSellSlabs);
 
-    const ownOrderRate = findTLSlabRate('order', monthOwnOrders);
-    const ownUpsellRate = findTLSlabRate('upsell', monthOwnUpsells);
-    const ownCrossSellRate = findTLSlabRate('cross_sell', monthOwnCrossSells);
+    let runningOwnOrders = 0;
+    let runningOwnUpsells = 0;
+    let runningOwnCrossSells = 0;
 
-    const ownSalesBreakdown = ownSalesData.map((d: any) => ({
-      date: d.date,
-      orderCount: d.orderCount,
-      orderRate: ownOrderRate,
-      orderCommission: d.orderCount * ownOrderRate,
-      upsellCount: d.upsellCount,
-      upsellRate: ownUpsellRate,
-      upsellCommission: d.upsellCount * ownUpsellRate,
-      crossSellCount: d.crossSellCount,
-      crossSellRate: ownCrossSellRate,
-      crossSellCommission: d.crossSellCount * ownCrossSellRate,
-      dailyTotal: (d.orderCount * ownOrderRate) + (d.upsellCount * ownUpsellRate) + (d.crossSellCount * ownCrossSellRate),
-    }));
+    const ownSalesBreakdown = ownSalesData.map((d: any) => {
+      const orderCommission = this.calculateProgressiveSlabDelta(runningOwnOrders, d.orderCount, ownOrderSlabs);
+      const upsellCommission = this.calculateProgressiveSlabDelta(runningOwnUpsells, d.upsellCount, ownUpsellSlabs);
+      const crossSellCommission = this.calculateProgressiveSlabDelta(runningOwnCrossSells, d.crossSellCount, ownCrossSellSlabs);
 
-    const totalOwnOrderCommission = ownSalesBreakdown.reduce((sum: number, b: any) => sum + b.orderCommission, 0);
-    const totalOwnUpsellCommission = ownSalesBreakdown.reduce((sum: number, b: any) => sum + b.upsellCommission, 0);
-    const totalOwnCrossSellCommission = ownSalesBreakdown.reduce((sum: number, b: any) => sum + b.crossSellCommission, 0);
+      runningOwnOrders += d.orderCount;
+      runningOwnUpsells += d.upsellCount;
+      runningOwnCrossSells += d.crossSellCount;
+
+      return {
+        date: d.date,
+        orderCount: d.orderCount,
+        orderRate: d.orderCount > 0 ? this.roundCommission(orderCommission / d.orderCount) : 0,
+        orderCommission,
+        upsellCount: d.upsellCount,
+        upsellRate: d.upsellCount > 0 ? this.roundCommission(upsellCommission / d.upsellCount) : 0,
+        upsellCommission,
+        crossSellCount: d.crossSellCount,
+        crossSellRate: d.crossSellCount > 0 ? this.roundCommission(crossSellCommission / d.crossSellCount) : 0,
+        crossSellCommission,
+        dailyTotal: this.roundCommission(orderCommission + upsellCommission + crossSellCommission),
+      };
+    });
+
+    const totalOwnOrderCommission = this.calculateProgressiveSlabCommission(monthOwnOrders, ownOrderSlabs);
+    const totalOwnUpsellCommission = this.calculateProgressiveSlabCommission(monthOwnUpsells, ownUpsellSlabs);
+    const totalOwnCrossSellCommission = this.calculateProgressiveSlabCommission(monthOwnCrossSells, ownCrossSellSlabs);
     const totalOwnSalesCommission = totalOwnOrderCommission + totalOwnUpsellCommission + totalOwnCrossSellCommission;
 
     const grandTotal = totalSupervisionCommission + totalOwnSalesCommission;
@@ -2177,19 +2247,19 @@ export class CommissionService {
         AND cs_order.agent_tier = COALESCE(uc.agent_tier, 'silver')
         AND cs_order.is_active = true
         AND cs_order.min_order_count <= ap.order_position
-        AND (cs_order.max_order_count IS NULL OR cs_order.max_order_count > ap.order_position)
+        AND (cs_order.max_order_count IS NULL OR cs_order.max_order_count >= ap.order_position)
       LEFT JOIN commission_slabs cs_upsell ON cs_upsell.role_type = 'agent'
         AND cs_upsell.slab_type = 'upsell'
         AND cs_upsell.agent_tier = COALESCE(uc.agent_tier, 'silver')
         AND cs_upsell.is_active = true
         AND cs_upsell.min_order_count <= ap.order_position
-        AND (cs_upsell.max_order_count IS NULL OR cs_upsell.max_order_count > ap.order_position)
+        AND (cs_upsell.max_order_count IS NULL OR cs_upsell.max_order_count >= ap.order_position)
       LEFT JOIN commission_slabs cs_cross_sell ON cs_cross_sell.role_type = 'agent'
         AND cs_cross_sell.slab_type = 'cross_sell'
         AND cs_cross_sell.agent_tier = COALESCE(uc.agent_tier, 'silver')
         AND cs_cross_sell.is_active = true
         AND cs_cross_sell.min_order_count <= ap.order_position
-        AND (cs_cross_sell.max_order_count IS NULL OR cs_cross_sell.max_order_count > ap.order_position)
+        AND (cs_cross_sell.max_order_count IS NULL OR cs_cross_sell.max_order_count >= ap.order_position)
       WHERE 1=1 ${whereClause}
       ORDER BY so.order_date DESC, so.id DESC
       LIMIT $${paramIdx} OFFSET $${paramIdx + 1}
