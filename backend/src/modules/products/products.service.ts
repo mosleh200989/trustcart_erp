@@ -8,6 +8,8 @@ import { ProductSuggestion } from './product-suggestion.entity';
 
 @Injectable()
 export class ProductsService {
+  private productSuggestionShortlistSchemaReady?: Promise<void>;
+
   constructor(
     @InjectRepository(Product)
     private productsRepository: Repository<Product>,
@@ -344,7 +346,91 @@ export class ProductsService {
     return text.length > 0 ? text : null;
   }
 
+  private async ensureProductSuggestionShortlistSchema() {
+    if (!this.productSuggestionShortlistSchemaReady) {
+      this.productSuggestionShortlistSchemaReady = (async () => {
+        await this.productsRepository.query(`
+          CREATE TABLE IF NOT EXISTS product_suggestion_shortlist (
+            id SERIAL PRIMARY KEY,
+            product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+            variant_name TEXT NULL,
+            variant_key TEXT NOT NULL DEFAULT '',
+            display_order INTEGER NOT NULL DEFAULT 0,
+            is_active BOOLEAN NOT NULL DEFAULT TRUE,
+            created_by INTEGER NULL REFERENCES users(id) ON DELETE SET NULL,
+            updated_by INTEGER NULL REFERENCES users(id) ON DELETE SET NULL,
+            created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+            updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+          )
+        `);
+
+        await this.productsRepository.query(`
+          ALTER TABLE product_suggestion_shortlist
+            ADD COLUMN IF NOT EXISTS variant_name TEXT NULL,
+            ADD COLUMN IF NOT EXISTS variant_key TEXT,
+            ADD COLUMN IF NOT EXISTS display_order INTEGER NOT NULL DEFAULT 0,
+            ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE,
+            ADD COLUMN IF NOT EXISTS created_by INTEGER NULL,
+            ADD COLUMN IF NOT EXISTS updated_by INTEGER NULL,
+            ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+            ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+        `);
+
+        await this.productsRepository.query(`
+          UPDATE product_suggestion_shortlist
+          SET variant_key = COALESCE(variant_key, variant_name, '')
+          WHERE variant_key IS NULL
+        `);
+
+        await this.productsRepository.query(`
+          ALTER TABLE product_suggestion_shortlist
+            ALTER COLUMN variant_key SET DEFAULT '',
+            ALTER COLUMN variant_key SET NOT NULL
+        `);
+
+        await this.productsRepository.query(`
+          DELETE FROM product_suggestion_shortlist newer
+          USING product_suggestion_shortlist older
+          WHERE newer.id > older.id
+            AND newer.product_id = older.product_id
+            AND COALESCE(newer.variant_key, '') = COALESCE(older.variant_key, '')
+        `);
+
+        await this.productsRepository.query(`
+          DO $$
+          BEGIN
+            IF NOT EXISTS (
+              SELECT 1
+              FROM pg_constraint
+              WHERE conname = 'product_suggestion_shortlist_unique_entry'
+                AND conrelid = 'product_suggestion_shortlist'::regclass
+            ) THEN
+              ALTER TABLE product_suggestion_shortlist
+                ADD CONSTRAINT product_suggestion_shortlist_unique_entry UNIQUE (product_id, variant_key);
+            END IF;
+          END $$;
+        `);
+
+        await this.productsRepository.query(`
+          CREATE INDEX IF NOT EXISTS idx_product_suggestion_shortlist_active_order
+          ON product_suggestion_shortlist (is_active, display_order, created_at)
+        `);
+
+        await this.productsRepository.query(`
+          CREATE INDEX IF NOT EXISTS idx_product_suggestion_shortlist_product
+          ON product_suggestion_shortlist (product_id)
+        `);
+      })().catch((error) => {
+        this.productSuggestionShortlistSchemaReady = undefined;
+        throw error;
+      });
+    }
+
+    return this.productSuggestionShortlistSchemaReady;
+  }
+
   private async getNextSuggestionShortlistOrder() {
+    await this.ensureProductSuggestionShortlistSchema();
     const rows = await this.productsRepository.query(
       `SELECT COALESCE(MAX(display_order), -1) + 1 AS next_order FROM product_suggestion_shortlist`,
     );
@@ -352,6 +438,7 @@ export class ProductsService {
   }
 
   async getProductSuggestionShortlist() {
+    await this.ensureProductSuggestionShortlistSchema();
     const rows = await this.productsRepository.query(`
       SELECT
         pss.id,
@@ -429,6 +516,8 @@ export class ProductsService {
   }
 
   async addProductSuggestionShortlistItem(data: { productId: number; variantName?: string | null; userId?: number | null }) {
+    await this.ensureProductSuggestionShortlistSchema();
+
     if (!Number.isFinite(data.productId) || data.productId <= 0) {
       throw new BadRequestException('Invalid product');
     }
@@ -464,6 +553,8 @@ export class ProductsService {
     id: number,
     data: { isActive?: boolean; displayOrder?: number; userId?: number | null },
   ) {
+    await this.ensureProductSuggestionShortlistSchema();
+
     if (!Number.isFinite(id) || id <= 0) {
       throw new BadRequestException('Invalid shortlist item');
     }
@@ -494,6 +585,8 @@ export class ProductsService {
   }
 
   async deleteProductSuggestionShortlistItem(id: number) {
+    await this.ensureProductSuggestionShortlistSchema();
+
     if (!Number.isFinite(id) || id <= 0) {
       throw new BadRequestException('Invalid shortlist item');
     }

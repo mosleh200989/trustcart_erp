@@ -228,7 +228,14 @@ export class SalesManagerService implements OnModuleInit {
         `CREATE INDEX IF NOT EXISTS idx_order_items_order_product ON order_items(order_id, product_id)`,
         `CREATE INDEX IF NOT EXISTS idx_sales_order_items_order_product ON sales_order_items(sales_order_id, product_id)`,
         `CREATE INDEX IF NOT EXISTS idx_telephony_logs_order_record_outcome ON telephony_assignment_call_logs(order_id, record_type, outcome)`,
+        `CREATE INDEX IF NOT EXISTS idx_telephony_logs_record_called_at ON telephony_assignment_call_logs(record_type, called_at, created_at)`,
+        `CREATE INDEX IF NOT EXISTS idx_sales_orders_customer_telephony_called ON sales_orders(customer_id, telephony_called_at)`,
+        `CREATE INDEX IF NOT EXISTS idx_sales_orders_phone_telephony_called ON sales_orders(customer_phone, telephony_called_at)`,
+        `CREATE INDEX IF NOT EXISTS idx_incomplete_orders_customer_telephony_called ON incomplete_orders(customer_id, telephony_called_at)`,
+        `CREATE INDEX IF NOT EXISTS idx_incomplete_orders_phone_telephony_called ON incomplete_orders(phone, telephony_called_at)`,
+        `CREATE INDEX IF NOT EXISTS idx_order_activity_logs_action_order_created ON order_activity_logs(action_type, order_id, created_at)`,
         `CREATE INDEX IF NOT EXISTS idx_crm_call_tasks_customer_outcome ON crm_call_tasks(customer_id, call_outcome)`,
+        `CREATE INDEX IF NOT EXISTS idx_crm_call_tasks_customer_dates ON crm_call_tasks(customer_id, completed_at, updated_at, created_at)`,
         `CREATE INDEX IF NOT EXISTS idx_customer_engagement_customer_type ON customer_engagement_history(customer_id, engagement_type)`,
         `CREATE INDEX IF NOT EXISTS idx_activities_customer_type ON activities(customer_id, type)`,
       ];
@@ -365,6 +372,120 @@ export class SalesManagerService implements OnModuleInit {
           )
       ) customer_call_sources
     )`;
+  }
+
+  private async getLatestCallTimesForCustomers(customerIds: number[]) {
+    const ids = this.normalizeCustomerIds(customerIds);
+    const lastCallByCustomerId = new Map<number, Date | string>();
+    if (ids.length === 0) return lastCallByCustomerId;
+
+    const rows = await this.customerRepository.query(
+      `
+      WITH selected_customers AS (
+        SELECT
+          c.id,
+          c.phone,
+          NULLIF(regexp_replace(regexp_replace(COALESCE(c.phone, ''), '\\D', '', 'g'), '^88', ''), '') AS normalized_phone,
+          c.last_contact_date
+        FROM customers c
+        WHERE c.id = ANY($1::int[])
+      ),
+      call_sources AS (
+        SELECT sc.id AS customer_id, sc.last_contact_date::timestamp AS call_at
+        FROM selected_customers sc
+        WHERE sc.last_contact_date IS NOT NULL
+
+        UNION ALL
+        SELECT sc.id AS customer_id, COALESCE(t.completed_at, t.updated_at, t.created_at)::timestamp AS call_at
+        FROM selected_customers sc
+        INNER JOIN crm_call_tasks t
+          ON t.customer_id = sc.id::text
+          OR t.customer_id = sc.phone
+          OR NULLIF(regexp_replace(regexp_replace(COALESCE(t.customer_id, ''), '\\D', '', 'g'), '^88', ''), '') = sc.normalized_phone
+        WHERE COALESCE(t.completed_at, t.updated_at, t.created_at) IS NOT NULL
+
+        UNION ALL
+        SELECT sc.id AS customer_id, eh.created_at::timestamp AS call_at
+        FROM selected_customers sc
+        INNER JOIN customer_engagement_history eh
+          ON eh.customer_id = sc.id::text
+          OR eh.customer_id = sc.phone
+          OR NULLIF(regexp_replace(regexp_replace(COALESCE(eh.customer_id, ''), '\\D', '', 'g'), '^88', ''), '') = sc.normalized_phone
+        WHERE eh.created_at IS NOT NULL
+          AND eh.engagement_type IN ('call', 'follow_up_call', 'phone_call')
+
+        UNION ALL
+        SELECT sc.id AS customer_id, a.created_at::timestamp AS call_at
+        FROM selected_customers sc
+        INNER JOIN activities a
+          ON a.customer_id = sc.id
+        WHERE a.created_at IS NOT NULL
+          AND a.type = 'call'
+
+        UNION ALL
+        SELECT sc.id AS customer_id, COALESCE(tl.called_at, tl.created_at)::timestamp AS call_at
+        FROM selected_customers sc
+        INNER JOIN sales_orders so_log
+          ON so_log.customer_id = sc.id
+          OR NULLIF(regexp_replace(regexp_replace(COALESCE(so_log.customer_phone, ''), '\\D', '', 'g'), '^88', ''), '') = sc.normalized_phone
+        INNER JOIN telephony_assignment_call_logs tl
+          ON tl.order_id = so_log.id
+         AND tl.record_type = 'sales_order'
+        WHERE COALESCE(tl.called_at, tl.created_at) IS NOT NULL
+
+        UNION ALL
+        SELECT sc.id AS customer_id, COALESCE(tli.called_at, tli.created_at)::timestamp AS call_at
+        FROM selected_customers sc
+        INNER JOIN incomplete_orders io_log
+          ON io_log.customer_id = sc.id
+          OR NULLIF(regexp_replace(regexp_replace(COALESCE(io_log.phone, ''), '\\D', '', 'g'), '^88', ''), '') = sc.normalized_phone
+        INNER JOIN telephony_assignment_call_logs tli
+          ON tli.order_id = io_log.id
+         AND tli.record_type = 'incomplete_order'
+        WHERE COALESCE(tli.called_at, tli.created_at) IS NOT NULL
+
+        UNION ALL
+        SELECT sc.id AS customer_id, oal.created_at::timestamp AS call_at
+        FROM selected_customers sc
+        INNER JOIN sales_orders so_activity
+          ON so_activity.customer_id = sc.id
+          OR NULLIF(regexp_replace(regexp_replace(COALESCE(so_activity.customer_phone, ''), '\\D', '', 'g'), '^88', ''), '') = sc.normalized_phone
+        INNER JOIN order_activity_logs oal
+          ON oal.order_id = so_activity.id
+         AND oal.action_type = 'telephony_call_logged'
+        WHERE oal.created_at IS NOT NULL
+
+        UNION ALL
+        SELECT sc.id AS customer_id, so_telephony.telephony_called_at::timestamp AS call_at
+        FROM selected_customers sc
+        INNER JOIN sales_orders so_telephony
+          ON so_telephony.customer_id = sc.id
+          OR NULLIF(regexp_replace(regexp_replace(COALESCE(so_telephony.customer_phone, ''), '\\D', '', 'g'), '^88', ''), '') = sc.normalized_phone
+        WHERE so_telephony.telephony_called_at IS NOT NULL
+
+        UNION ALL
+        SELECT sc.id AS customer_id, io_telephony.telephony_called_at::timestamp AS call_at
+        FROM selected_customers sc
+        INNER JOIN incomplete_orders io_telephony
+          ON io_telephony.customer_id = sc.id
+          OR NULLIF(regexp_replace(regexp_replace(COALESCE(io_telephony.phone, ''), '\\D', '', 'g'), '^88', ''), '') = sc.normalized_phone
+        WHERE io_telephony.telephony_called_at IS NOT NULL
+      )
+      SELECT customer_id, MAX(call_at) AS last_call_at
+      FROM call_sources
+      GROUP BY customer_id
+      `,
+      [ids],
+    );
+
+    for (const row of rows || []) {
+      const customerId = Number(row.customer_id);
+      if (Number.isInteger(customerId) && row.last_call_at) {
+        lastCallByCustomerId.set(customerId, row.last_call_at);
+      }
+    }
+
+    return lastCallByCustomerId;
   }
 
   async scheduleLeadAssignmentAction(input: {
@@ -1641,10 +1762,14 @@ export class SalesManagerService implements OnModuleInit {
   async getUnassignedLeads(query: any) {
     const assignmentShape = await this.getAssignmentColumnShape();
     await this.ensureCustomerProductSuggestionsSchema();
-    await this.ensureLeadFilterIndexes();
+    void this.ensureLeadFilterIndexes().catch((error: any) => {
+      console.warn('[SalesManagerService] Lead filter index warm-up failed:', error?.message || error);
+    });
     if (Date.now() - this.lastInlineScheduledLeadProcessingAt > 30000) {
       this.lastInlineScheduledLeadProcessingAt = Date.now();
-      await this.processDueScheduledLeadAssignments(100);
+      void this.processDueScheduledLeadAssignments(100).catch((error: any) => {
+        console.warn('[SalesManagerService] Inline scheduled lead assignment processing failed:', error?.message || error);
+      });
     }
 
     const page = parseInt(query.page) || 1;
@@ -1673,7 +1798,6 @@ export class SalesManagerService implements OnModuleInit {
 
     const qb = this.customerRepository.createQueryBuilder('c')
       .select(selectedFields)
-      .addSelect(this.getCustomerLastCallAtSql('c'), 'last_call_at')
       .addSelect(lastOrderDateSql, 'last_order_date')
       .addSelect(
         '(SELECT ct.tier FROM customer_tiers ct WHERE ct.customer_id = c.id LIMIT 1)',
@@ -2207,8 +2331,13 @@ export class SalesManagerService implements OnModuleInit {
       .take(limit)
       .getRawAndEntities();
 
+    const lastCallByCustomerId = await this.getLatestCallTimesForCustomers(
+      entities.map((entity) => Number(entity.id)),
+    );
+
     const items = entities.map((entity, i) => {
-      const lastCallAt = raw[i]?.last_call_at ?? (entity as any).last_contact_date ?? (entity as any).lastContactDate ?? null;
+      const customerId = Number(entity.id);
+      const lastCallAt = lastCallByCustomerId.get(customerId) ?? (entity as any).last_contact_date ?? (entity as any).lastContactDate ?? null;
       return {
         ...entity,
         last_contact_date: lastCallAt,
