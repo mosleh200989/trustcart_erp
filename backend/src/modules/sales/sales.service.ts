@@ -4363,6 +4363,61 @@ export class SalesService {
       [startDate, endDate],
     );
 
+    const sourceCrossSellRows: Array<{ source_key: string; cross_sell_orders: string; cross_sell_amount: string }> = await this.salesRepository.manager.query(
+      `SELECT
+         source_key,
+         COUNT(DISTINCT order_id)::text AS cross_sell_orders,
+         COALESCE(SUM(cross_sell_amount), 0)::text AS cross_sell_amount
+       FROM (
+         SELECT
+           CASE WHEN o.order_source = 'website' THEN 'website' ELSE 'landing:' || COALESCE(NULLIF(o.utm_source, ''), 'unknown') END AS source_key,
+           o.id AS order_id,
+           COALESCE(oi.subtotal, oi.unit_price * oi.quantity, 0) AS cross_sell_amount
+         FROM order_items oi
+         INNER JOIN sales_orders o ON o.id = oi.order_id
+         LEFT JOIN landing_pages lp ON lp.slug = o.utm_source
+         WHERE o.order_source IN ('website', 'landing_page')
+           AND LOWER(o.status::text) IN ('delivered', 'completed')
+           AND DATE(o.order_date) >= $1
+           AND DATE(o.order_date) <= $2
+           AND (
+             COALESCE(oi.is_cross_sell, false) = true
+             OR (
+               o.order_source = 'landing_page'
+               AND lp.cross_sell_product IS NOT NULL
+               AND (
+                 ((lp.cross_sell_product->>'product_id') ~ '^[0-9]+$' AND oi.product_id = (lp.cross_sell_product->>'product_id')::int)
+                 OR LOWER(COALESCE(oi.product_name, '')) = LOWER(COALESCE(lp.cross_sell_product->>'name', ''))
+                 OR LOWER(COALESCE(oi.custom_product_name, '')) = LOWER(COALESCE(lp.cross_sell_product->>'name', ''))
+               )
+             )
+           )
+         UNION ALL
+         SELECT
+           CASE WHEN o.order_source = 'website' THEN 'website' ELSE 'landing:' || COALESCE(NULLIF(o.utm_source, ''), 'unknown') END AS source_key,
+           o.id AS order_id,
+           COALESCE(soi.line_total, soi.unit_price * soi.quantity, 0) AS cross_sell_amount
+         FROM sales_order_items soi
+         INNER JOIN sales_orders o ON o.id = soi.sales_order_id
+         INNER JOIN landing_pages lp ON lp.slug = o.utm_source
+         WHERE o.order_source = 'landing_page'
+           AND LOWER(o.status::text) IN ('delivered', 'completed')
+           AND DATE(o.order_date) >= $1
+           AND DATE(o.order_date) <= $2
+           AND lp.cross_sell_product IS NOT NULL
+           AND NOT EXISTS (
+             SELECT 1 FROM order_items oi_existing WHERE oi_existing.order_id = o.id
+           )
+           AND (
+             ((lp.cross_sell_product->>'product_id') ~ '^[0-9]+$' AND soi.product_id = (lp.cross_sell_product->>'product_id')::int)
+             OR LOWER(COALESCE(soi.product_name, '')) = LOWER(COALESCE(lp.cross_sell_product->>'name', ''))
+             OR LOWER(COALESCE(soi.custom_product_name, '')) = LOWER(COALESCE(lp.cross_sell_product->>'name', ''))
+           )
+       ) cross_sell_items
+       GROUP BY source_key`,
+      [startDate, endDate],
+    );
+
     const mapDashboardRow = (row: {
       orders: string;
       gross_sales: string;
@@ -4379,11 +4434,12 @@ export class SalesService {
       partial_collected_amount: string;
       partial_return_amount: string;
       net_revenue: string;
-    }, products: number) => {
+    }, products: number, crossSell: { orders: number; amount: number } = { orders: 0, amount: 0 }) => {
       const orders = toNum(row.orders);
       const delivered = toNum(row.delivered);
       const cancel = toNum(row.cancel);
       const reject = toNum(row.reject);
+      const crossSellOrders = toNum(crossSell.orders);
       return {
         orders,
         products,
@@ -4403,6 +4459,9 @@ export class SalesService {
         partialDelivered: toNum(row.partial_delivered),
         partialCollectedAmount: roundMoney(toNum(row.partial_collected_amount)),
         partialReturnAmount: roundMoney(toNum(row.partial_return_amount)),
+        crossSellOrders,
+        crossSellPercent: delivered ? Number(((crossSellOrders / delivered) * 100).toFixed(1)) : 0,
+        crossSellAmount: roundMoney(toNum(crossSell.amount)),
         netRevenue: roundMoney(toNum(row.net_revenue)),
       };
     };
@@ -4432,6 +4491,9 @@ export class SalesService {
       partialDelivered: number;
       partialCollectedAmount: number;
       partialReturnAmount: number;
+      crossSellOrders: number;
+      crossSellPercent: number;
+      crossSellAmount: number;
       netRevenue: number;
     }>(items: T[]) => {
       const totals = items.reduce((acc, row) => {
@@ -4450,6 +4512,8 @@ export class SalesService {
       acc.partialDelivered += row.partialDelivered;
       acc.partialCollectedAmount += row.partialCollectedAmount;
       acc.partialReturnAmount += row.partialReturnAmount;
+      acc.crossSellOrders += row.crossSellOrders;
+      acc.crossSellAmount += row.crossSellAmount;
       acc.netRevenue += row.netRevenue;
       return acc;
     }, {
@@ -4471,12 +4535,16 @@ export class SalesService {
       partialDelivered: 0,
       partialCollectedAmount: 0,
       partialReturnAmount: 0,
+      crossSellOrders: 0,
+      crossSellPercent: 0,
+      crossSellAmount: 0,
       netRevenue: 0,
     });
 
       totals.deliveryPercent = totals.orders ? Number(((totals.delivered / totals.orders) * 100).toFixed(1)) : 0;
       totals.cancelPercent = totals.orders ? Number(((totals.cancel / totals.orders) * 100).toFixed(1)) : 0;
       totals.rejectPercent = totals.orders ? Number(((totals.reject / totals.orders) * 100).toFixed(1)) : 0;
+      totals.crossSellPercent = totals.delivered ? Number(((totals.crossSellOrders / totals.delivered) * 100).toFixed(1)) : 0;
       totals.grossSales = roundMoney(totals.grossSales);
       totals.courierParcelAmount = roundMoney(totals.courierParcelAmount);
       totals.deliveredGross = roundMoney(totals.deliveredGross);
@@ -4484,16 +4552,24 @@ export class SalesService {
       totals.returnAmount = roundMoney(totals.returnAmount);
       totals.partialCollectedAmount = roundMoney(totals.partialCollectedAmount);
       totals.partialReturnAmount = roundMoney(totals.partialReturnAmount);
+      totals.crossSellAmount = roundMoney(totals.crossSellAmount);
       totals.netRevenue = roundMoney(totals.netRevenue);
       return totals;
     };
 
     const sourceProductsByKey = new Map(sourceProductRows.map((row) => [row.source_key, toNum(row.products)]));
+    const sourceCrossSellByKey = new Map(sourceCrossSellRows.map((row) => [
+      row.source_key,
+      {
+        orders: toNum(row.cross_sell_orders),
+        amount: toNum(row.cross_sell_amount),
+      },
+    ]));
     const sourceRows = sourceOrderRows.map((row) => ({
       sourceKey: row.source_key,
       sourceType: row.source_type,
       sourceLabel: row.source_label,
-      ...mapDashboardRow(row, sourceProductsByKey.get(row.source_key) || 0),
+      ...mapDashboardRow(row, sourceProductsByKey.get(row.source_key) || 0, sourceCrossSellByKey.get(row.source_key)),
     }));
 
     const totals = buildTotals(rows);
