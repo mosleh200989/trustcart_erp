@@ -22,6 +22,7 @@ interface ScheduledLeadAssignmentJob {
 export class SalesManagerService implements OnModuleInit {
   private assignmentColumnShapePromise?: Promise<{ assignedBy: boolean; assignedAt: boolean }>;
   private scheduledLeadAssignmentSchemaReady?: Promise<void>;
+  private customerProductSuggestionsSchemaReady?: Promise<void>;
   private leadFilterIndexesReady?: Promise<void>;
   private lastInlineScheduledLeadProcessingAt = 0;
 
@@ -181,6 +182,34 @@ export class SalesManagerService implements OnModuleInit {
     }
 
     return this.scheduledLeadAssignmentSchemaReady;
+  }
+
+  private async ensureCustomerProductSuggestionsSchema() {
+    if (!this.customerProductSuggestionsSchemaReady) {
+      this.customerProductSuggestionsSchemaReady = this.customerRepository.query(`
+        CREATE TABLE IF NOT EXISTS customer_product_suggestions (
+          id SERIAL PRIMARY KEY,
+          customer_id INTEGER NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+          product_id INTEGER NULL REFERENCES products(id) ON DELETE SET NULL,
+          suggestion TEXT NOT NULL,
+          created_by INTEGER NULL REFERENCES users(id) ON DELETE SET NULL,
+          updated_by INTEGER NULL REFERENCES users(id) ON DELETE SET NULL,
+          created_at TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT NOW(),
+          updated_at TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT NOW()
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_customer_product_suggestions_customer
+          ON customer_product_suggestions(customer_id);
+
+        CREATE INDEX IF NOT EXISTS idx_customer_product_suggestions_product
+          ON customer_product_suggestions(product_id);
+
+        CREATE INDEX IF NOT EXISTS idx_customer_product_suggestions_updated
+          ON customer_product_suggestions(updated_at DESC);
+      `).then(() => undefined);
+    }
+
+    return this.customerProductSuggestionsSchemaReady;
   }
 
   private async ensureLeadFilterIndexes() {
@@ -472,6 +501,8 @@ export class SalesManagerService implements OnModuleInit {
    * Main dashboard data for Sales Manager
    */
   async getDashboard(params: { period?: string; startDate?: string; endDate?: string } = {}) {
+    await this.ensureCustomerProductSuggestionsSchema();
+
     const today = getDhakaDateString();
     const isDateString = (value?: string) => Boolean(value && /^\d{4}-\d{2}-\d{2}$/.test(value));
     const addDays = (dateString: string, days: number) => {
@@ -1227,7 +1258,7 @@ export class SalesManagerService implements OnModuleInit {
                COALESCE(pt.qty, 0)::int AS count
         FROM products p
         LEFT JOIN product_totals pt ON pt.product_id = p.id
-        WHERE COALESCE(p.is_active, true) = true
+        WHERE COALESCE(p.status, 'active') = 'active'
         ORDER BY COALESCE(pt.qty, 0) ASC, p.name_en ASC
         LIMIT 3
       `, [startDate, endDate]),
@@ -1517,6 +1548,7 @@ export class SalesManagerService implements OnModuleInit {
    */
   async getUnassignedLeads(query: any) {
     const assignmentShape = await this.getAssignmentColumnShape();
+    await this.ensureCustomerProductSuggestionsSchema();
     await this.ensureLeadFilterIndexes();
     if (Date.now() - this.lastInlineScheduledLeadProcessingAt > 30000) {
       this.lastInlineScheduledLeadProcessingAt = Date.now();
