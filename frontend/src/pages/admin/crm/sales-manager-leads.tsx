@@ -33,6 +33,7 @@ interface Lead {
   total_spent: number;
   createdAt: string;
   last_contact_date: string | null;
+  lastOrderDate?: string | null;
   lastDeliveryDate?: string | null;
   tier: string | null;
   tierAssignedAt?: string | null;
@@ -174,6 +175,8 @@ const SalesManagerLeadAssignment = () => {
   const [agentFilter, setAgentFilter] = useState('');
   const [lifecycleFilter, setLifecycleFilter] = useState('');
   const [productFilter, setProductFilter] = useState('');
+  const [lastOrderStartFilter, setLastOrderStartFilter] = useState('');
+  const [lastOrderEndFilter, setLastOrderEndFilter] = useState('');
   const [deliveryStartFilter, setDeliveryStartFilter] = useState('');
   const [deliveryEndFilter, setDeliveryEndFilter] = useState('');
   const [tierUpdatedFromFilter, setTierUpdatedFromFilter] = useState('');
@@ -237,6 +240,8 @@ const SalesManagerLeadAssignment = () => {
       agentFilter,
       lifecycleFilter,
       productFilter,
+      lastOrderStartFilter,
+      lastOrderEndFilter,
       deliveryStartFilter,
       deliveryEndFilter,
       tierUpdatedFromFilter,
@@ -259,7 +264,7 @@ const SalesManagerLeadAssignment = () => {
       scheduledToFilter,
       rowsPerPage,
     }),
-    [search, assignmentStatus, tierFilter, tlFilter, agentFilter, lifecycleFilter, productFilter, deliveryStartFilter, deliveryEndFilter, tierUpdatedFromFilter, tierUpdatedToFilter, assignedFromFilter, assignedToFilter, addressFilter, noteSearchFilter, segmentFilter, rejectedStatusFilter, lastCallFilter, tagFilter, callOutcomeFilter, productSuggestionFilter, orderRejectedReasonFilter, scheduledAssignmentStatusFilter, scheduledAssignmentActionFilter, scheduledAssignmentAgentFilter, scheduledFromFilter, scheduledToFilter, rowsPerPage],
+    [search, assignmentStatus, tierFilter, tlFilter, agentFilter, lifecycleFilter, productFilter, lastOrderStartFilter, lastOrderEndFilter, deliveryStartFilter, deliveryEndFilter, tierUpdatedFromFilter, tierUpdatedToFilter, assignedFromFilter, assignedToFilter, addressFilter, noteSearchFilter, segmentFilter, rejectedStatusFilter, lastCallFilter, tagFilter, callOutcomeFilter, productSuggestionFilter, orderRejectedReasonFilter, scheduledAssignmentStatusFilter, scheduledAssignmentActionFilter, scheduledAssignmentAgentFilter, scheduledFromFilter, scheduledToFilter, rowsPerPage],
   );
 
   const fetchLeads = useCallback(async (pg = 1, options?: { silent?: boolean }) => {
@@ -280,6 +285,8 @@ const SalesManagerLeadAssignment = () => {
       if (agentFilter) params.set('agent', agentFilter);
       if (lifecycleFilter) params.set('lifecycleStage', lifecycleFilter);
       if (productFilter) params.set('productName', productFilter);
+      if (lastOrderStartFilter) params.set('lastOrderDateStart', lastOrderStartFilter);
+      if (lastOrderEndFilter) params.set('lastOrderDateEnd', lastOrderEndFilter);
       if (deliveryStartFilter) params.set('deliveryDateStart', deliveryStartFilter);
       if (deliveryEndFilter) params.set('deliveryDateEnd', deliveryEndFilter);
       if (tierUpdatedFromFilter) params.set('tierUpdatedFrom', tierUpdatedFromFilter);
@@ -324,7 +331,7 @@ const SalesManagerLeadAssignment = () => {
       if (requestId === leadsRequestRef.current) setLoading(false);
       if (leadsAbortRef.current === abortController) leadsAbortRef.current = null;
     }
-  }, [search, assignmentStatus, tierFilter, tlFilter, agentFilter, lifecycleFilter, productFilter, deliveryStartFilter, deliveryEndFilter, tierUpdatedFromFilter, tierUpdatedToFilter, assignedFromFilter, assignedToFilter, addressFilter, noteSearchFilter, segmentFilter, rejectedStatusFilter, lastCallFilter, tagFilter, callOutcomeFilter, productSuggestionFilter, orderRejectedReasonFilter, scheduledAssignmentStatusFilter, scheduledAssignmentActionFilter, scheduledAssignmentAgentFilter, scheduledFromFilter, scheduledToFilter, rowsPerPage, toast]);
+  }, [search, assignmentStatus, tierFilter, tlFilter, agentFilter, lifecycleFilter, productFilter, lastOrderStartFilter, lastOrderEndFilter, deliveryStartFilter, deliveryEndFilter, tierUpdatedFromFilter, tierUpdatedToFilter, assignedFromFilter, assignedToFilter, addressFilter, noteSearchFilter, segmentFilter, rejectedStatusFilter, lastCallFilter, tagFilter, callOutcomeFilter, productSuggestionFilter, orderRejectedReasonFilter, scheduledAssignmentStatusFilter, scheduledAssignmentActionFilter, scheduledAssignmentAgentFilter, scheduledFromFilter, scheduledToFilter, rowsPerPage, toast]);
 
   const fetchTeamLeaders = useCallback(async () => {
     try {
@@ -939,6 +946,22 @@ const SalesManagerLeadAssignment = () => {
               </select>
             </FilterField>
 
+            <FilterField label="Last Order Start Date">
+              <AdminDateInput
+                value={lastOrderStartFilter}
+                onValueChange={setLastOrderStartFilter}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              />
+            </FilterField>
+
+            <FilterField label="Last Order End Date">
+              <AdminDateInput
+                value={lastOrderEndFilter}
+                onValueChange={setLastOrderEndFilter}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              />
+            </FilterField>
+
             <FilterField label="Delivery Start Date">
               <AdminDateInput
                 value={deliveryStartFilter}
@@ -1263,7 +1286,7 @@ const SalesManagerLeadAssignment = () => {
                                 <div className={lastCall.className}>{lastCall.text}</div>
                                 {lead.last_contact_date && (
                                   <div className="text-[11px] text-gray-400">
-                                    {formatDhakaDate(lead.last_contact_date)}
+                                    {formatScheduleDateTime(lead.last_contact_date)}
                                   </div>
                                 )}
                               </>

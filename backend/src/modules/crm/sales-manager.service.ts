@@ -274,6 +274,99 @@ export class SalesManagerService implements OnModuleInit {
     return scheduledAt;
   }
 
+  private getCustomerLastCallAtSql(customerAlias = 'c') {
+    const customerId = `${customerAlias}.id`;
+    const customerPhone = `${customerAlias}.phone`;
+    const normalizedCustomerPhone = `NULLIF(regexp_replace(regexp_replace(COALESCE(${customerPhone}, ''), '\\D', '', 'g'), '^88', ''), '')`;
+
+    return `(
+      SELECT MAX(call_at)
+      FROM (
+        SELECT ${customerAlias}.last_contact_date::timestamp AS call_at
+        WHERE ${customerAlias}.last_contact_date IS NOT NULL
+
+        UNION ALL
+        SELECT COALESCE(t.completed_at, t.updated_at, t.created_at)::timestamp AS call_at
+        FROM crm_call_tasks t
+        WHERE COALESCE(t.completed_at, t.updated_at, t.created_at) IS NOT NULL
+          AND (
+            t.customer_id = ${customerId}::text
+            OR t.customer_id = ${customerPhone}
+            OR NULLIF(regexp_replace(regexp_replace(COALESCE(t.customer_id, ''), '\\D', '', 'g'), '^88', ''), '') = ${normalizedCustomerPhone}
+          )
+
+        UNION ALL
+        SELECT eh.created_at::timestamp AS call_at
+        FROM customer_engagement_history eh
+        WHERE eh.created_at IS NOT NULL
+          AND eh.engagement_type IN ('call', 'follow_up_call', 'phone_call')
+          AND (
+            eh.customer_id = ${customerId}::text
+            OR eh.customer_id = ${customerPhone}
+            OR NULLIF(regexp_replace(regexp_replace(COALESCE(eh.customer_id, ''), '\\D', '', 'g'), '^88', ''), '') = ${normalizedCustomerPhone}
+          )
+
+        UNION ALL
+        SELECT a.created_at::timestamp AS call_at
+        FROM activities a
+        WHERE a.created_at IS NOT NULL
+          AND a.type = 'call'
+          AND a.customer_id = ${customerId}
+
+        UNION ALL
+        SELECT COALESCE(tl.called_at, tl.created_at)::timestamp AS call_at
+        FROM telephony_assignment_call_logs tl
+        INNER JOIN sales_orders so_log ON so_log.id = tl.order_id
+        WHERE tl.record_type = 'sales_order'
+          AND COALESCE(tl.called_at, tl.created_at) IS NOT NULL
+          AND (
+            so_log.customer_id = ${customerId}
+            OR NULLIF(regexp_replace(regexp_replace(COALESCE(so_log.customer_phone, ''), '\\D', '', 'g'), '^88', ''), '') = ${normalizedCustomerPhone}
+          )
+
+        UNION ALL
+        SELECT COALESCE(tli.called_at, tli.created_at)::timestamp AS call_at
+        FROM telephony_assignment_call_logs tli
+        INNER JOIN incomplete_orders io_log ON io_log.id = tli.order_id
+        WHERE tli.record_type = 'incomplete_order'
+          AND COALESCE(tli.called_at, tli.created_at) IS NOT NULL
+          AND (
+            io_log.customer_id = ${customerId}
+            OR NULLIF(regexp_replace(regexp_replace(COALESCE(io_log.phone, ''), '\\D', '', 'g'), '^88', ''), '') = ${normalizedCustomerPhone}
+          )
+
+        UNION ALL
+        SELECT oal.created_at::timestamp AS call_at
+        FROM order_activity_logs oal
+        INNER JOIN sales_orders so_activity ON so_activity.id = oal.order_id
+        WHERE oal.action_type = 'telephony_call_logged'
+          AND oal.created_at IS NOT NULL
+          AND (
+            so_activity.customer_id = ${customerId}
+            OR NULLIF(regexp_replace(regexp_replace(COALESCE(so_activity.customer_phone, ''), '\\D', '', 'g'), '^88', ''), '') = ${normalizedCustomerPhone}
+          )
+
+        UNION ALL
+        SELECT so_telephony.telephony_called_at::timestamp AS call_at
+        FROM sales_orders so_telephony
+        WHERE so_telephony.telephony_called_at IS NOT NULL
+          AND (
+            so_telephony.customer_id = ${customerId}
+            OR NULLIF(regexp_replace(regexp_replace(COALESCE(so_telephony.customer_phone, ''), '\\D', '', 'g'), '^88', ''), '') = ${normalizedCustomerPhone}
+          )
+
+        UNION ALL
+        SELECT io_telephony.telephony_called_at::timestamp AS call_at
+        FROM incomplete_orders io_telephony
+        WHERE io_telephony.telephony_called_at IS NOT NULL
+          AND (
+            io_telephony.customer_id = ${customerId}
+            OR NULLIF(regexp_replace(regexp_replace(COALESCE(io_telephony.phone, ''), '\\D', '', 'g'), '^88', ''), '') = ${normalizedCustomerPhone}
+          )
+      ) customer_call_sources
+    )`;
+  }
+
   async scheduleLeadAssignmentAction(input: {
     customerIds: number[];
     action: 'assign' | 'unassign';
@@ -402,74 +495,73 @@ export class SalesManagerService implements OnModuleInit {
   private applyLastCallFilter(qb: any, calledStatus: string): void {
     if (!calledStatus || calledStatus === 'all') return;
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
+    const today = getDhakaDateString();
     const daysAgo = (days: number) => {
-      const date = new Date(today);
-      date.setDate(date.getDate() - days);
-      return date;
+      const date = new Date(`${today}T00:00:00.000Z`);
+      date.setUTCDate(date.getUTCDate() - days);
+      return date.toISOString().slice(0, 10);
     };
+    const lastCallAtSql = this.getCustomerLastCallAtSql('c');
+    const lastCallDateSql = `DATE(${lastCallAtSql})`;
 
     switch (calledStatus) {
       case 'called':
+        qb.andWhere(`${lastCallAtSql} IS NOT NULL`);
+        break;
       case 'called_today':
-        qb.andWhere('c.last_contact_date >= :lastCallToday AND c.last_contact_date < :lastCallTomorrow', {
+        qb.andWhere(`${lastCallDateSql} = CAST(:lastCallToday AS date)`, {
           lastCallToday: today,
-          lastCallTomorrow: tomorrow,
         });
         break;
       case 'called_yesterday':
-        qb.andWhere('c.last_contact_date >= :lastCallYesterday AND c.last_contact_date < :lastCallToday', {
+        qb.andWhere(`${lastCallDateSql} = CAST(:lastCallYesterday AS date)`, {
           lastCallYesterday: daysAgo(1),
-          lastCallToday: today,
         });
         break;
       case 'called_1week':
-        qb.andWhere('c.last_contact_date >= :lastCall1wStart AND c.last_contact_date < :lastCall1wEnd', {
+        qb.andWhere(`${lastCallDateSql} >= CAST(:lastCall1wStart AS date) AND ${lastCallDateSql} < CAST(:lastCall1wEnd AS date)`, {
           lastCall1wStart: daysAgo(13),
           lastCall1wEnd: daysAgo(6),
         });
         break;
       case 'called_2weeks':
-        qb.andWhere('c.last_contact_date >= :lastCall2wStart AND c.last_contact_date < :lastCall2wEnd', {
+        qb.andWhere(`${lastCallDateSql} >= CAST(:lastCall2wStart AS date) AND ${lastCallDateSql} < CAST(:lastCall2wEnd AS date)`, {
           lastCall2wStart: daysAgo(20),
           lastCall2wEnd: daysAgo(13),
         });
         break;
       case 'called_3weeks':
-        qb.andWhere('c.last_contact_date >= :lastCall3wStart AND c.last_contact_date < :lastCall3wEnd', {
+        qb.andWhere(`${lastCallDateSql} >= CAST(:lastCall3wStart AS date) AND ${lastCallDateSql} < CAST(:lastCall3wEnd AS date)`, {
           lastCall3wStart: daysAgo(27),
           lastCall3wEnd: daysAgo(20),
         });
         break;
       case 'called_1month':
-        qb.andWhere('c.last_contact_date >= :lastCall1mStart AND c.last_contact_date < :lastCall1mEnd', {
+        qb.andWhere(`${lastCallDateSql} >= CAST(:lastCall1mStart AS date) AND ${lastCallDateSql} < CAST(:lastCall1mEnd AS date)`, {
           lastCall1mStart: daysAgo(59),
           lastCall1mEnd: daysAgo(27),
         });
         break;
       case 'called_2months':
-        qb.andWhere('c.last_contact_date >= :lastCall2mStart AND c.last_contact_date < :lastCall2mEnd', {
+        qb.andWhere(`${lastCallDateSql} >= CAST(:lastCall2mStart AS date) AND ${lastCallDateSql} < CAST(:lastCall2mEnd AS date)`, {
           lastCall2mStart: daysAgo(89),
           lastCall2mEnd: daysAgo(59),
         });
         break;
       case 'called_3months_plus':
-        qb.andWhere('c.last_contact_date < :lastCall3mEnd', { lastCall3mEnd: daysAgo(89) });
+        qb.andWhere(`${lastCallDateSql} < CAST(:lastCall3mEnd AS date)`, { lastCall3mEnd: daysAgo(89) });
         break;
       case 'not_called':
       case 'not_called_today':
-        qb.andWhere('(c.last_contact_date IS NULL OR c.last_contact_date < :lastCallToday)', { lastCallToday: today });
+        qb.andWhere(`(${lastCallAtSql} IS NULL OR ${lastCallDateSql} < CAST(:lastCallToday AS date))`, { lastCallToday: today });
         break;
       case 'not_called_week':
-        qb.andWhere('(c.last_contact_date IS NULL OR c.last_contact_date < :lastCallWeekAgo)', {
+        qb.andWhere(`(${lastCallAtSql} IS NULL OR ${lastCallDateSql} < CAST(:lastCallWeekAgo AS date))`, {
           lastCallWeekAgo: daysAgo(6),
         });
         break;
       case 'never':
-        qb.andWhere('c.last_contact_date IS NULL');
+        qb.andWhere(`${lastCallAtSql} IS NULL`);
         break;
     }
   }
@@ -1570,8 +1662,19 @@ export class SalesManagerService implements OnModuleInit {
     if (assignmentShape.assignedBy) selectedFields.push('c.assigned_by');
     if (assignmentShape.assignedAt) selectedFields.push('c.assigned_at');
 
+    const lastOrderDateSql = `(
+      SELECT MAX(DATE(COALESCE(
+        so_last_order.order_date::timestamp,
+        so_last_order.created_at AT TIME ZONE 'Asia/Dhaka'
+      )))
+      FROM sales_orders so_last_order
+      WHERE so_last_order.customer_id = c.id
+    )`;
+
     const qb = this.customerRepository.createQueryBuilder('c')
       .select(selectedFields)
+      .addSelect(this.getCustomerLastCallAtSql('c'), 'last_call_at')
+      .addSelect(lastOrderDateSql, 'last_order_date')
       .addSelect(
         '(SELECT ct.tier FROM customer_tiers ct WHERE ct.customer_id = c.id LIMIT 1)',
         'tier',
@@ -1786,6 +1889,22 @@ export class SalesManagerService implements OnModuleInit {
         )`,
         { pName },
       );
+    }
+
+    const lastOrderDateStart = String(query.lastOrderDateStart || query.lastOrderFrom || '').trim();
+    const lastOrderDateEnd = String(query.lastOrderDateEnd || query.lastOrderTo || '').trim();
+    if (lastOrderDateStart || lastOrderDateEnd) {
+      const lastOrderDateConditions: string[] = [`${lastOrderDateSql} IS NOT NULL`];
+      const lastOrderDateParams: Record<string, string> = {};
+      if (lastOrderDateStart) {
+        lastOrderDateConditions.push(`${lastOrderDateSql} >= CAST(:lastOrderDateStart AS date)`);
+        lastOrderDateParams.lastOrderDateStart = lastOrderDateStart;
+      }
+      if (lastOrderDateEnd) {
+        lastOrderDateConditions.push(`${lastOrderDateSql} <= CAST(:lastOrderDateEnd AS date)`);
+        lastOrderDateParams.lastOrderDateEnd = lastOrderDateEnd;
+      }
+      qb.andWhere(lastOrderDateConditions.join(' AND '), lastOrderDateParams);
     }
 
     const deliveryDateExpr = `DATE(COALESCE(
@@ -2088,24 +2207,30 @@ export class SalesManagerService implements OnModuleInit {
       .take(limit)
       .getRawAndEntities();
 
-    const items = entities.map((entity, i) => ({
-      ...entity,
-      tier: raw[i]?.tier ?? null,
-      tierAssignedAt: raw[i]?.tier_assigned_at ?? null,
-      soCount: Number(raw[i]?.so_count ?? 0),
-      legCount: Number(raw[i]?.leg_count ?? 0),
-      assignedAgentName: String(raw[i]?.assigned_agent_name || '').trim() || null,
-      teamLeaderId: raw[i]?.team_leader_id ? Number(raw[i].team_leader_id) : null,
-      teamLeaderName: String(raw[i]?.team_leader_name || '').trim() || null,
-      dataAnalystName: String(raw[i]?.data_analyst_name || '').trim() || null,
-      lastDeliveryDate: raw[i]?.last_delivery_date ?? null,
-      scheduledAssignmentId: raw[i]?.scheduled_assignment_id ? Number(raw[i].scheduled_assignment_id) : null,
-      scheduledAssignmentAction: raw[i]?.scheduled_assignment_action ?? null,
-      scheduledAssignmentStatus: raw[i]?.scheduled_assignment_status ?? null,
-      scheduledAssignmentAt: raw[i]?.scheduled_assignment_at ?? null,
-      scheduledAssignmentAgentId: raw[i]?.scheduled_assignment_agent_id ? Number(raw[i].scheduled_assignment_agent_id) : null,
-      scheduledAssignmentAgentName: String(raw[i]?.scheduled_assignment_agent_name || '').trim() || null,
-    }));
+    const items = entities.map((entity, i) => {
+      const lastCallAt = raw[i]?.last_call_at ?? (entity as any).last_contact_date ?? (entity as any).lastContactDate ?? null;
+      return {
+        ...entity,
+        last_contact_date: lastCallAt,
+        lastContactDate: lastCallAt,
+        tier: raw[i]?.tier ?? null,
+        tierAssignedAt: raw[i]?.tier_assigned_at ?? null,
+        soCount: Number(raw[i]?.so_count ?? 0),
+        legCount: Number(raw[i]?.leg_count ?? 0),
+        assignedAgentName: String(raw[i]?.assigned_agent_name || '').trim() || null,
+        teamLeaderId: raw[i]?.team_leader_id ? Number(raw[i].team_leader_id) : null,
+        teamLeaderName: String(raw[i]?.team_leader_name || '').trim() || null,
+        dataAnalystName: String(raw[i]?.data_analyst_name || '').trim() || null,
+        lastOrderDate: raw[i]?.last_order_date ?? null,
+        lastDeliveryDate: raw[i]?.last_delivery_date ?? null,
+        scheduledAssignmentId: raw[i]?.scheduled_assignment_id ? Number(raw[i].scheduled_assignment_id) : null,
+        scheduledAssignmentAction: raw[i]?.scheduled_assignment_action ?? null,
+        scheduledAssignmentStatus: raw[i]?.scheduled_assignment_status ?? null,
+        scheduledAssignmentAt: raw[i]?.scheduled_assignment_at ?? null,
+        scheduledAssignmentAgentId: raw[i]?.scheduled_assignment_agent_id ? Number(raw[i].scheduled_assignment_agent_id) : null,
+        scheduledAssignmentAgentName: String(raw[i]?.scheduled_assignment_agent_name || '').trim() || null,
+      };
+    });
 
     return { items, total, page, limit, totalPages: Math.ceil(total / limit) };
   }
