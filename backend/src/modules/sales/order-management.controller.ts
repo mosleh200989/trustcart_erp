@@ -8,7 +8,6 @@ import { PathaoWebhookGuard } from '../../common/guards/pathao-webhook.guard';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import { SteadfastWebhookDto } from './dto/steadfast-webhook.dto';
-import { PathaoWebhookDto } from './dto/pathao-webhook.dto';
 
 @Controller('order-management')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -224,9 +223,8 @@ export class OrderManagementController {
   @Post('webhook/pathao')
   @HttpCode(202)
   @UseGuards(PathaoWebhookGuard)
-  @UsePipes(new ValidationPipe({ transform: true, whitelist: true, forbidNonWhitelisted: false }))
   async pathaoWebhook(
-    @Body() dto: PathaoWebhookDto,
+    @Body() dto: Record<string, any>,
     @Headers() headers: Record<string, string>,
     @Res({ passthrough: true }) res: Response,
   ) {

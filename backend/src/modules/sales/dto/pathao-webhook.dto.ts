@@ -1,5 +1,4 @@
-import { IsOptional, IsString, IsNumber, IsObject } from 'class-validator';
-import { Type } from 'class-transformer';
+import { IsOptional, IsString, IsObject } from 'class-validator';
 
 /**
  * DTO for Pathao Courier webhook payloads.
@@ -13,9 +12,7 @@ export class PathaoWebhookDto {
   event?: string;
 
   @IsOptional()
-  @Type(() => Number)
-  @IsNumber()
-  consignment_id?: number;
+  consignment_id?: string | number;
 
   @IsOptional()
   @IsString()
@@ -34,14 +31,10 @@ export class PathaoWebhookDto {
   merchant_order_id?: string;
 
   @IsOptional()
-  @Type(() => Number)
-  @IsNumber()
-  delivery_fee?: number;
+  delivery_fee?: string | number;
 
   @IsOptional()
-  @Type(() => Number)
-  @IsNumber()
-  cod_amount?: number;
+  cod_amount?: string | number;
 
   @IsOptional()
   @IsString()

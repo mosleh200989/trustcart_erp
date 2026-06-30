@@ -3164,12 +3164,121 @@ export class OrderManagementService {
   /**
    * Map Pathao order_status to our internal status.
    */
+  private readPathaoField(payload: any, path: string): any {
+    return path.split('.').reduce((value, key) => {
+      if (value == null || typeof value !== 'object') return undefined;
+      return value[key];
+    }, payload);
+  }
+
+  private pickPathaoField(payload: any, paths: string[]): any {
+    const wrappers = ['', 'data', 'payload', 'body', 'order', 'consignment', 'data.order', 'data.consignment', 'payload.order', 'payload.consignment', 'body.order', 'body.consignment'];
+    const candidatePaths = new Set<string>();
+    for (const wrapper of wrappers) {
+      for (const path of paths) {
+        candidatePaths.add(wrapper ? `${wrapper}.${path}` : path);
+      }
+    }
+
+    for (const path of candidatePaths) {
+      const value = this.readPathaoField(payload, path);
+      if (value !== undefined && value !== null && String(value).trim() !== '') {
+        return value;
+      }
+    }
+    return undefined;
+  }
+
+  private getPathaoConsignmentId(payload: any): string | undefined {
+    const value = this.pickPathaoField(payload, [
+      'consignment_id',
+      'consignmentId',
+      'consignment.id',
+      'consignment.consignment_id',
+      'consignment.consignmentId',
+      'data.consignment_id',
+      'data.consignmentId',
+      'data.consignment.id',
+      'data.consignment.consignment_id',
+      'data.order.consignment_id',
+      'data.order.consignmentId',
+      'order.consignment_id',
+      'order.consignmentId',
+      'courier_order_id',
+      'courierOrderId',
+      'tracking_id',
+      'trackingId',
+      'tracking_number',
+    ]);
+    return value == null ? undefined : String(value).trim();
+  }
+
+  private getPathaoMerchantOrderId(payload: any): string | undefined {
+    const value = this.pickPathaoField(payload, [
+      'merchant_order_id',
+      'merchantOrderId',
+      'merchantOrderID',
+      'merchant_order',
+      'invoice_id',
+      'invoice',
+      'data.merchant_order_id',
+      'data.merchantOrderId',
+      'data.merchantOrderID',
+      'data.invoice_id',
+      'data.invoice',
+      'data.order.merchant_order_id',
+      'data.order.merchantOrderId',
+      'data.order.invoice_id',
+      'order.merchant_order_id',
+      'order.merchantOrderId',
+      'order.invoice_id',
+    ]);
+    return value == null ? undefined : String(value).trim();
+  }
+
+  private getPathaoStatus(payload: any): string | undefined {
+    const value = this.pickPathaoField(payload, [
+      'order_status',
+      'orderStatus',
+      'order_status_slug',
+      'orderStatusSlug',
+      'status',
+      'status_slug',
+      'statusSlug',
+      'current_status',
+      'currentStatus',
+      'delivery_status',
+      'deliveryStatus',
+      'consignment_status',
+      'consignmentStatus',
+      'data.order_status',
+      'data.orderStatus',
+      'data.order_status_slug',
+      'data.orderStatusSlug',
+      'data.status',
+      'data.status_slug',
+      'data.current_status',
+      'data.delivery_status',
+      'data.consignment_status',
+      'data.order.order_status',
+      'data.order.status',
+      'data.consignment.status',
+      'event',
+    ]);
+    if (value == null) return undefined;
+    const status = String(value).trim();
+    return status === 'webhook_integration' ? undefined : status;
+  }
+
   private mapPathaoStatus(pathaoStatus: string): string {
     const s = String(pathaoStatus).toLowerCase().replace(/[^a-z0-9]/g, '');
     const map: Record<string, string> = {
       pending: 'sent',
+      accepted: 'sent',
       orderplaced: 'sent',
       ordercreated: 'sent',
+      orderconfirmed: 'sent',
+      confirmed: 'sent',
       pickup: 'picked',
       picked: 'picked',
       pickedup: 'picked',
@@ -3193,9 +3302,11 @@ export class OrderManagementService {
       deliveryinprogress: 'in_transit',
       assignedfordelivery: 'in_transit',
       deliveryassigned: 'in_transit',
+      readyfordelivery: 'in_transit',
       outfordelivery: 'in_transit',
       ontheway: 'in_transit',
       delivered: 'delivered',
+      orderdelivered: 'delivered',
       successfuldelivery: 'delivered',
       return: 'returned',
       returned: 'returned',
@@ -3220,27 +3331,16 @@ export class OrderManagementService {
    * Handle Pathao webhook notifications.
    */
   async handlePathaoWebhook(
-    dto: import('./dto/pathao-webhook.dto').PathaoWebhookDto,
+    dto: any,
     headers: Record<string, any>,
   ): Promise<{ status: string; message: string }> {
-    const payload = (dto as any).data && typeof (dto as any).data === 'object' ? (dto as any).data : dto;
-    const consignmentId =
-      dto.consignment_id ??
-      payload.consignment_id ??
-      payload.consignmentId ??
-      payload.consignment?.id;
-    const orderStatus =
-      dto.order_status ||
-      dto.order_status_slug ||
-      dto.status ||
-      payload.order_status ||
-      payload.order_status_slug ||
-      payload.status;
-    const merchantOrderId = dto.merchant_order_id || payload.merchant_order_id || payload.merchantOrderId || payload.invoice_id;
-
+    const consignmentId = this.getPathaoConsignmentId(dto);
+    const orderStatus = this.getPathaoStatus(dto);
+    const merchantOrderId = this.getPathaoMerchantOrderId(dto);
+    const reason = this.pickPathaoField(dto, ['reason', 'data.reason', 'remarks', 'data.remarks', 'note', 'data.note']);
     this.logger.log(
-      `[Pathao Webhook] Received — CID=${consignmentId ?? '—'} status=${orderStatus ?? '—'} ` +
-        `merchant_order_id=${merchantOrderId ?? '—'} reason=${dto.reason ?? payload.reason ?? '—'}`,
+      `[Pathao Webhook] Received - CID=${consignmentId ?? '-'} status=${orderStatus ?? '-'} ` +
+        `merchant_order_id=${merchantOrderId ?? '-'} reason=${reason ?? '-'}`,
     );
     this.logger.debug(`[Pathao Webhook] Full payload: ${JSON.stringify(dto)}`);
 
@@ -3310,25 +3410,18 @@ export class OrderManagementService {
 
   private async processPathaoStatusUpdate(
     order: SalesOrder,
-    dto: import('./dto/pathao-webhook.dto').PathaoWebhookDto,
+    dto: any,
   ): Promise<{ status: string; message: string }> {
-    const payload = (dto as any).data && typeof (dto as any).data === 'object' ? (dto as any).data : dto;
-    const rawStatus =
-      dto.order_status ||
-      dto.order_status_slug ||
-      dto.status ||
-      payload.order_status ||
-      payload.order_status_slug ||
-      payload.status;
+    const rawStatus = this.getPathaoStatus(dto);
     if (!rawStatus) {
       return { status: 'error', message: 'No status in webhook payload' };
     }
 
     const newStatus = this.mapPathaoStatus(rawStatus);
-    const codAmount = dto.cod_amount ?? payload.cod_amount ?? payload.codAmount;
-    const deliveryFee = dto.delivery_fee ?? payload.delivery_fee ?? payload.deliveryFee;
-    const reason = dto.reason ?? payload.reason;
-    const consignmentId = dto.consignment_id ?? payload.consignment_id ?? payload.consignmentId ?? payload.consignment?.id;
+    const codAmount = this.pickPathaoField(dto, ['cod_amount', 'codAmount', 'data.cod_amount', 'data.codAmount', 'amount_to_collect', 'data.amount_to_collect', 'collected_amount', 'data.collected_amount']);
+    const deliveryFee = this.pickPathaoField(dto, ['delivery_fee', 'deliveryFee', 'data.delivery_fee', 'data.deliveryFee', 'price', 'data.price']);
+    const reason = this.pickPathaoField(dto, ['reason', 'data.reason', 'remarks', 'data.remarks', 'note', 'data.note']);
+    const consignmentId = this.getPathaoConsignmentId(dto);
     const numericCodAmount = codAmount != null && Number.isFinite(Number(codAmount)) ? Number(codAmount) : null;
     const numericDeliveryFee = deliveryFee != null && Number.isFinite(Number(deliveryFee)) ? Number(deliveryFee) : null;
 
@@ -3430,7 +3523,7 @@ export class OrderManagementService {
     const orders = await this.salesOrderRepository.find({
       where: {
         courierCompany: 'Pathao',
-        status: In(['sent', 'shipped', 'picked', 'in_transit']),
+        status: In(['pending', 'processing', 'approved', 'sent', 'shipped', 'picked', 'in_transit', 'hold']),
       },
     });
 
@@ -3446,7 +3539,7 @@ export class OrderManagementService {
         }
 
         const info = await this.getPathaoOrderStatus(cid);
-        const rawStatus = info?.order_status || info?.order_status_slug;
+        const rawStatus = this.getPathaoStatus(info);
         if (!rawStatus) {
           results.synced++;
           continue;
