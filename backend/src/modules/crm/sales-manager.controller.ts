@@ -11,8 +11,8 @@ export class SalesManagerController {
 
   @Get('dashboard')
   @RequireAnyPermission('view-data-analyst-dashboard', 'view-sales-manager-dashboard')
-  async getDashboard() {
-    return await this.salesManagerService.getDashboard();
+  async getDashboard(@Query() query: { period?: string; startDate?: string; endDate?: string }) {
+    return await this.salesManagerService.getDashboard(query);
   }
 
   @Get('team-leaders')

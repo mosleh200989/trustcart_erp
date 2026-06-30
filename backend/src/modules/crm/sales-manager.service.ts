@@ -471,7 +471,40 @@ export class SalesManagerService implements OnModuleInit {
   /**
    * Main dashboard data for Sales Manager
    */
-  async getDashboard() {
+  async getDashboard(params: { period?: string; startDate?: string; endDate?: string } = {}) {
+    const today = getDhakaDateString();
+    const isDateString = (value?: string) => Boolean(value && /^\d{4}-\d{2}-\d{2}$/.test(value));
+    const addDays = (dateString: string, days: number) => {
+      const date = new Date(`${dateString}T00:00:00.000Z`);
+      date.setUTCDate(date.getUTCDate() + days);
+      return date.toISOString().slice(0, 10);
+    };
+    const startOfMonth = (dateString: string) => `${dateString.slice(0, 7)}-01`;
+    const startOfYear = (dateString: string) => `${dateString.slice(0, 4)}-01-01`;
+    const period = ['daily', 'weekly', 'monthly', 'yearly', 'custom'].includes(String(params.period || ''))
+      ? String(params.period)
+      : 'monthly';
+    let startDate = isDateString(params.startDate) ? String(params.startDate) : startOfMonth(today);
+    let endDate = isDateString(params.endDate) ? String(params.endDate) : today;
+    if (period === 'daily') {
+      startDate = today;
+      endDate = today;
+    } else if (period === 'weekly') {
+      startDate = addDays(today, -6);
+      endDate = today;
+    } else if (period === 'monthly' && !isDateString(params.startDate)) {
+      startDate = startOfMonth(today);
+      endDate = today;
+    } else if (period === 'yearly' && !isDateString(params.startDate)) {
+      startDate = startOfYear(today);
+      endDate = today;
+    }
+    if (startDate > endDate) {
+      [startDate, endDate] = [endDate, startDate];
+    }
+    const rangeDays = Math.max(1, Math.round((new Date(`${endDate}T00:00:00.000Z`).getTime() - new Date(`${startDate}T00:00:00.000Z`).getTime()) / 86400000) + 1);
+    const previousEndDate = addDays(startDate, -1);
+    const previousStartDate = addDays(previousEndDate, -(rangeDays - 1));
     const teamLeaders = await this.getTeamLeaders();
     const tlIds = teamLeaders.map(tl => tl.id);
 
@@ -888,8 +921,518 @@ export class SalesManagerService implements OnModuleInit {
     }));
     const verification = leadVerificationRows?.[0] || {};
     const verificationTotal = toNumber(verification.total);
+    const percentChange = (current: number, previous: number) => {
+      if (!previous && !current) return 0;
+      if (!previous) return 100;
+      return Number((((current - previous) / previous) * 100).toFixed(1));
+    };
+
+    const [
+      topDashboardRow,
+      salesSummaryRow,
+      salesTrendRows,
+      trendingProductRows,
+      customerSummaryRow,
+      tierRows,
+      churnRow,
+      callOutcomeRows,
+      followUpRow,
+      crossSellRow,
+      upsellRow,
+      bestProductRows,
+      slowProductRows,
+      districtRows,
+      cityRows,
+      foreignLocationRow,
+      leaderAgentRows,
+    ] = await Promise.all([
+      this.customerRepository.query(`
+        WITH all_calls AS (
+          SELECT called_at AS call_at, outcome
+          FROM telephony_assignment_call_logs
+          WHERE called_at IS NOT NULL
+          UNION ALL
+          SELECT COALESCE(completed_at, updated_at, created_at) AS call_at, call_outcome AS outcome
+          FROM crm_call_tasks
+          WHERE COALESCE(completed_at, updated_at, created_at) IS NOT NULL
+        ),
+        normalized_today_calls AS (
+          SELECT REGEXP_REPLACE(LOWER(COALESCE(outcome, '')), '[^a-z0-9]+', '_', 'g') AS normalized_outcome
+          FROM all_calls
+          WHERE DATE(call_at) = $1::date
+        ),
+        selected_leads AS (
+          SELECT COUNT(*)::int AS total
+          FROM customers c
+          WHERE COALESCE(c.is_deleted, false) = false
+            AND DATE(c.created_at) >= $2::date
+            AND DATE(c.created_at) <= $3::date
+        ),
+        confirmed_orders AS (
+          SELECT COUNT(DISTINCT o.id)::int AS total
+          FROM sales_orders o
+          WHERE DATE(o.order_date) >= $2::date
+            AND DATE(o.order_date) <= $3::date
+            AND LOWER(COALESCE(o.status::text, '')) IN ('approved', 'sent', 'picked', 'in_transit', 'shipped', 'delivered', 'completed', 'partial_delivered')
+        )
+        SELECT
+          (SELECT COUNT(*)::int FROM customers c WHERE COALESCE(c.is_deleted, false) = false) AS total_customers,
+          (SELECT COUNT(*)::int FROM customers c WHERE COALESCE(c.is_deleted, false) = false AND DATE(c.created_at) = $1::date) AS todays_new_customers,
+          (SELECT COUNT(*)::int FROM normalized_today_calls) AS todays_calls,
+          (SELECT COUNT(*)::int FROM normalized_today_calls WHERE normalized_outcome IN ('connected_talked_to_customer', 'connected_spoke_with_customer', 'connected', 'order_confirmed', 'order_placed', 'whatsapp_message_sent', 'connected_on_whatsapp', 'connected_whatsapp')) AS successful_calls,
+          (SELECT COUNT(*)::int FROM normalized_today_calls WHERE normalized_outcome IN ('no_answer', 'no_answer_ringing', 'line_busy', 'busy_line_engaged', 'number_switched_off', 'wrong_number', 'customer_hung_up_call_cut', 'customer_hung_up', 'call_cut', 'unreachable', 'customer_unreachable')) AS failed_calls,
+          (SELECT COUNT(*)::int FROM sales_orders o WHERE DATE(o.order_date) = $1::date) AS todays_orders,
+          COALESCE((SELECT confirmed_orders.total FROM confirmed_orders), 0) AS confirmed_orders,
+          COALESCE((SELECT selected_leads.total FROM selected_leads), 0) AS selected_leads,
+          (SELECT COUNT(*)::int
+           FROM (
+             SELECT o.customer_id
+             FROM sales_orders o
+             WHERE o.customer_id IS NOT NULL
+               AND LOWER(COALESCE(o.status::text, '')) IN ('delivered', 'completed')
+             GROUP BY o.customer_id
+             HAVING COUNT(*) >= 3
+           ) repeat_customers) AS repeat_customers
+      `, [today, startDate, endDate]).then((rows) => rows?.[0] || {}),
+      this.customerRepository.query(`
+        SELECT
+          COUNT(*) FILTER (WHERE DATE(order_date) >= $1::date AND DATE(order_date) <= $2::date)::int AS current_orders,
+          COALESCE(SUM(total_amount) FILTER (WHERE DATE(order_date) >= $1::date AND DATE(order_date) <= $2::date), 0)::numeric AS current_revenue,
+          COUNT(*) FILTER (WHERE DATE(order_date) >= $3::date AND DATE(order_date) <= $4::date)::int AS previous_orders,
+          COALESCE(SUM(total_amount) FILTER (WHERE DATE(order_date) >= $3::date AND DATE(order_date) <= $4::date), 0)::numeric AS previous_revenue
+        FROM sales_orders
+      `, [startDate, endDate, previousStartDate, previousEndDate]).then((rows) => rows?.[0] || {}),
+      this.customerRepository.query(`
+        SELECT DATE(o.order_date)::text AS date,
+               COUNT(*)::int AS orders,
+               COALESCE(SUM(o.total_amount), 0)::numeric AS revenue
+        FROM sales_orders o
+        WHERE DATE(o.order_date) >= $1::date
+          AND DATE(o.order_date) <= $2::date
+        GROUP BY DATE(o.order_date)
+        ORDER BY DATE(o.order_date) ASC
+      `, [startDate, endDate]),
+      this.customerRepository.query(`
+        WITH item_rows AS (
+          SELECT
+            CASE WHEN DATE(o.order_date) >= $1::date AND DATE(o.order_date) <= $2::date THEN 'current' ELSE 'previous' END AS period,
+            COALESCE(NULLIF(TRIM(p.name_en), ''), NULLIF(TRIM(soi.product_name), ''), 'Product') AS product_name,
+            COALESCE(soi.quantity, 0) AS quantity,
+            COALESCE(soi.line_total, soi.unit_price * soi.quantity, 0) AS amount
+          FROM sales_order_items soi
+          INNER JOIN sales_orders o ON o.id = soi.sales_order_id
+          LEFT JOIN products p ON p.id = soi.product_id
+          WHERE DATE(o.order_date) >= $3::date
+            AND DATE(o.order_date) <= $2::date
+            AND NOT EXISTS (SELECT 1 FROM order_items oi_existing WHERE oi_existing.order_id = o.id)
+          UNION ALL
+          SELECT
+            CASE WHEN DATE(o.order_date) >= $1::date AND DATE(o.order_date) <= $2::date THEN 'current' ELSE 'previous' END AS period,
+            COALESCE(NULLIF(TRIM(p.name_en), ''), NULLIF(TRIM(oi.product_name), ''), 'Product') AS product_name,
+            COALESCE(oi.quantity, 0) AS quantity,
+            COALESCE(oi.subtotal, oi.unit_price * oi.quantity, 0) AS amount
+          FROM order_items oi
+          INNER JOIN sales_orders o ON o.id = oi.order_id
+          LEFT JOIN products p ON p.id = oi.product_id
+          WHERE DATE(o.order_date) >= $3::date
+            AND DATE(o.order_date) <= $2::date
+        ),
+        grouped AS (
+          SELECT product_name,
+                 COALESCE(SUM(quantity) FILTER (WHERE period = 'current'), 0)::numeric AS current_qty,
+                 COALESCE(SUM(quantity) FILTER (WHERE period = 'previous'), 0)::numeric AS previous_qty,
+                 COALESCE(SUM(amount) FILTER (WHERE period = 'current'), 0)::numeric AS current_amount
+          FROM item_rows
+          GROUP BY product_name
+        )
+        SELECT product_name AS label,
+               current_qty::int AS count,
+               current_amount AS amount,
+               CASE
+                 WHEN previous_qty = 0 AND current_qty = 0 THEN 0
+                 WHEN previous_qty = 0 THEN 100
+                 ELSE ROUND(((current_qty - previous_qty) / previous_qty) * 100, 1)
+               END AS change_percent
+        FROM grouped
+        WHERE current_qty > 0
+        ORDER BY current_qty DESC, current_amount DESC, product_name ASC
+        LIMIT 3
+      `, [startDate, endDate, previousStartDate]),
+      this.customerRepository.query(`
+        SELECT
+          COUNT(*)::int AS total_customers,
+          COUNT(*) FILTER (WHERE DATE(c.created_at) >= $1::date AND DATE(c.created_at) <= $2::date)::int AS new_customers,
+          COUNT(*) FILTER (WHERE REGEXP_REPLACE(COALESCE(c.phone, ''), '\\D', '', 'g') NOT LIKE '8801%' AND REGEXP_REPLACE(COALESCE(c.phone, ''), '\\D', '', 'g') NOT LIKE '01%')::int AS foreign_customers,
+          COUNT(*) FILTER (WHERE COALESCE(c.customer_type, '') = 'rejected' OR COALESCE(ct.tier, '') = 'rejected')::int AS blacklisted_customers,
+          (SELECT COUNT(*)::int
+           FROM (
+             SELECT o.customer_id
+             FROM sales_orders o
+             WHERE o.customer_id IS NOT NULL
+               AND LOWER(COALESCE(o.status::text, '')) IN ('delivered', 'completed')
+             GROUP BY o.customer_id
+             HAVING COUNT(*) >= 3
+           ) repeat_customers) AS repeat_customers
+        FROM customers c
+        LEFT JOIN customer_tiers ct ON ct.customer_id = c.id
+        WHERE COALESCE(c.is_deleted, false) = false
+      `, [startDate, endDate]).then((rows) => rows?.[0] || {}),
+      this.customerRepository.query(`
+        SELECT COALESCE(NULLIF(TRIM(ct.tier), ''), 'No Tier') AS label,
+               COUNT(*)::int AS count
+        FROM customers c
+        LEFT JOIN customer_tiers ct ON ct.customer_id = c.id
+        WHERE COALESCE(c.is_deleted, false) = false
+        GROUP BY 1
+        ORDER BY count DESC, label ASC
+      `),
+      this.customerRepository.query(`
+        SELECT
+          COUNT(*) FILTER (
+            WHERE EXISTS (SELECT 1 FROM sales_orders so_any WHERE so_any.customer_id = c.id)
+              AND NOT EXISTS (
+                SELECT 1 FROM sales_orders so_recent
+                WHERE so_recent.customer_id = c.id
+                  AND DATE(so_recent.order_date) >= ($1::date - INTERVAL '30 days')
+              )
+          )::int AS no_orders_30_days,
+          COUNT(*) FILTER (
+            WHERE c.last_contact_date IS NULL
+               OR DATE(c.last_contact_date) < ($1::date - INTERVAL '30 days')
+          )::int AS no_calls_30_days
+        FROM customers c
+        WHERE COALESCE(c.is_deleted, false) = false
+      `, [today]).then((rows) => rows?.[0] || {}),
+      this.customerRepository.query(`
+        WITH all_calls AS (
+          SELECT called_at AS call_at, outcome
+          FROM telephony_assignment_call_logs
+          WHERE called_at IS NOT NULL
+          UNION ALL
+          SELECT COALESCE(completed_at, updated_at, created_at) AS call_at, call_outcome AS outcome
+          FROM crm_call_tasks
+          WHERE COALESCE(completed_at, updated_at, created_at) IS NOT NULL
+        )
+        SELECT COALESCE(NULLIF(TRIM(outcome), ''), 'Unknown') AS label,
+               COUNT(*)::int AS count
+        FROM all_calls
+        WHERE DATE(call_at) >= $1::date
+          AND DATE(call_at) <= $2::date
+        GROUP BY 1
+        ORDER BY count DESC, label ASC
+        LIMIT 12
+      `, [startDate, endDate]),
+      this.customerRepository.query(`
+        SELECT
+          COUNT(*) FILTER (WHERE DATE(task_date) >= $1::date AND DATE(task_date) <= $2::date)::int AS total,
+          COUNT(*) FILTER (WHERE DATE(task_date) = $3::date)::int AS today,
+          COUNT(*) FILTER (WHERE DATE(task_date) = ($3::date + INTERVAL '1 day')::date)::int AS tomorrow,
+          COUNT(*) FILTER (WHERE DATE(task_date) < $3::date AND LOWER(COALESCE(status, '')) NOT IN ('completed', 'skipped'))::int AS overdue,
+          COUNT(*) FILTER (WHERE LOWER(COALESCE(status, '')) = 'completed')::int AS completed,
+          COUNT(*) FILTER (WHERE DATE(task_date) > $3::date AND LOWER(COALESCE(status, '')) IN ('pending', 'in_progress'))::int AS reminders
+        FROM crm_call_tasks
+      `, [startDate, endDate, today]).then((rows) => rows?.[0] || {}),
+      this.customerRepository.query(`
+        WITH suggested AS (
+          SELECT DISTINCT customer_id
+          FROM customer_product_suggestions
+          WHERE DATE(created_at) >= $1::date
+            AND DATE(created_at) <= $2::date
+        ),
+        successful AS (
+          SELECT DISTINCT o.customer_id
+          FROM sales_orders o
+          INNER JOIN order_items oi ON oi.order_id = o.id
+          WHERE o.customer_id IS NOT NULL
+            AND COALESCE(oi.is_cross_sell, false) = true
+            AND LOWER(COALESCE(o.status::text, '')) IN ('delivered', 'completed', 'partial_delivered')
+            AND DATE(o.order_date) >= $1::date
+            AND DATE(o.order_date) <= $2::date
+        )
+        SELECT
+          COUNT(*) FILTER (WHERE s.customer_id IN (SELECT customer_id FROM successful))::int AS success,
+          COUNT(*) FILTER (WHERE s.customer_id NOT IN (SELECT customer_id FROM successful))::int AS failed
+        FROM suggested s
+      `, [startDate, endDate]).then((rows) => rows?.[0] || {}),
+      this.customerRepository.query(`
+        WITH order_flags AS (
+          SELECT o.id,
+                 BOOL_OR(COALESCE(oi.is_upsell, false)) OR COALESCE(o.thank_you_offer_accepted, false) AS has_upsell
+          FROM sales_orders o
+          LEFT JOIN order_items oi ON oi.order_id = o.id
+          WHERE DATE(o.order_date) >= $1::date
+            AND DATE(o.order_date) <= $2::date
+            AND LOWER(COALESCE(o.status::text, '')) NOT IN ('admin_cancelled', 'cancelled', 'returned')
+          GROUP BY o.id, o.thank_you_offer_accepted
+        )
+        SELECT
+          COUNT(*) FILTER (WHERE has_upsell)::int AS success,
+          COUNT(*) FILTER (WHERE NOT has_upsell)::int AS failed
+        FROM order_flags
+      `, [startDate, endDate]).then((rows) => rows?.[0] || {}),
+      this.customerRepository.query(`
+        WITH items AS (
+          SELECT COALESCE(NULLIF(TRIM(p.name_en), ''), NULLIF(TRIM(soi.product_name), ''), 'Product') AS product_name,
+                 COALESCE(soi.quantity, 0) AS quantity,
+                 COALESCE(soi.line_total, soi.unit_price * soi.quantity, 0) AS amount
+          FROM sales_order_items soi
+          INNER JOIN sales_orders o ON o.id = soi.sales_order_id
+          LEFT JOIN products p ON p.id = soi.product_id
+          WHERE DATE(o.order_date) >= $1::date
+            AND DATE(o.order_date) <= $2::date
+            AND LOWER(COALESCE(o.status::text, '')) IN ('delivered', 'completed', 'partial_delivered')
+            AND NOT EXISTS (SELECT 1 FROM order_items oi_existing WHERE oi_existing.order_id = o.id)
+          UNION ALL
+          SELECT COALESCE(NULLIF(TRIM(p.name_en), ''), NULLIF(TRIM(oi.product_name), ''), 'Product') AS product_name,
+                 COALESCE(oi.quantity, 0) AS quantity,
+                 COALESCE(oi.subtotal, oi.unit_price * oi.quantity, 0) AS amount
+          FROM order_items oi
+          INNER JOIN sales_orders o ON o.id = oi.order_id
+          LEFT JOIN products p ON p.id = oi.product_id
+          WHERE DATE(o.order_date) >= $1::date
+            AND DATE(o.order_date) <= $2::date
+            AND LOWER(COALESCE(o.status::text, '')) IN ('delivered', 'completed', 'partial_delivered')
+        )
+        SELECT product_name AS label,
+               COALESCE(SUM(quantity), 0)::int AS count,
+               COALESCE(SUM(amount), 0)::numeric AS amount
+        FROM items
+        GROUP BY product_name
+        ORDER BY count DESC, amount DESC, product_name ASC
+        LIMIT 3
+      `, [startDate, endDate]),
+      this.customerRepository.query(`
+        WITH sold AS (
+          SELECT COALESCE(soi.product_id, 0) AS product_id, COALESCE(SUM(soi.quantity), 0) AS qty
+          FROM sales_order_items soi
+          INNER JOIN sales_orders o ON o.id = soi.sales_order_id
+          WHERE DATE(o.order_date) >= $1::date
+            AND DATE(o.order_date) <= $2::date
+            AND LOWER(COALESCE(o.status::text, '')) IN ('delivered', 'completed', 'partial_delivered')
+            AND NOT EXISTS (SELECT 1 FROM order_items oi_existing WHERE oi_existing.order_id = o.id)
+          GROUP BY soi.product_id
+          UNION ALL
+          SELECT COALESCE(oi.product_id, 0) AS product_id, COALESCE(SUM(oi.quantity), 0) AS qty
+          FROM order_items oi
+          INNER JOIN sales_orders o ON o.id = oi.order_id
+          WHERE DATE(o.order_date) >= $1::date
+            AND DATE(o.order_date) <= $2::date
+            AND LOWER(COALESCE(o.status::text, '')) IN ('delivered', 'completed', 'partial_delivered')
+          GROUP BY oi.product_id
+        ),
+        product_totals AS (
+          SELECT product_id, SUM(qty) AS qty FROM sold GROUP BY product_id
+        )
+        SELECT COALESCE(NULLIF(TRIM(p.name_en), ''), CONCAT('Product #', p.id)) AS label,
+               COALESCE(pt.qty, 0)::int AS count
+        FROM products p
+        LEFT JOIN product_totals pt ON pt.product_id = p.id
+        WHERE COALESCE(p.is_active, true) = true
+        ORDER BY COALESCE(pt.qty, 0) ASC, p.name_en ASC
+        LIMIT 3
+      `, [startDate, endDate]),
+      this.customerRepository.query(`
+        SELECT COALESCE(NULLIF(TRIM(district), ''), 'Unknown') AS label,
+               COUNT(*)::int AS count
+        FROM sales_orders o
+        WHERE DATE(o.order_date) >= $1::date
+          AND DATE(o.order_date) <= $2::date
+        GROUP BY 1
+        ORDER BY count DESC, label ASC
+        LIMIT 8
+      `, [startDate, endDate]),
+      this.customerRepository.query(`
+        SELECT COALESCE(NULLIF(TRIM(city), ''), 'Unknown') AS label,
+               COUNT(*)::int AS count
+        FROM customers c
+        WHERE COALESCE(c.is_deleted, false) = false
+          AND DATE(c.created_at) >= $1::date
+          AND DATE(c.created_at) <= $2::date
+        GROUP BY 1
+        ORDER BY count DESC, label ASC
+        LIMIT 8
+      `, [startDate, endDate]),
+      this.customerRepository.query(`
+        SELECT COUNT(*)::int AS count
+        FROM customers c
+        WHERE COALESCE(c.is_deleted, false) = false
+          AND REGEXP_REPLACE(COALESCE(c.phone, ''), '\\D', '', 'g') NOT LIKE '8801%'
+          AND REGEXP_REPLACE(COALESCE(c.phone, ''), '\\D', '', 'g') NOT LIKE '01%'
+      `).then((rows) => rows?.[0] || {}),
+      this.customerRepository.query(`
+        WITH call_logs AS (
+          SELECT caller_user_id AS agent_id,
+                 REGEXP_REPLACE(LOWER(COALESCE(outcome, '')), '[^a-z0-9]+', '_', 'g') AS normalized_outcome
+          FROM telephony_assignment_call_logs
+          WHERE caller_user_id IS NOT NULL
+            AND DATE(called_at) >= $1::date
+            AND DATE(called_at) <= $2::date
+          UNION ALL
+          SELECT assigned_agent_id AS agent_id,
+                 REGEXP_REPLACE(LOWER(COALESCE(call_outcome, '')), '[^a-z0-9]+', '_', 'g') AS normalized_outcome
+          FROM crm_call_tasks
+          WHERE assigned_agent_id IS NOT NULL
+            AND DATE(COALESCE(completed_at, updated_at, created_at)) >= $1::date
+            AND DATE(COALESCE(completed_at, updated_at, created_at)) <= $2::date
+        ),
+        call_stats AS (
+          SELECT agent_id,
+                 COUNT(*)::int AS total_dialed,
+                 COUNT(*) FILTER (WHERE normalized_outcome IN ('connected_talked_to_customer', 'connected_spoke_with_customer', 'connected', 'order_confirmed', 'order_placed', 'whatsapp_message_sent', 'connected_on_whatsapp', 'connected_whatsapp'))::int AS connected_customers,
+                 COUNT(*) FILTER (WHERE normalized_outcome IN ('callback_requested_call_later', 'callback_requested', 'call_later'))::int AS interested_customers
+          FROM call_logs
+          GROUP BY agent_id
+        ),
+        confirmed_orders AS (
+          SELECT created_by AS agent_id,
+                 COUNT(*)::int AS order_confirmed
+          FROM sales_orders
+          WHERE created_by IS NOT NULL
+            AND DATE(order_date) >= $1::date
+            AND DATE(order_date) <= $2::date
+            AND LOWER(COALESCE(status::text, '')) IN ('approved', 'sent', 'picked', 'in_transit', 'shipped', 'delivered', 'completed', 'partial_delivered')
+          GROUP BY created_by
+        )
+        SELECT
+          COALESCE(tl.id, 0)::int AS team_leader_id,
+          COALESCE(NULLIF(TRIM(CONCAT(COALESCE(tl.name, ''), ' ', COALESCE(tl.last_name, ''))), ''), 'No Team Leader') AS team_leader_name,
+          u.id::int AS agent_id,
+          COALESCE(NULLIF(TRIM(CONCAT(COALESCE(u.name, ''), ' ', COALESCE(u.last_name, ''))), ''), CONCAT('Agent #', u.id)) AS agent_name,
+          COUNT(DISTINCT c.id)::int AS assigned_leads,
+          COALESCE(cs.total_dialed, 0)::int AS total_dialed,
+          COALESCE(cs.connected_customers, 0)::int AS connected_customers,
+          COALESCE(cs.interested_customers, 0)::int AS interested_customers,
+          COALESCE(co.order_confirmed, 0)::int AS order_confirmed
+        FROM users u
+        INNER JOIN roles r ON r.id = u.role_id
+        LEFT JOIN users tl ON tl.id = u.team_leader_id
+        LEFT JOIN customers c ON c.assigned_to = u.id AND COALESCE(c.is_deleted, false) = false
+        LEFT JOIN call_stats cs ON cs.agent_id = u.id
+        LEFT JOIN confirmed_orders co ON co.agent_id = u.id
+        WHERE r.slug = 'sales-executive'
+          AND u.status = 'active'
+          AND COALESCE(u.is_deleted, false) = false
+        GROUP BY tl.id, tl.name, tl.last_name, u.id, u.name, u.last_name, cs.total_dialed, cs.connected_customers, cs.interested_customers, co.order_confirmed
+        ORDER BY team_leader_name ASC, order_confirmed DESC, connected_customers DESC, assigned_leads DESC, agent_name ASC
+      `, [startDate, endDate]),
+    ]);
+
+    const currentRevenue = toNumber(salesSummaryRow.current_revenue);
+    const currentOrders = toNumber(salesSummaryRow.current_orders);
+    const previousRevenue = toNumber(salesSummaryRow.previous_revenue);
+    const previousOrders = toNumber(salesSummaryRow.previous_orders);
+    const currentAov = currentOrders ? currentRevenue / currentOrders : 0;
+    const previousAov = previousOrders ? previousRevenue / previousOrders : 0;
+    const selectedLeads = toNumber(topDashboardRow.selected_leads);
+    const confirmedOrders = toNumber(topDashboardRow.confirmed_orders);
+    const teamLeaderMap = new Map<number, { id: number; name: string; agents: any[] }>();
+    for (const row of leaderAgentRows) {
+      const leaderId = toNumber(row.team_leader_id);
+      if (!teamLeaderMap.has(leaderId)) {
+        teamLeaderMap.set(leaderId, {
+          id: leaderId,
+          name: row.team_leader_name || 'No Team Leader',
+          agents: [],
+        });
+      }
+      const connectedCustomers = toNumber(row.connected_customers);
+      const orderConfirmed = toNumber(row.order_confirmed);
+      teamLeaderMap.get(leaderId)!.agents.push({
+        id: toNumber(row.agent_id),
+        name: row.agent_name || `Agent #${row.agent_id}`,
+        assignedLeads: toNumber(row.assigned_leads),
+        totalDialed: toNumber(row.total_dialed),
+        connectedCustomers,
+        interestedCustomers: toNumber(row.interested_customers),
+        orderConfirmed,
+        conversionRate: connectedCustomers ? Number(((orderConfirmed / connectedCustomers) * 100).toFixed(1)) : 0,
+      });
+    }
 
     return {
+      filters: {
+        period,
+        startDate,
+        endDate,
+        today,
+        previousStartDate,
+        previousEndDate,
+      },
+      topDashboard: {
+        totalCustomers: toNumber(topDashboardRow.total_customers),
+        todaysNewCustomers: toNumber(topDashboardRow.todays_new_customers),
+        todaysCalls: toNumber(topDashboardRow.todays_calls),
+        successfulCalls: toNumber(topDashboardRow.successful_calls),
+        failedCalls: toNumber(topDashboardRow.failed_calls),
+        todaysOrders: toNumber(topDashboardRow.todays_orders),
+        conversionRate: selectedLeads ? Number(((confirmedOrders / selectedLeads) * 100).toFixed(1)) : 0,
+        repeatCustomers: toNumber(topDashboardRow.repeat_customers),
+      },
+      salesTrend: {
+        totalRevenue: Number(currentRevenue.toFixed(2)),
+        totalOrders: currentOrders,
+        averageOrderValue: Number(currentAov.toFixed(2)),
+        revenueChangePercent: percentChange(currentRevenue, previousRevenue),
+        orderChangePercent: percentChange(currentOrders, previousOrders),
+        averageOrderValueChangePercent: percentChange(currentAov, previousAov),
+        daily: salesTrendRows.map((row: any) => ({
+          date: row.date,
+          orders: toNumber(row.orders),
+          revenue: Number(toNumber(row.revenue).toFixed(2)),
+        })),
+        trendingProducts: trendingProductRows.map((row: any) => ({
+          label: row.label || 'Product',
+          count: toNumber(row.count),
+          amount: Number(toNumber(row.amount).toFixed(2)),
+          changePercent: Number(row.change_percent || 0),
+        })),
+      },
+      customerInsights: {
+        totalCustomers: toNumber(customerSummaryRow.total_customers),
+        newCustomers: toNumber(customerSummaryRow.new_customers),
+        repeatCustomers: toNumber(customerSummaryRow.repeat_customers),
+        foreignCustomers: toNumber(customerSummaryRow.foreign_customers),
+        blacklistedCustomers: toNumber(customerSummaryRow.blacklisted_customers),
+        tiers: mapCountRows(tierRows),
+      },
+      churn: {
+        noOrders30Days: toNumber(churnRow.no_orders_30_days),
+        noCalls30Days: toNumber(churnRow.no_calls_30_days),
+      },
+      callAnalytics: {
+        outcomes: mapCountRows(callOutcomeRows),
+        followUpCalls: toNumber(followUpRow.total),
+      },
+      crossSell: {
+        success: toNumber(crossSellRow.success),
+        failed: toNumber(crossSellRow.failed),
+      },
+      upSell: {
+        success: toNumber(upsellRow.success),
+        failed: toNumber(upsellRow.failed),
+      },
+      productInsights: {
+        bestSelling: bestProductRows.map((row: any) => ({
+          label: row.label || 'Product',
+          count: toNumber(row.count),
+          amount: Number(toNumber(row.amount).toFixed(2)),
+        })),
+        slowMoving: mapCountRows(slowProductRows),
+      },
+      locationInsights: {
+        districts: mapCountRows(districtRows),
+        cities: mapCountRows(cityRows),
+        foreignCustomers: toNumber(foreignLocationRow.count),
+      },
+      followUps: {
+        total: toNumber(followUpRow.total),
+        today: toNumber(followUpRow.today),
+        tomorrow: toNumber(followUpRow.tomorrow),
+        overdue: toNumber(followUpRow.overdue),
+        completed: toNumber(followUpRow.completed),
+        reminders: toNumber(followUpRow.reminders),
+      },
+      leaderAgentPerformance: Array.from(teamLeaderMap.values()),
       overview: {
         totalCustomers,
         totalLeads,
