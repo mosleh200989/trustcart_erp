@@ -31,6 +31,12 @@ export class PathaoWebhookGuard implements CanActivate {
 
   constructor(private readonly configService: ConfigService) {}
 
+  private timingSafeStringEqual(a: string, b: string): boolean {
+    const left = Buffer.from(a);
+    const right = Buffer.from(b);
+    return left.length === right.length && crypto.timingSafeEqual(left, right);
+  }
+
   canActivate(context: ExecutionContext): boolean {
     const request = context.switchToHttp().getRequest<Request>();
     const secret = this.configService.get<string>('PATHAO_WEBHOOK_SECRET');
@@ -47,18 +53,17 @@ export class PathaoWebhookGuard implements CanActivate {
       request.headers['x-pathao-webhook-integration-secret'] ||
       request.headers['x-pathao-webhook-secret']
     ) as string | undefined;
-    if (integrationHeader) {
-      if (integrationSecret && integrationHeader === integrationSecret) {
+    if (integrationHeader && integrationSecret) {
+      if (this.timingSafeStringEqual(String(integrationHeader), integrationSecret)) {
         return true;
       }
-      this.logger.warn(`[Pathao Webhook] Invalid integration secret header from ${request.ip}`);
-      throw new UnauthorizedException('Invalid webhook integration secret');
+      this.logger.warn(`[Pathao Webhook] Integration secret header did not match from ${request.ip}`);
     }
 
-    if (!secret) {
+    if (!secret && !integrationSecret) {
       this.logger.warn(
-        'PATHAO_WEBHOOK_SECRET is not set — webhook endpoint is OPEN. ' +
-          'Set this env variable to secure the endpoint.',
+        'PATHAO_WEBHOOK_SECRET and PATHAO_WEBHOOK_INTEGRATION_SECRET are not set - webhook endpoint is OPEN. ' +
+          'Set one of these env variables to secure the endpoint.',
       );
       return true;
     }
@@ -68,7 +73,7 @@ export class PathaoWebhookGuard implements CanActivate {
       request.headers['x-pathao-signature'] ||
       request.headers['x-pathao-webhook-signature']
     ) as string | undefined;
-    if (signature) {
+    if (signature && secret) {
       const rawBody =
         Buffer.isBuffer((request as any).rawBody)
           ? (request as any).rawBody
@@ -82,21 +87,15 @@ export class PathaoWebhookGuard implements CanActivate {
       const normalizedSignature = signature.startsWith('sha256=')
         ? signature.slice('sha256='.length)
         : signature;
-      const signatureBuffer = Buffer.from(normalizedSignature);
-      const expectedBuffer = Buffer.from(expected);
-      if (
-        signatureBuffer.length === expectedBuffer.length &&
-        crypto.timingSafeEqual(signatureBuffer, expectedBuffer)
-      ) {
+      if (this.timingSafeStringEqual(normalizedSignature, expected)) {
         return true;
       }
       this.logger.warn(`[Pathao Webhook] HMAC signature mismatch from ${request.ip}`);
-      throw new UnauthorizedException('Invalid webhook signature');
     }
 
     // Method 2: Bearer token in Authorization header
     const authHeader = (request.headers['authorization'] || '') as string;
-    if (authHeader) {
+    if (authHeader && secret) {
       const token = authHeader.startsWith('Bearer ')
         ? authHeader.slice(7).trim()
         : authHeader.trim();
@@ -104,12 +103,11 @@ export class PathaoWebhookGuard implements CanActivate {
         return true;
       }
       this.logger.warn(`[Pathao Webhook] Invalid Bearer token from ${request.ip}`);
-      throw new UnauthorizedException('Invalid webhook token');
     }
 
     // Method 3: Query param ?secret=...
     const querySecret = request.query?.secret as string | undefined;
-    if (querySecret && querySecret === secret) {
+    if (querySecret && secret && querySecret === secret) {
       return true;
     }
 
