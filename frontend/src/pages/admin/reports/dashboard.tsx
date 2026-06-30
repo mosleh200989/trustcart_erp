@@ -25,6 +25,9 @@ type PerformanceRow = {
   partialDelivered: number;
   partialCollectedAmount: number;
   partialReturnAmount: number;
+  crossSellOrders: number;
+  crossSellPercent: number;
+  crossSellAmount: number;
   netRevenue: number;
 };
 
@@ -116,10 +119,35 @@ export default function ReportsDashboardPage() {
   const exportCsv = () => {
     if (!data) return;
     const headers = ['Name', 'Orders', 'Products', 'Gross Sales', 'Sent Parcels', 'Courier Parcel Amount', 'Delivered', 'Delivered Gross', 'Delivery %', 'Cancel', 'Cancelled Gross', 'Cancel %', 'Reject', 'Reject %', 'Return', 'Return Amount', 'Partial Delivered', 'Partial Collected Amount', 'Partial Returned Amount', 'Net Revenue'];
+    const sourceHeaders = ['Name', 'Orders', 'Products', 'Cross Sell %', 'Cross Sell Amount', 'Gross Sales', 'Sent Parcels', 'Courier Parcel Amount', 'Delivered', 'Delivered Gross', 'Delivery %', 'Cancel', 'Cancelled Gross', 'Cancel %', 'Reject', 'Reject %', 'Return', 'Return Amount', 'Partial Delivered', 'Partial Collected Amount', 'Partial Returned Amount', 'Net Revenue'];
     const toCsvRow = (name: string, row: PerformanceRow) => [
       name,
       row.orders,
       row.products,
+      row.grossSales,
+      row.sentParcels,
+      row.courierParcelAmount,
+      row.delivered,
+      row.deliveredGross,
+      `${row.deliveryPercent}%`,
+      row.cancel,
+      row.cancelledGross,
+      `${row.cancelPercent}%`,
+      row.reject,
+      `${row.rejectPercent}%`,
+      row.return,
+      row.returnAmount,
+      row.partialDelivered,
+      row.partialCollectedAmount,
+      row.partialReturnAmount,
+      row.netRevenue,
+    ];
+    const toSourceCsvRow = (name: string, row: PerformanceRow) => [
+      name,
+      row.orders,
+      row.products,
+      `${row.crossSellPercent}%`,
+      row.crossSellAmount,
       row.grossSales,
       row.sentParcels,
       row.courierParcelAmount,
@@ -146,10 +174,10 @@ export default function ReportsDashboardPage() {
     if (totals) {
       csvRows.push(toCsvRow('TOTAL', totals));
     }
-    csvRows.push([], ['Website / Landing Page Performance'], headers);
-    csvRows.push(...sourceRows.map((row) => toCsvRow(row.sourceLabel, row)));
+    csvRows.push([], ['Website / Landing Page Performance'], sourceHeaders);
+    csvRows.push(...sourceRows.map((row) => toSourceCsvRow(row.sourceLabel, row)));
     if (sourceTotals) {
-      csvRows.push(toCsvRow('TOTAL', sourceTotals));
+      csvRows.push(toSourceCsvRow('TOTAL', sourceTotals));
     }
     const csv = csvRows.map((line) => line.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -256,6 +284,7 @@ export default function ReportsDashboardPage() {
           getKey={(row) => row.sourceKey}
           getLabel={(row) => row.sourceLabel}
           getBadge={(row) => row.sourceType === 'website' ? 'Website' : 'Landing Page'}
+          showCrossSellMetrics
           emptyText="No website or landing page data found for this date range."
         />
       </div>
@@ -283,6 +312,7 @@ function PerformanceTable<T extends PerformanceRow>({
   getKey,
   getLabel,
   getBadge,
+  showCrossSellMetrics = false,
   emptyText,
 }: {
   title: string;
@@ -294,12 +324,14 @@ function PerformanceTable<T extends PerformanceRow>({
   getKey: (row: T) => string;
   getLabel: (row: T) => string;
   getBadge?: (row: T) => string | undefined;
+  showCrossSellMetrics?: boolean;
   emptyText: string;
 }) {
   const headers = [
     firstColumn,
     'Orders',
     'Products',
+    ...(showCrossSellMetrics ? ['Cross Sell %', 'Cross Sell Amount'] : []),
     'Gross Sales',
     'Sent',
     'Courier Amount',
@@ -329,7 +361,7 @@ function PerformanceTable<T extends PerformanceRow>({
         {loading && <div className="h-5 w-5 animate-spin rounded-full border-2 border-indigo-200 border-t-indigo-600" />}
       </div>
       <div className="overflow-x-auto">
-        <table className="min-w-[1900px] w-full text-sm">
+        <table className={`${showCrossSellMetrics ? 'min-w-[2100px]' : 'min-w-[1900px]'} w-full text-sm`}>
           <thead className="bg-slate-800 text-white">
             <tr>
               {headers.map((header, index) => (
@@ -355,6 +387,8 @@ function PerformanceTable<T extends PerformanceRow>({
                   </td>
                   <NumberCell value={row.orders} />
                   <NumberCell value={row.products} />
+                  {showCrossSellMetrics && <PercentCell value={row.crossSellPercent} />}
+                  {showCrossSellMetrics && <MoneyCell value={row.crossSellAmount} />}
                   <MoneyCell value={row.grossSales} strong />
                   <NumberCell value={row.sentParcels} tone="blue" />
                   <MoneyCell value={row.courierParcelAmount} />
@@ -382,6 +416,8 @@ function PerformanceTable<T extends PerformanceRow>({
                 <td className="sticky left-0 z-10 bg-slate-900 px-3 py-3 font-bold uppercase">Total</td>
                 <FooterCell>{fmt(totals.orders)}</FooterCell>
                 <FooterCell>{fmt(totals.products)}</FooterCell>
+                {showCrossSellMetrics && <FooterCell>{percent(totals.crossSellPercent)}</FooterCell>}
+                {showCrossSellMetrics && <FooterCell>{money(totals.crossSellAmount)}</FooterCell>}
                 <FooterCell>{money(totals.grossSales)}</FooterCell>
                 <FooterCell>{fmt(totals.sentParcels)}</FooterCell>
                 <FooterCell>{money(totals.courierParcelAmount)}</FooterCell>
