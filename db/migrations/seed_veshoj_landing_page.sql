@@ -111,12 +111,24 @@ INSERT INTO landing_pages (
     'https://veshoj.site/wp-content/uploads/2025/05/facebook-cover-veshoj-5.jpg-2.jpeg',
     $$[
       {
+        "id": "veshoj-video",
+        "type": "custom-html",
+        "title": "",
+        "content": "",
+        "images": [
+          "https://veshoj.site/wp-content/uploads/2025/05/183.jpg-3-1024x543.jpeg"
+        ],
+        "videoUrl": "",
+        "order": 1,
+        "is_visible": true
+      },
+      {
         "id": "veshoj-symptoms",
         "type": "trust",
         "title": "এই লক্ষণগুলো কি আপনাকেও ভুগাচ্ছে?",
         "content": "এই লক্ষণগুলো অবহেলা করলে সাদা স্রা-ব বাড়তে পারে এবং জরায়ুর জটিল রোগের ঝুঁকি তৈরি হতে পারে।",
         "items": [],
-        "order": 1,
+        "order": 2,
         "is_visible": true
       },
       {
@@ -130,17 +142,6 @@ INSERT INTO landing_pages (
           "https://veshoj.site/wp-content/uploads/2025/05/for-web-infographic-4.jpg",
           "https://veshoj.site/wp-content/uploads/2025/05/for-web-infographic-5.jpg",
           "https://veshoj.site/wp-content/uploads/2025/05/for-web-infographic-6.jpg"
-        ],
-        "order": 2,
-        "is_visible": true
-      },
-      {
-        "id": "veshoj-video",
-        "type": "custom-html",
-        "title": "",
-        "content": "",
-        "images": [
-          "https://veshoj.site/wp-content/uploads/2025/05/183.jpg-3-1024x543.jpeg"
         ],
         "order": 3,
         "is_visible": true

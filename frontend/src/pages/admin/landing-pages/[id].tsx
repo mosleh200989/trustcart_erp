@@ -353,6 +353,7 @@ interface LandingPageSection {
   content?: string;
   items?: Array<{ icon?: string; text: string }>;
   images?: string[];
+  videoUrl?: string;
   buttonText?: string;
   buttonLink?: string;
   buttonColor?: string;
@@ -483,6 +484,81 @@ const DEFAULT_SECTION: Omit<LandingPageSection, 'id' | 'order'> = {
   paddingY: undefined,
   is_visible: true,
 };
+
+const VESHOJ_ASSET_BASE = 'https://veshoj.site/wp-content/uploads';
+
+const createVeshojDefaultSections = (): LandingPageSection[] => [
+  {
+    id: 'veshoj-video',
+    type: 'custom-html',
+    title: '',
+    content: '',
+    images: [`${VESHOJ_ASSET_BASE}/2025/05/183.jpg-3-1024x543.jpeg`],
+    videoUrl: '',
+    order: 1,
+    is_visible: true,
+  },
+  {
+    id: 'veshoj-symptoms',
+    type: 'trust',
+    title: 'এই লক্ষণগুলো কি আপনাকেও ভুগাচ্ছে?',
+    content: 'এই লক্ষণগুলো অবহেলা করলে সাদা স্রা-ব বাড়তে পারে এবং জরায়ুর জটিল রোগের ঝুঁকি তৈরি হতে পারে।',
+    items: [],
+    order: 2,
+    is_visible: true,
+  },
+  {
+    id: 'veshoj-benefit-images',
+    type: 'images',
+    title: 'লিউকোন সেবনে যেসব সমস্যা দূর হবেঃ',
+    images: [
+      `${VESHOJ_ASSET_BASE}/2025/05/for-web-infographic-1.jpg`,
+      `${VESHOJ_ASSET_BASE}/2025/05/for-web-infographic-2.jpg`,
+      `${VESHOJ_ASSET_BASE}/2025/05/for-web-infographic-3.jpg`,
+      `${VESHOJ_ASSET_BASE}/2025/05/for-web-infographic-4.jpg`,
+      `${VESHOJ_ASSET_BASE}/2025/05/for-web-infographic-5.jpg`,
+      `${VESHOJ_ASSET_BASE}/2025/05/for-web-infographic-6.jpg`,
+    ],
+    order: 3,
+    is_visible: true,
+  },
+  {
+    id: 'veshoj-usage',
+    type: 'custom-html',
+    title: 'খাওয়ার নিয়ম ও সময়',
+    content: '<p><strong>প্রতিদিন -</strong></p><p>সকাল, দুপুর এবং রাতের খাবারের ৩০ মিনিট পর ২ টা করে  বড়ি সেবন করতে হবে।</p><p><strong>বি. দ্র:</strong> ঠান্ডা পানি, অতিরিক্ত ঝাল-মিষ্টি ও তেলযুক্ত খাবার খাওয়া থেকে বিরত থাকতে হবে।</p>',
+    order: 4,
+    is_visible: true,
+  },
+  {
+    id: 'veshoj-comments',
+    type: 'images',
+    title: 'সম্মানিত গ্রাহকের মন্তব্য',
+    content: 'সম্মানিত কাস্টমারদের মতামত',
+    images: [
+      `${VESHOJ_ASSET_BASE}/2025/05/5.jpg`,
+      `${VESHOJ_ASSET_BASE}/2025/05/6.jpg`,
+      `${VESHOJ_ASSET_BASE}/2025/05/7-1024x1024.jpg`,
+      `${VESHOJ_ASSET_BASE}/2025/05/8-1024x1024.jpg`,
+      `${VESHOJ_ASSET_BASE}/2025/05/9.jpg`,
+      `${VESHOJ_ASSET_BASE}/2025/05/10-1024x1024.jpg`,
+      `${VESHOJ_ASSET_BASE}/2025/05/11-1-1024x1024.jpg`,
+      `${VESHOJ_ASSET_BASE}/2025/05/12-1024x1024.jpg`,
+      `${VESHOJ_ASSET_BASE}/2025/05/13-1024x1024.jpg`,
+      `${VESHOJ_ASSET_BASE}/2025/05/14-1024x1024.jpg`,
+    ],
+    order: 5,
+    is_visible: true,
+  },
+  {
+    id: 'veshoj-phone',
+    type: 'phone-cta',
+    title: 'কল করে অর্ডার করতে চাই',
+    buttonText: '01973-298146',
+    order: 6,
+    is_visible: true,
+  },
+];
 
 export default function LandingPageEditor() {
   const router = useRouter();
@@ -646,6 +722,15 @@ export default function LandingPageEditor() {
     };
     setForm((prev) => ({ ...prev, sections: [...prev.sections, newSection] }));
     setExpandedSections((prev) => new Set(prev).add(newSection.id));
+  };
+
+  const loadVeshojDefaultSections = () => {
+    const shouldReplace = form.sections.length === 0 || window.confirm('Replace current sections with the default Veshoj editable sections?');
+    if (!shouldReplace) return;
+
+    const sections = createVeshojDefaultSections();
+    setForm((prev) => ({ ...prev, sections }));
+    setExpandedSections(new Set([sections[0].id]));
   };
 
   const updateSection = (sectionId: string, updates: Partial<LandingPageSection>) => {
@@ -1298,6 +1383,15 @@ export default function LandingPageEditor() {
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-semibold">Page Sections</h3>
         <div className="flex items-center gap-2">
+          {form.template === 'veshoj' && (
+            <button
+              type="button"
+              onClick={loadVeshojDefaultSections}
+              className="px-3 py-2 text-sm font-semibold rounded-lg bg-fuchsia-600 text-white hover:bg-fuchsia-700"
+            >
+              Load Veshoj Sections
+            </button>
+          )}
           <select
             id="section-type-select"
             className="border rounded-lg px-3 py-2 text-sm"
@@ -1527,6 +1621,33 @@ export default function LandingPageEditor() {
                       className="w-full border rounded-lg px-3 py-2 font-mono text-sm"
                       placeholder={section.type === 'custom-html' ? 'Enter HTML content...' : 'Section content...'}
                     />
+                  </div>
+                )}
+
+                {form.template === 'veshoj' && section.type === 'custom-html' && (
+                  <div className="bg-fuchsia-50 border border-fuchsia-200 rounded-lg p-4 space-y-3">
+                    <div>
+                      <label className="block text-sm font-semibold text-fuchsia-900 mb-1">YouTube Video URL</label>
+                      <input
+                        type="url"
+                        value={section.videoUrl || ''}
+                        onChange={(e) => updateSection(section.id, { videoUrl: e.target.value })}
+                        className="w-full border rounded-lg px-3 py-2"
+                        placeholder="https://www.youtube.com/watch?v=..."
+                      />
+                      <p className="text-xs text-fuchsia-700 mt-1">For the Veshoj video/banner section, this renders as a playable embedded video.</p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Video Thumbnail Image URL</label>
+                      <input
+                        type="text"
+                        value={(section.images || [])[0] || ''}
+                        onChange={(e) => updateSection(section.id, { images: e.target.value ? [e.target.value] : [] })}
+                        className="w-full border rounded-lg px-3 py-2"
+                        placeholder="https://veshoj.site/wp-content/uploads/..."
+                      />
+                      <p className="text-xs text-gray-500 mt-1">Used when no YouTube URL is set.</p>
+                    </div>
                   </div>
                 )}
 

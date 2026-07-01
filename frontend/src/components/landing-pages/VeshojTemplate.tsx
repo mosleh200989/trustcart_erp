@@ -23,6 +23,7 @@ interface LandingPageSection {
   content?: string;
   items?: Array<{ icon?: string; text: string }>;
   images?: string[];
+  videoUrl?: string;
   buttonText?: string;
   buttonLink?: string;
   buttonColor?: string;
@@ -215,6 +216,32 @@ function formatMoney(value: number) {
 
 function plainPhone(phone: string) {
   return phone.replace(/[^\d+]/g, '');
+}
+
+function getYouTubeEmbedUrl(url?: string) {
+  const raw = String(url || '').trim();
+  if (!raw) return '';
+
+  try {
+    const parsed = new URL(raw);
+    const host = parsed.hostname.replace(/^www\./, '');
+    if (host === 'youtu.be') {
+      const id = parsed.pathname.split('/').filter(Boolean)[0];
+      return id ? `https://www.youtube.com/embed/${id}` : '';
+    }
+    if (host === 'youtube.com' || host === 'm.youtube.com' || host === 'music.youtube.com') {
+      const watchId = parsed.searchParams.get('v');
+      if (watchId) return `https://www.youtube.com/embed/${watchId}`;
+      const parts = parsed.pathname.split('/').filter(Boolean);
+      const embedIndex = parts.findIndex((part) => part === 'embed' || part === 'shorts');
+      const id = embedIndex >= 0 ? parts[embedIndex + 1] : '';
+      return id ? `https://www.youtube.com/embed/${id}` : '';
+    }
+  } catch {
+    return '';
+  }
+
+  return '';
 }
 
 export default function VeshojTemplate({ page, trafficSource = 'landing_page' }: VeshojTemplateProps) {
@@ -539,12 +566,25 @@ export default function VeshojTemplate({ page, trafficSource = 'landing_page' }:
       );
     }
 
-    if (section.type === 'custom-html' && section.images?.length) {
+    if (section.type === 'custom-html' && (section.videoUrl || section.images?.length)) {
+      const embedUrl = getYouTubeEmbedUrl(section.videoUrl);
       return (
         <section key={section.id} className="veshoj-section">
           <div className="veshoj-video-frame">
-            <img src={section.images[0]} alt={section.title || page.title} loading="lazy" />
-            <FaPlayCircle className="veshoj-play" />
+            {embedUrl ? (
+              <iframe
+                src={embedUrl}
+                title={section.title || page.title || 'Veshoj video'}
+                loading="lazy"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                allowFullScreen
+              />
+            ) : (
+              <>
+                <img src={section.images?.[0]} alt={section.title || page.title} loading="lazy" />
+                <FaPlayCircle className="veshoj-play" />
+              </>
+            )}
           </div>
           {section.title && <h2 className="veshoj-section-title">{section.title}</h2>}
           {section.content && (
@@ -752,10 +792,20 @@ export default function VeshojTemplate({ page, trafficSource = 'landing_page' }:
           gap: 10px;
         }
         .veshoj-image-stack img,
-        .veshoj-video-frame img {
+        .veshoj-video-frame img,
+        .veshoj-video-frame iframe {
           width: 100%;
           border-radius: 6px;
           display: block;
+        }
+        .veshoj-video-frame img,
+        .veshoj-video-frame iframe {
+          aspect-ratio: 16 / 9;
+          object-fit: cover;
+        }
+        .veshoj-video-frame iframe {
+          border: 0;
+          background: #000000;
         }
         .veshoj-comment-gallery {
           display: flex;
