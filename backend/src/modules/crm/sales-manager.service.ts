@@ -284,7 +284,6 @@ export class SalesManagerService implements OnModuleInit {
   private getCustomerLastCallAtSql(customerAlias = 'c') {
     const customerId = `${customerAlias}.id`;
     const customerPhone = `${customerAlias}.phone`;
-    const normalizedCustomerPhone = `NULLIF(regexp_replace(regexp_replace(COALESCE(${customerPhone}, ''), '\\D', '', 'g'), '^88', ''), '')`;
 
     return `(
       SELECT MAX(call_at)
@@ -299,7 +298,6 @@ export class SalesManagerService implements OnModuleInit {
           AND (
             t.customer_id = ${customerId}::text
             OR t.customer_id = ${customerPhone}
-            OR NULLIF(regexp_replace(regexp_replace(COALESCE(t.customer_id, ''), '\\D', '', 'g'), '^88', ''), '') = ${normalizedCustomerPhone}
           )
 
         UNION ALL
@@ -310,7 +308,6 @@ export class SalesManagerService implements OnModuleInit {
           AND (
             eh.customer_id = ${customerId}::text
             OR eh.customer_id = ${customerPhone}
-            OR NULLIF(regexp_replace(regexp_replace(COALESCE(eh.customer_id, ''), '\\D', '', 'g'), '^88', ''), '') = ${normalizedCustomerPhone}
           )
 
         UNION ALL
@@ -328,7 +325,7 @@ export class SalesManagerService implements OnModuleInit {
           AND COALESCE(tl.called_at, tl.created_at) IS NOT NULL
           AND (
             so_log.customer_id = ${customerId}
-            OR NULLIF(regexp_replace(regexp_replace(COALESCE(so_log.customer_phone, ''), '\\D', '', 'g'), '^88', ''), '') = ${normalizedCustomerPhone}
+            OR so_log.customer_phone = ${customerPhone}
           )
 
         UNION ALL
@@ -339,7 +336,7 @@ export class SalesManagerService implements OnModuleInit {
           AND COALESCE(tli.called_at, tli.created_at) IS NOT NULL
           AND (
             io_log.customer_id = ${customerId}
-            OR NULLIF(regexp_replace(regexp_replace(COALESCE(io_log.phone, ''), '\\D', '', 'g'), '^88', ''), '') = ${normalizedCustomerPhone}
+            OR io_log.phone = ${customerPhone}
           )
 
         UNION ALL
@@ -350,7 +347,7 @@ export class SalesManagerService implements OnModuleInit {
           AND oal.created_at IS NOT NULL
           AND (
             so_activity.customer_id = ${customerId}
-            OR NULLIF(regexp_replace(regexp_replace(COALESCE(so_activity.customer_phone, ''), '\\D', '', 'g'), '^88', ''), '') = ${normalizedCustomerPhone}
+            OR so_activity.customer_phone = ${customerPhone}
           )
 
         UNION ALL
@@ -359,7 +356,7 @@ export class SalesManagerService implements OnModuleInit {
         WHERE so_telephony.telephony_called_at IS NOT NULL
           AND (
             so_telephony.customer_id = ${customerId}
-            OR NULLIF(regexp_replace(regexp_replace(COALESCE(so_telephony.customer_phone, ''), '\\D', '', 'g'), '^88', ''), '') = ${normalizedCustomerPhone}
+            OR so_telephony.customer_phone = ${customerPhone}
           )
 
         UNION ALL
@@ -368,7 +365,7 @@ export class SalesManagerService implements OnModuleInit {
         WHERE io_telephony.telephony_called_at IS NOT NULL
           AND (
             io_telephony.customer_id = ${customerId}
-            OR NULLIF(regexp_replace(regexp_replace(COALESCE(io_telephony.phone, ''), '\\D', '', 'g'), '^88', ''), '') = ${normalizedCustomerPhone}
+            OR io_telephony.phone = ${customerPhone}
           )
       ) customer_call_sources
     )`;
@@ -384,8 +381,7 @@ export class SalesManagerService implements OnModuleInit {
       WITH selected_customers AS (
         SELECT
           c.id,
-          c.phone,
-          NULLIF(regexp_replace(regexp_replace(COALESCE(c.phone, ''), '\\D', '', 'g'), '^88', ''), '') AS normalized_phone,
+          NULLIF(TRIM(c.phone), '') AS phone,
           c.last_contact_date
         FROM customers c
         WHERE c.id = ANY($1::int[])
@@ -400,18 +396,31 @@ export class SalesManagerService implements OnModuleInit {
         FROM selected_customers sc
         INNER JOIN crm_call_tasks t
           ON t.customer_id = sc.id::text
-          OR t.customer_id = sc.phone
-          OR NULLIF(regexp_replace(regexp_replace(COALESCE(t.customer_id, ''), '\\D', '', 'g'), '^88', ''), '') = sc.normalized_phone
         WHERE COALESCE(t.completed_at, t.updated_at, t.created_at) IS NOT NULL
+
+        UNION ALL
+        SELECT sc.id AS customer_id, COALESCE(t.completed_at, t.updated_at, t.created_at)::timestamp AS call_at
+        FROM selected_customers sc
+        INNER JOIN crm_call_tasks t
+          ON t.customer_id = sc.phone
+        WHERE sc.phone IS NOT NULL
+          AND COALESCE(t.completed_at, t.updated_at, t.created_at) IS NOT NULL
 
         UNION ALL
         SELECT sc.id AS customer_id, eh.created_at::timestamp AS call_at
         FROM selected_customers sc
         INNER JOIN customer_engagement_history eh
           ON eh.customer_id = sc.id::text
-          OR eh.customer_id = sc.phone
-          OR NULLIF(regexp_replace(regexp_replace(COALESCE(eh.customer_id, ''), '\\D', '', 'g'), '^88', ''), '') = sc.normalized_phone
         WHERE eh.created_at IS NOT NULL
+          AND eh.engagement_type IN ('call', 'follow_up_call', 'phone_call')
+
+        UNION ALL
+        SELECT sc.id AS customer_id, eh.created_at::timestamp AS call_at
+        FROM selected_customers sc
+        INNER JOIN customer_engagement_history eh
+          ON eh.customer_id = sc.phone
+        WHERE sc.phone IS NOT NULL
+          AND eh.created_at IS NOT NULL
           AND eh.engagement_type IN ('call', 'follow_up_call', 'phone_call')
 
         UNION ALL
@@ -427,49 +436,93 @@ export class SalesManagerService implements OnModuleInit {
         FROM selected_customers sc
         INNER JOIN sales_orders so_log
           ON so_log.customer_id = sc.id
-          OR NULLIF(regexp_replace(regexp_replace(COALESCE(so_log.customer_phone, ''), '\\D', '', 'g'), '^88', ''), '') = sc.normalized_phone
         INNER JOIN telephony_assignment_call_logs tl
           ON tl.order_id = so_log.id
          AND tl.record_type = 'sales_order'
         WHERE COALESCE(tl.called_at, tl.created_at) IS NOT NULL
 
         UNION ALL
+        SELECT sc.id AS customer_id, COALESCE(tl.called_at, tl.created_at)::timestamp AS call_at
+        FROM selected_customers sc
+        INNER JOIN sales_orders so_log
+          ON so_log.customer_phone = sc.phone
+        INNER JOIN telephony_assignment_call_logs tl
+          ON tl.order_id = so_log.id
+         AND tl.record_type = 'sales_order'
+        WHERE sc.phone IS NOT NULL
+          AND COALESCE(tl.called_at, tl.created_at) IS NOT NULL
+
+        UNION ALL
         SELECT sc.id AS customer_id, COALESCE(tli.called_at, tli.created_at)::timestamp AS call_at
         FROM selected_customers sc
         INNER JOIN incomplete_orders io_log
           ON io_log.customer_id = sc.id
-          OR NULLIF(regexp_replace(regexp_replace(COALESCE(io_log.phone, ''), '\\D', '', 'g'), '^88', ''), '') = sc.normalized_phone
         INNER JOIN telephony_assignment_call_logs tli
           ON tli.order_id = io_log.id
          AND tli.record_type = 'incomplete_order'
         WHERE COALESCE(tli.called_at, tli.created_at) IS NOT NULL
 
         UNION ALL
+        SELECT sc.id AS customer_id, COALESCE(tli.called_at, tli.created_at)::timestamp AS call_at
+        FROM selected_customers sc
+        INNER JOIN incomplete_orders io_log
+          ON io_log.phone = sc.phone
+        INNER JOIN telephony_assignment_call_logs tli
+          ON tli.order_id = io_log.id
+         AND tli.record_type = 'incomplete_order'
+        WHERE sc.phone IS NOT NULL
+          AND COALESCE(tli.called_at, tli.created_at) IS NOT NULL
+
+        UNION ALL
         SELECT sc.id AS customer_id, oal.created_at::timestamp AS call_at
         FROM selected_customers sc
         INNER JOIN sales_orders so_activity
           ON so_activity.customer_id = sc.id
-          OR NULLIF(regexp_replace(regexp_replace(COALESCE(so_activity.customer_phone, ''), '\\D', '', 'g'), '^88', ''), '') = sc.normalized_phone
         INNER JOIN order_activity_logs oal
           ON oal.order_id = so_activity.id
          AND oal.action_type = 'telephony_call_logged'
         WHERE oal.created_at IS NOT NULL
 
         UNION ALL
+        SELECT sc.id AS customer_id, oal.created_at::timestamp AS call_at
+        FROM selected_customers sc
+        INNER JOIN sales_orders so_activity
+          ON so_activity.customer_phone = sc.phone
+        INNER JOIN order_activity_logs oal
+          ON oal.order_id = so_activity.id
+         AND oal.action_type = 'telephony_call_logged'
+        WHERE sc.phone IS NOT NULL
+          AND oal.created_at IS NOT NULL
+
+        UNION ALL
         SELECT sc.id AS customer_id, so_telephony.telephony_called_at::timestamp AS call_at
         FROM selected_customers sc
         INNER JOIN sales_orders so_telephony
           ON so_telephony.customer_id = sc.id
-          OR NULLIF(regexp_replace(regexp_replace(COALESCE(so_telephony.customer_phone, ''), '\\D', '', 'g'), '^88', ''), '') = sc.normalized_phone
         WHERE so_telephony.telephony_called_at IS NOT NULL
+
+        UNION ALL
+        SELECT sc.id AS customer_id, so_telephony.telephony_called_at::timestamp AS call_at
+        FROM selected_customers sc
+        INNER JOIN sales_orders so_telephony
+          ON so_telephony.customer_phone = sc.phone
+        WHERE sc.phone IS NOT NULL
+          AND so_telephony.telephony_called_at IS NOT NULL
 
         UNION ALL
         SELECT sc.id AS customer_id, io_telephony.telephony_called_at::timestamp AS call_at
         FROM selected_customers sc
         INNER JOIN incomplete_orders io_telephony
           ON io_telephony.customer_id = sc.id
-          OR NULLIF(regexp_replace(regexp_replace(COALESCE(io_telephony.phone, ''), '\\D', '', 'g'), '^88', ''), '') = sc.normalized_phone
         WHERE io_telephony.telephony_called_at IS NOT NULL
+
+        UNION ALL
+        SELECT sc.id AS customer_id, io_telephony.telephony_called_at::timestamp AS call_at
+        FROM selected_customers sc
+        INNER JOIN incomplete_orders io_telephony
+          ON io_telephony.phone = sc.phone
+        WHERE sc.phone IS NOT NULL
+          AND io_telephony.telephony_called_at IS NOT NULL
       )
       SELECT customer_id, MAX(call_at) AS last_call_at
       FROM call_sources
@@ -1853,28 +1906,23 @@ export class SalesManagerService implements OnModuleInit {
         'data_analyst_name',
       )
       .addSelect(
-        `(SELECT sla.id FROM scheduled_lead_assignments sla WHERE sla.customer_id = c.id AND sla.status = 'pending' ORDER BY sla.scheduled_at ASC, sla.id ASC LIMIT 1)`,
-        'scheduled_assignment_id',
-      )
-      .addSelect(
-        `(SELECT sla.action FROM scheduled_lead_assignments sla WHERE sla.customer_id = c.id AND sla.status = 'pending' ORDER BY sla.scheduled_at ASC, sla.id ASC LIMIT 1)`,
-        'scheduled_assignment_action',
-      )
-      .addSelect(
-        `(SELECT sla.status FROM scheduled_lead_assignments sla WHERE sla.customer_id = c.id AND sla.status = 'pending' ORDER BY sla.scheduled_at ASC, sla.id ASC LIMIT 1)`,
-        'scheduled_assignment_status',
-      )
-      .addSelect(
-        `(SELECT sla.scheduled_at FROM scheduled_lead_assignments sla WHERE sla.customer_id = c.id AND sla.status = 'pending' ORDER BY sla.scheduled_at ASC, sla.id ASC LIMIT 1)`,
-        'scheduled_assignment_at',
-      )
-      .addSelect(
-        `(SELECT sla.agent_id FROM scheduled_lead_assignments sla WHERE sla.customer_id = c.id AND sla.status = 'pending' ORDER BY sla.scheduled_at ASC, sla.id ASC LIMIT 1)`,
-        'scheduled_assignment_agent_id',
-      )
-      .addSelect(
-        `(SELECT CONCAT(COALESCE(agent.name, ''), ' ', COALESCE(agent.last_name, '')) FROM scheduled_lead_assignments sla LEFT JOIN users agent ON agent.id = sla.agent_id WHERE sla.customer_id = c.id AND sla.status = 'pending' ORDER BY sla.scheduled_at ASC, sla.id ASC LIMIT 1)`,
-        'scheduled_assignment_agent_name',
+        `(
+          SELECT json_build_object(
+            'id', sla.id,
+            'action', sla.action,
+            'status', sla.status,
+            'scheduledAt', sla.scheduled_at,
+            'agentId', sla.agent_id,
+            'agentName', NULLIF(TRIM(CONCAT(COALESCE(agent.name, ''), ' ', COALESCE(agent.last_name, ''))), '')
+          )::text
+          FROM scheduled_lead_assignments sla
+          LEFT JOIN users agent ON agent.id = sla.agent_id
+          WHERE sla.customer_id = c.id
+            AND sla.status = 'pending'
+          ORDER BY sla.scheduled_at ASC, sla.id ASC
+          LIMIT 1
+        )`,
+        'scheduled_assignment',
       )
       // Only customers who have at least one delivered order
       .andWhere(
@@ -2338,6 +2386,16 @@ export class SalesManagerService implements OnModuleInit {
     const items = entities.map((entity, i) => {
       const customerId = Number(entity.id);
       const lastCallAt = lastCallByCustomerId.get(customerId) ?? (entity as any).last_contact_date ?? (entity as any).lastContactDate ?? null;
+      let scheduledAssignment: any = null;
+      if (raw[i]?.scheduled_assignment) {
+        try {
+          scheduledAssignment = typeof raw[i].scheduled_assignment === 'string'
+            ? JSON.parse(raw[i].scheduled_assignment)
+            : raw[i].scheduled_assignment;
+        } catch {
+          scheduledAssignment = null;
+        }
+      }
       return {
         ...entity,
         last_contact_date: lastCallAt,
@@ -2352,12 +2410,12 @@ export class SalesManagerService implements OnModuleInit {
         dataAnalystName: String(raw[i]?.data_analyst_name || '').trim() || null,
         lastOrderDate: raw[i]?.last_order_date ?? null,
         lastDeliveryDate: raw[i]?.last_delivery_date ?? null,
-        scheduledAssignmentId: raw[i]?.scheduled_assignment_id ? Number(raw[i].scheduled_assignment_id) : null,
-        scheduledAssignmentAction: raw[i]?.scheduled_assignment_action ?? null,
-        scheduledAssignmentStatus: raw[i]?.scheduled_assignment_status ?? null,
-        scheduledAssignmentAt: raw[i]?.scheduled_assignment_at ?? null,
-        scheduledAssignmentAgentId: raw[i]?.scheduled_assignment_agent_id ? Number(raw[i].scheduled_assignment_agent_id) : null,
-        scheduledAssignmentAgentName: String(raw[i]?.scheduled_assignment_agent_name || '').trim() || null,
+        scheduledAssignmentId: scheduledAssignment?.id ? Number(scheduledAssignment.id) : null,
+        scheduledAssignmentAction: scheduledAssignment?.action ?? null,
+        scheduledAssignmentStatus: scheduledAssignment?.status ?? null,
+        scheduledAssignmentAt: scheduledAssignment?.scheduledAt ?? null,
+        scheduledAssignmentAgentId: scheduledAssignment?.agentId ? Number(scheduledAssignment.agentId) : null,
+        scheduledAssignmentAgentName: String(scheduledAssignment?.agentName || '').trim() || null,
       };
     });
 
