@@ -19,6 +19,7 @@ import { LeadManagementService } from '../lead-management/lead-management.servic
 @Injectable()
 export class OrderManagementService {
   private readonly logger = new Logger(OrderManagementService.name);
+  private orderStatusEnumCompatibilityReady?: Promise<void>;
 
   constructor(
     @InjectRepository(SalesOrder)
@@ -3104,7 +3105,7 @@ export class OrderManagementService {
     order.courierCompany = 'Pathao';
     order.courierOrderId = String(consignmentId);
     order.trackingId = String(consignmentId);
-    order.courierStatus = orderStatus ? this.mapPathaoStatus(orderStatus) : 'sent';
+    order.courierStatus = this.formatCourierStatusText(orderStatus, 'sent');
 
     await this.salesOrderRepository.save(order);
 
@@ -3270,6 +3271,24 @@ export class OrderManagementService {
     return status === 'webhook_integration' ? undefined : status;
   }
 
+  private formatCourierStatusText(status: unknown, fallback = 'sent'): string {
+    const text = String(status ?? fallback ?? '').trim();
+    return (text || fallback).slice(0, 50);
+  }
+
+  private async ensureOrderStatusEnumCompatibility() {
+    if (!this.orderStatusEnumCompatibilityReady) {
+      this.orderStatusEnumCompatibilityReady = this.salesOrderRepository.query(
+        `ALTER TYPE order_status_enum ADD VALUE IF NOT EXISTS 'pickup_failed'`,
+      ).then(() => undefined).catch((error: any) => {
+        this.orderStatusEnumCompatibilityReady = undefined;
+        this.logger.warn(`[Order Status Enum] Failed to ensure pickup_failed status: ${error?.message || error}`);
+      });
+    }
+
+    return this.orderStatusEnumCompatibilityReady;
+  }
+
   private mapPathaoStatus(pathaoStatus: string): string {
     const s = String(pathaoStatus).toLowerCase().replace(/[^a-z0-9]/g, '');
     const map: Record<string, string> = {
@@ -3286,7 +3305,7 @@ export class OrderManagementService {
       pickuprequested: 'sent',
       assignedforpickup: 'sent',
       pickupassigned: 'sent',
-      pickupfailed: 'hold',
+      pickupfailed: 'pickup_failed',
       pickuponhold: 'hold',
       pickuphold: 'hold',
       pickupcancelled: 'cancelled',
@@ -3305,6 +3324,16 @@ export class OrderManagementService {
       readyfordelivery: 'in_transit',
       outfordelivery: 'in_transit',
       ontheway: 'in_transit',
+      onthewaytodelivery: 'in_transit',
+      onthewaytodeliveryhub: 'in_transit',
+      onthewaytodeliverypoint: 'in_transit',
+      onthewaytohub: 'in_transit',
+      onthewaytosortinghub: 'in_transit',
+      onthewaytolastmilehub: 'in_transit',
+      onwaytodelivery: 'in_transit',
+      onwaytodeliveryhub: 'in_transit',
+      movingtodeliveryhub: 'in_transit',
+      movingtohub: 'in_transit',
       delivered: 'delivered',
       orderdelivered: 'delivered',
       successfuldelivery: 'delivered',
@@ -3324,7 +3353,19 @@ export class OrderManagementService {
       partialdelivered: 'partial_delivered',
       partialdelivery: 'partial_delivered',
     };
-    return map[s] || pathaoStatus;
+    if (map[s]) return map[s];
+
+    if (s.includes('partial') && s.includes('deliver')) return 'partial_delivered';
+    if (s.includes('pickup') && s.includes('fail')) return 'pickup_failed';
+    if (s.includes('cancel')) return 'cancelled';
+    if (s.includes('return')) return 'returned';
+    if (s.includes('hold')) return 'hold';
+    if (s.includes('deliver') && !s.includes('hub') && !s.includes('assign') && !s.includes('ready') && !s.includes('way')) return 'delivered';
+    if (s.includes('picked') || s.includes('pickup')) return 'picked';
+    if (s.includes('transit') || s.includes('hub') || s.includes('way') || s.includes('delivery')) return 'in_transit';
+
+    // Unknown Pathao states are courier-only states; never write raw text into order_status_enum.
+    return 'sent';
   }
 
   /**
@@ -3418,6 +3459,7 @@ export class OrderManagementService {
     }
 
     const newStatus = this.mapPathaoStatus(rawStatus);
+    const courierStatusText = this.formatCourierStatusText(rawStatus, newStatus);
     const codAmount = this.pickPathaoField(dto, ['cod_amount', 'codAmount', 'data.cod_amount', 'data.codAmount', 'amount_to_collect', 'data.amount_to_collect', 'collected_amount', 'data.collected_amount']);
     const deliveryFee = this.pickPathaoField(dto, ['delivery_fee', 'deliveryFee', 'data.delivery_fee', 'data.deliveryFee', 'price', 'data.price']);
     const reason = this.pickPathaoField(dto, ['reason', 'data.reason', 'remarks', 'data.remarks', 'note', 'data.note']);
@@ -3429,7 +3471,9 @@ export class OrderManagementService {
     // never overwrite the customer-facing sales_orders.delivery_charge.
     if (numericCodAmount != null) order.codAmount = numericCodAmount;
 
-    order.courierStatus = newStatus;
+    await this.ensureOrderStatusEnumCompatibility();
+
+    order.courierStatus = courierStatusText;
 
     const prevStatus = order.status;
     const statusChanged = String(prevStatus || '').trim() !== newStatus.trim();
@@ -3487,7 +3531,7 @@ export class OrderManagementService {
       orderId: saved.id,
       courierCompany: 'Pathao',
       trackingId: saved.trackingId,
-      status: newStatus,
+      status: courierStatusText,
       codAmount: numericCodAmount,
       deliveryCharge: numericDeliveryFee,
       consignmentId: consignmentId != null ? String(consignmentId) : null,
@@ -3520,6 +3564,8 @@ export class OrderManagementService {
     failed: number;
     errors: string[];
   }> {
+    await this.ensureOrderStatusEnumCompatibility();
+
     const orders = await this.salesOrderRepository.find({
       where: {
         courierCompany: 'Pathao',
@@ -3546,7 +3592,8 @@ export class OrderManagementService {
         }
 
         const newStatus = this.mapPathaoStatus(rawStatus);
-        order.courierStatus = newStatus;
+        const courierStatusText = this.formatCourierStatusText(rawStatus, newStatus);
+        order.courierStatus = courierStatusText;
 
         if (String(order.status || '').trim() !== newStatus.trim()) {
           const prevStatus = order.status;
@@ -3564,6 +3611,7 @@ export class OrderManagementService {
             newStatus,
             actorName: 'Pathao Sync',
             source: 'Pathao polling sync',
+            extraNewValue: { courierStatus: courierStatusText },
           });
 
           await this.dispatchMetaCapiForStatus(order.id, order.status);
