@@ -50,6 +50,50 @@ export class SalesService {
   private readonly dhakaTimeZone = 'Asia/Dhaka';
   private readonly automaticAssignmentWorkTypes = ['primary_leads', 'unreachable_followup', 'incomplete_recovery', 'rejected_recovery'];
 
+  private userHasRoleSql(userAlias: string, roleWhereSql: (roleAlias: string) => string) {
+    return `(
+      EXISTS (
+        SELECT 1
+        FROM roles primary_role
+        WHERE primary_role.id = ${userAlias}.role_id
+          AND primary_role.is_active = true
+          AND (${roleWhereSql('primary_role')})
+      )
+      OR EXISTS (
+        SELECT 1
+        FROM user_roles extra_user_role
+        INNER JOIN roles extra_role ON extra_role.id = extra_user_role.role_id
+        WHERE extra_user_role.user_id = ${userAlias}.id
+          AND extra_role.is_active = true
+          AND (${roleWhereSql('extra_role')})
+      )
+    )`;
+  }
+
+  private salesExecutiveRoleSql(userAlias: string) {
+    return this.userHasRoleSql(
+      userAlias,
+      (roleAlias) => `LOWER(COALESCE(${roleAlias}.slug, '')) = 'sales-executive'
+        OR LOWER(COALESCE(${roleAlias}.name, '')) LIKE '%sales executive%'`,
+    );
+  }
+
+  private salesTeamLeaderRoleSql(userAlias: string) {
+    return this.userHasRoleSql(
+      userAlias,
+      (roleAlias) => `LOWER(COALESCE(${roleAlias}.slug, '')) = 'sales-team-leader'
+        OR LOWER(COALESCE(${roleAlias}.name, '')) LIKE '%sales team leader%'`,
+    );
+  }
+
+  private adminRoleSql(userAlias: string) {
+    return this.userHasRoleSql(
+      userAlias,
+      (roleAlias) => `LOWER(COALESCE(${roleAlias}.slug, '')) IN ('super-admin', 'admin', 'sales-manager')
+        OR LOWER(COALESCE(${roleAlias}.name, '')) IN ('super admin', 'admin', 'sales manager')`,
+    );
+  }
+
   private currentDhakaDateString(): string {
     const parts = new Intl.DateTimeFormat('en-CA', {
       timeZone: this.dhakaTimeZone,
@@ -1185,10 +1229,27 @@ export class SalesService {
     const roleSlug = String(user?.roleSlug || '').toLowerCase();
     const userId = Number(user?.id);
     const permissions = await this.getAssignedOrderPermissionSet(userId);
+    const roleRows: Array<{ is_admin: boolean; is_team_leader: boolean; is_sales_executive: boolean }> =
+      Number.isFinite(userId) && userId > 0
+        ? await this.salesRepository.manager.query(
+            `SELECT
+               ${this.adminRoleSql('u')} AS is_admin,
+               ${this.salesTeamLeaderRoleSql('u')} AS is_team_leader,
+               ${this.salesExecutiveRoleSql('u')} AS is_sales_executive
+             FROM users u
+             WHERE u.id = $1
+             LIMIT 1`,
+            [userId],
+          )
+        : [];
+    const roleFlags = roleRows[0] || { is_admin: false, is_team_leader: false, is_sales_executive: false };
+    const isAdminRole = roleSlug === 'super-admin' || roleSlug === 'admin' || roleSlug === 'sales-manager' || roleFlags.is_admin === true;
+    const isTeamLeaderRole = roleSlug === 'sales-team-leader' || roleFlags.is_team_leader === true;
+    const isSalesExecutiveRole = roleSlug === 'sales-executive' || roleFlags.is_sales_executive === true;
     const has = (slug: string) => permissions.has(slug);
     const hasManage = has('manage-assigned-orders') || has('manage-order-assignment');
-    const canViewAll = has('view-all-assigned-orders') || ((has('view-assigned-orders') || has('view-order-assignment')) && ['super-admin', 'admin', 'sales-manager'].includes(roleSlug));
-    const canViewTeam = has('view-team-assigned-orders') || hasManage || (has('view-assigned-orders') && roleSlug === 'sales-team-leader');
+    const canViewAll = has('view-all-assigned-orders') || ((has('view-assigned-orders') || has('view-order-assignment')) && isAdminRole);
+    const canViewTeam = has('view-team-assigned-orders') || hasManage || (has('view-assigned-orders') && isTeamLeaderRole);
     const canViewOwn = has('view-own-assigned-orders') || has('view-assigned-orders') || canViewTeam || canViewAll;
 
     return {
@@ -1199,9 +1260,9 @@ export class SalesService {
       canViewAll,
       canViewTeam,
       canViewOwn,
-      isAdmin: roleSlug === 'super-admin' || roleSlug === 'admin' || canViewAll,
-      isTeamLeader: roleSlug === 'sales-team-leader',
-      isSalesExecutive: roleSlug === 'sales-executive',
+      isAdmin: isAdminRole || canViewAll,
+      isTeamLeader: isTeamLeaderRole,
+      isSalesExecutive: isSalesExecutiveRole,
     };
   }
 
@@ -1232,20 +1293,19 @@ export class SalesService {
 
   private async assertAgentAssignableToUser(agentId: number, user: any) {
     const access = await this.getAssignedOrdersAccess(user);
-    const rows: Array<{ id: number; team_leader_id: number | null; role_slug: string | null }> =
+    const rows: Array<{ id: number; team_leader_id: number | null; is_sales_executive: boolean }> =
       await this.salesRepository.manager.query(
-        `SELECT u.id, u.team_leader_id, r.slug AS role_slug
+        `SELECT u.id, u.team_leader_id, ${this.salesExecutiveRoleSql('u')} AS is_sales_executive
          FROM users u
-         LEFT JOIN roles r ON r.id = u.role_id
          WHERE u.id = $1
-           AND u.is_deleted = false
-           AND u.status = 'active'
+           AND COALESCE(u.is_deleted, false) = false
+           AND LOWER(COALESCE(u.status::text, '')) = 'active'
          LIMIT 1`,
         [agentId],
       );
 
     const agent = rows[0];
-    if (!agent || agent.role_slug !== 'sales-executive') {
+    if (!agent || agent.is_sales_executive !== true) {
       throw new BadRequestException('Selected agent is not an active Sales Executive');
     }
     if (access.hasManage && access.canViewAll) return;
@@ -2142,9 +2202,9 @@ export class SalesService {
 
     const queryParams: any[] = [];
     const whereParts = [
-      `u.is_deleted = false`,
-      `u.status = 'active'`,
-      `r.slug = 'sales-executive'`,
+      `COALESCE(u.is_deleted, false) = false`,
+      `LOWER(COALESCE(u.status::text, '')) = 'active'`,
+      this.salesExecutiveRoleSql('u'),
     ];
 
     if (access.canViewTeam && access.isTeamLeader && !access.canViewAll) {
@@ -2159,7 +2219,6 @@ export class SalesService {
       await this.salesRepository.manager.query(
         `SELECT u.id, u.name, u.last_name, u.email, u.team_leader_id
          FROM users u
-         LEFT JOIN roles r ON r.id = u.role_id
          WHERE ${whereParts.join(' AND ')}
          ORDER BY u.name ASC, u.last_name ASC`,
         queryParams,
@@ -2198,10 +2257,9 @@ export class SalesService {
       await this.salesRepository.manager.query(
         `SELECT u.id, u.name, u.last_name, u.email
          FROM users u
-         LEFT JOIN roles r ON r.id = u.role_id
-         WHERE u.is_deleted = false
-           AND u.status = 'active'
-           AND r.slug = 'sales-team-leader'
+         WHERE COALESCE(u.is_deleted, false) = false
+           AND LOWER(COALESCE(u.status::text, '')) = 'active'
+           AND ${this.salesTeamLeaderRoleSql('u')}
          ORDER BY u.name ASC, u.last_name ASC`,
       );
 

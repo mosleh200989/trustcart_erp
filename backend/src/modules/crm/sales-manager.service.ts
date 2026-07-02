@@ -2579,6 +2579,13 @@ export class SalesManagerService implements OnModuleInit {
     qb.orderBy(`array_position(ARRAY[${pageIds.join(',')}]::int[], c.id)`, 'ASC');
 
     const { entities, raw } = await qb.getRawAndEntities();
+    const rawByCustomerId = new Map<number, any>();
+    raw.forEach((row: any) => {
+      const id = Number(row?.c_id ?? row?.id);
+      if (Number.isInteger(id) && id > 0) {
+        rawByCustomerId.set(id, row);
+      }
+    });
 
     const lastCallByCustomerId = await this.getLatestCallTimesForCustomers(
       entities.map((entity) => Number(entity.id)),
@@ -2586,13 +2593,14 @@ export class SalesManagerService implements OnModuleInit {
 
     const items = entities.map((entity, i) => {
       const customerId = Number(entity.id);
+      const rawRow = rawByCustomerId.get(customerId) ?? raw[i] ?? {};
       const lastCallAt = lastCallByCustomerId.get(customerId) ?? (entity as any).last_contact_date ?? (entity as any).lastContactDate ?? null;
       let scheduledAssignment: any = null;
-      if (raw[i]?.scheduled_assignment) {
+      if (rawRow?.scheduled_assignment) {
         try {
-          scheduledAssignment = typeof raw[i].scheduled_assignment === 'string'
-            ? JSON.parse(raw[i].scheduled_assignment)
-            : raw[i].scheduled_assignment;
+          scheduledAssignment = typeof rawRow.scheduled_assignment === 'string'
+            ? JSON.parse(rawRow.scheduled_assignment)
+            : rawRow.scheduled_assignment;
         } catch {
           scheduledAssignment = null;
         }
@@ -2601,16 +2609,16 @@ export class SalesManagerService implements OnModuleInit {
         ...entity,
         last_contact_date: lastCallAt,
         lastContactDate: lastCallAt,
-        tier: raw[i]?.tier ?? null,
-        tierAssignedAt: raw[i]?.tier_assigned_at ?? null,
-        soCount: Number(raw[i]?.so_count ?? 0),
-        legCount: Number(raw[i]?.leg_count ?? 0),
-        assignedAgentName: String(raw[i]?.assigned_agent_name || '').trim() || null,
-        teamLeaderId: raw[i]?.team_leader_id ? Number(raw[i].team_leader_id) : null,
-        teamLeaderName: String(raw[i]?.team_leader_name || '').trim() || null,
-        dataAnalystName: String(raw[i]?.data_analyst_name || '').trim() || null,
-        lastOrderDate: raw[i]?.last_order_date ?? null,
-        lastDeliveryDate: raw[i]?.last_delivery_date ?? null,
+        tier: rawRow?.tier ?? null,
+        tierAssignedAt: rawRow?.tier_assigned_at ?? null,
+        soCount: Number(rawRow?.so_count ?? 0),
+        legCount: Number(rawRow?.leg_count ?? 0),
+        assignedAgentName: String(rawRow?.assigned_agent_name || '').trim() || null,
+        teamLeaderId: rawRow?.team_leader_id ? Number(rawRow.team_leader_id) : null,
+        teamLeaderName: String(rawRow?.team_leader_name || '').trim() || null,
+        dataAnalystName: String(rawRow?.data_analyst_name || '').trim() || null,
+        lastOrderDate: rawRow?.last_order_date ?? null,
+        lastDeliveryDate: rawRow?.last_delivery_date ?? null,
         scheduledAssignmentId: scheduledAssignment?.id ? Number(scheduledAssignment.id) : null,
         scheduledAssignmentAction: scheduledAssignment?.action ?? null,
         scheduledAssignmentStatus: scheduledAssignment?.status ?? null,
