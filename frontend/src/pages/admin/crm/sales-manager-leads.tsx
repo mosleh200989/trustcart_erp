@@ -478,6 +478,13 @@ const SalesManagerLeadAssignment = () => {
     await fetchLeads(pageRef.current, { silent: true });
   }, [fetchLeads]);
 
+  const refreshCurrentPageSafely = useCallback(() => {
+    void refreshCurrentPage().catch((error) => {
+      console.error('Lead list refresh failed after action:', error);
+      toast.warning('Saved, but the lead list refresh failed. Please refresh manually if needed.');
+    });
+  }, [refreshCurrentPage, toast]);
+
   const applyAssignedLeadsLocally = useCallback((customerIds: number[], agentId: number) => {
     const ids = new Set(customerIds);
     const agent = agents.find(a => a.id === agentId);
@@ -546,7 +553,7 @@ const SalesManagerLeadAssignment = () => {
       toast.success(`${selected.size} lead(s) assigned to ${agentName}`);
       applyAssignedLeadsLocally(customerIds, Number(bulkAgent));
       setBulkAgent('');
-      await refreshCurrentPage();
+      refreshCurrentPageSafely();
     } catch {
       toast.error('Assignment failed');
     } finally {
@@ -572,7 +579,7 @@ const SalesManagerLeadAssignment = () => {
       setBulkAgent('');
       setBulkScheduleAt('');
       setSelected(new Set());
-      await refreshCurrentPage();
+      refreshCurrentPageSafely();
     } catch {
       toast.error('Failed to schedule assignment');
     } finally {
@@ -593,7 +600,7 @@ const SalesManagerLeadAssignment = () => {
       applyAssignedLeadsLocally([assignModalLead.id], Number(assignModalAgent));
       setAssignModalLead(null);
       setAssignModalAgent('');
-      await refreshCurrentPage();
+      refreshCurrentPageSafely();
     } catch {
       toast.error('Assignment failed');
     } finally {
@@ -616,7 +623,7 @@ const SalesManagerLeadAssignment = () => {
       setAssignModalLead(null);
       setAssignModalAgent('');
       setAssignModalScheduleAt('');
-      await refreshCurrentPage();
+      refreshCurrentPageSafely();
     } catch {
       toast.error('Failed to schedule assignment');
     } finally {
@@ -633,7 +640,7 @@ const SalesManagerLeadAssignment = () => {
       });
       toast.success('Lead unassigned successfully');
       applyUnassignedLeadsLocally([lead.id]);
-      await refreshCurrentPage();
+      refreshCurrentPageSafely();
     } catch {
       toast.error('Failed to unassign lead');
     }
@@ -651,7 +658,7 @@ const SalesManagerLeadAssignment = () => {
       toast.success('Scheduled unassign successfully');
       setUnassignModalLead(null);
       setUnassignModalScheduleAt('');
-      await refreshCurrentPage();
+      refreshCurrentPageSafely();
     } catch {
       toast.error('Failed to schedule unassign');
     } finally {
@@ -672,7 +679,7 @@ const SalesManagerLeadAssignment = () => {
       const result = (res as any)?.data;
       toast.success(`Bulk unassign completed! ${result?.unassigned || selected.size} lead(s) unassigned.`);
       applyUnassignedLeadsLocally(customerIds);
-      await refreshCurrentPage();
+      refreshCurrentPageSafely();
     } catch {
       toast.error('Failed to bulk unassign leads');
     } finally {
@@ -695,7 +702,7 @@ const SalesManagerLeadAssignment = () => {
       toast.success(`${selected.size} lead(s) scheduled to unassign`);
       setBulkScheduleAt('');
       setSelected(new Set());
-      await refreshCurrentPage();
+      refreshCurrentPageSafely();
     } catch {
       toast.error('Failed to schedule bulk unassign');
     } finally {
