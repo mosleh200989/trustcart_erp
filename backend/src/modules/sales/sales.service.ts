@@ -23,8 +23,17 @@ type StatusAuditActor = {
   ipAddress?: string;
 };
 
+type SalesUserPermissionShape = {
+  tableExists: boolean;
+  permissionColumn?: 'permission_id' | 'permission_slug' | 'permission' | 'slug';
+  hasGranted: boolean;
+  hasGrantedAt: boolean;
+};
+
 @Injectable()
 export class SalesService {
+  private userPermissionShapePromise?: Promise<SalesUserPermissionShape>;
+
   constructor(
     @InjectRepository(SalesOrder)
     private salesRepository: Repository<SalesOrder>,
@@ -1267,28 +1276,102 @@ export class SalesService {
   }
 
   private async getAssignedOrderPermissionSet(userId: number) {
+    const assignmentPermissionSlugs = [
+      'view-assigned-orders',
+      'view-own-assigned-orders',
+      'view-team-assigned-orders',
+      'view-all-assigned-orders',
+      'manage-assigned-orders',
+      'view-order-assignment',
+      'manage-order-assignment',
+    ];
     const rows: Array<{ slug: string }> = await this.salesRepository.manager.query(
       `SELECT DISTINCT p.slug
        FROM permissions p
        INNER JOIN role_permissions rp ON rp.permission_id = p.id
        INNER JOIN roles r ON r.id = rp.role_id
        WHERE r.is_active = true
-         AND p.slug IN (
-           'view-assigned-orders',
-           'view-own-assigned-orders',
-           'view-team-assigned-orders',
-           'view-all-assigned-orders',
-           'manage-assigned-orders',
-           'view-order-assignment',
-           'manage-order-assignment'
-         )
+         AND p.slug = ANY($2)
          AND (
            r.id IN (SELECT role_id FROM users WHERE id = $1)
            OR r.id IN (SELECT role_id FROM user_roles WHERE user_id = $1)
          )`,
-      [userId],
+      [userId, assignmentPermissionSlugs],
     );
-    return new Set(rows.map((row) => String(row.slug)));
+    const permissions = new Set(rows.map((row) => String(row.slug)));
+    const directOverrides = await this.getDirectAssignedOrderPermissionOverrides(userId, assignmentPermissionSlugs);
+    directOverrides.forEach((granted, slug) => {
+      if (granted) permissions.add(slug);
+      else permissions.delete(slug);
+    });
+    return permissions;
+  }
+
+  private async getSalesUserPermissionShape(): Promise<SalesUserPermissionShape> {
+    if (!this.userPermissionShapePromise) {
+      this.userPermissionShapePromise = this.salesRepository.manager.query(
+        `SELECT column_name
+         FROM information_schema.columns
+         WHERE table_schema = current_schema()
+           AND table_name = 'user_permissions'`,
+      ).then((rows: Array<{ column_name: string }>) => {
+        const columns = new Set(rows.map((row) => row.column_name));
+        const permissionColumn: SalesUserPermissionShape['permissionColumn'] = columns.has('permission_id')
+          ? 'permission_id'
+          : columns.has('permission_slug')
+            ? 'permission_slug'
+            : columns.has('permission')
+              ? 'permission'
+              : columns.has('slug')
+                ? 'slug'
+                : undefined;
+
+        return {
+          tableExists: rows.length > 0,
+          permissionColumn,
+          hasGranted: columns.has('granted'),
+          hasGrantedAt: columns.has('granted_at'),
+        };
+      }).catch(() => ({
+        tableExists: false,
+        hasGranted: false,
+        hasGrantedAt: false,
+      }));
+    }
+
+    return this.userPermissionShapePromise;
+  }
+
+  private async getDirectAssignedOrderPermissionOverrides(userId: number, permissionSlugs: string[]) {
+    const overrides = new Map<string, boolean>();
+    if (!Number.isFinite(userId) || userId <= 0 || permissionSlugs.length === 0) return overrides;
+
+    const shape = await this.getSalesUserPermissionShape();
+    if (!shape.tableExists || !shape.permissionColumn) return overrides;
+
+    const grantedSelect = shape.hasGranted ? 'up.granted' : 'TRUE AS granted';
+    const orderBy = shape.hasGrantedAt ? 'ORDER BY up.granted_at ASC' : '';
+    const query = shape.permissionColumn === 'permission_id'
+      ? `SELECT p.slug, ${grantedSelect}
+         FROM user_permissions up
+         INNER JOIN permissions p ON p.id = up.permission_id
+         WHERE up.user_id = $1
+           AND p.slug = ANY($2)
+         ${orderBy}`
+      : `SELECT up.${shape.permissionColumn} AS slug, ${grantedSelect}
+         FROM user_permissions up
+         WHERE up.user_id = $1
+           AND up.${shape.permissionColumn} = ANY($2)
+         ${orderBy}`;
+
+    const rows: Array<{ slug: string; granted: boolean }> = await this.salesRepository.manager.query(query, [userId, permissionSlugs]);
+    rows.forEach((row) => {
+      const slug = String(row.slug || '');
+      if (permissionSlugs.includes(slug)) {
+        overrides.set(slug, row.granted !== false);
+      }
+    });
+    return overrides;
   }
 
   private async assertAgentAssignableToUser(agentId: number, user: any) {
