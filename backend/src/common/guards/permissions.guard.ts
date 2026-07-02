@@ -4,6 +4,7 @@ import { RbacService } from '../../modules/rbac/rbac.service';
 import { PERMISSIONS_KEY, ANY_PERMISSIONS_KEY } from '../decorators/permissions.decorator';
 
 const CUSTOMER_ACCOUNT_SLUG = 'customer-account';
+const SUPERUSER_ROLE_SLUGS = new Set(['super-admin', 'admin']);
 const CUSTOMER_BUILTIN_PERMISSIONS = new Set<string>([
   // Customer self-service endpoints
   'view-own-wallet',
@@ -51,6 +52,11 @@ export class PermissionsGuard implements CanActivate {
     // Allow a small, explicit set of self-service permissions without hitting RBAC.
     const isCustomerAccount =
       user?.type === 'customer' || String(user?.roleSlug || '') === CUSTOMER_ACCOUNT_SLUG;
+    const isSuperUser = SUPERUSER_ROLE_SLUGS.has(String(user?.roleSlug || '').toLowerCase());
+
+    if (isSuperUser) {
+      return true;
+    }
 
     // AND-check: every permission in the list must be present
     if (requiredAll && requiredAll.length > 0) {
