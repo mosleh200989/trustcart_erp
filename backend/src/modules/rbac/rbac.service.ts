@@ -6,7 +6,7 @@ import { Permission } from './permission.entity';
 
 type UserPermissionShape = {
   tableExists: boolean;
-  permissionColumn?: 'permission_id' | 'permission_slug' | 'slug';
+  permissionColumn?: 'permission_id' | 'permission_slug' | 'permission' | 'slug';
   hasGranted: boolean;
   hasGrantedAt: boolean;
   hasGrantedBy: boolean;
@@ -428,9 +428,11 @@ export class RbacService {
           ? 'permission_id'
           : columns.has('permission_slug')
             ? 'permission_slug'
-            : columns.has('slug')
-              ? 'slug'
-              : undefined;
+            : columns.has('permission')
+              ? 'permission'
+              : columns.has('slug')
+                ? 'slug'
+                : undefined;
 
         return {
           tableExists: rows.length > 0,
