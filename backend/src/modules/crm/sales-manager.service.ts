@@ -219,6 +219,7 @@ export class SalesManagerService implements OnModuleInit {
         `CREATE INDEX IF NOT EXISTS idx_customers_assigned_supervisor ON customers(assigned_supervisor_id)`,
         `CREATE INDEX IF NOT EXISTS idx_customers_customer_type ON customers(customer_type)`,
         `CREATE INDEX IF NOT EXISTS idx_customers_lifecycle_stage ON customers(lifecycle_stage)`,
+        `CREATE INDEX IF NOT EXISTS idx_customers_phone ON customers(phone)`,
         `CREATE INDEX IF NOT EXISTS idx_users_team_leader ON users(team_leader_id)`,
         `CREATE INDEX IF NOT EXISTS idx_customer_tiers_customer_tier ON customer_tiers(customer_id, tier)`,
         `CREATE INDEX IF NOT EXISTS idx_customer_tag_assignments_customer_tag ON customer_tag_assignments(customer_id, tag_id)`,
@@ -237,6 +238,7 @@ export class SalesManagerService implements OnModuleInit {
         `CREATE INDEX IF NOT EXISTS idx_crm_call_tasks_customer_outcome ON crm_call_tasks(customer_id, call_outcome)`,
         `CREATE INDEX IF NOT EXISTS idx_crm_call_tasks_customer_dates ON crm_call_tasks(customer_id, completed_at, updated_at, created_at)`,
         `CREATE INDEX IF NOT EXISTS idx_customer_engagement_customer_type ON customer_engagement_history(customer_id, engagement_type)`,
+        `CREATE INDEX IF NOT EXISTS idx_customer_engagement_customer_created ON customer_engagement_history(customer_id, created_at)`,
         `CREATE INDEX IF NOT EXISTS idx_activities_customer_type ON activities(customer_id, type)`,
       ];
       this.leadFilterIndexesReady = (async () => {
@@ -369,6 +371,130 @@ export class SalesManagerService implements OnModuleInit {
           )
       ) customer_call_sources
     )`;
+  }
+
+  private getCustomerLastCallAggregateSql() {
+    return `
+      SELECT customer_id, MAX(call_at) AS last_call_at
+      FROM (
+        SELECT c.id AS customer_id, c.last_contact_date::timestamp AS call_at
+        FROM customers c
+        WHERE c.last_contact_date IS NOT NULL
+
+        UNION ALL
+        SELECT c.id AS customer_id, COALESCE(t.completed_at, t.updated_at, t.created_at)::timestamp AS call_at
+        FROM crm_call_tasks t
+        INNER JOIN customers c ON t.customer_id = c.id::text
+        WHERE COALESCE(t.completed_at, t.updated_at, t.created_at) IS NOT NULL
+
+        UNION ALL
+        SELECT c.id AS customer_id, COALESCE(t.completed_at, t.updated_at, t.created_at)::timestamp AS call_at
+        FROM crm_call_tasks t
+        INNER JOIN customers c ON t.customer_id = c.phone
+        WHERE c.phone IS NOT NULL
+          AND COALESCE(t.completed_at, t.updated_at, t.created_at) IS NOT NULL
+
+        UNION ALL
+        SELECT c.id AS customer_id, eh.created_at::timestamp AS call_at
+        FROM customer_engagement_history eh
+        INNER JOIN customers c ON eh.customer_id = c.id::text
+        WHERE eh.created_at IS NOT NULL
+          AND eh.engagement_type IN ('call', 'follow_up_call', 'phone_call')
+
+        UNION ALL
+        SELECT c.id AS customer_id, eh.created_at::timestamp AS call_at
+        FROM customer_engagement_history eh
+        INNER JOIN customers c ON eh.customer_id = c.phone
+        WHERE c.phone IS NOT NULL
+          AND eh.created_at IS NOT NULL
+          AND eh.engagement_type IN ('call', 'follow_up_call', 'phone_call')
+
+        UNION ALL
+        SELECT c.id AS customer_id, a.created_at::timestamp AS call_at
+        FROM activities a
+        INNER JOIN customers c ON a.customer_id = c.id
+        WHERE a.created_at IS NOT NULL
+          AND a.type = 'call'
+
+        UNION ALL
+        SELECT so_log.customer_id AS customer_id, COALESCE(tl.called_at, tl.created_at)::timestamp AS call_at
+        FROM telephony_assignment_call_logs tl
+        INNER JOIN sales_orders so_log ON so_log.id = tl.order_id
+        WHERE tl.record_type = 'sales_order'
+          AND so_log.customer_id IS NOT NULL
+          AND COALESCE(tl.called_at, tl.created_at) IS NOT NULL
+
+        UNION ALL
+        SELECT c.id AS customer_id, COALESCE(tl.called_at, tl.created_at)::timestamp AS call_at
+        FROM telephony_assignment_call_logs tl
+        INNER JOIN sales_orders so_log ON so_log.id = tl.order_id
+        INNER JOIN customers c ON c.phone = so_log.customer_phone
+        WHERE tl.record_type = 'sales_order'
+          AND c.phone IS NOT NULL
+          AND COALESCE(tl.called_at, tl.created_at) IS NOT NULL
+
+        UNION ALL
+        SELECT io_log.customer_id AS customer_id, COALESCE(tli.called_at, tli.created_at)::timestamp AS call_at
+        FROM telephony_assignment_call_logs tli
+        INNER JOIN incomplete_orders io_log ON io_log.id = tli.order_id
+        WHERE tli.record_type = 'incomplete_order'
+          AND io_log.customer_id IS NOT NULL
+          AND COALESCE(tli.called_at, tli.created_at) IS NOT NULL
+
+        UNION ALL
+        SELECT c.id AS customer_id, COALESCE(tli.called_at, tli.created_at)::timestamp AS call_at
+        FROM telephony_assignment_call_logs tli
+        INNER JOIN incomplete_orders io_log ON io_log.id = tli.order_id
+        INNER JOIN customers c ON c.phone = io_log.phone
+        WHERE tli.record_type = 'incomplete_order'
+          AND c.phone IS NOT NULL
+          AND COALESCE(tli.called_at, tli.created_at) IS NOT NULL
+
+        UNION ALL
+        SELECT so_activity.customer_id AS customer_id, oal.created_at::timestamp AS call_at
+        FROM order_activity_logs oal
+        INNER JOIN sales_orders so_activity ON so_activity.id = oal.order_id
+        WHERE oal.action_type = 'telephony_call_logged'
+          AND so_activity.customer_id IS NOT NULL
+          AND oal.created_at IS NOT NULL
+
+        UNION ALL
+        SELECT c.id AS customer_id, oal.created_at::timestamp AS call_at
+        FROM order_activity_logs oal
+        INNER JOIN sales_orders so_activity ON so_activity.id = oal.order_id
+        INNER JOIN customers c ON c.phone = so_activity.customer_phone
+        WHERE oal.action_type = 'telephony_call_logged'
+          AND c.phone IS NOT NULL
+          AND oal.created_at IS NOT NULL
+
+        UNION ALL
+        SELECT so_telephony.customer_id AS customer_id, so_telephony.telephony_called_at::timestamp AS call_at
+        FROM sales_orders so_telephony
+        WHERE so_telephony.customer_id IS NOT NULL
+          AND so_telephony.telephony_called_at IS NOT NULL
+
+        UNION ALL
+        SELECT c.id AS customer_id, so_telephony.telephony_called_at::timestamp AS call_at
+        FROM sales_orders so_telephony
+        INNER JOIN customers c ON c.phone = so_telephony.customer_phone
+        WHERE c.phone IS NOT NULL
+          AND so_telephony.telephony_called_at IS NOT NULL
+
+        UNION ALL
+        SELECT io_telephony.customer_id AS customer_id, io_telephony.telephony_called_at::timestamp AS call_at
+        FROM incomplete_orders io_telephony
+        WHERE io_telephony.customer_id IS NOT NULL
+          AND io_telephony.telephony_called_at IS NOT NULL
+
+        UNION ALL
+        SELECT c.id AS customer_id, io_telephony.telephony_called_at::timestamp AS call_at
+        FROM incomplete_orders io_telephony
+        INNER JOIN customers c ON c.phone = io_telephony.phone
+        WHERE c.phone IS NOT NULL
+          AND io_telephony.telephony_called_at IS NOT NULL
+      ) customer_call_sources
+      GROUP BY customer_id
+    `;
   }
 
   private async getLatestCallTimesForCustomers(customerIds: number[]) {
@@ -675,66 +801,91 @@ export class SalesManagerService implements OnModuleInit {
       date.setUTCDate(date.getUTCDate() - days);
       return date.toISOString().slice(0, 10);
     };
-    const lastCallAtSql = this.getCustomerLastCallAtSql('c');
+    const aggregateSql = `(${this.getCustomerLastCallAggregateSql()})`;
+    const alias = 'last_call_filter';
+    const lastCallAtSql = `${alias}.last_call_at`;
     const lastCallDateSql = `DATE(${lastCallAtSql})`;
+    let joined = false;
+
+    const joinLastCall = (type: 'inner' | 'left' = 'inner') => {
+      if (joined) return;
+      if (type === 'left') {
+        qb.leftJoin(aggregateSql, alias, `${alias}.customer_id = c.id`);
+      } else {
+        qb.innerJoin(aggregateSql, alias, `${alias}.customer_id = c.id`);
+      }
+      joined = true;
+    };
 
     switch (calledStatus) {
       case 'called':
+        joinLastCall();
         qb.andWhere(`${lastCallAtSql} IS NOT NULL`);
         break;
       case 'called_today':
+        joinLastCall();
         qb.andWhere(`${lastCallDateSql} = CAST(:lastCallToday AS date)`, {
           lastCallToday: today,
         });
         break;
       case 'called_yesterday':
+        joinLastCall();
         qb.andWhere(`${lastCallDateSql} = CAST(:lastCallYesterday AS date)`, {
           lastCallYesterday: daysAgo(1),
         });
         break;
       case 'called_1week':
+        joinLastCall();
         qb.andWhere(`${lastCallDateSql} >= CAST(:lastCall1wStart AS date) AND ${lastCallDateSql} < CAST(:lastCall1wEnd AS date)`, {
           lastCall1wStart: daysAgo(13),
           lastCall1wEnd: daysAgo(6),
         });
         break;
       case 'called_2weeks':
+        joinLastCall();
         qb.andWhere(`${lastCallDateSql} >= CAST(:lastCall2wStart AS date) AND ${lastCallDateSql} < CAST(:lastCall2wEnd AS date)`, {
           lastCall2wStart: daysAgo(20),
           lastCall2wEnd: daysAgo(13),
         });
         break;
       case 'called_3weeks':
+        joinLastCall();
         qb.andWhere(`${lastCallDateSql} >= CAST(:lastCall3wStart AS date) AND ${lastCallDateSql} < CAST(:lastCall3wEnd AS date)`, {
           lastCall3wStart: daysAgo(27),
           lastCall3wEnd: daysAgo(20),
         });
         break;
       case 'called_1month':
+        joinLastCall();
         qb.andWhere(`${lastCallDateSql} >= CAST(:lastCall1mStart AS date) AND ${lastCallDateSql} < CAST(:lastCall1mEnd AS date)`, {
           lastCall1mStart: daysAgo(59),
           lastCall1mEnd: daysAgo(27),
         });
         break;
       case 'called_2months':
+        joinLastCall();
         qb.andWhere(`${lastCallDateSql} >= CAST(:lastCall2mStart AS date) AND ${lastCallDateSql} < CAST(:lastCall2mEnd AS date)`, {
           lastCall2mStart: daysAgo(89),
           lastCall2mEnd: daysAgo(59),
         });
         break;
       case 'called_3months_plus':
+        joinLastCall();
         qb.andWhere(`${lastCallDateSql} < CAST(:lastCall3mEnd AS date)`, { lastCall3mEnd: daysAgo(89) });
         break;
       case 'not_called':
       case 'not_called_today':
+        joinLastCall('left');
         qb.andWhere(`(${lastCallAtSql} IS NULL OR ${lastCallDateSql} < CAST(:lastCallToday AS date))`, { lastCallToday: today });
         break;
       case 'not_called_week':
+        joinLastCall('left');
         qb.andWhere(`(${lastCallAtSql} IS NULL OR ${lastCallDateSql} < CAST(:lastCallWeekAgo AS date))`, {
           lastCallWeekAgo: daysAgo(6),
         });
         break;
       case 'never':
+        joinLastCall('left');
         qb.andWhere(`${lastCallAtSql} IS NULL`);
         break;
     }
