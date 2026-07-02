@@ -1256,8 +1256,8 @@ export class SalesService {
     const isTeamLeaderRole = roleSlug === 'sales-team-leader' || roleFlags.is_team_leader === true;
     const isSalesExecutiveRole = roleSlug === 'sales-executive' || roleFlags.is_sales_executive === true;
     const has = (slug: string) => permissions.has(slug);
-    const hasManage = has('manage-assigned-orders') || has('manage-order-assignment');
-    const canViewAll = has('view-all-assigned-orders') || ((has('view-assigned-orders') || has('view-order-assignment')) && isAdminRole);
+    const hasManage = isAdminRole || has('manage-assigned-orders') || has('manage-order-assignment');
+    const canViewAll = isAdminRole || has('view-all-assigned-orders') || ((has('view-assigned-orders') || has('view-order-assignment')) && isAdminRole);
     const canViewTeam = has('view-team-assigned-orders') || hasManage || (has('view-assigned-orders') && isTeamLeaderRole);
     const canViewOwn = has('view-own-assigned-orders') || has('view-assigned-orders') || canViewTeam || canViewAll;
 

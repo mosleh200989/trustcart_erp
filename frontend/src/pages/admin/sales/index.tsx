@@ -191,6 +191,8 @@ export default function AdminSales() {
   const [sourceOptions, setSourceOptions] = useState<{ value: string; label: string }[]>([]);
   const [landingPageOptions, setLandingPageOptions] = useState<LandingPageOption[]>([]);
   const [assignmentAgents, setAssignmentAgents] = useState<{ id: number; name: string; inMyTeam?: boolean }[]>([]);
+  const [assignmentAgentsLoading, setAssignmentAgentsLoading] = useState(false);
+  const [assignmentAgentsError, setAssignmentAgentsError] = useState('');
   const [assignmentOrder, setAssignmentOrder] = useState<SalesOrder | null>(null);
   const [isBulkAssignmentOpen, setIsBulkAssignmentOpen] = useState(false);
   const [selectedAssignAgentId, setSelectedAssignAgentId] = useState('');
@@ -345,6 +347,30 @@ export default function AdminSales() {
     }
   };
 
+  const fetchAssignmentAgents = useCallback(async (options?: { showError?: boolean }) => {
+    setAssignmentAgentsLoading(true);
+    setAssignmentAgentsError('');
+    try {
+      const res = await apiClient.get('/sales/order-assignment-agents');
+      const agents = Array.isArray(res.data) ? res.data : [];
+      setAssignmentAgents(agents);
+      if (options?.showError && agents.length === 0) {
+        toast.warning('No assignable Sales Executives found for your account');
+      }
+      return agents;
+    } catch (error: any) {
+      const message = error?.response?.data?.message || error?.message || 'Failed to load assignable agents';
+      setAssignmentAgents([]);
+      setAssignmentAgentsError(String(message));
+      if (options?.showError) {
+        toast.error(String(message));
+      }
+      return [];
+    } finally {
+      setAssignmentAgentsLoading(false);
+    }
+  }, [toast]);
+
   // Load orders whenever page, pageSize, or filters change (debounced for text search)
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -368,10 +394,8 @@ export default function AdminSales() {
       .then(setLandingPageOptions)
       .catch(() => {});
 
-    apiClient.get('/sales/order-assignment-agents')
-      .then((res) => setAssignmentAgents(Array.isArray(res.data) ? res.data : []))
-      .catch(() => {});
-  }, []);
+    void fetchAssignmentAgents();
+  }, [fetchAssignmentAgents]);
 
   // Product search for create order
   const searchProducts = async (query: string) => {
@@ -705,6 +729,7 @@ export default function AdminSales() {
   const openAssignmentModal = (order: SalesOrder) => {
     setAssignmentOrder(order);
     setSelectedAssignAgentId(order.assigned_to ? String(order.assigned_to) : '');
+    void fetchAssignmentAgents({ showError: true });
   };
 
   const openBulkAssignmentModal = () => {
@@ -719,6 +744,7 @@ export default function AdminSales() {
     setAssignmentOrder(null);
     setSelectedAssignAgentId('');
     setIsBulkAssignmentOpen(true);
+    void fetchAssignmentAgents({ showError: true });
   };
 
   const closeAssignmentModal = () => {
@@ -1625,7 +1651,7 @@ export default function AdminSales() {
               <button
                 type="button"
                 onClick={saveAssignment}
-                disabled={savingAssignment || !selectedAssignAgentId}
+                disabled={savingAssignment || assignmentAgentsLoading || !selectedAssignAgentId}
                 className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {savingAssignment ? 'Saving...' : 'Save Assignment'}
@@ -1654,12 +1680,30 @@ export default function AdminSales() {
               type="select"
               value={selectedAssignAgentId}
               onChange={(e) => setSelectedAssignAgentId(e.target.value)}
-              selectPlaceholder="Select agent"
+              selectPlaceholder={assignmentAgentsLoading ? 'Loading agents...' : 'Select agent'}
+              disabled={assignmentAgentsLoading}
               options={assignmentAgents.map((agent) => ({
                 value: agent.id,
                 label: agent.inMyTeam === false ? `${agent.name} (other team)` : agent.name,
               }))}
             />
+
+            {assignmentAgentsError ? (
+              <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                {assignmentAgentsError}
+                <button
+                  type="button"
+                  onClick={() => fetchAssignmentAgents({ showError: true })}
+                  className="ml-2 font-semibold underline"
+                >
+                  Retry
+                </button>
+              </div>
+            ) : !assignmentAgentsLoading && assignmentAgents.length === 0 ? (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                No active Sales Executives are available for assignment.
+              </div>
+            ) : null}
 
             <p className="text-sm text-gray-500">
               Choose an agent and save. If assignment permissions or team ownership changed, the server will reject the action and refresh the list.
