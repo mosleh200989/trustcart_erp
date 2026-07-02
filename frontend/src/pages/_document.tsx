@@ -4,6 +4,7 @@ const MAIN_TRUSTCART_GTM_ID = 'GTM-TSC7TFV6';
 const HERBOLIN_GTM_ID = 'GTM-PK5G5DWZ';
 const ARABIAN_KHALTA_GTM_ID = 'GTM-KVLD23CH';
 const ARABIAN_KHALTA_PIXEL_ID = ['227057045377', '2206'].join('');
+const VESHOJ_PIXEL_ID = ['339637066199', '40423'].join('');
 
 declare global {
   interface Window {
@@ -11,11 +12,13 @@ declare global {
     _fbq: any;
     __landingPagePixelsInitialized?: Record<string, boolean>;
     __arabianKhaltaPixelPageViewTracked?: boolean;
+    __veshojPixelPageViewTracked?: boolean;
   }
 }
 
 interface TrustCartDocumentProps extends DocumentInitialProps {
   isArabianKhaltaSurface: boolean;
+  isVeshojSurface: boolean;
 }
 
 function isArabianKhaltaDocumentSurface(ctx: DocumentContext) {
@@ -27,7 +30,16 @@ function isArabianKhaltaDocumentSurface(ctx: DocumentContext) {
   );
 }
 
-export default function Document({ isArabianKhaltaSurface }: TrustCartDocumentProps) {
+function isVeshojDocumentSurface(ctx: DocumentContext) {
+  const host = String(ctx.req?.headers.host || '').split(':')[0].toLowerCase();
+
+  return (
+    host === 'veshoj.site' ||
+    host === 'www.veshoj.site'
+  );
+}
+
+export default function Document({ isArabianKhaltaSurface, isVeshojSurface }: TrustCartDocumentProps) {
   return (
     <Html lang="en">
       <Head>
@@ -110,7 +122,9 @@ export default function Document({ isArabianKhaltaSurface }: TrustCartDocumentPr
                   var routeSlug=pathname.indexOf('/lp/')===0?pathname.split('/').filter(Boolean).pop():null;
                   var querySlug=params.get('landing_page')||params.get('landing_page_intl')||params.get('cartflows_step');
                   var isArabianKhaltaSurface=hostname==='arabiankhalta.com'||hostname==='www.arabiankhalta.com';
-                  if(isArabianKhaltaSurface)return;
+                  var isVeshojHost=hostname==='veshoj.site'||hostname==='www.veshoj.site';
+                  var isVeshojSurface=(isVeshojHost&&(pathname==='/'||pathname==='/lp/veshoj'||pathname==='/veshoj'))||routeSlug==='veshoj'||querySlug==='veshoj';
+                  if(isArabianKhaltaSurface||isVeshojSurface)return;
                   var isHerbolinPixelSurface=hostname==='herbolin.com'||hostname==='www.herbolin.com'||routeSlug==='Harbora-kosthogut'||querySlug==='Harbora-kosthogut';
                   var containerId=isHerbolinPixelSurface?herbolinId:mainId;
                   if(!containerId)return;
@@ -179,6 +193,36 @@ export default function Document({ isArabianKhaltaSurface }: TrustCartDocumentPr
           }}
         />
         {/* End Meta Pixel */}
+        {/* Meta Pixel - Veshoj only */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(w,d){
+              var h=w.location.hostname;
+              var p=w.location.pathname.replace(/\\/$/,'')||'/';
+              var params=new URLSearchParams(w.location.search);
+              var routeSlug=p.indexOf('/lp/')===0?p.split('/').filter(Boolean).pop():null;
+              var querySlug=params.get('landing_page')||params.get('landing_page_intl')||params.get('cartflows_step');
+              var isVeshojHost=h==='veshoj.site'||h==='www.veshoj.site';
+              var isVeshojSurface=(isVeshojHost&&(p==='/'||p==='/lp/veshoj'||p==='/veshoj'))||routeSlug==='veshoj'||querySlug==='veshoj';
+              if(!isVeshojSurface)return;
+              !function(f,b,e,v,n,t,s)
+              {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+              n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+              if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+              n.queue=[];t=b.createElement(e);t.async=!0;
+              t.src=v;s=b.getElementsByTagName(e)[0];
+              s.parentNode.insertBefore(t,s)}(w, d,'script',
+              'https://connect.facebook.net/en_US/fbevents.js');
+              var pixelId='${VESHOJ_PIXEL_ID}';
+              w.fbq('init', pixelId);
+              w.fbq('trackSingle', pixelId, 'PageView');
+              w.__landingPagePixelsInitialized = w.__landingPagePixelsInitialized || {};
+              w.__landingPagePixelsInitialized[pixelId] = true;
+              w.__veshojPixelPageViewTracked = true;
+            })(window, document);`,
+          }}
+        />
+        {/* End Meta Pixel - Veshoj only */}
         {/* Global AddToCart Tracker for Custom Landing Pages */}
         <script
           dangerouslySetInnerHTML={{
@@ -221,6 +265,17 @@ export default function Document({ isArabianKhaltaSurface }: TrustCartDocumentPr
             </noscript>
           </>
         )}
+        {isVeshojSurface && (
+          <noscript>
+            <img
+              height="1"
+              width="1"
+              style={{ display: 'none' }}
+              src={`https://www.facebook.com/tr?id=${VESHOJ_PIXEL_ID}&ev=PageView&noscript=1`}
+              alt=""
+            />
+          </noscript>
+        )}
         <Main />
         <NextScript />
         {/* Bootstrap Bundle JS (includes Popper) */}
@@ -236,5 +291,6 @@ Document.getInitialProps = async (ctx: DocumentContext): Promise<TrustCartDocume
   return {
     ...initialProps,
     isArabianKhaltaSurface: isArabianKhaltaDocumentSurface(ctx),
+    isVeshojSurface: isVeshojDocumentSurface(ctx),
   };
 };

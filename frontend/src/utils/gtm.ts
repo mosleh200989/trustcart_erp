@@ -87,6 +87,46 @@ export interface EcommerceItem {
   discount?: number;
 }
 
+type PurchaseItem = {
+  id: string | number;
+  name: string;
+  price: number;
+  quantity: number;
+  category?: string;
+  sku?: string | null;
+  contentId?: string | number | null;
+};
+
+const normalizeTrackingValue = (value: unknown): string => String(value ?? '').trim();
+
+const uniqueValues = (values: Array<string | number | null | undefined>) =>
+  Array.from(
+    new Set(
+      values
+        .map(normalizeTrackingValue)
+        .filter(Boolean),
+    ),
+  );
+
+const getPurchasePrimaryContentId = (item: PurchaseItem) =>
+  normalizeTrackingValue(item.contentId || item.sku || item.id || item.name);
+
+const getPurchaseContentIds = (items: PurchaseItem[]) =>
+  uniqueValues(
+    items.flatMap((item) => [
+      getPurchasePrimaryContentId(item),
+      item.sku,
+      item.id,
+    ]),
+  );
+
+const getPurchaseContents = (items: PurchaseItem[]) =>
+  items.map((item) => ({
+    id: getPurchasePrimaryContentId(item),
+    quantity: item.quantity,
+    item_price: item.price,
+  }));
+
 /**
  * Track when a user views a product (Product Detail Page)
  */
@@ -288,17 +328,22 @@ export const trackPurchase = (order: {
   tax?: number;
   discount?: number;
   coupon?: string;
-  items: Array<{
-    id: string | number;
-    name: string;
-    price: number;
-    quantity: number;
-    category?: string;
-  }>;
+  items: PurchaseItem[];
+  eventId?: string;
 }) => {
   clearEcommerce();
+  const contentIds = getPurchaseContentIds(order.items);
+  const contents = getPurchaseContents(order.items);
   pushToDataLayer({
     event: 'purchase',
+    event_id: order.eventId || `purchase_${order.orderId}`,
+    order_id: String(order.orderId),
+    currency: 'BDT',
+    value: order.totalValue,
+    content_type: 'product',
+    content_ids: contentIds,
+    contents,
+    num_items: contents.reduce((sum, item) => sum + Number(item.quantity || 0), 0),
     ecommerce: {
       transaction_id: String(order.orderId),
       currency: 'BDT',
@@ -308,12 +353,15 @@ export const trackPurchase = (order: {
       discount: order.discount || 0,
       coupon: order.coupon || undefined,
       items: order.items.map(item => ({
-        item_id: String(item.id),
+        item_id: getPurchasePrimaryContentId(item),
         item_name: item.name,
         price: item.price,
         quantity: item.quantity,
         item_category: item.category || 'Products',
+        item_sku: item.sku || undefined,
       })),
+      content_ids: contentIds,
+      contents,
     },
   });
 };
@@ -473,20 +521,24 @@ export const trackPurchaseWithUser = (order: {
   tax?: number;
   discount?: number;
   coupon?: string;
-  items: Array<{
-    id: string | number;
-    name: string;
-    price: number;
-    quantity: number;
-    category?: string;
-  }>;
+  items: PurchaseItem[];
   user?: UserInfo;
+  eventId?: string;
 }) => {
   clearEcommerce();
+  const contentIds = getPurchaseContentIds(order.items);
+  const contents = getPurchaseContents(order.items);
   
   const purchaseData: Record<string, any> = {
     event: 'purchase',
+    event_id: order.eventId || `purchase_${order.orderId}`,
     order_id: String(order.orderId),
+    currency: 'BDT',
+    value: order.totalValue,
+    content_type: 'product',
+    content_ids: contentIds,
+    contents,
+    num_items: contents.reduce((sum, item) => sum + Number(item.quantity || 0), 0),
     ecommerce: {
       transaction_id: String(order.orderId),
       currency: 'BDT',
@@ -496,12 +548,15 @@ export const trackPurchaseWithUser = (order: {
       discount: order.discount || 0,
       coupon: order.coupon || undefined,
       items: order.items.map(item => ({
-        item_id: String(item.id),
+        item_id: getPurchasePrimaryContentId(item),
         item_name: item.name,
         price: item.price,
         quantity: item.quantity,
         item_category: item.category || 'Products',
+        item_sku: item.sku || undefined,
       })),
+      content_ids: contentIds,
+      contents,
     },
   };
   

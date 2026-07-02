@@ -24,8 +24,12 @@ type OrderItem = {
   productId: number;
   productName?: string;
   productNameBn?: string;
+  displayName?: string;
+  customProductName?: string;
   productImage?: string;
   productSku?: string;
+  productSlug?: string;
+  conversionId?: string;
   variantName?: string;
   quantity: number;
   unitPrice: number;
@@ -51,16 +55,95 @@ function getLandingPageSlugFromOrder(order: any) {
   return String(order?.utm_source || order?.landingPageSlug || order?.landing_page_slug || '').trim();
 }
 
-function trackZipPolyPurchase(order: any, fallbackOrderId: string) {
+function normalizeTrackingValue(value: unknown) {
+  return String(value ?? '').trim();
+}
+
+function getPurchaseItemName(item: OrderItem) {
+  return normalizeTrackingValue(
+    item.displayName ||
+    item.customProductName ||
+    item.productName ||
+    item.productNameBn ||
+    `Product ${item.productId || item.id}`,
+  );
+}
+
+function getPurchasePrimaryContentId(item: OrderItem) {
+  return normalizeTrackingValue(
+    item.conversionId ||
+    item.productSku ||
+    item.productId ||
+    getPurchaseItemName(item),
+  );
+}
+
+function getPurchaseContentIds(items: OrderItem[]) {
+  return Array.from(
+    new Set(
+      items
+        .flatMap((item) => [
+          getPurchasePrimaryContentId(item),
+          item.productSku,
+          item.productId,
+        ])
+        .map(normalizeTrackingValue)
+        .filter(Boolean),
+    ),
+  );
+}
+
+function toPurchaseTrackingItems(items: OrderItem[]) {
+  return items.map((item) => ({
+    id: item.productId || getPurchasePrimaryContentId(item),
+    sku: item.productSku || undefined,
+    contentId: getPurchasePrimaryContentId(item),
+    name: getPurchaseItemName(item) + (item.variantName ? ` (${item.variantName})` : ''),
+    price: Number(item.unitPrice) || 0,
+    quantity: Number(item.quantity) || 1,
+  }));
+}
+
+function trackZipPolyPurchase(order: any, fallbackOrderId: string, items: OrderItem[], totalAmount: number) {
   if (typeof window === 'undefined') return;
 
   const orderId = String(order?.id || fallbackOrderId || order?.orderNumber || '');
   if (!orderId) return;
 
+  const trackingItems = toPurchaseTrackingItems(items);
+  const contentIds = getPurchaseContentIds(items);
+  const contents = trackingItems.map((item) => ({
+    id: String(item.contentId || item.sku || item.id),
+    quantity: item.quantity,
+    item_price: item.price,
+  }));
+
   (window as any).dataLayer = (window as any).dataLayer || [];
   (window as any).dataLayer.push({
     event: 'purchase',
+    event_id: `purchase_${orderId}`,
     order_id: orderId,
+    currency: 'BDT',
+    value: Number(totalAmount || 0),
+    content_type: 'product',
+    content_ids: contentIds,
+    contents,
+    num_items: contents.reduce((sum, item) => sum + Number(item.quantity || 0), 0),
+    ecommerce: {
+      transaction_id: orderId,
+      currency: 'BDT',
+      value: Number(totalAmount || 0),
+      items: trackingItems.map((item) => ({
+        item_id: String(item.contentId || item.sku || item.id),
+        item_name: item.name,
+        item_sku: item.sku || undefined,
+        price: item.price,
+        quantity: item.quantity,
+        item_category: 'Products',
+      })),
+      content_ids: contentIds,
+      contents,
+    },
   });
 }
 
@@ -267,7 +350,7 @@ export default function ThankYouPage() {
     if (sessionStorage.getItem(trackedKey)) return;
 
     if (landingPageSlug.toLowerCase() === ZIP_POLY_LANDING_PAGE_SLUG) {
-      trackZipPolyPurchase(order, orderId);
+      trackZipPolyPurchase(order, orderId, items, totalAmount);
       sessionStorage.setItem(trackedKey, 'true');
       purchaseTrackedRef.current = true;
       return;
@@ -288,17 +371,14 @@ export default function ThankYouPage() {
     const location = extractLocationFromAddress(addressStr);
     
     // Track purchase event with user info
+    const purchaseOrderId = order.orderNumber || order.id || orderId;
     trackPurchaseWithUser({
-      orderId: order.orderNumber || order.id || orderId,
+      orderId: purchaseOrderId,
+      eventId: `purchase_${order.id || orderId}`,
       totalValue: totalAmount,
       shipping: deliveryCharge,
       discount: discount,
-      items: items.map((item) => ({
-        id: item.productId,
-        name: (item.productName || `Product ${item.productId}`) + (item.variantName ? ` (${item.variantName})` : ''),
-        price: Number(item.unitPrice) || 0,
-        quantity: item.quantity || 1,
-      })),
+      items: toPurchaseTrackingItems(items),
       user: {
         name: customerNameValue,
         phone: customerPhoneValue,
@@ -325,13 +405,17 @@ export default function ThankYouPage() {
 
     trackLandingPagePurchase({
       orderId: order?.orderNumber || order?.id || orderId,
+      eventId: `purchase_${order?.id || orderId}`,
       pageTitle: 'Landing Page Order',
       pageSlug,
       totalAmount,
       items: items.map((item) => ({
         product_id: item.productId,
-        product_name: (item.productName || `Product ${item.productId}`) + (item.variantName ? ` (${item.variantName})` : ''),
+        product_sku: item.productSku || undefined,
+        conversion_id: getPurchasePrimaryContentId(item),
+        product_name: getPurchaseItemName(item) + (item.variantName ? ` (${item.variantName})` : ''),
         quantity: item.quantity || 1,
+        item_price: Number(item.unitPrice) || 0,
       })),
     });
 

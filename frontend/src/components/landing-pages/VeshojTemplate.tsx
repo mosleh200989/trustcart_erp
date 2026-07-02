@@ -470,7 +470,7 @@ export default function VeshojTemplate({ page, trafficSource = 'landing_page' }:
         }).catch(() => {});
       }
       if (savedOrderId) {
-        window.location.href = `/thank-you?orderId=${savedOrderId}`;
+        window.location.href = `/thank-you?orderId=${savedOrderId}&landing_page=${encodeURIComponent(page.slug || 'veshoj')}`;
         return;
       }
       setSubmitted(true);
@@ -484,7 +484,7 @@ export default function VeshojTemplate({ page, trafficSource = 'landing_page' }:
       const savedId = err?.response?.data?.id || err?.response?.data?.data?.id;
       if (savedId) {
         apiClient.post(`/landing-pages/${page.id}/increment-order`).catch(() => {});
-        window.location.href = `/thank-you?orderId=${savedId}`;
+        window.location.href = `/thank-you?orderId=${savedId}&landing_page=${encodeURIComponent(page.slug || 'veshoj')}`;
         return;
       }
       const status = err?.response?.status;
