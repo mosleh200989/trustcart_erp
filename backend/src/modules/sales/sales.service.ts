@@ -2541,7 +2541,16 @@ export class SalesService {
     qb.where('o.shipped_at IS NOT NULL')
       .andWhere('o.delivered_at IS NULL')
       .andWhere('o.shipped_at <= :cutoff', { cutoff })
-      .andWhere('o.status IN (:...lateStatuses)', { lateStatuses: ['pending', 'in_review'] })
+      .andWhere('LOWER(o.status::text) NOT IN (:...terminalStatuses)', {
+        terminalStatuses: [
+          'delivered',
+          'completed',
+          'partial_delivered',
+          'cancelled',
+          'admin_cancelled',
+          'returned',
+        ],
+      })
       .orderBy('o.shipped_at', 'ASC');
 
     const orders = await qb.getMany();

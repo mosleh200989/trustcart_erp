@@ -240,6 +240,23 @@ export class SalesManagerService implements OnModuleInit {
         `CREATE INDEX IF NOT EXISTS idx_customer_engagement_customer_type ON customer_engagement_history(customer_id, engagement_type)`,
         `CREATE INDEX IF NOT EXISTS idx_customer_engagement_customer_created ON customer_engagement_history(customer_id, created_at)`,
         `CREATE INDEX IF NOT EXISTS idx_activities_customer_type ON activities(customer_id, type)`,
+        `CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_customer_tiers_tier_customer ON customer_tiers(tier, customer_id)`,
+        `CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_customer_tiers_customer_assigned_at ON customer_tiers(customer_id, tier_assigned_at)`,
+        `CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_sales_orders_customer_order_dates ON sales_orders(customer_id, order_date, created_at)`,
+        `CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_sales_orders_customer_delivered_at ON sales_orders(customer_id, delivered_at)`,
+        `CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_scheduled_lead_assignments_customer_status_date ON scheduled_lead_assignments(customer_id, status, scheduled_at)`,
+        `CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_scheduled_lead_assignments_customer_status_action ON scheduled_lead_assignments(customer_id, status, action)`,
+        `CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_scheduled_lead_assignments_customer_status_agent ON scheduled_lead_assignments(customer_id, status, agent_id)`,
+        `CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_courier_tracking_history_order_delivered ON courier_tracking_history(order_id, LOWER(status::text), updated_at DESC)`,
+        `CREATE EXTENSION IF NOT EXISTS pg_trgm`,
+        `CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_customer_product_suggestions_suggestion_trgm ON customer_product_suggestions USING gin (suggestion gin_trgm_ops)`,
+        `CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_customers_name_trgm ON customers USING gin (name gin_trgm_ops)`,
+        `CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_customers_last_name_trgm ON customers USING gin (last_name gin_trgm_ops)`,
+        `CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_customers_phone_trgm ON customers USING gin (phone gin_trgm_ops)`,
+        `CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_customers_address_trgm ON customers USING gin (address gin_trgm_ops)`,
+        `CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_products_name_en_trgm ON products USING gin (name_en gin_trgm_ops)`,
+        `CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_products_name_bn_trgm ON products USING gin (name_bn gin_trgm_ops)`,
+        `CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_products_sku_trgm ON products USING gin (sku gin_trgm_ops)`,
       ];
       this.leadFilterIndexesReady = (async () => {
         for (const statement of statements) {
@@ -801,91 +818,66 @@ export class SalesManagerService implements OnModuleInit {
       date.setUTCDate(date.getUTCDate() - days);
       return date.toISOString().slice(0, 10);
     };
-    const aggregateSql = `(${this.getCustomerLastCallAggregateSql()})`;
-    const alias = 'last_call_filter';
-    const lastCallAtSql = `${alias}.last_call_at`;
+    const lastCallAtSql = this.getCustomerLastCallAtSql('c');
     const lastCallDateSql = `DATE(${lastCallAtSql})`;
-    let joined = false;
-
-    const joinLastCall = (type: 'inner' | 'left' = 'inner') => {
-      if (joined) return;
-      if (type === 'left') {
-        qb.leftJoin(aggregateSql, alias, `${alias}.customer_id = c.id`);
-      } else {
-        qb.innerJoin(aggregateSql, alias, `${alias}.customer_id = c.id`);
-      }
-      joined = true;
-    };
 
     switch (calledStatus) {
       case 'called':
-        joinLastCall();
         qb.andWhere(`${lastCallAtSql} IS NOT NULL`);
         break;
       case 'called_today':
-        joinLastCall();
         qb.andWhere(`${lastCallDateSql} = CAST(:lastCallToday AS date)`, {
           lastCallToday: today,
         });
         break;
       case 'called_yesterday':
-        joinLastCall();
         qb.andWhere(`${lastCallDateSql} = CAST(:lastCallYesterday AS date)`, {
           lastCallYesterday: daysAgo(1),
         });
         break;
       case 'called_1week':
-        joinLastCall();
         qb.andWhere(`${lastCallDateSql} >= CAST(:lastCall1wStart AS date) AND ${lastCallDateSql} < CAST(:lastCall1wEnd AS date)`, {
           lastCall1wStart: daysAgo(13),
           lastCall1wEnd: daysAgo(6),
         });
         break;
       case 'called_2weeks':
-        joinLastCall();
         qb.andWhere(`${lastCallDateSql} >= CAST(:lastCall2wStart AS date) AND ${lastCallDateSql} < CAST(:lastCall2wEnd AS date)`, {
           lastCall2wStart: daysAgo(20),
           lastCall2wEnd: daysAgo(13),
         });
         break;
       case 'called_3weeks':
-        joinLastCall();
         qb.andWhere(`${lastCallDateSql} >= CAST(:lastCall3wStart AS date) AND ${lastCallDateSql} < CAST(:lastCall3wEnd AS date)`, {
           lastCall3wStart: daysAgo(27),
           lastCall3wEnd: daysAgo(20),
         });
         break;
       case 'called_1month':
-        joinLastCall();
         qb.andWhere(`${lastCallDateSql} >= CAST(:lastCall1mStart AS date) AND ${lastCallDateSql} < CAST(:lastCall1mEnd AS date)`, {
           lastCall1mStart: daysAgo(59),
           lastCall1mEnd: daysAgo(27),
         });
         break;
       case 'called_2months':
-        joinLastCall();
         qb.andWhere(`${lastCallDateSql} >= CAST(:lastCall2mStart AS date) AND ${lastCallDateSql} < CAST(:lastCall2mEnd AS date)`, {
           lastCall2mStart: daysAgo(89),
           lastCall2mEnd: daysAgo(59),
         });
         break;
       case 'called_3months_plus':
-        joinLastCall();
         qb.andWhere(`${lastCallDateSql} < CAST(:lastCall3mEnd AS date)`, { lastCall3mEnd: daysAgo(89) });
         break;
       case 'not_called':
       case 'not_called_today':
-        joinLastCall('left');
         qb.andWhere(`(${lastCallAtSql} IS NULL OR ${lastCallDateSql} < CAST(:lastCallToday AS date))`, { lastCallToday: today });
         break;
       case 'not_called_week':
-        joinLastCall('left');
         qb.andWhere(`(${lastCallAtSql} IS NULL OR ${lastCallDateSql} < CAST(:lastCallWeekAgo AS date))`, {
           lastCallWeekAgo: daysAgo(6),
         });
         break;
       case 'never':
-        joinLastCall('left');
         qb.andWhere(`${lastCallAtSql} IS NULL`);
         break;
     }
@@ -2389,76 +2381,33 @@ export class SalesManagerService implements OnModuleInit {
 
     const productSuggestion = String(query.productSuggestion || query.suggestion || '').trim();
     if (productSuggestion && productSuggestion !== 'all') {
-      const match = (alias: string, searchClause = '') =>
-        searchClause ? `AND (${searchClause.replace(/__alias__/g, alias)})` : '';
-      const hasProductSuggestionSql = (searchClause = '') => {
-        const activitySearchSql = searchClause ? `
-          OR EXISTS (
-            SELECT 1
-            FROM activities a_suggestion
-            WHERE a_suggestion.customer_id = c.id
-              AND a_suggestion.type = 'call'
-              AND (
-                ${searchClause.replace(/__alias__/g, 'a_suggestion.notes')}
-                OR ${searchClause.replace(/__alias__/g, 'a_suggestion.description')}
-                OR ${searchClause.replace(/__alias__/g, 'a_suggestion.metadata::text')}
-              )
-          )` : '';
-
-        return `(
-          EXISTS (
-            SELECT 1
-            FROM customer_product_suggestions cps_suggestion
-            WHERE cps_suggestion.customer_id = c.id
-              AND NULLIF(TRIM(cps_suggestion.suggestion), '') IS NOT NULL
-              ${match('cps_suggestion.suggestion', searchClause)}
-          )
-          OR EXISTS (
-            SELECT 1
-            FROM sales_orders so_suggestion
-            WHERE so_suggestion.customer_id = c.id
-              AND NULLIF(TRIM(so_suggestion.telephony_suggestion), '') IS NOT NULL
-              ${match('so_suggestion.telephony_suggestion', searchClause)}
-          )
-          OR EXISTS (
-            SELECT 1
-            FROM telephony_assignment_call_logs tl_suggestion
-            INNER JOIN sales_orders so_log_suggestion ON so_log_suggestion.id = tl_suggestion.order_id
-            WHERE tl_suggestion.record_type = 'sales_order'
-              AND so_log_suggestion.customer_id = c.id
-              AND NULLIF(TRIM(tl_suggestion.suggestion), '') IS NOT NULL
-              ${match('tl_suggestion.suggestion', searchClause)}
-          )
-          OR EXISTS (
-            SELECT 1
-            FROM customer_engagement_history eh_suggestion
-            WHERE (eh_suggestion.customer_id = c.id::text OR eh_suggestion.customer_id = c.phone)
-              AND eh_suggestion.engagement_type = 'call'
-              AND (
-                NULLIF(TRIM(eh_suggestion.metadata->>'product_suggestion'), '') IS NOT NULL
-                OR NULLIF(TRIM(eh_suggestion.metadata->>'productSuggestion'), '') IS NOT NULL
-                OR NULLIF(TRIM(eh_suggestion.metadata->>'suggestion'), '') IS NOT NULL
-              )
-              ${searchClause ? `AND (
-                ${searchClause.replace(/__alias__/g, 'eh_suggestion.message_content')}
-                OR ${searchClause.replace(/__alias__/g, "eh_suggestion.metadata->>'product_suggestion'")}
-                OR ${searchClause.replace(/__alias__/g, "eh_suggestion.metadata->>'productSuggestion'")}
-                OR ${searchClause.replace(/__alias__/g, "eh_suggestion.metadata->>'suggestion'")}
-              )` : ''}
-          )
-          ${activitySearchSql}
+      const hasProductSuggestionSql = `
+        EXISTS (
+          SELECT 1
+          FROM customer_product_suggestions cps_suggestion
+          WHERE cps_suggestion.customer_id = c.id
+            AND NULLIF(TRIM(cps_suggestion.suggestion), '') IS NOT NULL
         )`;
-      };
-
       if (productSuggestion === '__any__') {
-        qb.andWhere(hasProductSuggestionSql());
+        qb.andWhere(hasProductSuggestionSql);
       } else if (productSuggestion === '__none__') {
-        qb.andWhere(`NOT ${hasProductSuggestionSql()}`);
+        qb.andWhere(`NOT ${hasProductSuggestionSql}`);
       } else {
         const productSuggestionSearch = `%${productSuggestion}%`;
-        const searchClause = `__alias__ ILIKE :productSuggestionSearch`;
         qb.andWhere(
-          hasProductSuggestionSql(searchClause),
+          `EXISTS (
+            SELECT 1
+            FROM customer_product_suggestions cps_suggestion
+            LEFT JOIN products p_suggestion ON p_suggestion.id = cps_suggestion.product_id
+            WHERE cps_suggestion.customer_id = c.id
+              AND NULLIF(TRIM(cps_suggestion.suggestion), '') IS NOT NULL
+              AND (
+                cps_suggestion.suggestion ILIKE :productSuggestionSearch
+                OR p_suggestion.name_en ILIKE :productSuggestionSearch
+                OR p_suggestion.name_bn ILIKE :productSuggestionSearch
+                OR p_suggestion.sku ILIKE :productSuggestionSearch
+              )
+          )`,
           { productSuggestionSearch },
         );
       }
@@ -2523,12 +2472,27 @@ export class SalesManagerService implements OnModuleInit {
       total_spent: 'c.total_spent',
     };
     qb.orderBy(validSortFields[sortBy] || 'c.createdAt', sortOrder);
+    qb.addOrderBy('c.id', sortOrder);
 
-    const total = await qb.getCount();
-    const { entities, raw } = await qb
-      .skip(offset)
-      .take(limit)
-      .getRawAndEntities();
+    const total = await qb.clone().select('c.id').getCount();
+    if (total === 0) {
+      return { items: [], total, page, limit, totalPages: 0 };
+    }
+
+    const pageIdRows = await qb.clone()
+      .select('c.id', 'id')
+      .offset(offset)
+      .limit(limit)
+      .getRawMany();
+    const pageIds = this.normalizeCustomerIds(pageIdRows.map((row: any) => row.id ?? row.c_id));
+    if (pageIds.length === 0) {
+      return { items: [], total, page, limit, totalPages: Math.ceil(total / limit) };
+    }
+
+    qb.andWhere('c.id IN (:...pageIds)', { pageIds });
+    qb.orderBy(`array_position(ARRAY[${pageIds.join(',')}]::int[], c.id)`, 'ASC');
+
+    const { entities, raw } = await qb.getRawAndEntities();
 
     const lastCallByCustomerId = await this.getLatestCallTimesForCustomers(
       entities.map((entity) => Number(entity.id)),

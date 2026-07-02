@@ -77,8 +77,16 @@ interface SalesOrder {
 }
 
 const STATUS_OPTIONS = [
+  { value: 'processing', label: 'Processing' },
+  { value: 'approved', label: 'Approved' },
   { value: 'pending', label: 'Pending' },
   { value: 'in_review', label: 'In Review' },
+  { value: 'sent', label: 'Sent' },
+  { value: 'shipped', label: 'Shipped' },
+  { value: 'picked', label: 'Picked' },
+  { value: 'in_transit', label: 'In Transit' },
+  { value: 'hold', label: 'Hold' },
+  { value: 'unknown', label: 'Unknown' },
   { value: 'pickup_failed', label: 'Pickup Failed' },
 ];
 
