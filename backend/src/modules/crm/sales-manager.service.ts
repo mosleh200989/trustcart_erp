@@ -109,6 +109,42 @@ export class SalesManagerService implements OnModuleInit {
     return this.getRoleId('sales-executive', '%sales executive%');
   }
 
+  private userHasRoleSql(userAlias: string, roleWhereSql: (roleAlias: string) => string) {
+    return `(
+      EXISTS (
+        SELECT 1
+        FROM roles primary_role
+        WHERE primary_role.id = ${userAlias}.role_id
+          AND primary_role.is_active = true
+          AND (${roleWhereSql('primary_role')})
+      )
+      OR EXISTS (
+        SELECT 1
+        FROM user_roles extra_user_role
+        INNER JOIN roles extra_role ON extra_role.id = extra_user_role.role_id
+        WHERE extra_user_role.user_id = ${userAlias}.id
+          AND extra_role.is_active = true
+          AND (${roleWhereSql('extra_role')})
+      )
+    )`;
+  }
+
+  private assignableAgentSql(userAlias: string) {
+    return `(
+      ${this.userHasRoleSql(
+        userAlias,
+        (roleAlias) => `LOWER(COALESCE(${roleAlias}.slug, '')) IN ('sales-executive', 'sales-agent', 'agent', 'executive')
+          OR LOWER(COALESCE(${roleAlias}.slug, '')) LIKE '%sales-executive%'
+          OR LOWER(COALESCE(${roleAlias}.slug, '')) LIKE '%sales-agent%'
+          OR LOWER(COALESCE(${roleAlias}.name, '')) IN ('sales executive', 'sales agent', 'agent', 'executive')
+          OR LOWER(COALESCE(${roleAlias}.name, '')) LIKE '%sales executive%'
+          OR LOWER(COALESCE(${roleAlias}.name, '')) LIKE '%sales agent%'
+          OR LOWER(COALESCE(${roleAlias}.name, '')) LIKE '%executive%'`,
+      )}
+      OR ${userAlias}.team_leader_id IS NOT NULL
+    )`;
+  }
+
   private async getTeamLeaders(): Promise<User[]> {
     const tlRoleId = await this.getTeamLeaderRoleId();
 
@@ -120,14 +156,27 @@ export class SalesManagerService implements OnModuleInit {
   }
 
   private async getAgents(): Promise<User[]> {
-    const agentRoleId = await this.getAgentRoleId();
+    const rows = await this.usersRepository.manager.query(
+      `SELECT
+          u.id,
+          u.name,
+          u.last_name AS "lastName",
+          u.email,
+          u.phone,
+          u.role_id AS "roleId",
+          u.team_leader_id AS "teamLeaderId",
+          u.team_id AS "teamId",
+          u.agent_tier AS "agentTier",
+          u.status,
+          u.is_deleted AS "isDeleted"
+       FROM users u
+       WHERE COALESCE(u.is_deleted, false) = false
+         AND (u.status IS NULL OR LOWER(u.status::text) = 'active')
+         AND ${this.assignableAgentSql('u')}
+       ORDER BY LOWER(COALESCE(u.name, '')) ASC, LOWER(COALESCE(u.last_name, '')) ASC, u.id ASC`,
+    );
 
-    if (!agentRoleId) return [];
-
-    return await this.usersRepository.find({
-      where: { roleId: agentRoleId, status: 'active' as any, isDeleted: false } as any,
-      order: { name: 'ASC', lastName: 'ASC' } as any,
-    });
+    return rows as User[];
   }
 
   private async getAssignmentColumnShape(): Promise<{ assignedBy: boolean; assignedAt: boolean }> {

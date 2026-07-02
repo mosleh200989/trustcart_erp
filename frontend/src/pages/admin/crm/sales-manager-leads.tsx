@@ -137,6 +137,11 @@ const isLeadRecentlyViewed = (viewedLeads: Record<string, number>, customerId: n
   return Boolean(viewedAt && Date.now() - viewedAt < VIEWED_LEAD_TTL_MS);
 };
 
+const getApiErrorMessage = (error: any, fallback: string) => {
+  const message = error?.response?.data?.message || error?.message || fallback;
+  return Array.isArray(message) ? message.join(', ') : String(message);
+};
+
 const FilterField = ({
   label,
   children,
@@ -554,8 +559,8 @@ const SalesManagerLeadAssignment = () => {
       applyAssignedLeadsLocally(customerIds, Number(bulkAgent));
       setBulkAgent('');
       refreshCurrentPageSafely();
-    } catch {
-      toast.error('Assignment failed');
+    } catch (error: any) {
+      toast.error(getApiErrorMessage(error, 'Assignment failed'));
     } finally {
       setAssigning(false);
     }
@@ -580,8 +585,8 @@ const SalesManagerLeadAssignment = () => {
       setBulkScheduleAt('');
       setSelected(new Set());
       refreshCurrentPageSafely();
-    } catch {
-      toast.error('Failed to schedule assignment');
+    } catch (error: any) {
+      toast.error(getApiErrorMessage(error, 'Failed to schedule assignment'));
     } finally {
       setAssigning(false);
     }
@@ -601,8 +606,8 @@ const SalesManagerLeadAssignment = () => {
       setAssignModalLead(null);
       setAssignModalAgent('');
       refreshCurrentPageSafely();
-    } catch {
-      toast.error('Assignment failed');
+    } catch (error: any) {
+      toast.error(getApiErrorMessage(error, 'Assignment failed'));
     } finally {
       setAssigningSingle(false);
     }
@@ -624,8 +629,8 @@ const SalesManagerLeadAssignment = () => {
       setAssignModalAgent('');
       setAssignModalScheduleAt('');
       refreshCurrentPageSafely();
-    } catch {
-      toast.error('Failed to schedule assignment');
+    } catch (error: any) {
+      toast.error(getApiErrorMessage(error, 'Failed to schedule assignment'));
     } finally {
       setAssigningSingle(false);
     }
