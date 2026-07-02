@@ -19,6 +19,7 @@ declare global {
   interface Window {
     __landingPagePixelsInitialized?: Record<string, boolean>;
     __arabianKhaltaPixelPageViewTracked?: boolean;
+    __veshojPixelPageViewTracked?: boolean;
   }
 }
 
@@ -61,7 +62,7 @@ export function isVeshojLandingPageSlug(slug?: string | null) {
 }
 
 export function isLandingPagePixelSlug(slug?: string | null) {
-  return isHerbolinLandingPageSlug(slug);
+  return isHerbolinLandingPageSlug(slug) || isArabianKhaltaLandingPageSlug(slug) || isVeshojLandingPageSlug(slug);
 }
 
 export function isHerbolinPixelSurface() {
@@ -97,13 +98,10 @@ export function isVeshojPixelSurface() {
   const pathname = currentPathname();
   const routeSlug = currentRouteSlug();
   const querySlug = currentQuerySlug();
-
-  if (!isVeshojHost()) {
-    return false;
-  }
+  const isVeshojHostSurface = isVeshojHost() && VESHOJ_LANDING_PATHS.has(pathname);
 
   return (
-    VESHOJ_LANDING_PATHS.has(pathname) ||
+    isVeshojHostSurface ||
     isVeshojLandingPageSlug(routeSlug) ||
     isVeshojLandingPageSlug(querySlug)
   );
@@ -114,10 +112,10 @@ export function isLandingPagePixelSurface() {
 }
 
 function getLandingPagePixelId(slug?: string | null) {
-  if (isArabianKhaltaPixelSurface()) {
+  if (isArabianKhaltaPixelSurface() || isArabianKhaltaLandingPageSlug(slug)) {
     return ARABIAN_KHALTA_PIXEL_ID;
   }
-  if (isVeshojPixelSurface() && (!slug || isVeshojLandingPageSlug(slug))) {
+  if (isVeshojPixelSurface() || isVeshojLandingPageSlug(slug)) {
     return VESHOJ_PIXEL_ID;
   }
   if (isHerbolinPixelSurface() || isHerbolinLandingPageSlug(slug)) {
@@ -161,26 +159,60 @@ export function trackLandingPagePageView() {
     lastTrackedPageKey = pageKey;
     return;
   }
+  if (pixelId === VESHOJ_PIXEL_ID && window.__veshojPixelPageViewTracked) {
+    lastTrackedPageKey = pageKey;
+    return;
+  }
 
   fbq('trackSingle', pixelId, 'PageView');
   if (pixelId === ARABIAN_KHALTA_PIXEL_ID) {
     window.__arabianKhaltaPixelPageViewTracked = true;
+  }
+  if (pixelId === VESHOJ_PIXEL_ID) {
+    window.__veshojPixelPageViewTracked = true;
   }
   lastTrackedPageKey = pageKey;
 }
 
 interface LandingPagePurchaseItem {
   product_id?: number | null;
+  product_sku?: string | null;
+  conversion_id?: string | number | null;
   product_name: string;
   quantity: number;
+  item_price?: number;
 }
 
 interface LandingPagePurchasePayload {
   orderId?: number | string | null;
+  eventId?: string;
   pageTitle: string;
   pageSlug: string;
   totalAmount: number;
   items: LandingPagePurchaseItem[];
+}
+
+function normalizeTrackingValue(value: unknown) {
+  return String(value ?? '').trim();
+}
+
+function getPurchasePrimaryContentId(item: LandingPagePurchaseItem) {
+  return normalizeTrackingValue(item.conversion_id || item.product_sku || item.product_id || item.product_name);
+}
+
+function getPurchaseContentIds(items: LandingPagePurchaseItem[]) {
+  return Array.from(
+    new Set(
+      items
+        .flatMap((item) => [
+          getPurchasePrimaryContentId(item),
+          item.product_sku,
+          item.product_id,
+        ])
+        .map(normalizeTrackingValue)
+        .filter(Boolean),
+    ),
+  );
 }
 
 export function trackLandingPagePurchase(payload: LandingPagePurchasePayload) {
@@ -192,21 +224,32 @@ export function trackLandingPagePurchase(payload: LandingPagePurchasePayload) {
   }
 
   initLandingPagePixel(payload.pageSlug);
-  fbq('trackSingle', pixelId, 'Purchase', {
-    currency: 'BDT',
-    value: Number(payload.totalAmount || 0),
-    content_type: 'product',
-    content_name: payload.pageTitle,
-    content_category: 'landing_page',
-    content_ids: payload.items.map((item) => item.product_id).filter(Boolean),
-    contents: payload.items.map((item) => ({
-      id: item.product_id || item.product_name,
-      quantity: item.quantity,
-    })),
-    num_items: payload.items.reduce((sum, item) => sum + item.quantity, 0),
-    order_id: payload.orderId || undefined,
-    landing_page_slug: payload.pageSlug,
-  });
+  const contentIds = getPurchaseContentIds(payload.items);
+  const contents = payload.items.map((item) => ({
+    id: getPurchasePrimaryContentId(item),
+    quantity: item.quantity,
+    item_price: item.item_price,
+  }));
+  const eventId = payload.eventId || (payload.orderId ? `purchase_${payload.orderId}` : undefined);
+
+  fbq(
+    'trackSingle',
+    pixelId,
+    'Purchase',
+    {
+      currency: 'BDT',
+      value: Number(payload.totalAmount || 0),
+      content_type: 'product',
+      content_name: payload.pageTitle,
+      content_category: 'landing_page',
+      content_ids: contentIds,
+      contents,
+      num_items: contents.reduce((sum, item) => sum + Number(item.quantity || 0), 0),
+      order_id: payload.orderId || undefined,
+      landing_page_slug: payload.pageSlug,
+    },
+    eventId ? { eventID: eventId } : undefined,
+  );
 }
 
 export const initHerbolinPixel = initLandingPagePixel;

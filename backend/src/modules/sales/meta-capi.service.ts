@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import axios from 'axios';
-import { createHash, randomUUID } from 'crypto';
+import { createHash } from 'crypto';
 import { Repository } from 'typeorm';
 import { SalesOrder } from './sales-order.entity';
 import { SalesOrderItem } from './sales-order-item.entity';
@@ -21,6 +21,10 @@ type OrderLifecycleEvent = {
   statusTrigger: string;
   eventName: string;
 };
+
+const VESHOJ_PIXEL_ID = ['339637066199', '40423'].join('');
+const VESHOJ_LANDING_PAGE_SLUGS = ['veshoj'];
+const VESHOJ_DOMAINS = ['veshoj.site', 'www.veshoj.site'];
 
 @Injectable()
 export class MetaCapiService {
@@ -63,15 +67,19 @@ export class MetaCapiService {
     if (existing && existing.status === 'sent') return;
     if (existing && existing.status === 'pending') return;
 
+    const eventId = this.buildEventId(orderId, lifecycleEvent);
     const event = existing || this.eventRepository.create({
       orderId,
       eventName: lifecycleEvent.eventName,
       statusTrigger: lifecycleEvent.statusTrigger,
-      eventId: randomUUID(),
+      eventId,
       pixelId: configs[0]?.pixelId || null,
       status: 'pending',
       attemptCount: 0,
     });
+    if (existing && existing.eventId !== eventId) {
+      event.eventId = eventId;
+    }
 
     await this.eventRepository.save(event);
 
@@ -132,13 +140,23 @@ export class MetaCapiService {
     return null;
   }
 
+  private buildEventId(orderId: number, lifecycleEvent: OrderLifecycleEvent): string {
+    if (lifecycleEvent.eventName === 'Purchase') {
+      return `purchase_${orderId}`;
+    }
+    return `${lifecycleEvent.eventName.toLowerCase()}_${orderId}`;
+  }
+
   private getPixelConfigs(order: SalesOrder): MetaPixelConfig[] {
+    const parsedConfigs: MetaPixelConfig[] = [];
+    let hasConfiguredPixelGroups = false;
     const rawGroups = this.configService.get<string>('META_CAPI_PIXEL_GROUPS');
     if (rawGroups) {
       try {
         const parsed = JSON.parse(rawGroups);
         if (Array.isArray(parsed)) {
-          return parsed
+          hasConfiguredPixelGroups = true;
+          parsedConfigs.push(...parsed
             .map((item) => ({
               pixelId: String(item.pixelId || item.pixel_id || '').trim(),
               accessToken: String(item.accessToken || item.access_token || '').trim(),
@@ -146,11 +164,30 @@ export class MetaCapiService {
               landingPageSlugs: this.normalizeConfigList(item.landingPageSlugs || item.landing_page_slugs || item.landingPageSlug || item.landing_page_slug),
               domains: this.normalizeConfigList(item.domains || item.domain || item.hosts || item.host),
             }))
-            .filter((item) => item.pixelId && item.accessToken)
-            .filter((item) => this.pixelConfigAppliesToOrder(item, order));
+            .filter((item) => item.pixelId && item.accessToken));
         }
       } catch {
         this.logger.warn('META_CAPI_PIXEL_GROUPS is not valid JSON. Falling back to META_CAPI_PIXEL_ID/META_CAPI_ACCESS_TOKEN.');
+      }
+    }
+
+    const veshojEnvConfig = this.getVeshojPixelConfigFromEnv();
+    if (veshojEnvConfig) {
+      parsedConfigs.unshift(veshojEnvConfig);
+    }
+
+    if (this.isVeshojOrder(order)) {
+      return this.dedupePixelConfigs(
+        parsedConfigs.filter((config) => this.isVeshojPixelConfig(config) && this.pixelConfigAppliesToOrder(config, order)),
+      );
+    }
+
+    if (parsedConfigs.length > 0) {
+      const applicableConfigs = this.dedupePixelConfigs(
+        parsedConfigs.filter((config) => !this.isVeshojPixelConfig(config) && this.pixelConfigAppliesToOrder(config, order)),
+      );
+      if (applicableConfigs.length > 0 || hasConfiguredPixelGroups) {
+        return applicableConfigs;
       }
     }
 
@@ -158,6 +195,63 @@ export class MetaCapiService {
     const accessToken = String(this.configService.get<string>('META_CAPI_ACCESS_TOKEN') || '').trim();
     const testEventCode = String(this.configService.get<string>('META_CAPI_TEST_EVENT_CODE') || '').trim();
     return pixelId && accessToken ? [{ pixelId, accessToken, testEventCode: testEventCode || undefined }] : [];
+  }
+
+  private getVeshojPixelConfigFromEnv(): MetaPixelConfig | null {
+    const accessToken = String(
+      this.configService.get<string>('VESHOJ_META_CAPI_ACCESS_TOKEN') ||
+      this.configService.get<string>('META_CAPI_VESHOJ_ACCESS_TOKEN') ||
+      '',
+    ).trim();
+    if (!accessToken) return null;
+
+    const pixelId = String(this.configService.get<string>('VESHOJ_META_CAPI_PIXEL_ID') || VESHOJ_PIXEL_ID).trim();
+    const testEventCode = String(this.configService.get<string>('VESHOJ_META_CAPI_TEST_EVENT_CODE') || '').trim();
+
+    return {
+      pixelId,
+      accessToken,
+      testEventCode: testEventCode || undefined,
+      landingPageSlugs: VESHOJ_LANDING_PAGE_SLUGS,
+      domains: VESHOJ_DOMAINS,
+    };
+  }
+
+  private dedupePixelConfigs(configs: MetaPixelConfig[]): MetaPixelConfig[] {
+    const seen = new Set<string>();
+    const unique: MetaPixelConfig[] = [];
+
+    for (const config of configs) {
+      const key = `${config.pixelId}:${config.accessToken}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      unique.push(config);
+    }
+
+    return unique;
+  }
+
+  private isVeshojOrder(order: SalesOrder): boolean {
+    if (String(order.orderSource || '').trim().toLowerCase() !== 'landing_page') {
+      return false;
+    }
+
+    return (
+      this.orderMatchesLandingPageSlug(order, VESHOJ_LANDING_PAGE_SLUGS) ||
+      this.orderMatchesDomain(order, VESHOJ_DOMAINS)
+    );
+  }
+
+  private isVeshojPixelConfig(config: MetaPixelConfig): boolean {
+    const pixelId = String(config.pixelId || '').trim();
+    const slugScopes = config.landingPageSlugs || [];
+    const domainScopes = config.domains || [];
+
+    return (
+      pixelId === VESHOJ_PIXEL_ID ||
+      slugScopes.some((slug) => VESHOJ_LANDING_PAGE_SLUGS.includes(String(slug || '').toLowerCase())) ||
+      domainScopes.some((domain) => VESHOJ_DOMAINS.includes(String(domain || '').replace(/^www\./, '').toLowerCase()))
+    );
   }
 
   private normalizeConfigList(value: unknown): string[] {
@@ -231,12 +325,14 @@ export class MetaCapiService {
 
   private async buildPayload(order: SalesOrder, eventName: string, eventId: string) {
     const items = await this.getOrderItems(order.id);
-    const contentIds = items.map((item) => item.productId || item.productName).filter(Boolean);
+    const contentIds = this.getContentIds(items);
     const contents = items.map((item) => ({
-      id: item.productId || item.productName || `order-${order.id}`,
+      id: this.getPrimaryContentId(item) || `order-${order.id}`,
       quantity: item.quantity,
       item_price: item.unitPrice,
     }));
+    const productIds = this.uniqueValues(items.map((item) => item.productId));
+    const contentSkus = this.uniqueValues(items.map((item) => item.productSku));
 
     const userData = this.buildUserData(order);
     const eventSourceUrl = order.metaEventSourceUrl || order.metaLandingUrl || order.referrerUrl || this.configService.get<string>('FRONTEND_URL') || undefined;
@@ -255,7 +351,10 @@ export class MetaCapiService {
             value: Number(order.totalAmount || 0),
             order_id: order.salesOrderNumber || String(order.id),
             content_type: 'product',
+            content_name: items.map((item) => item.productName).filter(Boolean).join(', ') || undefined,
             content_ids: contentIds,
+            product_ids: productIds,
+            content_skus: contentSkus,
             contents,
             num_items: contents.reduce((sum, item) => sum + Number(item.quantity || 0), 0),
             status_trigger: eventName === 'Purchase' ? 'approved' : 'delivered',
@@ -284,21 +383,85 @@ export class MetaCapiService {
     return userData;
   }
 
-  private async getOrderItems(orderId: number): Promise<Array<{ productId: number | null; productName: string | null; quantity: number; unitPrice: number }>> {
-    const adminItems = await this.orderItemRepository.find({ where: { orderId } });
+  private normalizeTrackingValue(value: unknown): string {
+    return String(value ?? '').trim();
+  }
+
+  private uniqueValues(values: unknown[]): string[] {
+    return Array.from(
+      new Set(
+        values
+          .map((value) => this.normalizeTrackingValue(value))
+          .filter(Boolean),
+      ),
+    );
+  }
+
+  private getPrimaryContentId(item: { productId: number | null; productName: string | null; productSku?: string | null; conversionId?: string | null }) {
+    return this.normalizeTrackingValue(item.conversionId || item.productSku || item.productId || item.productName);
+  }
+
+  private getContentIds(items: Array<{ productId: number | null; productName: string | null; productSku?: string | null; conversionId?: string | null }>) {
+    return this.uniqueValues(
+      items.flatMap((item) => [
+        this.getPrimaryContentId(item),
+        item.productSku,
+        item.productId,
+      ]),
+    );
+  }
+
+  private async getOrderItems(orderId: number): Promise<Array<{ productId: number | null; productName: string | null; productSku: string | null; conversionId: string | null; variantName: string | null; quantity: number; unitPrice: number }>> {
+    const adminItems = await this.orderItemRepository
+      .createQueryBuilder('item')
+      .leftJoin('products', 'product', 'product.id = item.product_id')
+      .select([
+        'item.product_id AS "productId"',
+        'COALESCE(item.custom_product_name, product.name_en, item.product_name) AS "productName"',
+        'product.sku AS "productSku"',
+        'COALESCE(NULLIF(product.sku, \'\'), item.product_id::text, item.product_name) AS "conversionId"',
+        'item.variant_name AS "variantName"',
+        'item.quantity AS quantity',
+        'item.unit_price AS "unitPrice"',
+      ])
+      .where('item.order_id = :orderId', { orderId })
+      .orderBy('item.id', 'ASC')
+      .getRawMany();
+
     if (adminItems.length > 0) {
       return adminItems.map((item) => ({
-        productId: item.productId || null,
-        productName: item.customProductName || item.productName || null,
+        productId: item.productId ? Number(item.productId) : null,
+        productName: item.productName || null,
+        productSku: item.productSku || null,
+        conversionId: item.conversionId || null,
+        variantName: item.variantName || null,
         quantity: Number(item.quantity || 0),
         unitPrice: Number(item.unitPrice || 0),
       }));
     }
 
-    const checkoutItems = await this.salesOrderItemRepository.find({ where: { salesOrderId: orderId } });
+    const checkoutItems = await this.salesOrderItemRepository
+      .createQueryBuilder('item')
+      .leftJoin('products', 'product', 'product.id = item.product_id')
+      .select([
+        'item.product_id AS "productId"',
+        'COALESCE(item.custom_product_name, product.name_en, item.product_name) AS "productName"',
+        'product.sku AS "productSku"',
+        'COALESCE(NULLIF(product.sku, \'\'), item.product_id::text, item.product_name) AS "conversionId"',
+        'NULL AS "variantName"',
+        'item.quantity AS quantity',
+        'item.unit_price AS "unitPrice"',
+      ])
+      .where('item.sales_order_id = :orderId', { orderId })
+      .orderBy('item.id', 'ASC')
+      .getRawMany();
+
     return checkoutItems.map((item) => ({
-      productId: item.productId || null,
-      productName: item.customProductName || item.productName || null,
+      productId: item.productId ? Number(item.productId) : null,
+      productName: item.productName || null,
+      productSku: item.productSku || null,
+      conversionId: item.conversionId || null,
+      variantName: item.variantName || null,
       quantity: Number(item.quantity || 0),
       unitPrice: Number(item.unitPrice || 0),
     }));

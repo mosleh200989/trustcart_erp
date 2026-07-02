@@ -3306,7 +3306,40 @@ export class SalesService {
   }
 
   async getOrderItems(orderId: string) {
-    const items = await this.orderItemsRepository
+    const numericOrderId = Number(orderId);
+    if (!Number.isFinite(numericOrderId) || numericOrderId <= 0) {
+      return [];
+    }
+
+    const adminItems = await this.salesRepository.manager.query(
+      `SELECT
+         item.id AS id,
+         item.order_id AS "salesOrderId",
+         item.product_id AS "productId",
+         COALESCE(product.name_en, item.product_name) AS "productName",
+         item.custom_product_name AS "customProductName",
+         COALESCE(item.custom_product_name, product.name_en, item.product_name) AS "displayName",
+         product.name_bn AS "productNameBn",
+         product.image_url AS "productImage",
+         product.sku AS "productSku",
+         product.slug AS "productSlug",
+         item.variant_name AS "variantName",
+         item.quantity AS quantity,
+         item.unit_price AS "unitPrice",
+         item.subtotal AS "lineTotal",
+         COALESCE(NULLIF(product.sku, ''), item.product_id::text, item.product_name) AS "conversionId"
+       FROM order_items item
+       LEFT JOIN products product ON product.id = item.product_id
+       WHERE item.order_id = $1
+       ORDER BY item.id ASC`,
+      [numericOrderId],
+    );
+
+    if (adminItems.length > 0) {
+      return adminItems;
+    }
+
+    return this.orderItemsRepository
       .createQueryBuilder('item')
       .leftJoinAndSelect('products', 'product', 'product.id = item.product_id')
       .select([
@@ -3319,15 +3352,16 @@ export class SalesService {
         'product.name_bn as "productNameBn"',
         'COALESCE(product.image_url, item.product_image) as "productImage"',
         'product.sku as "productSku"',
+        'product.slug as "productSlug"',
+        'NULL as "variantName"',
         'item.quantity as quantity',
         'item.unit_price as "unitPrice"',
         'item.line_total as "lineTotal"',
+        'COALESCE(NULLIF(product.sku, \'\'), item.product_id::text, item.product_name) as "conversionId"',
       ])
-      .where('item.sales_order_id = :orderId', { orderId: Number(orderId) })
+      .where('item.sales_order_id = :orderId', { orderId: numericOrderId })
       .orderBy('item.id', 'ASC')
       .getRawMany();
-
-    return items;
   }
 
   async acceptThankYouOffer(orderId: number, productId: number, offerPrice: number) {
