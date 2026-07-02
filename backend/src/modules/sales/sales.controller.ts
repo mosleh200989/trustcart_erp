@@ -40,6 +40,16 @@ export class SalesController {
     return String(raw).split(',')[0].trim().replace(/^::ffff:/, '');
   }
 
+  private getAuditUserInfo(req: any) {
+    const user = req?.user || {};
+    const fullName = [user.name, user.lastName ?? user.last_name].filter(Boolean).join(' ').trim();
+    return {
+      actorId: Number.isFinite(Number(user.id)) ? Number(user.id) : undefined,
+      actorName: fullName || user.username || user.email || 'Admin',
+      ipAddress: this.getClientIp(req),
+    };
+  }
+
   // Public endpoint: track order by tracking ID, order number, or consignment ID
   @Get('public/track/:trackingId')
   @Public()
@@ -586,8 +596,8 @@ export class SalesController {
 
   @Put(':id')
   @RequirePermissions('edit-sales-orders')
-  async update(@Param('id') id: string, @Body() updateSalesDto: any) {
-    return this.salesService.update(id, updateSalesDto);
+  async update(@Param('id') id: string, @Body() updateSalesDto: any, @Req() req: any) {
+    return this.salesService.update(id, updateSalesDto, this.getAuditUserInfo(req));
   }
 
   @Delete(':id')

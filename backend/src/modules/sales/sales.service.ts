@@ -17,6 +17,12 @@ import { getDhakaDateString } from '../../common/utils/dhaka-date';
 import { OrderGuardSettings } from '../settings/order-guard-settings.entity';
 import { MetaCapiService } from './meta-capi.service';
 
+type StatusAuditActor = {
+  actorId?: number;
+  actorName?: string;
+  ipAddress?: string;
+};
+
 @Injectable()
 export class SalesService {
   constructor(
@@ -3131,9 +3137,17 @@ export class SalesService {
     return savedOrder;
   }
 
-  async update(id: string, updateSalesDto: any) {
+  async update(id: string, updateSalesDto: any, auditActor?: StatusAuditActor) {
     let shouldDispatchApproved = false;
     let becameDelivered = false;
+    let statusAudit:
+      | {
+          oldStatus: any;
+          newStatus: any;
+          changedAt: Date;
+          extraNewValue?: any;
+        }
+      | null = null;
 
     if (updateSalesDto?.status) {
       const currentQb = this.salesRepository.createQueryBuilder('o');
@@ -3148,6 +3162,10 @@ export class SalesService {
 
         becameDelivered = from !== 'delivered' && to === 'delivered';
         shouldDispatchApproved = from !== 'approved' && to === 'approved';
+        const statusChanged = from !== to;
+        const changedAt = new Date();
+        const actorId = Number(auditActor?.actorId);
+        const hasActorId = Number.isFinite(actorId) && actorId > 0;
 
         if (to === 'admin_cancelled') {
           const rejectReason = String(updateSalesDto.cancelReason ?? updateSalesDto.cancel_reason ?? '').trim();
@@ -3162,12 +3180,55 @@ export class SalesService {
         }
 
         if (to === 'approved' && !current.approvedAt) {
-          updateSalesDto.approvedAt = new Date();
+          updateSalesDto.approvedAt = changedAt;
+          if (hasActorId && !current.approvedBy) {
+            updateSalesDto.approvedBy = actorId;
+          }
+        }
+
+        if (statusChanged && ['sent', 'shipped', 'picked', 'in_transit'].includes(to) && !current.shippedAt) {
+          updateSalesDto.shippedAt = changedAt;
+        }
+
+        if (statusChanged && ['delivered', 'partial_delivered', 'completed'].includes(to) && !current.deliveredAt) {
+          updateSalesDto.deliveredAt = changedAt;
+        }
+
+        if (statusChanged && ['cancelled', 'admin_cancelled', 'pickup_failed'].includes(to) && !current.cancelledAt) {
+          updateSalesDto.cancelledAt = changedAt;
+        }
+
+        if (statusChanged && ['cancelled', 'admin_cancelled', 'pickup_failed'].includes(to) && hasActorId && !current.cancelledBy) {
+          updateSalesDto.cancelledBy = actorId;
+        }
+
+        if (statusChanged) {
+          statusAudit = {
+            oldStatus: current.status,
+            newStatus: updateSalesDto.status,
+            changedAt,
+            extraNewValue: {
+              changedAt: changedAt.toISOString(),
+              ...(to === 'admin_cancelled' ? { cancelReason: updateSalesDto.cancelReason } : {}),
+            },
+          };
         }
       }
     }
 
     await this.salesRepository.update(id, updateSalesDto);
+    if (statusAudit) {
+      await this.logOrderStatusActivity(
+        Number(id),
+        statusAudit.oldStatus,
+        statusAudit.newStatus,
+        auditActor?.actorName || 'Admin',
+        auditActor?.actorId,
+        auditActor?.ipAddress,
+        'admin sales edit',
+        statusAudit.extraNewValue,
+      );
+    }
     if (shouldDispatchApproved) {
       await this.unassignFromPrimaryLeadTeam(Number(id));
     }

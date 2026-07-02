@@ -1198,15 +1198,25 @@ export class OrderManagementService {
     }
 
     const oldStatus = order.status;
+    const changedAt = new Date();
     order.status = newStatus;
     if (newStatus === 'approved' && !order.approvedAt) {
       order.approvedBy = userId;
-      order.approvedAt = new Date();
+      order.approvedAt = changedAt;
+    }
+    if (['sent', 'shipped', 'picked', 'in_transit'].includes(newStatus) && !order.shippedAt) {
+      order.shippedAt = changedAt;
+    }
+    if (['delivered', 'partial_delivered', 'completed'].includes(newStatus) && !order.deliveredAt) {
+      order.deliveredAt = changedAt;
     }
     if (newStatus === 'admin_cancelled') {
       order.cancelReason = String(cancelReason || '').trim();
       order.cancelledBy = userId;
-      order.cancelledAt = new Date();
+      order.cancelledAt = changedAt;
+    } else if (['cancelled', 'pickup_failed'].includes(newStatus) && !order.cancelledAt) {
+      order.cancelledBy = userId;
+      order.cancelledAt = changedAt;
     }
     const updatedOrder = await this.salesOrderRepository.save(order);
     if (newStatus === 'approved') {
@@ -1222,7 +1232,10 @@ export class OrderManagementService {
       actorId: userId,
       ipAddress,
       source: 'manual update',
-      extraNewValue: newStatus === 'admin_cancelled' ? { cancelReason: order.cancelReason } : undefined,
+      extraNewValue: {
+        changedAt: changedAt.toISOString(),
+        ...(newStatus === 'admin_cancelled' ? { cancelReason: order.cancelReason } : {}),
+      },
     });
 
     if (oldStatus !== newStatus) {

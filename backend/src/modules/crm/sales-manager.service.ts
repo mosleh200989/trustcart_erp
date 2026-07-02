@@ -24,7 +24,6 @@ export class SalesManagerService implements OnModuleInit {
   private scheduledLeadAssignmentSchemaReady?: Promise<void>;
   private customerProductSuggestionsSchemaReady?: Promise<void>;
   private leadFilterIndexesReady?: Promise<void>;
-  private lastInlineScheduledLeadProcessingAt = 0;
 
   constructor(
     @InjectRepository(Customer)
@@ -240,6 +239,10 @@ export class SalesManagerService implements OnModuleInit {
         `CREATE INDEX IF NOT EXISTS idx_customer_engagement_customer_type ON customer_engagement_history(customer_id, engagement_type)`,
         `CREATE INDEX IF NOT EXISTS idx_customer_engagement_customer_created ON customer_engagement_history(customer_id, created_at)`,
         `CREATE INDEX IF NOT EXISTS idx_activities_customer_type ON activities(customer_id, type)`,
+        `CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_customer_engagement_customer_type_created ON customer_engagement_history(customer_id, engagement_type, created_at)`,
+        `CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_activities_customer_type_created ON activities(customer_id, type, created_at)`,
+        `CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_telephony_logs_record_order_called ON telephony_assignment_call_logs(record_type, order_id, called_at, created_at)`,
+        `CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_order_activity_logs_order_action_created ON order_activity_logs(order_id, action_type, created_at)`,
         `CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_customer_tiers_tier_customer ON customer_tiers(tier, customer_id)`,
         `CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_customer_tiers_customer_assigned_at ON customer_tiers(customer_id, tier_assigned_at)`,
         `CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_sales_orders_customer_order_dates ON sales_orders(customer_id, order_date, created_at)`,
@@ -684,6 +687,86 @@ export class SalesManagerService implements OnModuleInit {
     return lastCallByCustomerId;
   }
 
+  private getCustomerCallExistsSql(
+    customerAlias = 'c',
+    datePredicate?: (callAtSql: string) => string,
+  ) {
+    const customerId = `${customerAlias}.id`;
+    const customerPhone = `${customerAlias}.phone`;
+    const extra = (callAtSql: string) => (datePredicate ? ` AND ${datePredicate(callAtSql)}` : '');
+
+    return `(
+      (
+        ${customerAlias}.last_contact_date IS NOT NULL
+        ${extra(`${customerAlias}.last_contact_date::timestamp`)}
+      )
+      OR EXISTS (
+        SELECT 1
+        FROM crm_call_tasks t
+        WHERE COALESCE(t.completed_at, t.updated_at, t.created_at) IS NOT NULL
+          AND (t.customer_id = ${customerId}::text OR t.customer_id = ${customerPhone})
+          ${extra(`COALESCE(t.completed_at, t.updated_at, t.created_at)::timestamp`)}
+      )
+      OR EXISTS (
+        SELECT 1
+        FROM customer_engagement_history eh
+        WHERE eh.created_at IS NOT NULL
+          AND eh.engagement_type IN ('call', 'follow_up_call', 'phone_call')
+          AND (eh.customer_id = ${customerId}::text OR eh.customer_id = ${customerPhone})
+          ${extra(`eh.created_at::timestamp`)}
+      )
+      OR EXISTS (
+        SELECT 1
+        FROM activities a
+        WHERE a.created_at IS NOT NULL
+          AND a.type = 'call'
+          AND a.customer_id = ${customerId}
+          ${extra(`a.created_at::timestamp`)}
+      )
+      OR EXISTS (
+        SELECT 1
+        FROM telephony_assignment_call_logs tl
+        INNER JOIN sales_orders so_log ON so_log.id = tl.order_id
+        WHERE tl.record_type = 'sales_order'
+          AND COALESCE(tl.called_at, tl.created_at) IS NOT NULL
+          AND (so_log.customer_id = ${customerId} OR so_log.customer_phone = ${customerPhone})
+          ${extra(`COALESCE(tl.called_at, tl.created_at)::timestamp`)}
+      )
+      OR EXISTS (
+        SELECT 1
+        FROM telephony_assignment_call_logs tli
+        INNER JOIN incomplete_orders io_log ON io_log.id = tli.order_id
+        WHERE tli.record_type = 'incomplete_order'
+          AND COALESCE(tli.called_at, tli.created_at) IS NOT NULL
+          AND (io_log.customer_id = ${customerId} OR io_log.phone = ${customerPhone})
+          ${extra(`COALESCE(tli.called_at, tli.created_at)::timestamp`)}
+      )
+      OR EXISTS (
+        SELECT 1
+        FROM order_activity_logs oal
+        INNER JOIN sales_orders so_activity ON so_activity.id = oal.order_id
+        WHERE oal.action_type = 'telephony_call_logged'
+          AND oal.created_at IS NOT NULL
+          AND (so_activity.customer_id = ${customerId} OR so_activity.customer_phone = ${customerPhone})
+          ${extra(`oal.created_at::timestamp`)}
+      )
+      OR EXISTS (
+        SELECT 1
+        FROM sales_orders so_telephony
+        WHERE so_telephony.telephony_called_at IS NOT NULL
+          AND (so_telephony.customer_id = ${customerId} OR so_telephony.customer_phone = ${customerPhone})
+          ${extra(`so_telephony.telephony_called_at::timestamp`)}
+      )
+      OR EXISTS (
+        SELECT 1
+        FROM incomplete_orders io_telephony
+        WHERE io_telephony.telephony_called_at IS NOT NULL
+          AND (io_telephony.customer_id = ${customerId} OR io_telephony.phone = ${customerPhone})
+          ${extra(`io_telephony.telephony_called_at::timestamp`)}
+      )
+    )`;
+  }
+
   async scheduleLeadAssignmentAction(input: {
     customerIds: number[];
     action: 'assign' | 'unassign';
@@ -818,67 +901,77 @@ export class SalesManagerService implements OnModuleInit {
       date.setUTCDate(date.getUTCDate() - days);
       return date.toISOString().slice(0, 10);
     };
-    const lastCallAtSql = this.getCustomerLastCallAtSql('c');
-    const lastCallDateSql = `DATE(${lastCallAtSql})`;
+
+    const hasAnyCallSql = this.getCustomerCallExistsSql('c');
+    const hasCallOnDateSql = (paramName: string) =>
+      this.getCustomerCallExistsSql('c', (callAtSql) => `DATE(${callAtSql}) = CAST(:${paramName} AS date)`);
+    const hasCallOnOrAfterSql = (paramName: string) =>
+      this.getCustomerCallExistsSql('c', (callAtSql) => `DATE(${callAtSql}) >= CAST(:${paramName} AS date)`);
+    const hasCallInRangeSql = (startParam: string, endParam: string) =>
+      this.getCustomerCallExistsSql(
+        'c',
+        (callAtSql) => `DATE(${callAtSql}) >= CAST(:${startParam} AS date) AND DATE(${callAtSql}) < CAST(:${endParam} AS date)`,
+      );
 
     switch (calledStatus) {
       case 'called':
-        qb.andWhere(`${lastCallAtSql} IS NOT NULL`);
+        qb.andWhere(hasAnyCallSql);
         break;
       case 'called_today':
-        qb.andWhere(`${lastCallDateSql} = CAST(:lastCallToday AS date)`, {
+        qb.andWhere(hasCallOnDateSql('lastCallToday'), {
           lastCallToday: today,
         });
         break;
       case 'called_yesterday':
-        qb.andWhere(`${lastCallDateSql} = CAST(:lastCallYesterday AS date)`, {
+        qb.andWhere(hasCallOnDateSql('lastCallYesterday'), {
           lastCallYesterday: daysAgo(1),
-        });
+        }).andWhere(`NOT ${hasCallOnOrAfterSql('lastCallToday')}`, { lastCallToday: today });
         break;
       case 'called_1week':
-        qb.andWhere(`${lastCallDateSql} >= CAST(:lastCall1wStart AS date) AND ${lastCallDateSql} < CAST(:lastCall1wEnd AS date)`, {
+        qb.andWhere(hasCallInRangeSql('lastCall1wStart', 'lastCall1wEnd'), {
           lastCall1wStart: daysAgo(13),
           lastCall1wEnd: daysAgo(6),
-        });
+        }).andWhere(`NOT ${hasCallOnOrAfterSql('lastCall1wEnd')}`, { lastCall1wEnd: daysAgo(6) });
         break;
       case 'called_2weeks':
-        qb.andWhere(`${lastCallDateSql} >= CAST(:lastCall2wStart AS date) AND ${lastCallDateSql} < CAST(:lastCall2wEnd AS date)`, {
+        qb.andWhere(hasCallInRangeSql('lastCall2wStart', 'lastCall2wEnd'), {
           lastCall2wStart: daysAgo(20),
           lastCall2wEnd: daysAgo(13),
-        });
+        }).andWhere(`NOT ${hasCallOnOrAfterSql('lastCall2wEnd')}`, { lastCall2wEnd: daysAgo(13) });
         break;
       case 'called_3weeks':
-        qb.andWhere(`${lastCallDateSql} >= CAST(:lastCall3wStart AS date) AND ${lastCallDateSql} < CAST(:lastCall3wEnd AS date)`, {
+        qb.andWhere(hasCallInRangeSql('lastCall3wStart', 'lastCall3wEnd'), {
           lastCall3wStart: daysAgo(27),
           lastCall3wEnd: daysAgo(20),
-        });
+        }).andWhere(`NOT ${hasCallOnOrAfterSql('lastCall3wEnd')}`, { lastCall3wEnd: daysAgo(20) });
         break;
       case 'called_1month':
-        qb.andWhere(`${lastCallDateSql} >= CAST(:lastCall1mStart AS date) AND ${lastCallDateSql} < CAST(:lastCall1mEnd AS date)`, {
+        qb.andWhere(hasCallInRangeSql('lastCall1mStart', 'lastCall1mEnd'), {
           lastCall1mStart: daysAgo(59),
           lastCall1mEnd: daysAgo(27),
-        });
+        }).andWhere(`NOT ${hasCallOnOrAfterSql('lastCall1mEnd')}`, { lastCall1mEnd: daysAgo(27) });
         break;
       case 'called_2months':
-        qb.andWhere(`${lastCallDateSql} >= CAST(:lastCall2mStart AS date) AND ${lastCallDateSql} < CAST(:lastCall2mEnd AS date)`, {
+        qb.andWhere(hasCallInRangeSql('lastCall2mStart', 'lastCall2mEnd'), {
           lastCall2mStart: daysAgo(89),
           lastCall2mEnd: daysAgo(59),
-        });
+        }).andWhere(`NOT ${hasCallOnOrAfterSql('lastCall2mEnd')}`, { lastCall2mEnd: daysAgo(59) });
         break;
       case 'called_3months_plus':
-        qb.andWhere(`${lastCallDateSql} < CAST(:lastCall3mEnd AS date)`, { lastCall3mEnd: daysAgo(89) });
+        qb.andWhere(hasAnyCallSql)
+          .andWhere(`NOT ${hasCallOnOrAfterSql('lastCall3mEnd')}`, { lastCall3mEnd: daysAgo(89) });
         break;
       case 'not_called':
       case 'not_called_today':
-        qb.andWhere(`(${lastCallAtSql} IS NULL OR ${lastCallDateSql} < CAST(:lastCallToday AS date))`, { lastCallToday: today });
+        qb.andWhere(`NOT ${hasCallOnOrAfterSql('lastCallToday')}`, { lastCallToday: today });
         break;
       case 'not_called_week':
-        qb.andWhere(`(${lastCallAtSql} IS NULL OR ${lastCallDateSql} < CAST(:lastCallWeekAgo AS date))`, {
+        qb.andWhere(`NOT ${hasCallOnOrAfterSql('lastCallWeekAgo')}`, {
           lastCallWeekAgo: daysAgo(6),
         });
         break;
       case 'never':
-        qb.andWhere(`${lastCallAtSql} IS NULL`);
+        qb.andWhere(`NOT ${hasAnyCallSql}`);
         break;
     }
   }
@@ -1961,13 +2054,6 @@ export class SalesManagerService implements OnModuleInit {
     void this.ensureLeadFilterIndexes().catch((error: any) => {
       console.warn('[SalesManagerService] Lead filter index warm-up failed:', error?.message || error);
     });
-    if (Date.now() - this.lastInlineScheduledLeadProcessingAt > 30000) {
-      this.lastInlineScheduledLeadProcessingAt = Date.now();
-      void this.processDueScheduledLeadAssignments(100).catch((error: any) => {
-        console.warn('[SalesManagerService] Inline scheduled lead assignment processing failed:', error?.message || error);
-      });
-    }
-
     const page = parseInt(query.page) || 1;
     const requestedLimit = parseInt(query.limit) || 50;
     const limit = Math.max(1, Math.min(requestedLimit, 2000));
@@ -1990,6 +2076,22 @@ export class SalesManagerService implements OnModuleInit {
       )))
       FROM sales_orders so_last_order
       WHERE so_last_order.customer_id = c.id
+    )`;
+    const deliveryTimestampSql = (orderAlias: string) => `COALESCE(
+      ${orderAlias}.delivered_at,
+      (
+        SELECT MAX(cth.updated_at)
+        FROM courier_tracking_history cth
+        WHERE cth.order_id = ${orderAlias}.id
+          AND LOWER(cth.status::text) LIKE '%delivered%'
+      ),
+      (
+        SELECT MAX(oal.created_at)
+        FROM order_activity_logs oal
+        WHERE oal.order_id = ${orderAlias}.id
+          AND oal.action_type IN ('status_changed', 'courier_status_webhook', 'courier_status_synced', 'courier_status_updated')
+          AND LOWER(COALESCE(oal.new_value->>'status', '')) = 'delivered'
+      )
     )`;
 
     const qb = this.customerRepository.createQueryBuilder('c')
@@ -2025,17 +2127,7 @@ export class SalesManagerService implements OnModuleInit {
       )
       .addSelect(
         `(
-          SELECT MAX(DATE(COALESCE(
-            so_delivered.delivered_at,
-            (
-              SELECT MAX(cth.updated_at)
-              FROM courier_tracking_history cth
-              WHERE cth.order_id = so_delivered.id
-                AND LOWER(cth.status) = 'delivered'
-            ),
-            so_delivered.order_date::timestamp,
-            so_delivered.created_at AT TIME ZONE 'Asia/Dhaka'
-          )))
+          SELECT MAX(DATE(${deliveryTimestampSql('so_delivered')}))
           FROM sales_orders so_delivered
           WHERE so_delivered.customer_id = c.id
             AND LOWER(so_delivered.status::text) = 'delivered'
@@ -2148,15 +2240,19 @@ export class SalesManagerService implements OnModuleInit {
 
     const tagId = String(query.tagId || query.customerTagId || '').trim();
     if (tagId) {
-      qb.andWhere(
-        `EXISTS (
-          SELECT 1
-          FROM customer_tag_assignments cta
-          WHERE cta.customer_id = c.id
-            AND cta.tag_id = :tagId
-        )`,
-        { tagId },
-      );
+      if (/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(tagId)) {
+        qb.andWhere(
+          `EXISTS (
+            SELECT 1
+            FROM customer_tag_assignments cta
+            WHERE cta.customer_id = c.id
+              AND cta.tag_id = :tagId
+          )`,
+          { tagId },
+        );
+      } else {
+        qb.andWhere('1 = 0');
+      }
     }
 
     // Tier filter — join customer_tiers table
@@ -2222,17 +2318,7 @@ export class SalesManagerService implements OnModuleInit {
       qb.andWhere(lastOrderDateConditions.join(' AND '), lastOrderDateParams);
     }
 
-    const deliveryDateExpr = `DATE(COALESCE(
-      so_delivery.delivered_at,
-      (
-        SELECT MAX(cth.updated_at)
-        FROM courier_tracking_history cth
-        WHERE cth.order_id = so_delivery.id
-          AND LOWER(cth.status) = 'delivered'
-      ),
-      so_delivery.order_date::timestamp,
-      so_delivery.created_at AT TIME ZONE 'Asia/Dhaka'
-    ))`;
+    const deliveryDateExpr = `DATE(${deliveryTimestampSql('so_delivery')})`;
     const deliveryDateStart = String(query.deliveryDateStart || query.deliveryFrom || query.deliveryDate || '').trim();
     const deliveryDateEnd = String(query.deliveryDateEnd || query.deliveryTo || query.deliveryDate || '').trim();
     if (deliveryDateStart || deliveryDateEnd) {
