@@ -355,7 +355,7 @@ export default function AdminSales() {
       const agents = Array.isArray(res.data) ? res.data : [];
       setAssignmentAgents(agents);
       if (options?.showError && agents.length === 0) {
-        toast.warning('No assignable Sales Executives found for your account');
+        toast.warning('No assignable agents found for your account');
       }
       return agents;
     } catch (error: any) {
@@ -1701,7 +1701,7 @@ export default function AdminSales() {
               </div>
             ) : !assignmentAgentsLoading && assignmentAgents.length === 0 ? (
               <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-                No active Sales Executives are available for assignment.
+                No active agents are available for assignment.
               </div>
             ) : null}
 
