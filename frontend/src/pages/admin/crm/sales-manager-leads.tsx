@@ -161,6 +161,9 @@ const SalesManagerLeadAssignment = () => {
   const [totalPages, setTotalPages] = useState(1);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [filtersPending, setFiltersPending] = useState(false);
+  const [leadLoadError, setLeadLoadError] = useState('');
   const [teamLeaders, setTeamLeaders] = useState<TeamLeader[]>([]);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [tags, setTags] = useState<CustomerTag[]>([]);
@@ -272,7 +275,13 @@ const SalesManagerLeadAssignment = () => {
     leadsAbortRef.current?.abort();
     const abortController = new AbortController();
     leadsAbortRef.current = abortController;
-    if (!options?.silent) setLoading(true);
+    setLeadLoadError('');
+    if (options?.silent) {
+      setRefreshing(true);
+    } else {
+      setLoading(true);
+    }
+    setFiltersPending(false);
     try {
       const params = new URLSearchParams({
         page: String(pg),
@@ -326,9 +335,15 @@ const SalesManagerLeadAssignment = () => {
     } catch (error: any) {
       if (requestId !== leadsRequestRef.current) return;
       if (error?.name === 'CanceledError' || error?.code === 'ERR_CANCELED') return;
+      const message = error?.response?.data?.message || error?.message || 'Failed to load leads';
+      setLeadLoadError(String(message));
       toast.error('Failed to load leads');
     } finally {
-      if (requestId === leadsRequestRef.current) setLoading(false);
+      if (requestId === leadsRequestRef.current) {
+        setLoading(false);
+        setRefreshing(false);
+        setFiltersPending(false);
+      }
       if (leadsAbortRef.current === abortController) leadsAbortRef.current = null;
     }
   }, [search, assignmentStatus, tierFilter, tlFilter, agentFilter, lifecycleFilter, productFilter, lastOrderStartFilter, lastOrderEndFilter, deliveryStartFilter, deliveryEndFilter, tierUpdatedFromFilter, tierUpdatedToFilter, assignedFromFilter, assignedToFilter, addressFilter, noteSearchFilter, segmentFilter, rejectedStatusFilter, lastCallFilter, tagFilter, callOutcomeFilter, productSuggestionFilter, orderRejectedReasonFilter, scheduledAssignmentStatusFilter, scheduledAssignmentActionFilter, scheduledAssignmentAgentFilter, scheduledFromFilter, scheduledToFilter, rowsPerPage, toast]);
@@ -389,6 +404,7 @@ const SalesManagerLeadAssignment = () => {
     }
     if (filtersTimer.current) clearTimeout(filtersTimer.current);
     const filtersChanged = lastFilterSignatureRef.current !== filterSignature;
+    if (filtersChanged) setFiltersPending(true);
     filtersTimer.current = setTimeout(() => {
       if (filtersChanged) {
         lastFilterSignatureRef.current = filterSignature;
@@ -704,6 +720,9 @@ const SalesManagerLeadAssignment = () => {
       minute: '2-digit',
     });
   };
+
+  const tableUpdating = refreshing || filtersPending;
+  const statusText = filtersPending ? 'Waiting to apply filters...' : refreshing ? 'Applying filters...' : '';
 
   return (
     <AdminLayout>
@@ -1097,11 +1116,18 @@ const SalesManagerLeadAssignment = () => {
               onChange={setRowsPerPage}
               options={ROWS_OPTIONS}
             />
+            {tableUpdating && (
+              <div className="inline-flex items-center gap-2 rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-medium text-indigo-700">
+                <span className="h-3 w-3 rounded-full border-2 border-indigo-200 border-t-indigo-600 animate-spin" />
+                {statusText}
+              </div>
+            )}
             <button
-              onClick={() => fetchLeads(page, { silent: true })}
-              className="bg-indigo-600 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors"
+              onClick={() => fetchLeads(1, { silent: true })}
+              disabled={tableUpdating}
+              className="bg-indigo-600 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-wait transition-colors"
             >
-              Apply Filters
+              {tableUpdating ? 'Applying...' : 'Apply Filters'}
             </button>
           </div>
         </div>
@@ -1167,7 +1193,24 @@ const SalesManagerLeadAssignment = () => {
         )}
 
         {/* Table */}
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden relative">
+          {tableUpdating && !loading && (
+            <div className="absolute inset-x-0 top-0 z-20 flex items-center gap-2 border-b border-indigo-100 bg-white/95 px-5 py-2 text-sm font-medium text-indigo-700 shadow-sm">
+              <span className="h-4 w-4 rounded-full border-2 border-indigo-200 border-t-indigo-600 animate-spin" />
+              {statusText}
+            </div>
+          )}
+          {leadLoadError && !loading && leads.length > 0 && !tableUpdating && (
+            <div className="flex items-center justify-between gap-3 border-b border-red-100 bg-red-50 px-5 py-2 text-sm text-red-700">
+              <span>Could not refresh leads. The table is still showing the previous result.</span>
+              <button
+                onClick={() => fetchLeads(page)}
+                className="rounded-md bg-red-600 px-3 py-1 text-xs font-medium text-white hover:bg-red-700"
+              >
+                Retry
+              </button>
+            </div>
+          )}
           {loading ? (
             <div className="flex items-center justify-center py-20 text-gray-500">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mr-3" />
@@ -1175,7 +1218,7 @@ const SalesManagerLeadAssignment = () => {
             </div>
           ) : (
             <>
-              <div className="overflow-x-auto">
+              <div className={`overflow-x-auto transition-opacity ${tableUpdating ? 'opacity-55 pointer-events-none' : 'opacity-100'}`}>
                 <table className="min-w-full divide-y divide-gray-100">
                   <thead className="bg-gray-50">
                     <tr>
@@ -1332,7 +1375,20 @@ const SalesManagerLeadAssignment = () => {
                         </tr>
                       );
                     })}
-                    {leads.length === 0 && (
+                    {leadLoadError && leads.length === 0 ? (
+                      <tr>
+                        <td colSpan={12} className="text-center py-16">
+                          <div className="font-semibold text-red-600">Failed to load leads</div>
+                          <div className="mt-1 text-sm text-gray-500">{leadLoadError}</div>
+                          <button
+                            onClick={() => fetchLeads(page)}
+                            className="mt-4 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+                          >
+                            Retry
+                          </button>
+                        </td>
+                      </tr>
+                    ) : leads.length === 0 && (
                       <tr>
                         <td colSpan={12} className="text-center py-16 text-gray-400">
                           No leads found. Try adjusting your filters.
