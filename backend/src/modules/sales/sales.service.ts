@@ -87,6 +87,23 @@ export class SalesService {
     );
   }
 
+  private assignableSalesAgentSql(userAlias: string) {
+    return `(
+      ${this.salesExecutiveRoleSql(userAlias)}
+      OR ${this.userHasRoleSql(
+        userAlias,
+        (roleAlias) => `LOWER(COALESCE(${roleAlias}.slug, '')) IN ('sales-agent', 'agent', 'executive')
+          OR LOWER(COALESCE(${roleAlias}.slug, '')) LIKE '%sales-executive%'
+          OR LOWER(COALESCE(${roleAlias}.slug, '')) LIKE '%sales-agent%'
+          OR LOWER(COALESCE(${roleAlias}.name, '')) IN ('sales agent', 'agent', 'executive')
+          OR LOWER(COALESCE(${roleAlias}.name, '')) LIKE '%sales executive%'
+          OR LOWER(COALESCE(${roleAlias}.name, '')) LIKE '%sales agent%'
+          OR LOWER(COALESCE(${roleAlias}.name, '')) LIKE '%executive%'`,
+      )}
+      OR ${userAlias}.team_leader_id IS NOT NULL
+    )`;
+  }
+
   private salesTeamLeaderRoleSql(userAlias: string) {
     return this.userHasRoleSql(
       userAlias,
@@ -1376,20 +1393,20 @@ export class SalesService {
 
   private async assertAgentAssignableToUser(agentId: number, user: any) {
     const access = await this.getAssignedOrdersAccess(user);
-    const rows: Array<{ id: number; team_leader_id: number | null; is_sales_executive: boolean }> =
+    const rows: Array<{ id: number; team_leader_id: number | null; is_assignable_agent: boolean }> =
       await this.salesRepository.manager.query(
-        `SELECT u.id, u.team_leader_id, ${this.salesExecutiveRoleSql('u')} AS is_sales_executive
+        `SELECT u.id, u.team_leader_id, ${this.assignableSalesAgentSql('u')} AS is_assignable_agent
          FROM users u
          WHERE u.id = $1
            AND COALESCE(u.is_deleted, false) = false
-           AND LOWER(COALESCE(u.status::text, '')) = 'active'
+           AND (u.status IS NULL OR LOWER(u.status::text) = 'active')
          LIMIT 1`,
         [agentId],
       );
 
     const agent = rows[0];
-    if (!agent || agent.is_sales_executive !== true) {
-      throw new BadRequestException('Selected agent is not an active Sales Executive');
+    if (!agent || agent.is_assignable_agent !== true) {
+      throw new BadRequestException('Selected user is not an active assignable agent');
     }
     if (access.hasManage && access.canViewAll) return;
     if (access.hasManage && access.canViewTeam && Number(agent.team_leader_id) === access.userId) return;
@@ -2268,8 +2285,8 @@ export class SalesService {
           `SELECT id, name, last_name, email, team_leader_id
            FROM users
            WHERE id = $1
-             AND is_deleted = false
-             AND status = 'active'`,
+             AND COALESCE(is_deleted, false) = false
+             AND (status IS NULL OR LOWER(status::text) = 'active')`,
           [access.userId],
         );
 
@@ -2286,8 +2303,8 @@ export class SalesService {
     const queryParams: any[] = [];
     const whereParts = [
       `COALESCE(u.is_deleted, false) = false`,
-      `LOWER(COALESCE(u.status::text, '')) = 'active'`,
-      this.salesExecutiveRoleSql('u'),
+      `(u.status IS NULL OR LOWER(u.status::text) = 'active')`,
+      this.assignableSalesAgentSql('u'),
     ];
 
     if (access.canViewTeam && access.isTeamLeader && !access.canViewAll) {
