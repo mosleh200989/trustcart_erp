@@ -87,7 +87,6 @@ const STATUS_OPTIONS = [
   { value: 'in_transit', label: 'In Transit' },
   { value: 'hold', label: 'Hold' },
   { value: 'unknown', label: 'Unknown' },
-  { value: 'pickup_failed', label: 'Pickup Failed' },
 ];
 
 const CANCELLED_STATUS_OPTIONS = [

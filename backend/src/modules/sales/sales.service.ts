@@ -2548,6 +2548,7 @@ export class SalesService {
           'partial_delivered',
           'cancelled',
           'admin_cancelled',
+          'pickup_failed',
           'returned',
         ],
       })
