@@ -181,7 +181,7 @@ const VESHOJ_DEFAULT_SECTIONS: LandingPageSection[] = [
     type: 'custom-html',
     title: 'খাওয়ার নিয়ম ও সময়',
     content:
-      '<p><strong>প্রতিদিন -</strong></p><p>সকাল, দুপুর এবং রাতের খাবারের ৩০ মিনিট পর ২ টা করে বড়ি সেবন করতে হবে।</p><p><strong>বি. দ্র:</strong> ঠান্ডা পানি, অতিরিক্ত ঝাল-মিষ্টি ও তেলযুক্ত খাবার খাওয়া থেকে বিরত থাকতে হবে।</p>',
+      '<div class="veshoj-usage-main">প্রতিদিন - সকাল, দুপুর এবং রাতের খাবারের ৩০ মিনিট পর ২ টা করে বড়ি সেবন করতে হবে। রুচিলতা সেবনের নিয়ম: প্রতিদিন সকাল ও রাতে আধা চামচ রুচিলতা আধা গ্লাস পানিতে মিশিয়ে পান করুন।</div><div class="veshoj-usage-note">বি. দ্র: ঠান্ডা পানি, অতিরিক্ত ঝাল-মিষ্টি ও তেলযুক্ত খাবার খাওয়া থেকে বিরত থাকতে হবে।</div><div class="veshoj-usage-safe">আপনার ব্যবহারের জন্য সম্পূর্ণ নিরাপদ ও পরীক্ষিত – এখনই নিশ্চিত ব্যবহার করুন।</div>',
     order: 4,
     is_visible: true,
   },
@@ -642,6 +642,25 @@ export default function VeshojTemplate({ page, trafficSource = 'landing_page' }:
       );
     }
 
+    if (section.id === 'veshoj-usage') {
+      return (
+        <section key={section.id} className="veshoj-section veshoj-usage-section">
+          {section.title && (
+            <div className="veshoj-usage-heading">
+              <h2>{section.title}</h2>
+            </div>
+          )}
+          {section.content && (
+            <div
+              className="veshoj-usage-content"
+              dangerouslySetInnerHTML={{ __html: section.content }}
+            />
+          )}
+          {renderSectionButton(section)}
+        </section>
+      );
+    }
+
     if (section.type === 'custom-html' && (section.videoUrl || section.images?.length)) {
       const titleAboveVideo = section.videoTitlePosition === 'above-video';
       return (
@@ -838,6 +857,56 @@ export default function VeshojTemplate({ page, trafficSource = 'landing_page' }:
         }
         .veshoj-rich-text p {
           margin: 8px 0;
+        }
+        .veshoj-usage-section {
+          margin: 26px 0 16px;
+        }
+        .veshoj-usage-heading {
+          display: inline-flex;
+          justify-content: center;
+          max-width: 100%;
+          margin: 0 auto 18px;
+          padding: 2px 14px 6px;
+          border-radius: 9px;
+          background: ${primaryColor};
+          text-align: center;
+        }
+        .veshoj-usage-heading h2 {
+          margin: 0;
+          color: #ffffff;
+          font-size: clamp(30px, 5.2vw, 44px);
+          font-weight: 800;
+          line-height: 1.12;
+        }
+        .veshoj-usage-content {
+          text-align: center;
+          color: #000000;
+          font-weight: 700;
+        }
+        .veshoj-usage-main,
+        .veshoj-usage-content > p:first-child {
+          padding: 20px 26px 10px;
+          background: #fde7f6;
+          font-size: clamp(19px, 2.9vw, 25px);
+          line-height: 1.08;
+          font-weight: 700;
+        }
+        .veshoj-usage-note,
+        .veshoj-usage-content > p:nth-child(2) {
+          padding: 6px 26px 18px;
+          background: #fde7f6;
+          color: ${primaryColor};
+          font-size: clamp(17px, 2.5vw, 21px);
+          line-height: 1.2;
+          font-weight: 800;
+        }
+        .veshoj-usage-safe,
+        .veshoj-usage-content > p:nth-child(3) {
+          margin: 7px 0 0;
+          color: #000000;
+          font-size: clamp(16px, 2.4vw, 20px);
+          line-height: 1.25;
+          font-weight: 800;
         }
         .veshoj-check-list {
           display: grid;
