@@ -3,10 +3,20 @@ import Head from 'next/head';
 import apiClient from '@/services/api';
 import PhoneInput from '@/components/PhoneInput';
 import { useToast } from '@/contexts/ToastContext';
+import {
+  BANGLADESH_DISTRICTS,
+  BangladeshDistrict,
+  districtLabel,
+  findDistrictInText,
+  getDistrictSearchValues,
+  isDhakaDistrictText,
+  normalizeDistrictText,
+} from '@/utils/bangladeshDistricts';
 import { getOrderGuardNoteHtml, isOrderGuardBlocked } from '@/utils/orderGuard';
 import { TrackingService } from '@/utils/tracking';
 import {
   FaCheckCircle,
+  FaExclamationTriangle,
   FaMinus,
   FaPhone,
   FaPlayCircle,
@@ -258,6 +268,8 @@ function getYouTubeEmbedUrl(url?: string) {
 
 export default function VeshojTemplate({ page, trafficSource = 'landing_page' }: VeshojTemplateProps) {
   const orderFormRef = useRef<HTMLDivElement>(null);
+  const districtDropdownRef = useRef<HTMLDivElement>(null);
+  const touchedRef = useRef<Record<string, boolean>>({});
   const toast = useToast();
 
   const brandLogo = page.hero_image_url || `${VESHOJ_ASSET_BASE}/2025/04/veshoj-logo-new-scaled.png`;
@@ -306,8 +318,10 @@ export default function VeshojTemplate({ page, trafficSource = 'landing_page' }:
   }, [heroVideoSection, visibleSections]);
 
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
-  const [orderForm, setOrderForm] = useState({ name: '', phone: '', address: '', note: '' });
+  const [orderForm, setOrderForm] = useState({ name: '', phone: '', address: '', district: '', note: '' });
   const [deliveryZone, setDeliveryZone] = useState<'inside' | 'outside'>('outside');
+  const [districtDropdownOpen, setDistrictDropdownOpen] = useState(false);
+  const [districtQuery, setDistrictQuery] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [formTouched, setFormTouched] = useState(false);
@@ -337,6 +351,66 @@ export default function VeshojTemplate({ page, trafficSource = 'landing_page' }:
     }
   }, [orderForm.address]);
 
+  useEffect(() => {
+    if (touchedRef.current.district || !orderForm.address.trim()) return;
+
+    const detectedDistrict = findDistrictInText(orderForm.address);
+    if (!detectedDistrict) return;
+
+    const nextDistrict = districtLabel(detectedDistrict);
+    setOrderForm((prev) => {
+      if (prev.district === nextDistrict) return prev;
+      return { ...prev, district: nextDistrict };
+    });
+    setDistrictQuery(nextDistrict);
+  }, [orderForm.address]);
+
+  useEffect(() => {
+    const locationText = `${orderForm.address} ${orderForm.district}`.trim();
+    if (isDhakaDistrictText(locationText)) {
+      setDeliveryZone('inside');
+    } else if (locationText.length > 10 || orderForm.district.trim()) {
+      setDeliveryZone('outside');
+    }
+  }, [orderForm.address, orderForm.district]);
+
+  useEffect(() => {
+    if (!districtDropdownOpen) {
+      setDistrictQuery(orderForm.district);
+    }
+  }, [districtDropdownOpen, orderForm.district]);
+
+  useEffect(() => {
+    const handleOutsideClick = (event: MouseEvent) => {
+      if (!districtDropdownRef.current?.contains(event.target as Node)) {
+        setDistrictDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, []);
+
+  const districtSearch = normalizeDistrictText(districtQuery);
+  const filteredDistricts = useMemo(() => {
+    return BANGLADESH_DISTRICTS.filter((district) => {
+      if (!districtSearch) return true;
+      const searchableValues = getDistrictSearchValues(district);
+      return (
+        searchableValues.some((value) => value.includes(districtSearch)) ||
+        searchableValues.some((value) => districtSearch.includes(value))
+      );
+    }).slice(0, 10);
+  }, [districtSearch]);
+
+  const selectDistrict = (district: BangladeshDistrict) => {
+    const selectedDistrict = districtLabel(district);
+    touchedRef.current.district = true;
+    setDistrictQuery(selectedDistrict);
+    setOrderForm((prev) => ({ ...prev, district: selectedDistrict }));
+    setDistrictDropdownOpen(false);
+  };
+
   const getSubtotal = useCallback(() => {
     return orderItems.reduce((sum, item) => sum + Number(item.product.price || 0) * item.quantity, 0);
   }, [orderItems]);
@@ -353,7 +427,7 @@ export default function VeshojTemplate({ page, trafficSource = 'landing_page' }:
   const trackIncompleteOrder = useCallback(
     (stage: string) => {
       if (!page || submitted) return;
-      const hasAnyData = orderForm.name || orderForm.phone || orderForm.address;
+      const hasAnyData = orderForm.name || orderForm.phone || orderForm.address || orderForm.district;
       if (!hasAnyData) return;
       if (trackingTimerRef.current) clearTimeout(trackingTimerRef.current);
 
@@ -363,7 +437,7 @@ export default function VeshojTemplate({ page, trafficSource = 'landing_page' }:
             sessionId: sessionIdRef.current,
             name: orderForm.name || null,
             phone: orderForm.phone || null,
-            address: orderForm.address || null,
+            address: [orderForm.address, orderForm.district].filter(Boolean).join(', ') || null,
             note: orderForm.note || null,
             email: null,
             source: trafficSource,
@@ -392,7 +466,7 @@ export default function VeshojTemplate({ page, trafficSource = 'landing_page' }:
 
   useEffect(() => {
     if (!page || submitted) return;
-    const stage = orderForm.name && orderForm.phone && orderForm.address
+    const stage = orderForm.name && orderForm.phone && orderForm.address && orderForm.district
       ? 'form_filled'
       : orderForm.phone
         ? 'phone_entered'
@@ -400,7 +474,7 @@ export default function VeshojTemplate({ page, trafficSource = 'landing_page' }:
           ? 'name_entered'
           : 'form_started';
     trackIncompleteOrder(stage);
-  }, [orderForm.name, orderForm.phone, orderForm.address, orderForm.note, deliveryZone, page, submitted, trackIncompleteOrder]);
+  }, [orderForm.name, orderForm.phone, orderForm.address, orderForm.district, orderForm.note, deliveryZone, page, submitted, trackIncompleteOrder]);
 
   useEffect(() => {
     if (!page || submitted || !hasTrackedRef.current) return;
@@ -434,7 +508,7 @@ export default function VeshojTemplate({ page, trafficSource = 'landing_page' }:
   const handleSubmitOrder = async () => {
     setFormTouched(true);
     setOrderGuardNoteHtml('');
-    if (!orderForm.name || !orderForm.phone || !orderForm.address) {
+    if (!orderForm.name || !orderForm.phone || !orderForm.address || !orderForm.district) {
       toast.warning('অনুগ্রহ করে সব তথ্য পূরণ করুন');
       return;
     }
@@ -452,10 +526,12 @@ export default function VeshojTemplate({ page, trafficSource = 'landing_page' }:
       const subtotal = getSubtotal();
       const deliveryCharge = getDeliveryCharge();
       const total = subtotal + deliveryCharge;
+      const shippingAddress = [orderForm.address, orderForm.district].filter(Boolean).join(', ');
       const orderPayload = {
         customer_name: orderForm.name,
         customer_phone: orderForm.phone,
-        shipping_address: orderForm.address,
+        district: orderForm.district,
+        shipping_address: shippingAddress,
         notes: orderForm.note || '',
         payment_method: 'cash',
         items: orderItems.map((item) => {
@@ -1316,6 +1392,74 @@ export default function VeshojTemplate({ page, trafficSource = 'landing_page' }:
           color: #111827;
           background: #ffffff;
         }
+        .veshoj-form-fields input.is-invalid,
+        .veshoj-form-fields textarea.is-invalid,
+        .veshoj-form-fields :global(input.is-invalid) {
+          border-color: #ef4444;
+          background: #fff5f5;
+        }
+        .veshoj-district-field {
+          position: relative;
+        }
+        .veshoj-district-dropdown {
+          position: absolute;
+          left: 0;
+          right: 0;
+          top: calc(100% + 4px);
+          z-index: 40;
+          max-height: 240px;
+          overflow-y: auto;
+          border: 1px solid #e5e7eb;
+          border-radius: 8px;
+          background: #ffffff;
+          box-shadow: 0 16px 32px rgba(17, 24, 39, .16);
+        }
+        .veshoj-district-dropdown button {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 10px;
+          width: 100%;
+          padding: 10px 12px;
+          border-bottom: 1px solid #f3f4f6;
+          color: #111827;
+          text-align: left;
+          font-size: 14px;
+          transition: background .16s ease;
+        }
+        .veshoj-district-dropdown button:hover {
+          background: ${orderFormAccentColor}10;
+        }
+        .veshoj-district-dropdown button:last-child {
+          border-bottom: 0;
+        }
+        .veshoj-district-dropdown span {
+          font-weight: 700;
+        }
+        .veshoj-district-dropdown small {
+          color: #6b7280;
+          font-size: 13px;
+          white-space: nowrap;
+        }
+        .veshoj-district-empty {
+          padding: 11px 12px;
+          color: #6b7280;
+          font-size: 14px;
+        }
+        .veshoj-field-error {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          margin: 5px 0 0;
+          color: #dc2626;
+          font-size: 12px;
+          font-weight: 600;
+        }
+        .veshoj-field-error svg {
+          width: 12px;
+          height: 12px;
+          flex-shrink: 0;
+        }
         .veshoj-summary-row {
           display: flex;
           justify-content: space-between;
@@ -1594,6 +1738,66 @@ export default function VeshojTemplate({ page, trafficSource = 'landing_page' }:
                             rows={2}
                             onChange={(e) => setOrderForm((prev) => ({ ...prev, address: e.target.value }))}
                           />
+                        </div>
+                        <div>
+                          <label className={formTouched && !orderForm.district ? 'text-red-600' : ''}>জেলা / District *</label>
+                          <div className="veshoj-district-field" ref={districtDropdownRef}>
+                            <input
+                              type="text"
+                              value={districtQuery}
+                              onChange={(event) => {
+                                const value = event.target.value;
+                                touchedRef.current.district = true;
+                                setDistrictQuery(value);
+                                setOrderForm((prev) => ({ ...prev, district: value }));
+                                setDistrictDropdownOpen(true);
+                              }}
+                              onInput={(event) => {
+                                const value = event.currentTarget.value;
+                                setDistrictQuery(value);
+                                setOrderForm((prev) => ({ ...prev, district: value }));
+                                setDistrictDropdownOpen(true);
+                              }}
+                              onCompositionStart={() => setDistrictDropdownOpen(true)}
+                              onCompositionEnd={(event) => {
+                                const value = event.currentTarget.value;
+                                setDistrictQuery(value);
+                                setOrderForm((prev) => ({ ...prev, district: value }));
+                                setDistrictDropdownOpen(true);
+                              }}
+                              onFocus={() => setDistrictDropdownOpen(true)}
+                              placeholder="জেলা নির্বাচন করুন বা লিখুন"
+                              className={formTouched && !orderForm.district ? 'is-invalid' : ''}
+                              autoComplete="off"
+                            />
+                            {districtDropdownOpen && (
+                              <div className="veshoj-district-dropdown">
+                                {filteredDistricts.length > 0 ? (
+                                  filteredDistricts.map((district) => (
+                                    <button
+                                      key={district.en}
+                                      type="button"
+                                      onMouseDown={(event) => {
+                                        event.preventDefault();
+                                        selectDistrict(district);
+                                      }}
+                                    >
+                                      <span>{district.en}</span>
+                                      <small>{district.bn}</small>
+                                    </button>
+                                  ))
+                                ) : (
+                                  <div className="veshoj-district-empty">No district found</div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                          {formTouched && !orderForm.district && (
+                            <p className="veshoj-field-error">
+                              <FaExclamationTriangle />
+                              জেলা নির্বাচন করা আবশ্যক
+                            </p>
+                          )}
                         </div>
                         <div>
                           <label className={formTouched && !isBdPhoneValid() ? 'text-red-600' : ''}>১১ ডিজিটের ফোন নম্বর লিখুন *</label>
