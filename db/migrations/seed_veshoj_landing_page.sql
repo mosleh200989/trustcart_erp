@@ -137,7 +137,7 @@ INSERT INTO landing_pages (
       {
         "id": "veshoj-benefit-images",
         "type": "images",
-        "title": "লিউকোন সেবনে যেসব সমস্যা দূর হবেঃ",
+        "title": "কেন আপনি লিউকোন ফিমেল গার্ড 🌸 সাপ্লিমেন্ট কিনবেন ?",
         "images": [
           "https://beshoj.com/wp-content/uploads/2025/05/for-web-infographic-1.jpg",
           "https://beshoj.com/wp-content/uploads/2025/05/for-web-infographic-2.jpg",
@@ -153,7 +153,7 @@ INSERT INTO landing_pages (
         "id": "veshoj-usage",
         "type": "custom-html",
         "title": "খাওয়ার নিয়ম ও সময়",
-        "content": "<p><strong>প্রতিদিন -</strong></p><p>সকাল, দুপুর এবং রাতের খাবারের ৩০ মিনিট পর ২ টা করে  বড়ি সেবন করতে হবে।</p><p><strong>বি. দ্র:</strong> ঠান্ডা পানি, অতিরিক্ত ঝাল-মিষ্টি ও তেলযুক্ত খাবার খাওয়া থেকে বিরত থাকতে হবে।</p>",
+        "content": "<div class=\"veshoj-usage-main\">প্রতিদিন - সকাল, দুপুর এবং রাতের খাবারের ৩০ মিনিট পর ২ টা করে বড়ি সেবন করতে হবে। রুচিলতা সেবনের নিয়ম: প্রতিদিন সকাল ও রাতে আধা চামচ রুচিলতা আধা গ্লাস পানিতে মিশিয়ে পান করুন।</div><div class=\"veshoj-usage-note\">বি. দ্র: ঠান্ডা পানি, অতিরিক্ত ঝাল-মিষ্টি ও তেলযুক্ত খাবার খাওয়া থেকে বিরত থাকতে হবে।</div><div class=\"veshoj-usage-safe\">আপনার ব্যবহারের জন্য সম্পূর্ণ নিরাপদ ও পরীক্ষিত – এখনই নিশ্চিত ব্যবহার করুন।</div>",
         "order": 4,
         "is_visible": true
       },
@@ -162,6 +162,8 @@ INSERT INTO landing_pages (
         "type": "images",
         "title": "সম্মানিত গ্রাহকের মন্তব্য",
         "content": "সম্মানিত কাস্টমারদের মতামত",
+        "reviewDisplay": "both",
+        "reviewVideoUrls": [],
         "images": [
           "https://beshoj.com/wp-content/uploads/2025/05/5.jpg",
           "https://beshoj.com/wp-content/uploads/2025/05/6.jpg",

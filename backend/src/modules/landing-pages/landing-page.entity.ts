@@ -15,6 +15,8 @@ export interface LandingPageSection {
   images?: string[];
   videoUrl?: string;
   videoTitlePosition?: 'above-video' | 'below-video';
+  reviewDisplay?: 'video' | 'image' | 'both';
+  reviewVideoUrls?: string[];
   buttonText?: string;
   buttonLink?: string;
   buttonColor?: string;

@@ -355,6 +355,8 @@ interface LandingPageSection {
   images?: string[];
   videoUrl?: string;
   videoTitlePosition?: 'above-video' | 'below-video';
+  reviewDisplay?: 'video' | 'image' | 'both';
+  reviewVideoUrls?: string[];
   buttonText?: string;
   buttonLink?: string;
   buttonColor?: string;
@@ -514,7 +516,7 @@ const createVeshojDefaultSections = (): LandingPageSection[] => [
   {
     id: 'veshoj-benefit-images',
     type: 'images',
-    title: 'লিউকোন সেবনে যেসব সমস্যা দূর হবেঃ',
+    title: 'কেন আপনি লিউকোন ফিমেল গার্ড 🌸 সাপ্লিমেন্ট কিনবেন ?',
     images: [
       `${VESHOJ_ASSET_BASE}/2025/05/for-web-infographic-1.jpg`,
       `${VESHOJ_ASSET_BASE}/2025/05/for-web-infographic-2.jpg`,
@@ -530,7 +532,7 @@ const createVeshojDefaultSections = (): LandingPageSection[] => [
     id: 'veshoj-usage',
     type: 'custom-html',
     title: 'খাওয়ার নিয়ম ও সময়',
-    content: '<p><strong>প্রতিদিন -</strong></p><p>সকাল, দুপুর এবং রাতের খাবারের ৩০ মিনিট পর ২ টা করে  বড়ি সেবন করতে হবে।</p><p><strong>বি. দ্র:</strong> ঠান্ডা পানি, অতিরিক্ত ঝাল-মিষ্টি ও তেলযুক্ত খাবার খাওয়া থেকে বিরত থাকতে হবে।</p>',
+    content: '<div class="veshoj-usage-main">প্রতিদিন - সকাল, দুপুর এবং রাতের খাবারের ৩০ মিনিট পর ২ টা করে বড়ি সেবন করতে হবে। রুচিলতা সেবনের নিয়ম: প্রতিদিন সকাল ও রাতে আধা চামচ রুচিলতা আধা গ্লাস পানিতে মিশিয়ে পান করুন।</div><div class="veshoj-usage-note">বি. দ্র: ঠান্ডা পানি, অতিরিক্ত ঝাল-মিষ্টি ও তেলযুক্ত খাবার খাওয়া থেকে বিরত থাকতে হবে।</div><div class="veshoj-usage-safe">আপনার ব্যবহারের জন্য সম্পূর্ণ নিরাপদ ও পরীক্ষিত – এখনই নিশ্চিত ব্যবহার করুন।</div>',
     order: 4,
     is_visible: true,
   },
@@ -539,6 +541,8 @@ const createVeshojDefaultSections = (): LandingPageSection[] => [
     type: 'images',
     title: 'সম্মানিত গ্রাহকের মন্তব্য',
     content: 'সম্মানিত কাস্টমারদের মতামত',
+    reviewDisplay: 'both',
+    reviewVideoUrls: [],
     images: [
       `${VESHOJ_ASSET_BASE}/2025/05/5.jpg`,
       `${VESHOJ_ASSET_BASE}/2025/05/6.jpg`,
@@ -1683,6 +1687,75 @@ export default function LandingPageEditor() {
                   </div>
                 )}
 
+                {form.template === 'veshoj' && section.id === 'veshoj-comments' && (
+                  <div className="bg-fuchsia-50 border border-fuchsia-200 rounded-lg p-4 space-y-4">
+                    <div>
+                      <label className="block text-sm font-semibold text-fuchsia-900 mb-2">Review Display</label>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                        {[
+                          { value: 'both', label: 'Video + Image' },
+                          { value: 'video', label: 'Video Only' },
+                          { value: 'image', label: 'Image Only' },
+                        ].map((option) => (
+                          <button
+                            key={option.value}
+                            type="button"
+                            onClick={() => updateSection(section.id, { reviewDisplay: option.value as LandingPageSection['reviewDisplay'] })}
+                            className={`rounded-lg border-2 px-3 py-2 text-sm font-semibold transition ${
+                              (section.reviewDisplay || 'image') === option.value
+                                ? 'border-fuchsia-600 bg-fuchsia-100 text-fuchsia-900'
+                                : 'border-white bg-white text-gray-700 hover:border-fuchsia-200'
+                            }`}
+                          >
+                            {option.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-semibold text-fuchsia-900 mb-1">Video Review Heading</label>
+                        <input
+                          type="text"
+                          value={section.title || ''}
+                          onChange={(e) => updateSection(section.id, { title: e.target.value })}
+                          className="w-full border rounded-lg px-3 py-2"
+                          placeholder="সম্মানিত গ্রাহকের মন্তব্য"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-fuchsia-900 mb-1">Image Review Heading</label>
+                        <input
+                          type="text"
+                          value={section.content || ''}
+                          onChange={(e) => updateSection(section.id, { content: e.target.value })}
+                          className="w-full border rounded-lg px-3 py-2"
+                          placeholder="সম্মানিত কাস্টমারদের মতামত"
+                        />
+                      </div>
+                    </div>
+
+                    {(section.reviewDisplay || 'image') !== 'image' && (
+                      <div>
+                        <label className="block text-sm font-semibold text-fuchsia-900 mb-1">Video Review YouTube URLs</label>
+                        <textarea
+                          value={(section.reviewVideoUrls || []).join('\n')}
+                          onChange={(e) => updateSection(section.id, { reviewVideoUrls: e.target.value.split('\n').map((url) => url.trim()).filter(Boolean) })}
+                          rows={4}
+                          className="w-full border rounded-lg px-3 py-2 font-mono text-sm"
+                          placeholder="https://www.youtube.com/watch?v=...&#10;https://youtu.be/..."
+                        />
+                        <p className="text-xs text-fuchsia-700 mt-1">One YouTube link per line. These render as the video review carousel.</p>
+                      </div>
+                    )}
+
+                    {(section.reviewDisplay || 'image') !== 'video' && (
+                      <p className="text-xs text-fuchsia-700">Image reviews use the Image URLs field below and render as a smooth swipe carousel.</p>
+                    )}
+                  </div>
+                )}
+
                 {/* Button Text */}
                 {(section.type === 'hero' || section.type === 'cta' || section.type === 'event-countdown') && (
                   <div>
@@ -1736,7 +1809,7 @@ export default function LandingPageEditor() {
                 )}
 
                 {/* Images (for images type) */}
-                {section.type === 'images' && (
+                {section.type === 'images' && !(form.template === 'veshoj' && section.id === 'veshoj-comments' && (section.reviewDisplay || 'image') === 'video') && (
                   <div>
                     <div className="flex items-center justify-between mb-1">
                       <label className="block text-sm font-medium text-gray-700">Image URLs (one per line)</label>
