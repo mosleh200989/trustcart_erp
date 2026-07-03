@@ -24,10 +24,13 @@ interface LandingPageSection {
   items?: Array<{ icon?: string; text: string }>;
   images?: string[];
   videoUrl?: string;
+  videoTitlePosition?: 'above-video' | 'below-video';
   buttonText?: string;
   buttonLink?: string;
   buttonColor?: string;
   buttonTextColor?: string;
+  buttonBorderColor?: string;
+  buttonBorderRadius?: number;
   backgroundColor?: string;
   textColor?: string;
   paddingY?: number;
@@ -108,13 +111,13 @@ interface VeshojTemplateProps {
 const VESHOJ_PURPLE = '#B53389';
 const VESHOJ_ORANGE = '#FF7B00';
 const VESHOJ_PHONE = '01973-298146';
-const VESHOJ_ASSET_BASE = 'https://veshoj.site/wp-content/uploads';
+const VESHOJ_ASSET_BASE = 'https://beshoj.com/wp-content/uploads';
 
 const VESHOJ_DEFAULT_PRODUCTS: LandingPageProduct[] = [
   {
     id: 'veshoj-single',
     name: 'লিউকোন গার্ড এর সাথে রুচিলতা ফ্রী (1pcs)',
-    image_url: `${VESHOJ_ASSET_BASE}/2025/04/vesoj-web2.jpg-300x300.jpeg`,
+    image_url: `${VESHOJ_ASSET_BASE}/2025/05/facebook-cover-veshoj-5.jpg.jpeg`,
     price: 1050,
     compare_price: 0,
     qty: 1,
@@ -124,7 +127,7 @@ const VESHOJ_DEFAULT_PRODUCTS: LandingPageProduct[] = [
   {
     id: 'veshoj-double',
     name: '২টি লিউকোন গার্ড এর সাথে রুচিলতা ও ইন্টিমেট সাবান ফ্রী',
-    image_url: `${VESHOJ_ASSET_BASE}/2025/04/vesoj-web.jpg-300x300.jpeg`,
+    image_url: `${VESHOJ_ASSET_BASE}/2025/05/facebook-cover-veshoj-5.jpg.jpeg`,
     price: 1590,
     compare_price: 0,
     qty: 1,
@@ -137,12 +140,25 @@ const VESHOJ_DEFAULT_PRODUCTS: LandingPageProduct[] = [
 
 const VESHOJ_DEFAULT_SECTIONS: LandingPageSection[] = [
   {
+    id: 'veshoj-video',
+    type: 'custom-html',
+    title: 'আলহামদুলিল্লাহ্‌, ইতোমধ্যেই ১ লক্ষেরও বেশি মা–বোন সাদা স্রা-ব সমস্যার কার্যকর ও নিরাপদ সমাধান পেয়েছেন লিউকোন ফিমেল গার্ড ব্যবহারের মাধ্যমে।',
+    content: '',
+    images: [`${VESHOJ_ASSET_BASE}/2025/05/facebook-cover-veshoj-5.jpg.jpeg`],
+    videoUrl: '',
+    videoTitlePosition: 'below-video',
+    buttonText: 'অর্ডার করুন',
+    buttonLink: '#order-form',
+    order: 1,
+    is_visible: true,
+  },
+  {
     id: 'veshoj-symptoms',
     type: 'trust',
     title: 'এই লক্ষণগুলো কি আপনাকেও ভুগাচ্ছে?',
     content: 'এই লক্ষণগুলো অবহেলা করলে সাদা স্রা-ব বাড়তে পারে এবং জরায়ুর জটিল রোগের ঝুঁকি তৈরি হতে পারে।',
     items: [],
-    order: 1,
+    order: 2,
     is_visible: true,
   },
   {
@@ -157,15 +173,6 @@ const VESHOJ_DEFAULT_SECTIONS: LandingPageSection[] = [
       `${VESHOJ_ASSET_BASE}/2025/05/for-web-infographic-5.jpg`,
       `${VESHOJ_ASSET_BASE}/2025/05/for-web-infographic-6.jpg`,
     ],
-    order: 2,
-    is_visible: true,
-  },
-  {
-    id: 'veshoj-video',
-    type: 'custom-html',
-    title: '',
-    content: '',
-    images: [`${VESHOJ_ASSET_BASE}/2025/05/183.jpg-3-1024x543.jpeg`],
     order: 3,
     is_visible: true,
   },
@@ -249,7 +256,7 @@ export default function VeshojTemplate({ page, trafficSource = 'landing_page' }:
   const toast = useToast();
 
   const brandLogo = page.hero_image_url || `${VESHOJ_ASSET_BASE}/2025/04/veshoj-logo-new-scaled.png`;
-  const coverImage = page.hero_background_image_url || `${VESHOJ_ASSET_BASE}/2025/05/facebook-cover-veshoj-5.jpg-2.jpeg`;
+  const coverImage = page.hero_background_image_url || `${VESHOJ_ASSET_BASE}/2025/05/facebook-cover-veshoj-5.jpg.jpeg`;
   const primaryColor = page.primary_color || VESHOJ_PURPLE;
   const accentColor = page.btn_bg_color || VESHOJ_ORANGE;
   const buttonTextColor = page.btn_text_color || '#ffffff';
@@ -278,6 +285,20 @@ export default function VeshojTemplate({ page, trafficSource = 'landing_page' }:
       .sort((a, b) => a.order - b.order);
     return customSections.length ? customSections : VESHOJ_DEFAULT_SECTIONS;
   }, [page.sections]);
+
+  const heroVideoSection = useMemo(() => {
+    return visibleSections.find(
+      (section) =>
+        section.id === 'veshoj-video' &&
+        section.type === 'custom-html' &&
+        Boolean(section.videoUrl || section.images?.length),
+    );
+  }, [visibleSections]);
+
+  const contentSections = useMemo(() => {
+    if (!heroVideoSection) return visibleSections;
+    return visibleSections.filter((section) => section.id !== heroVideoSection.id);
+  }, [heroVideoSection, visibleSections]);
 
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
   const [orderForm, setOrderForm] = useState({ name: '', phone: '', address: '', note: '' });
@@ -501,6 +522,8 @@ export default function VeshojTemplate({ page, trafficSource = 'landing_page' }:
 
   const renderSectionButton = (section: LandingPageSection) => {
     if (!section.buttonText) return null;
+    const sectionBorderColor = section.buttonBorderColor || buttonBorderColor;
+    const sectionBorderWidth = sectionBorderColor && sectionBorderColor !== 'transparent' ? 2 : 0;
     return (
       <button
         type="button"
@@ -515,13 +538,66 @@ export default function VeshojTemplate({ page, trafficSource = 'landing_page' }:
         style={{
           backgroundColor: section.buttonColor || accentColor,
           color: section.buttonTextColor || buttonTextColor,
-          borderColor: buttonBorderColor,
-          borderWidth: buttonBorderWidth,
-          borderRadius: buttonRadius,
+          borderColor: sectionBorderColor,
+          borderWidth: sectionBorderWidth,
+          borderRadius: section.buttonBorderRadius ?? buttonRadius,
         }}
       >
         {section.buttonText}
       </button>
+    );
+  };
+
+  const renderVideoFrame = (section: LandingPageSection) => {
+    const embedUrl = getYouTubeEmbedUrl(section.videoUrl);
+    const thumbnailImage = section.images?.[0] || coverImage;
+    return (
+      <div className="veshoj-video-frame">
+        {embedUrl ? (
+          <iframe
+            src={embedUrl}
+            title={section.title || page.title || 'Veshoj video'}
+            loading="lazy"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+            allowFullScreen
+          />
+        ) : (
+          <>
+            <img src={thumbnailImage} alt={section.title || page.title} loading="lazy" />
+            <FaPlayCircle className="veshoj-play" />
+          </>
+        )}
+      </div>
+    );
+  };
+
+  const renderVideoTitle = (section: LandingPageSection, fallbackTitle = '') => {
+    const title = section.title || fallbackTitle;
+    if (!title) return null;
+    return <h2 className="veshoj-video-title" dangerouslySetInnerHTML={{ __html: title }} />;
+  };
+
+  const renderHeroVideoBanner = (section: LandingPageSection) => {
+    const titleAboveVideo = section.videoTitlePosition === 'above-video';
+    const ctaSection = {
+      ...section,
+      buttonText: section.buttonText || page.hero_button_text || 'অর্ডার করুন',
+      buttonLink: section.buttonLink || '#order-form',
+    };
+
+    return (
+      <section className="veshoj-hero-video">
+        {titleAboveVideo && renderVideoTitle(section, page.hero_subtitle)}
+        {renderVideoFrame(section)}
+        {!titleAboveVideo && renderVideoTitle(section, page.hero_subtitle)}
+        <div className="veshoj-cta-wrap">{renderSectionButton(ctaSection)}</div>
+        {section.content && (
+          <div
+            className="veshoj-rich-text"
+            dangerouslySetInnerHTML={{ __html: section.content }}
+          />
+        )}
+      </section>
     );
   };
 
@@ -567,32 +643,19 @@ export default function VeshojTemplate({ page, trafficSource = 'landing_page' }:
     }
 
     if (section.type === 'custom-html' && (section.videoUrl || section.images?.length)) {
-      const embedUrl = getYouTubeEmbedUrl(section.videoUrl);
+      const titleAboveVideo = section.videoTitlePosition === 'above-video';
       return (
         <section key={section.id} className="veshoj-section">
-          <div className="veshoj-video-frame">
-            {embedUrl ? (
-              <iframe
-                src={embedUrl}
-                title={section.title || page.title || 'Veshoj video'}
-                loading="lazy"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                allowFullScreen
-              />
-            ) : (
-              <>
-                <img src={section.images?.[0]} alt={section.title || page.title} loading="lazy" />
-                <FaPlayCircle className="veshoj-play" />
-              </>
-            )}
-          </div>
-          {section.title && <h2 className="veshoj-section-title">{section.title}</h2>}
+          {titleAboveVideo && renderVideoTitle(section)}
+          {renderVideoFrame(section)}
+          {!titleAboveVideo && renderVideoTitle(section)}
           {section.content && (
             <div
               className="veshoj-rich-text"
               dangerouslySetInnerHTML={{ __html: section.content }}
             />
           )}
+          {renderSectionButton(section)}
         </section>
       );
     }
@@ -705,11 +768,15 @@ export default function VeshojTemplate({ page, trafficSource = 'landing_page' }:
           display: block;
           width: 100%;
           margin: 0 auto 10px;
-          border-radius: 0;
+          border-radius: 8px;
+        }
+        .veshoj-hero-video {
+          margin: 10px 0 18px;
+          text-align: center;
         }
         .veshoj-cta-wrap {
           text-align: center;
-          margin: 0 0 14px;
+          margin: 10px 0 14px;
         }
         .veshoj-cta-button,
         .veshoj-main-button {
@@ -735,11 +802,11 @@ export default function VeshojTemplate({ page, trafficSource = 'landing_page' }:
           filter: brightness(1.04);
         }
         .veshoj-subtitle {
-          margin: 8px 0 16px;
+          margin: 14px 0 10px;
           text-align: center;
           color: #000000;
           font-size: clamp(18px, 2.5vw, 22px);
-          font-weight: 300;
+          font-weight: 800;
           line-height: 1.25;
         }
         .veshoj-section {
@@ -752,6 +819,14 @@ export default function VeshojTemplate({ page, trafficSource = 'landing_page' }:
           font-size: clamp(20px, 4vw, 32px);
           font-weight: 700;
           line-height: 1.25;
+        }
+        .veshoj-video-title {
+          margin: 14px 0 10px;
+          color: #000000;
+          font-size: clamp(19px, 3vw, 26px);
+          font-weight: 800;
+          line-height: 1.32;
+          text-align: center;
         }
         .veshoj-section-copy,
         .veshoj-rich-text {
@@ -828,6 +903,9 @@ export default function VeshojTemplate({ page, trafficSource = 'landing_page' }:
           position: relative;
           overflow: hidden;
           border-radius: 10px;
+        }
+        .veshoj-section .veshoj-cta-button {
+          margin-top: 12px;
         }
         .veshoj-play {
           position: absolute;
@@ -1134,31 +1212,37 @@ export default function VeshojTemplate({ page, trafficSource = 'landing_page' }:
             }} />
           </section>
 
-          <img className="veshoj-cover" src={coverImage} alt={page.title || 'Veshoj cover'} />
+          {heroVideoSection ? (
+            renderHeroVideoBanner(heroVideoSection)
+          ) : (
+            <>
+              <img className="veshoj-cover" src={coverImage} alt={page.title || 'Veshoj cover'} />
 
-          <div className="veshoj-cta-wrap">
-            <button
-              type="button"
-              onClick={scrollToOrderForm}
-              className="veshoj-main-button"
-              style={{
-                borderColor: buttonBorderColor,
-                borderWidth: buttonBorderWidth,
-                borderRadius: buttonRadius,
-              }}
-            >
-              {page.hero_button_text || 'অর্ডার করুন'}
-            </button>
-          </div>
+              <div
+                className="veshoj-subtitle"
+                dangerouslySetInnerHTML={{
+                  __html: page.hero_subtitle || 'আলহামদুলিল্লাহ! ১ লক্ষ+ মা-বোন ইতোমধ্যে উপকার পেয়েছেন।',
+                }}
+              />
 
-          <div
-            className="veshoj-subtitle"
-            dangerouslySetInnerHTML={{
-              __html: page.hero_subtitle || 'আলহামদুলিল্লাহ! ১ লক্ষ+ মা-বোন ইতোমধ্যে উপকার পেয়েছেন।',
-            }}
-          />
+              <div className="veshoj-cta-wrap">
+                <button
+                  type="button"
+                  onClick={scrollToOrderForm}
+                  className="veshoj-main-button"
+                  style={{
+                    borderColor: buttonBorderColor,
+                    borderWidth: buttonBorderWidth,
+                    borderRadius: buttonRadius,
+                  }}
+                >
+                  {page.hero_button_text || 'অর্ডার করুন'}
+                </button>
+              </div>
+            </>
+          )}
 
-          {visibleSections.map(renderSection)}
+          {contentSections.map(renderSection)}
 
           {page.show_order_form !== false && (
             <section ref={orderFormRef} className="veshoj-checkout">

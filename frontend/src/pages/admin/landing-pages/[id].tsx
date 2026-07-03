@@ -354,6 +354,7 @@ interface LandingPageSection {
   items?: Array<{ icon?: string; text: string }>;
   images?: string[];
   videoUrl?: string;
+  videoTitlePosition?: 'above-video' | 'below-video';
   buttonText?: string;
   buttonLink?: string;
   buttonColor?: string;
@@ -485,16 +486,19 @@ const DEFAULT_SECTION: Omit<LandingPageSection, 'id' | 'order'> = {
   is_visible: true,
 };
 
-const VESHOJ_ASSET_BASE = 'https://veshoj.site/wp-content/uploads';
+const VESHOJ_ASSET_BASE = 'https://beshoj.com/wp-content/uploads';
 
 const createVeshojDefaultSections = (): LandingPageSection[] => [
   {
     id: 'veshoj-video',
     type: 'custom-html',
-    title: '',
+    title: 'আলহামদুলিল্লাহ্‌, ইতোমধ্যেই ১ লক্ষেরও বেশি মা–বোন সাদা স্রা-ব সমস্যার কার্যকর ও নিরাপদ সমাধান পেয়েছেন লিউকোন ফিমেল গার্ড ব্যবহারের মাধ্যমে।',
     content: '',
-    images: [`${VESHOJ_ASSET_BASE}/2025/05/183.jpg-3-1024x543.jpeg`],
+    images: [`${VESHOJ_ASSET_BASE}/2025/05/facebook-cover-veshoj-5.jpg.jpeg`],
     videoUrl: '',
+    videoTitlePosition: 'below-video',
+    buttonText: 'অর্ডার করুন',
+    buttonLink: '#order-form',
     order: 1,
     is_visible: true,
   },
@@ -1624,7 +1628,7 @@ export default function LandingPageEditor() {
                   </div>
                 )}
 
-                {form.template === 'veshoj' && section.type === 'custom-html' && (
+                {form.template === 'veshoj' && section.type === 'custom-html' && (section.id === 'veshoj-video' || section.videoUrl !== undefined || (section.images || []).length > 0) && (
                   <div className="bg-fuchsia-50 border border-fuchsia-200 rounded-lg p-4 space-y-3">
                     <div>
                       <label className="block text-sm font-semibold text-fuchsia-900 mb-1">YouTube Video URL</label>
@@ -1638,13 +1642,41 @@ export default function LandingPageEditor() {
                       <p className="text-xs text-fuchsia-700 mt-1">For the Veshoj video/banner section, this renders as a playable embedded video.</p>
                     </div>
                     <div>
+                      <label className="block text-sm font-semibold text-fuchsia-900 mb-2">Video Title Position</label>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => updateSection(section.id, { videoTitlePosition: 'above-video' })}
+                          className={`rounded-lg border-2 px-3 py-2 text-sm font-semibold transition ${
+                            section.videoTitlePosition === 'above-video'
+                              ? 'border-fuchsia-600 bg-fuchsia-100 text-fuchsia-900'
+                              : 'border-white bg-white text-gray-700 hover:border-fuchsia-200'
+                          }`}
+                        >
+                          Title Above Video
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => updateSection(section.id, { videoTitlePosition: 'below-video' })}
+                          className={`rounded-lg border-2 px-3 py-2 text-sm font-semibold transition ${
+                            (section.videoTitlePosition || 'below-video') === 'below-video'
+                              ? 'border-fuchsia-600 bg-fuchsia-100 text-fuchsia-900'
+                              : 'border-white bg-white text-gray-700 hover:border-fuchsia-200'
+                          }`}
+                        >
+                          Title Below Video
+                        </button>
+                      </div>
+                      <p className="text-xs text-fuchsia-700 mt-1">Uses the Section Title field above as the video title.</p>
+                    </div>
+                    <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Video Thumbnail Image URL</label>
                       <input
                         type="text"
                         value={(section.images || [])[0] || ''}
                         onChange={(e) => updateSection(section.id, { images: e.target.value ? [e.target.value] : [] })}
                         className="w-full border rounded-lg px-3 py-2"
-                        placeholder="https://veshoj.site/wp-content/uploads/..."
+                        placeholder="https://beshoj.com/wp-content/uploads/..."
                       />
                       <p className="text-xs text-gray-500 mt-1">Used when no YouTube URL is set.</p>
                     </div>
