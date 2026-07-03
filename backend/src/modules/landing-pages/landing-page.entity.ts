@@ -8,11 +8,13 @@ import {
 
 export interface LandingPageSection {
   id: string;
-  type: 'hero' | 'benefits' | 'images' | 'trust' | 'order-form' | 'cta' | 'custom-html' | 'event-rules' | 'event-prizes' | 'event-how-to' | 'event-countdown';
+  type: 'hero' | 'benefits' | 'images' | 'trust' | 'order-form' | 'cta' | 'custom-html' | 'event-rules' | 'event-prizes' | 'event-how-to' | 'event-countdown' | 'phone-cta' | 'spacer';
   title?: string;
   content?: string;
   items?: Array<{ icon?: string; text: string }>;
   images?: string[];
+  videoUrl?: string;
+  videoTitlePosition?: 'above-video' | 'below-video';
   buttonText?: string;
   buttonLink?: string;
   buttonColor?: string;
@@ -21,6 +23,7 @@ export interface LandingPageSection {
   buttonBorderRadius?: number;
   backgroundColor?: string;
   textColor?: string;
+  paddingY?: number;
   order: number;
   is_visible: boolean;
 }

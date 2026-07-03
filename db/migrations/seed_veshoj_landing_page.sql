@@ -81,8 +81,8 @@ INSERT INTO landing_pages (
     'veshoj',
     'মাত্র ৭ দিন সেবনে সাদা স্রা-ব, দুর্গন্ধ ও চুলকানি নিয়ন্ত্রণে আসবে ইনশাল্লাহ।',
     'veshoj',
-    'https://veshoj.site/wp-content/uploads/2025/04/veshoj-logo-new-scaled.png',
-    'https://veshoj.site/wp-content/uploads/2025/05/facebook-cover-veshoj-5.jpg-2.jpeg',
+    'https://beshoj.com/wp-content/uploads/2025/04/veshoj-logo-new-scaled.png',
+    'https://beshoj.com/wp-content/uploads/2025/05/facebook-cover-veshoj-5.jpg.jpeg',
     'মাত্র ৭ দিন<br />সেবনে সাদা স্রা-ব, দুর্গন্ধ ও চুলকানি নিয়ন্ত্রণে আসবে ইনশাল্লাহ!',
     'আলহামদুলিল্লাহ! ১ লক্ষ+ মা-বোন ইতোমধ্যে উপকার পেয়েছেন।',
     'অর্ডার করুন',
@@ -108,17 +108,20 @@ INSERT INTO landing_pages (
     '#FF7B00',
     'ভেষজ হেলথ কেয়ার | লিউকোন গার্ড',
     'মাত্র ৭ দিন সেবনে সাদা স্রা-ব, দুর্গন্ধ ও চুলকানি নিয়ন্ত্রণে আসবে ইনশাল্লাহ। অর্ডার করুন ক্যাশ অন ডেলিভারিতে।',
-    'https://veshoj.site/wp-content/uploads/2025/05/facebook-cover-veshoj-5.jpg-2.jpeg',
+    'https://beshoj.com/wp-content/uploads/2025/05/facebook-cover-veshoj-5.jpg.jpeg',
     $$[
       {
         "id": "veshoj-video",
         "type": "custom-html",
-        "title": "",
+        "title": "আলহামদুলিল্লাহ্‌, ইতোমধ্যেই ১ লক্ষেরও বেশি মা–বোন সাদা স্রা-ব সমস্যার কার্যকর ও নিরাপদ সমাধান পেয়েছেন লিউকোন ফিমেল গার্ড ব্যবহারের মাধ্যমে।",
         "content": "",
         "images": [
-          "https://veshoj.site/wp-content/uploads/2025/05/183.jpg-3-1024x543.jpeg"
+          "https://beshoj.com/wp-content/uploads/2025/05/facebook-cover-veshoj-5.jpg.jpeg"
         ],
         "videoUrl": "",
+        "videoTitlePosition": "below-video",
+        "buttonText": "অর্ডার করুন",
+        "buttonLink": "#order-form",
         "order": 1,
         "is_visible": true
       },
@@ -136,12 +139,12 @@ INSERT INTO landing_pages (
         "type": "images",
         "title": "লিউকোন সেবনে যেসব সমস্যা দূর হবেঃ",
         "images": [
-          "https://veshoj.site/wp-content/uploads/2025/05/for-web-infographic-1.jpg",
-          "https://veshoj.site/wp-content/uploads/2025/05/for-web-infographic-2.jpg",
-          "https://veshoj.site/wp-content/uploads/2025/05/for-web-infographic-3.jpg",
-          "https://veshoj.site/wp-content/uploads/2025/05/for-web-infographic-4.jpg",
-          "https://veshoj.site/wp-content/uploads/2025/05/for-web-infographic-5.jpg",
-          "https://veshoj.site/wp-content/uploads/2025/05/for-web-infographic-6.jpg"
+          "https://beshoj.com/wp-content/uploads/2025/05/for-web-infographic-1.jpg",
+          "https://beshoj.com/wp-content/uploads/2025/05/for-web-infographic-2.jpg",
+          "https://beshoj.com/wp-content/uploads/2025/05/for-web-infographic-3.jpg",
+          "https://beshoj.com/wp-content/uploads/2025/05/for-web-infographic-4.jpg",
+          "https://beshoj.com/wp-content/uploads/2025/05/for-web-infographic-5.jpg",
+          "https://beshoj.com/wp-content/uploads/2025/05/for-web-infographic-6.jpg"
         ],
         "order": 3,
         "is_visible": true
@@ -160,16 +163,16 @@ INSERT INTO landing_pages (
         "title": "সম্মানিত গ্রাহকের মন্তব্য",
         "content": "সম্মানিত কাস্টমারদের মতামত",
         "images": [
-          "https://veshoj.site/wp-content/uploads/2025/05/5.jpg",
-          "https://veshoj.site/wp-content/uploads/2025/05/6.jpg",
-          "https://veshoj.site/wp-content/uploads/2025/05/7-1024x1024.jpg",
-          "https://veshoj.site/wp-content/uploads/2025/05/8-1024x1024.jpg",
-          "https://veshoj.site/wp-content/uploads/2025/05/9.jpg",
-          "https://veshoj.site/wp-content/uploads/2025/05/10-1024x1024.jpg",
-          "https://veshoj.site/wp-content/uploads/2025/05/11-1-1024x1024.jpg",
-          "https://veshoj.site/wp-content/uploads/2025/05/12-1024x1024.jpg",
-          "https://veshoj.site/wp-content/uploads/2025/05/13-1024x1024.jpg",
-          "https://veshoj.site/wp-content/uploads/2025/05/14-1024x1024.jpg"
+          "https://beshoj.com/wp-content/uploads/2025/05/5.jpg",
+          "https://beshoj.com/wp-content/uploads/2025/05/6.jpg",
+          "https://beshoj.com/wp-content/uploads/2025/05/7-1024x1024.jpg",
+          "https://beshoj.com/wp-content/uploads/2025/05/8-1024x1024.jpg",
+          "https://beshoj.com/wp-content/uploads/2025/05/9.jpg",
+          "https://beshoj.com/wp-content/uploads/2025/05/10-1024x1024.jpg",
+          "https://beshoj.com/wp-content/uploads/2025/05/11-1-1024x1024.jpg",
+          "https://beshoj.com/wp-content/uploads/2025/05/12-1024x1024.jpg",
+          "https://beshoj.com/wp-content/uploads/2025/05/13-1024x1024.jpg",
+          "https://beshoj.com/wp-content/uploads/2025/05/14-1024x1024.jpg"
         ],
         "order": 5,
         "is_visible": true
@@ -188,7 +191,7 @@ INSERT INTO landing_pages (
         "id": "veshoj-single",
         "name": "লিউকোন গার্ড এর সাথে রুচিলতা ফ্রী (1pcs)",
         "description": "লিউকোন গার্ড এর সাথে রুচিলতা ফ্রী।",
-        "image_url": "https://veshoj.site/wp-content/uploads/2025/04/vesoj-web2.jpg-300x300.jpeg",
+        "image_url": "https://beshoj.com/wp-content/uploads/2025/05/facebook-cover-veshoj-5.jpg.jpeg",
         "price": 1050,
         "compare_price": 0,
         "qty": 1,
@@ -202,7 +205,7 @@ INSERT INTO landing_pages (
         "id": "veshoj-double",
         "name": "২টি লিউকোন গার্ড এর সাথে রুচিলতা ও ইন্টিমেট সাবান ফ্রী",
         "description": "২টি লিউকোন গার্ড এর সাথে রুচিলতা ও ইন্টিমেট সাবান ফ্রী।",
-        "image_url": "https://veshoj.site/wp-content/uploads/2025/04/vesoj-web.jpg-300x300.jpeg",
+        "image_url": "https://beshoj.com/wp-content/uploads/2025/05/facebook-cover-veshoj-5.jpg.jpeg",
         "price": 1590,
         "compare_price": 0,
         "qty": 1,
