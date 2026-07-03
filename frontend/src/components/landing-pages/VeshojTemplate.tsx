@@ -12,6 +12,7 @@ import {
   FaPlayCircle,
   FaPlus,
   FaShoppingCart,
+  FaStar,
   FaTruck,
   FaWhatsapp,
 } from 'react-icons/fa';
@@ -25,6 +26,8 @@ interface LandingPageSection {
   images?: string[];
   videoUrl?: string;
   videoTitlePosition?: 'above-video' | 'below-video';
+  reviewDisplay?: 'video' | 'image' | 'both';
+  reviewVideoUrls?: string[];
   buttonText?: string;
   buttonLink?: string;
   buttonColor?: string;
@@ -164,7 +167,7 @@ const VESHOJ_DEFAULT_SECTIONS: LandingPageSection[] = [
   {
     id: 'veshoj-benefit-images',
     type: 'images',
-    title: 'লিউকোন সেবনে যেসব সমস্যা দূর হবেঃ',
+    title: 'কেন আপনি লিউকোন ফিমেল গার্ড 🌸 সাপ্লিমেন্ট কিনবেন ?',
     images: [
       `${VESHOJ_ASSET_BASE}/2025/05/for-web-infographic-1.jpg`,
       `${VESHOJ_ASSET_BASE}/2025/05/for-web-infographic-2.jpg`,
@@ -190,6 +193,8 @@ const VESHOJ_DEFAULT_SECTIONS: LandingPageSection[] = [
     type: 'images',
     title: 'সম্মানিত গ্রাহকের মন্তব্য',
     content: 'সম্মানিত কাস্টমারদের মতামত',
+    reviewDisplay: 'both',
+    reviewVideoUrls: [],
     images: [
       `${VESHOJ_ASSET_BASE}/2025/05/5.jpg`,
       `${VESHOJ_ASSET_BASE}/2025/05/6.jpg`,
@@ -577,6 +582,28 @@ export default function VeshojTemplate({ page, trafficSource = 'landing_page' }:
     return <h2 className="veshoj-video-title" dangerouslySetInnerHTML={{ __html: title }} />;
   };
 
+  const renderReviewHeading = (title: string) => {
+    if (!title) return null;
+    return (
+      <div className="veshoj-review-heading">
+        <FaStar />
+        <h2 dangerouslySetInnerHTML={{ __html: title }} />
+        <FaStar />
+      </div>
+    );
+  };
+
+  const renderReviewDots = (count: number) => {
+    if (count <= 1) return null;
+    return (
+      <div className="veshoj-review-dots" aria-hidden="true">
+        {Array.from({ length: Math.min(count, 10) }).map((_, index) => (
+          <span key={index} className={index === 0 ? 'is-active' : ''} />
+        ))}
+      </div>
+    );
+  };
+
   const renderHeroVideoBanner = (section: LandingPageSection) => {
     const titleAboveVideo = section.videoTitlePosition === 'above-video';
     const ctaSection = {
@@ -601,6 +628,63 @@ export default function VeshojTemplate({ page, trafficSource = 'landing_page' }:
     );
   };
 
+  const renderReviewSection = (section: LandingPageSection) => {
+    const reviewDisplay = section.reviewDisplay || 'image';
+    const videoUrls = (section.reviewVideoUrls || []).filter(Boolean);
+    const imageUrls = section.images || [];
+    const showVideos = (reviewDisplay === 'video' || reviewDisplay === 'both') && videoUrls.length > 0;
+    const showImages = (reviewDisplay === 'image' || reviewDisplay === 'both') && imageUrls.length > 0;
+
+    if (!showVideos && !showImages) return null;
+
+    return (
+      <section key={section.id} className="veshoj-review-section">
+        {showVideos && (
+          <>
+            {renderReviewHeading(section.title || 'সম্মানিত গ্রাহকের মন্তব্য')}
+            <div className="veshoj-review-carousel veshoj-video-review-carousel">
+              {videoUrls.map((url, index) => {
+                const embedUrl = getYouTubeEmbedUrl(url);
+                return (
+                  <div key={`${url}-${index}`} className="veshoj-video-review-card">
+                    {embedUrl ? (
+                      <iframe
+                        src={embedUrl}
+                        title={`${section.title || page.title || 'Veshoj review'} ${index + 1}`}
+                        loading="lazy"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                        allowFullScreen
+                      />
+                    ) : (
+                      <div className="veshoj-video-review-empty">Invalid YouTube URL</div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            {renderReviewDots(videoUrls.length)}
+          </>
+        )}
+
+        {showImages && (
+          <>
+            {renderReviewHeading(section.content || (showVideos ? 'সম্মানিত কাস্টমারদের মতামত' : section.title || 'সম্মানিত কাস্টমারদের মতামত'))}
+            <div className="veshoj-review-carousel veshoj-image-review-carousel">
+              {imageUrls.map((image, index) => (
+                <div key={`${image}-${index}`} className="veshoj-image-review-card">
+                  <img src={image} alt={`${section.content || section.title || page.title} ${index + 1}`} loading="lazy" />
+                </div>
+              ))}
+            </div>
+            {renderReviewDots(imageUrls.length)}
+          </>
+        )}
+
+        {renderSectionButton(section)}
+      </section>
+    );
+  };
+
   const renderSection = (section: LandingPageSection) => {
     if (section.type === 'spacer') {
       return <div key={section.id} style={{ height: section.paddingY || 24 }} />;
@@ -615,6 +699,10 @@ export default function VeshojTemplate({ page, trafficSource = 'landing_page' }:
           </a>
         </section>
       );
+    }
+
+    if (section.id === 'veshoj-comments') {
+      return renderReviewSection(section);
     }
 
     if (section.type === 'images') {
@@ -933,7 +1021,9 @@ export default function VeshojTemplate({ page, trafficSource = 'landing_page' }:
         }
         .veshoj-image-stack {
           display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
           gap: 10px;
+          align-items: stretch;
         }
         .veshoj-image-stack img,
         .veshoj-video-frame img,
@@ -941,6 +1031,10 @@ export default function VeshojTemplate({ page, trafficSource = 'landing_page' }:
           width: 100%;
           border-radius: 6px;
           display: block;
+        }
+        .veshoj-image-stack img {
+          height: 100%;
+          object-fit: cover;
         }
         .veshoj-video-frame img,
         .veshoj-video-frame iframe {
@@ -975,6 +1069,99 @@ export default function VeshojTemplate({ page, trafficSource = 'landing_page' }:
         }
         .veshoj-section .veshoj-cta-button {
           margin-top: 12px;
+        }
+        .veshoj-review-section {
+          margin: 26px calc(50% - 50vw) 20px;
+          padding: 0 0 16px;
+          overflow: hidden;
+          text-align: center;
+        }
+        .veshoj-review-heading {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 20px;
+          width: 100%;
+          margin: 24px 0 20px;
+          padding: 9px 16px 12px;
+          background: #fde7f6;
+          color: #111111;
+        }
+        .veshoj-review-heading h2 {
+          margin: 0;
+          font-size: clamp(24px, 4.2vw, 38px);
+          font-weight: 800;
+          line-height: 1.1;
+        }
+        .veshoj-review-heading svg {
+          width: clamp(24px, 4vw, 34px);
+          height: clamp(24px, 4vw, 34px);
+          color: ${primaryColor};
+          flex-shrink: 0;
+        }
+        .veshoj-review-carousel {
+          display: flex;
+          gap: 20px;
+          max-width: 900px;
+          margin: 0 auto;
+          padding: 0 0 8px;
+          overflow-x: auto;
+          scroll-behavior: smooth;
+          scroll-snap-type: x mandatory;
+          scrollbar-width: none;
+          -webkit-overflow-scrolling: touch;
+        }
+        .veshoj-review-carousel::-webkit-scrollbar {
+          display: none;
+        }
+        .veshoj-video-review-card,
+        .veshoj-image-review-card {
+          flex: 0 0 calc((100% - 40px) / 3);
+          scroll-snap-align: start;
+          overflow: hidden;
+          border-radius: 4px;
+          background: #ffffff;
+        }
+        .veshoj-video-review-card {
+          flex-basis: calc((100% - 20px) / 2);
+          border-radius: 8px;
+        }
+        .veshoj-video-review-card iframe,
+        .veshoj-video-review-empty {
+          display: block;
+          width: 100%;
+          aspect-ratio: 16 / 9;
+          border: 0;
+          background: #000000;
+        }
+        .veshoj-video-review-empty {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: #ffffff;
+          font-size: 14px;
+          font-weight: 700;
+        }
+        .veshoj-image-review-card img {
+          display: block;
+          width: 100%;
+          aspect-ratio: 1 / 1;
+          object-fit: cover;
+        }
+        .veshoj-review-dots {
+          display: flex;
+          justify-content: center;
+          gap: 14px;
+          margin: 10px 0 18px;
+        }
+        .veshoj-review-dots span {
+          width: 7px;
+          height: 7px;
+          border-radius: 999px;
+          background: #d0d0d0;
+        }
+        .veshoj-review-dots span.is-active {
+          background: #111111;
         }
         .veshoj-play {
           position: absolute;
@@ -1249,6 +1436,31 @@ export default function VeshojTemplate({ page, trafficSource = 'landing_page' }:
           .veshoj-strip-copy {
             font-size: 11px;
             line-height: 2.4;
+          }
+          .veshoj-image-stack {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 7px;
+          }
+          .veshoj-review-heading {
+            gap: 12px;
+            margin: 20px 0 14px;
+            padding: 8px 10px 10px;
+          }
+          .veshoj-review-heading h2 {
+            font-size: 24px;
+          }
+          .veshoj-review-carousel {
+            max-width: none;
+            padding-left: 14px;
+            padding-right: 14px;
+            gap: 12px;
+          }
+          .veshoj-video-review-card,
+          .veshoj-image-review-card {
+            flex-basis: 82%;
+          }
+          .veshoj-video-review-card {
+            flex-basis: 88%;
           }
           .veshoj-checkout-grid {
             grid-template-columns: 1fr;

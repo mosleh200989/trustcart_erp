@@ -137,7 +137,7 @@ INSERT INTO landing_pages (
       {
         "id": "veshoj-benefit-images",
         "type": "images",
-        "title": "লিউকোন সেবনে যেসব সমস্যা দূর হবেঃ",
+        "title": "কেন আপনি লিউকোন ফিমেল গার্ড 🌸 সাপ্লিমেন্ট কিনবেন ?",
         "images": [
           "https://beshoj.com/wp-content/uploads/2025/05/for-web-infographic-1.jpg",
           "https://beshoj.com/wp-content/uploads/2025/05/for-web-infographic-2.jpg",
@@ -162,6 +162,8 @@ INSERT INTO landing_pages (
         "type": "images",
         "title": "সম্মানিত গ্রাহকের মন্তব্য",
         "content": "সম্মানিত কাস্টমারদের মতামত",
+        "reviewDisplay": "both",
+        "reviewVideoUrls": [],
         "images": [
           "https://beshoj.com/wp-content/uploads/2025/05/5.jpg",
           "https://beshoj.com/wp-content/uploads/2025/05/6.jpg",
