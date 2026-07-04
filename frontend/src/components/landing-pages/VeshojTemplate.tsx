@@ -188,9 +188,18 @@ const VESHOJ_DEFAULT_SECTIONS: LandingPageSection[] = [
   {
     id: 'veshoj-benefit-images',
     type: 'images',
-    title: 'কেন আপনি লিউকোন ফিমেল গার্ড 🌸 সাপ্লিমেন্ট কিনবেন ?',
+    title: 'লিউকোন ফিমেল গার্ড সেবনে যেসব সমস্যা দূর হবে',
     images: [
-      `${VESHOJ_ASSET_BASE}/2025/05/for-feedback-team.jpg-1024x1024.jpeg`,
+      `${VESHOJ_ASSET_BASE}/2025/05/14-1-1024x1024.jpg`,
+    ],
+    items: [
+      { text: 'দীর্ঘদিনের পুরনো সাদা-স্রাব সমস্যা!' },
+      { text: 'মাসিক চলাকালীন সময়ে অতিরিক্ত ব্যথা ও অস্বাভাবিক রক্তক্ষরণ!' },
+      { text: 'অতিরিক্ত যোনি চুলকানি ও অস্বস্তি!' },
+      { text: 'শারীরিক দুর্বলতা!' },
+      { text: 'ওজন কমে যাওয়া!' },
+      { text: 'খাবারের রুচি কম হওয়া।' },
+      { text: 'মানসিক দুশ্চিন্তা ও বিভিন্ন ভিটামিনের ঘাটতি!' },
     ],
     order: 3,
     is_visible: true,
@@ -990,7 +999,7 @@ export default function VeshojTemplate({ page, trafficSource = 'landing_page' }:
       return (
         <section key={section.id} className="veshoj-section">
           {section.title && (
-            <div className="veshoj-heading-band">
+            <div className={isBenefitImageSection ? 'veshoj-heading-band veshoj-wide-heading-band' : 'veshoj-heading-band'}>
               <h2 dangerouslySetInnerHTML={html(section.title)} />
             </div>
           )}
@@ -1001,12 +1010,26 @@ export default function VeshojTemplate({ page, trafficSource = 'landing_page' }:
             />
           )}
           {isBenefitImageSection ? (
-            <div className="veshoj-single-image-showcase">
+            <div className={`veshoj-problems-layout ${(section.items || []).length === 0 ? 'is-image-only' : ''}`}>
               {displayImages.map((image, index) => (
-                <div key={`${image}-${index}`} className="veshoj-single-image-frame">
-                  <img src={image} alt={`${section.title || page.title} ${index + 1}`} loading="lazy" />
-                </div>
+                <img
+                  key={`${image}-${index}`}
+                  className="veshoj-problems-image"
+                  src={image}
+                  alt={`${section.title || page.title} ${index + 1}`}
+                  loading="lazy"
+                />
               ))}
+              {(section.items || []).length > 0 && (
+                <ul className="veshoj-problems-list">
+                  {(section.items || []).map((item, index) => (
+                    <li key={`${item.text}-${index}`}>
+                      <span className="veshoj-problems-dot" aria-hidden="true" />
+                      <span>{item.text}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           ) : (
             <div className={isComments ? 'veshoj-comment-gallery' : 'veshoj-image-stack'}>
@@ -1155,6 +1178,16 @@ export default function VeshojTemplate({ page, trafficSource = 'landing_page' }:
           border-radius: 10px;
           background: ${primaryColor};
           text-align: center;
+        }
+        .veshoj-wide-heading-band {
+          display: flex;
+          width: 100%;
+          margin-top: 10px;
+          margin-bottom: 16px;
+          padding: 8px 16px 9px;
+        }
+        .veshoj-wide-heading-band h2 {
+          font-size: clamp(24px, 4vw, 37px);
         }
         .veshoj-strip-copy {
           font-size: 15px;
@@ -1464,27 +1497,59 @@ export default function VeshojTemplate({ page, trafficSource = 'landing_page' }:
           height: 100%;
           object-fit: cover;
         }
-        .veshoj-single-image-showcase {
-          display: flex;
-          justify-content: center;
-          margin: 12px auto 0;
+        .veshoj-problems-layout {
+          display: grid;
+          grid-template-columns: minmax(0, 420px) minmax(0, 1fr);
+          gap: 54px;
+          align-items: start;
+          width: 100%;
+          margin: 16px auto 0;
+          text-align: left;
         }
-        .veshoj-single-image-frame {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          width: min(360px, 100%);
-          aspect-ratio: 1 / 1;
-          overflow: hidden;
-          border-radius: 8px;
-          background: #fff7fb;
+        .veshoj-problems-layout.is-image-only {
+          grid-template-columns: 1fr;
         }
-        .veshoj-single-image-frame img {
+        .veshoj-problems-image {
           display: block;
           width: 100%;
-          height: 100%;
-          border-radius: 8px;
-          object-fit: contain;
+          height: auto;
+          border-radius: 0;
+          object-fit: cover;
+        }
+        .veshoj-problems-list {
+          display: grid;
+          gap: 5px;
+          margin: 12px 0 0;
+          padding: 0;
+          color: #565656;
+          list-style: none;
+        }
+        .veshoj-problems-list li {
+          display: flex;
+          align-items: flex-start;
+          gap: 10px;
+          font-size: 20px;
+          font-weight: 800;
+          line-height: 1.24;
+        }
+        .veshoj-problems-dot {
+          position: relative;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 16px;
+          height: 16px;
+          margin-top: 5px;
+          border-radius: 999px;
+          background: #f57c00;
+          flex: 0 0 16px;
+        }
+        .veshoj-problems-dot::after {
+          content: '';
+          width: 5px;
+          height: 5px;
+          border-radius: 999px;
+          background: #ffffff;
         }
         .veshoj-video-frame img,
         .veshoj-video-frame iframe {
@@ -2010,6 +2075,30 @@ export default function VeshojTemplate({ page, trafficSource = 'landing_page' }:
           .veshoj-image-stack {
             grid-template-columns: repeat(2, minmax(0, 1fr));
             gap: 7px;
+          }
+          .veshoj-wide-heading-band {
+            margin-bottom: 12px;
+            padding: 6px 9px 7px;
+          }
+          .veshoj-problems-layout {
+            grid-template-columns: 1fr;
+            gap: 14px;
+            margin-top: 12px;
+          }
+          .veshoj-problems-list {
+            gap: 6px;
+            margin-top: 0;
+          }
+          .veshoj-problems-list li {
+            gap: 8px;
+            font-size: 16px;
+            line-height: 1.25;
+          }
+          .veshoj-problems-dot {
+            width: 14px;
+            height: 14px;
+            margin-top: 3px;
+            flex-basis: 14px;
           }
           .veshoj-offer-price-section {
             margin: 10px calc(50% - 50vw) 22px;

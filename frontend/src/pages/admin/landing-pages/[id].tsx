@@ -525,9 +525,18 @@ const createVeshojDefaultSections = (): LandingPageSection[] => [
   {
     id: 'veshoj-benefit-images',
     type: 'images',
-    title: 'কেন আপনি লিউকোন ফিমেল গার্ড 🌸 সাপ্লিমেন্ট কিনবেন ?',
+    title: 'লিউকোন ফিমেল গার্ড সেবনে যেসব সমস্যা দূর হবে',
     images: [
-      `${VESHOJ_ASSET_BASE}/2025/05/for-feedback-team.jpg-1024x1024.jpeg`,
+      `${VESHOJ_ASSET_BASE}/2025/05/14-1-1024x1024.jpg`,
+    ],
+    items: [
+      { text: 'দীর্ঘদিনের পুরনো সাদা-স্রাব সমস্যা!' },
+      { text: 'মাসিক চলাকালীন সময়ে অতিরিক্ত ব্যথা ও অস্বাভাবিক রক্তক্ষরণ!' },
+      { text: 'অতিরিক্ত যোনি চুলকানি ও অস্বস্তি!' },
+      { text: 'শারীরিক দুর্বলতা!' },
+      { text: 'ওজন কমে যাওয়া!' },
+      { text: 'খাবারের রুচি কম হওয়া।' },
+      { text: 'মানসিক দুশ্চিন্তা ও বিভিন্ন ভিটামিনের ঘাটতি!' },
     ],
     order: 3,
     is_visible: true,
@@ -1720,6 +1729,45 @@ export default function LandingPageEditor() {
                     <p className="text-xs text-fuchsia-700">
                       To color the free text yellow, wrap it like <code>&lt;span class=&quot;veshoj-offer-free&quot;&gt;ফ্রি!&lt;/span&gt;</code>.
                     </p>
+                  </div>
+                )}
+
+                {form.template === 'veshoj' && section.id === 'veshoj-benefit-images' && (
+                  <div className="bg-fuchsia-50 border border-fuchsia-200 rounded-lg p-4 space-y-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <h4 className="text-sm font-semibold text-fuchsia-900">Veshoj Problems Solved Section</h4>
+                        <p className="text-xs text-fuchsia-700 mt-1">Uses the first image URL as the full-width left image and these items as the orange-dot list.</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => addSectionItem(section.id)}
+                        className="text-xs bg-fuchsia-600 text-white px-2 py-1 rounded flex items-center gap-1"
+                      >
+                        <FaPlus /> Add Item
+                      </button>
+                    </div>
+                    <div className="space-y-2">
+                      {(section.items || []).map((item, idx) => (
+                        <div key={idx} className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            value={item.text}
+                            onChange={(e) => updateSectionItem(section.id, idx, { text: e.target.value })}
+                            className="flex-1 border rounded px-3 py-1.5 text-sm"
+                            placeholder="Problem text..."
+                          />
+                          <button
+                            type="button"
+                            onClick={() => removeSectionItem(section.id, idx)}
+                            className="text-red-400 hover:text-red-600 px-2"
+                            title="Remove item"
+                          >
+                            <FaTrash />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
 

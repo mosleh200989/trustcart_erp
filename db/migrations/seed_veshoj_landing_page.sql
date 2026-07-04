@@ -143,9 +143,18 @@ INSERT INTO landing_pages (
       {
         "id": "veshoj-benefit-images",
         "type": "images",
-        "title": "কেন আপনি লিউকোন ফিমেল গার্ড 🌸 সাপ্লিমেন্ট কিনবেন ?",
+        "title": "লিউকোন ফিমেল গার্ড সেবনে যেসব সমস্যা দূর হবে",
         "images": [
-          "https://beshoj.com/wp-content/uploads/2025/05/for-feedback-team.jpg-1024x1024.jpeg"
+          "https://beshoj.com/wp-content/uploads/2025/05/14-1-1024x1024.jpg"
+        ],
+        "items": [
+          { "text": "দীর্ঘদিনের পুরনো সাদা-স্রাব সমস্যা!" },
+          { "text": "মাসিক চলাকালীন সময়ে অতিরিক্ত ব্যথা ও অস্বাভাবিক রক্তক্ষরণ!" },
+          { "text": "অতিরিক্ত যোনি চুলকানি ও অস্বস্তি!" },
+          { "text": "শারীরিক দুর্বলতা!" },
+          { "text": "ওজন কমে যাওয়া!" },
+          { "text": "খাবারের রুচি কম হওয়া।" },
+          { "text": "মানসিক দুশ্চিন্তা ও বিভিন্ন ভিটামিনের ঘাটতি!" }
         ],
         "order": 3,
         "is_visible": true
