@@ -292,6 +292,7 @@ export class SalesManagerService implements OnModuleInit {
         `CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_activities_customer_type_created ON activities(customer_id, type, created_at)`,
         `CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_telephony_logs_record_order_called ON telephony_assignment_call_logs(record_type, order_id, called_at, created_at)`,
         `CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_order_activity_logs_order_action_created ON order_activity_logs(order_id, action_type, created_at)`,
+        `CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_customers_last_contact_date ON customers(last_contact_date)`,
         `CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_customer_tiers_tier_customer ON customer_tiers(tier, customer_id)`,
         `CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_customer_tiers_customer_assigned_at ON customer_tiers(customer_id, tier_assigned_at)`,
         `CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_sales_orders_customer_order_dates ON sales_orders(customer_id, order_date, created_at)`,
@@ -945,82 +946,84 @@ export class SalesManagerService implements OnModuleInit {
     if (!calledStatus || calledStatus === 'all') return;
 
     const today = getDhakaDateString();
+    const tomorrow = (() => {
+      const date = new Date(`${today}T00:00:00.000Z`);
+      date.setUTCDate(date.getUTCDate() + 1);
+      return date.toISOString().slice(0, 10);
+    })();
     const daysAgo = (days: number) => {
       const date = new Date(`${today}T00:00:00.000Z`);
       date.setUTCDate(date.getUTCDate() - days);
       return date.toISOString().slice(0, 10);
     };
 
-    const hasAnyCallSql = this.getCustomerCallExistsSql('c');
-    const hasCallOnDateSql = (paramName: string) =>
-      this.getCustomerCallExistsSql('c', (callAtSql) => `DATE(${callAtSql}) = CAST(:${paramName} AS date)`);
-    const hasCallOnOrAfterSql = (paramName: string) =>
-      this.getCustomerCallExistsSql('c', (callAtSql) => `DATE(${callAtSql}) >= CAST(:${paramName} AS date)`);
-    const hasCallInRangeSql = (startParam: string, endParam: string) =>
-      this.getCustomerCallExistsSql(
-        'c',
-        (callAtSql) => `DATE(${callAtSql}) >= CAST(:${startParam} AS date) AND DATE(${callAtSql}) < CAST(:${endParam} AS date)`,
-      );
+    const lastCallAtSql = 'c.last_contact_date';
+    const hasLastCallSql = `${lastCallAtSql} IS NOT NULL`;
+    const lastCallBeforeSql = (paramName: string) => `(${lastCallAtSql} IS NULL OR ${lastCallAtSql} < CAST(:${paramName} AS timestamp))`;
+    const lastCallInRangeSql = (startParam: string, endParam: string) =>
+      `${lastCallAtSql} >= CAST(:${startParam} AS timestamp) AND ${lastCallAtSql} < CAST(:${endParam} AS timestamp)`;
 
     switch (calledStatus) {
       case 'called':
-        qb.andWhere(hasAnyCallSql);
+        qb.andWhere(hasLastCallSql);
         break;
       case 'called_today':
-        qb.andWhere(hasCallOnDateSql('lastCallToday'), {
+        qb.andWhere(lastCallInRangeSql('lastCallToday', 'lastCallTomorrow'), {
           lastCallToday: today,
+          lastCallTomorrow: tomorrow,
         });
         break;
       case 'called_yesterday':
-        qb.andWhere(hasCallOnDateSql('lastCallYesterday'), {
+        qb.andWhere(lastCallInRangeSql('lastCallYesterday', 'lastCallToday'), {
           lastCallYesterday: daysAgo(1),
-        }).andWhere(`NOT ${hasCallOnOrAfterSql('lastCallToday')}`, { lastCallToday: today });
+          lastCallToday: today,
+        });
         break;
       case 'called_1week':
-        qb.andWhere(hasCallInRangeSql('lastCall1wStart', 'lastCall1wEnd'), {
+        qb.andWhere(lastCallInRangeSql('lastCall1wStart', 'lastCall1wEnd'), {
           lastCall1wStart: daysAgo(13),
           lastCall1wEnd: daysAgo(6),
-        }).andWhere(`NOT ${hasCallOnOrAfterSql('lastCall1wEnd')}`, { lastCall1wEnd: daysAgo(6) });
+        });
         break;
       case 'called_2weeks':
-        qb.andWhere(hasCallInRangeSql('lastCall2wStart', 'lastCall2wEnd'), {
+        qb.andWhere(lastCallInRangeSql('lastCall2wStart', 'lastCall2wEnd'), {
           lastCall2wStart: daysAgo(20),
           lastCall2wEnd: daysAgo(13),
-        }).andWhere(`NOT ${hasCallOnOrAfterSql('lastCall2wEnd')}`, { lastCall2wEnd: daysAgo(13) });
+        });
         break;
       case 'called_3weeks':
-        qb.andWhere(hasCallInRangeSql('lastCall3wStart', 'lastCall3wEnd'), {
+        qb.andWhere(lastCallInRangeSql('lastCall3wStart', 'lastCall3wEnd'), {
           lastCall3wStart: daysAgo(27),
           lastCall3wEnd: daysAgo(20),
-        }).andWhere(`NOT ${hasCallOnOrAfterSql('lastCall3wEnd')}`, { lastCall3wEnd: daysAgo(20) });
+        });
         break;
       case 'called_1month':
-        qb.andWhere(hasCallInRangeSql('lastCall1mStart', 'lastCall1mEnd'), {
+        qb.andWhere(lastCallInRangeSql('lastCall1mStart', 'lastCall1mEnd'), {
           lastCall1mStart: daysAgo(59),
           lastCall1mEnd: daysAgo(27),
-        }).andWhere(`NOT ${hasCallOnOrAfterSql('lastCall1mEnd')}`, { lastCall1mEnd: daysAgo(27) });
+        });
         break;
       case 'called_2months':
-        qb.andWhere(hasCallInRangeSql('lastCall2mStart', 'lastCall2mEnd'), {
+        qb.andWhere(lastCallInRangeSql('lastCall2mStart', 'lastCall2mEnd'), {
           lastCall2mStart: daysAgo(89),
           lastCall2mEnd: daysAgo(59),
-        }).andWhere(`NOT ${hasCallOnOrAfterSql('lastCall2mEnd')}`, { lastCall2mEnd: daysAgo(59) });
+        });
         break;
       case 'called_3months_plus':
-        qb.andWhere(hasAnyCallSql)
-          .andWhere(`NOT ${hasCallOnOrAfterSql('lastCall3mEnd')}`, { lastCall3mEnd: daysAgo(89) });
+        qb.andWhere(hasLastCallSql)
+          .andWhere(`${lastCallAtSql} < CAST(:lastCall3mEnd AS timestamp)`, { lastCall3mEnd: daysAgo(89) });
         break;
       case 'not_called':
       case 'not_called_today':
-        qb.andWhere(`NOT ${hasCallOnOrAfterSql('lastCallToday')}`, { lastCallToday: today });
+        qb.andWhere(lastCallBeforeSql('lastCallToday'), { lastCallToday: today });
         break;
       case 'not_called_week':
-        qb.andWhere(`NOT ${hasCallOnOrAfterSql('lastCallWeekAgo')}`, {
+        qb.andWhere(lastCallBeforeSql('lastCallWeekAgo'), {
           lastCallWeekAgo: daysAgo(6),
         });
         break;
       case 'never':
-        qb.andWhere(`NOT ${hasAnyCallSql}`);
+        qb.andWhere(`${lastCallAtSql} IS NULL`);
         break;
     }
   }

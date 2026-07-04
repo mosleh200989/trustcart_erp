@@ -835,7 +835,18 @@ export default function AdminSales() {
     try {
       const res = await apiClient.post('/order-management/pathao/sync-all');
       const data = res.data;
-      if (Number(data.failed || 0) > 0) {
+      if (data.rateLimited) {
+        const wait = Number(data.retryAfterSeconds || 60);
+        toast.warning(
+          `Pathao rate limit reached. Synced ${data.synced} of ${data.total} orders. ` +
+          `${data.remaining || 0} remaining. Please try again after about ${wait} seconds.`,
+        );
+      } else if (Number(data.remaining || 0) > 0) {
+        toast.success(
+          `Synced ${data.synced} Pathao order(s). ${data.remaining} remaining. ` +
+          'Run Sync Pathao again after a short wait to continue safely.',
+        );
+      } else if (Number(data.failed || 0) > 0) {
         const firstError = Array.isArray(data.errors) && data.errors.length > 0 ? ` First error: ${data.errors[0]}` : '';
         toast.warning(`Synced ${data.synced} of ${data.total} Pathao orders. Failed: ${data.failed}.${firstError}`);
       } else {
