@@ -104,6 +104,28 @@ export class SalesService {
     )`;
   }
 
+  private getCallOutcomeFilterCandidates(outcome: string): string[] {
+    const normalized = String(outcome || '').trim().toLowerCase();
+    const aliases: Record<string, string[]> = {
+      customer_hung_up: ['connected_disqualified'],
+      whatsapp_message_sent: ['connected_whatsapp'],
+      order_confirmed: ['order_placed'],
+      line_busy: ['busy'],
+      number_switched_off: ['unreachable'],
+      connected_disqualified: ['customer_hung_up'],
+      connected_whatsapp: ['whatsapp_message_sent'],
+      order_placed: ['order_confirmed'],
+      busy: ['line_busy'],
+      unreachable: ['number_switched_off'],
+    };
+
+    return Array.from(new Set([
+      normalized,
+      normalized.replace(/_/g, ' '),
+      ...(aliases[normalized] || []),
+    ].filter(Boolean)));
+  }
+
   private salesTeamLeaderRoleSql(userAlias: string) {
     return this.userHasRoleSql(
       userAlias,
@@ -1724,6 +1746,7 @@ export class SalesService {
     landingPage?: string;
     assignment?: string;
     assignedTo?: string;
+    callOutcome?: string;
     totalCancelledOrders?: string;
     orderRejectedReason?: string;
   }) {
@@ -1838,6 +1861,31 @@ export class SalesService {
     const assignedToId = Number(params.assignedTo);
     if (params.assignedTo && Number.isFinite(assignedToId) && assignedToId > 0) {
       qb.andWhere('o.assigned_to = :assignedToId', { assignedToId });
+    }
+
+    const callOutcome = String(params.callOutcome || '').trim().toLowerCase();
+    if (callOutcome && callOutcome !== 'all') {
+      const callOutcomeCandidates = this.getCallOutcomeFilterCandidates(callOutcome);
+      qb.andWhere(
+        `(
+          LOWER(COALESCE(o.telephony_outcome, '')) IN (:...callOutcomeCandidates)
+          OR EXISTS (
+            SELECT 1
+            FROM telephony_assignment_call_logs tal
+            WHERE tal.record_type = 'sales_order'
+              AND tal.order_id = o.id
+              AND LOWER(COALESCE(tal.outcome, '')) IN (:...callOutcomeCandidates)
+          )
+          OR EXISTS (
+            SELECT 1
+            FROM order_activity_logs oal_call
+            WHERE oal_call.order_id = o.id
+              AND oal_call.action_type = 'telephony_call_logged'
+              AND LOWER(COALESCE(oal_call.new_value->>'outcome', '')) IN (:...callOutcomeCandidates)
+          )
+        )`,
+        { callOutcomeCandidates },
+      );
     }
 
     if (params.orderRejectedReason && params.orderRejectedReason.trim()) {
@@ -2330,6 +2378,25 @@ export class SalesService {
       email: agent.email,
       teamLeaderId: agent.team_leader_id,
       inMyTeam: Number(agent.team_leader_id) === access.userId,
+    }));
+  }
+
+  async getOrderAssignmentFilterAgents() {
+    const rows: Array<{ id: number; name: string; last_name: string | null; email: string; team_leader_id: number | null }> =
+      await this.salesRepository.manager.query(
+        `SELECT u.id, u.name, u.last_name, u.email, u.team_leader_id
+         FROM users u
+         WHERE COALESCE(u.is_deleted, false) = false
+           AND (u.status IS NULL OR LOWER(u.status::text) = 'active')
+           AND ${this.assignableSalesAgentSql('u')}
+         ORDER BY LOWER(COALESCE(u.name, '')) ASC, LOWER(COALESCE(u.last_name, '')) ASC, u.id ASC`,
+      );
+
+    return rows.map((agent) => ({
+      id: Number(agent.id),
+      name: `${agent.name || ''} ${agent.last_name || ''}`.trim() || agent.email,
+      email: agent.email,
+      teamLeaderId: agent.team_leader_id,
     }));
   }
 

@@ -208,6 +208,12 @@ export class SalesController {
     });
   }
 
+  @Get('order-assignment-filter-agents')
+  @RequirePermissions('view-sales-orders')
+  async getOrderAssignmentFilterAgents() {
+    return this.salesService.getOrderAssignmentFilterAgents();
+  }
+
   @Put('order-assignments/bulk-assign')
   @RequireAnyPermission('manage-order-assignment', 'manage-assigned-orders')
   async bulkAssignOrdersForTelephony(@Body() body: { orderIds?: number[]; agentId?: number }, @Req() req: any) {
@@ -248,11 +254,12 @@ export class SalesController {
     @Query('landingPage') landingPage?: string,
     @Query('assignment') assignment?: string,
     @Query('assignedTo') assignedTo?: string,
+    @Query('callOutcome') callOutcome?: string,
     @Query('totalCancelledOrders') totalCancelledOrders?: string,
     @Query('orderRejectedReason') orderRejectedReason?: string,
   ) {
     // If pagination params are provided, use the paginated method
-    if (page || limit || q || status || startDate || endDate || todayOnly || productName || sourceGroup || source || landingPage || assignment || assignedTo || totalCancelledOrders || orderRejectedReason) {
+    if (page || limit || q || status || startDate || endDate || todayOnly || productName || sourceGroup || source || landingPage || assignment || assignedTo || callOutcome || totalCancelledOrders || orderRejectedReason) {
       return this.salesService.findAllPaginated({
         page: page ? parseInt(page, 10) : 1,
         limit: limit ? parseInt(limit, 10) : 10,
@@ -267,6 +274,7 @@ export class SalesController {
         landingPage: landingPage || '',
         assignment: assignment || '',
         assignedTo: assignedTo || '',
+        callOutcome: callOutcome || '',
         totalCancelledOrders: totalCancelledOrders || '',
         orderRejectedReason: orderRejectedReason || '',
       });
