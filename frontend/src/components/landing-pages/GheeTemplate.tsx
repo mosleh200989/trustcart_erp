@@ -25,6 +25,8 @@ import {
   FaHeart,
 } from 'react-icons/fa';
 
+const html = (value: string) => ({ __html: value });
+
 if (typeof window !== 'undefined') {
   gsap.registerPlugin(ScrollTrigger);
 }
@@ -860,9 +862,7 @@ export default function GheeTemplate({
                   <div className="max-w-5xl mx-auto">
                     {section.title && (
                       <div className="text-center mb-14">
-                        <h2 className="ghee-heading text-2xl sm:text-3xl md:text-4xl font-bold mb-3">
-                          {section.title}
-                        </h2>
+                        <h2 className="ghee-heading text-2xl sm:text-3xl md:text-4xl font-bold mb-3" dangerouslySetInnerHTML={html(section.title)} />
                         <div className="ghee-divider" style={{ color: page.primary_color }}>
                           <FaLeaf className="text-sm opacity-60" />
                         </div>
@@ -904,9 +904,7 @@ export default function GheeTemplate({
                   <div className="max-w-4xl mx-auto">
                     {section.title && (
                       <div className="text-center mb-14">
-                        <h2 className="ghee-heading text-2xl sm:text-3xl md:text-4xl font-bold mb-3">
-                          {section.title}
-                        </h2>
+                        <h2 className="ghee-heading text-2xl sm:text-3xl md:text-4xl font-bold mb-3" dangerouslySetInnerHTML={html(section.title)} />
                         <div className="ghee-divider" style={{ color: page.primary_color }}>
                           <FaShieldAlt className="text-sm opacity-60" />
                         </div>
@@ -944,9 +942,8 @@ export default function GheeTemplate({
                         <h2
                           className="ghee-heading text-2xl sm:text-3xl md:text-4xl font-bold mb-3"
                           style={{ color: section.textColor || '#2D1B07' }}
-                        >
-                          {section.title}
-                        </h2>
+                          dangerouslySetInnerHTML={html(section.title)}
+                        />
                         <div className="ghee-divider" style={{ color: page.primary_color }}>
                           <span className="text-sm opacity-60">✦</span>
                         </div>
@@ -993,9 +990,8 @@ export default function GheeTemplate({
                       <h2
                         className="ghee-heading text-2xl sm:text-3xl md:text-4xl font-bold mb-4"
                         style={{ color: section.textColor || page.secondary_color }}
-                      >
-                        {section.title}
-                      </h2>
+                        dangerouslySetInnerHTML={html(section.title)}
+                      />
                     )}
                     {section.content && (
                       <p
@@ -1039,9 +1035,8 @@ export default function GheeTemplate({
                       <h2
                         className="ghee-heading text-3xl sm:text-4xl font-bold mb-5"
                         style={{ color: section.textColor || page.secondary_color }}
-                      >
-                        {section.title}
-                      </h2>
+                        dangerouslySetInnerHTML={html(section.title)}
+                      />
                     )}
                     {section.content && (
                       <p
@@ -1092,9 +1087,7 @@ export default function GheeTemplate({
                   />
                   <div className="relative text-center">
                     {section.title && (
-                      <p className="text-base mb-3 opacity-80" style={{ color: section.textColor || page.secondary_color }}>
-                        {section.title}
-                      </p>
+                      <p className="text-base font-bold mb-3 opacity-80" style={{ color: section.textColor || page.secondary_color }} dangerouslySetInnerHTML={html(section.title)} />
                     )}
                     <a
                       href={`tel:${page.phone_number}`}

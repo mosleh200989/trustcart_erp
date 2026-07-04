@@ -11,6 +11,7 @@ interface AgentRow {
   agentId: number;
   agentName: string;
   phone: string;
+  status?: string | null;
   totalOrders: number;
   totalProductQty: number;
   totalDeliveredOrders: number;
@@ -207,6 +208,11 @@ export default function CommissionAgentsPage() {
       render: (_: any, row: AgentRow) => (
         <div>
           <div className="text-sm font-medium">{row.agentName || '-'}</div>
+          {row.status && row.status !== 'active' && (
+            <span className="mt-1 inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-600">
+              {row.status}
+            </span>
+          )}
           {row.phone && <div className="text-xs text-gray-500 mt-0.5">{row.phone}</div>}
         </div>
       ),

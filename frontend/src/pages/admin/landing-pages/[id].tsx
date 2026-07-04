@@ -7,6 +7,8 @@ import { FaSave, FaArrowLeft, FaPlus, FaTrash, FaEye, FaGripVertical, FaChevronD
 // Simple unique ID generator (no uuid dependency needed)
 const generateId = () => `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 
+const html = (value: string) => ({ __html: value });
+
 // ─── Reusable Image Upload Field ───
 function ImageUploadField({
   label,
@@ -489,6 +491,7 @@ const DEFAULT_SECTION: Omit<LandingPageSection, 'id' | 'order'> = {
 };
 
 const VESHOJ_ASSET_BASE = 'https://beshoj.com/wp-content/uploads';
+const VESHOJ_OFFER_SECTION_ID = 'veshoj-offer-price';
 
 const createVeshojDefaultSections = (): LandingPageSection[] => [
   {
@@ -506,10 +509,16 @@ const createVeshojDefaultSections = (): LandingPageSection[] => [
   },
   {
     id: 'veshoj-symptoms',
-    type: 'trust',
+    type: 'images',
     title: 'এই লক্ষণগুলো কি আপনাকেও ভুগাচ্ছে?',
-    content: 'এই লক্ষণগুলো অবহেলা করলে সাদা স্রা-ব বাড়তে পারে এবং জরায়ুর জটিল রোগের ঝুঁকি তৈরি হতে পারে।',
-    items: [],
+    images: [
+      `${VESHOJ_ASSET_BASE}/2025/05/for-web-infographic-1.jpg`,
+      `${VESHOJ_ASSET_BASE}/2025/05/for-web-infographic-2.jpg`,
+      `${VESHOJ_ASSET_BASE}/2025/05/for-web-infographic-3.jpg`,
+      `${VESHOJ_ASSET_BASE}/2025/05/for-web-infographic-4.jpg`,
+      `${VESHOJ_ASSET_BASE}/2025/05/for-web-infographic-5.jpg`,
+      `${VESHOJ_ASSET_BASE}/2025/05/for-web-infographic-6.jpg`,
+    ],
     order: 2,
     is_visible: true,
   },
@@ -518,12 +527,7 @@ const createVeshojDefaultSections = (): LandingPageSection[] => [
     type: 'images',
     title: 'কেন আপনি লিউকোন ফিমেল গার্ড 🌸 সাপ্লিমেন্ট কিনবেন ?',
     images: [
-      `${VESHOJ_ASSET_BASE}/2025/05/for-web-infographic-1.jpg`,
-      `${VESHOJ_ASSET_BASE}/2025/05/for-web-infographic-2.jpg`,
-      `${VESHOJ_ASSET_BASE}/2025/05/for-web-infographic-3.jpg`,
-      `${VESHOJ_ASSET_BASE}/2025/05/for-web-infographic-4.jpg`,
-      `${VESHOJ_ASSET_BASE}/2025/05/for-web-infographic-5.jpg`,
-      `${VESHOJ_ASSET_BASE}/2025/05/for-web-infographic-6.jpg`,
+      `${VESHOJ_ASSET_BASE}/2025/05/for-feedback-team.jpg-1024x1024.jpeg`,
     ],
     order: 3,
     is_visible: true,
@@ -534,6 +538,27 @@ const createVeshojDefaultSections = (): LandingPageSection[] => [
     title: 'খাওয়ার নিয়ম ও সময়',
     content: '<div class="veshoj-usage-main">প্রতিদিন - সকাল, দুপুর এবং রাতের খাবারের ৩০ মিনিট পর ২ টা করে বড়ি সেবন করতে হবে। রুচিলতা সেবনের নিয়ম: প্রতিদিন সকাল ও রাতে আধা চামচ রুচিলতা আধা গ্লাস পানিতে মিশিয়ে পান করুন।</div><div class="veshoj-usage-note">বি. দ্র: ঠান্ডা পানি, অতিরিক্ত ঝাল-মিষ্টি ও তেলযুক্ত খাবার খাওয়া থেকে বিরত থাকতে হবে।</div><div class="veshoj-usage-safe">আপনার ব্যবহারের জন্য সম্পূর্ণ নিরাপদ ও পরীক্ষিত – এখনই নিশ্চিত ব্যবহার করুন।</div>',
     order: 4,
+    is_visible: true,
+  },
+  {
+    id: VESHOJ_OFFER_SECTION_ID,
+    type: 'custom-html',
+    title: 'লিউকোন ফিমেল গার্ড পূর্বের মূল্য',
+    content: 'লিউকোন কিনলেই পাচ্ছেন রুচি লতা এবং কোজিক ব্রাইট সোপ<br />একদম <span class="veshoj-offer-free">ফ্রি!</span>',
+    items: [
+      { text: '১২৫০' },
+      { text: 'অফার মূল্য' },
+      { text: '৯৯০ টাকা' },
+    ],
+    buttonText: 'অর্ডার করুন',
+    buttonLink: '#order-form',
+    buttonColor: '#FF7B00',
+    buttonTextColor: '#ffffff',
+    buttonBorderColor: 'transparent',
+    buttonBorderRadius: 10,
+    backgroundColor: '#ffe8f9',
+    textColor: '#55585a',
+    order: 5,
     is_visible: true,
   },
   {
@@ -555,7 +580,7 @@ const createVeshojDefaultSections = (): LandingPageSection[] => [
       `${VESHOJ_ASSET_BASE}/2025/05/13-1024x1024.jpg`,
       `${VESHOJ_ASSET_BASE}/2025/05/14-1024x1024.jpg`,
     ],
-    order: 5,
+    order: 6,
     is_visible: true,
   },
   {
@@ -563,7 +588,7 @@ const createVeshojDefaultSections = (): LandingPageSection[] => [
     type: 'phone-cta',
     title: 'কল করে অর্ডার করতে চাই',
     buttonText: '01973-298146',
-    order: 6,
+    order: 7,
     is_visible: true,
   },
 ];
@@ -832,6 +857,17 @@ export default function LandingPageEditor() {
     if (!section) return;
     const newItems = [...(section.items || [])];
     newItems[itemIdx] = { ...newItems[itemIdx], ...updates };
+    updateSection(sectionId, { items: newItems });
+  };
+
+  const updateVeshojOfferItem = (sectionId: string, itemIdx: number, text: string) => {
+    const section = form.sections.find((s) => s.id === sectionId);
+    if (!section) return;
+    const newItems = [...(section.items || [])];
+    while (newItems.length < 3) {
+      newItems.push({ text: '' });
+    }
+    newItems[itemIdx] = { ...newItems[itemIdx], text };
     updateSection(sectionId, { items: newItems });
   };
 
@@ -1460,7 +1496,11 @@ export default function LandingPageEditor() {
                 <span className="text-xs font-medium bg-blue-100 text-blue-700 px-2 py-0.5 rounded">
                   {SECTION_TYPES.find((t) => t.value === section.type)?.label || section.type}
                 </span>
-                <span className="font-medium text-gray-700">{section.title || '(untitled)'}</span>
+                {section.title ? (
+                  <span className="font-bold text-gray-700" dangerouslySetInnerHTML={html(section.title)} />
+                ) : (
+                  <span className="font-bold text-gray-400">(untitled)</span>
+                )}
               </div>
               <div className="flex items-center gap-2">
                 <button onClick={(e) => { e.stopPropagation(); moveSection(section.id, 'up'); }} className="text-gray-400 hover:text-gray-600 p-1" title="Move up"><FaChevronUp /></button>
@@ -1574,7 +1614,11 @@ export default function LandingPageEditor() {
                       style={{ backgroundColor: section.backgroundColor || form.primary_color }}
                     >
                       <p className="opacity-80 text-xs mb-1" style={{ color: section.textColor || form.secondary_color || '#FFFFFF' }}>
-                        {section.title || 'Headline text will appear here'}
+                        {section.title ? (
+                          <span dangerouslySetInnerHTML={html(section.title)} />
+                        ) : (
+                          'Headline text will appear here'
+                        )}
                       </p>
                       <span className="font-bold text-base" style={{ color: section.textColor || form.secondary_color || '#FFFFFF' }}>
                         📞 {form.phone_number || '01XXXXXXXXX'}
@@ -1595,6 +1639,7 @@ export default function LandingPageEditor() {
                       onChange={(e) => updateSection(section.id, { title: e.target.value })}
                       className="w-full border rounded-lg px-3 py-2"
                     />
+                    <p className="text-xs text-gray-400 mt-1">HTML is supported. The full title is bold by default.</p>
                   </div>
                   <div className="grid grid-cols-2 gap-2">
                     <div>
@@ -1629,6 +1674,52 @@ export default function LandingPageEditor() {
                       className="w-full border rounded-lg px-3 py-2 font-mono text-sm"
                       placeholder={section.type === 'custom-html' ? 'Enter HTML content...' : 'Section content...'}
                     />
+                  </div>
+                )}
+
+                {form.template === 'veshoj' && section.id === VESHOJ_OFFER_SECTION_ID && (
+                  <div className="bg-fuchsia-50 border border-fuchsia-200 rounded-lg p-4 space-y-4">
+                    <div>
+                      <h4 className="text-sm font-semibold text-fuchsia-900">Veshoj Offer Price Section</h4>
+                      <p className="text-xs text-fuchsia-700 mt-1">
+                        Section Title controls the old-price label. Content controls the magenta offer band and supports HTML.
+                      </p>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div>
+                        <label className="block text-sm font-semibold text-fuchsia-900 mb-1">Previous Price</label>
+                        <input
+                          type="text"
+                          value={section.items?.[0]?.text || ''}
+                          onChange={(e) => updateVeshojOfferItem(section.id, 0, e.target.value)}
+                          className="w-full border rounded-lg px-3 py-2"
+                          placeholder="১২৫০"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-fuchsia-900 mb-1">Offer Price Label</label>
+                        <input
+                          type="text"
+                          value={section.items?.[1]?.text || ''}
+                          onChange={(e) => updateVeshojOfferItem(section.id, 1, e.target.value)}
+                          className="w-full border rounded-lg px-3 py-2"
+                          placeholder="অফার মূল্য"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-fuchsia-900 mb-1">Offer Price</label>
+                        <input
+                          type="text"
+                          value={section.items?.[2]?.text || ''}
+                          onChange={(e) => updateVeshojOfferItem(section.id, 2, e.target.value)}
+                          className="w-full border rounded-lg px-3 py-2"
+                          placeholder="৯৯০ টাকা"
+                        />
+                      </div>
+                    </div>
+                    <p className="text-xs text-fuchsia-700">
+                      To color the free text yellow, wrap it like <code>&lt;span class=&quot;veshoj-offer-free&quot;&gt;ফ্রি!&lt;/span&gt;</code>.
+                    </p>
                   </div>
                 )}
 

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type WheelEvent } from 'react';
 import Head from 'next/head';
 import apiClient from '@/services/api';
 import PhoneInput from '@/components/PhoneInput';
@@ -16,6 +16,8 @@ import { getOrderGuardNoteHtml, isOrderGuardBlocked } from '@/utils/orderGuard';
 import { TrackingService } from '@/utils/tracking';
 import {
   FaCheckCircle,
+  FaChevronLeft,
+  FaChevronRight,
   FaExclamationTriangle,
   FaMinus,
   FaPhone,
@@ -26,6 +28,8 @@ import {
   FaTruck,
   FaWhatsapp,
 } from 'react-icons/fa';
+
+const html = (value: string) => ({ __html: value });
 
 interface LandingPageSection {
   id: string;
@@ -125,14 +129,15 @@ const VESHOJ_PURPLE = '#B53389';
 const VESHOJ_ORANGE = '#FF7B00';
 const VESHOJ_PHONE = '01973-298146';
 const VESHOJ_ASSET_BASE = 'https://beshoj.com/wp-content/uploads';
+const VESHOJ_OFFER_SECTION_ID = 'veshoj-offer-price';
 
 const VESHOJ_DEFAULT_PRODUCTS: LandingPageProduct[] = [
   {
     id: 'veshoj-single',
     name: 'লিউকোন গার্ড এর সাথে রুচিলতা ফ্রী (1pcs)',
     image_url: `${VESHOJ_ASSET_BASE}/2025/05/facebook-cover-veshoj-5.jpg.jpeg`,
-    price: 1050,
-    compare_price: 0,
+    price: 990,
+    compare_price: 1250,
     qty: 1,
     is_default: true,
     allow_quantity_selector: true,
@@ -167,10 +172,16 @@ const VESHOJ_DEFAULT_SECTIONS: LandingPageSection[] = [
   },
   {
     id: 'veshoj-symptoms',
-    type: 'trust',
+    type: 'images',
     title: 'এই লক্ষণগুলো কি আপনাকেও ভুগাচ্ছে?',
-    content: 'এই লক্ষণগুলো অবহেলা করলে সাদা স্রা-ব বাড়তে পারে এবং জরায়ুর জটিল রোগের ঝুঁকি তৈরি হতে পারে।',
-    items: [],
+    images: [
+      `${VESHOJ_ASSET_BASE}/2025/05/for-web-infographic-1.jpg`,
+      `${VESHOJ_ASSET_BASE}/2025/05/for-web-infographic-2.jpg`,
+      `${VESHOJ_ASSET_BASE}/2025/05/for-web-infographic-3.jpg`,
+      `${VESHOJ_ASSET_BASE}/2025/05/for-web-infographic-4.jpg`,
+      `${VESHOJ_ASSET_BASE}/2025/05/for-web-infographic-5.jpg`,
+      `${VESHOJ_ASSET_BASE}/2025/05/for-web-infographic-6.jpg`,
+    ],
     order: 2,
     is_visible: true,
   },
@@ -179,12 +190,7 @@ const VESHOJ_DEFAULT_SECTIONS: LandingPageSection[] = [
     type: 'images',
     title: 'কেন আপনি লিউকোন ফিমেল গার্ড 🌸 সাপ্লিমেন্ট কিনবেন ?',
     images: [
-      `${VESHOJ_ASSET_BASE}/2025/05/for-web-infographic-1.jpg`,
-      `${VESHOJ_ASSET_BASE}/2025/05/for-web-infographic-2.jpg`,
-      `${VESHOJ_ASSET_BASE}/2025/05/for-web-infographic-3.jpg`,
-      `${VESHOJ_ASSET_BASE}/2025/05/for-web-infographic-4.jpg`,
-      `${VESHOJ_ASSET_BASE}/2025/05/for-web-infographic-5.jpg`,
-      `${VESHOJ_ASSET_BASE}/2025/05/for-web-infographic-6.jpg`,
+      `${VESHOJ_ASSET_BASE}/2025/05/for-feedback-team.jpg-1024x1024.jpeg`,
     ],
     order: 3,
     is_visible: true,
@@ -196,6 +202,27 @@ const VESHOJ_DEFAULT_SECTIONS: LandingPageSection[] = [
     content:
       '<div class="veshoj-usage-main">প্রতিদিন - সকাল, দুপুর এবং রাতের খাবারের ৩০ মিনিট পর ২ টা করে বড়ি সেবন করতে হবে। রুচিলতা সেবনের নিয়ম: প্রতিদিন সকাল ও রাতে আধা চামচ রুচিলতা আধা গ্লাস পানিতে মিশিয়ে পান করুন।</div><div class="veshoj-usage-note">বি. দ্র: ঠান্ডা পানি, অতিরিক্ত ঝাল-মিষ্টি ও তেলযুক্ত খাবার খাওয়া থেকে বিরত থাকতে হবে।</div><div class="veshoj-usage-safe">আপনার ব্যবহারের জন্য সম্পূর্ণ নিরাপদ ও পরীক্ষিত – এখনই নিশ্চিত ব্যবহার করুন।</div>',
     order: 4,
+    is_visible: true,
+  },
+  {
+    id: VESHOJ_OFFER_SECTION_ID,
+    type: 'custom-html',
+    title: 'লিউকোন ফিমেল গার্ড পূর্বের মূল্য',
+    content: 'লিউকোন কিনলেই পাচ্ছেন রুচি লতা এবং কোজিক ব্রাইট সোপ<br />একদম <span class="veshoj-offer-free">ফ্রি!</span>',
+    items: [
+      { text: '১২৫০' },
+      { text: 'অফার মূল্য' },
+      { text: '৯৯০ টাকা' },
+    ],
+    buttonText: 'অর্ডার করুন',
+    buttonLink: '#order-form',
+    buttonColor: VESHOJ_ORANGE,
+    buttonTextColor: '#ffffff',
+    buttonBorderColor: 'transparent',
+    buttonBorderRadius: 10,
+    backgroundColor: '#ffe8f9',
+    textColor: '#55585a',
+    order: 5,
     is_visible: true,
   },
   {
@@ -217,7 +244,7 @@ const VESHOJ_DEFAULT_SECTIONS: LandingPageSection[] = [
       `${VESHOJ_ASSET_BASE}/2025/05/13-1024x1024.jpg`,
       `${VESHOJ_ASSET_BASE}/2025/05/14-1024x1024.jpg`,
     ],
-    order: 5,
+    order: 6,
     is_visible: true,
   },
   {
@@ -225,7 +252,7 @@ const VESHOJ_DEFAULT_SECTIONS: LandingPageSection[] = [
     type: 'phone-cta',
     title: 'কল করে অর্ডার করতে চাই',
     buttonText: VESHOJ_PHONE,
-    order: 6,
+    order: 7,
     is_visible: true,
   },
 ];
@@ -269,6 +296,7 @@ function getYouTubeEmbedUrl(url?: string) {
 export default function VeshojTemplate({ page, trafficSource = 'landing_page' }: VeshojTemplateProps) {
   const orderFormRef = useRef<HTMLDivElement>(null);
   const districtDropdownRef = useRef<HTMLDivElement>(null);
+  const reviewCarouselRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const touchedRef = useRef<Record<string, boolean>>({});
   const toast = useToast();
 
@@ -326,6 +354,7 @@ export default function VeshojTemplate({ page, trafficSource = 'landing_page' }:
   const [submitted, setSubmitted] = useState(false);
   const [formTouched, setFormTouched] = useState(false);
   const [orderGuardNoteHtml, setOrderGuardNoteHtml] = useState('');
+  const [reviewActiveIndexes, setReviewActiveIndexes] = useState<Record<string, number>>({});
 
   const sessionIdRef = useRef<string>('');
   const trackingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -669,12 +698,69 @@ export default function VeshojTemplate({ page, trafficSource = 'landing_page' }:
     );
   };
 
-  const renderReviewDots = (count: number) => {
+  const updateReviewActiveIndex = useCallback((carouselKey: string, itemCount: number) => {
+    const carousel = reviewCarouselRefs.current[carouselKey];
+    if (!carousel || itemCount <= 1) return;
+
+    const maxScroll = carousel.scrollWidth - carousel.clientWidth;
+    const nextIndex = maxScroll > 0
+      ? Math.round((carousel.scrollLeft / maxScroll) * (itemCount - 1))
+      : 0;
+
+    setReviewActiveIndexes((prev) => (
+      prev[carouselKey] === nextIndex ? prev : { ...prev, [carouselKey]: nextIndex }
+    ));
+  }, []);
+
+  const scrollReviewToIndex = useCallback((carouselKey: string, index: number, itemCount: number) => {
+    const carousel = reviewCarouselRefs.current[carouselKey];
+    if (!carousel || itemCount <= 1) return;
+
+    const targetIndex = Math.max(0, Math.min(index, itemCount - 1));
+    const maxScroll = carousel.scrollWidth - carousel.clientWidth;
+    const left = maxScroll > 0 ? (targetIndex / (itemCount - 1)) * maxScroll : 0;
+
+    carousel.scrollTo({ left, behavior: 'smooth' });
+    setReviewActiveIndexes((prev) => ({ ...prev, [carouselKey]: targetIndex }));
+  }, []);
+
+  const scrollReviewByStep = useCallback((carouselKey: string, direction: -1 | 1, itemCount: number) => {
+    const currentIndex = reviewActiveIndexes[carouselKey] || 0;
+    scrollReviewToIndex(carouselKey, currentIndex + direction, itemCount);
+  }, [reviewActiveIndexes, scrollReviewToIndex]);
+
+  const handleReviewWheel = useCallback((event: WheelEvent<HTMLDivElement>, carouselKey: string, itemCount: number) => {
+    const carousel = event.currentTarget;
+    if (Math.abs(event.deltaY) <= Math.abs(event.deltaX) || carousel.scrollWidth <= carousel.clientWidth) return;
+
+    event.preventDefault();
+    carousel.scrollLeft += event.deltaY;
+    updateReviewActiveIndex(carouselKey, itemCount);
+  }, [updateReviewActiveIndex]);
+
+  const renderReviewDots = (count: number, carouselKey: string) => {
     if (count <= 1) return null;
+    const dotCount = Math.min(count, 10);
+    const activeIndex = Math.min(reviewActiveIndexes[carouselKey] || 0, count - 1);
+    const activeDotIndex = dotCount > 1
+      ? Math.round((activeIndex / (count - 1)) * (dotCount - 1))
+      : 0;
+
     return (
-      <div className="veshoj-review-dots" aria-hidden="true">
-        {Array.from({ length: Math.min(count, 10) }).map((_, index) => (
-          <span key={index} className={index === 0 ? 'is-active' : ''} />
+      <div className="veshoj-review-dots">
+        {Array.from({ length: dotCount }).map((_, index) => (
+          <button
+            key={index}
+            type="button"
+            className={index === activeDotIndex ? 'is-active' : ''}
+            aria-label={`Go to review ${index + 1}`}
+            onClick={() => {
+              const targetIndex = dotCount > 1
+                ? Math.round((index / (dotCount - 1)) * (count - 1))
+                : 0;
+              scrollReviewToIndex(carouselKey, targetIndex, count);
+            }}
+          />
         ))}
       </div>
     );
@@ -704,12 +790,74 @@ export default function VeshojTemplate({ page, trafficSource = 'landing_page' }:
     );
   };
 
+  const renderOfferMarker = (text: string, variant: 'x' | 'double-underline') => (
+    <span className={`veshoj-offer-marker veshoj-offer-marker-${variant}`}>
+      <span className="veshoj-offer-marker-text">{text}</span>
+      {variant === 'x' ? (
+        <svg viewBox="0 0 500 150" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+          <path d="M30 22 C140 40 300 112 470 132" />
+          <path d="M470 24 C330 40 160 104 28 128" />
+        </svg>
+      ) : (
+        <svg viewBox="0 0 500 70" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+          <path d="M18 42 C120 22 240 62 482 35" />
+          <path d="M22 58 C160 43 300 72 478 52" />
+        </svg>
+      )}
+    </span>
+  );
+
+  const renderVeshojOfferSection = (section: LandingPageSection) => {
+    const previousPrice = section.items?.[0]?.text || '১২৫০';
+    const offerLabel = section.items?.[1]?.text || 'অফার মূল্য';
+    const offerPrice = section.items?.[2]?.text || '৯৯০ টাকা';
+    const previousLabel = section.title || 'লিউকোন ফিমেল গার্ড পূর্বের মূল্য';
+    const bandContent = section.content || 'লিউকোন কিনলেই পাচ্ছেন রুচি লতা এবং কোজিক ব্রাইট সোপ<br />একদম <span class="veshoj-offer-free">ফ্রি!</span>';
+    const offerButton = {
+      ...section,
+      buttonText: section.buttonText || 'অর্ডার করুন',
+      buttonLink: section.buttonLink || '#order-form',
+      buttonColor: section.buttonColor || VESHOJ_ORANGE,
+      buttonTextColor: section.buttonTextColor || '#ffffff',
+      buttonBorderColor: section.buttonBorderColor || 'transparent',
+      buttonBorderRadius: section.buttonBorderRadius ?? 10,
+    };
+
+    return (
+      <section
+        key={section.id}
+        className="veshoj-offer-price-section"
+        style={{
+          backgroundColor: section.backgroundColor || '#ffe8f9',
+          color: section.textColor || '#55585a',
+        }}
+      >
+        <div className="veshoj-offer-inner">
+          <h2 className="veshoj-offer-old-price">
+            <span>{previousLabel} </span>
+            {renderOfferMarker(previousPrice, 'x')}
+          </h2>
+          <h3 className="veshoj-offer-current-price">
+            <span>{offerLabel} </span>
+            {renderOfferMarker(offerPrice, 'double-underline')}
+          </h3>
+          <div className="veshoj-offer-band">
+            <div className="veshoj-offer-band-text" dangerouslySetInnerHTML={html(bandContent)} />
+          </div>
+          <div className="veshoj-offer-button-wrap">{renderSectionButton(offerButton)}</div>
+        </div>
+      </section>
+    );
+  };
+
   const renderReviewSection = (section: LandingPageSection) => {
     const reviewDisplay = section.reviewDisplay || 'image';
     const videoUrls = (section.reviewVideoUrls || []).filter(Boolean);
     const imageUrls = section.images || [];
     const showVideos = (reviewDisplay === 'video' || reviewDisplay === 'both') && videoUrls.length > 0;
     const showImages = (reviewDisplay === 'image' || reviewDisplay === 'both') && imageUrls.length > 0;
+    const videoCarouselKey = `${section.id}-video`;
+    const imageCarouselKey = `${section.id}-image`;
 
     if (!showVideos && !showImages) return null;
 
@@ -718,41 +866,91 @@ export default function VeshojTemplate({ page, trafficSource = 'landing_page' }:
         {showVideos && (
           <>
             {renderReviewHeading(section.title || 'সম্মানিত গ্রাহকের মন্তব্য')}
-            <div className="veshoj-review-carousel veshoj-video-review-carousel">
-              {videoUrls.map((url, index) => {
-                const embedUrl = getYouTubeEmbedUrl(url);
-                return (
-                  <div key={`${url}-${index}`} className="veshoj-video-review-card">
-                    {embedUrl ? (
-                      <iframe
-                        src={embedUrl}
-                        title={`${section.title || page.title || 'Veshoj review'} ${index + 1}`}
-                        loading="lazy"
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                        allowFullScreen
-                      />
-                    ) : (
-                      <div className="veshoj-video-review-empty">Invalid YouTube URL</div>
-                    )}
-                  </div>
-                );
-              })}
+            <div className="veshoj-review-carousel-wrap">
+              <button
+                type="button"
+                className="veshoj-review-nav veshoj-review-nav-prev"
+                aria-label="Previous video review"
+                onClick={() => scrollReviewByStep(videoCarouselKey, -1, videoUrls.length)}
+              >
+                <FaChevronLeft />
+              </button>
+              <div
+                ref={(node) => {
+                  reviewCarouselRefs.current[videoCarouselKey] = node;
+                }}
+                className="veshoj-review-carousel veshoj-video-review-carousel"
+                onScroll={() => updateReviewActiveIndex(videoCarouselKey, videoUrls.length)}
+                onWheel={(event) => handleReviewWheel(event, videoCarouselKey, videoUrls.length)}
+              >
+                {videoUrls.map((url, index) => {
+                  const embedUrl = getYouTubeEmbedUrl(url);
+                  return (
+                    <div key={`${url}-${index}`} className="veshoj-video-review-card">
+                      {embedUrl ? (
+                        <iframe
+                          src={embedUrl}
+                          title={`${section.title || page.title || 'Veshoj review'} ${index + 1}`}
+                          loading="lazy"
+                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                          allowFullScreen
+                        />
+                      ) : (
+                        <div className="veshoj-video-review-empty">Invalid YouTube URL</div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+              <button
+                type="button"
+                className="veshoj-review-nav veshoj-review-nav-next"
+                aria-label="Next video review"
+                onClick={() => scrollReviewByStep(videoCarouselKey, 1, videoUrls.length)}
+              >
+                <FaChevronRight />
+              </button>
             </div>
-            {renderReviewDots(videoUrls.length)}
+            {renderReviewDots(videoUrls.length, videoCarouselKey)}
           </>
         )}
 
         {showImages && (
           <>
             {renderReviewHeading(section.content || (showVideos ? 'সম্মানিত কাস্টমারদের মতামত' : section.title || 'সম্মানিত কাস্টমারদের মতামত'))}
-            <div className="veshoj-review-carousel veshoj-image-review-carousel">
-              {imageUrls.map((image, index) => (
-                <div key={`${image}-${index}`} className="veshoj-image-review-card">
-                  <img src={image} alt={`${section.content || section.title || page.title} ${index + 1}`} loading="lazy" />
-                </div>
-              ))}
+            <div className="veshoj-review-carousel-wrap">
+              <button
+                type="button"
+                className="veshoj-review-nav veshoj-review-nav-prev"
+                aria-label="Previous image review"
+                onClick={() => scrollReviewByStep(imageCarouselKey, -1, imageUrls.length)}
+              >
+                <FaChevronLeft />
+              </button>
+              <div
+                ref={(node) => {
+                  reviewCarouselRefs.current[imageCarouselKey] = node;
+                }}
+                className="veshoj-review-carousel veshoj-image-review-carousel"
+                onScroll={() => updateReviewActiveIndex(imageCarouselKey, imageUrls.length)}
+                onWheel={(event) => handleReviewWheel(event, imageCarouselKey, imageUrls.length)}
+              >
+                {imageUrls.map((image, index) => (
+                  <div key={`${image}-${index}`} className="veshoj-image-review-card">
+                    <img src={image} alt={`${section.content || section.title || page.title} ${index + 1}`} loading="lazy" />
+                  </div>
+                ))}
+              </div>
+              <button
+                type="button"
+                className="veshoj-review-nav veshoj-review-nav-next"
+                aria-label="Next image review"
+                onClick={() => scrollReviewByStep(imageCarouselKey, 1, imageUrls.length)}
+              >
+                <FaChevronRight />
+              </button>
             </div>
-            {renderReviewDots(imageUrls.length)}
+            {renderReviewDots(imageUrls.length, imageCarouselKey)}
           </>
         )}
 
@@ -769,7 +967,7 @@ export default function VeshojTemplate({ page, trafficSource = 'landing_page' }:
     if (section.type === 'phone-cta') {
       return (
         <section key={section.id} className="veshoj-phone-section">
-          {section.title && <h2>{section.title}</h2>}
+          {section.title && <h2 dangerouslySetInnerHTML={html(section.title)} />}
           <a href={`tel:${plainPhone(phoneNumber)}`} className="veshoj-phone-button">
             <FaPhone /> {section.buttonText || phoneNumber}
           </a>
@@ -781,13 +979,19 @@ export default function VeshojTemplate({ page, trafficSource = 'landing_page' }:
       return renderReviewSection(section);
     }
 
+    if (section.id === VESHOJ_OFFER_SECTION_ID) {
+      return renderVeshojOfferSection(section);
+    }
+
     if (section.type === 'images') {
       const isComments = (section.images || []).length > 6 || section.title?.includes('মন্তব্য');
+      const isBenefitImageSection = section.id === 'veshoj-benefit-images';
+      const displayImages = isBenefitImageSection ? (section.images || []).slice(0, 1) : (section.images || []);
       return (
         <section key={section.id} className="veshoj-section">
           {section.title && (
             <div className="veshoj-heading-band">
-              <h2>{section.title}</h2>
+              <h2 dangerouslySetInnerHTML={html(section.title)} />
             </div>
           )}
           {section.content && (
@@ -796,11 +1000,21 @@ export default function VeshojTemplate({ page, trafficSource = 'landing_page' }:
               dangerouslySetInnerHTML={{ __html: section.content }}
             />
           )}
-          <div className={isComments ? 'veshoj-comment-gallery' : 'veshoj-image-stack'}>
-            {(section.images || []).map((image, index) => (
-              <img key={`${image}-${index}`} src={image} alt={`${section.title || page.title} ${index + 1}`} loading="lazy" />
-            ))}
-          </div>
+          {isBenefitImageSection ? (
+            <div className="veshoj-single-image-showcase">
+              {displayImages.map((image, index) => (
+                <div key={`${image}-${index}`} className="veshoj-single-image-frame">
+                  <img src={image} alt={`${section.title || page.title} ${index + 1}`} loading="lazy" />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className={isComments ? 'veshoj-comment-gallery' : 'veshoj-image-stack'}>
+              {displayImages.map((image, index) => (
+                <img key={`${image}-${index}`} src={image} alt={`${section.title || page.title} ${index + 1}`} loading="lazy" />
+              ))}
+            </div>
+          )}
           {renderSectionButton(section)}
         </section>
       );
@@ -811,7 +1025,7 @@ export default function VeshojTemplate({ page, trafficSource = 'landing_page' }:
         <section key={section.id} className="veshoj-section veshoj-usage-section">
           {section.title && (
             <div className="veshoj-usage-heading">
-              <h2>{section.title}</h2>
+              <h2 dangerouslySetInnerHTML={html(section.title)} />
             </div>
           )}
           {section.content && (
@@ -854,7 +1068,7 @@ export default function VeshojTemplate({ page, trafficSource = 'landing_page' }:
           paddingBottom: section.paddingY,
         }}
       >
-        {section.title && <h2 className={section.type === 'hero' || section.type === 'cta' ? '' : 'veshoj-section-title'}>{section.title}</h2>}
+        {section.title && <h2 className={section.type === 'hero' || section.type === 'cta' ? '' : 'veshoj-section-title'} dangerouslySetInnerHTML={html(section.title)} />}
         {section.content && (
           <div
             className={section.type === 'hero' || section.type === 'cta' ? 'veshoj-strip-copy' : 'veshoj-rich-text'}
@@ -1072,6 +1286,144 @@ export default function VeshojTemplate({ page, trafficSource = 'landing_page' }:
           line-height: 1.25;
           font-weight: 800;
         }
+        .veshoj-offer-price-section {
+          margin: 18px calc(50% - 50vw) 39px;
+          padding: 24px 12px 31px;
+          overflow: hidden;
+          text-align: center;
+        }
+        .veshoj-offer-inner {
+          width: min(1140px, calc(100vw - 24px));
+          margin: 0 auto;
+        }
+        .veshoj-offer-old-price,
+        .veshoj-offer-current-price {
+          margin: 0;
+          color: inherit;
+          text-align: center;
+          font-weight: 600;
+          letter-spacing: 0;
+        }
+        .veshoj-offer-old-price {
+          font-size: 35px;
+          line-height: 1.38;
+        }
+        .veshoj-offer-current-price {
+          margin-top: 0;
+          font-size: 74px;
+          line-height: 1.18;
+        }
+        .veshoj-offer-marker {
+          position: relative;
+          display: inline-block;
+          isolation: isolate;
+          white-space: nowrap;
+        }
+        .veshoj-offer-marker-text {
+          position: relative;
+          z-index: 1;
+        }
+        .veshoj-offer-marker svg {
+          position: absolute;
+          z-index: 2;
+          pointer-events: none;
+          overflow: visible;
+        }
+        .veshoj-offer-marker path {
+          fill: none;
+          stroke-linecap: round;
+          stroke-linejoin: round;
+          stroke-dasharray: 0 1500;
+          animation: veshoj-offer-marker-loop 9200ms ease-in-out infinite;
+        }
+        .veshoj-offer-marker path:nth-child(2) {
+          animation-delay: 120ms;
+        }
+        .veshoj-offer-marker-x svg {
+          inset: -0.24em -0.18em -0.08em;
+          width: calc(100% + .36em);
+          height: calc(100% + .32em);
+        }
+        .veshoj-offer-marker-x path {
+          stroke: #ff1212;
+          stroke-width: 8;
+        }
+        .veshoj-offer-marker-double-underline svg {
+          left: -0.06em;
+          right: -0.08em;
+          bottom: -0.03em;
+          width: calc(100% + .14em);
+          height: .42em;
+        }
+        .veshoj-offer-marker-double-underline path {
+          stroke: ${primaryColor};
+          stroke-width: 10;
+        }
+        .veshoj-offer-band {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 100%;
+          min-height: 105px;
+          margin: 25px auto 20px;
+          padding: 4px 20px;
+          background: ${primaryColor};
+          color: #ffffff;
+        }
+        .veshoj-offer-band-text {
+          color: #ffffff;
+          font-size: 31px;
+          font-weight: 600;
+          line-height: 56px;
+          text-align: center;
+        }
+        .veshoj-offer-band-text strong,
+        .veshoj-offer-band-text b,
+        .veshoj-offer-free {
+          color: #ffcc00;
+        }
+        .veshoj-offer-button-wrap .veshoj-cta-button {
+          min-height: 58px;
+          margin-top: 0;
+          padding: 8px 24px 10px;
+          border-radius: 10px;
+          background: ${VESHOJ_ORANGE};
+          color: #ffffff;
+          font-size: 32px;
+          font-weight: 700;
+          box-shadow: 2px 3px 0 rgba(135, 135, 135, 0.98);
+          transition: background .2s ease, box-shadow .2s ease, transform .2s ease;
+        }
+        .veshoj-offer-button-wrap .veshoj-cta-button:hover,
+        .veshoj-offer-button-wrap .veshoj-cta-button:focus {
+          background: #a8086c !important;
+          color: #ffffff !important;
+          box-shadow: 0 0 10px ${VESHOJ_ORANGE};
+          transform: none;
+          filter: none;
+        }
+        @keyframes veshoj-offer-marker-loop {
+          0% {
+            opacity: 1;
+            filter: none;
+            stroke-dasharray: 0 1500;
+          }
+          13.04% {
+            opacity: 1;
+            filter: none;
+            stroke-dasharray: 1500 1500;
+          }
+          86.95% {
+            opacity: 1;
+            filter: none;
+            stroke-dasharray: 1500 1500;
+          }
+          100% {
+            opacity: 0;
+            filter: blur(10px);
+            stroke-dasharray: 1500 1500;
+          }
+        }
         .veshoj-check-list {
           display: grid;
           gap: 10px;
@@ -1111,6 +1463,28 @@ export default function VeshojTemplate({ page, trafficSource = 'landing_page' }:
         .veshoj-image-stack img {
           height: 100%;
           object-fit: cover;
+        }
+        .veshoj-single-image-showcase {
+          display: flex;
+          justify-content: center;
+          margin: 12px auto 0;
+        }
+        .veshoj-single-image-frame {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: min(360px, 100%);
+          aspect-ratio: 1 / 1;
+          overflow: hidden;
+          border-radius: 8px;
+          background: #fff7fb;
+        }
+        .veshoj-single-image-frame img {
+          display: block;
+          width: 100%;
+          height: 100%;
+          border-radius: 8px;
+          object-fit: contain;
         }
         .veshoj-video-frame img,
         .veshoj-video-frame iframe {
@@ -1175,20 +1549,67 @@ export default function VeshojTemplate({ page, trafficSource = 'landing_page' }:
           color: ${primaryColor};
           flex-shrink: 0;
         }
+        .veshoj-review-carousel-wrap {
+          position: relative;
+          max-width: 1000px;
+          margin: 0 auto;
+          padding: 0 48px;
+        }
         .veshoj-review-carousel {
           display: flex;
           gap: 20px;
-          max-width: 900px;
-          margin: 0 auto;
+          width: 100%;
+          margin: 0;
           padding: 0 0 8px;
           overflow-x: auto;
           scroll-behavior: smooth;
           scroll-snap-type: x mandatory;
-          scrollbar-width: none;
+          scrollbar-color: ${primaryColor} #f1d7e8;
+          scrollbar-width: thin;
           -webkit-overflow-scrolling: touch;
         }
         .veshoj-review-carousel::-webkit-scrollbar {
-          display: none;
+          display: block;
+          height: 8px;
+        }
+        .veshoj-review-carousel::-webkit-scrollbar-track {
+          border-radius: 999px;
+          background: #f1d7e8;
+        }
+        .veshoj-review-carousel::-webkit-scrollbar-thumb {
+          border-radius: 999px;
+          background: ${primaryColor};
+        }
+        .veshoj-review-nav {
+          position: absolute;
+          top: 50%;
+          z-index: 3;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 38px;
+          height: 38px;
+          border: 1px solid #f0c8e1;
+          border-radius: 999px;
+          background: #ffffff;
+          color: ${primaryColor};
+          box-shadow: 0 8px 18px rgba(17, 24, 39, .14);
+          transform: translateY(-50%);
+          transition: transform .18s ease, background .18s ease;
+        }
+        .veshoj-review-nav:hover {
+          background: #fff4fb;
+          transform: translateY(-50%) scale(1.04);
+        }
+        .veshoj-review-nav svg {
+          width: 18px;
+          height: 18px;
+        }
+        .veshoj-review-nav-prev {
+          left: 4px;
+        }
+        .veshoj-review-nav-next {
+          right: 4px;
         }
         .veshoj-video-review-card,
         .veshoj-image-review-card {
@@ -1230,13 +1651,18 @@ export default function VeshojTemplate({ page, trafficSource = 'landing_page' }:
           gap: 14px;
           margin: 10px 0 18px;
         }
-        .veshoj-review-dots span {
+        .veshoj-review-dots button {
           width: 7px;
           height: 7px;
+          padding: 0;
+          border: 0;
           border-radius: 999px;
           background: #d0d0d0;
+          cursor: pointer;
+          transition: width .18s ease, background .18s ease;
         }
-        .veshoj-review-dots span.is-active {
+        .veshoj-review-dots button.is-active {
+          width: 16px;
           background: #111111;
         }
         .veshoj-play {
@@ -1585,6 +2011,42 @@ export default function VeshojTemplate({ page, trafficSource = 'landing_page' }:
             grid-template-columns: repeat(2, minmax(0, 1fr));
             gap: 7px;
           }
+          .veshoj-offer-price-section {
+            margin: 10px calc(50% - 50vw) 22px;
+            padding: 10px 10px 22px;
+          }
+          .veshoj-offer-inner {
+            width: min(100%, calc(100vw - 20px));
+          }
+          .veshoj-offer-old-price {
+            font-size: 19px;
+            line-height: 1.3;
+          }
+          .veshoj-offer-current-price {
+            margin-top: -1px;
+            font-size: 34px;
+            line-height: 1.22;
+          }
+          .veshoj-offer-marker-x path {
+            stroke-width: 7;
+          }
+          .veshoj-offer-marker-double-underline path {
+            stroke-width: 8;
+          }
+          .veshoj-offer-band {
+            min-height: 104px;
+            margin: 14px auto 14px;
+            padding: 8px 10px;
+          }
+          .veshoj-offer-band-text {
+            font-size: 15px;
+            line-height: 1.4;
+          }
+          .veshoj-offer-button-wrap .veshoj-cta-button {
+            min-height: 46px;
+            padding: 7px 20px 8px;
+            font-size: 20px;
+          }
           .veshoj-review-heading {
             gap: 12px;
             margin: 20px 0 14px;
@@ -1593,11 +2055,21 @@ export default function VeshojTemplate({ page, trafficSource = 'landing_page' }:
           .veshoj-review-heading h2 {
             font-size: 24px;
           }
+          .veshoj-review-carousel-wrap {
+            padding: 0;
+          }
+          .veshoj-review-nav {
+            display: none;
+          }
           .veshoj-review-carousel {
             max-width: none;
             padding-left: 14px;
             padding-right: 14px;
             gap: 12px;
+            scrollbar-width: none;
+          }
+          .veshoj-review-carousel::-webkit-scrollbar {
+            display: none;
           }
           .veshoj-video-review-card,
           .veshoj-image-review-card {

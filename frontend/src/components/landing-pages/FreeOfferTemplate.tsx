@@ -17,6 +17,8 @@ import {
   FaClock,
 } from 'react-icons/fa';
 
+const html = (value: string) => ({ __html: value });
+
 interface LandingPageSection {
   id: string;
   type: 'hero' | 'benefits' | 'images' | 'trust' | 'order-form' | 'cta' | 'custom-html' | 'phone-cta' | 'spacer';
@@ -578,9 +580,7 @@ export default function FreeOfferTemplate({ page, trafficSource = 'landing_page'
               {section.type === 'hero' && (
                 <div className="text-center p-8 rounded-2xl border border-gray-800 shadow-2xl mb-8" style={{ backgroundColor: section.backgroundColor && section.backgroundColor !== 'transparent' ? section.backgroundColor : cardBg }}>
                   {section.title && (
-                    <h2 className="text-2xl md:text-4xl font-extrabold mb-4 text-white">
-                      {section.title}
-                    </h2>
+                    <h2 className="text-2xl md:text-4xl font-extrabold mb-4 text-white" dangerouslySetInnerHTML={html(section.title)} />
                   )}
                   {section.content && (
                     <p className="text-lg text-gray-300 mb-6 max-w-2xl mx-auto leading-relaxed">
@@ -613,7 +613,7 @@ export default function FreeOfferTemplate({ page, trafficSource = 'landing_page'
                 return (
                   <div className="mb-4 sm:mb-6">
                     {section.title && (
-                      <h2 className="text-2xl md:text-3xl font-bold mb-5 text-center" style={{ color: section.textColor || secondaryColor }}>{section.title}</h2>
+                      <h2 className="text-2xl md:text-3xl font-bold mb-5 text-center" style={{ color: section.textColor || secondaryColor }} dangerouslySetInnerHTML={html(section.title)} />
                     )}
                     <div className={hasSingleImage ? '-mx-4 md:mx-0 flex justify-center' : '-mx-4 md:mx-0 grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6'}>
                       {images.map((img, idx) => (
@@ -634,7 +634,7 @@ export default function FreeOfferTemplate({ page, trafficSource = 'landing_page'
               {section.type === 'benefits' && (
                 <div>
                   {section.title && (
-                    <h2 className="text-2xl md:text-3xl font-bold mb-8 text-center text-white">{section.title}</h2>
+                    <h2 className="text-2xl md:text-3xl font-bold mb-8 text-center text-white" dangerouslySetInnerHTML={html(section.title)} />
                   )}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {(section.items || []).map((item, idx) => (
@@ -672,7 +672,7 @@ export default function FreeOfferTemplate({ page, trafficSource = 'landing_page'
               {section.type === 'trust' && (
                 <div className="p-8 rounded-2xl border border-gray-800 shadow-2xl" style={{ backgroundColor: section.backgroundColor && section.backgroundColor !== 'transparent' ? section.backgroundColor : cardBg }}>
                   {section.title && (
-                    <h2 className="text-2xl md:text-3xl font-bold mb-6 text-center" style={{ color: section.textColor || secondaryColor }}>{section.title}</h2>
+                    <h2 className="text-2xl md:text-3xl font-bold mb-6 text-center" style={{ color: section.textColor || secondaryColor }} dangerouslySetInnerHTML={html(section.title)} />
                   )}
                   <div className="space-y-4">
                     {(section.items || []).map((item, idx) => (
@@ -688,7 +688,7 @@ export default function FreeOfferTemplate({ page, trafficSource = 'landing_page'
               {section.type === 'cta' && (
                 <div className="text-center p-10 rounded-2xl border border-gray-800" style={{ backgroundColor: section.backgroundColor && section.backgroundColor !== 'transparent' ? section.backgroundColor : cardBg }}>
                   {section.title && (
-                    <h2 className="text-2xl md:text-4xl font-extrabold mb-4 gold-gradient-text">{section.title}</h2>
+                    <h2 className="text-2xl md:text-4xl font-extrabold mb-4 gold-gradient-text" dangerouslySetInnerHTML={html(section.title)} />
                   )}
                   {section.content && (
                     <p className="text-lg text-gray-300 mb-8 max-w-2xl mx-auto">{section.content}</p>
@@ -730,9 +730,7 @@ export default function FreeOfferTemplate({ page, trafficSource = 'landing_page'
                   style={{ backgroundColor: section.backgroundColor || cardBg }}
                 >
                   {section.title && (
-                    <p className="text-lg mb-2 opacity-80" style={{ color: section.textColor || secondaryColor }}>
-                      {section.title}
-                    </p>
+                    <p className="text-lg font-bold mb-2 opacity-80" style={{ color: section.textColor || secondaryColor }} dangerouslySetInnerHTML={html(section.title)} />
                   )}
                   <a
                     href={`tel:${page.phone_number}`}
