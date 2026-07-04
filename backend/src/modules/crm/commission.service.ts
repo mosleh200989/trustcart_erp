@@ -113,6 +113,39 @@ export class CommissionService {
     return this.roundCommission(this.calculateProgressiveSlabCommission(totalCount, slabs) / totalCount);
   }
 
+  private userHasRoleSql(userAlias: string, roleWhereSql: (roleAlias: string) => string): string {
+    return `(
+      EXISTS (
+        SELECT 1
+        FROM roles primary_role
+        WHERE primary_role.id = ${userAlias}.role_id
+          AND COALESCE(primary_role.is_active, true) = true
+          AND (${roleWhereSql('primary_role')})
+      )
+      OR EXISTS (
+        SELECT 1
+        FROM user_roles extra_user_role
+        INNER JOIN roles extra_role ON extra_role.id = extra_user_role.role_id
+        WHERE extra_user_role.user_id = ${userAlias}.id
+          AND COALESCE(extra_role.is_active, true) = true
+          AND (${roleWhereSql('extra_role')})
+      )
+    )`;
+  }
+
+  private commissionAgentRoleSql(userAlias: string): string {
+    return this.userHasRoleSql(
+      userAlias,
+      (roleAlias) => `LOWER(COALESCE(${roleAlias}.slug, '')) IN ('sales-executive', 'sales-agent', 'agent', 'executive')
+        OR LOWER(COALESCE(${roleAlias}.slug, '')) LIKE '%sales-executive%'
+        OR LOWER(COALESCE(${roleAlias}.slug, '')) LIKE '%sales-agent%'
+        OR LOWER(COALESCE(${roleAlias}.name, '')) IN ('sales executive', 'sales agent', 'agent', 'executive')
+        OR LOWER(COALESCE(${roleAlias}.name, '')) LIKE '%sales executive%'
+        OR LOWER(COALESCE(${roleAlias}.name, '')) LIKE '%sales agent%'
+        OR LOWER(COALESCE(${roleAlias}.name, '')) LIKE '%executive%'`,
+    );
+  }
+
   // ==================== COMMISSION SETTINGS (ADMIN) ====================
 
   /**
@@ -703,7 +736,7 @@ export class CommissionService {
     // Daily order counts (only orders from admin_panel/agent_dashboard created by this agent)
     const dailyOrdersSql = `
       SELECT
-        DATE(so.created_at AT TIME ZONE 'Asia/Dhaka') as order_date,
+        DATE(COALESCE(so.delivered_at, so.created_at) AT TIME ZONE 'Asia/Dhaka') as order_date,
         COUNT(so.id) as order_count,
         COALESCE(SUM(product_qty.total_qty), 0) as total_product_qty
       FROM sales_orders so
@@ -721,8 +754,8 @@ export class CommissionService {
       WHERE so.created_by = $1
         AND so.order_source IN ('admin_panel', 'agent_dashboard')
         AND so.status = 'delivered'
-        AND DATE(so.created_at AT TIME ZONE 'Asia/Dhaka') BETWEEN $2 AND $3
-      GROUP BY DATE(so.created_at AT TIME ZONE 'Asia/Dhaka')
+        AND DATE(COALESCE(so.delivered_at, so.created_at) AT TIME ZONE 'Asia/Dhaka') BETWEEN $2 AND $3
+      GROUP BY DATE(COALESCE(so.delivered_at, so.created_at) AT TIME ZONE 'Asia/Dhaka')
       ORDER BY order_date ASC
     `;
     const dailyRows = await this.dataSource.query(dailyOrdersSql, [agentId, startDate, endDate]);
@@ -730,15 +763,15 @@ export class CommissionService {
     // Cross-sell counts: items added by this agent to any order with is_cross_sell = true
     const crossSellSql = `
       SELECT
-        DATE(so.created_at AT TIME ZONE 'Asia/Dhaka') as order_date,
+        DATE(COALESCE(so.delivered_at, so.created_at) AT TIME ZONE 'Asia/Dhaka') as order_date,
         COALESCE(SUM(oi.quantity), 0) as cross_sell_qty
       FROM order_items oi
       INNER JOIN sales_orders so ON so.id = oi.order_id
       WHERE oi.added_by = $1
         AND oi.is_cross_sell = true
         AND so.status = 'delivered'
-        AND DATE(so.created_at AT TIME ZONE 'Asia/Dhaka') BETWEEN $2 AND $3
-      GROUP BY DATE(so.created_at AT TIME ZONE 'Asia/Dhaka')
+        AND DATE(COALESCE(so.delivered_at, so.created_at) AT TIME ZONE 'Asia/Dhaka') BETWEEN $2 AND $3
+      GROUP BY DATE(COALESCE(so.delivered_at, so.created_at) AT TIME ZONE 'Asia/Dhaka')
     `;
     const crossSellRows = await this.dataSource.query(crossSellSql, [agentId, startDate, endDate]);
     const crossSellByDate = new Map<string, number>(
@@ -909,16 +942,21 @@ export class CommissionService {
     const countSql = `
       SELECT COUNT(DISTINCT u.id) as total
       FROM users u
-      INNER JOIN roles r ON r.id = u.role_id
-      WHERE (LOWER(r.name) LIKE '%sales executive%' OR r.slug = 'sales-executive')
-        AND u.status = 'active'
+      WHERE COALESCE(u.is_deleted, false) = false
+        AND (u.status IS NULL OR LOWER(u.status::text) = 'active')
+        AND ${this.commissionAgentRoleSql('u')}
       ${searchCondition}
     `;
     const countResult = await this.dataSource.query(countSql, searchParam);
     const total = parseInt(countResult[0]?.total || '0', 10);
 
     // Main data query — get order/upsell counts for the selected month
-    const pIdx = searchParam.length + 1;
+    const monthStartIdx = searchParam.length + 1;
+    const monthEndIdx = searchParam.length + 2;
+    const monthKeyIdx = searchParam.length + 3;
+    const limitIdx = searchParam.length + 4;
+    const offsetIdx = searchParam.length + 5;
+    const monthKey = monthStart.substring(0, 7);
     const dataSql = `
       SELECT
         u.id as agent_id,
@@ -939,7 +977,6 @@ export class CommissionService {
         request_stats.request_status as payment_request_status,
         request_stats.requested_amount as payment_requested_amount
       FROM users u
-      INNER JOIN roles r ON r.id = u.role_id
       LEFT JOIN (
         SELECT
           so.created_by as agent_id,
@@ -947,7 +984,7 @@ export class CommissionService {
         FROM sales_orders so
         WHERE so.created_by IS NOT NULL
           AND so.order_source IN ('admin_panel', 'agent_dashboard')
-          AND DATE(so.created_at AT TIME ZONE 'Asia/Dhaka') BETWEEN '${monthStart}' AND '${monthEnd}'
+          AND DATE(so.created_at AT TIME ZONE 'Asia/Dhaka') BETWEEN $${monthStartIdx} AND $${monthEndIdx}
         GROUP BY so.created_by
       ) order_stats ON order_stats.agent_id = u.id
       LEFT JOIN (
@@ -958,7 +995,7 @@ export class CommissionService {
         WHERE so.created_by IS NOT NULL
           AND so.order_source IN ('admin_panel', 'agent_dashboard')
           AND so.status IN ('cancelled', 'admin_cancelled', 'returned')
-          AND DATE(so.created_at AT TIME ZONE 'Asia/Dhaka') BETWEEN '${monthStart}' AND '${monthEnd}'
+          AND DATE(so.created_at AT TIME ZONE 'Asia/Dhaka') BETWEEN $${monthStartIdx} AND $${monthEndIdx}
         GROUP BY so.created_by
       ) cancelled_stats ON cancelled_stats.agent_id = u.id
       LEFT JOIN (
@@ -968,7 +1005,7 @@ export class CommissionService {
           INNER JOIN sales_orders so ON so.id = soi.sales_order_id
           WHERE so.created_by IS NOT NULL
             AND so.order_source IN ('admin_panel', 'agent_dashboard')
-            AND DATE(so.created_at AT TIME ZONE 'Asia/Dhaka') BETWEEN '${monthStart}' AND '${monthEnd}'
+            AND DATE(so.created_at AT TIME ZONE 'Asia/Dhaka') BETWEEN $${monthStartIdx} AND $${monthEndIdx}
           GROUP BY so.created_by
           UNION ALL
           SELECT so.created_by as agent_id, COALESCE(SUM(oi.quantity), 0) as qty
@@ -976,7 +1013,7 @@ export class CommissionService {
           INNER JOIN sales_orders so ON so.id = oi.order_id
           WHERE so.created_by IS NOT NULL
             AND so.order_source IN ('admin_panel', 'agent_dashboard')
-            AND DATE(so.created_at AT TIME ZONE 'Asia/Dhaka') BETWEEN '${monthStart}' AND '${monthEnd}'
+            AND DATE(so.created_at AT TIME ZONE 'Asia/Dhaka') BETWEEN $${monthStartIdx} AND $${monthEndIdx}
           GROUP BY so.created_by
         ) combined GROUP BY agent_id
       ) product_qty_stats ON product_qty_stats.agent_id = u.id
@@ -989,7 +1026,7 @@ export class CommissionService {
         WHERE so.created_by IS NOT NULL
           AND so.order_source IN ('admin_panel', 'agent_dashboard')
           AND so.status = 'delivered'
-          AND DATE(so.created_at AT TIME ZONE 'Asia/Dhaka') BETWEEN '${monthStart}' AND '${monthEnd}'
+          AND DATE(COALESCE(so.delivered_at, so.created_at) AT TIME ZONE 'Asia/Dhaka') BETWEEN $${monthStartIdx} AND $${monthEndIdx}
         GROUP BY so.created_by
       ) delivered_order_stats ON delivered_order_stats.agent_id = u.id
       LEFT JOIN (
@@ -1000,7 +1037,7 @@ export class CommissionService {
           WHERE so.created_by IS NOT NULL
             AND so.order_source IN ('admin_panel', 'agent_dashboard')
             AND so.status = 'delivered'
-            AND DATE(so.created_at AT TIME ZONE 'Asia/Dhaka') BETWEEN '${monthStart}' AND '${monthEnd}'
+            AND DATE(COALESCE(so.delivered_at, so.created_at) AT TIME ZONE 'Asia/Dhaka') BETWEEN $${monthStartIdx} AND $${monthEndIdx}
           GROUP BY so.created_by
           UNION ALL
           SELECT so.created_by as agent_id, COALESCE(SUM(oi.quantity), 0) as qty
@@ -1010,7 +1047,7 @@ export class CommissionService {
             AND so.order_source IN ('admin_panel', 'agent_dashboard')
             AND so.status = 'delivered'
             AND COALESCE(oi.is_cross_sell, false) = false
-            AND DATE(so.created_at AT TIME ZONE 'Asia/Dhaka') BETWEEN '${monthStart}' AND '${monthEnd}'
+            AND DATE(COALESCE(so.delivered_at, so.created_at) AT TIME ZONE 'Asia/Dhaka') BETWEEN $${monthStartIdx} AND $${monthEndIdx}
           GROUP BY so.created_by
         ) combined GROUP BY agent_id
       ) delivered_product_qty_stats ON delivered_product_qty_stats.agent_id = u.id
@@ -1021,7 +1058,7 @@ export class CommissionService {
         WHERE oi.is_cross_sell = true
           AND oi.added_by IS NOT NULL
           AND so.status = 'delivered'
-          AND DATE(so.created_at AT TIME ZONE 'Asia/Dhaka') BETWEEN '${monthStart}' AND '${monthEnd}'
+          AND DATE(COALESCE(so.delivered_at, so.created_at) AT TIME ZONE 'Asia/Dhaka') BETWEEN $${monthStartIdx} AND $${monthEndIdx}
         GROUP BY oi.added_by
       ) cross_sell_stats ON cross_sell_stats.agent_id = u.id
       LEFT JOIN (
@@ -1035,7 +1072,7 @@ export class CommissionService {
             pr.requested_amount
           FROM commission_payment_requests pr
           WHERE pr.status = 'paid'
-            AND COALESCE(pr.commission_month, TO_CHAR(DATE(pr.paid_at AT TIME ZONE 'Asia/Dhaka'), 'YYYY-MM')) = '${monthStart.substring(0, 7)}'
+            AND COALESCE(pr.commission_month, TO_CHAR(DATE(pr.paid_at AT TIME ZONE 'Asia/Dhaka'), 'YYYY-MM')) = $${monthKeyIdx}
           ORDER BY pr.agent_id, pr.paid_at DESC NULLS LAST, pr.created_at DESC, pr.id DESC
         ) paid
       ) paid_stats ON paid_stats.agent_id = u.id
@@ -1047,17 +1084,18 @@ export class CommissionService {
           pr.requested_amount
         FROM commission_payment_requests pr
         WHERE pr.status IN ('pending', 'approved', 'paid')
-          AND COALESCE(pr.commission_month, TO_CHAR(DATE(pr.created_at AT TIME ZONE 'Asia/Dhaka'), 'YYYY-MM')) = '${monthStart.substring(0, 7)}'
+          AND COALESCE(pr.commission_month, TO_CHAR(DATE(pr.created_at AT TIME ZONE 'Asia/Dhaka'), 'YYYY-MM')) = $${monthKeyIdx}
         ORDER BY pr.agent_id, pr.created_at DESC, pr.id DESC
       ) request_stats ON request_stats.agent_id = u.id
-      LEFT JOIN commission_extra_partial extra_partial ON extra_partial.agent_id = u.id AND extra_partial.month = '${monthStart.substring(0, 7)}'
-      WHERE (LOWER(r.name) LIKE '%sales executive%' OR r.slug = 'sales-executive')
-        AND u.status = 'active'
+      LEFT JOIN commission_extra_partial extra_partial ON extra_partial.agent_id = u.id AND extra_partial.month = $${monthKeyIdx}
+      WHERE COALESCE(u.is_deleted, false) = false
+        AND (u.status IS NULL OR LOWER(u.status::text) = 'active')
+        AND ${this.commissionAgentRoleSql('u')}
       ${searchCondition}
       ORDER BY agent_name ASC
-      LIMIT $${pIdx} OFFSET $${pIdx + 1}
+      LIMIT $${limitIdx} OFFSET $${offsetIdx}
     `;
-    const dataParams = [...searchParam, limitNum, offset];
+    const dataParams = [...searchParam, monthStart, monthEnd, monthKey, limitNum, offset];
     const rows = await this.dataSource.query(dataSql, dataParams);
 
     // Load all active slabs to calculate progressive commission per agent

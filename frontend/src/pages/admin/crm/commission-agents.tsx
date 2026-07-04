@@ -4,7 +4,7 @@ import AdminLayout from '@/layouts/AdminLayout';
 import DataTable from '@/components/admin/DataTable';
 import PageSizeSelector from '@/components/admin/PageSizeSelector';
 import { useToast } from '@/contexts/ToastContext';
-import { FaSearch, FaMoneyBillWave, FaEye, FaCheckSquare } from 'react-icons/fa';
+import { FaSearch, FaMoneyBillWave, FaEye, FaCheckSquare, FaUsers } from 'react-icons/fa';
 import apiClient from '@/services/api';
 
 interface AgentRow {
@@ -92,7 +92,7 @@ export default function CommissionAgentsPage() {
       const data = response.data;
       setAgents(data.data || []);
       setSelectedAgentIds([]);
-      setTotalPages(Math.ceil((data.total || 0) / ps));
+      setTotalPages(Math.max(1, Math.ceil((data.total || 0) / ps)));
     } catch (error) {
       console.error('Failed to load agent report:', error);
       toast.error('Failed to load agent report');
@@ -386,7 +386,7 @@ export default function CommissionAgentsPage() {
         {/* Header */}
         <div className="bg-white rounded-lg shadow mb-6 p-6">
           <div className="flex items-center gap-3 mb-1">
-            <span className="text-blue-600 text-2xl">👥</span>
+            <FaUsers className="text-blue-600 text-2xl" />
             <h1 className="text-2xl font-bold text-blue-700">Agents</h1>
           </div>
           <p className="text-gray-500 text-sm">
@@ -457,6 +457,11 @@ export default function CommissionAgentsPage() {
           totalPages={totalPages}
           onPageChange={(p) => setCurrentPage(p)}
         />
+        {!loading && agents.length === 0 && (
+          <p className="mt-3 text-sm text-gray-500">
+            No eligible sales agents or commission activity matched this month and search.
+          </p>
+        )}
 
         {/* Payment Request Modal */}
         {paymentModal && (
