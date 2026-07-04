@@ -14,6 +14,8 @@ import VeshojTemplate from '@/components/landing-pages/VeshojTemplate';
 import { getOrderGuardNoteHtml, isOrderGuardBlocked } from '@/utils/orderGuard';
 import { TrackingService } from '@/utils/tracking';
 
+const html = (value: string) => ({ __html: value });
+
 interface LandingPageSection {
   id: string;
   type: 'hero' | 'benefits' | 'images' | 'trust' | 'order-form' | 'cta' | 'custom-html' | 'phone-cta' | 'spacer';
@@ -536,9 +538,7 @@ export default function LandingPagePublic() {
               >
                 <div className="max-w-4xl mx-auto">
                   {section.title && (
-                    <h2 className="text-2xl md:text-3xl font-bold text-center mb-8">
-                      {section.title}
-                    </h2>
+                    <h2 className="text-2xl md:text-3xl font-bold text-center mb-8" dangerouslySetInnerHTML={html(section.title)} />
                   )}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {(section.items || []).map((item, idx) => (
@@ -566,9 +566,7 @@ export default function LandingPagePublic() {
               >
                 <div className="max-w-4xl mx-auto">
                   {section.title && (
-                    <h2 className="text-2xl md:text-3xl font-bold text-center mb-8">
-                      {section.title}
-                    </h2>
+                    <h2 className="text-2xl md:text-3xl font-bold text-center mb-8" dangerouslySetInnerHTML={html(section.title)} />
                   )}
                   <div className="space-y-3">
                     {(section.items || []).map((item, idx) => (
@@ -593,9 +591,8 @@ export default function LandingPagePublic() {
                     <h2
                       className="text-2xl md:text-3xl font-bold text-center mb-8"
                       style={{ color: section.textColor }}
-                    >
-                      {section.title}
-                    </h2>
+                      dangerouslySetInnerHTML={html(section.title)}
+                    />
                   )}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {(section.images || []).map((img, idx) => (
@@ -622,7 +619,7 @@ export default function LandingPagePublic() {
               >
                 <div className="max-w-3xl mx-auto">
                   {section.title && (
-                    <h2 className="text-2xl md:text-3xl font-bold mb-4">{section.title}</h2>
+                    <h2 className="text-2xl md:text-3xl font-bold mb-4" dangerouslySetInnerHTML={html(section.title)} />
                   )}
                   {section.content && <p className="text-lg mb-6 opacity-90">{section.content}</p>}
                   {section.buttonText && (
@@ -656,7 +653,7 @@ export default function LandingPagePublic() {
               >
                 <div className="max-w-3xl mx-auto">
                   {section.title && (
-                    <h2 className="text-3xl font-bold mb-4">{section.title}</h2>
+                    <h2 className="text-3xl font-bold mb-4" dangerouslySetInnerHTML={html(section.title)} />
                   )}
                   {section.content && <p className="text-lg opacity-90">{section.content}</p>}
                 </div>
@@ -696,9 +693,7 @@ export default function LandingPagePublic() {
                 style={{ backgroundColor: section.backgroundColor || page.primary_color }}
               >
                 {section.title && (
-                  <p className="text-lg mb-2 opacity-80" style={{ color: section.textColor || page.secondary_color }}>
-                    {section.title}
-                  </p>
+                  <p className="text-lg font-bold mb-2 opacity-80" style={{ color: section.textColor || page.secondary_color }} dangerouslySetInnerHTML={html(section.title)} />
                 )}
                 <a
                   href={`tel:${page.phone_number}`}

@@ -35,6 +35,8 @@ if (typeof window !== 'undefined') {
   gsap.registerPlugin(ScrollTrigger);
 }
 
+const html = (value: string) => ({ __html: value });
+
 /* ─────────────────────────── Interfaces ─────────────────────────── */
 
 interface LandingPageSection {
@@ -886,9 +888,7 @@ export default function SpecialEventTemplate({
                         <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-semibold mb-4 bg-yellow-500/10 border border-yellow-500/20 text-yellow-400">
                           <FaTrophy /> পুরস্কার
                         </div>
-                        <h2 className="event-heading text-2xl sm:text-3xl md:text-4xl font-bold">
-                          {section.title}
-                        </h2>
+                        <h2 className="event-heading text-2xl sm:text-3xl md:text-4xl font-bold" dangerouslySetInnerHTML={html(section.title)} />
                       </div>
                     )}
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -973,9 +973,7 @@ export default function SpecialEventTemplate({
                   />
                   <div className="relative max-w-3xl mx-auto text-center">
                     {section.title && (
-                      <h2 className="event-heading text-2xl sm:text-3xl md:text-4xl font-bold mb-6" style={{ color: section.textColor || page.secondary_color }}>
-                        {section.title}
-                      </h2>
+                      <h2 className="event-heading text-2xl sm:text-3xl md:text-4xl font-bold mb-6" style={{ color: section.textColor || page.secondary_color }} dangerouslySetInnerHTML={html(section.title)} />
                     )}
                     {section.content && (
                       <p className="text-lg mb-8 opacity-90" style={{ color: section.textColor || page.secondary_color }}>
@@ -1031,9 +1029,7 @@ export default function SpecialEventTemplate({
                   <div className="max-w-5xl mx-auto">
                     {section.title && (
                       <div className="text-center mb-14">
-                        <h2 className="event-heading text-2xl sm:text-3xl md:text-4xl font-bold mb-3">
-                          {section.title}
-                        </h2>
+                        <h2 className="event-heading text-2xl sm:text-3xl md:text-4xl font-bold mb-3" dangerouslySetInnerHTML={html(section.title)} />
                       </div>
                     )}
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -1071,9 +1067,7 @@ export default function SpecialEventTemplate({
                   <div className="max-w-4xl mx-auto">
                     {section.title && (
                       <div className="text-center mb-14">
-                        <h2 className="event-heading text-2xl sm:text-3xl md:text-4xl font-bold mb-3">
-                          {section.title}
-                        </h2>
+                        <h2 className="event-heading text-2xl sm:text-3xl md:text-4xl font-bold mb-3" dangerouslySetInnerHTML={html(section.title)} />
                       </div>
                     )}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1104,9 +1098,8 @@ export default function SpecialEventTemplate({
                       <div className="text-center mb-14">
                         <h2 className="event-heading text-2xl sm:text-3xl md:text-4xl font-bold mb-3"
                           style={{ color: section.textColor || '#FFFFFF' }}
-                        >
-                          {section.title}
-                        </h2>
+                          dangerouslySetInnerHTML={html(section.title)}
+                        />
                       </div>
                     )}
                     <div
@@ -1146,9 +1139,8 @@ export default function SpecialEventTemplate({
                     {section.title && (
                       <h2 className="event-heading text-2xl sm:text-3xl md:text-4xl font-bold mb-4"
                         style={{ color: section.textColor || page.secondary_color }}
-                      >
-                        {section.title}
-                      </h2>
+                        dangerouslySetInnerHTML={html(section.title)}
+                      />
                     )}
                     {section.content && (
                       <p className="text-lg sm:text-xl mb-8 opacity-90 leading-relaxed"
@@ -1190,9 +1182,8 @@ export default function SpecialEventTemplate({
                     {section.title && (
                       <h2 className="event-heading text-3xl sm:text-4xl font-bold mb-5"
                         style={{ color: section.textColor || page.secondary_color }}
-                      >
-                        {section.title}
-                      </h2>
+                        dangerouslySetInnerHTML={html(section.title)}
+                      />
                     )}
                     {section.content && (
                       <p className="text-lg sm:text-xl opacity-90 leading-relaxed max-w-2xl mx-auto"
@@ -1242,9 +1233,7 @@ export default function SpecialEventTemplate({
                   />
                   <div className="relative text-center">
                     {section.title && (
-                      <p className="text-base mb-3 opacity-80" style={{ color: section.textColor || page.secondary_color }}>
-                        {section.title}
-                      </p>
+                      <p className="text-base font-bold mb-3 opacity-80" style={{ color: section.textColor || page.secondary_color }} dangerouslySetInnerHTML={html(section.title)} />
                     )}
                     <a
                       href={`tel:${page.phone_number}`}

@@ -20,6 +20,8 @@ import {
   FaShieldAlt,
 } from 'react-icons/fa';
 
+const html = (value: string) => ({ __html: value });
+
 interface LandingPageSection {
   id: string;
   type: 'hero' | 'benefits' | 'images' | 'trust' | 'order-form' | 'cta' | 'custom-html' | 'phone-cta' | 'spacer';
@@ -812,7 +814,7 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
                 <div className="max-w-5xl mx-auto">
                   {section.title && (
                     <div className="text-center mb-6">
-                      <h2 className="text-2xl sm:text-3xl md:text-4xl font-extrabold mb-3">{section.title}</h2>
+                      <h2 className="text-2xl sm:text-3xl md:text-4xl font-extrabold mb-3" dangerouslySetInnerHTML={html(section.title)} />
                       <div
                         className="w-20 h-1 mx-auto rounded-full"
                         style={{ background: `linear-gradient(to right, ${page.primary_color}, ${primaryLight})` }}
@@ -862,7 +864,7 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
                 <div className="max-w-4xl mx-auto">
                   {section.title && (
                     <div className="text-center mb-6">
-                      <h2 className="text-2xl sm:text-3xl md:text-4xl font-extrabold mb-3">{section.title}</h2>
+                      <h2 className="text-2xl sm:text-3xl md:text-4xl font-extrabold mb-3" dangerouslySetInnerHTML={html(section.title)} />
                       <div
                         className="w-20 h-1 mx-auto rounded-full"
                         style={{ background: `linear-gradient(to right, ${page.primary_color}, ${primaryLight})` }}
@@ -902,9 +904,8 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
                       <h2
                         className="text-2xl sm:text-3xl md:text-4xl font-extrabold mb-3"
                         style={{ color: section.textColor }}
-                      >
-                        {section.title}
-                      </h2>
+                        dangerouslySetInnerHTML={html(section.title)}
+                      />
                       <div
                         className="w-20 h-1 mx-auto rounded-full"
                         style={{ background: `linear-gradient(to right, ${page.primary_color}, ${primaryLight})` }}
@@ -954,9 +955,8 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
                     <h2
                       className="text-2xl sm:text-3xl md:text-4xl font-extrabold mb-4"
                       style={{ color: section.textColor || page.secondary_color }}
-                    >
-                      {section.title}
-                    </h2>
+                      dangerouslySetInnerHTML={html(section.title)}
+                    />
                   )}
                   {section.content && (
                     <p
@@ -985,9 +985,8 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
                     <h2
                       className="text-3xl sm:text-4xl font-extrabold mb-5"
                       style={{ color: section.textColor || page.secondary_color }}
-                    >
-                      {section.title}
-                    </h2>
+                      dangerouslySetInnerHTML={html(section.title)}
+                    />
                   )}
                   {section.content && (
                     <p
@@ -1042,9 +1041,7 @@ export default function ElegantTemplate({ page, trafficSource = 'landing_page', 
                 />
                 <div className="relative text-center">
                   {section.title && (
-                    <p className="text-lg mb-3 opacity-80" style={{ color: section.textColor || page.secondary_color }}>
-                      {section.title}
-                    </p>
+                    <p className="text-lg font-bold mb-3 opacity-80" style={{ color: section.textColor || page.secondary_color }} dangerouslySetInnerHTML={html(section.title)} />
                   )}
                   <a
                     href={`tel:${page.phone_number}`}

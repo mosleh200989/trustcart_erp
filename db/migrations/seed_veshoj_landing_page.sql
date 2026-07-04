@@ -127,10 +127,16 @@ INSERT INTO landing_pages (
       },
       {
         "id": "veshoj-symptoms",
-        "type": "trust",
+        "type": "images",
         "title": "এই লক্ষণগুলো কি আপনাকেও ভুগাচ্ছে?",
-        "content": "এই লক্ষণগুলো অবহেলা করলে সাদা স্রা-ব বাড়তে পারে এবং জরায়ুর জটিল রোগের ঝুঁকি তৈরি হতে পারে।",
-        "items": [],
+        "images": [
+          "https://beshoj.com/wp-content/uploads/2025/05/for-web-infographic-1.jpg",
+          "https://beshoj.com/wp-content/uploads/2025/05/for-web-infographic-2.jpg",
+          "https://beshoj.com/wp-content/uploads/2025/05/for-web-infographic-3.jpg",
+          "https://beshoj.com/wp-content/uploads/2025/05/for-web-infographic-4.jpg",
+          "https://beshoj.com/wp-content/uploads/2025/05/for-web-infographic-5.jpg",
+          "https://beshoj.com/wp-content/uploads/2025/05/for-web-infographic-6.jpg"
+        ],
         "order": 2,
         "is_visible": true
       },
@@ -139,12 +145,7 @@ INSERT INTO landing_pages (
         "type": "images",
         "title": "কেন আপনি লিউকোন ফিমেল গার্ড 🌸 সাপ্লিমেন্ট কিনবেন ?",
         "images": [
-          "https://beshoj.com/wp-content/uploads/2025/05/for-web-infographic-1.jpg",
-          "https://beshoj.com/wp-content/uploads/2025/05/for-web-infographic-2.jpg",
-          "https://beshoj.com/wp-content/uploads/2025/05/for-web-infographic-3.jpg",
-          "https://beshoj.com/wp-content/uploads/2025/05/for-web-infographic-4.jpg",
-          "https://beshoj.com/wp-content/uploads/2025/05/for-web-infographic-5.jpg",
-          "https://beshoj.com/wp-content/uploads/2025/05/for-web-infographic-6.jpg"
+          "https://beshoj.com/wp-content/uploads/2025/05/for-feedback-team.jpg-1024x1024.jpeg"
         ],
         "order": 3,
         "is_visible": true
@@ -155,6 +156,27 @@ INSERT INTO landing_pages (
         "title": "খাওয়ার নিয়ম ও সময়",
         "content": "<div class=\"veshoj-usage-main\">প্রতিদিন - সকাল, দুপুর এবং রাতের খাবারের ৩০ মিনিট পর ২ টা করে বড়ি সেবন করতে হবে। রুচিলতা সেবনের নিয়ম: প্রতিদিন সকাল ও রাতে আধা চামচ রুচিলতা আধা গ্লাস পানিতে মিশিয়ে পান করুন।</div><div class=\"veshoj-usage-note\">বি. দ্র: ঠান্ডা পানি, অতিরিক্ত ঝাল-মিষ্টি ও তেলযুক্ত খাবার খাওয়া থেকে বিরত থাকতে হবে।</div><div class=\"veshoj-usage-safe\">আপনার ব্যবহারের জন্য সম্পূর্ণ নিরাপদ ও পরীক্ষিত – এখনই নিশ্চিত ব্যবহার করুন।</div>",
         "order": 4,
+        "is_visible": true
+      },
+      {
+        "id": "veshoj-offer-price",
+        "type": "custom-html",
+        "title": "লিউকোন ফিমেল গার্ড পূর্বের মূল্য",
+        "content": "লিউকোন কিনলেই পাচ্ছেন রুচি লতা এবং কোজিক ব্রাইট সোপ<br />একদম <span class=\"veshoj-offer-free\">ফ্রি!</span>",
+        "items": [
+          { "text": "১২৫০" },
+          { "text": "অফার মূল্য" },
+          { "text": "৯৯০ টাকা" }
+        ],
+        "buttonText": "অর্ডার করুন",
+        "buttonLink": "#order-form",
+        "buttonColor": "#FF7B00",
+        "buttonTextColor": "#ffffff",
+        "buttonBorderColor": "transparent",
+        "buttonBorderRadius": 10,
+        "backgroundColor": "#ffe8f9",
+        "textColor": "#55585a",
+        "order": 5,
         "is_visible": true
       },
       {
@@ -176,7 +198,7 @@ INSERT INTO landing_pages (
           "https://beshoj.com/wp-content/uploads/2025/05/13-1024x1024.jpg",
           "https://beshoj.com/wp-content/uploads/2025/05/14-1024x1024.jpg"
         ],
-        "order": 5,
+        "order": 6,
         "is_visible": true
       },
       {
@@ -184,7 +206,7 @@ INSERT INTO landing_pages (
         "type": "phone-cta",
         "title": "কল করে অর্ডার করতে চাই",
         "buttonText": "01973-298146",
-        "order": 6,
+        "order": 7,
         "is_visible": true
       }
     ]$$::jsonb,
@@ -194,8 +216,8 @@ INSERT INTO landing_pages (
         "name": "লিউকোন গার্ড এর সাথে রুচিলতা ফ্রী (1pcs)",
         "description": "লিউকোন গার্ড এর সাথে রুচিলতা ফ্রী।",
         "image_url": "https://beshoj.com/wp-content/uploads/2025/05/facebook-cover-veshoj-5.jpg.jpeg",
-        "price": 1050,
-        "compare_price": 0,
+        "price": 990,
+        "compare_price": 1250,
         "qty": 1,
         "product_id": null,
         "is_default": true,

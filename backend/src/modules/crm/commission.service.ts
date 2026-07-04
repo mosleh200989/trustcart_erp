@@ -943,7 +943,6 @@ export class CommissionService {
       SELECT COUNT(DISTINCT u.id) as total
       FROM users u
       WHERE COALESCE(u.is_deleted, false) = false
-        AND (u.status IS NULL OR LOWER(u.status::text) = 'active')
         AND ${this.commissionAgentRoleSql('u')}
       ${searchCondition}
     `;
@@ -962,6 +961,7 @@ export class CommissionService {
         u.id as agent_id,
         CONCAT(COALESCE(u.name, ''), ' ', COALESCE(u.last_name, '')) as agent_name,
         u.phone,
+        u.status as agent_status,
         COALESCE(u.agent_tier, 'silver') as agent_tier,
         COALESCE(order_stats.total_orders, 0) as total_orders,
         COALESCE(cancelled_stats.cancelled_orders, 0) as cancelled_orders,
@@ -1089,7 +1089,6 @@ export class CommissionService {
       ) request_stats ON request_stats.agent_id = u.id
       LEFT JOIN commission_extra_partial extra_partial ON extra_partial.agent_id = u.id AND extra_partial.month = $${monthKeyIdx}
       WHERE COALESCE(u.is_deleted, false) = false
-        AND (u.status IS NULL OR LOWER(u.status::text) = 'active')
         AND ${this.commissionAgentRoleSql('u')}
       ${searchCondition}
       ORDER BY agent_name ASC
@@ -1136,6 +1135,7 @@ export class CommissionService {
           agentId: r.agent_id,
           agentName: (r.agent_name || '').trim(),
           phone: r.phone || '',
+          status: r.agent_status || null,
           totalOrders,
           cancelledOrders: parseInt(r.cancelled_orders || '0', 10),
           totalProductQty,

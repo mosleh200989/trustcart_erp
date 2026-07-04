@@ -25,6 +25,8 @@ import {
   FaHeart,
 } from 'react-icons/fa';
 
+const html = (value: string) => ({ __html: value });
+
 if (typeof window !== 'undefined') {
   gsap.registerPlugin(ScrollTrigger);
 }
@@ -826,9 +828,7 @@ export default function PickleTemplate({
                   <div className="max-w-5xl mx-auto">
                     {section.title && (
                       <div className="text-center mb-14">
-                        <h2 className="pickle-heading text-2xl sm:text-3xl md:text-4xl font-bold mb-3">
-                          {section.title}
-                        </h2>
+                        <h2 className="pickle-heading text-2xl sm:text-3xl md:text-4xl font-bold mb-3" dangerouslySetInnerHTML={html(section.title)} />
                       </div>
                     )}
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -867,9 +867,7 @@ export default function PickleTemplate({
                   <div className="max-w-4xl mx-auto">
                     {section.title && (
                       <div className="text-center mb-14">
-                        <h2 className="pickle-heading text-2xl sm:text-3xl md:text-4xl font-bold mb-3">
-                          {section.title}
-                        </h2>
+                        <h2 className="pickle-heading text-2xl sm:text-3xl md:text-4xl font-bold mb-3" dangerouslySetInnerHTML={html(section.title)} />
                       </div>
                     )}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -904,9 +902,8 @@ export default function PickleTemplate({
                         <h2
                           className="pickle-heading text-2xl sm:text-3xl md:text-4xl font-bold mb-3"
                           style={{ color: section.textColor || '#3D1308' }}
-                        >
-                          {section.title}
-                        </h2>
+                          dangerouslySetInnerHTML={html(section.title)}
+                        />
                       </div>
                     )}
                     <div
@@ -950,9 +947,8 @@ export default function PickleTemplate({
                       <h2
                         className="pickle-heading text-2xl sm:text-3xl md:text-4xl font-bold mb-4"
                         style={{ color: section.textColor || page.secondary_color }}
-                      >
-                        {section.title}
-                      </h2>
+                        dangerouslySetInnerHTML={html(section.title)}
+                      />
                     )}
                     {section.content && (
                       <p
@@ -996,9 +992,8 @@ export default function PickleTemplate({
                       <h2
                         className="pickle-heading text-3xl sm:text-4xl font-bold mb-5"
                         style={{ color: section.textColor || page.secondary_color }}
-                      >
-                        {section.title}
-                      </h2>
+                        dangerouslySetInnerHTML={html(section.title)}
+                      />
                     )}
                     {section.content && (
                       <p
@@ -1049,9 +1044,7 @@ export default function PickleTemplate({
                   />
                   <div className="relative text-center">
                     {section.title && (
-                      <p className="text-base mb-3 opacity-80" style={{ color: section.textColor || page.secondary_color }}>
-                        {section.title}
-                      </p>
+                      <p className="text-base font-bold mb-3 opacity-80" style={{ color: section.textColor || page.secondary_color }} dangerouslySetInnerHTML={html(section.title)} />
                     )}
                     <a
                       href={`tel:${page.phone_number}`}

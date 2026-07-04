@@ -4,7 +4,7 @@ import AdminLayout from '@/layouts/AdminLayout';
 import DataTable from '@/components/admin/DataTable';
 import PageSizeSelector from '@/components/admin/PageSizeSelector';
 import { useToast } from '@/contexts/ToastContext';
-import { FaSearch, FaPlus, FaMoneyBillWave, FaEye, FaTrash } from 'react-icons/fa';
+import { FaSearch, FaPlus, FaMoneyBillWave, FaEye, FaTrash, FaBan } from 'react-icons/fa';
 import apiClient from '@/services/api';
 
 interface PaymentRequest {
@@ -93,7 +93,7 @@ export default function CommissionPaymentRequestsPage() {
   const [creating, setCreating] = useState(false);
 
   // Action modals
-  const [actionModal, setActionModal] = useState<{ type: 'pay'; request: PaymentRequest } | null>(null);
+  const [actionModal, setActionModal] = useState<{ type: 'pay' | 'reject'; request: PaymentRequest } | null>(null);
   const [actionForm, setActionForm] = useState({ approvedAmount: '', paymentMethod: '', paymentReference: '', adminNotes: '' });
   const [actionLoading, setActionLoading] = useState(false);
 
@@ -158,6 +158,10 @@ export default function CommissionPaymentRequestsPage() {
 
   const handleAction = async () => {
     if (!actionModal) return;
+    if (actionModal.type === 'reject' && !actionForm.adminNotes.trim()) {
+      toast.error('Please add a rejection note');
+      return;
+    }
     try {
       setActionLoading(true);
       const { type, request } = actionModal;
@@ -168,6 +172,11 @@ export default function CommissionPaymentRequestsPage() {
           adminNotes: actionForm.adminNotes || undefined,
         });
         toast.success('Payment marked as paid');
+      } else if (type === 'reject') {
+        await apiClient.put(`/crm/commissions/payment-requests/${request.id}/reject`, {
+          adminNotes: actionForm.adminNotes || undefined,
+        });
+        toast.success('Payment request rejected');
       }
       setActionModal(null);
       setActionForm({ approvedAmount: '', paymentMethod: '', paymentReference: '', adminNotes: '' });
@@ -179,11 +188,11 @@ export default function CommissionPaymentRequestsPage() {
     }
   };
 
-  const openActionModal = (type: 'pay', request: PaymentRequest) => {
+  const openActionModal = (type: 'pay' | 'reject', request: PaymentRequest) => {
     setActionModal({ type, request });
     setActionForm({
       approvedAmount: '',
-      paymentMethod: request.agentPreferredMethod || request.paymentMethod || '',
+      paymentMethod: type === 'pay' ? request.agentPreferredMethod || request.paymentMethod || '' : '',
       paymentReference: request.paymentReference || '',
       adminNotes: '',
     });
@@ -317,13 +326,22 @@ export default function CommissionPaymentRequestsPage() {
       render: (_: any, row: PaymentRequest) => (
         <div className="flex items-center gap-1.5">
           {(row.status === 'pending' || row.status === 'approved') && (
-            <button
-              onClick={() => openActionModal('pay', row)}
-              className="bg-green-600 hover:bg-green-700 text-white px-2 py-1 rounded text-xs font-medium flex items-center gap-1"
-              title="Pay"
-            >
-              <FaMoneyBillWave size={10} /> Pay
-            </button>
+            <>
+              <button
+                onClick={() => openActionModal('pay', row)}
+                className="bg-green-600 hover:bg-green-700 text-white px-2 py-1 rounded text-xs font-medium flex items-center gap-1"
+                title="Pay"
+              >
+                <FaMoneyBillWave size={10} /> Pay
+              </button>
+              <button
+                onClick={() => openActionModal('reject', row)}
+                className="bg-rose-600 hover:bg-rose-700 text-white px-2 py-1 rounded text-xs font-medium flex items-center gap-1"
+                title="Reject"
+              >
+                <FaBan size={10} /> Reject
+              </button>
+            </>
           )}
           {row.status === 'paid' && (
             <span className="text-xs text-gray-400 italic">No actions</span>
@@ -384,6 +402,7 @@ export default function CommissionPaymentRequestsPage() {
                 <option value="">All Statuses</option>
                 <option value="pending">Requested</option>
                 <option value="paid">Paid</option>
+                <option value="rejected">Rejected</option>
               </select>
             </div>
             <div>
@@ -529,11 +548,13 @@ export default function CommissionPaymentRequestsPage() {
           </div>
         )}
 
-        {/* Action Modal (Pay) */}
+        {/* Action Modal */}
         {actionModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-white rounded-lg shadow-xl w-full max-w-lg p-6">
-              <h2 className="text-lg font-bold text-gray-800 mb-1">Pay Commission Request</h2>
+              <h2 className="text-lg font-bold text-gray-800 mb-1">
+                {actionModal.type === 'pay' ? 'Pay Commission Request' : 'Reject Payment Request'}
+              </h2>
               <p className="text-sm text-gray-500 mb-4">
                 Agent: <strong>{actionModal.request.agentName}</strong> | Amount: <strong>৳{actionModal.request.requestedAmount.toLocaleString()}</strong>
               </p>
@@ -632,21 +653,24 @@ export default function CommissionPaymentRequestsPage() {
                 )}
                 <div>
                   <label className="block text-sm text-gray-600 mb-1">
-                    Admin Notes
+                    Admin Notes{actionModal.type === 'reject' ? ' *' : ''}
                   </label>
                   <textarea
                     value={actionForm.adminNotes}
                     onChange={(e) => setActionForm(f => ({ ...f, adminNotes: e.target.value }))}
                     className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    rows={2} placeholder="Optional notes"
+                    rows={2}
+                    placeholder={actionModal.type === 'reject' ? 'Reason or note for rejection' : 'Optional notes'}
                   />
                 </div>
               </div>
               <div className="flex justify-end gap-2 mt-5">
                 <button onClick={() => setActionModal(null)} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800">Cancel</button>
                 <button onClick={handleAction} disabled={actionLoading}
-                  className="px-4 py-2 rounded text-sm font-medium text-white disabled:opacity-50 bg-green-600 hover:bg-green-700">
-                  {actionLoading ? 'Processing...' : 'Confirm Payment'}
+                  className={`px-4 py-2 rounded text-sm font-medium text-white disabled:opacity-50 ${
+                    actionModal.type === 'pay' ? 'bg-green-600 hover:bg-green-700' : 'bg-rose-600 hover:bg-rose-700'
+                  }`}>
+                  {actionLoading ? 'Processing...' : actionModal.type === 'pay' ? 'Confirm Payment' : 'Reject Request'}
                 </button>
               </div>
             </div>
