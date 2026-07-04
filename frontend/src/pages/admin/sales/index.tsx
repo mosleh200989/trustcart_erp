@@ -18,7 +18,7 @@ import apiClient from '@/services/api';
 import { getOrderStatusLabel, getOrderStatusColor } from '@/utils/orderStatus';
 import { getDhakaDateString } from '@/utils/dhakaDate';
 import { fetchLandingPageOptions, LandingPageOption } from '@/services/landingPageOptions';
-import { ORDER_REJECTION_REASON_OPTIONS } from '@/constants/adminOptions';
+import { CALL_OUTCOME_OPTIONS, ORDER_REJECTION_REASON_OPTIONS } from '@/constants/adminOptions';
 
 const INITIAL_FILTERS = {
   q: '',
@@ -32,6 +32,7 @@ const INITIAL_FILTERS = {
   landingPage: '',
   assignment: '',
   assignedTo: '',
+  callOutcome: '',
   totalCancelledOrders: '',
   orderRejectedReason: '',
 };
@@ -190,6 +191,7 @@ export default function AdminSales() {
   // Source filter options
   const [sourceOptions, setSourceOptions] = useState<{ value: string; label: string }[]>([]);
   const [landingPageOptions, setLandingPageOptions] = useState<LandingPageOption[]>([]);
+  const [assignmentFilterAgents, setAssignmentFilterAgents] = useState<{ id: number; name: string }[]>([]);
   const [assignmentAgents, setAssignmentAgents] = useState<{ id: number; name: string; inMyTeam?: boolean }[]>([]);
   const [assignmentAgentsLoading, setAssignmentAgentsLoading] = useState(false);
   const [assignmentAgentsError, setAssignmentAgentsError] = useState('');
@@ -318,6 +320,7 @@ export default function AdminSales() {
       if (f.landingPage) params.landingPage = f.landingPage;
       if (f.assignment) params.assignment = f.assignment;
       if (f.assignedTo) params.assignedTo = f.assignedTo;
+      if (f.callOutcome) params.callOutcome = f.callOutcome;
       if (f.totalCancelledOrders) params.totalCancelledOrders = f.totalCancelledOrders;
       if (f.orderRejectedReason) params.orderRejectedReason = f.orderRejectedReason;
 
@@ -371,6 +374,16 @@ export default function AdminSales() {
     }
   }, [toast]);
 
+  const fetchAssignmentFilterAgents = useCallback(async () => {
+    try {
+      const res = await apiClient.get('/sales/order-assignment-filter-agents');
+      setAssignmentFilterAgents(Array.isArray(res.data) ? res.data : []);
+    } catch (error) {
+      console.error('Failed to load assignment filter agents:', error);
+      setAssignmentFilterAgents([]);
+    }
+  }, []);
+
   // Load orders whenever page, pageSize, or filters change (debounced for text search)
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -394,8 +407,8 @@ export default function AdminSales() {
       .then(setLandingPageOptions)
       .catch(() => {});
 
-    void fetchAssignmentAgents();
-  }, [fetchAssignmentAgents]);
+    void fetchAssignmentFilterAgents();
+  }, [fetchAssignmentFilterAgents]);
 
   // Product search for create order
   const searchProducts = async (query: string) => {
@@ -1521,9 +1534,22 @@ export default function AdminSales() {
                   value={filters.assignedTo}
                   onChange={handleFilterChange}
                   selectPlaceholder="All Agents"
-                  options={assignmentAgents.map((agent) => ({
+                  options={assignmentFilterAgents.map((agent) => ({
                     value: String(agent.id),
                     label: agent.name,
+                  }))}
+                />
+
+                <FormInput
+                  label="Call Log Outcome"
+                  name="callOutcome"
+                  type="select"
+                  value={filters.callOutcome}
+                  onChange={handleFilterChange}
+                  selectPlaceholder="All Outcomes"
+                  options={CALL_OUTCOME_OPTIONS.map((option) => ({
+                    value: option.value,
+                    label: option.label,
                   }))}
                 />
 
