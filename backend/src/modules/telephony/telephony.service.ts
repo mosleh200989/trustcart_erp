@@ -702,7 +702,64 @@ export class TelephonyService {
         notes,
       ],
     );
-    return rows?.[0] || null;
+    const row = rows?.[0] || null;
+    if (row?.called_at) {
+      await this.touchCustomerLastContactDateFromAssignmentCall({
+        recordType: params.recordType,
+        orderId: params.orderId,
+        calledAt: row.called_at,
+      });
+    }
+    return row;
+  }
+
+  private async touchCustomerLastContactDateFromAssignmentCall(params: {
+    recordType: 'sales_order' | 'incomplete_order';
+    orderId: number;
+    calledAt: string | Date;
+  }) {
+    const calledAt = new Date(params.calledAt);
+    if (Number.isNaN(calledAt.getTime())) return;
+
+    const updateSql = params.recordType === 'sales_order'
+      ? `UPDATE customers c
+         SET last_contact_date = CASE
+               WHEN c.last_contact_date IS NULL OR c.last_contact_date < $2::timestamp THEN $2::timestamp
+               ELSE c.last_contact_date
+             END,
+             updated_at = NOW()
+         FROM sales_orders so
+         WHERE so.id = $1
+           AND (
+             so.customer_id = c.id
+             OR (
+               NULLIF(TRIM(so.customer_phone), '') IS NOT NULL
+               AND regexp_replace(REPLACE(c.phone, '+88', ''), '\\D', '', 'g')
+                 = regexp_replace(REPLACE(so.customer_phone, '+88', ''), '\\D', '', 'g')
+             )
+           )`
+      : `UPDATE customers c
+         SET last_contact_date = CASE
+               WHEN c.last_contact_date IS NULL OR c.last_contact_date < $2::timestamp THEN $2::timestamp
+               ELSE c.last_contact_date
+             END,
+             updated_at = NOW()
+         FROM incomplete_orders io
+         WHERE io.id = $1
+           AND (
+             io.customer_id = c.id
+             OR (
+               NULLIF(TRIM(io.phone), '') IS NOT NULL
+               AND regexp_replace(REPLACE(c.phone, '+88', ''), '\\D', '', 'g')
+                 = regexp_replace(REPLACE(io.phone, '+88', ''), '\\D', '', 'g')
+             )
+           )`;
+
+    try {
+      await this.salesOrderRepo.manager.query(updateSql, [params.orderId, calledAt]);
+    } catch (error: any) {
+      console.warn('Failed to update customer last_contact_date from telephony call log:', error?.message || error);
+    }
   }
 
   private async recordSalesOrderCallActivity(params: {

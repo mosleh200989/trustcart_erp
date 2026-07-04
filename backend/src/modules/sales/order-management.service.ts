@@ -20,6 +20,7 @@ import { LeadManagementService } from '../lead-management/lead-management.servic
 export class OrderManagementService {
   private readonly logger = new Logger(OrderManagementService.name);
   private orderStatusEnumCompatibilityReady?: Promise<void>;
+  private pathaoSyncSchemaReady?: Promise<void>;
 
   constructor(
     @InjectRepository(SalesOrder)
@@ -2547,6 +2548,65 @@ export class OrderManagementService {
   // In-memory cache for Pathao city/zone lists (5 min TTL)
   private pathaoCityCache: { data: any[]; expiresAt: number } = { data: [], expiresAt: 0 };
   private pathaoZoneCache: Map<number, { data: any[]; expiresAt: number }> = new Map();
+  private readonly pathaoSyncMaxPerRun = this.readPositiveIntegerEnv('PATHAO_SYNC_MAX_PER_RUN', 50, 1, 500);
+  private readonly pathaoSyncDelayMs = this.readPositiveIntegerEnv('PATHAO_SYNC_REQUEST_DELAY_MS', 1100, 0, 60000);
+  private readonly pathaoSyncMaxRetries = this.readPositiveIntegerEnv('PATHAO_SYNC_MAX_RETRIES', 2, 0, 5);
+
+  private readPositiveIntegerEnv(key: string, fallback: number, min: number, max: number) {
+    const value = Number(process.env[key]);
+    if (!Number.isFinite(value)) return fallback;
+    return Math.max(min, Math.min(Math.trunc(value), max));
+  }
+
+  private sleep(ms: number) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  private getHttpStatus(error: any): number | null {
+    const status = Number(error?.response?.status || error?.status || error?.statusCode);
+    return Number.isFinite(status) ? status : null;
+  }
+
+  private getRetryAfterMs(error: any, fallbackMs = 5000): number {
+    const raw = error?.response?.headers?.['retry-after'] ?? error?.response?.headers?.['Retry-After'];
+    if (raw != null) {
+      const asNumber = Number(raw);
+      if (Number.isFinite(asNumber) && asNumber >= 0) {
+        return Math.min(Math.max(asNumber * 1000, 1000), 120000);
+      }
+      const asDate = Date.parse(String(raw));
+      if (Number.isFinite(asDate)) {
+        return Math.min(Math.max(asDate - Date.now(), 1000), 120000);
+      }
+    }
+    return Math.min(Math.max(fallbackMs, 1000), 120000);
+  }
+
+  private getPathaoErrorMessage(error: any): string {
+    const data = error?.response?.data;
+    return data?.message || data?.error || error?.message || 'Pathao request failed';
+  }
+
+  private async ensurePathaoSyncSchema() {
+    if (!this.pathaoSyncSchemaReady) {
+      this.pathaoSyncSchemaReady = this.dataSource.query(`
+        ALTER TABLE sales_orders
+          ADD COLUMN IF NOT EXISTS pathao_last_synced_at TIMESTAMP WITHOUT TIME ZONE NULL;
+
+        CREATE INDEX IF NOT EXISTS idx_sales_orders_pathao_sync_queue
+          ON sales_orders(pathao_last_synced_at, created_at, id)
+          WHERE LOWER(COALESCE(courier_company, '')) = 'pathao';
+      `).then(() => undefined);
+    }
+    return this.pathaoSyncSchemaReady;
+  }
+
+  private async touchPathaoLastSyncedAt(orderId: number) {
+    await this.dataSource.query(
+      `UPDATE sales_orders SET pathao_last_synced_at = NOW() WHERE id = $1`,
+      [orderId],
+    );
+  }
 
   /**
    * Issue or refresh a Pathao access token using client credentials + password grant.
@@ -3175,6 +3235,33 @@ export class OrderManagementService {
     return res.data?.data || res.data;
   }
 
+  private async getPathaoOrderStatusWithRetry(consignmentId: string): Promise<any> {
+    for (let attempt = 0; attempt <= this.pathaoSyncMaxRetries; attempt++) {
+      try {
+        return await this.getPathaoOrderStatus(consignmentId);
+      } catch (error: any) {
+        const status = this.getHttpStatus(error);
+        const isRetryable = status === 429 || status === 408 || (status != null && status >= 500);
+        if (!isRetryable || attempt >= this.pathaoSyncMaxRetries) {
+          throw error;
+        }
+
+        const fallbackDelay = status === 429
+          ? this.pathaoSyncDelayMs * (attempt + 2)
+          : 1500 * Math.pow(2, attempt);
+        const delayMs = status === 429
+          ? this.getRetryAfterMs(error, fallbackDelay)
+          : Math.min(fallbackDelay, 15000);
+
+        this.logger.warn(
+          `[Pathao Sync] Request for ${consignmentId} failed with HTTP ${status}; retrying in ${delayMs}ms ` +
+          `(attempt ${attempt + 1}/${this.pathaoSyncMaxRetries})`,
+        );
+        await this.sleep(delayMs);
+      }
+    }
+  }
+
   /**
    * Map Pathao order_status to our internal status.
    */
@@ -3573,34 +3660,74 @@ export class OrderManagementService {
    */
   async syncAllPathaoStatuses(): Promise<{
     total: number;
+    selected: number;
+    processed: number;
     synced: number;
     failed: number;
+    remaining: number;
+    rateLimited: boolean;
+    retryAfterSeconds?: number;
     errors: string[];
   }> {
     await this.ensureOrderStatusEnumCompatibility();
+    await this.ensurePathaoSyncSchema();
 
-    const orders = await this.salesOrderRepository.find({
-      where: {
-        courierCompany: 'Pathao',
-        status: In(['pending', 'processing', 'approved', 'sent', 'shipped', 'picked', 'in_transit', 'hold']),
-      },
-    });
+    const eligibleStatuses = ['pending', 'processing', 'approved', 'sent', 'shipped', 'picked', 'in_transit', 'hold'];
+    const totalRows: Array<{ total: string | number }> = await this.dataSource.query(
+      `SELECT COUNT(*) AS total
+       FROM sales_orders
+       WHERE LOWER(COALESCE(courier_company, '')) = 'pathao'
+         AND LOWER(status::text) = ANY($1::text[])`,
+      [eligibleStatuses],
+    );
+    const total = Number(totalRows?.[0]?.total || 0);
 
-    const results = { total: orders.length, synced: 0, failed: 0, errors: [] as string[] };
+    const idRows: Array<{ id: number }> = await this.dataSource.query(
+      `SELECT id
+       FROM sales_orders
+       WHERE LOWER(COALESCE(courier_company, '')) = 'pathao'
+         AND LOWER(status::text) = ANY($1::text[])
+       ORDER BY pathao_last_synced_at ASC NULLS FIRST, created_at ASC, id ASC
+       LIMIT $2`,
+      [eligibleStatuses, this.pathaoSyncMaxPerRun],
+    );
+    const orderIds = idRows.map((row) => Number(row.id)).filter((id) => Number.isInteger(id) && id > 0);
+    const loadedOrders = orderIds.length > 0
+      ? await this.salesOrderRepository.find({ where: { id: In(orderIds) } })
+      : [];
+    const orderById = new Map(loadedOrders.map((order) => [Number(order.id), order]));
+    const orders = orderIds.map((id) => orderById.get(id)).filter(Boolean) as SalesOrder[];
+
+    const results = {
+      total,
+      selected: orders.length,
+      processed: 0,
+      synced: 0,
+      failed: 0,
+      remaining: Math.max(0, total - orders.length),
+      rateLimited: false,
+      retryAfterSeconds: undefined as number | undefined,
+      errors: [] as string[],
+    };
 
     for (const order of orders) {
       try {
         const cid = order.courierOrderId || order.trackingId;
         if (!cid) {
+          results.processed++;
           results.failed++;
           results.errors.push(`Order #${order.id}: No consignment ID`);
+          await this.touchPathaoLastSyncedAt(order.id);
           continue;
         }
 
-        const info = await this.getPathaoOrderStatus(cid);
+        const info = await this.getPathaoOrderStatusWithRetry(cid);
         const rawStatus = this.getPathaoStatus(info);
         if (!rawStatus) {
+          results.processed++;
           results.synced++;
+          await this.touchPathaoLastSyncedAt(order.id);
+          if (this.pathaoSyncDelayMs > 0) await this.sleep(this.pathaoSyncDelayMs);
           continue;
         }
 
@@ -3632,13 +3759,30 @@ export class OrderManagementService {
           await this.salesOrderRepository.save(order);
         }
 
+        await this.touchPathaoLastSyncedAt(order.id);
+        results.processed++;
         results.synced++;
+        if (this.pathaoSyncDelayMs > 0) await this.sleep(this.pathaoSyncDelayMs);
       } catch (e: any) {
+        const httpStatus = this.getHttpStatus(e);
+        if (httpStatus === 429) {
+          const retryAfterMs = this.getRetryAfterMs(e, 60000);
+          results.rateLimited = true;
+          results.failed++;
+          results.retryAfterSeconds = Math.ceil(retryAfterMs / 1000);
+          results.errors.push(`Order #${order.id}: Pathao rate limit reached. Try again after about ${results.retryAfterSeconds} seconds.`);
+          break;
+        }
+
+        results.processed++;
         results.failed++;
-        results.errors.push(`Order #${order.id}: ${e.message || 'Unknown error'}`);
+        results.errors.push(`Order #${order.id}: ${this.getPathaoErrorMessage(e)}`);
+        await this.touchPathaoLastSyncedAt(order.id);
+        if (this.pathaoSyncDelayMs > 0) await this.sleep(this.pathaoSyncDelayMs);
       }
     }
 
+    results.remaining = Math.max(0, total - results.processed);
     return results;
   }
 
