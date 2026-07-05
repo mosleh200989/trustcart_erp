@@ -44,6 +44,56 @@ export class CustomersService {
     return ch ? ch.slice(0, 30) : null;
   }
 
+  async syncForeignCustomerSourcesFromNotes(): Promise<{ updated: number }> {
+    const rows = await this.customersRepository.query(
+      `
+      WITH note_sources AS (
+        SELECT
+          c.id AS customer_id,
+          c.notes AS note_text,
+          c.updated_at AS note_updated_at
+        FROM customers c
+        WHERE NULLIF(TRIM(c.notes), '') IS NOT NULL
+
+        UNION ALL
+
+        SELECT
+          so.customer_id AS customer_id,
+          so.internal_notes AS note_text,
+          so.created_at AS note_updated_at
+        FROM sales_orders so
+        WHERE so.customer_id IS NOT NULL
+          AND NULLIF(TRIM(so.internal_notes), '') IS NOT NULL
+      ),
+      foreign_matches AS (
+        SELECT DISTINCT ON (ns.customer_id)
+          ns.customer_id,
+          '+' || regexp_replace(phone_match.raw_phone[1], '[^0-9]', '', 'g') AS foreign_phone
+        FROM note_sources ns
+        CROSS JOIN LATERAL regexp_matches(
+          ns.note_text,
+          '(\\+[0-9][0-9[:space:]().-]{6,}[0-9])',
+          'g'
+        ) AS phone_match(raw_phone)
+        WHERE ('+' || regexp_replace(phone_match.raw_phone[1], '[^0-9]', '', 'g')) !~ '^\\+88'
+          AND LENGTH(regexp_replace(phone_match.raw_phone[1], '[^0-9]', '', 'g')) BETWEEN 7 AND 18
+        ORDER BY
+          ns.customer_id,
+          ns.note_updated_at DESC NULLS LAST,
+          LENGTH(regexp_replace(phone_match.raw_phone[1], '[^0-9]', '', 'g')) DESC
+      )
+      UPDATE customers c
+      SET source = fm.foreign_phone,
+          updated_at = NOW()
+      FROM foreign_matches fm
+      WHERE c.id = fm.customer_id
+        AND COALESCE(c.source, '') IS DISTINCT FROM fm.foreign_phone
+      RETURNING c.id
+      `,
+    );
+    return { updated: Array.isArray(rows) ? rows.length : 0 };
+  }
+
   private async resolveDefaultReferralCampaignId(): Promise<string | null> {
     try {
       const rows = await this.customersRepository.query(

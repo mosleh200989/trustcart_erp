@@ -3,6 +3,7 @@ import { Cron } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Customer } from '../customers/customer.entity';
+import { CustomersService } from '../customers/customers.service';
 import { SalesTeam } from './entities/sales-team.entity';
 import { User } from '../users/user.entity';
 import { CallTask } from './entities/call-task.entity';
@@ -35,6 +36,7 @@ export class SalesManagerService implements OnModuleInit {
     @InjectRepository(CallTask)
     private callTaskRepo: Repository<CallTask>,
     private readonly tenantService: TenantService,
+    private readonly customersService: CustomersService,
   ) {}
 
   onModuleInit() {
@@ -2110,6 +2112,11 @@ export class SalesManagerService implements OnModuleInit {
     const requestedLimit = parseInt(query.limit) || 50;
     const limit = Math.max(1, Math.min(requestedLimit, 2000));
     const offset = (page - 1) * limit;
+    const foreignOnly = query.foreignOnly === true || String(query.foreignOnly || '').toLowerCase() === 'true';
+
+    if (foreignOnly) {
+      await this.customersService.syncForeignCustomerSourcesFromNotes();
+    }
 
     const selectedFields = [
         'c.id', 'c.name', 'c.lastName', 'c.email', 'c.phone',
@@ -2225,6 +2232,10 @@ export class SalesManagerService implements OnModuleInit {
       ;  // (rejection filter applied below after query param is read)
 
     // Assignment status filter
+    if (foreignOnly) {
+      qb.andWhere("COALESCE(c.source, '') ~ '^\\+[0-9]{7,18}$'");
+    }
+
     if (query.assignmentStatus === 'unassigned' || query.unassignedOnly === 'true' || query.unassignedOnly === true) {
       qb.andWhere('c.assigned_to IS NULL');
     } else if (query.assignmentStatus === 'assigned') {
