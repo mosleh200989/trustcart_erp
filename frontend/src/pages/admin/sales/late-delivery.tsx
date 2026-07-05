@@ -141,12 +141,13 @@ const MODE_CONFIG = {
     description: 'Orders shipped but not delivered within the SLA',
     endpoint: '/sales/late-deliveries',
     dateColumnLabel: 'Sent At',
-    dateFromLabel: 'Shipped From',
-    dateToLabel: 'Shipped To',
+    dateFromLabel: 'Order Date From',
+    dateToLabel: 'Order Date To',
     emptyLoadMessage: 'Failed to load late deliveries:',
     notePayloadKey: 'courierNotes',
     noteField: (row: SalesOrder) => row.courier_notes || row.late_delivery_note || row.internal_notes || '',
-    dateField: (row: SalesOrder) => row.shippedAt ?? row.shipped_at ?? null,
+    dateField: (row: SalesOrder) => row.shippedAt ?? row.shipped_at ?? row.orderDate ?? row.order_date ?? row.createdAt ?? row.created_at ?? null,
+    filterDateField: (row: SalesOrder) => row.orderDate ?? row.order_date ?? row.createdAt ?? row.created_at ?? null,
     statusOptions: STATUS_OPTIONS,
     manualStatusOptions: MANUAL_STATUS_OPTIONS,
     allowStatusUpdate: true,
@@ -256,10 +257,13 @@ export function SalesFollowupOrdersPage({ mode = 'late-delivery' }: { mode?: Sal
   const [isBulkAssignmentOpen, setIsBulkAssignmentOpen] = useState(false);
   const [selectedAssignAgentId, setSelectedAssignAgentId] = useState('');
   const [savingAssignment, setSavingAssignment] = useState(false);
+  const [bulkStatus, setBulkStatus] = useState('');
+  const [bulkUpdatingStatus, setBulkUpdatingStatus] = useState(false);
   const canManageOrderAssignment = hasPermission('manage-order-assignment') || hasPermission('manage-assigned-orders');
   const isCancelledOrdersMode = mode === 'cancelled-orders';
   const isRejectedOrdersMode = mode === 'rejected-orders';
   const hasAssignmentSystem = isCancelledOrdersMode || isRejectedOrdersMode;
+  const hasBulkSelection = hasAssignmentSystem || mode === 'late-delivery';
 
   // Dedicated search state with debounce
   const [searchInput, setSearchInput] = useState('');
@@ -470,7 +474,7 @@ export function SalesFollowupOrdersPage({ mode = 'late-delivery' }: { mode?: Sal
       const customerName = o.customerName ?? o.customer_name ?? '';
       const customerPhone = o.customerPhone ?? o.customer_phone ?? '';
       const courierCompany = o.courierCompany ?? o.courier_company ?? '';
-      const relevantDate = config.dateField(o);
+      const relevantDate = 'filterDateField' in config ? config.filterDateField(o) : config.dateField(o);
 
       // Always-visible search bar
       const sq = normalize(searchQuery);
@@ -532,6 +536,45 @@ export function SalesFollowupOrdersPage({ mode = 'late-delivery' }: { mode?: Sal
     const selectedSet = new Set(selectedRowIds.map((id) => Number(id)));
     return orders.filter((order) => selectedSet.has(order.id));
   }, [orders, selectedRowIds]);
+
+  const handleBulkStatusUpdate = useCallback(async () => {
+    if (!config.allowStatusUpdate) return;
+    if (selectedOrders.length === 0) {
+      toast.warning('Select at least one order');
+      return;
+    }
+    if (!bulkStatus) {
+      toast.warning('Select a status first');
+      return;
+    }
+
+    const statusLabel = getOrderStatusLabel(bulkStatus);
+    if (!confirm(`Update ${selectedOrders.length} selected order(s) to ${statusLabel}?`)) return;
+
+    setBulkUpdatingStatus(true);
+    try {
+      const results = await Promise.allSettled(
+        selectedOrders.map((order) => apiClient.put(`/sales/${order.id}`, { status: bulkStatus })),
+      );
+      const successCount = results.filter((result) => result.status === 'fulfilled').length;
+      const failedCount = results.length - successCount;
+
+      if (successCount > 0) {
+        toast.success(`Updated ${successCount} order(s) to ${statusLabel}${failedCount ? `, failed ${failedCount}` : ''}`);
+      } else {
+        toast.error('Failed to update selected orders');
+      }
+
+      setSelectedRowIds([]);
+      setBulkStatus('');
+      await load();
+    } catch (e: any) {
+      toast.error(e?.response?.data?.message || 'Failed to update selected orders');
+      await load();
+    } finally {
+      setBulkUpdatingStatus(false);
+    }
+  }, [bulkStatus, config.allowStatusUpdate, selectedOrders, toast]);
 
   const openAssignmentModal = (order: SalesOrder) => {
     if (!canManageOrderAssignment) {
@@ -1113,6 +1156,36 @@ export function SalesFollowupOrdersPage({ mode = 'late-delivery' }: { mode?: Sal
           </div>
         )}
 
+        {mode === 'late-delivery' && (
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+            <div className="text-sm text-gray-600">
+              <span className="font-semibold text-gray-900">{selectedRowIds.length}</span> selected
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <select
+                value={bulkStatus}
+                onChange={(e) => setBulkStatus(e.target.value)}
+                disabled={bulkUpdatingStatus}
+                className="min-w-[190px] rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+              >
+                <option value="">Select status</option>
+                {config.manualStatusOptions.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={handleBulkStatusUpdate}
+                disabled={selectedRowIds.length === 0 || !bulkStatus || bulkUpdatingStatus}
+                className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50 hover:bg-blue-700"
+              >
+                <FaCheck />
+                {bulkUpdatingStatus ? 'Updating...' : 'Bulk Update Status'}
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Page size */}
         <div className="mb-4 flex justify-end">
           <PageSizeSelector
@@ -1129,7 +1202,7 @@ export function SalesFollowupOrdersPage({ mode = 'late-delivery' }: { mode?: Sal
           columns={columns}
           data={paginated}
           loading={loading}
-          selection={hasAssignmentSystem ? {
+          selection={hasBulkSelection ? {
             selectedRowIds,
             onChange: setSelectedRowIds,
             getRowId: (row: SalesOrder) => row.id,
