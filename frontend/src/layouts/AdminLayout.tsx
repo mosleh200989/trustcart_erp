@@ -9,7 +9,7 @@ import { BACKEND_API_BASE_URL } from '@/config/backend';
 import { 
   FaTachometerAlt, FaBoxes, FaShoppingCart, FaUsers, FaWarehouse, 
   FaShoppingBag, FaUserTie, FaBook, FaBullseye, FaHandshake, 
-  FaHeadset, FaUser, FaUserClock, FaUserCheck, FaCog, FaBars, FaTimes, FaBell, FaChevronDown, FaChartBar, FaTags, FaGift, FaPhone, FaMoneyBillWave, FaImage, FaList, FaRocket, FaPrint, FaBan, FaHistory, FaTruck, FaSlidersH, FaClipboardCheck, FaSearch, FaRecycle, FaShieldAlt, FaCalculator
+  FaHeadset, FaUser, FaUserClock, FaUserCheck, FaCog, FaBars, FaTimes, FaBell, FaChevronDown, FaChartBar, FaTags, FaGift, FaPhone, FaMoneyBillWave, FaImage, FaList, FaRocket, FaPrint, FaBan, FaHistory, FaTruck, FaSlidersH, FaClipboardCheck, FaSearch, FaRecycle, FaShieldAlt, FaCalculator, FaGlobe
 } from 'react-icons/fa';
 
 interface MenuItem {
@@ -374,6 +374,7 @@ const menuItems: MenuItem[] = [
       { title: 'Dashboard', icon: FaTachometerAlt, path: '/admin/crm' },
       { title: 'Data Analyst', icon: FaChartBar, path: '/admin/crm/sales-manager-dashboard', requiredPermissions: ['view-data-analyst-dashboard', 'view-sales-manager-dashboard'] },
       { title: 'Assign Leads', icon: FaUsers, path: '/admin/crm/sales-manager-leads', requiredPermissions: ['view-data-analyst-dashboard', 'view-sales-manager-dashboard'] },
+      { title: 'Foreign Leads', icon: FaGlobe, path: '/admin/crm/foreign-leads', requiredPermissions: ['view-data-analyst-dashboard', 'view-sales-manager-dashboard'] },
       { title: 'Customers', icon: FaUsers, path: '/admin/crm/customers', requiredPermissions: ['view-customers'] },
       { title: 'Team Dashboard', icon: FaTachometerAlt, path: '/admin/crm/team-dashboard', requiredPermissions: ['view-team-leader-dashboard', 'view-team-performance', 'manage-team-members'] },
       { title: 'Lead Assignment', icon: FaUsers, path: '/admin/crm/lead-assignment', requiredPermissions: ['assign-leads-to-team'] },
@@ -417,6 +418,7 @@ const menuItems: MenuItem[] = [
       { title: 'All Tasks', icon: FaList, path: '/admin/telephony/all-tasks' },
       { title: 'My Follow-ups', icon: FaPhone, path: '/admin/telephony/my-followups' },
       { title: 'Order Assignment', icon: FaPhone, path: '/admin/telephony/order-assignment', requiredPermissions: ['view-order-assignment'] },
+      { title: 'Foreign Customers', icon: FaGlobe, path: '/admin/telephony/foreign-assignment', requiredPermissions: ['view-order-assignment'] },
       { title: 'Incomplete Assignment', icon: FaPhone, path: '/admin/telephony/incomplete-assignment', requiredPermissions: ['view-order-assignment'] },
       { title: 'Cancelled Assignment', icon: FaPhone, path: '/admin/telephony/cancelled-assignment', requiredPermissions: ['view-order-assignment'] },
       { title: 'Rejected Assignment', icon: FaPhone, path: '/admin/telephony/rejected-assignment', requiredPermissions: ['view-order-assignment'] },

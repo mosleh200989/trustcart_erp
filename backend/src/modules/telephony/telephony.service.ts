@@ -199,6 +199,7 @@ export class TelephonyService {
     calledStatus?: string;
     outcome?: string;
     suggestion?: string;
+    foreignOnly?: boolean;
     startDate?: string;
     endDate?: string;
     page?: number;
@@ -208,6 +209,9 @@ export class TelephonyService {
     const assignmentType = String(params?.assignmentType || 'order').trim().toLowerCase();
     if (assignmentType === 'incomplete') {
       return this.listMyIncompleteOrderAssignments(userId, params);
+    }
+    if (params?.foreignOnly) {
+      await this.customersService.syncForeignCustomerSourcesFromNotes();
     }
 
     const safeLimit = Number.isFinite(params?.limit) ? Math.max(1, Math.min(2000, Number(params?.limit))) : 50;
@@ -366,6 +370,17 @@ export class TelephonyService {
       qb.andWhere('o.telephony_suggestion = :suggestion', { suggestion: params.suggestion });
     }
 
+    if (params?.foreignOnly) {
+      qb.andWhere(`
+        EXISTS (
+          SELECT 1
+          FROM customers c_foreign
+          WHERE c_foreign.id = o.customer_id
+            AND COALESCE(c_foreign.source, '') ~ '^\\+[0-9]{7,18}$'
+        )
+      `);
+    }
+
     if (params?.startDate) {
       qb.andWhere("DATE(o.created_at AT TIME ZONE 'Asia/Dhaka') >= :startDate", { startDate: params.startDate });
     }
@@ -381,6 +396,9 @@ export class TelephonyService {
       ? await this.fetchLatestAssignmentCallLogs('sales_order', orders.map((order) => order.id))
       : new Map<number, any>();
     const orderCountsByPhone = await this.fetchCustomerTotalOrdersByPhone(orders.map((order) => order.customerPhone));
+    const customerSourcesById = await this.fetchCustomerSourcesById(
+      orders.map((order) => Number((order as any).customerId)).filter((id) => Number.isInteger(id) && id > 0),
+    );
 
     return {
       data: orders.map((order) => {
@@ -404,6 +422,8 @@ export class TelephonyService {
           shippingAddress: order.shippingAddress,
           status: order.status,
           orderSource: order.orderSource,
+          customerSource: customerSourcesById.get(Number((order as any).customerId)) || null,
+          foreignPhone: customerSourcesById.get(Number((order as any).customerId)) || null,
           customerTotalOrders: orderCountsByPhone.get(this.normalizeCustomerPhone(order.customerPhone)) || 0,
           totalAmount: Number(order.totalAmount || 0),
           orderDate: order.orderDate,
@@ -423,6 +443,22 @@ export class TelephonyService {
       limit: safeLimit,
       totalPages: Math.ceil(total / safeLimit),
     };
+  }
+
+  private async fetchCustomerSourcesById(customerIds: number[]) {
+    const uniqueIds = Array.from(new Set(customerIds.filter((id) => Number.isInteger(id) && id > 0)));
+    const map = new Map<number, string>();
+    if (!uniqueIds.length) return map;
+    const rows = await this.salesOrderRepo.manager.query(
+      `SELECT id, source FROM customers WHERE id = ANY($1::int[])`,
+      [uniqueIds],
+    );
+    for (const row of rows || []) {
+      const id = Number(row.id);
+      const source = String(row.source || '').trim();
+      if (Number.isInteger(id) && source) map.set(id, source);
+    }
+    return map;
   }
 
   private parseIncompleteOrderItems(cartData: any): Array<{ productName: string; productNameBn?: string | null; variantName?: string | null; quantity: number }> {

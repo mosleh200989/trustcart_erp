@@ -344,6 +344,18 @@ export const DEFAULT_ADMIN_MENU: AdminMenuSeedNode[] = [
       { title: 'Dashboard', icon: 'FaTachometerAlt', path: '/admin/crm' },
       { title: 'Customers', icon: 'FaUsers', path: '/admin/crm/customers' },
       { title: 'Team Dashboard', icon: 'FaTachometerAlt', path: '/admin/crm/team-dashboard' },
+      {
+        title: 'Assign Leads',
+        icon: 'FaUsers',
+        path: '/admin/crm/sales-manager-leads',
+        requiredPermissions: ['view-data-analyst-dashboard', 'view-sales-manager-dashboard'],
+      },
+      {
+        title: 'Foreign Leads',
+        icon: 'FaGlobe',
+        path: '/admin/crm/foreign-leads',
+        requiredPermissions: ['view-data-analyst-dashboard', 'view-sales-manager-dashboard'],
+      },
       { title: 'Lead Assignment', icon: 'FaUsers', path: '/admin/crm/lead-assignment' },
       {
         title: 'Automatic Assignment',
@@ -386,6 +398,7 @@ export const DEFAULT_ADMIN_MENU: AdminMenuSeedNode[] = [
     icon: 'FaPhone',
     children: [
       { title: 'Order Assignment', icon: 'FaPhone', path: '/admin/telephony/order-assignment', requiredPermissions: ['view-order-assignment'] },
+      { title: 'Foreign Customers', icon: 'FaGlobe', path: '/admin/telephony/foreign-assignment', requiredPermissions: ['view-order-assignment'] },
       { title: 'Incomplete Assignment', icon: 'FaPhone', path: '/admin/telephony/incomplete-assignment', requiredPermissions: ['view-order-assignment'] },
       { title: 'Cancelled Assignment', icon: 'FaPhone', path: '/admin/telephony/cancelled-assignment', requiredPermissions: ['view-order-assignment'] },
       { title: 'Rejected Assignment', icon: 'FaPhone', path: '/admin/telephony/rejected-assignment', requiredPermissions: ['view-order-assignment'] },

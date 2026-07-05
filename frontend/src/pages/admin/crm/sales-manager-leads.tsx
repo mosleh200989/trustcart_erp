@@ -157,7 +157,19 @@ const FilterField = ({
   </label>
 );
 
-const SalesManagerLeadAssignment = () => {
+interface SalesManagerLeadAssignmentProps {
+  foreignOnly?: boolean;
+  title?: string;
+  description?: string;
+  totalLabel?: string;
+}
+
+const SalesManagerLeadAssignment = ({
+  foreignOnly = false,
+  title = 'Lead Assignment',
+  description = 'Select leads and assign them directly to agents',
+  totalLabel = 'total leads',
+}: SalesManagerLeadAssignmentProps = {}) => {
   const toast = useToast();
 
   // Data
@@ -271,8 +283,9 @@ const SalesManagerLeadAssignment = () => {
       scheduledFromFilter,
       scheduledToFilter,
       rowsPerPage,
+      foreignOnly,
     }),
-    [search, assignmentStatus, tierFilter, tlFilter, agentFilter, lifecycleFilter, productFilter, lastOrderStartFilter, lastOrderEndFilter, deliveryStartFilter, deliveryEndFilter, tierUpdatedFromFilter, tierUpdatedToFilter, assignedFromFilter, assignedToFilter, addressFilter, noteSearchFilter, segmentFilter, rejectedStatusFilter, lastCallFilter, tagFilter, callOutcomeFilter, productSuggestionFilter, orderRejectedReasonFilter, scheduledAssignmentStatusFilter, scheduledAssignmentActionFilter, scheduledAssignmentAgentFilter, scheduledFromFilter, scheduledToFilter, rowsPerPage],
+    [search, assignmentStatus, tierFilter, tlFilter, agentFilter, lifecycleFilter, productFilter, lastOrderStartFilter, lastOrderEndFilter, deliveryStartFilter, deliveryEndFilter, tierUpdatedFromFilter, tierUpdatedToFilter, assignedFromFilter, assignedToFilter, addressFilter, noteSearchFilter, segmentFilter, rejectedStatusFilter, lastCallFilter, tagFilter, callOutcomeFilter, productSuggestionFilter, orderRejectedReasonFilter, scheduledAssignmentStatusFilter, scheduledAssignmentActionFilter, scheduledAssignmentAgentFilter, scheduledFromFilter, scheduledToFilter, rowsPerPage, foreignOnly],
   );
 
   const fetchLeads = useCallback(async (pg = 1, options?: { silent?: boolean }) => {
@@ -292,6 +305,7 @@ const SalesManagerLeadAssignment = () => {
         page: String(pg),
         limit: String(rowsPerPage),
       });
+      if (foreignOnly) params.set('foreignOnly', 'true');
       if (search) params.set('search', search);
       if (assignmentStatus) params.set('assignmentStatus', assignmentStatus);
       if (tierFilter) params.set('tier', tierFilter);
@@ -351,7 +365,7 @@ const SalesManagerLeadAssignment = () => {
       }
       if (leadsAbortRef.current === abortController) leadsAbortRef.current = null;
     }
-  }, [search, assignmentStatus, tierFilter, tlFilter, agentFilter, lifecycleFilter, productFilter, lastOrderStartFilter, lastOrderEndFilter, deliveryStartFilter, deliveryEndFilter, tierUpdatedFromFilter, tierUpdatedToFilter, assignedFromFilter, assignedToFilter, addressFilter, noteSearchFilter, segmentFilter, rejectedStatusFilter, lastCallFilter, tagFilter, callOutcomeFilter, productSuggestionFilter, orderRejectedReasonFilter, scheduledAssignmentStatusFilter, scheduledAssignmentActionFilter, scheduledAssignmentAgentFilter, scheduledFromFilter, scheduledToFilter, rowsPerPage, toast]);
+  }, [search, assignmentStatus, tierFilter, tlFilter, agentFilter, lifecycleFilter, productFilter, lastOrderStartFilter, lastOrderEndFilter, deliveryStartFilter, deliveryEndFilter, tierUpdatedFromFilter, tierUpdatedToFilter, assignedFromFilter, assignedToFilter, addressFilter, noteSearchFilter, segmentFilter, rejectedStatusFilter, lastCallFilter, tagFilter, callOutcomeFilter, productSuggestionFilter, orderRejectedReasonFilter, scheduledAssignmentStatusFilter, scheduledAssignmentActionFilter, scheduledAssignmentAgentFilter, scheduledFromFilter, scheduledToFilter, rowsPerPage, foreignOnly, toast]);
 
   const fetchTeamLeaders = useCallback(async () => {
     try {
@@ -750,11 +764,11 @@ const SalesManagerLeadAssignment = () => {
                 Data Analyst
               </a>
             </div>
-            <h1 className="text-2xl font-bold text-gray-900">Lead Assignment</h1>
-            <p className="text-gray-500 text-sm mt-0.5">Select leads and assign them directly to agents</p>
+            <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
+            <p className="text-gray-500 text-sm mt-0.5">{description}</p>
           </div>
           <div className="text-sm text-gray-500">
-            {total.toLocaleString()} total leads
+            {total.toLocaleString()} {totalLabel}
           </div>
         </div>
 
@@ -1246,6 +1260,9 @@ const SalesManagerLeadAssignment = () => {
                       </th>
                       <th className="text-left py-3 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Name</th>
                       <th className="text-left py-3 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Delivery Date</th>
+                      {foreignOnly && (
+                        <th className="text-left py-3 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Foreign Number</th>
+                      )}
                       <th className="text-center py-3 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Segment</th>
                       <th className="text-center py-3 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Tier</th>
                       <th className="text-left py-3 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Tier Updated</th>
@@ -1283,6 +1300,13 @@ const SalesManagerLeadAssignment = () => {
                         <td className="py-3 px-3 text-sm text-gray-700 whitespace-nowrap">
                           {formatDhakaDate(lead.lastDeliveryDate)}
                         </td>
+                        {foreignOnly && (
+                          <td className="py-3 px-3 text-sm text-gray-800 whitespace-nowrap">
+                            <span className="inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700">
+                              {lead.source || 'N/A'}
+                            </span>
+                          </td>
+                        )}
                         <td className="py-3 px-3 text-center">
                           {(() => {
                             const seg = getSegment(lead);
@@ -1390,7 +1414,7 @@ const SalesManagerLeadAssignment = () => {
                     })}
                     {leadLoadError && leads.length === 0 ? (
                       <tr>
-                        <td colSpan={12} className="text-center py-16">
+                        <td colSpan={foreignOnly ? 13 : 12} className="text-center py-16">
                           <div className="font-semibold text-red-600">Failed to load leads</div>
                           <div className="mt-1 text-sm text-gray-500">{leadLoadError}</div>
                           <button
@@ -1403,7 +1427,7 @@ const SalesManagerLeadAssignment = () => {
                       </tr>
                     ) : leads.length === 0 && (
                       <tr>
-                        <td colSpan={12} className="text-center py-16 text-gray-400">
+                        <td colSpan={foreignOnly ? 13 : 12} className="text-center py-16 text-gray-400">
                           No leads found. Try adjusting your filters.
                         </td>
                       </tr>

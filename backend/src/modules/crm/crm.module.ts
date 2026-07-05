@@ -68,6 +68,7 @@ import { QuoteTemplate } from './entities/quote-template.entity';
 import { SalesForecast } from './entities/sales-forecast.entity';
 import { SalesQuota } from './entities/sales-quota.entity';
 import { RbacModule } from '../rbac/rbac.module';
+import { CustomersModule } from '../customers/customers.module';
 import { CrmAnalyticsController } from './crm-analytics.controller';
 import { CrmAnalyticsService } from './crm-analytics.service';
 // Commission system
@@ -131,6 +132,7 @@ import { CrmNotificationsController } from './crm-notifications.controller';
     ]),
     RbacModule,
     LoyaltyModule,
+    CustomersModule,
   ],
   controllers: [
     // Existing controllers

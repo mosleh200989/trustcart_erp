@@ -28,6 +28,8 @@ type AssignedOrder = {
   shippingAddress?: string;
   status: string;
   orderSource?: string | null;
+  customerSource?: string | null;
+  foreignPhone?: string | null;
   totalAmount: number;
   orderDate?: string;
   createdAt?: string;
@@ -55,6 +57,14 @@ type AssignmentCallLog = {
 };
 
 type AssignmentType = 'order' | 'incomplete' | 'cancelled' | 'rejected';
+
+type TelephonyOrderAssignmentPageProps = {
+  assignmentType?: AssignmentType;
+  foreignOnly?: boolean;
+  title?: string;
+  description?: string;
+  empty?: string;
+};
 
 const PAGE_COPY: Record<AssignmentType, { title: string; description: string; empty: string }> = {
   order: {
@@ -134,11 +144,22 @@ function formatSource(value?: string | null) {
   return normalized.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
-export default function TelephonyOrderAssignmentPage({ assignmentType = 'order' }: { assignmentType?: AssignmentType }) {
+export default function TelephonyOrderAssignmentPage({
+  assignmentType = 'order',
+  foreignOnly = false,
+  title,
+  description,
+  empty,
+}: TelephonyOrderAssignmentPageProps) {
   const toast = useToast();
   const { hasPermission } = useAuth();
   const canViewCallLogs = hasPermission('view-call-logs');
-  const pageCopy = PAGE_COPY[assignmentType] || PAGE_COPY.order;
+  const baseCopy = PAGE_COPY[assignmentType] || PAGE_COPY.order;
+  const pageCopy = {
+    title: title || baseCopy.title,
+    description: description || baseCopy.description,
+    empty: empty || baseCopy.empty,
+  };
   const [orders, setOrders] = useState<AssignedOrder[]>([]);
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(1);
@@ -181,6 +202,7 @@ export default function TelephonyOrderAssignmentPage({ assignmentType = 'order' 
     try {
       const params: Record<string, string> = { page: String(nextPage), limit: String(nextLimit) };
       if (assignmentType !== 'order') params.assignmentType = assignmentType;
+      if (foreignOnly) params.foreignOnly = 'true';
       if (filters.searchTerm.trim()) params.q = filters.searchTerm.trim();
       if (filters.productFilter.trim()) params.productName = filters.productFilter.trim();
       if (filters.tierFilter) params.customerType = filters.tierFilter;
@@ -464,7 +486,9 @@ export default function TelephonyOrderAssignmentPage({ assignmentType = 'order' 
                       <th className="px-4 py-2 text-left text-xs font-medium uppercase text-gray-500">Products</th>
                       <th className="px-4 py-2 text-left text-xs font-medium uppercase text-gray-500">Address</th>
                       <th className="px-4 py-2 text-left text-xs font-medium uppercase text-gray-500">Last Called</th>
-                      <th className="px-4 py-2 text-left text-xs font-medium uppercase text-gray-500">Source</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium uppercase text-gray-500">
+                        {foreignOnly ? 'Foreign Number' : 'Source'}
+                      </th>
                       <th className="px-4 py-2 text-left text-xs font-medium uppercase text-gray-500">Action</th>
                     </tr>
                   </thead>
@@ -523,9 +547,15 @@ export default function TelephonyOrderAssignmentPage({ assignmentType = 'order' 
                               : <span className="text-gray-400">Restricted</span>}
                           </td>
                           <td className="px-4 py-3 text-sm">
-                            <span className="inline-flex rounded-full bg-gray-100 px-2 py-1 text-xs font-semibold text-gray-700">
-                              {formatSource(order.orderSource)}
-                            </span>
+                            {foreignOnly ? (
+                              <span className="inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700">
+                                {order.foreignPhone || order.customerSource || '-'}
+                              </span>
+                            ) : (
+                              <span className="inline-flex rounded-full bg-gray-100 px-2 py-1 text-xs font-semibold text-gray-700">
+                                {formatSource(order.orderSource)}
+                              </span>
+                            )}
                           </td>
                           <td className="px-4 py-3">
                             <div className="flex flex-wrap items-center gap-1">
