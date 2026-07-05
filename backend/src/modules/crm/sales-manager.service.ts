@@ -2342,12 +2342,36 @@ export class SalesManagerService implements OnModuleInit {
     if (query.productName && String(query.productName).trim()) {
       const pName = `%${String(query.productName).trim().toLowerCase()}%`;
       qb.andWhere(
-        `c.id IN (
-          SELECT so.customer_id FROM sales_orders so
-          WHERE so.id IN (
-            SELECT oi.order_id FROM order_items oi JOIN products p ON p.id = oi.product_id WHERE p.name_en ILIKE :pName OR p.name_bn ILIKE :pName
-            UNION
-            SELECT soi.sales_order_id FROM sales_order_items soi JOIN products p2 ON p2.id = soi.product_id WHERE p2.name_en ILIKE :pName OR p2.name_bn ILIKE :pName
+        `EXISTS (
+          SELECT 1
+          FROM sales_orders so_product
+          WHERE so_product.customer_id = c.id
+            AND (
+              EXISTS (
+                SELECT 1
+                FROM order_items oi_product
+                LEFT JOIN products p_product ON p_product.id = oi_product.product_id
+                WHERE oi_product.order_id = so_product.id
+                  AND (
+                    p_product.name_en ILIKE :pName
+                    OR p_product.name_bn ILIKE :pName
+                    OR oi_product.product_name ILIKE :pName
+                    OR oi_product.custom_product_name ILIKE :pName
+                  )
+              )
+              OR EXISTS (
+                SELECT 1
+                FROM sales_order_items soi_product
+                LEFT JOIN products p2_product ON p2_product.id = soi_product.product_id
+                WHERE soi_product.sales_order_id = so_product.id
+                  AND (
+                    p2_product.name_en ILIKE :pName
+                    OR p2_product.name_bn ILIKE :pName
+                    OR soi_product.product_name ILIKE :pName
+                    OR soi_product.custom_product_name ILIKE :pName
+                  )
+              )
+            )
           )
         )`,
         { pName },

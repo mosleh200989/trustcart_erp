@@ -11,14 +11,16 @@ interface ProductAutocompleteProps {
   value: string;
   onChange: (value: string) => void;
   className?: string;
+  lockOnSelect?: boolean;
 }
 
-export default function ProductAutocomplete({ value, onChange, className }: ProductAutocompleteProps) {
+export default function ProductAutocomplete({ value, onChange, className, lockOnSelect = false }: ProductAutocompleteProps) {
   const [allProducts, setAllProducts] = useState<ProductOption[]>([]);
   const [inputValue, setInputValue] = useState(value);
   const [showDropdown, setShowDropdown] = useState(false);
   const [filteredProducts, setFilteredProducts] = useState<ProductOption[]>([]);
   const [highlightIndex, setHighlightIndex] = useState(-1);
+  const [selectionLocked, setSelectionLocked] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
 
@@ -34,11 +36,15 @@ export default function ProductAutocomplete({ value, onChange, className }: Prod
   // Sync external value changes
   useEffect(() => {
     setInputValue(value);
+    if (!value.trim()) {
+      setSelectionLocked(false);
+      setShowDropdown(false);
+    }
   }, [value]);
 
   // Filter products as user types — match against both English and Bengali names
   useEffect(() => {
-    if (!inputValue.trim()) {
+    if (selectionLocked || !inputValue.trim()) {
       setFilteredProducts([]);
       setShowDropdown(false);
       return;
@@ -52,7 +58,7 @@ export default function ProductAutocomplete({ value, onChange, className }: Prod
     setFilteredProducts(matches);
     setShowDropdown(matches.length > 0);
     setHighlightIndex(-1);
-  }, [inputValue, allProducts]);
+  }, [inputValue, allProducts, selectionLocked]);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -78,11 +84,14 @@ export default function ProductAutocomplete({ value, onChange, className }: Prod
   const selectProduct = (product: ProductOption) => {
     setInputValue(product.name_en);
     onChange(product.name_en);
+    setSelectionLocked(lockOnSelect);
     setShowDropdown(false);
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (selectionLocked) return;
     const val = e.target.value;
+    setSelectionLocked(false);
     setInputValue(val);
     // Always propagate the typed value so the parent filter stays in sync.
     // An empty string clears the filter; any other text triggers ILIKE search on the backend.
@@ -129,10 +138,12 @@ export default function ProductAutocomplete({ value, onChange, className }: Prod
         onChange={handleInputChange}
         onKeyDown={handleKeyDown}
         onFocus={() => {
+          if (selectionLocked) return;
           if (inputValue.trim() && filteredProducts.length > 0) {
             setShowDropdown(true);
           }
         }}
+        readOnly={selectionLocked}
         placeholder="Type to search products..."
         className={className || 'w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500'}
       />
@@ -141,6 +152,7 @@ export default function ProductAutocomplete({ value, onChange, className }: Prod
           type="button"
           onClick={() => {
             setInputValue('');
+            setSelectionLocked(false);
             onChange('');
             setShowDropdown(false);
           }}
