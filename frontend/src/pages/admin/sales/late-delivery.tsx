@@ -138,7 +138,7 @@ type SalesFollowupMode = 'late-delivery' | 'cancelled-orders' | 'rejected-orders
 const MODE_CONFIG = {
   'late-delivery': {
     title: 'Late Delivery',
-    description: 'Orders shipped but not delivered within the SLA',
+    description: 'Orders not delivered within the SLA',
     endpoint: '/sales/late-deliveries',
     dateColumnLabel: 'Sent At',
     dateFromLabel: 'Order Date From',

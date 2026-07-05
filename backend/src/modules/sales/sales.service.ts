@@ -2770,24 +2770,15 @@ export class SalesService {
     const cutoff = new Date(`${today}T00:00:00`);
     cutoff.setDate(cutoff.getDate() - thresholdDays);
     const cutoffDate = cutoff.toISOString().slice(0, 10);
-    const sentSignalCondition = `
-      (
-        o.shipped_at IS NOT NULL
-        OR NULLIF(TRIM(COALESCE(o.courier_order_id, '')), '') IS NOT NULL
-        OR NULLIF(TRIM(COALESCE(o.tracking_id, '')), '') IS NOT NULL
-        OR NULLIF(TRIM(COALESCE(o.courier_status, '')), '') IS NOT NULL
-      )
-    `;
-    const sentDateExpr = `COALESCE(
+    const ageDateExpr = `COALESCE(
       DATE(o.shipped_at AT TIME ZONE '${this.dhakaTimeZone}'),
       DATE(o.order_date),
       DATE(o.created_at AT TIME ZONE '${this.dhakaTimeZone}')
     )`;
 
     const qb = this.salesRepository.createQueryBuilder('o');
-    qb.where(sentSignalCondition)
-      .andWhere("LTRIM(COALESCE(o.sales_order_number, ''), '#') NOT ILIKE 'LEG%'")
-      .andWhere(`${sentDateExpr} <= :cutoffDate`, { cutoffDate })
+    qb.where("LTRIM(COALESCE(o.sales_order_number, ''), '#') NOT ILIKE 'LEG%'")
+      .andWhere(`${ageDateExpr} <= :cutoffDate`, { cutoffDate })
       .andWhere('LOWER(o.status::text) NOT IN (:...terminalStatuses)', {
         terminalStatuses: [
           'delivered',
@@ -2799,7 +2790,7 @@ export class SalesService {
           'returned',
         ],
       })
-      .orderBy(sentDateExpr, 'ASC')
+      .orderBy(ageDateExpr, 'ASC')
       .addOrderBy('o.shipped_at', 'ASC', 'NULLS LAST')
       .addOrderBy('o.order_date', 'ASC');
 
