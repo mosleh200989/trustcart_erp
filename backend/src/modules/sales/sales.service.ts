@@ -2771,9 +2771,9 @@ export class SalesService {
     cutoff.setDate(cutoff.getDate() - thresholdDays);
     const cutoffDate = cutoff.toISOString().slice(0, 10);
     const ageDateExpr = `COALESCE(
-      DATE(o.shipped_at AT TIME ZONE '${this.dhakaTimeZone}'),
       DATE(o.order_date),
-      DATE(o.created_at AT TIME ZONE '${this.dhakaTimeZone}')
+      DATE(o.created_at AT TIME ZONE '${this.dhakaTimeZone}'),
+      DATE(o.shipped_at AT TIME ZONE '${this.dhakaTimeZone}')
     )`;
 
     const qb = this.salesRepository.createQueryBuilder('o');
