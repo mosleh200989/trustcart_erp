@@ -2368,7 +2368,6 @@ export class SalesManagerService implements OnModuleInit {
                   )
               )
             )
-          )
         )`,
         { pName },
       );
