@@ -2355,8 +2355,6 @@ export class SalesManagerService implements OnModuleInit {
                   AND (
                     p_product.name_en ILIKE :pName
                     OR p_product.name_bn ILIKE :pName
-                    OR oi_product.product_name ILIKE :pName
-                    OR oi_product.custom_product_name ILIKE :pName
                   )
               )
               OR EXISTS (
@@ -2367,8 +2365,6 @@ export class SalesManagerService implements OnModuleInit {
                   AND (
                     p2_product.name_en ILIKE :pName
                     OR p2_product.name_bn ILIKE :pName
-                    OR soi_product.product_name ILIKE :pName
-                    OR soi_product.custom_product_name ILIKE :pName
                   )
               )
             )
