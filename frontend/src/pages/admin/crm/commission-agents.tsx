@@ -38,6 +38,12 @@ const PAYMENT_METHODS = [
   { value: 'other', label: 'Other' },
 ];
 
+const AGENT_STATUS_FILTERS = [
+  { value: 'all', label: 'All' },
+  { value: 'active', label: 'Active Only' },
+  { value: 'inactive', label: 'Inactive Only' },
+];
+
 export default function CommissionAgentsPage() {
   const toast = useToast();
   const router = useRouter();
@@ -52,6 +58,7 @@ export default function CommissionAgentsPage() {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   });
+  const [agentStatusFilter, setAgentStatusFilter] = useState('active');
 
   // Payment request modal
   const [paymentModal, setPaymentModal] = useState<AgentRow | null>(null);
@@ -88,6 +95,7 @@ export default function CommissionAgentsPage() {
       const params: any = { page: p, limit: ps };
       if (searchText.trim()) params.search = searchText.trim();
       if (monthFilter) params.month = monthFilter;
+      params.agentStatus = agentStatusFilter;
 
       const response = await apiClient.get('/crm/commissions/agents', { params });
       const data = response.data;
@@ -100,11 +108,11 @@ export default function CommissionAgentsPage() {
     } finally {
       setLoading(false);
     }
-  }, [currentPage, itemsPerPage, searchText, monthFilter]);
+  }, [currentPage, itemsPerPage, searchText, monthFilter, agentStatusFilter]);
 
   useEffect(() => {
     loadAgents(currentPage, itemsPerPage);
-  }, [currentPage, itemsPerPage, monthFilter]);
+  }, [currentPage, itemsPerPage, monthFilter, agentStatusFilter]);
 
   const handleSearch = () => {
     setCurrentPage(1);
@@ -418,6 +426,18 @@ export default function CommissionAgentsPage() {
                 onChange={(e) => { setMonthFilter(e.target.value); setCurrentPage(1); }}
                 className="border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
+            </div>
+            <div className="flex items-center gap-2">
+              <label className="text-sm text-gray-600">Status:</label>
+              <select
+                value={agentStatusFilter}
+                onChange={(e) => { setAgentStatusFilter(e.target.value); setCurrentPage(1); }}
+                className="border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                {AGENT_STATUS_FILTERS.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
             </div>
           </div>
           <div className="flex items-center gap-2">
