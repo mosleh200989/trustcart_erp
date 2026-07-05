@@ -944,8 +944,8 @@ export class CommissionService {
     const statusCondition = agentStatus === 'all'
       ? ''
       : agentStatus === 'active'
-        ? `AND LOWER(COALESCE(u.status, '')) = 'active'`
-        : `AND LOWER(COALESCE(u.status, '')) <> 'active'`;
+        ? `AND LOWER(COALESCE(u.status::text, '')) = 'active'`
+        : `AND LOWER(COALESCE(u.status::text, '')) <> 'active'`;
 
     // Count distinct agents
     const countSql = `
