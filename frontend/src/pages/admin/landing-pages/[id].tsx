@@ -1161,7 +1161,7 @@ export default function LandingPageEditor() {
               <div className="w-10 h-10 bg-gradient-to-br from-fuchsia-700 to-orange-500 rounded-lg flex items-center justify-center text-white font-bold text-lg">V</div>
               <div>
                 <div className="font-semibold text-gray-800">Veshoj</div>
-                <div className="text-xs text-gray-500">Veshoj clone — purple Bengali checkout</div>
+                <div className="text-xs text-gray-500">Veshoj clone — branded Bengali checkout</div>
               </div>
             </div>
             <div className="flex gap-1">
@@ -1394,9 +1394,16 @@ export default function LandingPageEditor() {
 
       <div className="border-t pt-4">
         <h3 className="text-lg font-semibold mb-3">Colors</h3>
-        <div className="grid grid-cols-3 gap-4">
+        {form.template === 'veshoj' && (
+          <p className="text-xs text-gray-500 mb-3">
+            For the Veshoj template, Primary controls the solid heading strips and star accents, Secondary controls the soft heading backgrounds, and Background controls the page canvas.
+          </p>
+        )}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Primary Color</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              {form.template === 'veshoj' ? 'Solid Heading / Accent Color' : 'Primary Color'}
+            </label>
             <div className="flex items-center gap-2">
               <input
                 type="color"
@@ -1413,7 +1420,9 @@ export default function LandingPageEditor() {
             </div>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Secondary Color</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              {form.template === 'veshoj' ? 'Soft Heading Background' : 'Secondary Color'}
+            </label>
             <div className="flex items-center gap-2">
               <input
                 type="color"
@@ -1430,7 +1439,9 @@ export default function LandingPageEditor() {
             </div>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Background Color</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              {form.template === 'veshoj' ? 'Page Background' : 'Background Color'}
+            </label>
             <div className="flex items-center gap-2">
               <input
                 type="color"
