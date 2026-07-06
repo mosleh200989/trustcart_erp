@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, ForbiddenException, BadRequestException 
 import { InjectRepository } from '@nestjs/typeorm';
 import { Brackets, Repository, In } from 'typeorm';
 import { Customer } from '../customers/customer.entity';
+import { CustomersService } from '../customers/customers.service';
 import { SalesTeam } from './entities/sales-team.entity';
 import { User } from '../users/user.entity';
 import { CallTask, TaskPriority, TaskStatus } from './entities/call-task.entity';
@@ -43,6 +44,7 @@ export class CrmTeamService {
     private dashboardConfigRepo: Repository<DashboardConfig>,
     @InjectRepository(CustomerTier)
     private customerTierRepo: Repository<CustomerTier>,
+    private readonly customersService: CustomersService,
   ) {}
 
   /** Dashboard cache: key = teamLeaderId, TTL = 5 minutes */
@@ -1182,12 +1184,14 @@ export class CrmTeamService {
   async getAgentCustomers(agentId: number, query: any = {}): Promise<{ data: Customer[], total: number }> {
     const { page = 1, limit = 20, search, priority, stage, customerType, productName, calledStatus, outcome, startDate, endDate, followUpDate } = query;
     const skip = (page - 1) * limit;
+    await this.customersService.syncForeignCustomerSourcesFromNotes();
 
     // Use query builder for complex filtering
     const qb = this.customerRepository.createQueryBuilder('c')
       .where('c.assigned_to = :agentId', { agentId })
       .andWhere('c.is_deleted = false')
-      .andWhere('c.is_active = true');
+      .andWhere('c.is_active = true')
+      .andWhere("COALESCE(c.source, '') !~ '^\\+[0-9]{7,18}$'");
 
     // Exclude rejected customers
     qb.andWhere(`NOT EXISTS (SELECT 1 FROM customer_tiers ct WHERE ct.customer_id = c.id AND ct.tier = 'rejected')`);

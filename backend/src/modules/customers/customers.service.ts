@@ -7,6 +7,10 @@ import { LoyaltyService } from '../loyalty/loyalty.service';
 
 @Injectable()
 export class CustomersService {
+  private foreignSourceSyncPromise: Promise<{ updated: number; skipped?: boolean }> | null = null;
+  private foreignSourceLastSyncedAt = 0;
+  private readonly foreignSourceSyncTtlMs = 60 * 1000;
+
   constructor(
     @InjectRepository(Customer)
     private customersRepository: Repository<Customer>,
@@ -44,7 +48,23 @@ export class CustomersService {
     return ch ? ch.slice(0, 30) : null;
   }
 
-  async syncForeignCustomerSourcesFromNotes(): Promise<{ updated: number }> {
+  async syncForeignCustomerSourcesFromNotes(options: { force?: boolean } = {}): Promise<{ updated: number; skipped?: boolean }> {
+    const now = Date.now();
+    if (!options.force && this.foreignSourceLastSyncedAt && now - this.foreignSourceLastSyncedAt < this.foreignSourceSyncTtlMs) {
+      return { updated: 0, skipped: true };
+    }
+    if (this.foreignSourceSyncPromise) return this.foreignSourceSyncPromise;
+
+    this.foreignSourceSyncPromise = this.runForeignCustomerSourceSync()
+      .finally(() => {
+        this.foreignSourceLastSyncedAt = Date.now();
+        this.foreignSourceSyncPromise = null;
+      });
+
+    return this.foreignSourceSyncPromise;
+  }
+
+  private async runForeignCustomerSourceSync(): Promise<{ updated: number }> {
     const rows = await this.customersRepository.query(
       `
       WITH note_sources AS (

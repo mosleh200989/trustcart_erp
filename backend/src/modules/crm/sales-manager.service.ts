@@ -2114,9 +2114,7 @@ export class SalesManagerService implements OnModuleInit {
     const offset = (page - 1) * limit;
     const foreignOnly = query.foreignOnly === true || String(query.foreignOnly || '').toLowerCase() === 'true';
 
-    if (foreignOnly) {
-      await this.customersService.syncForeignCustomerSourcesFromNotes();
-    }
+    await this.customersService.syncForeignCustomerSourcesFromNotes();
 
     const selectedFields = [
         'c.id', 'c.name', 'c.lastName', 'c.email', 'c.phone',
@@ -2234,6 +2232,8 @@ export class SalesManagerService implements OnModuleInit {
     // Assignment status filter
     if (foreignOnly) {
       qb.andWhere("COALESCE(c.source, '') ~ '^\\+[0-9]{7,18}$'");
+    } else {
+      qb.andWhere("COALESCE(c.source, '') !~ '^\\+[0-9]{7,18}$'");
     }
 
     if (query.assignmentStatus === 'unassigned' || query.unassignedOnly === 'true' || query.unassignedOnly === true) {
@@ -2716,6 +2716,73 @@ export class SalesManagerService implements OnModuleInit {
   /**
    * Assign lead(s) directly to an agent by a Data Analyst.
    */
+  private async getForeignCustomerIds(customerIds: number[]) {
+    const ids = this.normalizeCustomerIds(customerIds);
+    if (ids.length === 0) return [];
+    await this.customersService.syncForeignCustomerSourcesFromNotes();
+    const rows = await this.customerRepository.query(
+      `SELECT id
+       FROM customers
+       WHERE id = ANY($1::int[])
+         AND COALESCE(source, '') ~ '^\\+[0-9]{7,18}$'`,
+      [ids],
+    );
+    return this.normalizeCustomerIds((rows || []).map((row: any) => row.id));
+  }
+
+  private async syncForeignOrderAssignments(customerIds: number[], agentId: number, assignedBy: number | null) {
+    const ids = await this.getForeignCustomerIds(customerIds);
+    if (ids.length === 0) return 0;
+
+    await this.customerRepository.manager.transaction(async (manager) => {
+      await manager.query(
+        `UPDATE sales_orders
+         SET assigned_to = NULL,
+             assigned_by = NULL,
+             assigned_at = NULL,
+             updated_at = NOW()
+         WHERE customer_id = ANY($1::int[])`,
+        [ids],
+      );
+
+      await manager.query(
+        `WITH latest_orders AS (
+           SELECT DISTINCT ON (customer_id) id
+           FROM sales_orders
+           WHERE customer_id = ANY($1::int[])
+           ORDER BY customer_id, created_at DESC, id DESC
+         )
+         UPDATE sales_orders so
+         SET assigned_to = $2,
+             assigned_by = $3,
+             assigned_at = NOW(),
+             updated_at = NOW()
+         FROM latest_orders lo
+         WHERE so.id = lo.id`,
+        [ids, agentId, assignedBy || null],
+      );
+    });
+
+    return ids.length;
+  }
+
+  private async clearForeignOrderAssignments(customerIds: number[]) {
+    const ids = await this.getForeignCustomerIds(customerIds);
+    if (ids.length === 0) return 0;
+
+    await this.customerRepository.query(
+      `UPDATE sales_orders
+       SET assigned_to = NULL,
+           assigned_by = NULL,
+           assigned_at = NULL,
+           updated_at = NOW()
+       WHERE customer_id = ANY($1::int[])`,
+      [ids],
+    );
+
+    return ids.length;
+  }
+
   async assignLeadToAgent(customerIds: number[], agentId: number, dataAnalystId: number) {
     if (!customerIds || customerIds.length === 0 || !agentId) {
       return { assigned: 0, agentId };
@@ -2739,6 +2806,8 @@ export class SalesManagerService implements OnModuleInit {
       } as any)
       .where('id IN (:...ids)', { ids: customerIds })
       .execute();
+
+    await this.syncForeignOrderAssignments(customerIds, agentId, dataAnalystId || null);
 
     return { assigned: updated.affected || 0, agentId, teamLeaderId: agent.teamLeaderId ?? null };
   }
@@ -2772,6 +2841,8 @@ export class SalesManagerService implements OnModuleInit {
       .andWhere(fromAgentId ? 'assigned_to = :fromAgentId' : '1=1', { fromAgentId })
       .execute();
 
+    await this.syncForeignOrderAssignments(customerIds, toAgentId, dataAnalystId || null);
+
     return { reassigned: updated.affected || 0, fromAgentId, toAgentId, teamLeaderId: targetAgent.teamLeaderId ?? null };
   }
 
@@ -2793,6 +2864,8 @@ export class SalesManagerService implements OnModuleInit {
       } as any)
       .where('id IN (:...ids)', { ids: customerIds })
       .execute();
+
+    await this.clearForeignOrderAssignments(customerIds);
 
     return { unassigned: updated.affected || 0 };
   }

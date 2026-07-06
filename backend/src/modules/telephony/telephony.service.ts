@@ -210,9 +210,7 @@ export class TelephonyService {
     if (assignmentType === 'incomplete') {
       return this.listMyIncompleteOrderAssignments(userId, params);
     }
-    if (params?.foreignOnly) {
-      await this.customersService.syncForeignCustomerSourcesFromNotes();
-    }
+    await this.customersService.syncForeignCustomerSourcesFromNotes();
 
     const safeLimit = Number.isFinite(params?.limit) ? Math.max(1, Math.min(2000, Number(params?.limit))) : 50;
     const safePage = Number.isFinite(params?.page) ? Math.max(1, Number(params?.page)) : 1;
@@ -245,7 +243,7 @@ export class TelephonyService {
       qb.andWhere("LOWER(o.status::text) IN ('cancelled', 'returned')");
     } else if (assignmentType === 'rejected') {
       qb.andWhere("LOWER(o.status::text) = 'admin_cancelled'");
-    } else {
+    } else if (!params?.foreignOnly) {
       qb.andWhere(`
         LOWER(o.status::text) NOT IN (
           'cancelled',
@@ -373,6 +371,23 @@ export class TelephonyService {
     if (params?.foreignOnly) {
       qb.andWhere(`
         EXISTS (
+          SELECT 1
+          FROM customers c_foreign
+          WHERE c_foreign.id = o.customer_id
+            AND COALESCE(c_foreign.source, '') ~ '^\\+[0-9]{7,18}$'
+        )
+        AND o.id = (
+          SELECT so_latest.id
+          FROM sales_orders so_latest
+          WHERE so_latest.customer_id = o.customer_id
+            AND so_latest.assigned_to = :userId
+          ORDER BY so_latest.created_at DESC, so_latest.id DESC
+          LIMIT 1
+        )
+      `);
+    } else {
+      qb.andWhere(`
+        NOT EXISTS (
           SELECT 1
           FROM customers c_foreign
           WHERE c_foreign.id = o.customer_id
