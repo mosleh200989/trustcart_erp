@@ -9,6 +9,7 @@ import { FaPhone, FaWhatsapp, FaShoppingCart, FaMinus, FaPlus, FaCheckCircle, Fa
 import ElegantTemplate from '@/components/landing-pages/ElegantTemplate';
 import GheeTemplate from '@/components/landing-pages/GheeTemplate';
 import PickleTemplate from '@/components/landing-pages/PickleTemplate';
+import HeroVideoEmbed from '@/components/landing-pages/HeroVideoEmbed';
 import { getOrderGuardNoteHtml, isOrderGuardBlocked } from '@/utils/orderGuard';
 import { TrackingService } from '@/utils/tracking';
 
@@ -52,6 +53,7 @@ interface LandingPageData {
   template?: string;
   hero_image_url: string;
   hero_background_image_url?: string;
+  hero_video_url?: string;
   hero_title: string;
   hero_subtitle: string;
   hero_button_text: string;
@@ -86,6 +88,8 @@ interface LandingPageData {
   delivery_charge: number;
   delivery_charge_outside: number;
   delivery_note: string;
+  hero_layout?: string;
+  hero_subtitle_position?: string;
 }
 
 interface OrderItem {
@@ -459,6 +463,47 @@ export default function LandingPageInternational() {
           } : { backgroundColor: page.primary_color }}
         >
           <div className="max-w-5xl mx-auto px-4 py-12 md:py-20">
+            {page.hero_layout === 'video-first' && page.hero_video_url ? (
+              <div className="text-center">
+                <h1
+                  className="text-3xl md:text-4xl font-bold mb-4"
+                  style={{ color: page.secondary_color }}
+                  dangerouslySetInnerHTML={{ __html: page.hero_title || page.title }}
+                />
+                {page.hero_subtitle && page.hero_subtitle_position !== 'below-image' && (
+                  <p
+                    className="text-lg mb-6 opacity-90 max-w-3xl mx-auto"
+                    style={{ color: page.secondary_color }}
+                    dangerouslySetInnerHTML={{ __html: page.hero_subtitle }}
+                  />
+                )}
+                <HeroVideoEmbed
+                  url={page.hero_video_url}
+                  title={`${page.title} hero video`}
+                  accentColor={page.secondary_color || '#FFD700'}
+                  className="mb-8"
+                />
+                {page.hero_subtitle && page.hero_subtitle_position === 'below-image' && (
+                  <p
+                    className="text-lg mb-6 opacity-90 max-w-3xl mx-auto"
+                    style={{ color: page.secondary_color }}
+                    dangerouslySetInnerHTML={{ __html: page.hero_subtitle }}
+                  />
+                )}
+                {page.hero_button_text && (
+                  <button
+                    onClick={scrollToOrderForm}
+                    className="px-10 py-3.5 rounded-full text-2xl md:text-3xl font-extrabold shadow-2xl hover:shadow-xl transform hover:scale-105 transition-all ring-4 ring-white/30"
+                    style={{
+                      backgroundColor: '#FFD700',
+                      color: '#1a1a2e',
+                    }}
+                  >
+                    ðŸ›’ {page.hero_button_text}
+                  </button>
+                )}
+              </div>
+            ) : (
             <div className="flex flex-col md:flex-row items-center gap-8">
               {page.hero_image_url && (
                 <div className="w-full md:w-1/2">
@@ -510,6 +555,7 @@ export default function LandingPageInternational() {
                 )}
               </div>
             </div>
+            )}
           </div>
         </div>
 

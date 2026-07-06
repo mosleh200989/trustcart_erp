@@ -7,6 +7,8 @@ export class LocalStorageService {
   private readonly uploadsDir: string;
   private readonly allowedMimeTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
   private readonly allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
+  private readonly allowedVideoMimeTypes = ['video/mp4', 'video/webm', 'video/ogg'];
+  private readonly allowedVideoExtensions = ['.mp4', '.webm', '.ogg'];
 
   constructor() {
     this.uploadsDir = join(process.cwd(), 'uploads');
@@ -91,6 +93,48 @@ export class LocalStorageService {
       public_id: publicId,
       width: 1000,
       height: 1000,
+    };
+  }
+
+  /**
+   * Upload a video file from Multer to local disk.
+   */
+  async uploadVideo(
+    file: Express.Multer.File,
+    folder: string = 'landing-page-videos',
+    reqBaseUrl: string,
+  ): Promise<{ secure_url: string; public_id: string }> {
+    if (!file) {
+      throw new BadRequestException('No file uploaded');
+    }
+
+    const ext = extname(file.originalname).toLowerCase();
+    if (!this.allowedVideoMimeTypes.includes(file.mimetype) || !this.allowedVideoExtensions.includes(ext)) {
+      throw new BadRequestException(
+        `Only MP4, WebM, and Ogg videos are allowed. Received: ${file.mimetype} (${ext})`
+      );
+    }
+
+    const sanitizedFolder = this.cleanFolderName(folder);
+    const targetDir = join(this.uploadsDir, sanitizedFolder);
+    this.ensureDirectoryExists(targetDir);
+
+    const filename = this.generateUniqueFilename(file.originalname);
+    const filePath = join(targetDir, filename);
+
+    try {
+      fs.writeFileSync(filePath, file.buffer);
+    } catch (error) {
+      console.error('Failed to write video file to disk:', error);
+      throw new BadRequestException('Failed to save video locally');
+    }
+
+    const publicId = `${sanitizedFolder}/${filename}`;
+    const secureUrl = `${reqBaseUrl}/uploads/${publicId}`;
+
+    return {
+      secure_url: secureUrl,
+      public_id: publicId,
     };
   }
 

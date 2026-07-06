@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type WheelEvent } fr
 import Head from 'next/head';
 import apiClient from '@/services/api';
 import PhoneInput from '@/components/PhoneInput';
+import HeroVideoEmbed from '@/components/landing-pages/HeroVideoEmbed';
 import { useToast } from '@/contexts/ToastContext';
 import {
   BANGLADESH_DISTRICTS,
@@ -77,6 +78,7 @@ interface LandingPageData {
   description: string;
   hero_image_url: string;
   hero_background_image_url?: string;
+  hero_video_url?: string;
   hero_title: string;
   hero_subtitle: string;
   hero_button_text: string;
@@ -113,6 +115,8 @@ interface LandingPageData {
   delivery_charge: number;
   delivery_charge_outside: number;
   delivery_note: string;
+  hero_layout?: string;
+  hero_subtitle_position?: string;
 }
 
 interface OrderItem {
@@ -311,6 +315,7 @@ export default function VeshojTemplate({ page, trafficSource = 'landing_page' }:
 
   const brandLogo = page.hero_image_url || `${VESHOJ_ASSET_BASE}/2025/04/veshoj-logo-new-scaled.png`;
   const coverImage = page.hero_background_image_url || `${VESHOJ_ASSET_BASE}/2025/05/facebook-cover-veshoj-5.jpg.jpeg`;
+  const heroVideoUrl = page.hero_video_url?.trim();
   const primaryColor = page.primary_color || VESHOJ_PURPLE;
   const accentColor = page.btn_bg_color || VESHOJ_ORANGE;
   const buttonTextColor = page.btn_text_color || '#ffffff';
@@ -1203,6 +1208,11 @@ export default function VeshojTemplate({ page, trafficSource = 'landing_page' }:
         .veshoj-hero-video {
           margin: 10px 0 18px;
           text-align: center;
+        }
+        .veshoj-hero-video-embed {
+          max-width: 870px;
+          margin-top: 12px;
+          margin-bottom: 18px;
         }
         .veshoj-cta-wrap {
           text-align: center;
@@ -2198,7 +2208,37 @@ export default function VeshojTemplate({ page, trafficSource = 'landing_page' }:
             }} />
           </section>
 
-          {heroVideoSection ? (
+          {page.hero_layout === 'video-first' && heroVideoUrl ? (
+            <section className="veshoj-hero-video">
+              {page.hero_subtitle && page.hero_subtitle_position !== 'below-image' && (
+                <h2 className="veshoj-video-title" dangerouslySetInnerHTML={{ __html: page.hero_subtitle }} />
+              )}
+              <HeroVideoEmbed
+                url={heroVideoUrl}
+                title={`${page.title || 'Veshoj'} hero video`}
+                accentColor="#f4ff00"
+                className="veshoj-hero-video-embed"
+                frameClassName="rounded-lg"
+              />
+              {page.hero_subtitle && page.hero_subtitle_position === 'below-image' && (
+                <h2 className="veshoj-video-title" dangerouslySetInnerHTML={{ __html: page.hero_subtitle }} />
+              )}
+              <div className="veshoj-cta-wrap">
+                <button
+                  type="button"
+                  onClick={scrollToOrderForm}
+                  className="veshoj-main-button"
+                  style={{
+                    borderColor: buttonBorderColor,
+                    borderWidth: buttonBorderWidth,
+                    borderRadius: buttonRadius,
+                  }}
+                >
+                  {page.hero_button_text || 'à¦…à¦°à§à¦¡à¦¾à¦° à¦•à¦°à§à¦¨'}
+                </button>
+              </div>
+            </section>
+          ) : heroVideoSection ? (
             renderHeroVideoBanner(heroVideoSection)
           ) : (
             <>

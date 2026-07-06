@@ -6,6 +6,7 @@ import PhoneInput from '@/components/PhoneInput';
 import InternationalPhoneInput from '@/components/InternationalPhoneInput';
 import { useToast } from '@/contexts/ToastContext';
 import CrossSellSuggestion from '@/components/landing-pages/CrossSellSuggestion';
+import HeroVideoEmbed from '@/components/landing-pages/HeroVideoEmbed';
 import { getOrderGuardNoteHtml, isOrderGuardBlocked } from '@/utils/orderGuard';
 import { TrackingService } from '@/utils/tracking';
 import {
@@ -59,6 +60,7 @@ interface LandingPageData {
   description: string;
   hero_image_url: string;
   hero_background_image_url?: string;
+  hero_video_url?: string;
   hero_title: string;
   hero_subtitle: string;
   hero_button_text: string;
@@ -128,6 +130,7 @@ export default function FreeOfferTemplate({ page, trafficSource = 'landing_page'
   const primaryColor = page.primary_color || '#DC2626';
   const secondaryColor = page.secondary_color || '#F5D76E';
   const heroBackgroundImage = page.hero_background_image_url?.trim();
+  const heroVideoUrl = page.hero_video_url?.trim();
   // Derive a card background (slightly lighter than main bg)
   const cardBg = (() => {
     const hex = bgColor.replace('#', '');
@@ -486,7 +489,37 @@ export default function FreeOfferTemplate({ page, trafficSource = 'landing_page'
         >
           <div className="relative z-10 max-w-4xl mx-auto text-center">
             {/* Title-first layout (default for FreeOffer) or image-first */}
-            {page.hero_layout === 'image-first' ? (
+            {page.hero_layout === 'video-first' && heroVideoUrl ? (
+              <>
+                <h1
+                  className="text-3xl sm:text-4xl md:text-5xl font-extrabold mb-6 leading-tight"
+                  dangerouslySetInnerHTML={{ __html: page.hero_title || page.title }}
+                />
+
+                {page.hero_subtitle && page.hero_subtitle_position !== 'below-image' && (
+                  <p
+                    className="text-lg sm:text-xl md:text-2xl mb-8 leading-relaxed font-medium"
+                    style={{ color: secondaryColor }}
+                    dangerouslySetInnerHTML={{ __html: page.hero_subtitle }}
+                  />
+                )}
+
+                <HeroVideoEmbed
+                  url={heroVideoUrl}
+                  title={`${page.title} hero video`}
+                  accentColor={secondaryColor}
+                  className="mb-8 sm:mb-10"
+                />
+
+                {page.hero_subtitle && page.hero_subtitle_position === 'below-image' && (
+                  <p
+                    className="text-lg sm:text-xl md:text-2xl mb-8 leading-relaxed font-medium"
+                    style={{ color: secondaryColor }}
+                    dangerouslySetInnerHTML={{ __html: page.hero_subtitle }}
+                  />
+                )}
+              </>
+            ) : page.hero_layout === 'image-first' ? (
               <>
                 {/* Image first */}
                 {page.hero_image_url && (
