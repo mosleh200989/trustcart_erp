@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type WheelEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type WheelEvent } from 'react';
 import Head from 'next/head';
 import apiClient from '@/services/api';
 import PhoneInput from '@/components/PhoneInput';
@@ -888,7 +888,14 @@ export default function VeshojTemplate({ page, trafficSource = 'landing_page' }:
     if (!showVideos && !showImages) return null;
 
     return (
-      <section key={section.id} className="veshoj-review-section">
+      <section
+        key={section.id}
+        className="veshoj-review-section"
+        style={{
+          '--veshoj-review-bg': resolveVeshojSoftBackground(section.backgroundColor),
+          '--veshoj-review-text': section.textColor || '#111111',
+        } as CSSProperties}
+      >
         {showVideos && (
           <>
             {renderReviewHeading(section.title || 'সম্মানিত গ্রাহকের মন্তব্য')}
@@ -1621,8 +1628,8 @@ export default function VeshojTemplate({ page, trafficSource = 'landing_page' }:
           width: 100%;
           margin: 24px 0 20px;
           padding: 9px 16px 12px;
-          background: ${veshojSoftBgColor};
-          color: #111111;
+          background: var(--veshoj-review-bg, ${veshojSoftBgColor});
+          color: var(--veshoj-review-text, #111111);
         }
         .veshoj-review-heading h2 {
           margin: 0;
