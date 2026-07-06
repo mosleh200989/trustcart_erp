@@ -97,10 +97,28 @@ interface OrderItem {
   quantity: number;
 }
 
+type QueryValue = string | string[] | undefined;
+
+const getFirstQueryValue = (value: QueryValue) => {
+  if (Array.isArray(value)) return value[0];
+  return value;
+};
+
+const getLandingPageIdFromRoute = (value?: string) => {
+  const match = value?.match(/^id-(\d+)$/);
+  return match?.[1];
+};
+
 export default function LandingPagePublic() {
   const router = useRouter();
   // Support /lp/[slug], /?landing_page=slug, /?cartflows_step=slug, /products/x/?landing_page=slug
-  const slug = router.query.slug || router.query.landing_page || router.query.cartflows_step;
+  const pageSlug =
+    getFirstQueryValue(router.query.slug) ||
+    getFirstQueryValue(router.query.landing_page) ||
+    getFirstQueryValue(router.query.cartflows_step);
+  const landingPageId =
+    getFirstQueryValue(router.query.landing_page_id) ||
+    getLandingPageIdFromRoute(pageSlug);
   const orderFormRef = useRef<HTMLDivElement>(null);
   const toast = useToast();
 
@@ -206,12 +224,24 @@ export default function LandingPagePublic() {
   }, [orderItems]);
 
   useEffect(() => {
-    if (!slug) return;
+    if (!pageSlug && !landingPageId) return;
     setLoading(true);
+    setNotFound(false);
+    setPage(null);
+
+    const endpoint = landingPageId
+      ? `/landing-pages/public/id/${encodeURIComponent(landingPageId)}`
+      : `/landing-pages/public/slug/${encodeURIComponent(pageSlug || '')}`;
+
     apiClient
-      .get(`/landing-pages/public/slug/${slug}`)
+      .get(endpoint)
       .then((res) => {
         const data = res.data;
+        if (!data) {
+          setNotFound(true);
+          return;
+        }
+
         setPage(data);
         // Initialize order items with default product
         if (data.products?.length > 0) {
@@ -225,7 +255,7 @@ export default function LandingPagePublic() {
         }
       })
       .finally(() => setLoading(false));
-  }, [slug]);
+  }, [pageSlug, landingPageId]);
 
   const scrollToOrderForm = () => {
     orderFormRef.current?.scrollIntoView({ behavior: 'smooth' });
