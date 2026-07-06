@@ -2,7 +2,8 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import AdminLayout from '@/layouts/AdminLayout';
 import apiClient from '@/services/api';
-import { FaSave, FaArrowLeft, FaPlus, FaTrash, FaEye, FaGripVertical, FaChevronDown, FaChevronUp, FaUpload, FaSpinner, FaTimes, FaSearch, FaLink, FaUnlink } from 'react-icons/fa';
+import HeroVideoEmbed from '@/components/landing-pages/HeroVideoEmbed';
+import { FaSave, FaArrowLeft, FaPlus, FaTrash, FaEye, FaGripVertical, FaChevronDown, FaChevronUp, FaUpload, FaSpinner, FaTimes, FaSearch, FaLink, FaUnlink, FaVideo } from 'react-icons/fa';
 
 // Simple unique ID generator (no uuid dependency needed)
 const generateId = () => `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
@@ -102,6 +103,85 @@ function ImageUploadField({
 }
 
 // ─── Section Images Upload Button ───
+function VideoUploadField({
+  label,
+  value,
+  onChange,
+  placeholder = 'YouTube URL or https://.../video.mp4',
+  className = '',
+}: {
+  label: string;
+  value: string;
+  onChange: (url: string) => void;
+  placeholder?: string;
+  className?: string;
+}) {
+  const [uploading, setUploading] = useState(false);
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await apiClient.post('/upload/video', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      const url = res.data?.url;
+      if (url) onChange(url);
+    } catch (err) {
+      console.error('Video upload failed:', err);
+      alert('Video upload failed. Please upload MP4, WebM, or Ogg video, or paste a YouTube link.');
+    } finally {
+      setUploading(false);
+      e.target.value = '';
+    }
+  };
+
+  return (
+    <div className={className}>
+      <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
+      <div className="flex gap-2">
+        <input
+          type="text"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="w-full border rounded-lg px-3 py-2 flex-1"
+          placeholder={placeholder}
+        />
+        <label
+          className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium cursor-pointer transition ${
+            uploading
+              ? 'bg-gray-300 text-gray-500 cursor-wait'
+              : 'bg-blue-600 hover:bg-blue-700 text-white'
+          }`}
+        >
+          {uploading ? <FaSpinner className="animate-spin" /> : <FaUpload />}
+          <span className="hidden sm:inline">{uploading ? 'Uploading...' : 'Upload'}</span>
+          <input
+            type="file"
+            accept="video/mp4,video/webm,video/ogg"
+            onChange={handleFileUpload}
+            disabled={uploading}
+            className="hidden"
+          />
+        </label>
+        {value && (
+          <button
+            type="button"
+            onClick={() => onChange('')}
+            className="px-2 py-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition"
+            title="Clear video"
+          >
+            <FaTimes />
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function SectionImageUploadButton({
   currentImages,
   onImagesChange,
@@ -410,6 +490,7 @@ interface FormData {
   hero_subtitle_position: string;
   hero_image_url: string;
   hero_background_image_url: string;
+  hero_video_url: string;
   hero_title: string;
   hero_subtitle: string;
   hero_button_text: string;
@@ -625,6 +706,7 @@ export default function LandingPageEditor() {
     hero_subtitle_position: 'above-image',
     hero_image_url: '',
     hero_background_image_url: '',
+    hero_video_url: '',
     hero_title: '',
     hero_subtitle: '',
     hero_button_text: 'অর্ডার করুন',
@@ -697,6 +779,7 @@ export default function LandingPageEditor() {
           footer_link_border_radius: data.footer_link_border_radius ?? 999,
           footer_border_color: data.footer_border_color || '#1f2937',
           hero_background_image_url: data.hero_background_image_url || '',
+          hero_video_url: data.hero_video_url || '',
           start_date: data.start_date ? data.start_date.split('T')[0] : '',
           end_date: data.end_date ? data.end_date.split('T')[0] : '',
         });
@@ -1132,15 +1215,15 @@ export default function LandingPageEditor() {
 
         {/* Hero Layout & Price Toggle */}
         <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 mb-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)] gap-4">
             {/* Hero Layout Order */}
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2">Hero Layout Order</label>
-              <div className="flex gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 <button
                   type="button"
                   onClick={() => setForm((prev) => ({ ...prev, hero_layout: 'image-first' }))}
-                  className={`flex-1 py-2.5 px-3 rounded-lg text-sm font-medium border-2 transition-all flex flex-col items-center gap-1 ${
+                  className={`py-2.5 px-3 rounded-lg text-sm font-medium border-2 transition-all flex flex-col items-center gap-1 ${
                     form.hero_layout === 'image-first'
                       ? 'border-blue-500 bg-blue-50 text-blue-700'
                       : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
@@ -1153,7 +1236,7 @@ export default function LandingPageEditor() {
                 <button
                   type="button"
                   onClick={() => setForm((prev) => ({ ...prev, hero_layout: 'title-first' }))}
-                  className={`flex-1 py-2.5 px-3 rounded-lg text-sm font-medium border-2 transition-all flex flex-col items-center gap-1 ${
+                  className={`py-2.5 px-3 rounded-lg text-sm font-medium border-2 transition-all flex flex-col items-center gap-1 ${
                     form.hero_layout === 'title-first'
                       ? 'border-blue-500 bg-blue-50 text-blue-700'
                       : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
@@ -1163,8 +1246,21 @@ export default function LandingPageEditor() {
                   <span>Title First</span>
                   <span className="text-[10px] text-gray-400">Free Offer style</span>
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setForm((prev) => ({ ...prev, hero_layout: 'video-first' }))}
+                  className={`py-2.5 px-3 rounded-lg text-sm font-medium border-2 transition-all flex flex-col items-center gap-1 ${
+                    form.hero_layout === 'video-first'
+                      ? 'border-blue-500 bg-blue-50 text-blue-700'
+                      : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
+                  }`}
+                >
+                  <FaVideo className="text-lg" />
+                  <span>Video First</span>
+                  <span className="text-[10px] text-gray-400">Video sales style</span>
+                </button>
               </div>
-              <p className="text-xs text-gray-400 mt-1">Controls whether the image or the title/subtitle appears first in the hero</p>
+              <p className="text-xs text-gray-400 mt-1">Controls whether image, video, or title/subtitle leads the hero.</p>
             </div>
             {/* Show Price in Hero */}
             <div>
@@ -1193,9 +1289,9 @@ export default function LandingPageEditor() {
         </div>
 
         {/* Subtitle Position — only visible when Title First */}
-        {form.hero_layout === 'title-first' && (
+        {(form.hero_layout === 'title-first' || form.hero_layout === 'video-first') && (
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
-            <label className="block text-sm font-semibold text-gray-700 mb-2">Subtitle Position (Title First layout)</label>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">Subtitle Position (Title/Video First layout)</label>
             <div className="flex gap-2">
               <button
                 type="button"
@@ -1207,7 +1303,7 @@ export default function LandingPageEditor() {
                 }`}
               >
                 <span>⬆️</span>
-                <span>Subtitle Above Image</span>
+                <span>Subtitle Above Media</span>
               </button>
               <button
                 type="button"
@@ -1219,10 +1315,10 @@ export default function LandingPageEditor() {
                 }`}
               >
                 <span>⬇️</span>
-                <span>Subtitle Below Image</span>
+                <span>Subtitle Below Media</span>
               </button>
             </div>
-            <p className="text-xs text-gray-400 mt-1">When &quot;Title First&quot; is selected, choose where the subtitle text appears relative to the hero image</p>
+            <p className="text-xs text-gray-400 mt-1">Choose where the subtitle text appears relative to the hero image or video.</p>
           </div>
         )}
 
@@ -1243,6 +1339,23 @@ export default function LandingPageEditor() {
                 uploadPreset="hero-background"
               />
               <p className="text-xs text-gray-400 mt-1">Used as the hero section background for all templates. Upload a wide image, ideally 1920px or wider.</p>
+            </div>
+            <div className="mt-4">
+              <VideoUploadField
+                label="Hero Video URL"
+                value={form.hero_video_url || ''}
+                onChange={(url) => setForm((prev) => ({ ...prev, hero_video_url: url }))}
+              />
+              <p className="text-xs text-gray-400 mt-1">Used when Video First is selected. Paste a YouTube link or upload MP4, WebM, or Ogg video.</p>
+              {form.hero_video_url && (
+                <HeroVideoEmbed
+                  url={form.hero_video_url}
+                  title={`${form.title || 'Landing page'} hero video preview`}
+                  accentColor={form.primary_color || '#16a34a'}
+                  className="mt-3 max-w-md"
+                  frameClassName="rounded-lg"
+                />
+              )}
             </div>
           </div>
           <div className="space-y-3">

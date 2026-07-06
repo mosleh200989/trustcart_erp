@@ -6,6 +6,7 @@ import PhoneInput from '@/components/PhoneInput';
 import InternationalPhoneInput from '@/components/InternationalPhoneInput';
 import { useToast } from '@/contexts/ToastContext';
 import CrossSellSuggestion from '@/components/landing-pages/CrossSellSuggestion';
+import HeroVideoEmbed from '@/components/landing-pages/HeroVideoEmbed';
 import { getOrderGuardNoteHtml, isOrderGuardBlocked } from '@/utils/orderGuard';
 import { TrackingService } from '@/utils/tracking';
 import gsap from 'gsap';
@@ -79,6 +80,7 @@ interface LandingPageData {
   description: string;
   hero_image_url: string;
   hero_background_image_url?: string;
+  hero_video_url?: string;
   hero_title: string;
   hero_subtitle: string;
   hero_button_text: string;
@@ -114,6 +116,8 @@ interface LandingPageData {
   delivery_charge_outside: number;
   delivery_note: string;
   end_date?: string;
+  hero_layout?: string;
+  hero_subtitle_position?: string;
   cross_sell_product?: {
     name: string;
     description?: string;
@@ -177,6 +181,7 @@ export default function SpecialEventTemplate({
   const sectionsRef = useRef<HTMLDivElement>(null);
   const toast = useToast();
   const heroBackgroundImage = page.hero_background_image_url?.trim();
+  const heroVideoUrl = page.hero_video_url?.trim();
   const orderFormBgColor = page.order_form_bg_color || '#0A0500';
   const orderFormCardBgColor = page.order_form_card_bg_color || '#160b05';
   const orderFormTitleColor = page.order_form_title_color || '#ffffff';
@@ -702,6 +707,104 @@ export default function SpecialEventTemplate({
           </div>}
 
           <div className="relative max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16 md:py-24">
+            {page.hero_layout === 'video-first' && heroVideoUrl ? (
+              <div className="text-center max-w-5xl mx-auto">
+                <div ref={heroTextRef}>
+                  <h1
+                    className="event-heading text-3xl sm:text-4xl md:text-5xl lg:text-[3.6rem] font-extrabold mb-6 leading-[1.15] whitespace-pre-line"
+                    style={{ color: page.secondary_color || '#FFFFFF' }}
+                    dangerouslySetInnerHTML={{ __html: page.hero_title || page.title }}
+                  />
+
+                  {page.hero_subtitle && page.hero_subtitle_position !== 'below-image' && (
+                    <p className="text-base sm:text-lg md:text-xl mb-8 leading-relaxed whitespace-pre-line max-w-3xl mx-auto"
+                      style={{ color: 'rgba(255,255,255,0.8)' }}
+                      dangerouslySetInnerHTML={{ __html: page.hero_subtitle }}
+                    />
+                  )}
+
+                  {page.end_date && (
+                    <div className="mb-8">
+                      <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-semibold mb-4 bg-red-500/10 border border-red-500/20 text-red-300">
+                        <FaClock className="text-red-400 event-flame" />
+                        ইভেন্ট শেষ হতে বাকি
+                      </div>
+                      <div className="flex flex-wrap gap-3 justify-center">
+                        {[
+                          { val: countdown.days, label: 'দিন' },
+                          { val: countdown.hours, label: 'ঘণ্টা' },
+                          { val: countdown.minutes, label: 'মিনিট' },
+                          { val: countdown.seconds, label: 'সেকেন্ড' },
+                        ].map((item, i) => (
+                          <div key={i} className="relative group rounded-2xl px-4 py-3.5 text-center min-w-[70px] border border-red-500/20 overflow-hidden"
+                            style={{ background: 'linear-gradient(145deg, rgba(220,38,38,0.15), rgba(0,0,0,0.4))' }}
+                          >
+                            <div className="event-num text-3xl sm:text-4xl font-extrabold text-white relative z-10 drop-shadow-[0_0_12px_rgba(239,68,68,0.5)]">
+                              {String(item.val).padStart(2, '0')}
+                            </div>
+                            <div className="text-[10px] font-semibold text-red-300/80 mt-1 uppercase tracking-wider relative z-10">{item.label}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {page.products?.[0] && (
+                    <div className="flex flex-wrap items-center justify-center gap-4 mb-8">
+                      {page.products[0].compare_price && page.products[0].compare_price > page.products[0].price && (
+                        <span className="event-num text-2xl text-gray-400 relative inline-block">
+                          ৳{page.products[0].compare_price.toLocaleString()}
+                          <span className="absolute left-[-4px] right-[-4px] top-1/2 h-[3px] bg-red-500 rounded-sm pointer-events-none" style={{ transform: 'translateY(-50%) rotate(-12deg)' }} />
+                        </span>
+                      )}
+                      <div className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl shadow-sm border border-red-500/30 bg-red-500/10">
+                        <span className="text-sm text-red-300 leading-none">মাত্র</span>
+                        <span className="event-num text-3xl sm:text-4xl leading-none text-white">
+                          ৳{page.products[0].price.toLocaleString()}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <HeroVideoEmbed
+                  url={heroVideoUrl}
+                  title={`${page.title} hero video`}
+                  accentColor={page.primary_color}
+                  className="mb-8"
+                />
+
+                {page.hero_subtitle && page.hero_subtitle_position === 'below-image' && (
+                  <p className="text-base sm:text-lg md:text-xl mb-8 leading-relaxed whitespace-pre-line max-w-3xl mx-auto"
+                    style={{ color: 'rgba(255,255,255,0.8)' }}
+                    dangerouslySetInnerHTML={{ __html: page.hero_subtitle }}
+                  />
+                )}
+
+                {page.hero_button_text && (
+                  <button
+                    onClick={scrollToOrderForm}
+                    onMouseMove={(e) => {
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      e.currentTarget.style.setProperty('--x', `${((e.clientX - rect.left) / rect.width) * 100}%`);
+                      e.currentTarget.style.setProperty('--y', `${((e.clientY - rect.top) / rect.height) * 100}%`);
+                    }}
+                    className="event-btn-ripple inline-flex items-center gap-3 px-10 py-4 text-lg sm:text-xl font-bold shadow-lg hover:shadow-xl transform hover:scale-[1.03] transition-all duration-300"
+                    style={{
+                      backgroundColor: page.btn_bg_color || page.primary_color,
+                      color: page.btn_text_color || '#ffffff',
+                      borderColor: page.btn_border_color || 'transparent',
+                      borderWidth: page.btn_border_color && page.btn_border_color !== 'transparent' ? 2 : 0,
+                      borderStyle: 'solid',
+                      borderRadius: (page.btn_border_radius ?? 16) + 'px',
+                    }}
+                  >
+                    <FaShoppingCart className="text-base" />
+                    {page.hero_button_text}
+                  </button>
+                )}
+              </div>
+            ) : (
             <div className="flex flex-col-reverse md:flex-row items-center gap-12 md:gap-16 lg:gap-20">
               {/* Hero Text */}
               <div ref={heroTextRef} className="w-full md:w-1/2 text-center md:text-left">
@@ -824,6 +927,7 @@ export default function SpecialEventTemplate({
                 </div>
               )}
             </div>
+            )}
           </div>
 
           <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-red-500/30 to-transparent" />

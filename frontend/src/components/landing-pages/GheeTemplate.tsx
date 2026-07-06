@@ -6,6 +6,7 @@ import PhoneInput from '@/components/PhoneInput';
 import InternationalPhoneInput from '@/components/InternationalPhoneInput';
 import { useToast } from '@/contexts/ToastContext';
 import CrossSellSuggestion from '@/components/landing-pages/CrossSellSuggestion';
+import HeroVideoEmbed from '@/components/landing-pages/HeroVideoEmbed';
 import { getOrderGuardNoteHtml, isOrderGuardBlocked } from '@/utils/orderGuard';
 import { TrackingService } from '@/utils/tracking';
 import gsap from 'gsap';
@@ -73,6 +74,7 @@ interface LandingPageData {
   description: string;
   hero_image_url: string;
   hero_background_image_url?: string;
+  hero_video_url?: string;
   hero_title: string;
   hero_subtitle: string;
   hero_button_text: string;
@@ -107,6 +109,8 @@ interface LandingPageData {
   delivery_charge: number;
   delivery_charge_outside: number;
   delivery_note: string;
+  hero_layout?: string;
+  hero_subtitle_position?: string;
   cross_sell_product?: {
     name: string;
     description?: string;
@@ -145,6 +149,7 @@ export default function GheeTemplate({
   const sectionsRef = useRef<HTMLDivElement>(null);
   const toast = useToast();
   const heroBackgroundImage = page.hero_background_image_url?.trim();
+  const heroVideoUrl = page.hero_video_url?.trim();
   const orderFormBgColor = page.order_form_bg_color || '#FFFCF5';
   const orderFormCardBgColor = page.order_form_card_bg_color || '#ffffff';
   const orderFormTitleColor = page.order_form_title_color || '#2D1B07';
@@ -719,6 +724,93 @@ export default function GheeTemplate({
           </div>}
 
           <div className="relative max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16 md:py-24">
+            {page.hero_layout === 'video-first' && heroVideoUrl ? (
+              <div className="text-center max-w-5xl mx-auto">
+                <div ref={heroTextRef}>
+                  <div
+                    className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-semibold mb-6 border"
+                    style={{
+                      backgroundColor: `${page.primary_color}10`,
+                      borderColor: `${page.primary_color}25`,
+                      color: page.primary_color,
+                    }}
+                  >
+                    <FaLeaf className="text-xs" />
+                    সম্পূর্ণ প্রাকৃতিক ও খাঁটি
+                  </div>
+
+                  <h1
+                    className="ghee-heading text-3xl sm:text-4xl md:text-5xl lg:text-[3.4rem] font-extrabold mb-6 leading-[1.15] whitespace-pre-line"
+                    style={{ color: '#2D1B07' }}
+                    dangerouslySetInnerHTML={{ __html: page.hero_title || page.title }}
+                  />
+
+                  {page.hero_subtitle && page.hero_subtitle_position !== 'below-image' && (
+                    <p className="text-base sm:text-lg md:text-xl mb-8 leading-relaxed text-[#5D4E37] whitespace-pre-line max-w-3xl mx-auto"
+                      dangerouslySetInnerHTML={{ __html: page.hero_subtitle }}
+                    />
+                  )}
+
+                  {page.products?.[0] && (
+                    <div className="flex flex-wrap items-center justify-center gap-4 mb-8">
+                      {page.products[0].compare_price && page.products[0].compare_price > page.products[0].price && (
+                        <span className="ghee-strike ghee-num text-xl sm:text-2xl">
+                          ৳{page.products[0].compare_price.toLocaleString()}
+                        </span>
+                      )}
+                      <div
+                        className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl shadow-sm border"
+                        style={{
+                          backgroundColor: `${page.primary_color}10`,
+                          borderColor: `${page.primary_color}20`,
+                        }}
+                      >
+                        <span className="text-sm text-[#8B7355] leading-none">মাত্র</span>
+                        <span className="ghee-num text-3xl sm:text-4xl leading-none" style={{ color: page.primary_color }}>
+                          ৳{page.products[0].price.toLocaleString()}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <HeroVideoEmbed
+                  url={heroVideoUrl}
+                  title={`${page.title} hero video`}
+                  accentColor={page.primary_color}
+                  className="mb-8"
+                />
+
+                {page.hero_subtitle && page.hero_subtitle_position === 'below-image' && (
+                  <p className="text-base sm:text-lg md:text-xl mb-8 leading-relaxed text-[#5D4E37] whitespace-pre-line max-w-3xl mx-auto"
+                    dangerouslySetInnerHTML={{ __html: page.hero_subtitle }}
+                  />
+                )}
+
+                {page.hero_button_text && (
+                  <button
+                    onClick={scrollToOrderForm}
+                    onMouseMove={(e) => {
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      e.currentTarget.style.setProperty('--x', `${((e.clientX - rect.left) / rect.width) * 100}%`);
+                      e.currentTarget.style.setProperty('--y', `${((e.clientY - rect.top) / rect.height) * 100}%`);
+                    }}
+                    className="ghee-btn-ripple inline-flex items-center gap-3 px-10 py-4 text-lg sm:text-xl font-bold shadow-lg hover:shadow-xl transform hover:scale-[1.03] transition-all duration-300"
+                    style={{
+                      backgroundColor: page.btn_bg_color || page.primary_color,
+                      color: page.btn_text_color || '#ffffff',
+                      borderColor: page.btn_border_color || 'transparent',
+                      borderWidth: page.btn_border_color && page.btn_border_color !== 'transparent' ? 2 : 0,
+                      borderStyle: 'solid',
+                      borderRadius: (page.btn_border_radius ?? 16) + 'px',
+                    }}
+                  >
+                    <FaShoppingCart className="text-base" />
+                    {page.hero_button_text}
+                  </button>
+                )}
+              </div>
+            ) : (
             <div className="flex flex-col-reverse md:flex-row items-center gap-12 md:gap-16 lg:gap-20">
               {/* Hero Text */}
               <div ref={heroTextRef} className="w-full md:w-1/2 text-center md:text-left">
@@ -840,6 +932,7 @@ export default function GheeTemplate({
                 </div>
               )}
             </div>
+            )}
           </div>
 
           {/* Elegant bottom divider */}

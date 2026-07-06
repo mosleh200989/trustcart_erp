@@ -87,6 +87,30 @@ export class UploadController {
     };
   }
 
+  @Post('video')
+  @UseInterceptors(FileInterceptor('file'))
+  async uploadVideo(
+    @UploadedFile() file: Express.Multer.File,
+    @Req() req: Request,
+    @Query('folder') folder?: string,
+  ) {
+    if (!file) {
+      throw new BadRequestException('No file uploaded');
+    }
+
+    const baseUrl = this.getRequestBaseUrl(req);
+    const result = await this.localStorageService.uploadVideo(
+      file,
+      folder || 'landing-page-videos',
+      baseUrl,
+    );
+
+    return {
+      url: result.secure_url,
+      public_id: result.public_id,
+    };
+  }
+
   @Delete('image')
   async deleteImage(@Body() body: { url: string }) {
     if (!body.url) {
