@@ -12,6 +12,8 @@ const DOMAIN_LANDING_PAGES: Record<string, string> = {
   'www.arabiankhalta.com': 'arabiankhalta',
   'veshoj.site': 'veshoj',
   'www.veshoj.site': 'veshoj',
+  'kasrioil.com': process.env.NEXT_PUBLIC_KASRI_LANDING_PAGE_SLUG || 'id-25',
+  'www.kasrioil.com': process.env.NEXT_PUBLIC_KASRI_LANDING_PAGE_SLUG || 'id-25',
 };
 
 /**

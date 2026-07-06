@@ -34,6 +34,8 @@ export function buildTenantRegistry(configService: ConfigService): TenantConfig[
         'veshoj.site',
         'www.veshoj.site',
         'api.veshoj.site',
+        'kasrioil.com',
+        'www.kasrioil.com',
         'localhost:3000',   // local frontend dev
         'localhost:3001',   // local backend dev
       ],

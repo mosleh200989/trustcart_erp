@@ -41,6 +41,17 @@ export class LandingPagesController {
     return page;
   }
 
+  @Get('public/id/:id')
+  @Public()
+  async findPublicById(@Param('id') id: number): Promise<LandingPage | null> {
+    const page = await this.landingPagesService.findActiveById(id);
+    if (page) {
+      // Fire and forget view count increment
+      this.landingPagesService.incrementViewCount(page.id).catch(() => {});
+    }
+    return page;
+  }
+
   // ─── Admin endpoints ───
 
   @Get()

@@ -50,6 +50,17 @@ export class LandingPagesService {
       .getOne();
   }
 
+  async findActiveById(id: number): Promise<LandingPage | null> {
+    const now = new Date();
+    return this.landingPagesRepository
+      .createQueryBuilder('lp')
+      .where('lp.id = :id', { id })
+      .andWhere('lp.is_active = :isActive', { isActive: true })
+      .andWhere('(lp.start_date IS NULL OR lp.start_date <= :now)', { now })
+      .andWhere('(lp.end_date IS NULL OR lp.end_date >= :now)', { now })
+      .getOne();
+  }
+
   async create(data: Partial<LandingPage>): Promise<LandingPage> {
     const landingPage = this.landingPagesRepository.create({
       ...data,
