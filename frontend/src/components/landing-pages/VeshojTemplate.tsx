@@ -317,6 +317,10 @@ export default function VeshojTemplate({ page, trafficSource = 'landing_page' }:
   const coverImage = page.hero_background_image_url || `${VESHOJ_ASSET_BASE}/2025/05/facebook-cover-veshoj-5.jpg.jpeg`;
   const heroVideoUrl = page.hero_video_url?.trim();
   const primaryColor = page.primary_color || VESHOJ_PURPLE;
+  const secondaryColor = page.secondary_color?.trim();
+  const veshojSoftBgColor = secondaryColor && secondaryColor.toLowerCase() !== '#ffffff'
+    ? secondaryColor
+    : '#fde7f6';
   const accentColor = page.btn_bg_color || VESHOJ_ORANGE;
   const buttonTextColor = page.btn_text_color || '#ffffff';
   const buttonBorderColor = page.btn_border_color || 'transparent';
@@ -373,6 +377,14 @@ export default function VeshojTemplate({ page, trafficSource = 'landing_page' }:
   const sessionIdRef = useRef<string>('');
   const trackingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasTrackedRef = useRef(false);
+
+  const resolveVeshojSoftBackground = (value?: string) => {
+    const color = value?.trim();
+    if (!color || color.toLowerCase() === '#ffe8f9' || color.toLowerCase() === '#fde7f6') {
+      return veshojSoftBgColor;
+    }
+    return color;
+  };
 
   useEffect(() => {
     sessionIdRef.current = `lp_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
@@ -842,7 +854,7 @@ export default function VeshojTemplate({ page, trafficSource = 'landing_page' }:
         key={section.id}
         className="veshoj-offer-price-section"
         style={{
-          backgroundColor: section.backgroundColor || '#ffe8f9',
+          backgroundColor: resolveVeshojSoftBackground(section.backgroundColor),
           color: section.textColor || '#55585a',
         }}
       >
@@ -1609,7 +1621,7 @@ export default function VeshojTemplate({ page, trafficSource = 'landing_page' }:
           width: 100%;
           margin: 24px 0 20px;
           padding: 9px 16px 12px;
-          background: #fde7f6;
+          background: ${veshojSoftBgColor};
           color: #111111;
         }
         .veshoj-review-heading h2 {
@@ -1639,7 +1651,7 @@ export default function VeshojTemplate({ page, trafficSource = 'landing_page' }:
           overflow-x: auto;
           scroll-behavior: smooth;
           scroll-snap-type: x mandatory;
-          scrollbar-color: ${primaryColor} #f1d7e8;
+          scrollbar-color: ${primaryColor} ${veshojSoftBgColor};
           scrollbar-width: thin;
           -webkit-overflow-scrolling: touch;
         }
@@ -1649,7 +1661,7 @@ export default function VeshojTemplate({ page, trafficSource = 'landing_page' }:
         }
         .veshoj-review-carousel::-webkit-scrollbar-track {
           border-radius: 999px;
-          background: #f1d7e8;
+          background: ${veshojSoftBgColor};
         }
         .veshoj-review-carousel::-webkit-scrollbar-thumb {
           border-radius: 999px;
@@ -1664,7 +1676,7 @@ export default function VeshojTemplate({ page, trafficSource = 'landing_page' }:
           justify-content: center;
           width: 38px;
           height: 38px;
-          border: 1px solid #f0c8e1;
+          border: 1px solid ${veshojSoftBgColor};
           border-radius: 999px;
           background: #ffffff;
           color: ${primaryColor};
@@ -1673,7 +1685,7 @@ export default function VeshojTemplate({ page, trafficSource = 'landing_page' }:
           transition: transform .18s ease, background .18s ease;
         }
         .veshoj-review-nav:hover {
-          background: #fff4fb;
+          background: ${veshojSoftBgColor};
           transform: translateY(-50%) scale(1.04);
         }
         .veshoj-review-nav svg {
