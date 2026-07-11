@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { Fragment, useEffect, useState, useCallback, useMemo } from 'react';
 import AdminLayout from '@/layouts/AdminLayout';
 import apiClient from '@/services/api';
 import AdminDateInput from '@/components/admin/AdminDateInput';
@@ -22,13 +22,15 @@ import {
   FaSyncAlt,
   FaBoxOpen,
   FaLayerGroup,
-  FaUserTie,
+  FaChevronDown,
+  FaChevronRight,
 } from 'react-icons/fa';
 import { getDhakaDateString } from '@/utils/dhakaDate';
 
 interface ProductRow {
   productId: number;
   productName: string;
+  categoryName?: string;
   totalOrders: number;
   totalQty: number;
   totalRevenue: number;
@@ -73,27 +75,7 @@ interface HourlyItem {
 interface SourceProductRow {
   productId: number;
   productName: string;
-  totalOrders: number;
-  totalQty: number;
-  totalRevenue: number;
-}
-
-interface AgentProductRow {
-  agentId: number | null;
-  agentName: string;
-  productId: number;
-  productName: string;
-  totalOrders: number;
-  totalQty: number;
-  totalRevenue: number;
-}
-
-interface CombinedProductRow {
-  key: string;
-  source: 'agent' | 'landing_page' | 'website';
-  sourceLabel: string;
-  ownerLabel: string;
-  productName: string;
+  categoryName?: string;
   totalOrders: number;
   totalQty: number;
   totalRevenue: number;
@@ -109,18 +91,10 @@ interface DailyReport {
   hourly: HourlyItem[];
   landingPageProducts: SourceProductRow[];
   websiteProducts: SourceProductRow[];
-  agentProductBreakdown?: AgentProductRow[];
 }
 
 const PALETTE = ['#4f46e5', '#0f766e', '#d97706', '#dc2626', '#7c3aed', '#0891b2', '#16a34a', '#be185d'];
 const fmt = (n: number) => new Intl.NumberFormat('en-BD').format(Math.round(Number(n) || 0));
-
-const hasReadableText = (value?: string | null) => Boolean(value && value.replace(/[\s?]+/g, '').length > 0);
-const isDeletedAgentLabel = (value?: string | null) => /^deleted\+/i.test(String(value || '').trim());
-const agentLabel = (row: Pick<AgentProductRow, 'agentId' | 'agentName'>) =>
-  hasReadableText(row.agentName) && !isDeletedAgentLabel(row.agentName) ? row.agentName : `Agent #${row.agentId ?? 'Unassigned'}`;
-const productLabel = (row: Pick<AgentProductRow, 'productId' | 'productName'>) =>
-  hasReadableText(row.productName) ? row.productName : `Product #${row.productId || 'Unknown'}`;
 
 export default function TodaysReportPage() {
   const [date, setDate] = useState(() => getDhakaDateString());
@@ -131,6 +105,8 @@ export default function TodaysReportPage() {
   const [error, setError] = useState('');
   const [productSearch, setProductSearch] = useState('');
   const [sourceFilter, setSourceFilter] = useState<'all' | 'landing_page' | 'website'>('all');
+  const [collapsedProductCategories, setCollapsedProductCategories] = useState<Set<string>>(new Set());
+  const [collapsedSourceCategories, setCollapsedSourceCategories] = useState<Set<string>>(new Set());
 
   const isRangeMode = Boolean(rangeStartDate && rangeEndDate);
 
@@ -229,60 +205,37 @@ export default function TodaysReportPage() {
       .sort((a, b) => b.totalQty - a.totalQty);
   }, [data, sourceFilter]);
 
-  const combinedProductRows = useMemo<CombinedProductRow[]>(() => {
-    const rows: CombinedProductRow[] = [];
-    (data?.agentProductBreakdown || [])
-      .filter((row) => !isDeletedAgentLabel(row.agentName))
-      .forEach((row) => rows.push({
-        key: `agent-${row.agentId ?? 'unassigned'}-${row.productId}-${row.productName}`,
-        source: 'agent' as const,
-        sourceLabel: 'Agent',
-        ownerLabel: 'Agent Orders',
-        productName: productLabel(row),
-        totalOrders: row.totalOrders,
-        totalQty: row.totalQty,
-        totalRevenue: row.totalRevenue,
-      }));
-    (data?.landingPageProducts || []).forEach((row) => rows.push({
-      key: `landing-${row.productId}-${row.productName}`,
-      source: 'landing_page' as const,
-      sourceLabel: 'Landing Page',
-      ownerLabel: 'Landing Page',
-      productName: row.productName,
-      totalOrders: row.totalOrders,
-      totalQty: row.totalQty,
-      totalRevenue: row.totalRevenue,
-    }));
-    (data?.websiteProducts || []).forEach((row) => rows.push({
-      key: `website-${row.productId}-${row.productName}`,
-      source: 'website' as const,
-      sourceLabel: 'Website',
-      ownerLabel: 'Website',
-      productName: row.productName,
-      totalOrders: row.totalOrders,
-      totalQty: row.totalQty,
-      totalRevenue: row.totalRevenue,
-    }));
-    const grouped = new Map<string, CombinedProductRow>();
+  const groupByCategory = <T extends { categoryName?: string; totalOrders: number; totalQty: number }>(rows: T[]) => {
+    const groups = new Map<string, { categoryName: string; totalOrders: number; totalQty: number; rows: T[] }>();
     rows.forEach((row) => {
-      const key = row.productName.toLowerCase();
-      const current = grouped.get(key) || {
-        ...row,
-        key,
-        source: 'agent' as const,
-        sourceLabel: 'All Sources',
-        ownerLabel: 'Combined',
-        totalOrders: 0,
-        totalQty: 0,
-        totalRevenue: 0,
-      };
+      const categoryName = row.categoryName || 'Uncategorized';
+      const current = groups.get(categoryName) || { categoryName, totalOrders: 0, totalQty: 0, rows: [] };
       current.totalOrders += row.totalOrders;
       current.totalQty += row.totalQty;
-      current.totalRevenue += row.totalRevenue;
-      grouped.set(key, current);
+      current.rows.push(row);
+      groups.set(categoryName, current);
     });
-    return Array.from(grouped.values()).sort((a, b) => b.totalQty - a.totalQty);
-  }, [data]);
+    return Array.from(groups.values()).sort((a, b) => b.totalQty - a.totalQty || a.categoryName.localeCompare(b.categoryName));
+  };
+
+  const productCategoryGroups = useMemo(() => groupByCategory(productRows), [productRows]);
+  const sourceCategoryGroups = useMemo(() => groupByCategory(sourceRows), [sourceRows]);
+
+  const toggleProductCategory = (categoryName: string) => {
+    setCollapsedProductCategories((prev) => {
+      const next = new Set(prev);
+      next.has(categoryName) ? next.delete(categoryName) : next.add(categoryName);
+      return next;
+    });
+  };
+
+  const toggleSourceCategory = (categoryName: string) => {
+    setCollapsedSourceCategories((prev) => {
+      const next = new Set(prev);
+      next.has(categoryName) ? next.delete(categoryName) : next.add(categoryName);
+      return next;
+    });
+  };
 
   const reportRangeLabel = isRangeMode
     ? `${data?.startDate || rangeStartDate} to ${data?.endDate || rangeEndDate}`
@@ -416,18 +369,48 @@ export default function TodaysReportPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {productRows.map((p, index) => (
-                    <tr key={`${p.productId}-${index}`} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 text-gray-500">{index + 1}</td>
-                      <td className="px-4 py-3 font-medium text-gray-900">{p.productName}</td>
-                      <td className="px-4 py-3 text-center font-semibold">{p.totalOrders}</td>
-                      <td className="px-4 py-3 text-center">{p.totalQty}</td>
-                      <td className="px-4 py-3 text-center"><Badge color="amber" value={p.pendingOrders} /></td>
-                      <td className="px-4 py-3 text-center"><Badge color="blue" value={p.approvedOrders} /></td>
-                      <td className="px-4 py-3 text-center"><Badge color="green" value={p.deliveredOrders} /></td>
-                      <td className="px-4 py-3 text-center"><Badge color="red" value={p.cancelledOrders} /></td>
+                  {productCategoryGroups.map((group) => {
+                    const isCollapsed = collapsedProductCategories.has(group.categoryName);
+                    return (
+                      <Fragment key={group.categoryName}>
+                        <tr className="bg-indigo-50/80">
+                          <td colSpan={2} className="px-4 py-3">
+                            <button
+                              type="button"
+                              onClick={() => toggleProductCategory(group.categoryName)}
+                              className="flex items-center gap-2 font-semibold text-indigo-900"
+                            >
+                              {isCollapsed ? <FaChevronRight className="text-xs" /> : <FaChevronDown className="text-xs" />}
+                              {group.categoryName}
+                              <span className="rounded-full bg-white px-2 py-0.5 text-[11px] font-medium text-indigo-600">
+                                {group.rows.length} product{group.rows.length === 1 ? '' : 's'}
+                              </span>
+                            </button>
+                          </td>
+                          <td className="px-4 py-3 text-center font-bold text-indigo-900">{group.totalOrders}</td>
+                          <td className="px-4 py-3 text-center font-bold text-indigo-900">{group.totalQty}</td>
+                          <td colSpan={4} className="px-4 py-3" />
+                        </tr>
+                        {!isCollapsed && group.rows.map((p, index) => (
+                          <tr key={`${p.productId}-${group.categoryName}-${index}`} className="hover:bg-gray-50">
+                            <td className="px-4 py-3 text-gray-500">{index + 1}</td>
+                            <td className="px-4 py-3 font-medium text-gray-900">{p.productName}</td>
+                            <td className="px-4 py-3 text-center font-semibold">{p.totalOrders}</td>
+                            <td className="px-4 py-3 text-center">{p.totalQty}</td>
+                            <td className="px-4 py-3 text-center"><Badge color="amber" value={p.pendingOrders} /></td>
+                            <td className="px-4 py-3 text-center"><Badge color="blue" value={p.approvedOrders} /></td>
+                            <td className="px-4 py-3 text-center"><Badge color="green" value={p.deliveredOrders} /></td>
+                            <td className="px-4 py-3 text-center"><Badge color="red" value={p.cancelledOrders} /></td>
+                          </tr>
+                        ))}
+                      </Fragment>
+                    );
+                  })}
+                  {productCategoryGroups.length === 0 && (
+                    <tr>
+                      <td colSpan={8} className="px-4 py-12 text-center text-gray-500">No product sales found for this period.</td>
                     </tr>
-                  ))}
+                  )}
                 </tbody>
               </table>
             </DataTableSection>
@@ -454,47 +437,42 @@ export default function TodaysReportPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {sourceRows.map((p, index) => (
-                    <tr key={`${p.source}-${p.productId}-${index}`} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 text-gray-500">{index + 1}</td>
-                      <td className="px-4 py-3"><span className={`rounded-full px-2 py-1 text-xs font-semibold ${p.source === 'website' ? 'bg-teal-50 text-teal-700' : 'bg-purple-50 text-purple-700'}`}>{p.sourceLabel}</span></td>
-                      <td className="px-4 py-3 font-medium text-gray-900">{p.productName}</td>
-                      <td className="px-4 py-3 text-center font-semibold">{p.totalOrders}</td>
-                      <td className="px-4 py-3 text-center">{p.totalQty}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </DataTableSection>
-
-            <DataTableSection
-              title="Agent-wise and Product-wise Sales"
-              icon={<FaUserTie className="text-indigo-600" />}
-              right={<span className="rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700">Agent + Landing Page + Website</span>}
-            >
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="bg-gray-50 text-xs uppercase tracking-wider text-gray-500">
-                    <th className="px-4 py-3 text-left">#</th>
-                    <th className="min-w-[240px] px-4 py-3 text-left">Product</th>
-                    <th className="px-4 py-3 text-center">Orders</th>
-                    <th className="px-4 py-3 text-center">Qty</th>
-                    <th className="px-4 py-3 text-right">Revenue</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {combinedProductRows.map((row, index) => (
-                    <tr key={`${row.key}-${index}`} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 text-gray-500">{index + 1}</td>
-                      <td className="px-4 py-3 font-medium text-gray-900">{row.productName}</td>
-                      <td className="px-4 py-3 text-center font-semibold">{row.totalOrders}</td>
-                      <td className="px-4 py-3 text-center">{row.totalQty}</td>
-                      <td className="px-4 py-3 text-right">{fmt(row.totalRevenue)}</td>
-                    </tr>
-                  ))}
-                  {combinedProductRows.length === 0 && (
+                  {sourceCategoryGroups.map((group) => {
+                    const isCollapsed = collapsedSourceCategories.has(group.categoryName);
+                    return (
+                      <Fragment key={group.categoryName}>
+                        <tr className="bg-teal-50/80">
+                          <td colSpan={3} className="px-4 py-3">
+                            <button
+                              type="button"
+                              onClick={() => toggleSourceCategory(group.categoryName)}
+                              className="flex items-center gap-2 font-semibold text-teal-900"
+                            >
+                              {isCollapsed ? <FaChevronRight className="text-xs" /> : <FaChevronDown className="text-xs" />}
+                              {group.categoryName}
+                              <span className="rounded-full bg-white px-2 py-0.5 text-[11px] font-medium text-teal-700">
+                                {group.rows.length} product{group.rows.length === 1 ? '' : 's'}
+                              </span>
+                            </button>
+                          </td>
+                          <td className="px-4 py-3 text-center font-bold text-teal-900">{group.totalOrders}</td>
+                          <td className="px-4 py-3 text-center font-bold text-teal-900">{group.totalQty}</td>
+                        </tr>
+                        {!isCollapsed && group.rows.map((p, index) => (
+                          <tr key={`${p.source}-${p.productId}-${group.categoryName}-${index}`} className="hover:bg-gray-50">
+                            <td className="px-4 py-3 text-gray-500">{index + 1}</td>
+                            <td className="px-4 py-3"><span className={`rounded-full px-2 py-1 text-xs font-semibold ${p.source === 'website' ? 'bg-teal-50 text-teal-700' : 'bg-purple-50 text-purple-700'}`}>{p.sourceLabel}</span></td>
+                            <td className="px-4 py-3 font-medium text-gray-900">{p.productName}</td>
+                            <td className="px-4 py-3 text-center font-semibold">{p.totalOrders}</td>
+                            <td className="px-4 py-3 text-center">{p.totalQty}</td>
+                          </tr>
+                        ))}
+                      </Fragment>
+                    );
+                  })}
+                  {sourceCategoryGroups.length === 0 && (
                     <tr>
-                      <td colSpan={5} className="px-4 py-12 text-center text-gray-500">No combined product sales found for this period.</td>
+                      <td colSpan={5} className="px-4 py-12 text-center text-gray-500">No source product sales found for this period.</td>
                     </tr>
                   )}
                 </tbody>

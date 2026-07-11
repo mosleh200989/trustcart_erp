@@ -3738,6 +3738,7 @@ export class SalesService {
       `SELECT
          product_id,
          product_name,
+         category_name,
          COUNT(DISTINCT order_id) AS total_orders,
          COALESCE(SUM(quantity), 0) AS total_qty,
          COALESCE(SUM(total_revenue), 0) AS total_revenue,
@@ -3758,12 +3759,14 @@ export class SalesService {
            LOWER(COALESCE(o.courier_company, '')) AS courier_company,
            soi.product_id,
            COALESCE(NULLIF(p.name_en, ''), NULLIF(p.name_bn, ''), NULLIF(soi.product_name, ''), 'Unknown Product') AS product_name,
+           COALESCE(NULLIF(c.name_en, ''), 'Uncategorized') AS category_name,
            soi.quantity,
            COALESCE(soi.line_total, 0) AS total_revenue,
            COALESCE(soi.unit_price * soi.quantity, 0) AS gross_amount
          FROM sales_order_items soi
          INNER JOIN sales_orders o ON o.id = soi.sales_order_id
          LEFT JOIN products p ON p.id = soi.product_id
+         LEFT JOIN categories c ON c.id = p.category_id
          WHERE DATE(o.order_date) >= $1
            AND DATE(o.order_date) <= $2
            AND o.order_source IN ('admin_panel', 'agent_dashboard')
@@ -3777,17 +3780,19 @@ export class SalesService {
            LOWER(COALESCE(o.courier_company, '')) AS courier_company,
            oi.product_id,
            COALESCE(NULLIF(p.name_en, ''), NULLIF(p.name_bn, ''), NULLIF(oi.product_name, ''), NULLIF(oi.custom_product_name, ''), 'Unknown Product') AS product_name,
+           COALESCE(NULLIF(c.name_en, ''), 'Uncategorized') AS category_name,
            oi.quantity,
            COALESCE(oi.subtotal, oi.unit_price * oi.quantity, 0) AS total_revenue,
            COALESCE(oi.unit_price * oi.quantity, 0) AS gross_amount
          FROM order_items oi
          INNER JOIN sales_orders o ON o.id = oi.order_id
          LEFT JOIN products p ON p.id = oi.product_id
+         LEFT JOIN categories c ON c.id = p.category_id
          WHERE DATE(o.order_date) >= $1
            AND DATE(o.order_date) <= $2
            AND o.order_source IN ('admin_panel', 'agent_dashboard')
        ) normalized
-       GROUP BY product_id, product_name
+       GROUP BY product_id, product_name, category_name
        ORDER BY total_orders DESC`,
       [rangeStartDate, rangeEndDate],
     );
@@ -3889,16 +3894,19 @@ export class SalesService {
       .select([
         'soi.product_id AS product_id',
         `COALESCE(NULLIF(p.name_en, ''), NULLIF(p.name_bn, ''), NULLIF(soi.product_name, ''), 'Unknown Product') AS product_name`,
+        `COALESCE(NULLIF(c.name_en, ''), 'Uncategorized') AS category_name`,
         'COUNT(DISTINCT o.id) AS total_orders',
         'SUM(soi.quantity) AS total_qty',
         'SUM(soi.line_total) AS total_revenue',
       ])
       .leftJoin('products', 'p', 'p.id = soi.product_id')
+      .leftJoin('categories', 'c', 'c.id = p.category_id')
       .where('DATE(o.order_date) >= :startDate', { startDate: rangeStartDate })
       .andWhere('DATE(o.order_date) <= :endDate', { endDate: rangeEndDate })
       .andWhere("o.order_source = 'landing_page'")
       .groupBy('soi.product_id')
       .addGroupBy(`COALESCE(NULLIF(p.name_en, ''), NULLIF(p.name_bn, ''), NULLIF(soi.product_name, ''), 'Unknown Product')`)
+      .addGroupBy(`COALESCE(NULLIF(c.name_en, ''), 'Uncategorized')`)
       .orderBy('total_orders', 'DESC')
       .getRawMany();
 
@@ -3909,16 +3917,19 @@ export class SalesService {
       .select([
         'soi.product_id AS product_id',
         `COALESCE(NULLIF(p.name_en, ''), NULLIF(p.name_bn, ''), NULLIF(soi.product_name, ''), 'Unknown Product') AS product_name`,
+        `COALESCE(NULLIF(c.name_en, ''), 'Uncategorized') AS category_name`,
         'COUNT(DISTINCT o.id) AS total_orders',
         'SUM(soi.quantity) AS total_qty',
         'SUM(soi.line_total) AS total_revenue',
       ])
       .leftJoin('products', 'p', 'p.id = soi.product_id')
+      .leftJoin('categories', 'c', 'c.id = p.category_id')
       .where('DATE(o.order_date) >= :startDate', { startDate: rangeStartDate })
       .andWhere('DATE(o.order_date) <= :endDate', { endDate: rangeEndDate })
       .andWhere("o.order_source = 'website'")
       .groupBy('soi.product_id')
       .addGroupBy(`COALESCE(NULLIF(p.name_en, ''), NULLIF(p.name_bn, ''), NULLIF(soi.product_name, ''), 'Unknown Product')`)
+      .addGroupBy(`COALESCE(NULLIF(c.name_en, ''), 'Uncategorized')`)
       .orderBy('total_orders', 'DESC')
       .getRawMany();
 
@@ -4044,6 +4055,7 @@ export class SalesService {
       products: productRows.map((r: any) => ({
         productId: toNum(r.product_id),
         productName: r.product_name || 'Unknown Product',
+        categoryName: r.category_name || 'Uncategorized',
         totalOrders: toNum(r.total_orders),
         totalQty: toNum(r.total_qty),
         totalRevenue: toNum(r.total_revenue),
@@ -4074,6 +4086,7 @@ export class SalesService {
       landingPageProducts: landingPageProducts.map((r: any) => ({
         productId: toNum(r.product_id),
         productName: r.product_name || 'Unknown Product',
+        categoryName: r.category_name || 'Uncategorized',
         totalOrders: toNum(r.total_orders),
         totalQty: toNum(r.total_qty),
         totalRevenue: toNum(r.total_revenue),
@@ -4081,6 +4094,7 @@ export class SalesService {
       websiteProducts: websiteProducts.map((r: any) => ({
         productId: toNum(r.product_id),
         productName: r.product_name || 'Unknown Product',
+        categoryName: r.category_name || 'Uncategorized',
         totalOrders: toNum(r.total_orders),
         totalQty: toNum(r.total_qty),
         totalRevenue: toNum(r.total_revenue),
@@ -4090,6 +4104,7 @@ export class SalesService {
         agentName: r.agent_name || 'Unassigned',
         productId: toNum(r.product_id),
         productName: r.product_name || 'Unknown Product',
+        categoryName: r.category_name || 'Uncategorized',
         totalOrders: toNum(r.total_orders),
         totalQty: toNum(r.total_qty),
         totalRevenue: toNum(r.total_revenue),
@@ -4497,6 +4512,7 @@ export class SalesService {
       products: productRows.map((r: any) => ({
         productId: toNum(r.product_id),
         productName: r.product_name || 'Unknown Product',
+        categoryName: r.category_name || 'Uncategorized',
         totalOrders: toNum(r.total_orders),
         totalQty: toNum(r.total_qty),
         totalRevenue: toNum(r.total_revenue),
@@ -4932,6 +4948,19 @@ export class SalesService {
   async getAgentMonthlyReport(params: { month: number; year: number }) {
     const { month, year } = params;
     const toNum = (v: any) => parseFloat(v) || 0;
+    const courierSentCondition = (alias = 'o') => `(
+      ${alias}.shipped_at IS NOT NULL
+      OR NULLIF(${alias}.courier_company, '') IS NOT NULL
+      OR NULLIF(${alias}.courier_order_id, '') IS NOT NULL
+      OR LOWER(${alias}.status::text) IN ('sent', 'picked', 'in_transit', 'shipped', 'delivered', 'completed', 'partial_delivered', 'returned', 'cancelled', 'pickup_failed')
+      OR EXISTS (
+        SELECT 1
+        FROM order_activity_logs oal_sent
+        WHERE oal_sent.order_id = ${alias}.id
+          AND oal_sent.action_type IN ('status_changed', 'shipped', 'courier_status_webhook', 'courier_status_synced', 'courier_status_updated')
+          AND LOWER(COALESCE(oal_sent.new_value->>'status', '')) = 'sent'
+      )
+    )`;
 
     // Calculate date range for the given month
     const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
@@ -4955,6 +4984,7 @@ export class SalesService {
       ])
       .where('o.created_by IS NOT NULL')
       .andWhere('o.order_source IN (:...agentSources5)', { agentSources5: ['admin_panel', 'agent_dashboard'] })
+      .andWhere(courierSentCondition('o'))
       .andWhere('DATE(o.order_date) >= :startDate', { startDate })
       .andWhere('DATE(o.order_date) <= :endDate', { endDate })
       .groupBy('o.created_by')
@@ -4994,6 +5024,7 @@ export class SalesService {
       ])
       .where('o.created_by IS NOT NULL')
       .andWhere('o.order_source IN (:...agentSources6)', { agentSources6: ['admin_panel', 'agent_dashboard'] })
+      .andWhere(courierSentCondition('o'))
       .andWhere('DATE(o.order_date) >= :startDate', { startDate })
       .andWhere('DATE(o.order_date) <= :endDate', { endDate })
       .groupBy('o.created_by')
@@ -5006,6 +5037,38 @@ export class SalesService {
 
     const summaryRows = await summaryQb.getRawMany();
 
+    const productQtyRows: Array<{ agent_id: string; products_qty: string }> = await this.salesRepository.manager.query(
+      `SELECT agent_id, COALESCE(SUM(quantity), 0)::text AS products_qty
+       FROM (
+         SELECT o.created_by AS agent_id, COALESCE(soi.quantity, 0) AS quantity
+         FROM sales_order_items soi
+         INNER JOIN sales_orders o ON o.id = soi.sales_order_id
+         WHERE o.created_by IS NOT NULL
+           AND o.order_source IN ('admin_panel', 'agent_dashboard')
+           AND DATE(o.order_date) >= $1
+           AND DATE(o.order_date) <= $2
+           AND ${courierSentCondition('o')}
+           AND NOT EXISTS (
+             SELECT 1 FROM order_items oi_existing WHERE oi_existing.order_id = o.id
+           )
+         UNION ALL
+         SELECT o.created_by AS agent_id, COALESCE(oi.quantity, 0) AS quantity
+         FROM order_items oi
+         INNER JOIN sales_orders o ON o.id = oi.order_id
+         WHERE o.created_by IS NOT NULL
+           AND o.order_source IN ('admin_panel', 'agent_dashboard')
+           AND DATE(o.order_date) >= $1
+           AND DATE(o.order_date) <= $2
+           AND ${courierSentCondition('o')}
+       ) products
+       GROUP BY agent_id`,
+      [startDate, endDate],
+    );
+    const productQtyMap = new Map<number, number>();
+    for (const r of productQtyRows) {
+      productQtyMap.set(toNum(r.agent_id), toNum(r.products_qty));
+    }
+
     // Build agent map
     const agentMap = new Map<number, {
       agentId: number;
@@ -5017,6 +5080,9 @@ export class SalesService {
       partialDelivered: number;
       rejected: number;
       cancelled: number;
+      productsQty: number;
+      upsellQty: number;
+      upsellPercent: number;
       teamLeaderId: number | null;
       teamLeaderName: string | null;
     }>();
@@ -5024,18 +5090,24 @@ export class SalesService {
     // Populate from summary
     for (const r of summaryRows) {
       const id = toNum(r.agent_id);
+      const total = toNum(r.total_orders);
+      const productsQty = productQtyMap.get(id) || 0;
+      const upsellQty = Math.max(0, productsQty - total);
       agentMap.set(id, {
         agentId: id,
         agentName: [r.agent_name, r.agent_last_name].filter(Boolean).join(' ') || `Agent #${id}`,
         teamLeaderId: r.team_leader_id == null ? null : toNum(r.team_leader_id),
         teamLeaderName: [r.team_leader_name, r.team_leader_last_name].filter(Boolean).join(' ').trim() || null,
         dailyOrders: {},
-        total: toNum(r.total_orders),
+        total,
         approved: toNum(r.approved_orders),
         delivered: toNum(r.delivered_orders),
         partialDelivered: toNum(r.partial_delivered_orders),
         rejected: toNum(r.rejected_orders),
         cancelled: toNum(r.cancelled_orders),
+        productsQty,
+        upsellQty,
+        upsellPercent: total > 0 ? Number(((upsellQty / total) * 100).toFixed(2)) : 0,
       });
     }
 
@@ -5060,6 +5132,7 @@ export class SalesService {
     const grandPartialDelivered = agents.reduce((s, a) => s + a.partialDelivered, 0);
     const grandRejected = agents.reduce((s, a) => s + a.rejected, 0);
     const grandCancelled = agents.reduce((s, a) => s + a.cancelled, 0);
+    const grandUpsellQty = agents.reduce((s, a) => s + a.upsellQty, 0);
 
     return {
       month,
@@ -5081,12 +5154,29 @@ export class SalesService {
       grandCancelledRatio: grandTotal > 0
         ? parseFloat(((grandCancelled / grandTotal) * 100).toFixed(2))
         : 0,
+      grandUpsellQty,
+      grandUpsellPercent: grandTotal > 0
+        ? parseFloat(((grandUpsellQty / grandTotal) * 100).toFixed(2))
+        : 0,
     };
   }
 
   async getWebsiteMonthlyReport(params: { month: number; year: number }) {
     const { month, year } = params;
     const toNum = (v: any) => parseFloat(v) || 0;
+    const courierSentCondition = (alias = 'o') => `(
+      ${alias}.shipped_at IS NOT NULL
+      OR NULLIF(${alias}.courier_company, '') IS NOT NULL
+      OR NULLIF(${alias}.courier_order_id, '') IS NOT NULL
+      OR LOWER(${alias}.status::text) IN ('sent', 'picked', 'in_transit', 'shipped', 'delivered', 'completed', 'partial_delivered', 'returned', 'cancelled', 'pickup_failed')
+      OR EXISTS (
+        SELECT 1
+        FROM order_activity_logs oal_sent
+        WHERE oal_sent.order_id = ${alias}.id
+          AND oal_sent.action_type IN ('status_changed', 'shipped', 'courier_status_webhook', 'courier_status_synced', 'courier_status_updated')
+          AND LOWER(COALESCE(oal_sent.new_value->>'status', '')) = 'sent'
+      )
+    )`;
 
     const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
     const lastDay = new Date(year, month, 0).getDate();
@@ -5102,6 +5192,7 @@ export class SalesService {
          FROM sales_orders
          WHERE order_source IN ('website', 'landing_page')
            AND DATE(order_date) BETWEEN $1 AND $2
+           AND ${courierSentCondition('sales_orders')}
          GROUP BY order_source, EXTRACT(DAY FROM order_date)
          ORDER BY day`,
         [startDate, endDate],
@@ -5126,6 +5217,7 @@ export class SalesService {
        FROM sales_orders
        WHERE order_source IN ('website', 'landing_page')
          AND DATE(order_date) BETWEEN $1 AND $2
+         AND ${courierSentCondition('sales_orders')}
        GROUP BY order_source`,
       [startDate, endDate],
     );
@@ -5146,6 +5238,7 @@ export class SalesService {
        LEFT JOIN landing_pages lp ON lp.slug = o.utm_source
        WHERE o.order_source = 'landing_page'
          AND DATE(o.order_date) BETWEEN $1 AND $2
+         AND ${courierSentCondition('o')}
        GROUP BY
          COALESCE(NULLIF(o.utm_source, ''), 'unknown'),
          COALESCE(lp.title, NULLIF(o.utm_campaign, ''), NULLIF(o.utm_source, ''), 'Unknown Landing Page'),
@@ -5175,12 +5268,69 @@ export class SalesService {
        LEFT JOIN landing_pages lp ON lp.slug = o.utm_source
        WHERE o.order_source = 'landing_page'
          AND DATE(o.order_date) BETWEEN $1 AND $2
+         AND ${courierSentCondition('o')}
        GROUP BY
          COALESCE(NULLIF(o.utm_source, ''), 'unknown'),
          COALESCE(lp.title, NULLIF(o.utm_campaign, ''), NULLIF(o.utm_source, ''), 'Unknown Landing Page')
        ORDER BY total_orders DESC, title ASC`,
       [startDate, endDate],
     );
+
+    const crossSellInnerSql = `
+      SELECT o.order_source, COALESCE(NULLIF(o.utm_source, ''), 'unknown') AS slug, o.id AS order_id
+      FROM order_items oi
+      INNER JOIN sales_orders o ON o.id = oi.order_id
+      LEFT JOIN landing_pages lp ON lp.slug = o.utm_source
+      WHERE o.order_source IN ('website', 'landing_page')
+        AND DATE(o.order_date) BETWEEN $1 AND $2
+        AND ${courierSentCondition('o')}
+        AND (
+          COALESCE(oi.is_cross_sell, false) = true
+          OR (
+            o.order_source = 'landing_page'
+            AND lp.cross_sell_product IS NOT NULL
+            AND (
+              ((lp.cross_sell_product->>'product_id') ~ '^[0-9]+$' AND oi.product_id = (lp.cross_sell_product->>'product_id')::int)
+              OR LOWER(COALESCE(oi.product_name, '')) = LOWER(COALESCE(lp.cross_sell_product->>'name', ''))
+              OR LOWER(COALESCE(oi.custom_product_name, '')) = LOWER(COALESCE(lp.cross_sell_product->>'name', ''))
+            )
+          )
+        )
+      UNION ALL
+      SELECT o.order_source, COALESCE(NULLIF(o.utm_source, ''), 'unknown') AS slug, o.id AS order_id
+      FROM sales_order_items soi
+      INNER JOIN sales_orders o ON o.id = soi.sales_order_id
+      INNER JOIN landing_pages lp ON lp.slug = o.utm_source
+      WHERE o.order_source = 'landing_page'
+        AND DATE(o.order_date) BETWEEN $1 AND $2
+        AND ${courierSentCondition('o')}
+        AND lp.cross_sell_product IS NOT NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM order_items oi_existing WHERE oi_existing.order_id = o.id
+        )
+        AND (
+          ((lp.cross_sell_product->>'product_id') ~ '^[0-9]+$' AND soi.product_id = (lp.cross_sell_product->>'product_id')::int)
+          OR LOWER(COALESCE(soi.product_name, '')) = LOWER(COALESCE(lp.cross_sell_product->>'name', ''))
+          OR LOWER(COALESCE(soi.custom_product_name, '')) = LOWER(COALESCE(lp.cross_sell_product->>'name', ''))
+        )
+    `;
+
+    const sourceCrossSellRaw: Array<{ order_source: string; cross_sell_orders: string }> = await this.salesRepository.query(
+      `SELECT order_source, COUNT(DISTINCT order_id) AS cross_sell_orders
+       FROM (${crossSellInnerSql}) cross_sell_orders
+       GROUP BY order_source`,
+      [startDate, endDate],
+    );
+
+    const landingPageCrossSellRaw: Array<{ slug: string; cross_sell_orders: string }> = await this.salesRepository.query(
+      `SELECT slug, COUNT(DISTINCT order_id) AS cross_sell_orders
+       FROM (${crossSellInnerSql}) cross_sell_orders
+       WHERE order_source = 'landing_page'
+       GROUP BY slug`,
+      [startDate, endDate],
+    );
+    const sourceCrossSellMap = new Map(sourceCrossSellRaw.map((r) => [r.order_source, toNum(r.cross_sell_orders)]));
+    const landingPageCrossSellMap = new Map(landingPageCrossSellRaw.map((r) => [r.slug || 'unknown', toNum(r.cross_sell_orders)]));
 
     // Index daily rows
     const websiteDaily: Record<number, number> = {};
@@ -5193,15 +5343,19 @@ export class SalesService {
     }
 
     // Build summary objects
-    let websiteSummary = { total: 0, delivered: 0, partialDelivered: 0, rejected: 0, cancelled: 0 };
-    let landingPageSummary = { total: 0, delivered: 0, partialDelivered: 0, rejected: 0, cancelled: 0 };
+    let websiteSummary = { total: 0, delivered: 0, partialDelivered: 0, rejected: 0, cancelled: 0, crossSellOrders: 0, crossSellPercent: 0 };
+    let landingPageSummary = { total: 0, delivered: 0, partialDelivered: 0, rejected: 0, cancelled: 0, crossSellOrders: 0, crossSellPercent: 0 };
     for (const r of summaryRaw) {
+      const crossSellOrders = sourceCrossSellMap.get(r.order_source) || 0;
+      const total = toNum(r.total_orders);
       const s = {
-        total: toNum(r.total_orders),
+        total,
         delivered: toNum(r.delivered_orders),
         partialDelivered: toNum(r.partial_delivered_orders),
         rejected: toNum(r.rejected_orders),
         cancelled: toNum(r.cancelled_orders),
+        crossSellOrders,
+        crossSellPercent: total > 0 ? Number(((crossSellOrders / total) * 100).toFixed(2)) : 0,
       };
       if (r.order_source === 'website') websiteSummary = s;
       else if (r.order_source === 'landing_page') landingPageSummary = s;
@@ -5241,6 +5395,10 @@ export class SalesService {
         partialDelivered: toNum(r.partial_delivered_orders),
         rejected: toNum(r.rejected_orders),
         cancelled: toNum(r.cancelled_orders),
+        crossSellOrders: landingPageCrossSellMap.get(r.slug || 'unknown') || 0,
+        crossSellPercent: toNum(r.total_orders) > 0
+          ? Number((((landingPageCrossSellMap.get(r.slug || 'unknown') || 0) / toNum(r.total_orders)) * 100).toFixed(2))
+          : 0,
       })),
     };
   }
