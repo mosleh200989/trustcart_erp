@@ -60,6 +60,8 @@ interface AgentRow {
   productsQty: number;
   crossSellQty: number;
   crossSellOrders: number;
+  crossSellCancelledReturnedOrders: number;
+  crossSellCancelReturnRate: number;
   pendingOrders: number;
   approvedOrders: number;
   shippedOrders: number;
@@ -78,6 +80,8 @@ interface AgentSummary {
   totalProductsQty: number;
   totalCrossSellQty: number;
   totalCrossSellOrders: number;
+  totalCrossSellCancelledReturnedOrders: number;
+  totalCrossSellCancelReturnRate: number;
   totalUniqueCustomers: number;
   activeAgents: number;
 }
@@ -328,6 +332,7 @@ export default function AgentWiseReportPage() {
     const headers = [
       'Agent Name', 'Total Orders',
       'Products Qty', 'Upsell Qty', 'Cross-Sell Qty',
+      'Cross-Sell Cancelled / Returned', 'Cross-Sell Cancel / Return %',
       'Delivered', 'Rejected', 'Cancelled / Returned',
       'Cancel %',
     ];
@@ -336,6 +341,8 @@ export default function AgentWiseReportPage() {
         `"${a.agentName}"`, a.totalOrders,
         a.productsQty, a.upsellQty,
         a.crossSellQty,
+        a.crossSellCancelledReturnedOrders || 0,
+        a.crossSellCancelReturnRate || 0,
         a.deliveredOrders, a.rejectedOrders, a.cancelledOrders, a.cancelRate,
       ].join(','),
     );
@@ -527,6 +534,12 @@ export default function AgentWiseReportPage() {
                           <th className="px-3 py-3 text-center cursor-pointer hover:text-violet-600" onClick={() => handleSort('crossSellQty')}>
                             <span className="text-pink-600">Cross-Sell Qty</span> <SortIcon field="crossSellQty" />
                           </th>
+                          <th className="px-3 py-3 text-center cursor-pointer hover:text-violet-600" onClick={() => handleSort('crossSellCancelledReturnedOrders')}>
+                            <span className="text-red-500">CS Cancel + Return</span> <SortIcon field="crossSellCancelledReturnedOrders" />
+                          </th>
+                          <th className="px-3 py-3 text-center cursor-pointer hover:text-violet-600" onClick={() => handleSort('crossSellCancelReturnRate')}>
+                            <span className="text-red-500">CS C/R %</span> <SortIcon field="crossSellCancelReturnRate" />
+                          </th>
                           <th className="px-3 py-3 text-center cursor-pointer hover:text-violet-600" onClick={() => handleSort('deliveredOrders')}>
                             <span className="text-emerald-600">Delivered</span> <SortIcon field="deliveredOrders" />
                           </th>
@@ -541,7 +554,7 @@ export default function AgentWiseReportPage() {
                       <tbody className="divide-y divide-gray-200">
                         {sortedAgents.length === 0 ? (
                           <tr>
-                            <td colSpan={10} className="px-4 py-16 text-center text-gray-500">
+                            <td colSpan={12} className="px-4 py-16 text-center text-gray-500">
                               No agent data for the selected period
                             </td>
                           </tr>
@@ -555,6 +568,8 @@ export default function AgentWiseReportPage() {
                                 productsQty: acc.productsQty + agent.productsQty,
                                 upsellQty: acc.upsellQty + agent.upsellQty,
                                 crossSellQty: acc.crossSellQty + agent.crossSellQty,
+                                crossSellOrders: acc.crossSellOrders + agent.crossSellOrders,
+                                crossSellCancelledReturnedOrders: acc.crossSellCancelledReturnedOrders + (agent.crossSellCancelledReturnedOrders || 0),
                                 deliveredOrders: acc.deliveredOrders + agent.deliveredOrders,
                                 rejectedOrders: acc.rejectedOrders + agent.rejectedOrders,
                                 cancelledOrders: acc.cancelledOrders + agent.cancelledOrders,
@@ -563,10 +578,15 @@ export default function AgentWiseReportPage() {
                                 productsQty: 0,
                                 upsellQty: 0,
                                 crossSellQty: 0,
+                                crossSellOrders: 0,
+                                crossSellCancelledReturnedOrders: 0,
                                 deliveredOrders: 0,
                                 rejectedOrders: 0,
                                 cancelledOrders: 0,
                               });
+                              const groupCrossSellCancelReturnRate = totals.crossSellOrders > 0
+                                ? Number(((totals.crossSellCancelledReturnedOrders / totals.crossSellOrders) * 100).toFixed(2))
+                                : 0;
                               return (
                                 <Fragment key={group.key}>
                                   <tr className="bg-violet-50/80 border-y border-violet-100">
@@ -587,6 +607,8 @@ export default function AgentWiseReportPage() {
                                     <td className="px-3 py-3 text-center font-semibold text-gray-700">{totals.productsQty}</td>
                                     <td className="px-3 py-3 text-center font-semibold text-amber-700">{totals.upsellQty}</td>
                                     <td className="px-3 py-3 text-center font-semibold text-pink-700">{totals.crossSellQty}</td>
+                                    <td className="px-3 py-3 text-center font-semibold text-red-600">{totals.crossSellCancelledReturnedOrders}</td>
+                                    <td className="px-3 py-3 text-center font-semibold text-red-600">{groupCrossSellCancelReturnRate}%</td>
                                     <td className="px-3 py-3 text-center font-semibold text-emerald-700">{totals.deliveredOrders}</td>
                                     <td className="px-3 py-3 text-center font-semibold text-rose-700">{totals.rejectedOrders}</td>
                                     <td className="px-3 py-3 text-center font-semibold text-red-700">{totals.cancelledOrders}</td>
@@ -624,6 +646,8 @@ export default function AgentWiseReportPage() {
                                         <td className="px-3 py-3 text-center font-medium text-gray-700">{a.productsQty}</td>
                                         <td className="px-3 py-3 text-center font-medium text-amber-600">{a.upsellQty}</td>
                                         <td className="px-3 py-3 text-center font-medium text-pink-600">{a.crossSellQty}</td>
+                                        <td className="px-3 py-3 text-center font-medium text-red-500">{a.crossSellCancelledReturnedOrders || 0}</td>
+                                        <td className="px-3 py-3 text-center font-medium text-red-500">{(a.crossSellCancelReturnRate || 0).toFixed(2)}%</td>
                                         <td className="px-3 py-3 text-center font-medium text-emerald-600">{a.deliveredOrders}</td>
                                         <td className="px-3 py-3 text-center font-medium text-rose-600">{a.rejectedOrders}</td>
                                         <td className="px-3 py-3 text-center font-medium text-red-600">{a.cancelledOrders}</td>
@@ -646,6 +670,14 @@ export default function AgentWiseReportPage() {
                             <td className="px-3 py-3 text-center">{sortedAgents.reduce((s, a) => s + a.productsQty, 0)}</td>
                             <td className="px-3 py-3 text-center text-amber-600">{sortedAgents.reduce((s, a) => s + a.upsellQty, 0)}</td>
                             <td className="px-3 py-3 text-center text-pink-600">{sortedAgents.reduce((s, a) => s + a.crossSellQty, 0)}</td>
+                            <td className="px-3 py-3 text-center text-red-500">{sortedAgents.reduce((s, a) => s + (a.crossSellCancelledReturnedOrders || 0), 0)}</td>
+                            <td className="px-3 py-3 text-center text-red-500">
+                              {(() => {
+                                const orders = sortedAgents.reduce((s, a) => s + a.crossSellOrders, 0);
+                                const cancelledReturned = sortedAgents.reduce((s, a) => s + (a.crossSellCancelledReturnedOrders || 0), 0);
+                                return orders > 0 ? `${((cancelledReturned / orders) * 100).toFixed(2)}%` : '0.00%';
+                              })()}
+                            </td>
                             <td className="px-3 py-3 text-center text-emerald-600">{sortedAgents.reduce((s, a) => s + a.deliveredOrders, 0)}</td>
                             <td className="px-3 py-3 text-center text-rose-600">{sortedAgents.reduce((s, a) => s + a.rejectedOrders, 0)}</td>
                             <td className="px-3 py-3 text-center text-red-600">{sortedAgents.reduce((s, a) => s + a.cancelledOrders, 0)}</td>
