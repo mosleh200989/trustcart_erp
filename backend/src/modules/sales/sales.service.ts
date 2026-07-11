@@ -4180,6 +4180,7 @@ export class SalesService {
         'oi.added_by AS agent_id',
         'COALESCE(SUM(oi.quantity), 0) AS cross_sell_qty',
         'COUNT(DISTINCT oi.order_id) AS cross_sell_orders',
+        `COUNT(DISTINCT CASE WHEN LOWER(o.status::text) IN ('cancelled', 'returned') THEN oi.order_id END) AS cross_sell_cancelled_returned_orders`,
       ])
       .where('oi.added_by IS NOT NULL')
       .andWhere("o.order_source IN ('website', 'landing_page')")
@@ -4193,11 +4194,12 @@ export class SalesService {
     crossSellQb.groupBy('oi.added_by');
 
     const crossSellRows = await crossSellQb.getRawMany();
-    const crossSellMap = new Map<number, { qty: number; orders: number }>();
+    const crossSellMap = new Map<number, { qty: number; orders: number; cancelledReturned: number }>();
     for (const r of crossSellRows) {
       crossSellMap.set(toNum(r.agent_id), {
         qty: toNum(r.cross_sell_qty),
         orders: toNum(r.cross_sell_orders),
+        cancelledReturned: toNum(r.cross_sell_cancelled_returned_orders),
       });
     }
 
@@ -4426,7 +4428,7 @@ export class SalesService {
     const agents = Array.from(agentIds).map((agentId) => {
       const r = agentRowMap.get(agentId) || {};
       const userRow = agentNameMap.get(agentId) || {};
-      const cs = crossSellMap.get(agentId) || { qty: 0, orders: 0 };
+      const cs = crossSellMap.get(agentId) || { qty: 0, orders: 0, cancelledReturned: 0 };
       const totalOrders = toNum(r.total_orders);
       const productsQty = prodQtyMap.get(agentId) || 0;
       const upsellQty = Math.max(0, productsQty - totalOrders);
@@ -4452,6 +4454,10 @@ export class SalesService {
         productsQty,
         crossSellQty: cs.qty,
         crossSellOrders: cs.orders,
+        crossSellCancelledReturnedOrders: cs.cancelledReturned,
+        crossSellCancelReturnRate: cs.orders > 0
+          ? Number(((cs.cancelledReturned / cs.orders) * 100).toFixed(2))
+          : 0,
         pendingOrders: toNum(r.pending_orders),
         approvedOrders: toNum(r.approved_orders),
         shippedOrders: toNum(r.shipped_orders),
@@ -4478,6 +4484,10 @@ export class SalesService {
       totalProductsQty: agents.reduce((s, a) => s + a.productsQty, 0),
       totalCrossSellQty: agents.reduce((s, a) => s + a.crossSellQty, 0),
       totalCrossSellOrders: agents.reduce((s, a) => s + a.crossSellOrders, 0),
+      totalCrossSellCancelledReturnedOrders: agents.reduce((s, a) => s + a.crossSellCancelledReturnedOrders, 0),
+      totalCrossSellCancelReturnRate: agents.reduce((s, a) => s + a.crossSellOrders, 0) > 0
+        ? Number(((agents.reduce((s, a) => s + a.crossSellCancelledReturnedOrders, 0) / agents.reduce((s, a) => s + a.crossSellOrders, 0)) * 100).toFixed(2))
+        : 0,
       totalUniqueCustomers: agents.reduce((s, a) => s + a.uniqueCustomers, 0),
       activeAgents: agents.length,
     };
