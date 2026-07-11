@@ -118,28 +118,20 @@ export default function ReportsDashboardPage() {
 
   const exportCsv = () => {
     if (!data) return;
-    const headers = ['Name', 'Orders', 'Products', 'Gross Sales', 'Sent Parcels', 'Courier Parcel Amount', 'Delivered', 'Delivered Gross', 'Delivery %', 'Cancel', 'Cancelled Gross', 'Cancel %', 'Reject', 'Reject %', 'Return', 'Return Amount', 'Partial Delivered', 'Partial Collected Amount', 'Partial Returned Amount', 'Net Revenue'];
-    const sourceHeaders = ['Name', 'Orders', 'Products', 'Cross Sell %', 'Cross Sell Amount', 'Gross Sales', 'Sent Parcels', 'Courier Parcel Amount', 'Delivered', 'Delivered Gross', 'Delivery %', 'Cancel', 'Cancelled Gross', 'Cancel %', 'Reject', 'Reject %', 'Return', 'Return Amount', 'Partial Delivered', 'Partial Collected Amount', 'Partial Returned Amount', 'Net Revenue'];
+    const headers = ['Name', 'Orders', 'Products', 'Gross Sales', 'Courier Parcel Amount', 'Delivered', 'Delivered Gross', 'Cancelled + Returned', 'Cancelled + Returned Gross', 'Partial Delivered', 'Partial Collected Amount', 'Net Revenue'];
+    const sourceHeaders = ['Name', 'Orders', 'Products', 'Cross Sell %', 'Cross Sell Amount', 'Gross Sales', 'Courier Parcel Amount', 'Delivered', 'Delivered Gross', 'Cancelled + Returned', 'Cancelled + Returned Gross', 'Partial Delivered', 'Partial Collected Amount', 'Net Revenue'];
     const toCsvRow = (name: string, row: PerformanceRow) => [
       name,
       row.orders,
       row.products,
       row.grossSales,
-      row.sentParcels,
       row.courierParcelAmount,
       row.delivered,
       row.deliveredGross,
-      `${row.deliveryPercent}%`,
-      row.cancel,
-      row.cancelledGross,
-      `${row.cancelPercent}%`,
-      row.reject,
-      `${row.rejectPercent}%`,
-      row.return,
-      row.returnAmount,
+      row.cancel + row.return,
+      row.cancelledGross + row.returnAmount,
       row.partialDelivered,
       row.partialCollectedAmount,
-      row.partialReturnAmount,
       row.netRevenue,
     ];
     const toSourceCsvRow = (name: string, row: PerformanceRow) => [
@@ -149,21 +141,13 @@ export default function ReportsDashboardPage() {
       `${row.crossSellPercent}%`,
       row.crossSellAmount,
       row.grossSales,
-      row.sentParcels,
       row.courierParcelAmount,
       row.delivered,
       row.deliveredGross,
-      `${row.deliveryPercent}%`,
-      row.cancel,
-      row.cancelledGross,
-      `${row.cancelPercent}%`,
-      row.reject,
-      `${row.rejectPercent}%`,
-      row.return,
-      row.returnAmount,
+      row.cancel + row.return,
+      row.cancelledGross + row.returnAmount,
       row.partialDelivered,
       row.partialCollectedAmount,
-      row.partialReturnAmount,
       row.netRevenue,
     ];
     const csvRows: Array<Array<string | number>> = [
@@ -333,21 +317,13 @@ function PerformanceTable<T extends PerformanceRow>({
     'Products',
     ...(showCrossSellMetrics ? ['Cross Sell %', 'Cross Sell Amount'] : []),
     'Gross Sales',
-    'Sent',
     'Courier Amount',
     'Delivered',
     'Delivered Gross',
-    'Delivery %',
-    'Cancel',
-    'Cancelled Gross',
-    'Cancel %',
-    'Reject',
-    'Reject %',
-    'Return',
-    'Return Amount',
+    'Cancelled + Returned',
+    'Cancelled + Returned Gross',
     'Partial Delivered',
     'Partial Collected',
-    'Partial Returned',
     'Net Revenue',
   ];
 
@@ -361,7 +337,7 @@ function PerformanceTable<T extends PerformanceRow>({
         {loading && <div className="h-5 w-5 animate-spin rounded-full border-2 border-indigo-200 border-t-indigo-600" />}
       </div>
       <div className="overflow-x-auto">
-        <table className={`${showCrossSellMetrics ? 'min-w-[2100px]' : 'min-w-[1900px]'} w-full text-sm`}>
+        <table className={`${showCrossSellMetrics ? 'min-w-[1500px]' : 'min-w-[1300px]'} w-full text-sm`}>
           <thead className="bg-slate-800 text-white">
             <tr>
               {headers.map((header, index) => (
@@ -390,21 +366,13 @@ function PerformanceTable<T extends PerformanceRow>({
                   {showCrossSellMetrics && <PercentCell value={row.crossSellPercent} />}
                   {showCrossSellMetrics && <MoneyCell value={row.crossSellAmount} />}
                   <MoneyCell value={row.grossSales} strong />
-                  <NumberCell value={row.sentParcels} tone="blue" />
                   <MoneyCell value={row.courierParcelAmount} />
                   <NumberCell value={row.delivered} tone="emerald" />
                   <MoneyCell value={row.deliveredGross} />
-                  <PercentCell value={row.deliveryPercent} />
-                  <NumberCell value={row.cancel} tone="red" />
-                  <MoneyCell value={row.cancelledGross} />
-                  <PercentCell value={row.cancelPercent} goodHigh={false} />
-                  <NumberCell value={row.reject} tone="rose" />
-                  <PercentCell value={row.rejectPercent} goodHigh={false} />
-                  <NumberCell value={row.return} tone="orange" />
-                  <MoneyCell value={row.returnAmount} />
+                  <NumberCell value={row.cancel + row.return} tone="red" />
+                  <MoneyCell value={row.cancelledGross + row.returnAmount} />
                   <NumberCell value={row.partialDelivered} tone="orange" />
                   <MoneyCell value={row.partialCollectedAmount} />
-                  <MoneyCell value={row.partialReturnAmount} />
                   <MoneyCell value={row.netRevenue} strong tone="emerald" />
                 </tr>
               );
@@ -419,21 +387,13 @@ function PerformanceTable<T extends PerformanceRow>({
                 {showCrossSellMetrics && <FooterCell>{percent(totals.crossSellPercent)}</FooterCell>}
                 {showCrossSellMetrics && <FooterCell>{money(totals.crossSellAmount)}</FooterCell>}
                 <FooterCell>{money(totals.grossSales)}</FooterCell>
-                <FooterCell>{fmt(totals.sentParcels)}</FooterCell>
                 <FooterCell>{money(totals.courierParcelAmount)}</FooterCell>
                 <FooterCell>{fmt(totals.delivered)}</FooterCell>
                 <FooterCell>{money(totals.deliveredGross)}</FooterCell>
-                <FooterCell>{percent(totals.deliveryPercent)}</FooterCell>
-                <FooterCell>{fmt(totals.cancel)}</FooterCell>
-                <FooterCell>{money(totals.cancelledGross)}</FooterCell>
-                <FooterCell>{percent(totals.cancelPercent)}</FooterCell>
-                <FooterCell>{fmt(totals.reject)}</FooterCell>
-                <FooterCell>{percent(totals.rejectPercent)}</FooterCell>
-                <FooterCell>{fmt(totals.return)}</FooterCell>
-                <FooterCell>{money(totals.returnAmount)}</FooterCell>
+                <FooterCell>{fmt(totals.cancel + totals.return)}</FooterCell>
+                <FooterCell>{money(totals.cancelledGross + totals.returnAmount)}</FooterCell>
                 <FooterCell>{fmt(totals.partialDelivered)}</FooterCell>
                 <FooterCell>{money(totals.partialCollectedAmount)}</FooterCell>
-                <FooterCell>{money(totals.partialReturnAmount)}</FooterCell>
                 <FooterCell>{money(totals.netRevenue)}</FooterCell>
               </tr>
             </tfoot>
