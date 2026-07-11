@@ -5286,11 +5286,14 @@ export class SalesService {
         AND ${courierSentCondition('o')}
         AND (
           COALESCE(oi.is_cross_sell, false) = true
+          OR oi.added_by IS NOT NULL
           OR (
             o.order_source = 'landing_page'
             AND lp.cross_sell_product IS NOT NULL
             AND (
               ((lp.cross_sell_product->>'product_id') ~ '^[0-9]+$' AND oi.product_id = (lp.cross_sell_product->>'product_id')::int)
+              OR ((lp.cross_sell_product->>'productId') ~ '^[0-9]+$' AND oi.product_id = (lp.cross_sell_product->>'productId')::int)
+              OR ((lp.cross_sell_product->>'id') ~ '^[0-9]+$' AND oi.product_id = (lp.cross_sell_product->>'id')::int)
               OR LOWER(COALESCE(oi.product_name, '')) = LOWER(COALESCE(lp.cross_sell_product->>'name', ''))
               OR LOWER(COALESCE(oi.custom_product_name, '')) = LOWER(COALESCE(lp.cross_sell_product->>'name', ''))
             )
@@ -5310,6 +5313,8 @@ export class SalesService {
         )
         AND (
           ((lp.cross_sell_product->>'product_id') ~ '^[0-9]+$' AND soi.product_id = (lp.cross_sell_product->>'product_id')::int)
+          OR ((lp.cross_sell_product->>'productId') ~ '^[0-9]+$' AND soi.product_id = (lp.cross_sell_product->>'productId')::int)
+          OR ((lp.cross_sell_product->>'id') ~ '^[0-9]+$' AND soi.product_id = (lp.cross_sell_product->>'id')::int)
           OR LOWER(COALESCE(soi.product_name, '')) = LOWER(COALESCE(lp.cross_sell_product->>'name', ''))
           OR LOWER(COALESCE(soi.custom_product_name, '')) = LOWER(COALESCE(lp.cross_sell_product->>'name', ''))
         )

@@ -427,9 +427,6 @@ export default function AgentMonthlyReportPage() {
                     <th className="px-3 py-2.5 text-center text-xs font-semibold uppercase tracking-wider whitespace-nowrap border-l-2 border-slate-600 bg-slate-900 min-w-[60px]">
                       Total
                     </th>
-                    <th className="px-3 py-2.5 text-center text-xs font-semibold uppercase tracking-wider whitespace-nowrap bg-fuchsia-900/70 min-w-[86px]">
-                      Upsell %
-                    </th>
                     <th className="px-3 py-2.5 text-center text-xs font-semibold uppercase tracking-wider whitespace-nowrap bg-emerald-900/70 min-w-[70px]">
                       Delivered
                     </th>
@@ -438,6 +435,9 @@ export default function AgentMonthlyReportPage() {
                     </th>
                     <th className="px-3 py-2.5 text-center text-xs font-semibold uppercase tracking-wider whitespace-nowrap bg-red-900/60 min-w-[72px]">
                       Cancelled + Returned
+                    </th>
+                    <th className="px-3 py-2.5 text-center text-xs font-semibold uppercase tracking-wider whitespace-nowrap bg-fuchsia-900/70 min-w-[86px]">
+                      Upsell %
                     </th>
                     <th className="px-3 py-2.5 text-center text-xs font-semibold uppercase tracking-wider whitespace-nowrap bg-amber-900/50 min-w-[90px]">
                       Cancel %
@@ -491,11 +491,6 @@ export default function AgentMonthlyReportPage() {
                           <td className="px-2 py-2 text-center font-bold text-sm tabular-nums text-indigo-900 border-l-2 border-indigo-200 bg-indigo-100/70">
                             {totals.total || ''}
                           </td>
-                          <td className="px-2 py-2 text-center text-sm tabular-nums bg-fuchsia-50/80">
-                            <span className="inline-block rounded bg-fuchsia-100 px-2 py-0.5 text-xs font-semibold text-fuchsia-700">
-                              {groupUpsellRatio.toFixed(2)}%
-                            </span>
-                          </td>
                           <td className="px-2 py-2 text-center font-semibold text-sm tabular-nums text-emerald-700 bg-emerald-50/70">
                             {totals.delivered || ''}
                           </td>
@@ -504,6 +499,11 @@ export default function AgentMonthlyReportPage() {
                           </td>
                           <td className="px-2 py-2 text-center font-semibold text-sm tabular-nums text-red-700 bg-red-50/60">
                             {totals.cancelled || ''}
+                          </td>
+                          <td className="px-2 py-2 text-center text-sm tabular-nums bg-fuchsia-50/80">
+                            <span className="inline-block rounded bg-fuchsia-100 px-2 py-0.5 text-xs font-semibold text-fuchsia-700">
+                              {groupUpsellRatio.toFixed(2)}%
+                            </span>
                           </td>
                           <td className="px-2 py-2 text-center text-sm tabular-nums bg-white/60">
                             <span className={`inline-block px-2 py-0.5 rounded text-xs font-semibold ${getCancelledBadge(groupCancelRatio)}`}>
@@ -535,11 +535,6 @@ export default function AgentMonthlyReportPage() {
                               <td className="px-2 py-2 text-center font-bold text-sm tabular-nums text-slate-800 border-l-2 border-gray-200 bg-slate-50">
                                 {agent.total || ''}
                               </td>
-                              <td className="px-2 py-2 text-center text-sm tabular-nums">
-                                <span className="inline-block rounded bg-fuchsia-50 px-2 py-0.5 text-xs font-semibold text-fuchsia-700">
-                                  {(agent.upsellPercent || 0).toFixed(2)}%
-                                </span>
-                              </td>
                               <td className="px-2 py-2 text-center font-semibold text-sm tabular-nums text-emerald-700 bg-emerald-50/50">
                                 {agent.delivered || ''}
                               </td>
@@ -548,6 +543,11 @@ export default function AgentMonthlyReportPage() {
                               </td>
                               <td className="px-2 py-2 text-center font-semibold text-sm tabular-nums text-red-700 bg-red-50/40">
                                 {agent.cancelled || ''}
+                              </td>
+                              <td className="px-2 py-2 text-center text-sm tabular-nums">
+                                <span className="inline-block rounded bg-fuchsia-50 px-2 py-0.5 text-xs font-semibold text-fuchsia-700">
+                                  {(agent.upsellPercent || 0).toFixed(2)}%
+                                </span>
                               </td>
                               <td className="px-2 py-2 text-center text-sm tabular-nums">
                                 <span className={`inline-block px-2 py-0.5 rounded text-xs font-semibold ${getCancelledBadge(cancelRatio)}`}>
@@ -579,9 +579,6 @@ export default function AgentMonthlyReportPage() {
                       <td className="px-2 py-2.5 text-center text-sm tabular-nums border-l-2 border-slate-600 bg-slate-900">
                         {data.grandTotal}
                       </td>
-                      <td className="px-2 py-2.5 text-center text-sm tabular-nums bg-fuchsia-900/70">
-                        {(data.grandUpsellPercent || 0).toFixed(2)}%
-                      </td>
                       <td className="px-2 py-2.5 text-center text-sm tabular-nums bg-emerald-900/70">
                         {data.grandDelivered}
                       </td>
@@ -590,6 +587,9 @@ export default function AgentMonthlyReportPage() {
                       </td>
                       <td className="px-2 py-2.5 text-center text-sm tabular-nums bg-red-900/60">
                         {data.grandCancelled}
+                      </td>
+                      <td className="px-2 py-2.5 text-center text-sm tabular-nums bg-fuchsia-900/70">
+                        {(data.grandUpsellPercent || 0).toFixed(2)}%
                       </td>
                       <td className="px-2 py-2.5 text-center text-sm tabular-nums bg-amber-900/50">
                         {data.grandCancelledRatio}%
@@ -673,9 +673,6 @@ export default function AgentMonthlyReportPage() {
                       <th className="px-3 py-2.5 text-center text-xs font-semibold uppercase tracking-wider whitespace-nowrap border-l-2 border-slate-600 bg-slate-900 min-w-[60px]">
                         Total
                       </th>
-                      <th className="px-3 py-2.5 text-center text-xs font-semibold uppercase tracking-wider whitespace-nowrap bg-cyan-900/70 min-w-[100px]">
-                        Cross Sell %
-                      </th>
                       <th className="px-3 py-2.5 text-center text-xs font-semibold uppercase tracking-wider whitespace-nowrap bg-emerald-900/70 min-w-[70px]">
                         Delivered
                       </th>
@@ -687,6 +684,9 @@ export default function AgentMonthlyReportPage() {
                       </th>
                       <th className="px-3 py-2.5 text-center text-xs font-semibold uppercase tracking-wider whitespace-nowrap bg-red-900/60 min-w-[72px]">
                         Cancelled + Returned
+                      </th>
+                      <th className="px-3 py-2.5 text-center text-xs font-semibold uppercase tracking-wider whitespace-nowrap bg-cyan-900/70 min-w-[100px]">
+                        Cross Sell %
                       </th>
                       <th className="px-3 py-2.5 text-center text-xs font-semibold uppercase tracking-wider whitespace-nowrap bg-amber-900/50 min-w-[90px]">
                         Cancel %
@@ -728,11 +728,6 @@ export default function AgentMonthlyReportPage() {
                           <td className="px-2 py-2 text-center font-bold text-sm tabular-nums text-slate-800 border-l-2 border-gray-200 bg-slate-50">
                             {row.total || ''}
                           </td>
-                          <td className="px-2 py-2 text-center text-sm tabular-nums">
-                            <span className="inline-block rounded bg-cyan-50 px-2 py-0.5 text-xs font-semibold text-cyan-700">
-                              {(row.crossSellPercent || 0).toFixed(2)}%
-                            </span>
-                          </td>
                           <td className="px-2 py-2 text-center font-semibold text-sm tabular-nums text-emerald-700 bg-emerald-50/50">
                             {row.delivered || ''}
                           </td>
@@ -744,6 +739,11 @@ export default function AgentMonthlyReportPage() {
                           </td>
                           <td className="px-2 py-2 text-center font-semibold text-sm tabular-nums text-red-700 bg-red-50/40">
                             {row.cancelled || ''}
+                          </td>
+                          <td className="px-2 py-2 text-center text-sm tabular-nums">
+                            <span className="inline-block rounded bg-cyan-50 px-2 py-0.5 text-xs font-semibold text-cyan-700">
+                              {(row.crossSellPercent || 0).toFixed(2)}%
+                            </span>
                           </td>
                           <td className="px-2 py-2 text-center text-sm tabular-nums">
                             <span className={`inline-block px-2 py-0.5 rounded text-xs font-semibold ${getCancelledBadge(cancelRatio)}`}>
@@ -770,13 +770,6 @@ export default function AgentMonthlyReportPage() {
                       <td className="px-2 py-2.5 text-center text-sm tabular-nums border-l-2 border-slate-600 bg-slate-900">
                         {webRows.reduce((sum, row) => sum + row.total, 0)}
                       </td>
-                      <td className="px-2 py-2.5 text-center text-sm tabular-nums bg-cyan-900/70">
-                        {(() => {
-                          const total = webRows.reduce((sum, row) => sum + row.total, 0);
-                          const crossSellOrders = webRows.reduce((sum, row) => sum + (row.crossSellOrders || 0), 0);
-                          return total ? `${((crossSellOrders / total) * 100).toFixed(2)}%` : '0.00%';
-                        })()}
-                      </td>
                       <td className="px-2 py-2.5 text-center text-sm tabular-nums bg-emerald-900/70">
                         {webRows.reduce((sum, row) => sum + row.delivered, 0)}
                       </td>
@@ -788,6 +781,13 @@ export default function AgentMonthlyReportPage() {
                       </td>
                       <td className="px-2 py-2.5 text-center text-sm tabular-nums bg-red-900/60">
                         {webRows.reduce((sum, row) => sum + row.cancelled, 0)}
+                      </td>
+                      <td className="px-2 py-2.5 text-center text-sm tabular-nums bg-cyan-900/70">
+                        {(() => {
+                          const total = webRows.reduce((sum, row) => sum + row.total, 0);
+                          const crossSellOrders = webRows.reduce((sum, row) => sum + (row.crossSellOrders || 0), 0);
+                          return total ? `${((crossSellOrders / total) * 100).toFixed(2)}%` : '0.00%';
+                        })()}
                       </td>
                       <td className="px-2 py-2.5 text-center text-sm tabular-nums bg-amber-900/50">
                         {(() => {
