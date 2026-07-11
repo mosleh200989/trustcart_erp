@@ -4538,6 +4538,19 @@ export class SalesService {
     const endDate = params.endDate || today;
     const toNum = (v: any) => parseFloat(v) || 0;
     const roundMoney = (value: number) => Math.round(value * 100) / 100;
+    const courierSentCondition = (alias = 'o') => `(
+      ${alias}.shipped_at IS NOT NULL
+      OR NULLIF(${alias}.courier_order_id, '') IS NOT NULL
+      OR NULLIF(${alias}.tracking_id, '') IS NOT NULL
+      OR LOWER(${alias}.status::text) IN ('sent', 'picked', 'in_transit', 'shipped', 'delivered', 'completed', 'partial_delivered', 'returned', 'cancelled', 'pickup_failed')
+      OR EXISTS (
+        SELECT 1
+        FROM order_activity_logs oal_sent
+        WHERE oal_sent.order_id = ${alias}.id
+          AND oal_sent.action_type IN ('status_changed', 'shipped', 'courier_status_webhook', 'courier_status_synced', 'courier_status_updated')
+          AND LOWER(COALESCE(oal_sent.new_value->>'status', '')) = 'sent'
+      )
+    )`;
 
     const orderRows: Array<{
       agent_id: number;
@@ -4567,18 +4580,8 @@ export class SalesService {
          u.email,
          COUNT(o.id)::text AS orders,
          COALESCE(SUM(o.total_amount), 0)::text AS gross_sales,
-         COUNT(CASE WHEN (
-           o.shipped_at IS NOT NULL
-           OR NULLIF(o.courier_company, '') IS NOT NULL
-           OR NULLIF(o.courier_order_id, '') IS NOT NULL
-           OR LOWER(o.status::text) IN ('sent', 'picked', 'in_transit', 'shipped', 'delivered', 'partial_delivered', 'returned', 'cancelled')
-         ) THEN 1 END)::text AS sent_parcels,
-         COALESCE(SUM(CASE WHEN (
-           o.shipped_at IS NOT NULL
-           OR NULLIF(o.courier_company, '') IS NOT NULL
-           OR NULLIF(o.courier_order_id, '') IS NOT NULL
-           OR LOWER(o.status::text) IN ('sent', 'picked', 'in_transit', 'shipped', 'delivered', 'partial_delivered', 'returned', 'cancelled')
-         ) THEN COALESCE(o.cod_amount, o.total_amount, 0) ELSE 0 END), 0)::text AS courier_parcel_amount,
+         COUNT(o.id)::text AS sent_parcels,
+         COALESCE(SUM(COALESCE(o.cod_amount, o.total_amount, 0)), 0)::text AS courier_parcel_amount,
          COUNT(CASE WHEN LOWER(o.status::text) IN ('delivered', 'completed') THEN 1 END)::text AS delivered,
          COALESCE(SUM(CASE WHEN LOWER(o.status::text) IN ('delivered', 'completed') THEN o.total_amount ELSE 0 END), 0)::text AS delivered_gross,
          COUNT(CASE WHEN LOWER(o.status::text) = 'cancelled' THEN 1 END)::text AS cancel,
@@ -4600,6 +4603,7 @@ export class SalesService {
          AND o.order_source IN ('admin_panel', 'agent_dashboard')
          AND DATE(o.order_date) >= $1
          AND DATE(o.order_date) <= $2
+         AND ${courierSentCondition('o')}
        GROUP BY o.created_by, u.name, u.last_name, u.email
        ORDER BY COALESCE(SUM(o.total_amount), 0) DESC, COUNT(o.id) DESC`,
       [startDate, endDate],
@@ -4615,6 +4619,7 @@ export class SalesService {
            AND o.order_source IN ('admin_panel', 'agent_dashboard')
            AND DATE(o.order_date) >= $1
            AND DATE(o.order_date) <= $2
+           AND ${courierSentCondition('o')}
            AND NOT EXISTS (
              SELECT 1 FROM order_items oi_existing WHERE oi_existing.order_id = o.id
            )
@@ -4626,6 +4631,7 @@ export class SalesService {
            AND o.order_source IN ('admin_panel', 'agent_dashboard')
            AND DATE(o.order_date) >= $1
            AND DATE(o.order_date) <= $2
+           AND ${courierSentCondition('o')}
        ) items
        GROUP BY agent_id`,
       [startDate, endDate],
@@ -4663,18 +4669,8 @@ export class SalesService {
          END AS source_label,
          COUNT(o.id)::text AS orders,
          COALESCE(SUM(o.total_amount), 0)::text AS gross_sales,
-         COUNT(CASE WHEN (
-           o.shipped_at IS NOT NULL
-           OR NULLIF(o.courier_company, '') IS NOT NULL
-           OR NULLIF(o.courier_order_id, '') IS NOT NULL
-           OR LOWER(o.status::text) IN ('sent', 'picked', 'in_transit', 'shipped', 'delivered', 'partial_delivered', 'returned', 'cancelled')
-         ) THEN 1 END)::text AS sent_parcels,
-         COALESCE(SUM(CASE WHEN (
-           o.shipped_at IS NOT NULL
-           OR NULLIF(o.courier_company, '') IS NOT NULL
-           OR NULLIF(o.courier_order_id, '') IS NOT NULL
-           OR LOWER(o.status::text) IN ('sent', 'picked', 'in_transit', 'shipped', 'delivered', 'partial_delivered', 'returned', 'cancelled')
-         ) THEN COALESCE(o.cod_amount, o.total_amount, 0) ELSE 0 END), 0)::text AS courier_parcel_amount,
+         COUNT(o.id)::text AS sent_parcels,
+         COALESCE(SUM(COALESCE(o.cod_amount, o.total_amount, 0)), 0)::text AS courier_parcel_amount,
          COUNT(CASE WHEN LOWER(o.status::text) IN ('delivered', 'completed') THEN 1 END)::text AS delivered,
          COALESCE(SUM(CASE WHEN LOWER(o.status::text) IN ('delivered', 'completed') THEN o.total_amount ELSE 0 END), 0)::text AS delivered_gross,
          COUNT(CASE WHEN LOWER(o.status::text) = 'cancelled' THEN 1 END)::text AS cancel,
@@ -4695,6 +4691,7 @@ export class SalesService {
        WHERE o.order_source IN ('website', 'landing_page')
          AND DATE(o.order_date) >= $1
          AND DATE(o.order_date) <= $2
+         AND ${courierSentCondition('o')}
        GROUP BY
          CASE WHEN o.order_source = 'website' THEN 'website' ELSE 'landing:' || COALESCE(NULLIF(o.utm_source, ''), 'unknown') END,
          CASE WHEN o.order_source = 'website' THEN 'website' ELSE 'landing_page' END,
@@ -4714,6 +4711,7 @@ export class SalesService {
          WHERE o.order_source IN ('website', 'landing_page')
            AND DATE(o.order_date) >= $1
            AND DATE(o.order_date) <= $2
+           AND ${courierSentCondition('o')}
          UNION ALL
          SELECT
            CASE WHEN o.order_source = 'website' THEN 'website' ELSE 'landing:' || COALESCE(NULLIF(o.utm_source, ''), 'unknown') END AS source_key,
@@ -4723,6 +4721,7 @@ export class SalesService {
          WHERE o.order_source IN ('website', 'landing_page')
            AND DATE(o.order_date) >= $1
            AND DATE(o.order_date) <= $2
+           AND ${courierSentCondition('o')}
        ) items
        GROUP BY source_key`,
       [startDate, endDate],
@@ -4960,8 +4959,8 @@ export class SalesService {
     const toNum = (v: any) => parseFloat(v) || 0;
     const courierSentCondition = (alias = 'o') => `(
       ${alias}.shipped_at IS NOT NULL
-      OR NULLIF(${alias}.courier_company, '') IS NOT NULL
       OR NULLIF(${alias}.courier_order_id, '') IS NOT NULL
+      OR NULLIF(${alias}.tracking_id, '') IS NOT NULL
       OR LOWER(${alias}.status::text) IN ('sent', 'picked', 'in_transit', 'shipped', 'delivered', 'completed', 'partial_delivered', 'returned', 'cancelled', 'pickup_failed')
       OR EXISTS (
         SELECT 1
@@ -5176,8 +5175,8 @@ export class SalesService {
     const toNum = (v: any) => parseFloat(v) || 0;
     const courierSentCondition = (alias = 'o') => `(
       ${alias}.shipped_at IS NOT NULL
-      OR NULLIF(${alias}.courier_company, '') IS NOT NULL
       OR NULLIF(${alias}.courier_order_id, '') IS NOT NULL
+      OR NULLIF(${alias}.tracking_id, '') IS NOT NULL
       OR LOWER(${alias}.status::text) IN ('sent', 'picked', 'in_transit', 'shipped', 'delivered', 'completed', 'partial_delivered', 'returned', 'cancelled', 'pickup_failed')
       OR EXISTS (
         SELECT 1

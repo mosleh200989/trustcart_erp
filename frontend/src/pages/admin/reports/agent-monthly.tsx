@@ -676,9 +676,6 @@ export default function AgentMonthlyReportPage() {
                       <th className="px-3 py-2.5 text-center text-xs font-semibold uppercase tracking-wider whitespace-nowrap bg-emerald-900/70 min-w-[70px]">
                         Delivered
                       </th>
-                      <th className="px-3 py-2.5 text-center text-xs font-semibold uppercase tracking-wider whitespace-nowrap bg-rose-900/70 min-w-[72px]">
-                        Rejected
-                      </th>
                       <th className="px-3 py-2.5 text-center text-xs font-semibold uppercase tracking-wider whitespace-nowrap bg-lime-900/70 min-w-[96px]">
                         Partial Delivered
                       </th>
@@ -731,9 +728,6 @@ export default function AgentMonthlyReportPage() {
                           <td className="px-2 py-2 text-center font-semibold text-sm tabular-nums text-emerald-700 bg-emerald-50/50">
                             {row.delivered || ''}
                           </td>
-                          <td className="px-2 py-2 text-center font-semibold text-sm tabular-nums text-rose-700 bg-rose-50/60">
-                            {row.rejected || ''}
-                          </td>
                           <td className="px-2 py-2 text-center font-semibold text-sm tabular-nums text-lime-700 bg-lime-50/60">
                             {row.partialDelivered || ''}
                           </td>
@@ -772,9 +766,6 @@ export default function AgentMonthlyReportPage() {
                       </td>
                       <td className="px-2 py-2.5 text-center text-sm tabular-nums bg-emerald-900/70">
                         {webRows.reduce((sum, row) => sum + row.delivered, 0)}
-                      </td>
-                      <td className="px-2 py-2.5 text-center text-sm tabular-nums bg-rose-900/70">
-                        {webRows.reduce((sum, row) => sum + row.rejected, 0)}
                       </td>
                       <td className="px-2 py-2.5 text-center text-sm tabular-nums bg-lime-900/70">
                         {webRows.reduce((sum, row) => sum + row.partialDelivered, 0)}
