@@ -5,26 +5,6 @@ import { PresenceService } from './presence.service';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { RequireAnyPermission, RequirePermissions } from '../../common/decorators/permissions.decorator';
 
-function isDesktopUserAgent(userAgent: unknown): boolean {
-  const ua = String(userAgent || '').toLowerCase();
-  if (!ua) return true;
-  const mobileMarkers = [
-    'android',
-    'iphone',
-    'ipad',
-    'ipod',
-    'mobile',
-    'windows phone',
-    'blackberry',
-    'bb10',
-    'opera mini',
-    'opera mobi',
-    'kindle',
-    'silk',
-  ];
-  return !mobileMarkers.some((marker) => ua.includes(marker));
-}
-
 @Controller('presence')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 export class PresenceController {
@@ -38,17 +18,11 @@ export class PresenceController {
   @Post('me')
   async setMe(@Req() req: ExpressRequest, @Body() body: { state?: string; status?: string }) {
     const requestedState = body.state ?? body.status;
-    if (requestedState === 'online' && !isDesktopUserAgent(req.headers['user-agent'])) {
-      return this.presenceService.setMyStatus(Number((req as any).user?.id), 'offline', 'mobile-blocked');
-    }
     return this.presenceService.setMyStatus(Number((req as any).user?.id), requestedState, 'manual');
   }
 
   @Post('heartbeat')
   async heartbeat(@Req() req: ExpressRequest) {
-    if (!isDesktopUserAgent(req.headers['user-agent'])) {
-      return this.presenceService.setMyStatus(Number((req as any).user?.id), 'offline', 'mobile-blocked');
-    }
     return this.presenceService.heartbeat(Number((req as any).user?.id));
   }
 

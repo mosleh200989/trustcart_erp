@@ -4,7 +4,7 @@ import Link from 'next/link';
 import AdminLayout from '@/layouts/AdminLayout';
 import apiClient from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
-import { FaArrowLeft, FaCircle, FaFilter, FaSyncAlt, FaUserClock } from 'react-icons/fa';
+import { FaArrowLeft, FaCircle, FaFilter, FaSyncAlt } from 'react-icons/fa';
 
 type PresenceRow = {
   userId: number;
@@ -32,6 +32,8 @@ type PresenceDashboard = {
   };
 };
 
+type RangeOption = 'today' | '7' | '30' | '90';
+
 function secondsToHuman(value: any) {
   const total = Number(value || 0);
   if (!Number.isFinite(total) || total <= 0) return '0m';
@@ -48,6 +50,35 @@ function formatDateTime(value?: string | null) {
   return d.toLocaleString();
 }
 
+function formatTime(value?: string | null) {
+  if (!value) return '-';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return '-';
+  return d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: true });
+}
+
+function formatDate(value?: string | null) {
+  if (!value) return '';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleDateString('en-GB');
+}
+
+function getRangeParams(range: RangeOption) {
+  if (range !== 'today') return { rangeDays: Number(range) };
+  const from = new Date();
+  from.setHours(0, 0, 0, 0);
+  const to = new Date();
+  to.setHours(23, 59, 59, 999);
+  return { from: from.toISOString(), to: to.toISOString(), rangeDays: 1 };
+}
+
+function getDayKey(value?: string | null) {
+  const d = value ? new Date(value) : null;
+  if (!d || Number.isNaN(d.getTime())) return '';
+  return d.toLocaleDateString('en-CA');
+}
+
 function StatusPill({ state }: { state: string }) {
   const online = state === 'online';
   return (
@@ -55,7 +86,7 @@ function StatusPill({ state }: { state: string }) {
       online ? 'bg-green-50 text-green-700 border-green-200' : 'bg-gray-50 text-gray-700 border-gray-200'
     }`}>
       <span className={`w-2 h-2 rounded-full ${online ? 'bg-green-500' : 'bg-gray-400'}`} />
-      {online ? 'Online' : 'Offline'}
+      {online ? 'Checked In' : 'Checked Out'}
     </span>
   );
 }
@@ -76,9 +107,7 @@ function Stat({ label, value, icon }: { label: string; value: ReactNode; icon: R
 
 export default function PresenceHistoryPage() {
   const { hasPermission } = useAuth();
-  const [rangeDays, setRangeDays] = useState(7);
-  const [stateFilter, setStateFilter] = useState<'all' | 'online' | 'offline'>('all');
-  const [presenceStateFilter, setPresenceStateFilter] = useState<'all' | 'currently_online' | 'offline'>('all');
+  const [range, setRange] = useState<RangeOption>('today');
   const [presenceSearch, setPresenceSearch] = useState('');
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(false);
@@ -93,9 +122,10 @@ export default function PresenceHistoryPage() {
     setLoading(true);
     setMessage('');
     try {
+      const params = getRangeParams(range);
       const [dashboardRes, historyRes] = await Promise.all([
-        apiClient.get('/presence/dashboard', { params: { rangeDays } }),
-        apiClient.get('/presence/history', { params: { rangeDays } }),
+        apiClient.get('/presence/dashboard', { params }),
+        apiClient.get('/presence/history', { params }),
       ]);
       setDashboard(dashboardRes.data);
       setHistory(Array.isArray(historyRes.data?.items) ? historyRes.data.items : []);
@@ -111,43 +141,156 @@ export default function PresenceHistoryPage() {
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rangeDays, canViewHistory]);
+  }, [range, canViewHistory]);
 
-  const filteredHistory = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return history.filter((event) => {
-      if (stateFilter !== 'all' && event.state !== stateFilter) return false;
-      if (!q) return true;
-      return [event.name, event.email, String(event.userId)]
-        .filter(Boolean)
-        .some((value) => String(value).toLowerCase().includes(q));
+  const eventsByUser = useMemo(() => {
+    const map = new Map<number, any[]>();
+    history.forEach((event) => {
+      const userId = Number(event.userId);
+      const list = map.get(userId) || [];
+      list.push(event);
+      map.set(userId, list);
     });
-  }, [history, search, stateFilter]);
+    map.forEach((list) => {
+      list.sort((a, b) => new Date(a.startedAt || a.occurredAt || 0).getTime() - new Date(b.startedAt || b.occurredAt || 0).getTime());
+    });
+    return map;
+  }, [history]);
 
-  const filteredPresenceRows = useMemo(() => {
+  const checkedInRows = useMemo(() => {
     const q = presenceSearch.trim().toLowerCase();
     return (dashboard?.items || []).filter((row) => {
-      if (presenceStateFilter === 'currently_online' && row.currentState !== 'online') return false;
-      if (presenceStateFilter === 'offline' && row.currentState !== 'offline') return false;
+      if (row.currentState !== 'online') return false;
       if (!q) return true;
       return [row.name, row.email, row.phone, String(row.userId)]
         .filter(Boolean)
         .some((value) => String(value).toLowerCase().includes(q));
+    }).map((row) => {
+      const userEvents = eventsByUser.get(Number(row.userId)) || [];
+      const lastEntry = [...userEvents].reverse().find((event) => event.state === 'online');
+      const lastOut = [...userEvents].reverse().find((event) => event.state === 'offline');
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+      const changedAt = row.lastChangedAt ? new Date(row.lastChangedAt) : null;
+      const fallbackEntryAt = changedAt && changedAt < todayStart ? todayStart.toISOString() : row.lastChangedAt;
+      return {
+        ...row,
+        entryTime: formatTime(lastEntry?.startedAt || lastEntry?.occurredAt || fallbackEntryAt),
+        outTime: row.currentState === 'online' ? '-' : formatTime(lastOut?.startedAt || lastOut?.occurredAt),
+        todayDuration: secondsToHuman(row.seconds?.online),
+      };
     });
-  }, [dashboard?.items, presenceSearch, presenceStateFilter]);
+  }, [dashboard?.items, eventsByUser, presenceSearch]);
 
-  const totals = useMemo(() => {
-    return filteredHistory.reduce(
-      (acc, event) => {
-        acc.events += 1;
-        if (event.state === 'online') acc.online += 1;
-        if (event.state === 'offline') acc.offline += 1;
-        acc.seconds += Number(event.durationSeconds || 0);
-        return acc;
-      },
-      { events: 0, online: 0, offline: 0, seconds: 0 },
-    );
-  }, [filteredHistory]);
+  const dailyHistoryRows = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const grouped = new Map<string, any>();
+
+    const ensureRow = (event: any, dayKey: string, dateValue: string | Date) => {
+      const key = `${event.userId}:${dayKey}`;
+      const existing = grouped.get(key);
+      if (existing) return existing;
+      const date = dateValue instanceof Date ? dateValue.toISOString() : dateValue;
+      const row = {
+        key,
+        userId: event.userId,
+        name: event.name,
+        email: event.email,
+        dayKey,
+        dateLabel: formatDate(date),
+        status: event.state,
+        lastEntryAt: null,
+        lastOutAt: null,
+        durationSeconds: 0,
+        lastEventAt: 0,
+        sortAt: 0,
+      };
+      grouped.set(key, row);
+      return row;
+    };
+
+    const addCheckedInDuration = (event: any) => {
+      const start = new Date(event.startedAt || event.occurredAt || 0);
+      const end = new Date(event.endedAt || event.startedAt || event.occurredAt || 0);
+      if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) return;
+
+      let cursor = new Date(start);
+      while (cursor < end) {
+        const dayEnd = new Date(cursor);
+        dayEnd.setHours(23, 59, 59, 999);
+        const segmentEnd = end < dayEnd ? end : dayEnd;
+        const dayKey = getDayKey(cursor.toISOString());
+        if (dayKey) {
+          const row = ensureRow(event, dayKey, cursor);
+          row.durationSeconds += Math.max(0, Math.floor((segmentEnd.getTime() - cursor.getTime()) / 1000));
+          if (!row.lastEntryAt || cursor.getTime() > new Date(row.lastEntryAt).getTime()) {
+            row.lastEntryAt = cursor.toISOString();
+          }
+          row.sortAt = Math.max(row.sortAt, cursor.getTime());
+        }
+        cursor = new Date(dayEnd.getTime() + 1);
+      }
+    };
+
+    history.forEach((event) => {
+      const startedAtValue = event.startedAt || event.occurredAt;
+      const dayKey = getDayKey(startedAtValue);
+      if (!dayKey) return;
+      const existing = ensureRow(event, dayKey, startedAtValue);
+
+      const startedTime = new Date(startedAtValue || 0).getTime();
+      if (Number.isFinite(startedTime)) existing.sortAt = Math.max(existing.sortAt, startedTime);
+      if (Number.isFinite(startedTime) && event.state === 'online') {
+        existing.lastEntryAt = !existing.lastEntryAt || startedTime > new Date(existing.lastEntryAt).getTime()
+          ? startedAtValue
+          : existing.lastEntryAt;
+        addCheckedInDuration(event);
+      }
+      if (Number.isFinite(startedTime) && event.state === 'offline') {
+        existing.lastOutAt = !existing.lastOutAt || startedTime > new Date(existing.lastOutAt).getTime()
+          ? startedAtValue
+          : existing.lastOutAt;
+      }
+      if (Number.isFinite(startedTime) && startedTime >= existing.lastEventAt) {
+        existing.lastEventAt = startedTime;
+        existing.status = event.state;
+      }
+    });
+
+    if (range === 'today') {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const dayKey = getDayKey(today.toISOString());
+      (dashboard?.items || []).forEach((user) => {
+        if (!dayKey || (!Number(user.seconds?.online || 0) && user.currentState !== 'online')) return;
+        const row = ensureRow(
+          {
+            userId: user.userId,
+            name: user.name,
+            email: user.email,
+            state: user.currentState,
+            startedAt: today.toISOString(),
+            occurredAt: today.toISOString(),
+          },
+          dayKey,
+          today,
+        );
+        row.durationSeconds = Math.max(Number(row.durationSeconds || 0), Number(user.seconds?.online || 0));
+        if (!row.lastEntryAt && user.currentState === 'online') row.lastEntryAt = today.toISOString();
+        if (user.currentState === 'online') row.status = 'online';
+        row.sortAt = Math.max(row.sortAt, today.getTime());
+      });
+    }
+
+    return Array.from(grouped.values())
+      .filter((row) => {
+        if (!q) return true;
+        return [row.name, row.email, String(row.userId)]
+          .filter(Boolean)
+          .some((value) => String(value).toLowerCase().includes(q));
+      })
+      .sort((a, b) => b.sortAt - a.sortAt);
+  }, [history, search]);
 
   return (
     <AdminLayout>
@@ -156,22 +299,22 @@ export default function PresenceHistoryPage() {
           <div>
             <Link href="/admin/presence" className="inline-flex items-center gap-2 text-sm font-semibold text-blue-700 hover:text-blue-800">
               <FaArrowLeft />
-              Presence Dashboard
+              Check In/Out Dashboard
             </Link>
-            <h1 className="text-3xl font-bold text-gray-900 mt-2">Presence History</h1>
-            <p className="text-gray-600 mt-1">Review current office presence and online/offline history with user, duration, and source details.</p>
+            <h1 className="text-3xl font-bold text-gray-900 mt-2">Check In/Out History</h1>
+            <p className="text-gray-600 mt-1">Review current check-in status and check-in/out history with user, duration, and source details.</p>
           </div>
 
           <div className="flex flex-col sm:flex-row gap-3">
             <select
-              value={rangeDays}
-              onChange={(e) => setRangeDays(Number(e.target.value))}
+              value={range}
+              onChange={(e) => setRange(e.target.value as RangeOption)}
               className="border border-gray-300 rounded-lg px-3 py-2 bg-white text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             >
-              <option value={1}>Last 24 hours</option>
-              <option value={7}>Last 7 days</option>
-              <option value={30}>Last 30 days</option>
-              <option value={90}>Last 90 days</option>
+              <option value="today">Today Only</option>
+              <option value="7">Last 7 days</option>
+              <option value="30">Last 30 days</option>
+              <option value="90">Last 90 days</option>
             </select>
             <button
               onClick={load}
@@ -186,7 +329,7 @@ export default function PresenceHistoryPage() {
 
         {!canViewHistory && (
           <div className="bg-white border border-red-100 text-red-700 rounded-lg px-4 py-3 text-sm shadow-sm">
-            You do not have permission to view office presence history.
+            You do not have permission to view check-in/out history.
           </div>
         )}
 
@@ -196,19 +339,17 @@ export default function PresenceHistoryPage() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-          <Stat label="Records" value={totals.events} icon={<FaUserClock />} />
-          <Stat label="Online Now" value={dashboard?.totals?.onlineNow || 0} icon={<FaCircle />} />
-          <Stat label="Offline Now" value={dashboard?.totals?.offlineNow || 0} icon={<FaCircle />} />
-          <Stat label="Tracked Time" value={secondsToHuman(totals.seconds)} icon={<FaUserClock />} />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Stat label="Checked In Now" value={dashboard?.totals?.onlineNow || 0} icon={<FaCircle />} />
+          <Stat label="Checked Out Now" value={dashboard?.totals?.offlineNow || 0} icon={<FaCircle />} />
         </div>
 
         <div className="bg-white border border-gray-200 rounded-lg shadow-sm">
           <div className="p-4 border-b border-gray-200 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
             <div>
-              <h2 className="text-lg font-bold text-gray-900">User Presence</h2>
+              <h2 className="text-lg font-bold text-gray-900">Currently Checked In</h2>
               <p className="text-sm text-gray-500">
-                Showing {filteredPresenceRows.length} of {dashboard?.items?.length || 0} users
+                Showing {checkedInRows.length} checked-in employees
               </p>
             </div>
             <div className="flex flex-col sm:flex-row gap-3">
@@ -221,15 +362,6 @@ export default function PresenceHistoryPage() {
                   className="border border-gray-300 rounded-lg pl-9 pr-3 py-2 text-sm min-w-[240px] focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
               </div>
-              <select
-                value={presenceStateFilter}
-                onChange={(e) => setPresenceStateFilter(e.target.value as any)}
-                className="border border-gray-300 rounded-lg px-3 py-2 bg-white text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value="all">All users</option>
-                <option value="currently_online">Currently online</option>
-                <option value="offline">Offline now</option>
-              </select>
             </div>
           </div>
 
@@ -239,34 +371,28 @@ export default function PresenceHistoryPage() {
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">User</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Status</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase">Online Count</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase">Offline Count</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase">Online Time</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase">Offline Time</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Last Changed</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Last Seen</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Entry Time</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase">Today's Duration</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Out Time</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-100">
-                {filteredPresenceRows.map((row) => (
+                {checkedInRows.map((row) => (
                   <tr key={row.userId} className="hover:bg-gray-50">
                     <td className="px-4 py-3">
                       <div className="font-semibold text-gray-900">{row.name}</div>
                       <div className="text-xs text-gray-500">{row.email || row.phone || `User #${row.userId}`}</div>
                     </td>
                     <td className="px-4 py-3"><StatusPill state={row.currentState} /></td>
-                    <td className="px-4 py-3 text-sm text-gray-700 text-right">{row.onlineCount}</td>
-                    <td className="px-4 py-3 text-sm text-gray-700 text-right">{row.offlineCount}</td>
-                    <td className="px-4 py-3 text-sm text-gray-900 text-right font-semibold">{secondsToHuman(row.seconds?.online)}</td>
-                    <td className="px-4 py-3 text-sm text-gray-700 text-right">{secondsToHuman(row.seconds?.offline)}</td>
-                    <td className="px-4 py-3 text-sm text-gray-600">{formatDateTime(row.lastChangedAt)}</td>
-                    <td className="px-4 py-3 text-sm text-gray-600">{formatDateTime(row.lastSeenAt)}</td>
+                    <td className="px-4 py-3 text-sm text-gray-700">{row.entryTime}</td>
+                    <td className="px-4 py-3 text-sm text-gray-900 text-right font-semibold">{row.todayDuration}</td>
+                    <td className="px-4 py-3 text-sm text-gray-700">{row.outTime}</td>
                   </tr>
                 ))}
-                {!loading && filteredPresenceRows.length === 0 && (
+                {!loading && checkedInRows.length === 0 && (
                   <tr>
-                    <td colSpan={8} className="px-4 py-10 text-center text-gray-500">
-                      No presence records match the current filters.
+                    <td colSpan={5} className="px-4 py-10 text-center text-gray-500">
+                      No employees are currently checked in.
                     </td>
                   </tr>
                 )}
@@ -279,7 +405,7 @@ export default function PresenceHistoryPage() {
           <div className="p-4 border-b border-gray-200 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
             <div>
               <h2 className="text-lg font-bold text-gray-900">All Employee History</h2>
-              <p className="text-sm text-gray-500">Showing {filteredHistory.length} of {history.length} records</p>
+              <p className="text-sm text-gray-500">Showing {dailyHistoryRows.length} daily records</p>
             </div>
             <div className="flex flex-col sm:flex-row gap-3">
               <div className="relative">
@@ -291,15 +417,6 @@ export default function PresenceHistoryPage() {
                   className="border border-gray-300 rounded-lg pl-9 pr-3 py-2 text-sm min-w-[240px] focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
               </div>
-              <select
-                value={stateFilter}
-                onChange={(e) => setStateFilter(e.target.value as any)}
-                className="border border-gray-300 rounded-lg px-3 py-2 bg-white text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value="all">All statuses</option>
-                <option value="online">Online only</option>
-                <option value="offline">Offline only</option>
-              </select>
             </div>
           </div>
 
@@ -307,39 +424,29 @@ export default function PresenceHistoryPage() {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Employee</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">User</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Status</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Started</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Ended</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase">Duration</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Source</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Last Entry Time</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Last Out Time</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase">Last Duration</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-100">
-                {filteredHistory.map((event) => (
-                  <tr key={`${event.userId}-${event.id}-${event.startedAt}`} className="hover:bg-gray-50">
+                {dailyHistoryRows.map((row) => (
+                  <tr key={row.key} className="hover:bg-gray-50">
                     <td className="px-4 py-3">
-                      <div className="font-semibold text-gray-900">{event.name}</div>
-                      <div className="text-xs text-gray-500">{event.email || `User #${event.userId}`}</div>
+                      <div className="font-semibold text-gray-900">{row.name}</div>
+                      <div className="text-xs text-gray-500">{row.email || `User #${row.userId}`} {row.dateLabel ? `- ${row.dateLabel}` : ''}</div>
                     </td>
-                    <td className="px-4 py-3"><StatusPill state={event.state} /></td>
-                    <td className="px-4 py-3 text-sm text-gray-700">{formatDateTime(event.startedAt || event.occurredAt)}</td>
-                    <td className="px-4 py-3 text-sm text-gray-700">
-                      {event.isCurrentPeriod ? (
-                        <span className="inline-flex items-center px-2 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-semibold">
-                          Now
-                        </span>
-                      ) : (
-                        formatDateTime(event.endedAt)
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-gray-900 text-right font-semibold">{secondsToHuman(event.durationSeconds)}</td>
-                    <td className="px-4 py-3 text-sm text-gray-600 capitalize">{event.source || '-'}</td>
+                    <td className="px-4 py-3"><StatusPill state={row.status} /></td>
+                    <td className="px-4 py-3 text-sm text-gray-700">{formatDateTime(row.lastEntryAt)}</td>
+                    <td className="px-4 py-3 text-sm text-gray-700">{formatDateTime(row.lastOutAt)}</td>
+                    <td className="px-4 py-3 text-sm text-gray-900 text-right font-semibold">{secondsToHuman(row.durationSeconds)}</td>
                   </tr>
                 ))}
-                {!loading && filteredHistory.length === 0 && (
+                {!loading && dailyHistoryRows.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="px-4 py-10 text-center text-gray-500">
+                    <td colSpan={5} className="px-4 py-10 text-center text-gray-500">
                       No history records match the current filters.
                     </td>
                   </tr>

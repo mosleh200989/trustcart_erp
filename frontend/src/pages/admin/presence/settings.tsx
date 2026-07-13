@@ -41,7 +41,7 @@ export default function PresenceSettingsPage() {
       const res = await apiClient.get('/presence/settings');
       setSettings(res.data);
     } catch (err: any) {
-      setMessage(err?.response?.data?.message || 'Failed to load presence settings.');
+      setMessage(err?.response?.data?.message || 'Failed to load check-in/out settings.');
     } finally {
       setLoading(false);
     }
@@ -87,13 +87,13 @@ export default function PresenceSettingsPage() {
           <div>
             <Link href="/admin/presence" className="inline-flex items-center gap-2 text-sm font-semibold text-blue-700 hover:text-blue-800">
               <FaArrowLeft />
-              Presence Dashboard
+              Check In/Out Dashboard
             </Link>
             <div className="flex items-center gap-3 text-sm text-blue-700 font-semibold mt-4">
               <FaUserClock />
-              Presence Module
+              Check In/Out Module
             </div>
-            <h1 className="text-3xl font-bold text-gray-900 mt-2">Presence Settings</h1>
+            <h1 className="text-3xl font-bold text-gray-900 mt-2">Check In/Out Settings</h1>
             <p className="text-gray-600 mt-1">Office timing, attendance key, Telegram reminders, and Google Sheet sync configuration.</p>
           </div>
 
@@ -129,7 +129,7 @@ export default function PresenceSettingsPage() {
 
         {!canManageSettings && (
           <div className="bg-white border border-red-100 text-red-700 rounded-lg px-4 py-3 text-sm shadow-sm">
-            You do not have permission to manage presence settings.
+            You do not have permission to manage check-in/out settings.
           </div>
         )}
 
@@ -243,7 +243,7 @@ export default function PresenceSettingsPage() {
                   className="w-full border rounded-lg px-3 py-2"
                 />
               </Field>
-              <Field label="Offline Reminder Message">
+              <Field label="Check-in Reminder Message">
                 <textarea
                   value={settings.telegramOfflineReminderMessage || ''}
                   onChange={(e) => setSettings({ ...settings, telegramOfflineReminderMessage: e.target.value })}
@@ -251,7 +251,7 @@ export default function PresenceSettingsPage() {
                   className="w-full border rounded-lg px-3 py-2"
                 />
               </Field>
-              <Field label="On-time Thank You Message">
+              <Field label="On-time Check-in Thank You Message">
                 <textarea
                   value={settings.telegramOnlineThankYouMessage || ''}
                   onChange={(e) => setSettings({ ...settings, telegramOnlineThankYouMessage: e.target.value })}

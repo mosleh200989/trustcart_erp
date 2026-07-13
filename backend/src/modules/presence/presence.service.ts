@@ -236,7 +236,6 @@ export class PresenceService {
   }
 
   async getMyStatus(userId: number) {
-    await this.expireStaleOnlineStatuses([Number(userId)]);
     return this.getOrCreateStatus(Number(userId));
   }
 
@@ -319,8 +318,8 @@ export class PresenceService {
       calendarUserOrder: null,
       telegramRemindersEnabled: false,
       telegramReminderLeadMinutes: 5,
-      telegramOfflineReminderMessage: 'Hi {name}, your office time starts at {startTime}. Please come online if you are starting work.',
-      telegramOnlineThankYouMessage: 'Thank you {name}. You are online on time for your {startTime} office start.',
+      telegramOfflineReminderMessage: 'Hi {name}, your office time starts at {startTime}. Please check in if you are starting work.',
+      telegramOnlineThankYouMessage: 'Thank you {name}. You checked in on time for your {startTime} office start.',
       googleSpreadsheetId: '1HS4-6TSSmYRj-D6_ntJ9OyQITNfVyJRMZUN-d-ZN6C8',
       summarySheetName: 'May-26',
       eventsSheetName: '',
@@ -366,10 +365,10 @@ export class PresenceService {
     settings.telegramReminderLeadMinutes = clampInt((input as any).telegramReminderLeadMinutes, 1, 120, settings.telegramReminderLeadMinutes || 5);
     settings.telegramOfflineReminderMessage =
       String((input as any).telegramOfflineReminderMessage ?? settings.telegramOfflineReminderMessage ?? '').trim().slice(0, 2000) ||
-      'Hi {name}, your office time starts at {startTime}. Please come online if you are starting work.';
+      'Hi {name}, your office time starts at {startTime}. Please check in if you are starting work.';
     settings.telegramOnlineThankYouMessage =
       String((input as any).telegramOnlineThankYouMessage ?? settings.telegramOnlineThankYouMessage ?? '').trim().slice(0, 2000) ||
-      'Thank you {name}. You are online on time for your {startTime} office start.';
+      'Thank you {name}. You checked in on time for your {startTime} office start.';
     settings.googleSpreadsheetId =
       input.googleSpreadsheetId == null ? settings.googleSpreadsheetId : String(input.googleSpreadsheetId || '').trim() || null;
     settings.summarySheetName = String(input.summarySheetName ?? settings.summarySheetName ?? this.getDefaultMonthSheetName()).trim() || this.getDefaultMonthSheetName();
@@ -390,7 +389,6 @@ export class PresenceService {
       ? users.filter((u) => Number(u.id) === Number(params.userId))
       : users;
     const userIds = allowedUsers.map((u) => Number(u.id));
-    await this.expireStaleOnlineStatuses(userIds);
 
     const statuses = userIds.length
       ? await this.statusRepo.find({ where: { userId: In(userIds) } as any })
@@ -739,6 +737,7 @@ export class PresenceService {
           customOfficeStartTime: row?.officeStartTime || '',
           customOfficeEndTime: row?.officeEndTime || '',
           telegramChatId: row?.telegramChatId || '',
+          weeklyDayOff: row?.weeklyDayOff || '',
           notes: row?.notes || '',
         };
       }),
@@ -747,7 +746,13 @@ export class PresenceService {
 
   async updateOfficeTime(
     userIdRaw: any,
-    input: { officeStartTime?: string | null; officeEndTime?: string | null; telegramChatId?: string | null; notes?: string | null },
+    input: {
+      officeStartTime?: string | null;
+      officeEndTime?: string | null;
+      telegramChatId?: string | null;
+      weeklyDayOff?: string | null;
+      notes?: string | null;
+    },
   ) {
     const userId = Number(userIdRaw);
     if (!Number.isFinite(userId) || userId <= 0) throw new BadRequestException('Valid user ID is required');
@@ -757,12 +762,16 @@ export class PresenceService {
     const officeEndTime = String(input.officeEndTime || '').trim();
     if (officeStartTime && !timePattern.test(officeStartTime)) throw new BadRequestException('Office start time must be HH:mm');
     if (officeEndTime && !timePattern.test(officeEndTime)) throw new BadRequestException('Office end time must be HH:mm');
+    const weeklyDayOff = String(input.weeklyDayOff || '').trim().toLowerCase();
+    const validWeeklyDays = new Set(['', 'saturday', 'sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday']);
+    if (!validWeeklyDays.has(weeklyDayOff)) throw new BadRequestException('Weekly day off must be a valid weekday');
 
     let row = await this.officeTimeRepo.findOne({ where: { userId } });
     if (!row) row = this.officeTimeRepo.create({ userId });
     row.officeStartTime = officeStartTime || null;
     row.officeEndTime = officeEndTime || null;
     row.telegramChatId = String(input.telegramChatId || '').trim().slice(0, 80) || null;
+    row.weeklyDayOff = weeklyDayOff || null;
     row.notes = String(input.notes || '').trim() || null;
     return this.officeTimeRepo.save(row);
   }

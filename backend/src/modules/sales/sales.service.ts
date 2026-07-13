@@ -7,6 +7,7 @@ import { OrderItem } from './entities/order-item.entity';
 import { User } from '../users/user.entity';
 import { LoyaltyService } from '../loyalty/loyalty.service';
 import { OffersService } from '../offers/offers.service';
+import { SmsService } from '../messaging/sms.service';
 import { WhatsAppService } from '../messaging/whatsapp.service';
 import { CommissionService } from '../crm/commission.service';
 import { CustomersService } from '../customers/customers.service';
@@ -43,6 +44,7 @@ export class SalesService {
     private orderItemsRepository2: Repository<OrderItem>,
     private loyaltyService: LoyaltyService,
     private offersService: OffersService,
+    private smsService: SmsService,
     private whatsAppService: WhatsAppService,
     @Inject(forwardRef(() => CommissionService))
     private commissionService: CommissionService,
@@ -2729,6 +2731,33 @@ export class SalesService {
     );
   }
 
+  private async logOrderActivity(input: {
+    orderId: number;
+    actionType: string;
+    description: string;
+    oldValue?: any;
+    newValue?: any;
+    actorId?: number;
+    actorName?: string;
+    ipAddress?: string;
+  }) {
+    await this.salesRepository.manager.query(
+      `INSERT INTO order_activity_logs
+        (order_id, action_type, action_description, old_value, new_value, performed_by, performed_by_name, ip_address, created_at)
+       VALUES ($1, $2, $3, $4::jsonb, $5::jsonb, $6, $7, $8, NOW())`,
+      [
+        input.orderId,
+        input.actionType,
+        input.description,
+        input.oldValue === undefined ? null : JSON.stringify(input.oldValue),
+        input.newValue === undefined ? null : JSON.stringify(input.newValue),
+        input.actorId || null,
+        input.actorName || 'Admin',
+        input.ipAddress || '',
+      ],
+    );
+  }
+
   async markCourierReturns(courierOrderIds: string[], returnDate: string, userId?: number, userName = 'Admin', ipAddress?: string) {
     const results: { courierOrderId: string; orderId: number | null; success: boolean; message: string }[] = [];
 
@@ -3667,6 +3696,129 @@ export class SalesService {
       .where('item.sales_order_id = :orderId', { orderId: numericOrderId })
       .orderBy('item.id', 'ASC')
       .getRawMany();
+  }
+
+  private formatSmsProductList(items: any[]) {
+    const lines = (items || [])
+      .map((item) => {
+        const name = String(item.displayName || item.customProductName || item.productName || 'পণ্য').trim();
+        const variant = String(item.variantName || '').trim();
+        const qty = Number(item.quantity || 0) || 1;
+        return `${name}${variant ? ` (${variant})` : ''} - ${qty}টি`;
+      })
+      .filter(Boolean);
+
+    if (lines.length === 0) return 'আপনার অর্ডারকৃত পণ্য';
+    return lines.join(', ');
+  }
+
+  private buildOrderSmsMessage(order: SalesOrder, items: any[]) {
+    const customerName = String(order.customerName || 'গ্রাহক').trim();
+    const orderNumber = String(order.salesOrderNumber || `#${order.id}`).trim();
+    const productSummary = this.formatSmsProductList(items);
+    const total = new Intl.NumberFormat('bn-BD').format(Number(order.totalAmount || 0));
+
+    return [
+      `প্রিয় ${customerName},`,
+      `TrustCart থেকে আপনার অর্ডারটি গ্রহণ করা হয়েছে।`,
+      `অর্ডার: ${orderNumber}`,
+      `পণ্য: ${productSummary}`,
+      `মোট মূল্য: ৳${total}`,
+      `কোনো তথ্য পরিবর্তন বা সহায়তার প্রয়োজন হলে দ্রুত আমাদের জানান।`,
+      `ধন্যবাদ, TrustCart`,
+    ].join('\n');
+  }
+
+  async getOrderSmsDraft(orderId: number) {
+    const order = await this.salesRepository.findOne({ where: { id: Number(orderId) } });
+    if (!order) {
+      throw new NotFoundException('Order not found');
+    }
+    const receiver = this.smsService.normalizeBdMobile(order.customerPhone);
+    const items = await this.getOrderItems(String(order.id));
+
+    return {
+      orderId: order.id,
+      orderNumber: order.salesOrderNumber,
+      customerName: order.customerName,
+      customerPhone: order.customerPhone,
+      receiver,
+      items: items.map((item: any) => ({
+        name: item.displayName || item.customProductName || item.productName || 'Product',
+        variantName: item.variantName || null,
+        quantity: Number(item.quantity || 0) || 1,
+      })),
+      message: this.buildOrderSmsMessage(order, items),
+    };
+  }
+
+  async sendOrderSms(
+    orderId: number,
+    body: { message?: string },
+    actor: { actorId?: number; actorName?: string; ipAddress?: string } = {},
+  ) {
+    const draft = await this.getOrderSmsDraft(orderId);
+    if (!draft.receiver) {
+      throw new BadRequestException('Order customer phone number is not valid for SMS.');
+    }
+
+    const message = String(body?.message || draft.message || '').trim();
+    if (!message) {
+      throw new BadRequestException('SMS message cannot be empty.');
+    }
+
+    try {
+      const result = await this.smsService.sendTransactionalSms({
+        receiver: draft.receiver,
+        content: message,
+      });
+
+      await this.logOrderActivity({
+        orderId: Number(orderId),
+        actionType: 'sms_sent',
+        description: `SMS sent to ${draft.receiver} by ${actor.actorName || 'Admin'}`,
+        newValue: {
+          provider: result.provider,
+          receiver: draft.receiver,
+          message,
+          messageId: result.messageId ?? null,
+          status: result.status,
+          description: result.description ?? null,
+          msgCost: result.msgCost ?? null,
+          currentBalance: result.currentBalance ?? null,
+          contentType: result.contentType ?? null,
+        },
+        actorId: actor.actorId,
+        actorName: actor.actorName,
+        ipAddress: actor.ipAddress,
+      });
+
+      return {
+        success: true,
+        orderId: Number(orderId),
+        receiver: draft.receiver,
+        messageId: result.messageId ?? null,
+        status: result.status,
+        description: result.description ?? null,
+        msgCost: result.msgCost ?? null,
+        currentBalance: result.currentBalance ?? null,
+      };
+    } catch (error: any) {
+      await this.logOrderActivity({
+        orderId: Number(orderId),
+        actionType: 'sms_failed',
+        description: `SMS failed for ${draft.receiver} by ${actor.actorName || 'Admin'}`,
+        newValue: {
+          receiver: draft.receiver,
+          message,
+          error: error?.response?.data || error?.message || String(error),
+        },
+        actorId: actor.actorId,
+        actorName: actor.actorName,
+        ipAddress: actor.ipAddress,
+      });
+      throw error;
+    }
   }
 
   async acceptThankYouOffer(orderId: number, productId: number, offerPrice: number) {

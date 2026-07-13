@@ -505,6 +505,18 @@ export class SalesController {
     return this.salesService.searchCrossSellAnalysisAgents(q || '');
   }
 
+  @Get(':id/sms-draft')
+  @RequirePermissions('view-sales-orders')
+  async getOrderSmsDraft(@Param('id') id: string) {
+    return this.salesService.getOrderSmsDraft(Number(id));
+  }
+
+  @Post(':id/sms')
+  @RequirePermissions('edit-sales-orders')
+  async sendOrderSms(@Param('id') id: string, @Body() body: { message?: string }, @Req() req: any) {
+    return this.salesService.sendOrderSms(Number(id), body, this.getAuditUserInfo(req));
+  }
+
   @Get(':id')
   @RequirePermissions('view-sales-orders')
   async findOne(@Param('id') id: string) {
