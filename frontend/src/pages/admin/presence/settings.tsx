@@ -6,13 +6,6 @@ import apiClient from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { FaArrowLeft, FaSave, FaSyncAlt, FaUserClock } from 'react-icons/fa';
 
-function formatDateTime(value?: string | null) {
-  if (!value) return '-';
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return '-';
-  return d.toLocaleString();
-}
-
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <label className="block">
@@ -27,11 +20,9 @@ export default function PresenceSettingsPage() {
   const [settings, setSettings] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [syncing, setSyncing] = useState(false);
   const [message, setMessage] = useState('');
 
   const canManageSettings = hasPermission('manage-presence-settings');
-  const canSyncSheet = hasPermission('sync-presence-sheet');
 
   const load = async () => {
     if (!canManageSettings) return;
@@ -66,20 +57,6 @@ export default function PresenceSettingsPage() {
     }
   };
 
-  const syncSheet = async () => {
-    setMessage('');
-    setSyncing(true);
-    try {
-      const res = await apiClient.post('/presence/sync/google-sheet');
-      setMessage(`Google Sheet synced: ${res.data?.users || 0} users, ${res.data?.events || 0} events.`);
-      await load();
-    } catch (err: any) {
-      setMessage(err?.response?.data?.message || err?.response?.data?.error || 'Google Sheet sync failed.');
-    } finally {
-      setSyncing(false);
-    }
-  };
-
   return (
     <AdminLayout>
       <div className="space-y-6">
@@ -94,7 +71,7 @@ export default function PresenceSettingsPage() {
               Check In/Out Module
             </div>
             <h1 className="text-3xl font-bold text-gray-900 mt-2">Check In/Out Settings</h1>
-            <p className="text-gray-600 mt-1">Office timing, attendance key, Telegram reminders, and Google Sheet sync configuration.</p>
+            <p className="text-gray-600 mt-1">Office timing, attendance keys, Telegram reminders, and calendar layout configuration.</p>
           </div>
 
           <div className="flex flex-col sm:flex-row gap-3">
@@ -106,16 +83,6 @@ export default function PresenceSettingsPage() {
               <FaSyncAlt className={loading ? 'animate-spin' : ''} />
               Refresh
             </button>
-            {canSyncSheet && (
-              <button
-                onClick={syncSheet}
-                disabled={syncing}
-                className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-green-600 text-white text-sm font-semibold hover:bg-green-700 disabled:opacity-60"
-              >
-                <FaSyncAlt className={syncing ? 'animate-spin' : ''} />
-                Sync Sheet
-              </button>
-            )}
             <button
               onClick={saveSettings}
               disabled={saving || !settings || !canManageSettings}
@@ -143,7 +110,7 @@ export default function PresenceSettingsPage() {
           <div className="bg-white border border-gray-200 rounded-lg shadow-sm">
             <div className="p-4 border-b border-gray-200">
               <h2 className="text-lg font-bold text-gray-900">Configuration</h2>
-              <p className="text-sm text-gray-500">These values control office timing and Google Sheet attendance sync.</p>
+              <p className="text-sm text-gray-500">These values control office timing, attendance labels, reminders, and calendar display.</p>
             </div>
             <div className="p-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
               <Field label="Office Start Time">
@@ -155,12 +122,25 @@ export default function PresenceSettingsPage() {
               <Field label="Timezone">
                 <input value={settings.timezone || ''} onChange={(e) => setSettings({ ...settings, timezone: e.target.value })} className="w-full border rounded-lg px-3 py-2" />
               </Field>
+              <label className="block md:col-span-2">
+                <span className="block text-sm font-semibold text-gray-700 mb-1">Allowed Check-in IP Addresses</span>
+                <textarea
+                  value={settings.allowedCheckInIps || ''}
+                  onChange={(e) => setSettings({ ...settings, allowedCheckInIps: e.target.value })}
+                  rows={4}
+                  placeholder={'103.10.20.30\n203.0.113.15'}
+                  className="w-full border rounded-lg px-3 py-2"
+                />
+                <span className="block text-xs text-gray-500 mt-1">
+                  One IP per line, or separate with comma/space. Check-in is restricted to these IPs. Leave blank to allow check-in from any IP. Check-out is always allowed from anywhere.
+                </span>
+              </label>
               <Field label="Attendance Key">
                 <input value={settings.attendanceKey || ''} onChange={(e) => setSettings({ ...settings, attendanceKey: e.target.value })} className="w-full border rounded-lg px-3 py-2" />
               </Field>
               <div className="md:col-span-2 xl:col-span-3 border-t border-gray-100 pt-4 mt-2">
                 <h3 className="text-base font-bold text-gray-900">Attendance Key Meanings</h3>
-                <p className="text-sm text-gray-500 mt-1">Scraped from the Google Sheet Attendance key tab. These values control what is written to the monthly attendance sheet.</p>
+                <p className="text-sm text-gray-500 mt-1">These values control how check-in/out attendance states appear in the calendar.</p>
               </div>
               <Field label="Present Key">
                 <input value={settings.attendancePresentKey || ''} onChange={(e) => setSettings({ ...settings, attendancePresentKey: e.target.value })} className="w-full border rounded-lg px-3 py-2" />
@@ -259,26 +239,6 @@ export default function PresenceSettingsPage() {
                   className="w-full border rounded-lg px-3 py-2"
                 />
               </Field>
-              <div className="md:col-span-2 xl:col-span-3 border-t border-gray-100 pt-4 mt-2">
-                <h3 className="text-base font-bold text-gray-900">Google Sheet Sync</h3>
-                <p className="text-sm text-gray-500 mt-1">These fields control the spreadsheet tabs used by the sync button.</p>
-              </div>
-              <Field label="Spreadsheet ID">
-                <input value={settings.googleSpreadsheetId || ''} onChange={(e) => setSettings({ ...settings, googleSpreadsheetId: e.target.value })} className="w-full border rounded-lg px-3 py-2" />
-              </Field>
-              <Field label="Attendance Key Sheet Name">
-                <input value={settings.settingsSheetName || ''} onChange={(e) => setSettings({ ...settings, settingsSheetName: e.target.value })} className="w-full border rounded-lg px-3 py-2" />
-              </Field>
-              <Field label="Attendance Sheet Name">
-                <input value={settings.summarySheetName || ''} onChange={(e) => setSettings({ ...settings, summarySheetName: e.target.value })} className="w-full border rounded-lg px-3 py-2" />
-              </Field>
-              <Field label="Events Sheet Name (optional)">
-                <input value={settings.eventsSheetName || ''} onChange={(e) => setSettings({ ...settings, eventsSheetName: e.target.value })} className="w-full border rounded-lg px-3 py-2" />
-              </Field>
-              <div className="md:col-span-2 xl:col-span-3 text-sm text-gray-600">
-                Last sync: {formatDateTime(settings.lastSyncedAt)} {settings.lastSyncStatus ? `(${settings.lastSyncStatus})` : ''}
-                {settings.lastSyncMessage ? ` - ${settings.lastSyncMessage}` : ''}
-              </div>
             </div>
           </div>
         )}
