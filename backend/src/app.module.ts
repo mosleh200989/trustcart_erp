@@ -237,7 +237,7 @@ import { GrnItem } from './modules/purchase/entities/grn-item.entity';
     // Config Module - must be first
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: '.env',
+      envFilePath: ['backend/.env', '.env'],
     }),
 
     // Task scheduler (nightly tier sync, etc.)

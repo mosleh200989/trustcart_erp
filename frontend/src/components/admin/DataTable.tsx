@@ -21,6 +21,7 @@ interface DataTableProps {
   onView?: (row: any) => void;
   onEdit?: (row: any) => void;
   onDelete?: (row: any) => void;
+  renderActions?: (row: any) => React.ReactNode;
   currentPage?: number;
   totalPages?: number;
   onPageChange?: (page: number) => void;
@@ -35,13 +36,14 @@ export default function DataTable({
   onView,
   onEdit,
   onDelete,
+  renderActions,
   currentPage = 1,
   totalPages = 1,
   onPageChange,
   loading = false,
   rowClassName,
 }: DataTableProps) {
-  const hasActions = !!(onView || onEdit || onDelete);
+  const hasActions = !!(onView || onEdit || onDelete || renderActions);
   const getRowId = selection?.getRowId ?? ((row: any) => row?.id);
 
   // ── Column sort state ──────────────────────────────────────────────────────
@@ -155,7 +157,7 @@ export default function DataTable({
                   </span>
                 </th>
               ))}
-              {(onView || onEdit || onDelete) && (
+              {hasActions && (
                 <th className="px-6 py-4 text-right text-xs font-semibold text-white uppercase tracking-wider">
                   Actions
                 </th>
@@ -197,9 +199,10 @@ export default function DataTable({
                       {column.render ? column.render(row[column.key], row) : row[column.key] || '-'}
                     </td>
                   ))}
-                  {(onView || onEdit || onDelete) && (
+                  {hasActions && (
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex justify-end gap-2">
+                        {renderActions?.(row)}
                         {onView && (
                           <button
                             onClick={() => onView(row)}

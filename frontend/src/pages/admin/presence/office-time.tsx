@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import AdminLayout from '@/layouts/AdminLayout';
 import apiClient from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
-import { FaArrowLeft, FaSave, FaSyncAlt, FaUserClock } from 'react-icons/fa';
+import { FaArrowLeft, FaFilter, FaSave, FaSyncAlt, FaUserClock } from 'react-icons/fa';
 
 type OfficeTimeRow = {
   userId: number;
@@ -14,8 +14,20 @@ type OfficeTimeRow = {
   customOfficeStartTime: string;
   customOfficeEndTime: string;
   telegramChatId: string;
+  weeklyDayOff: string;
   notes: string;
 };
+
+const WEEKDAY_OPTIONS = [
+  { value: '', label: 'No weekly off' },
+  { value: 'saturday', label: 'Saturday' },
+  { value: 'sunday', label: 'Sunday' },
+  { value: 'monday', label: 'Monday' },
+  { value: 'tuesday', label: 'Tuesday' },
+  { value: 'wednesday', label: 'Wednesday' },
+  { value: 'thursday', label: 'Thursday' },
+  { value: 'friday', label: 'Friday' },
+];
 
 export default function PresenceOfficeTimePage() {
   const { hasPermission } = useAuth();
@@ -24,6 +36,7 @@ export default function PresenceOfficeTimePage() {
   const [loading, setLoading] = useState(false);
   const [savingUserId, setSavingUserId] = useState<number | null>(null);
   const [message, setMessage] = useState('');
+  const [search, setSearch] = useState('');
 
   const canView = hasPermission('view-presence-office-time') || hasPermission('manage-presence-office-time') || hasPermission('manage-presence-settings');
   const canManage = hasPermission('manage-presence-office-time') || hasPermission('manage-presence-settings');
@@ -52,6 +65,16 @@ export default function PresenceOfficeTimePage() {
     setItems((prev) => prev.map((item) => (item.userId === userId ? { ...item, ...patch } : item)));
   };
 
+  const filteredItems = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return items;
+    return items.filter((item) =>
+      [item.name, item.email, String(item.userId)]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(q)),
+    );
+  }, [items, search]);
+
   const save = async (item: OfficeTimeRow) => {
     setSavingUserId(item.userId);
     setMessage('');
@@ -60,6 +83,7 @@ export default function PresenceOfficeTimePage() {
         officeStartTime: item.customOfficeStartTime,
         officeEndTime: item.customOfficeEndTime,
         telegramChatId: item.telegramChatId,
+        weeklyDayOff: item.weeklyDayOff,
       });
       setMessage('Office time saved successfully.');
       await load();
@@ -77,11 +101,11 @@ export default function PresenceOfficeTimePage() {
           <div>
             <Link href="/admin/presence" className="inline-flex items-center gap-2 text-sm font-semibold text-blue-700 hover:text-blue-800">
               <FaArrowLeft />
-              Presence Dashboard
+              Check In/Out Dashboard
             </Link>
             <div className="flex items-center gap-3 text-sm text-blue-700 font-semibold mt-4">
               <FaUserClock />
-              Presence Module
+              Check In/Out Module
             </div>
             <h1 className="text-3xl font-bold text-gray-900 mt-2">Office Time</h1>
             <p className="text-gray-600 mt-1">Set employee-specific office times and Telegram chat IDs for attendance reminders.</p>
@@ -117,6 +141,21 @@ export default function PresenceOfficeTimePage() {
         </div>
 
         <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
+          <div className="p-4 border-b border-gray-200 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-bold text-gray-900">Employee Office Times</h2>
+              <p className="text-sm text-gray-500">Showing {filteredItems.length} of {items.length} employees</p>
+            </div>
+            <div className="relative">
+              <FaFilter className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search user, email, ID"
+                className="border border-gray-300 rounded-lg pl-9 pr-3 py-2 text-sm min-w-[260px] focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+          </div>
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
@@ -124,12 +163,13 @@ export default function PresenceOfficeTimePage() {
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Employee</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Start Time</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">End Time</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Weekly Day Off</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Telegram Chat ID</th>
                   <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase">Action</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-100">
-                {items.map((item) => (
+                {filteredItems.map((item) => (
                   <tr key={item.userId} className="hover:bg-gray-50">
                     <td className="px-4 py-3">
                       <div className="font-semibold text-gray-900">{item.name}</div>
@@ -158,6 +198,20 @@ export default function PresenceOfficeTimePage() {
                       <div className="text-xs text-gray-400 mt-1">Effective: {item.officeEndTime}</div>
                     </td>
                     <td className="px-4 py-3">
+                      <select
+                        value={item.weeklyDayOff || ''}
+                        onChange={(e) => updateItem(item.userId, { weeklyDayOff: e.target.value })}
+                        disabled={!canManage}
+                        className="min-w-[160px] border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white disabled:bg-gray-50"
+                      >
+                        {WEEKDAY_OPTIONS.map((option) => (
+                          <option key={option.value || 'none'} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                    <td className="px-4 py-3">
                       <input
                         value={item.telegramChatId || ''}
                         onChange={(e) => updateItem(item.userId, { telegramChatId: e.target.value })}
@@ -179,10 +233,10 @@ export default function PresenceOfficeTimePage() {
                     </td>
                   </tr>
                 ))}
-                {!loading && items.length === 0 && (
+                {!loading && filteredItems.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="px-4 py-10 text-center text-gray-500">
-                      No active employees found.
+                    <td colSpan={6} className="px-4 py-10 text-center text-gray-500">
+                      {items.length === 0 ? 'No active employees found.' : 'No employees match the current search.'}
                     </td>
                   </tr>
                 )}

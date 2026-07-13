@@ -13,7 +13,7 @@ import InvoicePrintModal from '@/components/admin/InvoicePrintModal';
 import StickerPrintModal from '@/components/admin/StickerPrintModal';
 import ProductAutocomplete from '@/components/admin/ProductAutocomplete';
 import { useToast } from '@/contexts/ToastContext';
-import { FaPlus, FaPrint, FaBoxOpen, FaFileInvoice, FaTag, FaCheck, FaTimes, FaSync, FaPhone, FaUserCheck, FaUserEdit, FaUserSlash } from 'react-icons/fa';
+import { FaPlus, FaPrint, FaBoxOpen, FaFileInvoice, FaTag, FaCheck, FaTimes, FaSync, FaPhone, FaUserCheck, FaUserEdit, FaUserSlash, FaSms } from 'react-icons/fa';
 import apiClient from '@/services/api';
 import { getOrderStatusLabel, getOrderStatusColor } from '@/utils/orderStatus';
 import { getDhakaDateString } from '@/utils/dhakaDate';
@@ -152,6 +152,16 @@ interface SalesOrder {
   notes?: string | null;
 }
 
+interface OrderSmsDraft {
+  orderId: number;
+  orderNumber?: string;
+  customerName?: string | null;
+  customerPhone?: string | null;
+  receiver?: string | null;
+  items?: { name: string; variantName?: string | null; quantity: number }[];
+  message: string;
+}
+
 export default function AdminSales() {
   const toast = useToast();
   const { hasPermission } = useAuth();
@@ -200,6 +210,12 @@ export default function AdminSales() {
   const [selectedAssignAgentId, setSelectedAssignAgentId] = useState('');
   const [savingAssignment, setSavingAssignment] = useState(false);
   const canManageOrderAssignment = hasPermission('manage-order-assignment') || hasPermission('manage-assigned-orders');
+  const canSendOrderSms = hasPermission('edit-sales-orders');
+  const [smsOrder, setSmsOrder] = useState<SalesOrder | null>(null);
+  const [smsDraft, setSmsDraft] = useState<OrderSmsDraft | null>(null);
+  const [smsMessage, setSmsMessage] = useState('');
+  const [smsLoading, setSmsLoading] = useState(false);
+  const [smsSending, setSmsSending] = useState(false);
 
   // Inline product name editing state
   const [editingProductName, setEditingProductName] = useState<{ orderId: number; itemIndex: number } | null>(null);
@@ -764,6 +780,54 @@ export default function AdminSales() {
     setAssignmentOrder(null);
     setIsBulkAssignmentOpen(false);
     setSelectedAssignAgentId('');
+  };
+
+  const closeSmsModal = (force = false) => {
+    if (smsSending && !force) return;
+    setSmsOrder(null);
+    setSmsDraft(null);
+    setSmsMessage('');
+    setSmsLoading(false);
+  };
+
+  const openSmsModal = async (order: SalesOrder) => {
+    if (!canSendOrderSms) {
+      toast.error('You do not have permission to send order SMS');
+      return;
+    }
+    setSmsOrder(order);
+    setSmsDraft(null);
+    setSmsMessage('');
+    setSmsLoading(true);
+    try {
+      const res = await apiClient.get<OrderSmsDraft>(`/sales/${order.id}/sms-draft`);
+      setSmsDraft(res.data);
+      setSmsMessage(res.data?.message || '');
+    } catch (e: any) {
+      toast.error(e?.response?.data?.message || 'Failed to prepare SMS message');
+      setSmsOrder(null);
+    } finally {
+      setSmsLoading(false);
+    }
+  };
+
+  const sendOrderSms = async () => {
+    if (!smsOrder) return;
+    const message = smsMessage.trim();
+    if (!message) {
+      toast.warning('Message cannot be empty');
+      return;
+    }
+    setSmsSending(true);
+    try {
+      await apiClient.post(`/sales/${smsOrder.id}/sms`, { message });
+      toast.success('SMS sent successfully');
+      closeSmsModal(true);
+    } catch (e: any) {
+      toast.error(e?.response?.data?.message || 'Failed to send SMS');
+    } finally {
+      setSmsSending(false);
+    }
   };
 
   const saveAssignment = async () => {
@@ -1663,6 +1727,16 @@ export default function AdminSales() {
             onChange: setSelectedRowIds,
             getRowId: (row: SalesOrder) => row.id
           }}
+          renderActions={(row: SalesOrder) => canSendOrderSms ? (
+            <button
+              type="button"
+              onClick={() => openSmsModal(row)}
+              className="rounded p-2 text-indigo-600 transition-colors hover:bg-indigo-50 hover:text-indigo-900"
+              title="Send SMS"
+            >
+              <FaSms size={16} />
+            </button>
+          ) : null}
           onView={handleView}
           onDelete={handleDelete}
           currentPage={currentPage}
@@ -1670,6 +1744,88 @@ export default function AdminSales() {
           onPageChange={setCurrentPage}
           rowClassName={(row: SalesOrder) => row.isRejectedCustomer ? 'bg-red-50 border-l-4 border-l-red-400' : ''}
         />
+
+        <Modal
+          isOpen={smsOrder != null}
+          onClose={closeSmsModal}
+          title="Send SMS"
+          size="md"
+          footer={
+            <>
+              <button
+                type="button"
+                onClick={() => closeSmsModal()}
+                disabled={smsSending}
+                className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={sendOrderSms}
+                disabled={smsLoading || smsSending || !smsMessage.trim() || !smsDraft?.receiver}
+                className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <FaSms />
+                {smsSending ? 'Sending...' : 'Send SMS'}
+              </button>
+            </>
+          }
+        >
+          {smsLoading ? (
+            <div className="flex items-center justify-center py-10 text-gray-500">
+              <div className="mr-3 h-6 w-6 animate-spin rounded-full border-2 border-indigo-200 border-t-indigo-600" />
+              Preparing message...
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <div className="text-xs font-semibold uppercase text-gray-500">Customer</div>
+                    <div className="mt-1 font-semibold text-gray-900">{smsDraft?.customerName || smsOrder?.customer_name || smsOrder?.customerName || '-'}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs font-semibold uppercase text-gray-500">Phone</div>
+                    <div className="mt-1 font-semibold text-gray-900">{smsDraft?.customerPhone || smsOrder?.customer_phone || smsOrder?.customerPhone || '-'}</div>
+                    {!smsDraft?.receiver && <div className="mt-1 text-xs font-medium text-red-600">Valid Bangladeshi SMS number not found.</div>}
+                  </div>
+                  <div>
+                    <div className="text-xs font-semibold uppercase text-gray-500">Order</div>
+                    <div className="mt-1 font-semibold text-gray-900">{smsDraft?.orderNumber || smsOrder?.sales_order_number || smsOrder?.salesOrderNumber || smsOrder?.id}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs font-semibold uppercase text-gray-500">SMS Receiver</div>
+                    <div className="mt-1 font-semibold text-gray-900">{smsDraft?.receiver || '-'}</div>
+                  </div>
+                </div>
+                {smsDraft?.items?.length ? (
+                  <div className="mt-4">
+                    <div className="text-xs font-semibold uppercase text-gray-500">Products</div>
+                    <div className="mt-1 text-gray-700">
+                      {smsDraft.items.map((item) => `${item.name}${item.variantName ? ` (${item.variantName})` : ''} - ${item.quantity}টি`).join(', ')}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+
+              <label className="block">
+                <span className="mb-1 block text-sm font-semibold text-gray-700">Message</span>
+                <textarea
+                  value={smsMessage}
+                  onChange={(e) => setSmsMessage(e.target.value)}
+                  rows={9}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm leading-6 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-100"
+                  placeholder="Write SMS message..."
+                />
+              </label>
+              <div className="flex items-center justify-between text-xs text-gray-500">
+                <span>The message is editable. SMS will be sent only after clicking Send SMS.</span>
+                <span>{smsMessage.length} chars</span>
+              </div>
+            </div>
+          )}
+        </Modal>
 
         <Modal
           isOpen={assignmentOrder != null || isBulkAssignmentOpen}

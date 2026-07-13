@@ -3,7 +3,7 @@ import Link from 'next/link';
 import AdminLayout from '@/layouts/AdminLayout';
 import apiClient from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
-import { FaArrowLeft, FaGripVertical, FaSave, FaSyncAlt, FaUserClock } from 'react-icons/fa';
+import { FaArrowLeft, FaFileExcel, FaGripVertical, FaSave, FaSyncAlt, FaUserClock } from 'react-icons/fa';
 
 type CalendarRow = {
   userId: number;
@@ -22,9 +22,233 @@ type CalendarData = {
   rows: CalendarRow[];
 };
 
+function getCurrentMonthSheetName() {
+  const now = new Date();
+  return `${now.toLocaleString('en-US', { month: 'short', timeZone: 'Asia/Dhaka' })}-${String(
+    Number(now.toLocaleString('en-US', { year: 'numeric', timeZone: 'Asia/Dhaka' })),
+  ).slice(-2)}`;
+}
+
+function xmlEscape(value: any) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+function columnName(index: number) {
+  let name = '';
+  let next = index + 1;
+  while (next > 0) {
+    const mod = (next - 1) % 26;
+    name = String.fromCharCode(65 + mod) + name;
+    next = Math.floor((next - mod) / 26);
+  }
+  return name;
+}
+
+const crcTable = (() => {
+  const table = new Uint32Array(256);
+  for (let n = 0; n < 256; n += 1) {
+    let c = n;
+    for (let k = 0; k < 8; k += 1) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    table[n] = c >>> 0;
+  }
+  return table;
+})();
+
+function crc32(data: Uint8Array) {
+  let crc = 0xffffffff;
+  for (let i = 0; i < data.length; i += 1) crc = crcTable[(crc ^ data[i]) & 0xff] ^ (crc >>> 8);
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+function stringBytes(value: string) {
+  return new TextEncoder().encode(value);
+}
+
+function concatBytes(parts: Uint8Array[]) {
+  const total = parts.reduce((sum, part) => sum + part.length, 0);
+  const out = new Uint8Array(total);
+  let offset = 0;
+  parts.forEach((part) => {
+    out.set(part, offset);
+    offset += part.length;
+  });
+  return out;
+}
+
+function u16(value: number) {
+  const bytes = new Uint8Array(2);
+  new DataView(bytes.buffer).setUint16(0, value, true);
+  return bytes;
+}
+
+function u32(value: number) {
+  const bytes = new Uint8Array(4);
+  new DataView(bytes.buffer).setUint32(0, value >>> 0, true);
+  return bytes;
+}
+
+function createZip(files: Array<{ path: string; content: string }>) {
+  const localParts: Uint8Array[] = [];
+  const centralParts: Uint8Array[] = [];
+  let offset = 0;
+  const now = new Date();
+  const dosTime = (now.getHours() << 11) | (now.getMinutes() << 5) | Math.floor(now.getSeconds() / 2);
+  const dosDate = ((now.getFullYear() - 1980) << 9) | ((now.getMonth() + 1) << 5) | now.getDate();
+
+  files.forEach((file) => {
+    const name = stringBytes(file.path);
+    const data = stringBytes(file.content);
+    const crc = crc32(data);
+    const localHeader = concatBytes([
+      u32(0x04034b50),
+      u16(20),
+      u16(0),
+      u16(0),
+      u16(dosTime),
+      u16(dosDate),
+      u32(crc),
+      u32(data.length),
+      u32(data.length),
+      u16(name.length),
+      u16(0),
+      name,
+    ]);
+    localParts.push(localHeader, data);
+
+    const centralHeader = concatBytes([
+      u32(0x02014b50),
+      u16(20),
+      u16(20),
+      u16(0),
+      u16(0),
+      u16(dosTime),
+      u16(dosDate),
+      u32(crc),
+      u32(data.length),
+      u32(data.length),
+      u16(name.length),
+      u16(0),
+      u16(0),
+      u16(0),
+      u16(0),
+      u32(0),
+      u32(offset),
+      name,
+    ]);
+    centralParts.push(centralHeader);
+    offset += localHeader.length + data.length;
+  });
+
+  const central = concatBytes(centralParts);
+  const end = concatBytes([
+    u32(0x06054b50),
+    u16(0),
+    u16(0),
+    u16(files.length),
+    u16(files.length),
+    u32(central.length),
+    u32(offset),
+    u16(0),
+  ]);
+
+  const zipBytes = concatBytes([...localParts, central, end]);
+  const zipBuffer = zipBytes.buffer.slice(zipBytes.byteOffset, zipBytes.byteOffset + zipBytes.byteLength);
+  return new Blob([zipBuffer], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
+}
+
+function createCalendarWorkbook(data: CalendarData, rows: CalendarRow[]) {
+  const matrix = [
+    ['User', 'Email', ...data.days.map((day) => `${day.label} ${day.weekday}`)],
+    ...rows.map((row) => [row.name, row.email || '', ...row.cells.map((cell) => cell.value || '')]),
+  ];
+  const sheetRows = matrix
+    .map((row, rowIndex) => {
+      const cells = row
+        .map((value, colIndex) => {
+          const ref = `${columnName(colIndex)}${rowIndex + 1}`;
+          return `<c r="${ref}" t="inlineStr"><is><t>${xmlEscape(value)}</t></is></c>`;
+        })
+        .join('');
+      return `<row r="${rowIndex + 1}">${cells}</row>`;
+    })
+    .join('');
+  const lastCol = columnName(Math.max(0, matrix[0].length - 1));
+  const lastRow = Math.max(1, matrix.length);
+
+  return createZip([
+    {
+      path: '[Content_Types].xml',
+      content:
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+        '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' +
+        '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
+        '<Default Extension="xml" ContentType="application/xml"/>' +
+        '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>' +
+        '<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>' +
+        '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>' +
+        '</Types>',
+    },
+    {
+      path: '_rels/.rels',
+      content:
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+        '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>' +
+        '</Relationships>',
+    },
+    {
+      path: 'xl/workbook.xml',
+      content:
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+        '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">' +
+        `<sheets><sheet name="${xmlEscape(data.sheetName || 'Calendar')}" sheetId="1" r:id="rId1"/></sheets>` +
+        '</workbook>',
+    },
+    {
+      path: 'xl/_rels/workbook.xml.rels',
+      content:
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+        '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>' +
+        '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>' +
+        '</Relationships>',
+    },
+    {
+      path: 'xl/styles.xml',
+      content:
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+        '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
+        '<fonts count="1"><font><sz val="11"/><name val="Calibri"/></font></fonts>' +
+        '<fills count="1"><fill><patternFill patternType="none"/></fill></fills>' +
+        '<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>' +
+        '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>' +
+        '<cellXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/></cellXfs>' +
+        '</styleSheet>',
+    },
+    {
+      path: 'xl/worksheets/sheet1.xml',
+      content:
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+        '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
+        `<dimension ref="A1:${lastCol}${lastRow}"/>` +
+        '<sheetViews><sheetView workbookViewId="0"/></sheetViews>' +
+        '<sheetFormatPr defaultRowHeight="15"/>' +
+        `<sheetData>${sheetRows}</sheetData>` +
+        '</worksheet>',
+    },
+  ]);
+}
+
 export default function PresenceCalendarPage() {
   const { hasPermission } = useAuth();
-  const [sheetName, setSheetName] = useState('');
+  const currentMonthSheetName = useMemo(() => getCurrentMonthSheetName(), []);
   const [data, setData] = useState<CalendarData | null>(null);
   const [rows, setRows] = useState<CalendarRow[]>([]);
   const [dragUserId, setDragUserId] = useState<number | null>(null);
@@ -41,12 +265,11 @@ export default function PresenceCalendarPage() {
     setLoading(true);
     setMessage('');
     try {
-      const res = await apiClient.get('/presence/calendar', { params: sheetName ? { sheetName } : {} });
+      const res = await apiClient.get('/presence/calendar', { params: { sheetName: currentMonthSheetName } });
       setData(res.data);
       setRows(Array.isArray(res.data?.rows) ? res.data.rows : []);
-      if (res.data?.sheetName) setSheetName(res.data.sheetName);
     } catch (err: any) {
-      setMessage(err?.response?.data?.message || 'Failed to load presence calendar.');
+      setMessage(err?.response?.data?.message || 'Failed to load check-in/out calendar.');
       setData(null);
       setRows([]);
     } finally {
@@ -57,7 +280,7 @@ export default function PresenceCalendarPage() {
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canViewCalendar]);
+  }, [canViewCalendar, currentMonthSheetName]);
 
   const legend = useMemo(() => {
     const config = data?.keyConfig || {};
@@ -91,6 +314,22 @@ export default function PresenceCalendarPage() {
     }
   };
 
+  const exportXlsx = () => {
+    if (!data || rows.length === 0) {
+      setMessage('No calendar data is available to export.');
+      return;
+    }
+    const blob = createCalendarWorkbook(data, rows);
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `check-in-out-calendar-${data.sheetName || currentMonthSheetName}.xlsx`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+  };
+
   const saveCellOverride = async () => {
     if (!editingCell) return;
     setSaving(true);
@@ -119,23 +358,17 @@ export default function PresenceCalendarPage() {
           <div>
             <Link href="/admin/presence" className="inline-flex items-center gap-2 text-sm font-semibold text-blue-700 hover:text-blue-800">
               <FaArrowLeft />
-              Presence Dashboard
+              Check In/Out Dashboard
             </Link>
             <div className="flex items-center gap-3 text-sm text-blue-700 font-semibold mt-4">
               <FaUserClock />
-              Presence Module
+              Check In/Out Module
             </div>
-            <h1 className="text-3xl font-bold text-gray-900 mt-2">Presence Calendar</h1>
+            <h1 className="text-3xl font-bold text-gray-900 mt-2">Check In/Out Calendar</h1>
             <p className="text-gray-600 mt-1">Sheet-style attendance calendar for all active users.</p>
           </div>
 
           <div className="flex flex-col sm:flex-row gap-3">
-            <input
-              value={sheetName}
-              onChange={(e) => setSheetName(e.target.value)}
-              placeholder="May-26"
-              className="border border-gray-300 rounded-lg px-3 py-2 bg-white text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            />
             <button
               onClick={load}
               disabled={loading || !canViewCalendar}
@@ -143,6 +376,14 @@ export default function PresenceCalendarPage() {
             >
               <FaSyncAlt className={loading ? 'animate-spin' : ''} />
               Refresh
+            </button>
+            <button
+              onClick={exportXlsx}
+              disabled={!data || rows.length === 0}
+              className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 disabled:opacity-60"
+            >
+              <FaFileExcel />
+              Export XLSX
             </button>
             {canManageCalendar && (
               <button
@@ -159,7 +400,7 @@ export default function PresenceCalendarPage() {
 
         {!canViewCalendar && (
           <div className="bg-white border border-red-100 text-red-700 rounded-lg px-4 py-3 text-sm shadow-sm">
-            You do not have permission to view the presence calendar.
+            You do not have permission to view the check-in/out calendar.
           </div>
         )}
 
@@ -171,7 +412,7 @@ export default function PresenceCalendarPage() {
 
         <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-4 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div>
-            <div className="text-sm font-semibold text-gray-900">{data?.sheetName || sheetName || 'Calendar'}</div>
+            <div className="text-sm font-semibold text-gray-900">{data?.sheetName || currentMonthSheetName}</div>
             <div className="text-sm text-gray-500">
               Timezone: {data?.timezone || '-'} | Users: {rows.length} | Gap every {data?.rowGap?.every || 0} rows
             </div>

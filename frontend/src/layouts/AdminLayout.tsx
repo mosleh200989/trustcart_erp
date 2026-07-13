@@ -5,7 +5,6 @@ import { useRouter } from 'next/router';
 import CrmNotifications from '@/components/CrmNotifications';
 import { useAuth } from '@/contexts/AuthContext';
 import apiClient, { stockAlerts } from '@/services/api';
-import { BACKEND_API_BASE_URL } from '@/config/backend';
 import { 
   FaTachometerAlt, FaBoxes, FaShoppingCart, FaUsers, FaWarehouse, 
   FaShoppingBag, FaUserTie, FaBook, FaBullseye, FaHandshake, 
@@ -26,16 +25,6 @@ const telephonyAssignmentBadgeTypes: Record<string, 'order' | 'incomplete' | 'ca
   '/admin/telephony/cancelled-assignment': 'cancelled',
   '/admin/telephony/rejected-assignment': 'rejected',
 };
-
-function isDesktopPresenceDevice(): boolean {
-  if (typeof navigator === 'undefined') return true;
-  const ua = navigator.userAgent.toLowerCase();
-  const platform = (navigator.platform || '').toLowerCase();
-  const touchPoints = navigator.maxTouchPoints || 0;
-  const mobileMarkers = /android|iphone|ipad|ipod|mobile|windows phone|blackberry|bb10|opera mini|opera mobi|kindle|silk/;
-  const iPadDesktopMode = platform.includes('mac') && touchPoints > 1;
-  return !mobileMarkers.test(ua) && !iPadDesktopMode;
-}
 
 const menuItems: MenuItem[] = [
   { title: 'Dashboard', icon: FaTachometerAlt, path: '/admin/dashboard' },
@@ -105,7 +94,7 @@ const menuItems: MenuItem[] = [
     requiredPermissions: ['view-customers']
   },
   {
-    title: 'Presence',
+    title: 'Check In/Out',
     icon: FaUser,
     children: [
       { title: 'Dashboard', icon: FaUser, path: '/admin/presence' },
@@ -537,7 +526,7 @@ function ensurePresenceLink(items: MenuItem[]): MenuItem[] {
     const isPresenceCalendar = item.path === '/admin/presence/calendar';
     const isPresenceOfficeTime = item.path === '/admin/presence/office-time';
     const isPresenceSettings = item.path === '/admin/presence/settings';
-    const isPresenceParent = item.title === 'Presence' && item.children && !item.path;
+    const isPresenceParent = (item.title === 'Presence' || item.title === 'Check In/Out') && item.children && !item.path;
 
     if (isPresenceHistory || isPresenceCalendar || isPresenceOfficeTime || isPresenceSettings) {
       continue;
@@ -556,7 +545,7 @@ function ensurePresenceLink(items: MenuItem[]): MenuItem[] {
       ];
       next.push({
         ...item,
-        title: 'Presence',
+        title: 'Check In/Out',
         icon: FaUser,
         path: undefined,
         requiredPermissions: undefined,
@@ -577,7 +566,7 @@ function ensurePresenceLink(items: MenuItem[]): MenuItem[] {
   return [
     ...next,
     {
-      title: 'Presence',
+      title: 'Check In/Out',
       icon: FaUser,
       children: [dashboardItem, historyItem, calendarItem, officeTimeItem, settingsItem],
     },
@@ -672,10 +661,6 @@ function getPanelTitleFromRoleSlugs(roleSlugs: Set<string>): string {
   return 'Admin Panel';
 }
 
-const PRESENCE_IDLE_TIMEOUT_MS = 30 * 60 * 1000;
-const PRESENCE_ACTIVE_SYNC_MS = 30 * 1000;
-const PRESENCE_HEARTBEAT_MS = 60 * 1000;
-
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [expandedMenus, setExpandedMenus] = useState<string[]>([]);
@@ -684,13 +669,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [recentAlerts, setRecentAlerts] = useState<any[]>([]);
   const [presenceState, setPresenceState] = useState<'online' | 'offline'>('offline');
   const [presenceLoading, setPresenceLoading] = useState(false);
-  const [presencePcAllowed, setPresencePcAllowed] = useState(true);
   const [telephonyAssignmentCounts, setTelephonyAssignmentCounts] = useState<Record<string, number>>({});
   const alertRef = useRef<HTMLDivElement>(null);
   const presenceStateRef = useRef<'online' | 'offline'>('offline');
-  const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const lastActiveSyncRef = useRef(0);
-  const suppressAutoOnlineUntilRef = useRef(0);
   const router = useRouter();
   const { user, roles, isLoading, hasAnyPermission, logout } = useAuth();
 
@@ -730,37 +711,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   useEffect(() => {
     let cancelled = false;
-    const canUseOnlinePresence = isDesktopPresenceDevice();
-    setPresencePcAllowed(canUseOnlinePresence);
-
-    const setPresence = async (state: 'online' | 'offline') => {
-      presenceStateRef.current = state;
-      if (!cancelled) setPresenceState(state);
-      try {
-        const res = await apiClient.post('/presence/me', { state });
-        const saved = res.data?.state === 'online' ? 'online' : 'offline';
-        presenceStateRef.current = saved;
-        if (!cancelled) setPresenceState(saved);
-      } catch {}
-    };
-
-    const resetIdleTimer = () => {
-      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
-      idleTimerRef.current = setTimeout(() => {
-        void setPresence('offline');
-      }, PRESENCE_IDLE_TIMEOUT_MS);
-    };
-
-    const markActive = () => {
-      if (!canUseOnlinePresence) return;
-      resetIdleTimer();
-      const now = Date.now();
-      if (now < suppressAutoOnlineUntilRef.current) return;
-      if (presenceStateRef.current === 'online' && now - lastActiveSyncRef.current < PRESENCE_ACTIVE_SYNC_MS) return;
-      lastActiveSyncRef.current = now;
-      void setPresence('online');
-    };
-
     const loadPresence = async () => {
       try {
         const res = await apiClient.get('/presence/me');
@@ -773,53 +723,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       }
     };
 
-    const heartbeat = async () => {
-      if (!canUseOnlinePresence) return;
-      if (presenceStateRef.current !== 'online') return;
-      try {
-        await apiClient.post('/presence/heartbeat');
-      } catch {}
-    };
-
-    const sendOfflineOnExit = () => {
-      if (presenceStateRef.current !== 'online') return;
-      presenceStateRef.current = 'offline';
-      try {
-        const token = localStorage.getItem('authToken');
-        if (!token) return;
-        fetch(`${BACKEND_API_BASE_URL}/presence/me`, {
-          method: 'POST',
-          keepalive: true,
-          headers: {
-            'Content-Type': 'application/json; charset=utf-8',
-            Accept: 'application/json; charset=utf-8',
-            Authorization: `Bearer ${token}`,
-            'x-tenant-id': process.env.NEXT_PUBLIC_TENANT_ID || 'trustcart',
-          },
-          body: JSON.stringify({ state: 'offline' }),
-        }).catch(() => {});
-      } catch {}
-    };
-
     loadPresence();
-    if (canUseOnlinePresence) {
-      markActive();
-    } else {
-      void setPresence('offline');
-    }
-    const activityEvents: Array<keyof WindowEventMap> = ['click', 'keydown', 'mousemove', 'scroll', 'touchstart', 'focus'];
-    activityEvents.forEach((eventName) => window.addEventListener(eventName, markActive, { passive: true }));
-    window.addEventListener('pagehide', sendOfflineOnExit);
-    window.addEventListener('beforeunload', sendOfflineOnExit);
-    const iv = setInterval(heartbeat, PRESENCE_HEARTBEAT_MS);
-
     return () => {
       cancelled = true;
-      activityEvents.forEach((eventName) => window.removeEventListener(eventName, markActive));
-      window.removeEventListener('pagehide', sendOfflineOnExit);
-      window.removeEventListener('beforeunload', sendOfflineOnExit);
-      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
-      clearInterval(iv);
     };
   }, []);
 
@@ -856,9 +762,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   }, [hasAnyPermission, isLoading, user]);
 
   const togglePresence = useCallback(async () => {
-    if (!presencePcAllowed && presenceState !== 'online') return;
     const next = presenceState === 'online' ? 'offline' : 'online';
-    if (next === 'offline') suppressAutoOnlineUntilRef.current = Date.now() + 2000;
     presenceStateRef.current = next;
     setPresenceState(next);
     setPresenceLoading(true);
@@ -873,7 +777,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     } finally {
       setPresenceLoading(false);
     }
-  }, [presenceState, presencePcAllowed]);
+  }, [presenceState]);
 
   const effectiveMenuItems = useMemo(() => {
     return flattenSingleChildMenus(ensureManageModulesLink(ensurePresenceLink(menuItems)));
@@ -1029,16 +933,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               <CrmNotifications />
               <button
                 onClick={togglePresence}
-                disabled={presenceLoading || (!presencePcAllowed && presenceState !== 'online')}
-                title={!presencePcAllowed ? 'Online presence is available only from PC' : presenceState === 'online' ? 'Set yourself offline' : 'Set yourself online'}
+                disabled={presenceLoading}
+                title={presenceState === 'online' ? 'Check out' : 'Check in'}
                 className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-semibold transition-all shadow-sm ${
                   presenceState === 'online'
                     ? 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100'
                     : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'
-                } ${presenceLoading ? 'opacity-70 cursor-wait' : ''} ${!presencePcAllowed && presenceState !== 'online' ? 'opacity-60 cursor-not-allowed' : ''}`}
+                } ${presenceLoading ? 'opacity-70 cursor-wait' : ''}`}
               >
                 <span className={`w-2.5 h-2.5 rounded-full ${presenceState === 'online' ? 'bg-green-500' : 'bg-gray-400'}`} />
-                {presenceState === 'online' ? 'Online' : 'Offline'}
+                {presenceState === 'online' ? 'Check Out' : 'Check In'}
               </button>
               <span className="text-sm text-gray-700 font-medium">
                 {isLoading ? 'Loading…' : (user?.email || user?.phone || 'User')}

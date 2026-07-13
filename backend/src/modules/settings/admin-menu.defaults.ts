@@ -104,7 +104,7 @@ export const DEFAULT_ADMIN_MENU: AdminMenuSeedNode[] = [
   },
   { title: 'Customers', icon: 'FaUsers', path: '/admin/customers', requiredPermissions: ['view-customers'] },
   {
-    title: 'Presence',
+    title: 'Check In/Out',
     icon: 'FaUser',
     children: [
       { title: 'Dashboard', icon: 'FaUser', path: '/admin/presence' },

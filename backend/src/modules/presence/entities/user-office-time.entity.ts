@@ -18,6 +18,9 @@ export class UserOfficeTime {
   @Column({ name: 'telegram_chat_id', type: 'varchar', length: 80, nullable: true })
   telegramChatId!: string | null;
 
+  @Column({ name: 'weekly_day_off', type: 'varchar', length: 20, nullable: true })
+  weeklyDayOff!: string | null;
+
   @Column({ name: 'notes', type: 'text', nullable: true })
   notes!: string | null;
 
