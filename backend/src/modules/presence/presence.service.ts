@@ -11,6 +11,7 @@ import { UserPresenceState, UserPresenceStatus } from './entities/user-presence-
 import { PresenceSettings } from './entities/presence-settings.entity';
 import { UserOfficeTime } from './entities/user-office-time.entity';
 import { PresenceCalendarOverride } from './entities/presence-calendar-override.entity';
+import { PresenceCalendarOverrideHistory } from './entities/presence-calendar-override-history.entity';
 import { SalesService } from '../sales/sales.service';
 
 function parseDate(value: any): Date | null {
@@ -89,6 +90,8 @@ export class PresenceService {
     private readonly officeTimeRepo: Repository<UserOfficeTime>,
     @InjectRepository(PresenceCalendarOverride)
     private readonly calendarOverrideRepo: Repository<PresenceCalendarOverride>,
+    @InjectRepository(PresenceCalendarOverrideHistory)
+    private readonly calendarOverrideHistoryRepo: Repository<PresenceCalendarOverrideHistory>,
     private readonly salesService: SalesService,
   ) {}
 
@@ -624,6 +627,32 @@ export class PresenceService {
       order: { name: 'ASC', lastName: 'ASC' } as any,
     });
     const userIds = users.map((u) => Number(u.id));
+    const userMetaRows: Array<{
+      id: number;
+      team_leader_id: number | null;
+      team_leader_name: string | null;
+      team_leader_last_name: string | null;
+      role_id: number | null;
+      role_name: string | null;
+      role_slug: string | null;
+    }> = userIds.length
+      ? await this.userRepo.manager.query(
+          `SELECT
+             u.id,
+             u.team_leader_id,
+             tl.name AS team_leader_name,
+             tl.last_name AS team_leader_last_name,
+             u.role_id,
+             r.name AS role_name,
+             r.slug AS role_slug
+           FROM users u
+           LEFT JOIN users tl ON tl.id = u.team_leader_id
+           LEFT JOIN roles r ON r.id = u.role_id
+           WHERE u.id = ANY($1::int[])`,
+          [userIds],
+        )
+      : [];
+    const userMetaById = new Map(userMetaRows.map((row) => [Number(row.id), row]));
     const events = userIds.length
       ? await this.eventRepo
           .createQueryBuilder('e')
@@ -690,6 +719,7 @@ export class PresenceService {
 
     const rows = orderedUsers.map((user, idx) => {
       const userId = Number(user.id);
+      const meta = userMetaById.get(userId);
       const officeTime = officeTimeByUser.get(userId);
       const userOfficeStart = officeTime?.officeStartTime || settings.officeStartTime;
       const userOfficeStartMinutes = this.timeToMinutes(userOfficeStart);
@@ -697,6 +727,11 @@ export class PresenceService {
         userId,
         name: [user.name, user.lastName].filter(Boolean).join(' ').trim() || user.email,
         email: user.email,
+        teamLeaderId: meta?.team_leader_id == null ? null : Number(meta.team_leader_id),
+        teamLeaderName: [meta?.team_leader_name, meta?.team_leader_last_name].filter(Boolean).join(' ').trim() || null,
+        roleId: meta?.role_id == null ? null : Number(meta.role_id),
+        roleName: meta?.role_name || null,
+        roleSlug: meta?.role_slug || null,
         officeStartTime: userOfficeStart,
         insertGapAfter: settings.calendarTeamGapEvery > 0 && (idx + 1) % settings.calendarTeamGapEvery === 0 && idx < orderedUsers.length - 1,
         cells: daysList.map((day) => {
@@ -834,18 +869,98 @@ export class PresenceService {
     ]);
 
     const existing = await this.calendarOverrideRepo.findOne({ where: { userId, dateKey } });
+    const previous = existing
+      ? {
+          attendanceKey: existing.attendanceKey,
+          attendanceLabel: existing.attendanceLabel,
+          note: existing.note,
+        }
+      : null;
     if (!attendanceKey) {
-      if (existing) await this.calendarOverrideRepo.remove(existing);
+      if (existing) {
+        await this.calendarOverrideRepo.remove(existing);
+        await this.calendarOverrideHistoryRepo.save(
+          this.calendarOverrideHistoryRepo.create({
+            userId,
+            dateKey,
+            action: 'cleared',
+            previousAttendanceKey: previous?.attendanceKey || null,
+            previousAttendanceLabel: previous?.attendanceLabel || null,
+            previousNote: previous?.note || null,
+            newAttendanceKey: null,
+            newAttendanceLabel: null,
+            newNote: null,
+            updatedBy: updatedBy || null,
+          }),
+        );
+      }
       return { deleted: true };
     }
     if (!configByKey.has(attendanceKey)) throw new BadRequestException('Attendance key is not configured');
 
     const row = existing || this.calendarOverrideRepo.create({ userId, dateKey });
+    const nextLabel = configByKey.get(attendanceKey) || null;
+    const nextNote = String(input.note || '').trim() || null;
     row.attendanceKey = attendanceKey;
-    row.attendanceLabel = configByKey.get(attendanceKey) || null;
-    row.note = String(input.note || '').trim() || null;
+    row.attendanceLabel = nextLabel;
+    row.note = nextNote;
     row.updatedBy = updatedBy || null;
-    return this.calendarOverrideRepo.save(row);
+    const saved = await this.calendarOverrideRepo.save(row);
+
+    await this.calendarOverrideHistoryRepo.save(
+      this.calendarOverrideHistoryRepo.create({
+        userId,
+        dateKey,
+        action: previous ? 'updated' : 'created',
+        previousAttendanceKey: previous?.attendanceKey || null,
+        previousAttendanceLabel: previous?.attendanceLabel || null,
+        previousNote: previous?.note || null,
+        newAttendanceKey: saved.attendanceKey,
+        newAttendanceLabel: saved.attendanceLabel || null,
+        newNote: saved.note || null,
+        updatedBy: updatedBy || null,
+      }),
+    );
+
+    return saved;
+  }
+
+  async getCalendarOverrideHistory(userIdRaw: any, dateKeyRaw: any) {
+    const userId = Number(userIdRaw);
+    const dateKey = String(dateKeyRaw || '').trim();
+    if (!Number.isFinite(userId) || userId <= 0) throw new BadRequestException('Valid user ID is required');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) throw new BadRequestException('Date key must be YYYY-MM-DD');
+
+    const rows = await this.calendarOverrideHistoryRepo.find({
+      where: { userId, dateKey } as any,
+      order: { createdAt: 'DESC' } as any,
+      take: 100,
+    });
+    const updaterIds = Array.from(new Set(rows.map((row) => Number(row.updatedBy)).filter((id) => Number.isFinite(id) && id > 0)));
+    const updaters = updaterIds.length ? await this.userRepo.find({ where: { id: In(updaterIds) } as any }) : [];
+    const updaterById = new Map(updaters.map((user) => [Number(user.id), user]));
+
+    return {
+      items: rows.map((row) => {
+        const updater = row.updatedBy ? updaterById.get(Number(row.updatedBy)) : null;
+        return {
+          id: row.id,
+          userId: row.userId,
+          dateKey: row.dateKey,
+          action: row.action,
+          previousAttendanceKey: row.previousAttendanceKey,
+          previousAttendanceLabel: row.previousAttendanceLabel,
+          previousNote: row.previousNote,
+          newAttendanceKey: row.newAttendanceKey,
+          newAttendanceLabel: row.newAttendanceLabel,
+          newNote: row.newNote,
+          updatedBy: row.updatedBy,
+          updatedByName: updater ? [updater.name, updater.lastName].filter(Boolean).join(' ').trim() || updater.email : null,
+          updatedByEmail: updater?.email || null,
+          createdAt: row.createdAt,
+        };
+      }),
+    };
   }
 
   private async getGoogleAccessToken() {
