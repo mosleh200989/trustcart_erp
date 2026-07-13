@@ -2804,21 +2804,24 @@ export class SalesService {
       DATE(o.created_at AT TIME ZONE '${this.dhakaTimeZone}'),
       DATE(o.shipped_at AT TIME ZONE '${this.dhakaTimeZone}')
     )`;
+    const courierSubmittedCondition = `(
+      o.shipped_at IS NOT NULL
+      OR NULLIF(o.courier_order_id, '') IS NOT NULL
+      OR NULLIF(o.tracking_id, '') IS NOT NULL
+      OR EXISTS (
+        SELECT 1
+        FROM order_activity_logs oal_sent
+        WHERE oal_sent.order_id = o.id
+          AND oal_sent.action_type IN ('status_changed', 'shipped', 'courier_status_webhook', 'courier_status_synced', 'courier_status_updated')
+          AND LOWER(COALESCE(oal_sent.new_value->>'status', '')) = 'sent'
+      )
+    )`;
 
     const qb = this.salesRepository.createQueryBuilder('o');
     qb.where("LTRIM(COALESCE(o.sales_order_number, ''), '#') NOT ILIKE 'LEG%'")
       .andWhere(`${ageDateExpr} <= :cutoffDate`, { cutoffDate })
-      .andWhere('LOWER(o.status::text) NOT IN (:...terminalStatuses)', {
-        terminalStatuses: [
-          'delivered',
-          'completed',
-          'partial_delivered',
-          'cancelled',
-          'admin_cancelled',
-          'pickup_failed',
-          'returned',
-        ],
-      })
+      .andWhere('LOWER(o.status::text) = :lateDeliveryStatus', { lateDeliveryStatus: 'pending' })
+      .andWhere(courierSubmittedCondition)
       .orderBy(ageDateExpr, 'ASC')
       .addOrderBy('o.shipped_at', 'ASC', 'NULLS LAST')
       .addOrderBy('o.order_date', 'ASC');
@@ -4709,6 +4712,9 @@ export class SalesService {
       agent_name: string | null;
       agent_last_name: string | null;
       email: string | null;
+      team_leader_id: number | null;
+      team_leader_name: string | null;
+      team_leader_last_name: string | null;
       orders: string;
       gross_sales: string;
       sent_parcels: string;
@@ -4730,6 +4736,9 @@ export class SalesService {
          u.name AS agent_name,
          u.last_name AS agent_last_name,
          u.email,
+         u.team_leader_id,
+         tl.name AS team_leader_name,
+         tl.last_name AS team_leader_last_name,
          COUNT(o.id)::text AS orders,
          COALESCE(SUM(o.total_amount), 0)::text AS gross_sales,
          COUNT(o.id)::text AS sent_parcels,
@@ -4751,12 +4760,13 @@ export class SalesService {
          END), 0)::text AS net_revenue
        FROM sales_orders o
        INNER JOIN users u ON u.id = o.created_by
+       LEFT JOIN users tl ON tl.id = u.team_leader_id
        WHERE o.created_by IS NOT NULL
          AND o.order_source IN ('admin_panel', 'agent_dashboard')
          AND DATE(o.order_date) >= $1
          AND DATE(o.order_date) <= $2
          AND ${courierSentCondition('o')}
-       GROUP BY o.created_by, u.name, u.last_name, u.email
+       GROUP BY o.created_by, u.name, u.last_name, u.email, u.team_leader_id, tl.name, tl.last_name
        ORDER BY COALESCE(SUM(o.total_amount), 0) DESC, COUNT(o.id) DESC`,
       [startDate, endDate],
     );
@@ -4987,6 +4997,8 @@ export class SalesService {
       return {
         agentId: Number(row.agent_id),
         agent: [row.agent_name, row.agent_last_name].filter(Boolean).join(' ').trim() || row.email || `Agent #${row.agent_id}`,
+        teamLeaderId: row.team_leader_id == null ? null : Number(row.team_leader_id),
+        teamLeaderName: [row.team_leader_name, row.team_leader_last_name].filter(Boolean).join(' ').trim() || null,
         ...mapDashboardRow(row, productsByAgent.get(Number(row.agent_id)) || 0),
       };
     });

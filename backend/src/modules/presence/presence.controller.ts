@@ -125,6 +125,12 @@ export class PresenceController {
     return this.presenceService.updateCalendarOverride(body, Number((req as any).user?.id));
   }
 
+  @Get('calendar/override-history')
+  @RequireAnyPermission('view-presence', 'view-presence-calendar', 'manage-presence-calendar')
+  async calendarOverrideHistory(@Query('userId') userId?: string, @Query('dateKey') dateKey?: string) {
+    return this.presenceService.getCalendarOverrideHistory(userId, dateKey);
+  }
+
   @Get('office-times')
   @RequireAnyPermission('view-presence-office-time', 'manage-presence-office-time', 'manage-presence-settings')
   async officeTimes() {

@@ -3,12 +3,17 @@ import Link from 'next/link';
 import AdminLayout from '@/layouts/AdminLayout';
 import apiClient from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
-import { FaArrowLeft, FaFileExcel, FaGripVertical, FaSave, FaSyncAlt, FaUserClock } from 'react-icons/fa';
+import { FaArrowLeft, FaFileExcel, FaGripVertical, FaSave, FaSearch, FaSyncAlt, FaUserClock } from 'react-icons/fa';
 
 type CalendarRow = {
   userId: number;
   name: string;
   email?: string | null;
+  teamLeaderId?: number | null;
+  teamLeaderName?: string | null;
+  roleId?: number | null;
+  roleName?: string | null;
+  roleSlug?: string | null;
   insertGapAfter?: boolean;
   cells: Array<{ dateKey: string; value: string; label: string; color: string; isManual?: boolean; note?: string }>;
 };
@@ -21,6 +26,34 @@ type CalendarData = {
   rowGap: { every: number; size: number };
   rows: CalendarRow[];
 };
+
+type OverrideHistoryItem = {
+  id: number;
+  action: string;
+  previousAttendanceKey?: string | null;
+  previousAttendanceLabel?: string | null;
+  previousNote?: string | null;
+  newAttendanceKey?: string | null;
+  newAttendanceLabel?: string | null;
+  newNote?: string | null;
+  updatedByName?: string | null;
+  updatedByEmail?: string | null;
+  createdAt?: string | null;
+};
+
+function formatDateTime(value?: string | null) {
+  if (!value) return '-';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return '-';
+  return d.toLocaleString('en-GB', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+  });
+}
 
 function getCurrentMonthSheetName() {
   const now = new Date();
@@ -253,9 +286,14 @@ export default function PresenceCalendarPage() {
   const [rows, setRows] = useState<CalendarRow[]>([]);
   const [dragUserId, setDragUserId] = useState<number | null>(null);
   const [editingCell, setEditingCell] = useState<{ userId: number; name: string; dateKey: string; value: string; note: string } | null>(null);
+  const [overrideHistory, setOverrideHistory] = useState<OverrideHistoryItem[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
+  const [userSearch, setUserSearch] = useState('');
+  const [teamLeaderFilter, setTeamLeaderFilter] = useState('all');
+  const [roleFilter, setRoleFilter] = useState('all');
 
   const canViewCalendar = hasPermission('view-presence') || hasPermission('view-presence-calendar') || hasPermission('manage-presence-calendar');
   const canManageCalendar = hasPermission('manage-presence-calendar') || hasPermission('manage-presence-settings');
@@ -282,10 +320,91 @@ export default function PresenceCalendarPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canViewCalendar, currentMonthSheetName]);
 
+  useEffect(() => {
+    let cancelled = false;
+    const loadHistory = async () => {
+      if (!editingCell) {
+        setOverrideHistory([]);
+        return;
+      }
+      setHistoryLoading(true);
+      try {
+        const res = await apiClient.get('/presence/calendar/override-history', {
+          params: { userId: editingCell.userId, dateKey: editingCell.dateKey },
+        });
+        if (!cancelled) setOverrideHistory(Array.isArray(res.data?.items) ? res.data.items : []);
+      } catch {
+        if (!cancelled) setOverrideHistory([]);
+      } finally {
+        if (!cancelled) setHistoryLoading(false);
+      }
+    };
+    loadHistory();
+    return () => {
+      cancelled = true;
+    };
+  }, [editingCell?.userId, editingCell?.dateKey]);
+
   const legend = useMemo(() => {
     const config = data?.keyConfig || {};
     return Object.values(config).filter((item: any) => item?.key);
   }, [data?.keyConfig]);
+
+  const teamLeaderOptions = useMemo(() => {
+    const options = new Map<string, string>();
+    rows.forEach((row) => {
+      const key = row.teamLeaderId ? String(row.teamLeaderId) : 'unassigned';
+      const label = row.teamLeaderName || 'Unassigned Team Leader';
+      options.set(key, label);
+    });
+    return Array.from(options.entries())
+      .map(([value, label]) => ({ value, label }))
+      .sort((a, b) => {
+        if (a.value === 'unassigned') return 1;
+        if (b.value === 'unassigned') return -1;
+        return a.label.localeCompare(b.label);
+      });
+  }, [rows]);
+
+  const roleOptions = useMemo(() => {
+    const options = new Map<string, string>();
+    rows.forEach((row) => {
+      const key = row.roleId ? String(row.roleId) : row.roleSlug || 'unassigned';
+      const label = row.roleName || 'Unassigned Role';
+      options.set(key, label);
+    });
+    return Array.from(options.entries())
+      .map(([value, label]) => ({ value, label }))
+      .sort((a, b) => {
+        if (a.value === 'unassigned') return 1;
+        if (b.value === 'unassigned') return -1;
+        return a.label.localeCompare(b.label);
+      });
+  }, [rows]);
+
+  const filteredRows = useMemo(() => {
+    const query = userSearch.trim().toLowerCase();
+    return rows.filter((row) => {
+      const teamKey = row.teamLeaderId ? String(row.teamLeaderId) : 'unassigned';
+      const roleKey = row.roleId ? String(row.roleId) : row.roleSlug || 'unassigned';
+      const matchesTeamLeader = teamLeaderFilter === 'all' || teamKey === teamLeaderFilter;
+      const matchesRole = roleFilter === 'all' || roleKey === roleFilter;
+      const searchable = [
+        row.name,
+        row.email,
+        row.teamLeaderName,
+        row.roleName,
+        `user ${row.userId}`,
+        String(row.userId),
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+      return matchesTeamLeader && matchesRole && (!query || searchable.includes(query));
+    });
+  }, [roleFilter, rows, teamLeaderFilter, userSearch]);
+
+  const hasActiveFilters = Boolean(userSearch.trim()) || teamLeaderFilter !== 'all' || roleFilter !== 'all';
 
   const moveRow = (targetUserId: number) => {
     if (!canManageCalendar || dragUserId == null || dragUserId === targetUserId) return;
@@ -315,11 +434,11 @@ export default function PresenceCalendarPage() {
   };
 
   const exportXlsx = () => {
-    if (!data || rows.length === 0) {
+    if (!data || filteredRows.length === 0) {
       setMessage('No calendar data is available to export.');
       return;
     }
-    const blob = createCalendarWorkbook(data, rows);
+    const blob = createCalendarWorkbook(data, filteredRows);
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
@@ -379,7 +498,7 @@ export default function PresenceCalendarPage() {
             </button>
             <button
               onClick={exportXlsx}
-              disabled={!data || rows.length === 0}
+              disabled={!data || filteredRows.length === 0}
               className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 disabled:opacity-60"
             >
               <FaFileExcel />
@@ -414,7 +533,7 @@ export default function PresenceCalendarPage() {
           <div>
             <div className="text-sm font-semibold text-gray-900">{data?.sheetName || currentMonthSheetName}</div>
             <div className="text-sm text-gray-500">
-              Timezone: {data?.timezone || '-'} | Users: {rows.length} | Gap every {data?.rowGap?.every || 0} rows
+              Timezone: {data?.timezone || '-'} | Users: {filteredRows.length}{hasActiveFilters ? ` of ${rows.length}` : ''} | Gap every {data?.rowGap?.every || 0} rows
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -425,6 +544,65 @@ export default function PresenceCalendarPage() {
               </span>
             ))}
           </div>
+        </div>
+
+        <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-4 gap-3">
+            <label className="block xl:col-span-2">
+              <span className="block text-xs font-semibold uppercase text-gray-500 mb-1">User Search</span>
+              <div className="relative">
+                <FaSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm" />
+                <input
+                  value={userSearch}
+                  onChange={(event) => setUserSearch(event.target.value)}
+                  placeholder="Search by name, email, user ID..."
+                  className="w-full rounded-lg border border-gray-300 pl-9 pr-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                />
+              </div>
+            </label>
+            <label className="block">
+              <span className="block text-xs font-semibold uppercase text-gray-500 mb-1">Team Leader</span>
+              <select
+                value={teamLeaderFilter}
+                onChange={(event) => setTeamLeaderFilter(event.target.value)}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+              >
+                <option value="all">All Team Leaders</option>
+                {teamLeaderOptions.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+            </label>
+            <label className="block">
+              <span className="block text-xs font-semibold uppercase text-gray-500 mb-1">Role</span>
+              <select
+                value={roleFilter}
+                onChange={(event) => setRoleFilter(event.target.value)}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+              >
+                <option value="all">All Roles</option>
+                {roleOptions.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+            </label>
+          </div>
+          {hasActiveFilters && (
+            <div className="mt-3 flex items-center justify-between gap-3 rounded-lg bg-blue-50 px-3 py-2 text-sm text-blue-800">
+              <span>Showing {filteredRows.length} of {rows.length} users.</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setUserSearch('');
+                  setTeamLeaderFilter('all');
+                  setRoleFilter('all');
+                }}
+                className="font-semibold text-blue-700 hover:text-blue-900"
+              >
+                Clear filters
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
@@ -444,7 +622,7 @@ export default function PresenceCalendarPage() {
                 </tr>
               </thead>
               <tbody>
-                {rows.map((row) => (
+                {filteredRows.map((row) => (
                   <Fragment key={row.userId}>
                     <tr
                       key={row.userId}
@@ -486,17 +664,17 @@ export default function PresenceCalendarPage() {
                         </td>
                       ))}
                     </tr>
-                    {row.insertGapAfter && (
+                    {row.insertGapAfter && !hasActiveFilters && (
                       <tr key={`${row.userId}-gap`}>
                         <td colSpan={(data?.days?.length || 0) + 1} style={{ height: data?.rowGap?.size || 12 }} className="bg-gray-100 border-b border-gray-200" />
                       </tr>
                     )}
                   </Fragment>
                 ))}
-                {!loading && rows.length === 0 && (
+                {!loading && filteredRows.length === 0 && (
                   <tr>
                     <td colSpan={(data?.days?.length || 0) + 1 || 2} className="px-4 py-10 text-center text-gray-500">
-                      No calendar data found.
+                      {hasActiveFilters ? 'No users match the current filters.' : 'No calendar data found.'}
                     </td>
                   </tr>
                 )}
@@ -507,12 +685,12 @@ export default function PresenceCalendarPage() {
 
         {editingCell && (
           <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
-            <div className="bg-white rounded-lg shadow-xl border border-gray-200 w-full max-w-md">
+            <div className="bg-white rounded-lg shadow-xl border border-gray-200 w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
               <div className="p-4 border-b border-gray-200">
                 <h2 className="text-lg font-bold text-gray-900">Edit Calendar Cell</h2>
                 <p className="text-sm text-gray-500">{editingCell.name} | {editingCell.dateKey}</p>
               </div>
-              <div className="p-4 space-y-4">
+              <div className="p-4 space-y-4 overflow-y-auto">
                 <label className="block">
                   <span className="block text-sm font-semibold text-gray-700 mb-1">Attendance Key</span>
                   <select
@@ -536,6 +714,47 @@ export default function PresenceCalendarPage() {
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 min-h-[90px]"
                   />
                 </label>
+
+                <div className="border-t border-gray-100 pt-4">
+                  <div className="flex items-center justify-between gap-3 mb-3">
+                    <h3 className="text-sm font-bold text-gray-900">Verdict Update History</h3>
+                    {historyLoading && <span className="text-xs text-gray-500">Loading...</span>}
+                  </div>
+                  <div className="space-y-3">
+                    {!historyLoading && overrideHistory.length === 0 && (
+                      <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-4 text-sm text-gray-500">
+                        No manual verdict changes have been recorded for this date.
+                      </div>
+                    )}
+                    {overrideHistory.map((item) => (
+                      <div key={item.id} className="rounded-lg border border-gray-200 p-3">
+                        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+                          <div>
+                            <div className="text-sm font-semibold text-gray-900 capitalize">{item.action}</div>
+                            <div className="text-xs text-gray-500">
+                              By {item.updatedByName || item.updatedByEmail || 'Unknown user'} on {formatDateTime(item.createdAt)}
+                            </div>
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            {item.previousAttendanceKey || '-'} {'->'} {item.newAttendanceKey || 'Automatic'}
+                          </div>
+                        </div>
+                        <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                          <div className="rounded border border-gray-100 bg-gray-50 p-2">
+                            <div className="font-semibold text-gray-600">Previous</div>
+                            <div className="mt-1 text-gray-900">{item.previousAttendanceKey || '-'} {item.previousAttendanceLabel ? `- ${item.previousAttendanceLabel}` : ''}</div>
+                            {item.previousNote && <div className="mt-1 text-gray-500 whitespace-pre-wrap">{item.previousNote}</div>}
+                          </div>
+                          <div className="rounded border border-gray-100 bg-green-50 p-2">
+                            <div className="font-semibold text-gray-600">New</div>
+                            <div className="mt-1 text-gray-900">{item.newAttendanceKey || 'Automatic'} {item.newAttendanceLabel ? `- ${item.newAttendanceLabel}` : ''}</div>
+                            {item.newNote && <div className="mt-1 text-gray-500 whitespace-pre-wrap">{item.newNote}</div>}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
               <div className="p-4 border-t border-gray-200 flex justify-end gap-3">
                 <button onClick={() => setEditingCell(null)} className="px-4 py-2 rounded-lg border border-gray-300 text-sm font-semibold text-gray-700 hover:bg-gray-50">

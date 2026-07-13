@@ -79,6 +79,7 @@ import { UserPresenceEvent } from './modules/presence/entities/user-presence-eve
 import { PresenceSettings } from './modules/presence/entities/presence-settings.entity';
 import { UserOfficeTime } from './modules/presence/entities/user-office-time.entity';
 import { PresenceCalendarOverride } from './modules/presence/entities/presence-calendar-override.entity';
+import { PresenceCalendarOverrideHistory } from './modules/presence/entities/presence-calendar-override-history.entity';
 import { PresenceTelegramNotification } from './modules/presence/entities/presence-telegram-notification.entity';
 
 // CRM Entities
@@ -293,6 +294,7 @@ import { GrnItem } from './modules/purchase/entities/grn-item.entity';
             PresenceSettings,
             UserOfficeTime,
             PresenceCalendarOverride,
+            PresenceCalendarOverrideHistory,
             PresenceTelegramNotification,
 
             // Tagging entities

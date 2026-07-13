@@ -1,10 +1,10 @@
-import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
+import { Fragment, type ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
 import AdminLayout from '@/layouts/AdminLayout';
 import AdminDateInput from '@/components/admin/AdminDateInput';
 import apiClient from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { getDhakaDateString } from '@/utils/dhakaDate';
-import { FaChartBar, FaDownload, FaMoneyBillWave, FaRedo, FaSyncAlt, FaTruck, FaUndo, FaUserTie } from 'react-icons/fa';
+import { FaChartBar, FaChevronDown, FaChevronRight, FaDownload, FaMoneyBillWave, FaRedo, FaSyncAlt, FaTruck, FaUndo, FaUserTie } from 'react-icons/fa';
 
 type PerformanceRow = {
   orders: number;
@@ -34,6 +34,8 @@ type PerformanceRow = {
 type DashboardRow = PerformanceRow & {
   agentId: number;
   agent: string;
+  teamLeaderId?: number | null;
+  teamLeaderName?: string | null;
 };
 
 type SourceDashboardRow = PerformanceRow & {
@@ -49,6 +51,14 @@ type DashboardData = {
   totals: PerformanceRow;
   sourceRows: SourceDashboardRow[];
   sourceTotals: PerformanceRow;
+};
+
+type PerformanceGroup<T extends PerformanceRow> = {
+  key: string;
+  label: string;
+  badge: string;
+  rows: T[];
+  totals: PerformanceRow;
 };
 
 const fmt = (value: number) => new Intl.NumberFormat('en-BD').format(Math.round(Number(value) || 0));
@@ -72,6 +82,59 @@ function ratioClass(value: number, goodHigh = true) {
   return 'bg-red-50 text-red-700';
 }
 
+function sumPerformanceRows(rows: PerformanceRow[]): PerformanceRow {
+  const totals = rows.reduce<PerformanceRow>((acc, row) => {
+    acc.orders += row.orders;
+    acc.products += row.products;
+    acc.grossSales += row.grossSales;
+    acc.sentParcels += row.sentParcels;
+    acc.courierParcelAmount += row.courierParcelAmount;
+    acc.delivered += row.delivered;
+    acc.deliveredGross += row.deliveredGross;
+    acc.cancel += row.cancel;
+    acc.cancelledGross += row.cancelledGross;
+    acc.reject += row.reject;
+    acc.return += row.return;
+    acc.returnAmount += row.returnAmount;
+    acc.partialDelivered += row.partialDelivered;
+    acc.partialCollectedAmount += row.partialCollectedAmount;
+    acc.partialReturnAmount += row.partialReturnAmount;
+    acc.crossSellOrders += row.crossSellOrders;
+    acc.crossSellAmount += row.crossSellAmount;
+    acc.netRevenue += row.netRevenue;
+    return acc;
+  }, {
+    orders: 0,
+    products: 0,
+    grossSales: 0,
+    sentParcels: 0,
+    courierParcelAmount: 0,
+    delivered: 0,
+    deliveredGross: 0,
+    deliveryPercent: 0,
+    cancel: 0,
+    cancelledGross: 0,
+    cancelPercent: 0,
+    reject: 0,
+    rejectPercent: 0,
+    return: 0,
+    returnAmount: 0,
+    partialDelivered: 0,
+    partialCollectedAmount: 0,
+    partialReturnAmount: 0,
+    crossSellOrders: 0,
+    crossSellPercent: 0,
+    crossSellAmount: 0,
+    netRevenue: 0,
+  });
+
+  totals.deliveryPercent = totals.orders ? Number(((totals.delivered / totals.orders) * 100).toFixed(1)) : 0;
+  totals.cancelPercent = totals.orders ? Number(((totals.cancel / totals.orders) * 100).toFixed(1)) : 0;
+  totals.rejectPercent = totals.orders ? Number(((totals.reject / totals.orders) * 100).toFixed(1)) : 0;
+  totals.crossSellPercent = totals.delivered ? Number(((totals.crossSellOrders / totals.delivered) * 100).toFixed(1)) : 0;
+  return totals;
+}
+
 export default function ReportsDashboardPage() {
   const { hasPermission, isLoading: authLoading } = useAuth();
   const canViewReportsDashboard = hasPermission('view-reports-dashboard');
@@ -80,6 +143,7 @@ export default function ReportsDashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [collapsedTeams, setCollapsedTeams] = useState<Set<string>>(new Set());
 
   const loadDashboard = useCallback(async () => {
     if (!canViewReportsDashboard) return;
@@ -106,6 +170,41 @@ export default function ReportsDashboardPage() {
   const totals = data?.totals;
   const sourceRows = data?.sourceRows || [];
   const sourceTotals = data?.sourceTotals;
+
+  const agentGroups = useMemo<PerformanceGroup<DashboardRow>[]>(() => {
+    const groups = new Map<string, { key: string; label: string; rows: DashboardRow[] }>();
+    for (const row of rows) {
+      const teamLeaderId = row.teamLeaderId ?? null;
+      const key = teamLeaderId ? `tl-${teamLeaderId}` : 'unassigned';
+      if (!groups.has(key)) {
+        groups.set(key, {
+          key,
+          label: row.teamLeaderName || 'Unassigned Team Leader',
+          rows: [],
+        });
+      }
+      groups.get(key)!.rows.push(row);
+    }
+    return Array.from(groups.values())
+      .map((group) => ({
+        ...group,
+        badge: `${group.rows.length} agent${group.rows.length === 1 ? '' : 's'}`,
+        totals: sumPerformanceRows(group.rows),
+      }))
+      .sort((a, b) => {
+        if (a.key === 'unassigned') return 1;
+        if (b.key === 'unassigned') return -1;
+        return b.totals.orders - a.totals.orders || b.totals.netRevenue - a.totals.netRevenue || a.label.localeCompare(b.label);
+      });
+  }, [rows]);
+
+  const toggleTeamCollapse = (key: string) => {
+    setCollapsedTeams((previous) => {
+      const next = new Set(previous);
+      next.has(key) ? next.delete(key) : next.add(key);
+      return next;
+    });
+  };
 
   const topNetRevenue = useMemo(() => {
     return [...rows, ...sourceRows].sort((a, b) => b.netRevenue - a.netRevenue)[0];
@@ -255,6 +354,9 @@ export default function ReportsDashboardPage() {
           loading={loading}
           getKey={(row) => String(row.agentId)}
           getLabel={(row) => row.agent}
+          groups={agentGroups}
+          collapsedGroups={collapsedTeams}
+          onToggleGroup={toggleTeamCollapse}
           emptyText="No agent performance data found for this date range."
         />
 
@@ -296,6 +398,9 @@ function PerformanceTable<T extends PerformanceRow>({
   getKey,
   getLabel,
   getBadge,
+  groups,
+  collapsedGroups,
+  onToggleGroup,
   showCrossSellMetrics = false,
   emptyText,
 }: {
@@ -308,6 +413,9 @@ function PerformanceTable<T extends PerformanceRow>({
   getKey: (row: T) => string;
   getLabel: (row: T) => string;
   getBadge?: (row: T) => string | undefined;
+  groups?: PerformanceGroup<T>[];
+  collapsedGroups?: Set<string>;
+  onToggleGroup?: (key: string) => void;
   showCrossSellMetrics?: boolean;
   emptyText: string;
 }) {
@@ -326,6 +434,40 @@ function PerformanceTable<T extends PerformanceRow>({
     'Partial Collected',
     'Net Revenue',
   ];
+  const hasGroups = !!groups?.length;
+
+  const renderMetricCells = (row: PerformanceRow, options: { group?: boolean } = {}) => (
+    <>
+      <NumberCell value={row.orders} className={options.group ? 'text-indigo-900' : undefined} />
+      <NumberCell value={row.products} />
+      {showCrossSellMetrics && <PercentCell value={row.crossSellPercent} />}
+      {showCrossSellMetrics && <MoneyCell value={row.crossSellAmount} />}
+      <MoneyCell value={row.grossSales} strong />
+      <MoneyCell value={row.courierParcelAmount} />
+      <NumberCell value={row.delivered} tone="emerald" />
+      <MoneyCell value={row.deliveredGross} />
+      <NumberCell value={row.cancel + row.return} tone="red" />
+      <MoneyCell value={row.cancelledGross + row.returnAmount} />
+      <NumberCell value={row.partialDelivered} tone="orange" />
+      <MoneyCell value={row.partialCollectedAmount} />
+      <MoneyCell value={row.netRevenue} strong tone="emerald" />
+    </>
+  );
+
+  const renderDataRow = (row: T, index: number, nested = false) => {
+    const badge = getBadge?.(row);
+    const baseBg = index % 2 === 0 ? 'bg-white' : 'bg-gray-50/60';
+    const stickyBg = index % 2 === 0 ? 'bg-white' : 'bg-gray-50';
+    return (
+      <tr key={getKey(row)} className={`${baseBg} hover:bg-indigo-50/40`}>
+        <td className={`sticky left-0 z-10 px-3 py-3 font-semibold text-gray-900 ${stickyBg}`}>
+          <div className={nested ? 'pl-6' : undefined}>{getLabel(row)}</div>
+          {badge && <span className="mt-1 inline-flex rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] font-semibold text-indigo-700">{badge}</span>}
+        </td>
+        {renderMetricCells(row)}
+      </tr>
+    );
+  };
 
   return (
     <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
@@ -353,30 +495,32 @@ function PerformanceTable<T extends PerformanceRow>({
                 <td colSpan={headers.length} className="px-4 py-12 text-center text-gray-400">{emptyText}</td>
               </tr>
             )}
-            {rows.map((row, index) => {
-              const badge = getBadge?.(row);
-              return (
-                <tr key={getKey(row)} className={`${index % 2 === 0 ? 'bg-white' : 'bg-gray-50/60'} hover:bg-indigo-50/40`}>
-                  <td className={`sticky left-0 z-10 px-3 py-3 font-semibold text-gray-900 ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
-                    <div>{getLabel(row)}</div>
-                    {badge && <span className="mt-1 inline-flex rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] font-semibold text-indigo-700">{badge}</span>}
-                  </td>
-                  <NumberCell value={row.orders} />
-                  <NumberCell value={row.products} />
-                  {showCrossSellMetrics && <PercentCell value={row.crossSellPercent} />}
-                  {showCrossSellMetrics && <MoneyCell value={row.crossSellAmount} />}
-                  <MoneyCell value={row.grossSales} strong />
-                  <MoneyCell value={row.courierParcelAmount} />
-                  <NumberCell value={row.delivered} tone="emerald" />
-                  <MoneyCell value={row.deliveredGross} />
-                  <NumberCell value={row.cancel + row.return} tone="red" />
-                  <MoneyCell value={row.cancelledGross + row.returnAmount} />
-                  <NumberCell value={row.partialDelivered} tone="orange" />
-                  <MoneyCell value={row.partialCollectedAmount} />
-                  <MoneyCell value={row.netRevenue} strong tone="emerald" />
-                </tr>
-              );
-            })}
+            {hasGroups
+              ? groups!.map((group) => {
+                const isCollapsed = collapsedGroups?.has(group.key) || false;
+                return (
+                  <Fragment key={group.key}>
+                    <tr className="border-y border-indigo-100 bg-indigo-50/90">
+                      <td className="sticky left-0 z-20 bg-indigo-50 px-3 py-3 font-semibold text-indigo-900">
+                        <button
+                          type="button"
+                          onClick={() => onToggleGroup?.(group.key)}
+                          className="flex items-center gap-2 text-left hover:text-indigo-950"
+                        >
+                          {isCollapsed ? <FaChevronRight className="text-xs" /> : <FaChevronDown className="text-xs" />}
+                          <span>{group.label}</span>
+                          <span className="rounded-full border border-indigo-100 bg-white px-2 py-0.5 text-[11px] font-medium text-indigo-600">
+                            {group.badge}
+                          </span>
+                        </button>
+                      </td>
+                      {renderMetricCells(group.totals, { group: true })}
+                    </tr>
+                    {!isCollapsed && group.rows.map((row, index) => renderDataRow(row, index, true))}
+                  </Fragment>
+                );
+              })
+              : rows.map((row, index) => renderDataRow(row, index))}
           </tbody>
           {totals && rows.length > 0 && (
             <tfoot className="bg-slate-900 text-white">
@@ -404,9 +548,9 @@ function PerformanceTable<T extends PerformanceRow>({
   );
 }
 
-function NumberCell({ value, tone }: { value: number; tone?: 'emerald' | 'red' | 'rose' | 'orange' | 'blue' }) {
+function NumberCell({ value, tone, className = '' }: { value: number; tone?: 'emerald' | 'red' | 'rose' | 'orange' | 'blue'; className?: string }) {
   const toneClass = tone === 'emerald' ? 'text-emerald-700' : tone === 'red' ? 'text-red-700' : tone === 'rose' ? 'text-rose-700' : tone === 'orange' ? 'text-orange-700' : tone === 'blue' ? 'text-blue-700' : 'text-gray-800';
-  return <td className={`px-3 py-3 text-right font-semibold tabular-nums ${toneClass}`}>{fmt(value)}</td>;
+  return <td className={`px-3 py-3 text-right font-semibold tabular-nums ${toneClass} ${className}`}>{fmt(value)}</td>;
 }
 
 function MoneyCell({ value, strong = false, tone }: { value: number; strong?: boolean; tone?: 'emerald' }) {
