@@ -669,6 +669,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [recentAlerts, setRecentAlerts] = useState<any[]>([]);
   const [presenceState, setPresenceState] = useState<'online' | 'offline'>('offline');
   const [presenceLoading, setPresenceLoading] = useState(false);
+  const [presenceError, setPresenceError] = useState('');
   const [telephonyAssignmentCounts, setTelephonyAssignmentCounts] = useState<Record<string, number>>({});
   const alertRef = useRef<HTMLDivElement>(null);
   const presenceStateRef = useRef<'online' | 'offline'>('offline');
@@ -763,6 +764,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   const togglePresence = useCallback(async () => {
     const next = presenceState === 'online' ? 'offline' : 'online';
+    setPresenceError('');
     presenceStateRef.current = next;
     setPresenceState(next);
     setPresenceLoading(true);
@@ -771,9 +773,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       const saved = res.data?.state === 'online' ? 'online' : 'offline';
       presenceStateRef.current = saved;
       setPresenceState(saved);
-    } catch {
+    } catch (err: any) {
       presenceStateRef.current = presenceState;
       setPresenceState(presenceState);
+      setPresenceError(err?.response?.data?.message || 'Failed to update check-in status.');
     } finally {
       setPresenceLoading(false);
     }
@@ -931,6 +934,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               </div>
               {/* CRM Notifications Bell */}
               <CrmNotifications />
+              {presenceError && (
+                <span className="hidden xl:inline text-xs font-semibold text-red-600 max-w-[260px] truncate" title={presenceError}>
+                  {presenceError}
+                </span>
+              )}
               <button
                 onClick={togglePresence}
                 disabled={presenceLoading}

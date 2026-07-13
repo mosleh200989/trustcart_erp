@@ -1,6 +1,7 @@
-import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
+import { isIP } from 'net';
 import axios from 'axios';
 import jwt from 'jsonwebtoken';
 import * as fs from 'fs';
@@ -39,6 +40,33 @@ function cleanAttendanceLabel(value: any, fallback: string): string {
 function cleanColor(value: any, fallback: string): string {
   const next = String(value ?? fallback).trim();
   return /^#[0-9a-fA-F]{6}$/.test(next) ? next : fallback;
+}
+
+function normalizeIpAddress(value: any): string {
+  let next = String(value || '').trim();
+  if (!next) return '';
+  if (next.startsWith('::ffff:')) next = next.slice(7);
+  const bracketMatch = next.match(/^\[([^\]]+)\](?::\d+)?$/);
+  if (bracketMatch) next = bracketMatch[1];
+  const ipv4PortMatch = next.match(/^(\d{1,3}(?:\.\d{1,3}){3}):\d+$/);
+  if (ipv4PortMatch) next = ipv4PortMatch[1];
+  return next.toLowerCase();
+}
+
+function parseAllowedCheckInIps(value: any): string[] {
+  return String(value || '')
+    .split(/[\s,;]+/)
+    .map(normalizeIpAddress)
+    .filter(Boolean);
+}
+
+function cleanAllowedCheckInIps(value: any): string | null {
+  const ips = Array.from(new Set(parseAllowedCheckInIps(value)));
+  const invalid = ips.filter((ip) => isIP(ip) === 0);
+  if (invalid.length > 0) {
+    throw new BadRequestException(`Invalid check-in IP address${invalid.length > 1 ? 'es' : ''}: ${invalid.join(', ')}`);
+  }
+  return ips.join('\n') || null;
 }
 
 const PRESENCE_STALE_TIMEOUT_MS = 10 * 60 * 1000;
@@ -297,6 +325,7 @@ export class PresenceService {
       officeStartTime: '09:00',
       officeEndTime: '18:00',
       timezone: 'Asia/Dhaka',
+      allowedCheckInIps: null,
       attendanceKey: '1HS4-6TSSmYRj-D6_ntJ9OyQITNfVyJRMZUN-d-ZN6C8',
       attendancePresentKey: 'P',
       attendancePresentLabel: 'Present',
@@ -340,6 +369,7 @@ export class PresenceService {
     settings.officeStartTime = String(nextOfficeStart);
     settings.officeEndTime = String(nextOfficeEnd);
     settings.timezone = String(input.timezone ?? settings.timezone ?? 'Asia/Dhaka');
+    settings.allowedCheckInIps = cleanAllowedCheckInIps((input as any).allowedCheckInIps ?? settings.allowedCheckInIps ?? '');
     settings.attendanceKey = input.attendanceKey == null ? settings.attendanceKey : String(input.attendanceKey || '').trim() || null;
     settings.attendancePresentKey = cleanAttendanceKey(input.attendancePresentKey, settings.attendancePresentKey || 'P');
     settings.attendancePresentLabel = cleanAttendanceLabel(input.attendancePresentLabel, settings.attendancePresentLabel || 'Present');
@@ -376,6 +406,17 @@ export class PresenceService {
     settings.settingsSheetName = String(input.settingsSheetName ?? settings.settingsSheetName ?? 'Attendance key').trim() || 'Attendance key';
 
     return this.settingsRepo.save(settings);
+  }
+
+  async assertCheckInIpAllowed(clientIpRaw: any) {
+    const settings = await this.getSettings();
+    const allowedIps = parseAllowedCheckInIps(settings.allowedCheckInIps);
+    if (allowedIps.length === 0) return;
+
+    const clientIp = normalizeIpAddress(clientIpRaw);
+    if (clientIp && allowedIps.includes(clientIp)) return;
+
+    throw new ForbiddenException('Check in is allowed only from permitted office IP addresses.');
   }
 
   async getDashboard(params?: { from?: string; to?: string; rangeDays?: number; userId?: number }) {

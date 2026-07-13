@@ -14,6 +14,9 @@ export class PresenceSettings {
   @Column({ name: 'timezone', type: 'varchar', length: 80, default: 'Asia/Dhaka' })
   timezone!: string;
 
+  @Column({ name: 'allowed_check_in_ips', type: 'text', nullable: true })
+  allowedCheckInIps!: string | null;
+
   @Column({ name: 'attendance_key', type: 'varchar', length: 255, nullable: true })
   attendanceKey!: string | null;
 
