@@ -267,6 +267,8 @@ export default function AgentMonthlyReportPage() {
         partialDelivered: page.partialDelivered,
         rejected: page.rejected,
         cancelled: page.cancelled,
+        crossSellOrders: page.crossSellOrders || 0,
+        crossSellPercent: page.crossSellPercent || 0,
       }))
       : [{
         key: 'landingPage',

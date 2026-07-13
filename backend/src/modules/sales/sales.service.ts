@@ -5471,6 +5471,23 @@ export class SalesService {
               OR LOWER(COALESCE(oi.custom_product_name, '')) = LOWER(COALESCE(lp.cross_sell_product->>'name', ''))
             )
           )
+          OR (
+            o.order_source = 'landing_page'
+            AND lp.products IS NOT NULL
+            AND jsonb_typeof(lp.products) = 'array'
+            AND jsonb_array_length(lp.products) > 0
+            AND NOT EXISTS (
+              SELECT 1
+              FROM jsonb_array_elements(lp.products) linked_product
+              WHERE (
+                ((linked_product->>'product_id') ~ '^[0-9]+$' AND oi.product_id = (linked_product->>'product_id')::int)
+                OR ((linked_product->>'productId') ~ '^[0-9]+$' AND oi.product_id = (linked_product->>'productId')::int)
+                OR ((linked_product->>'id') ~ '^[0-9]+$' AND oi.product_id = (linked_product->>'id')::int)
+                OR LOWER(COALESCE(oi.product_name, '')) = LOWER(COALESCE(linked_product->>'name', ''))
+                OR LOWER(COALESCE(oi.custom_product_name, '')) = LOWER(COALESCE(linked_product->>'name', ''))
+              )
+            )
+          )
         )
       UNION ALL
       SELECT o.order_source, COALESCE(NULLIF(o.utm_source, ''), 'unknown') AS slug, o.id AS order_id
@@ -5490,6 +5507,31 @@ export class SalesService {
           OR ((lp.cross_sell_product->>'id') ~ '^[0-9]+$' AND soi.product_id = (lp.cross_sell_product->>'id')::int)
           OR LOWER(COALESCE(soi.product_name, '')) = LOWER(COALESCE(lp.cross_sell_product->>'name', ''))
           OR LOWER(COALESCE(soi.custom_product_name, '')) = LOWER(COALESCE(lp.cross_sell_product->>'name', ''))
+        )
+      UNION ALL
+      SELECT o.order_source, COALESCE(NULLIF(o.utm_source, ''), 'unknown') AS slug, o.id AS order_id
+      FROM sales_order_items soi
+      INNER JOIN sales_orders o ON o.id = soi.sales_order_id
+      INNER JOIN landing_pages lp ON lp.slug = o.utm_source
+      WHERE o.order_source = 'landing_page'
+        AND DATE(o.order_date) BETWEEN $1 AND $2
+        AND ${courierSentCondition('o')}
+        AND lp.products IS NOT NULL
+        AND jsonb_typeof(lp.products) = 'array'
+        AND jsonb_array_length(lp.products) > 0
+        AND NOT EXISTS (
+          SELECT 1 FROM order_items oi_existing WHERE oi_existing.order_id = o.id
+        )
+        AND NOT EXISTS (
+          SELECT 1
+          FROM jsonb_array_elements(lp.products) linked_product
+          WHERE (
+            ((linked_product->>'product_id') ~ '^[0-9]+$' AND soi.product_id = (linked_product->>'product_id')::int)
+            OR ((linked_product->>'productId') ~ '^[0-9]+$' AND soi.product_id = (linked_product->>'productId')::int)
+            OR ((linked_product->>'id') ~ '^[0-9]+$' AND soi.product_id = (linked_product->>'id')::int)
+            OR LOWER(COALESCE(soi.product_name, '')) = LOWER(COALESCE(linked_product->>'name', ''))
+            OR LOWER(COALESCE(soi.custom_product_name, '')) = LOWER(COALESCE(linked_product->>'name', ''))
+          )
         )
     `;
 
