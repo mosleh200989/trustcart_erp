@@ -181,6 +181,7 @@ export default function AdminSales() {
   const [showBulkRejectModal, setShowBulkRejectModal] = useState(false);
   const [bulkRejectReason, setBulkRejectReason] = useState('');
   const [bulkRejecting, setBulkRejecting] = useState(false);
+  const [bulkSendingPathao, setBulkSendingPathao] = useState(false);
   const [itemsPerPage, setItemsPerPage] = useState(50);
 
   // Print & Pack state
@@ -714,6 +715,8 @@ export default function AdminSales() {
   };
 
   const bulkSendToPathao = async () => {
+    if (bulkSendingPathao) return;
+
     const ids = selectedRowIds
       .map((id) => Number(id))
       .filter((id) => Number.isFinite(id));
@@ -725,29 +728,43 @@ export default function AdminSales() {
 
     if (!confirm(`Send ${ids.length} selected order(s) to Pathao? City/zone will be auto-detected from shipping address. Orders that can't be matched will need manual sending from Order Details.`)) return;
 
+    setBulkSendingPathao(true);
+    toast.info(`Sending ${ids.length} order(s) to Pathao...`, 5000);
+
     let successCount = 0;
     let failedCount = 0;
     const failedMessages: string[] = [];
 
-    for (const id of ids) {
-      try {
-        await apiClient.post(`/order-management/${id}/pathao/send`, {});
-        successCount++;
-      } catch (e: any) {
-        failedCount++;
-        const msg = e.response?.data?.message || 'Unknown error';
-        failedMessages.push(`#${id}: ${msg}`);
+    try {
+      for (const id of ids) {
+        try {
+          await apiClient.post(`/order-management/${id}/pathao/send`, {}, { timeout: 90000 });
+          successCount++;
+        } catch (e: any) {
+          failedCount++;
+          const serverMessage = e?.response?.data?.message;
+          const message = Array.isArray(serverMessage)
+            ? serverMessage.join(', ')
+            : serverMessage || e?.message || 'Unknown error';
+          failedMessages.push(`#${id}: ${message}`);
+        }
       }
-    }
 
-    if (failedCount === 0) {
-      toast.success(`Sent ${successCount} order(s) to Pathao.`);
-    } else {
-      toast.warning(`Sent ${successCount}, Failed ${failedCount}. ${failedMessages.slice(0, 3).join('; ')}`);
-    }
+      if (failedCount === 0) {
+        toast.success(`Sent ${successCount} order(s) to Pathao.`);
+      } else if (successCount === 0) {
+        toast.error(`Pathao send failed for all ${failedCount} order(s). ${failedMessages.slice(0, 3).join('; ')}`, 12000);
+      } else {
+        toast.warning(`Sent ${successCount}, failed ${failedCount}. ${failedMessages.slice(0, 3).join('; ')}`, 12000);
+      }
 
-    setSelectedRowIds([]);
-    await loadOrders();
+      setSelectedRowIds([]);
+      await loadOrders();
+    } catch (e: any) {
+      toast.error(e?.response?.data?.message || e?.message || 'Failed to send selected orders to Pathao', 12000);
+    } finally {
+      setBulkSendingPathao(false);
+    }
   };
 
   const selectedOrders = useMemo(() => {
@@ -1425,10 +1442,10 @@ export default function AdminSales() {
             <button
               type="button"
               onClick={bulkSendToPathao}
-              disabled={selectedRowIds.length === 0}
+              disabled={selectedRowIds.length === 0 || bulkSendingPathao}
               className="px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-blue-500 to-blue-600 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:from-blue-600 hover:to-blue-700 transition-all"
             >
-              Send to Pathao
+              {bulkSendingPathao ? 'Sending to Pathao...' : 'Send to Pathao'}
             </button>
 
             {hasPermission('sync-steadfast') && (
