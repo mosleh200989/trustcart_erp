@@ -2545,12 +2545,14 @@ export class OrderManagementService {
   private pathaoAccessToken: string | null = null;
   private pathaoTokenExpiresAt: number = 0;
 
-  // In-memory cache for Pathao city/zone lists (5 min TTL)
+  // In-memory cache for Pathao store/city/zone lists (5 min TTL)
+  private pathaoStoreCache: { data: any[]; expiresAt: number } = { data: [], expiresAt: 0 };
   private pathaoCityCache: { data: any[]; expiresAt: number } = { data: [], expiresAt: 0 };
   private pathaoZoneCache: Map<number, { data: any[]; expiresAt: number }> = new Map();
   private readonly pathaoSyncMaxPerRun = this.readPositiveIntegerEnv('PATHAO_SYNC_MAX_PER_RUN', 50, 1, 500);
   private readonly pathaoSyncDelayMs = this.readPositiveIntegerEnv('PATHAO_SYNC_REQUEST_DELAY_MS', 1100, 0, 60000);
   private readonly pathaoSyncMaxRetries = this.readPositiveIntegerEnv('PATHAO_SYNC_MAX_RETRIES', 2, 0, 5);
+  private readonly pathaoSendMaxRetries = this.readPositiveIntegerEnv('PATHAO_SEND_MAX_RETRIES', 1, 0, 3);
 
   private readPositiveIntegerEnv(key: string, fallback: number, min: number, max: number) {
     const value = Number(process.env[key]);
@@ -2671,12 +2673,17 @@ export class OrderManagementService {
    * Get Pathao store list for the merchant account.
    */
   async getPathaoStores(): Promise<any> {
+    if (this.pathaoStoreCache.data.length > 0 && Date.now() < this.pathaoStoreCache.expiresAt) {
+      return this.pathaoStoreCache.data;
+    }
     const headers = await this.getPathaoHeaders();
     const res = await axios.get(`${this.pathaoBaseUrl}/aladdin/api/v1/stores`, {
       headers,
       timeout: 20000,
     });
-    return res.data?.data?.data || res.data?.data || [];
+    const data = res.data?.data?.data || res.data?.data || [];
+    this.pathaoStoreCache = { data, expiresAt: Date.now() + 5 * 60 * 1000 };
+    return data;
   }
 
   /**
@@ -2780,7 +2787,7 @@ export class OrderManagementService {
    * Smart match a Pathao city from address text.
    * Strategy 1: Direct substring match of city name in address.
    * Strategy 2: Well-known area/zone keywords that map to a known city.
-   * Strategy 3: Reverse lookup — scan zones of major cities and infer city from a zone match.
+   * If there is no confident match, leave city/zone blank so Pathao resolves from address.
    */
   private async resolvePathaoCityFromAddress(address: string): Promise<{ city_id: number; city_name: string } | null> {
     const cities = await this.getPathaoCities();
@@ -2899,18 +2906,9 @@ export class OrderManagementService {
       }
     }
 
-    // Strategy 3: Reverse zone lookup — try zones of each city and infer city from zone match
-    try {
-      for (const c of cities) {
-        const zoneMatch = await this.resolvePathaoZoneFromAddress(c.city_id, enrichedAddr);
-        if (zoneMatch) {
-          return { city_id: c.city_id, city_name: c.city_name };
-        }
-      }
-    } catch {
-      // If zone API calls fail, fall through to return null
-    }
-
+    // Avoid scanning every city's zone list during bulk sends. That creates a burst of
+    // Pathao API calls before the actual order-create request and can trigger rate limits.
+    // When city/zone cannot be confidently detected, Pathao can still resolve from address.
     return null;
   }
 
@@ -2963,6 +2961,41 @@ export class OrderManagementService {
       return { zone_id: bestMatch.zone_id, zone_name: bestMatch.zone_name };
     }
     return null;
+  }
+
+  private async createPathaoOrderWithRetry(payload: any): Promise<any> {
+    let lastError: any;
+
+    for (let attempt = 0; attempt <= this.pathaoSendMaxRetries; attempt++) {
+      try {
+        const headers = await this.getPathaoHeaders();
+        const res = await axios.post(
+          `${this.pathaoBaseUrl}/aladdin/api/v1/orders`,
+          payload,
+          { headers, timeout: 20000 },
+        );
+        return res.data;
+      } catch (error: any) {
+        lastError = error;
+        const status = this.getHttpStatus(error);
+        const retryable = status === 429 || (status != null && status >= 500);
+
+        if (!retryable || attempt >= this.pathaoSendMaxRetries) {
+          throw error;
+        }
+
+        const delayMs = status === 429
+          ? this.getRetryAfterMs(error, 3000)
+          : 1500 * (attempt + 1);
+        this.logger.warn(
+          `[Pathao] Create order failed with HTTP ${status}; retrying in ${delayMs}ms ` +
+          `(attempt ${attempt + 1}/${this.pathaoSendMaxRetries})`,
+        );
+        await this.sleep(delayMs);
+      }
+    }
+
+    throw lastError;
   }
 
   async sendToPathao(data: {
@@ -3120,13 +3153,7 @@ export class OrderManagementService {
 
     let resData: any;
     try {
-      const headers = await this.getPathaoHeaders();
-      const res = await axios.post(
-        `${this.pathaoBaseUrl}/aladdin/api/v1/orders`,
-        payload,
-        { headers, timeout: 20000 },
-      );
-      resData = res.data;
+      resData = await this.createPathaoOrderWithRetry(payload);
     } catch (e: any) {
       const extStatus = e?.response?.status;
       const errData = e?.response?.data;
@@ -3164,9 +3191,20 @@ export class OrderManagementService {
       );
     }
 
-    const consignmentId = resData?.data?.consignment_id ?? null;
-    const deliveryFee = resData?.data?.delivery_fee ?? null;
-    const orderStatus = resData?.data?.order_status ?? null;
+    const consignmentId = this.getPathaoConsignmentId(resData) ?? null;
+    const deliveryFee = this.pickPathaoField(resData, [
+      'delivery_fee',
+      'deliveryFee',
+      'price',
+      'data.delivery_fee',
+      'data.deliveryFee',
+      'data.price',
+      'order.delivery_fee',
+      'order.deliveryFee',
+      'consignment.delivery_fee',
+      'consignment.deliveryFee',
+    ]) ?? null;
+    const orderStatus = this.getPathaoStatus(resData) ?? null;
 
     if (!consignmentId) {
       throw new BadRequestException(resData?.message || 'Pathao did not return consignment_id');
