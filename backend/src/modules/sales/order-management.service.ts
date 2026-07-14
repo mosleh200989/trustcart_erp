@@ -3011,14 +3011,21 @@ export class OrderManagementService {
   }): Promise<any> {
     const lockRunner = this.dataSource.createQueryRunner();
     await lockRunner.connect();
+    let lockAcquired = false;
     try {
-      await lockRunner.query('SELECT pg_advisory_lock(42501, $1)', [Number(data.orderId)]);
+      const lockRows = await lockRunner.query('SELECT pg_try_advisory_lock(42501, $1) AS locked', [Number(data.orderId)]);
+      lockAcquired = lockRows?.[0]?.locked === true || lockRows?.[0]?.locked === 't';
+      if (!lockAcquired) {
+        throw new ConflictException(`Order #${data.orderId} is already being sent to Pathao. Please wait and refresh.`);
+      }
       return await this.sendToPathaoLocked(data);
     } finally {
-      try {
-        await lockRunner.query('SELECT pg_advisory_unlock(42501, $1)', [Number(data.orderId)]);
-      } catch (error) {
-        this.logger.warn(`[Pathao] Failed to release send lock for order #${data.orderId}: ${(error as any)?.message || error}`);
+      if (lockAcquired) {
+        try {
+          await lockRunner.query('SELECT pg_advisory_unlock(42501, $1)', [Number(data.orderId)]);
+        } catch (error) {
+          this.logger.warn(`[Pathao] Failed to release send lock for order #${data.orderId}: ${(error as any)?.message || error}`);
+        }
       }
       await lockRunner.release();
     }
