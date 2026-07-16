@@ -3,7 +3,7 @@ import type { AppProps } from 'next/app';
 import { useRouter } from 'next/router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import '@/styles/globals.css';
-import { AuthProvider, useAuth } from '@/contexts/AuthContext';
+import { AuthProvider } from '@/contexts/AuthContext';
 import { ToastProvider } from '@/contexts/ToastContext';
 import { CartProvider } from '@/contexts/CartContext';
 import AdminRouteGuard from '@/components/auth/AdminRouteGuard';
@@ -45,27 +45,6 @@ function isLandingPagePixelUrl() {
     routeSlug === 'Harbora-kosthogut' ||
     querySlug === 'Harbora-kosthogut'
   );
-}
-
-/** Re-init FB Pixel with Advanced Matching when user logs in */
-function FacebookAdvancedMatching() {
-  const { user } = useAuth();
-
-  useEffect(() => {
-    if (typeof window === 'undefined' || !window.fbq) return;
-    if (!user) return;
-    if (isLandingPagePixelUrl()) return;
-
-    const userData: Record<string, string> = {};
-    if (user.email) userData.em = user.email;
-    if (user.phone) userData.ph = user.phone.replace(/[^0-9]/g, '');
-
-    if (Object.keys(userData).length > 0) {
-      window.fbq('init', '1882443545705830', userData);
-    }
-  }, [user]);
-
-  return null;
 }
 
 function trackLandingPageViewIfNeeded() {
@@ -126,7 +105,6 @@ export default function App({ Component, pageProps }: AppProps) {
       <AuthProvider>
         <CartProvider>
           <ToastProvider>
-            <FacebookAdvancedMatching />
             <a
               href="#main-content"
               className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[9999] focus:bg-white focus:text-orange-600 focus:px-4 focus:py-2 focus:rounded focus:shadow-lg focus:font-semibold"

@@ -117,6 +117,18 @@ const menuItems: MenuItem[] = [
         requiredPermissions: ['view-presence-office-time', 'manage-presence-office-time', 'manage-presence-settings'],
       },
       {
+        title: 'Status',
+        icon: FaUserCheck,
+        path: '/admin/presence/status',
+        requiredPermissions: ['view-presence-status', 'manage-presence-status', 'manage-presence-settings'],
+      },
+      {
+        title: 'Backup Team',
+        icon: FaUsers,
+        path: '/admin/presence/backup-team',
+        requiredPermissions: ['view-presence-backup-team', 'manage-presence-backup-team', 'manage-presence-settings'],
+      },
+      {
         title: 'Statistics',
         icon: FaChartBar,
         path: '/admin/presence/statistics',
@@ -521,6 +533,18 @@ function ensurePresenceLink(items: MenuItem[]): MenuItem[] {
     path: '/admin/presence/office-time',
     requiredPermissions: ['view-presence-office-time', 'manage-presence-office-time', 'manage-presence-settings'],
   };
+  const statusItem: MenuItem = {
+    title: 'Status',
+    icon: FaUserCheck,
+    path: '/admin/presence/status',
+    requiredPermissions: ['view-presence-status', 'manage-presence-status', 'manage-presence-settings'],
+  };
+  const backupTeamItem: MenuItem = {
+    title: 'Backup Team',
+    icon: FaUsers,
+    path: '/admin/presence/backup-team',
+    requiredPermissions: ['view-presence-backup-team', 'manage-presence-backup-team', 'manage-presence-settings'],
+  };
   const statisticsItem: MenuItem = {
     title: 'Statistics',
     icon: FaChartBar,
@@ -536,11 +560,13 @@ function ensurePresenceLink(items: MenuItem[]): MenuItem[] {
     const isPresenceHistory = item.path === '/admin/presence/history';
     const isPresenceCalendar = item.path === '/admin/presence/calendar';
     const isPresenceOfficeTime = item.path === '/admin/presence/office-time';
+    const isPresenceStatus = item.path === '/admin/presence/status';
+    const isPresenceBackupTeam = item.path === '/admin/presence/backup-team';
     const isPresenceStatistics = item.path === '/admin/presence/statistics';
     const isPresenceSettings = item.path === '/admin/presence/settings';
     const isPresenceParent = (item.title === 'Presence' || item.title === 'Check In/Out') && item.children && !item.path;
 
-    if (isPresenceHistory || isPresenceCalendar || isPresenceOfficeTime || isPresenceStatistics || isPresenceSettings) {
+    if (isPresenceHistory || isPresenceCalendar || isPresenceOfficeTime || isPresenceStatus || isPresenceBackupTeam || isPresenceStatistics || isPresenceSettings) {
       continue;
     }
 
@@ -548,7 +574,7 @@ function ensurePresenceLink(items: MenuItem[]): MenuItem[] {
       const children = item.children || [];
       const hasDashboard = exists(children, '/admin/presence');
       const preservedChildren = children
-        .filter((child) => child.path !== '/admin/presence/history' && child.path !== '/admin/presence/calendar' && child.path !== '/admin/presence/office-time' && child.path !== '/admin/presence/statistics' && child.path !== '/admin/presence/settings')
+        .filter((child) => child.path !== '/admin/presence/history' && child.path !== '/admin/presence/calendar' && child.path !== '/admin/presence/office-time' && child.path !== '/admin/presence/status' && child.path !== '/admin/presence/backup-team' && child.path !== '/admin/presence/statistics' && child.path !== '/admin/presence/settings')
         .map((child) => child.path === '/admin/presence' ? { ...child, title: 'Check In/Out', icon: FaUser } : child);
       const mergedChildren = [
         ...(hasDashboard ? [] : [dashboardItem]),
@@ -556,6 +582,8 @@ function ensurePresenceLink(items: MenuItem[]): MenuItem[] {
         historyItem,
         calendarItem,
         officeTimeItem,
+        statusItem,
+        backupTeamItem,
         statisticsItem,
         settingsItem,
       ];
@@ -584,7 +612,7 @@ function ensurePresenceLink(items: MenuItem[]): MenuItem[] {
     {
       title: 'Presence',
       icon: FaUser,
-      children: [dashboardItem, historyItem, calendarItem, officeTimeItem, statisticsItem, settingsItem],
+      children: [dashboardItem, historyItem, calendarItem, officeTimeItem, statusItem, backupTeamItem, statisticsItem, settingsItem],
     },
   ];
 }

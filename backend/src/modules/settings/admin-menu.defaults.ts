@@ -128,6 +128,18 @@ export const DEFAULT_ADMIN_MENU: AdminMenuSeedNode[] = [
         requiredPermissions: ['view-presence-office-time', 'manage-presence-office-time', 'manage-presence-settings'],
       },
       {
+        title: 'Status',
+        icon: 'FaUserCheck',
+        path: '/admin/presence/status',
+        requiredPermissions: ['view-presence-status', 'manage-presence-status', 'manage-presence-settings'],
+      },
+      {
+        title: 'Backup Team',
+        icon: 'FaUsers',
+        path: '/admin/presence/backup-team',
+        requiredPermissions: ['view-presence-backup-team', 'manage-presence-backup-team', 'manage-presence-settings'],
+      },
+      {
         title: 'Statistics',
         icon: 'FaChartBar',
         path: '/admin/presence/statistics',
