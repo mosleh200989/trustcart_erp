@@ -906,8 +906,15 @@ export class PresenceService {
     };
   }
 
-  async generatePresenceStatisticsPdf(params: { userId?: number; year?: number }) {
+  async generatePresenceStatisticsPdf(params: { userId?: number; year?: number; month?: number | string }) {
     const stats = await this.getPresenceStatistics(params);
+    const parsedMonth = params.month === 'all' || params.month == null || params.month === ''
+      ? null
+      : clampInt(Number(params.month), 1, 12, 0);
+    const selectedBucket = parsedMonth ? stats.monthly.find((row: any) => Number(row.month) === parsedMonth) : stats.summary;
+    if (!selectedBucket) throw new BadRequestException('Invalid month selected');
+    const selectedPeriod = parsedMonth ? `${selectedBucket.label} ${stats.year}` : `${stats.year} - All Months`;
+
     return new Promise<Buffer>((resolve, reject) => {
       const doc = new PDFDocument({ size: 'A4', margin: 42 });
       const chunks: Buffer[] = [];
@@ -915,7 +922,6 @@ export class PresenceService {
       doc.on('end', () => resolve(Buffer.concat(chunks)));
       doc.on('error', reject);
 
-      const moneyBlue = '#1d4ed8';
       const dark = '#111827';
       const muted = '#6b7280';
       const line = '#e5e7eb';
@@ -923,9 +929,9 @@ export class PresenceService {
 
       const writeHeader = () => {
         doc.rect(0, 0, doc.page.width, 92).fill('#0f172a');
-        doc.fillColor('#ffffff').fontSize(20).font('Helvetica-Bold').text('Presence Statistics Report', 42, 28);
+        doc.fillColor('#ffffff').fontSize(20).font('Helvetica-Bold').text('Presence Attendance Summary', 42, 28);
         doc.fontSize(10).font('Helvetica').fillColor('#cbd5e1').text(`Generated: ${new Date(stats.generatedAt).toLocaleString('en-GB', { timeZone: stats.timezone })}`, 42, 56);
-        doc.fillColor('#ffffff').fontSize(12).font('Helvetica-Bold').text(String(stats.year), doc.page.width - 120, 34, { width: 78, align: 'right' });
+        doc.fillColor('#ffffff').fontSize(12).font('Helvetica-Bold').text(selectedPeriod, doc.page.width - 220, 34, { width: 178, align: 'right' });
         doc.moveDown();
       };
 
@@ -934,36 +940,15 @@ export class PresenceService {
         doc.fontSize(8).fillColor('#9ca3af').text('TrustCart ERP - Presence Module', 42, page.height - 34, { width: pageWidth, align: 'center' });
       };
 
-      const ensureSpace = (height: number) => {
-        if (doc.y + height > doc.page.height - 60) {
-          addFooter();
-          doc.addPage();
-          writeHeader();
-          doc.y = 116;
-        }
-      };
-
-      const section = (title: string) => {
-        ensureSpace(34);
-        doc.moveDown(0.8);
-        doc.fillColor(dark).font('Helvetica-Bold').fontSize(13).text(title);
-        doc.moveTo(42, doc.y + 4).lineTo(doc.page.width - 42, doc.y + 4).strokeColor(line).stroke();
-        doc.moveDown(0.7);
-      };
-
-      const metric = (label: string, value: string, x: number, y: number, w: number) => {
-        doc.roundedRect(x, y, w, 58, 6).fillAndStroke('#f8fafc', '#e2e8f0');
-        doc.fillColor(muted).fontSize(8).font('Helvetica-Bold').text(label.toUpperCase(), x + 10, y + 10, { width: w - 20 });
-        doc.fillColor(moneyBlue).fontSize(15).font('Helvetica-Bold').text(value, x + 10, y + 29, { width: w - 20 });
-      };
-
       const tableRow = (values: string[], widths: number[], y: number, header = false) => {
         let x = 42;
-        const rowHeight = header ? 24 : 22;
+        const rowHeight = header ? 30 : 42;
         if (header) doc.rect(42, y, pageWidth, rowHeight).fill('#eff6ff');
         values.forEach((value, idx) => {
-          doc.fillColor(header ? '#1e3a8a' : dark).font(header ? 'Helvetica-Bold' : 'Helvetica').fontSize(8.5)
-            .text(value, x + 5, y + 7, { width: widths[idx] - 10, ellipsis: true });
+          doc.fillColor(header ? '#1e3a8a' : dark)
+            .font('Helvetica-Bold')
+            .fontSize(header ? 9 : 15)
+            .text(value, x + 8, y + (header ? 10 : 13), { width: widths[idx] - 16, align: 'center', ellipsis: true });
           x += widths[idx];
         });
         doc.moveTo(42, y + rowHeight).lineTo(42 + pageWidth, y + rowHeight).strokeColor(line).stroke();
@@ -980,52 +965,20 @@ export class PresenceService {
       ].filter(Boolean).join('   |   '));
       doc.moveDown(0.5);
       doc.text(`Office: ${stats.officeTime.officeStartTime} - ${stats.officeTime.officeEndTime}   Grace: ${stats.officeTime.cautionMinutes} min   Weekly Off: ${stats.officeTime.weeklyDayOff || '-'}`);
+      doc.moveDown(1.2);
+      doc.fillColor(dark).font('Helvetica-Bold').fontSize(13).text(`Period: ${selectedPeriod}`);
+      doc.moveTo(42, doc.y + 6).lineTo(doc.page.width - 42, doc.y + 6).strokeColor(line).stroke();
+      doc.moveDown(1.2);
 
-      let y = doc.y + 18;
-      const cardW = (pageWidth - 24) / 4;
-      metric('Attendance', `${stats.summary.attendanceRate}%`, 42, y, cardW);
-      metric('Late', String(stats.summary.late), 42 + cardW + 8, y, cardW);
-      metric('Unwanted Leave', String(stats.summary.unwantedLeave), 42 + (cardW + 8) * 2, y, cardW);
-      metric('Total Hours', `${stats.summary.totalOnlineHours}h`, 42 + (cardW + 8) * 3, y, cardW);
-      doc.y = y + 76;
-
-      section('Monthly Summary');
-      const widths = [72, 42, 42, 42, 52, 58, 52, 56, 52, 58];
-      y = tableRow(['Month', 'Days', 'P', 'Late', 'Leave', 'Off', 'Hours', 'Avg/Day', 'In Avg', 'Attend %'], widths, doc.y, true);
-      for (const row of stats.monthly) {
-        ensureSpace(24);
-        y = tableRow([
-          row.label,
-          String(row.countedDays),
-          String(row.present),
-          String(row.late),
-          String(row.unwantedLeave),
-          String(row.weeklyOff),
-          `${row.totalOnlineHours}h`,
-          `${row.avgDailyHours}h`,
-          row.avgCheckInTime,
-          `${row.attendanceRate}%`,
-        ], widths, y);
-        doc.y = y;
-      }
-
-      section('Weekly Overview');
-      const weeklyWidths = [120, 50, 50, 50, 70, 70, 70, 80];
-      y = tableRow(['Week', 'P', 'Late', 'Leave', 'Hours', 'Avg Day', 'In Avg', 'Attend %'], weeklyWidths, doc.y, true);
-      for (const row of stats.weekly) {
-        ensureSpace(24);
-        y = tableRow([
-          row.label,
-          String(row.present),
-          String(row.late),
-          String(row.unwantedLeave),
-          `${row.totalOnlineHours}h`,
-          `${row.avgDailyHours}h`,
-          row.avgCheckInTime,
-          `${row.attendanceRate}%`,
-        ], weeklyWidths, y);
-        doc.y = y;
-      }
+      const widths = [pageWidth / 5, pageWidth / 5, pageWidth / 5, pageWidth / 5, pageWidth / 5];
+      let y = tableRow(['Present', 'Late', 'Absent', 'Excused Off', 'Weekly Off'], widths, doc.y, true);
+      tableRow([
+        String(selectedBucket.present || 0),
+        String(selectedBucket.late || 0),
+        String(selectedBucket.unwantedLeave || 0),
+        String(selectedBucket.excusedLeave || 0),
+        String(selectedBucket.weeklyOff || 0),
+      ], widths, y);
 
       addFooter();
       doc.end();

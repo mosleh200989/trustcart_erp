@@ -3,7 +3,7 @@ import AdminLayout from '@/layouts/AdminLayout';
 import apiClient from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/contexts/ToastContext';
-import { FaCalendarAlt, FaChartLine, FaClock, FaDownload, FaExclamationTriangle, FaFilePdf, FaUserCheck } from 'react-icons/fa';
+import { FaExclamationTriangle, FaFilePdf } from 'react-icons/fa';
 
 type StatisticsUser = {
   id: number;
@@ -17,39 +17,11 @@ type StatisticsUser = {
 type PresenceBucket = {
   label: string;
   month?: number;
-  weekKey?: string;
-  countedDays: number;
   present: number;
   late: number;
   weeklyOff: number;
   excusedLeave: number;
   unwantedLeave: number;
-  manualOverrides: number;
-  checkIns: number;
-  checkOuts: number;
-  totalOnlineSeconds: number;
-  avgDailySeconds: number;
-  avgPresentDaySeconds: number;
-  avgCheckInTime: string;
-  totalOnlineHours: number;
-  avgDailyHours: number;
-  avgPresentDayHours: number;
-  attendanceRate: number;
-  lateRate: number;
-  unwantedLeaveRate: number;
-};
-
-type DailyPresence = {
-  dateKey: string;
-  weekday: string;
-  verdict: string;
-  label: string;
-  isManual?: boolean;
-  firstEntryTime: string;
-  onlineSeconds: number;
-  onlineHours: number;
-  checkIns: number;
-  checkOuts: number;
 };
 
 type PresenceStatistics = {
@@ -61,60 +33,31 @@ type PresenceStatistics = {
     officeEndTime: string;
     cautionMinutes: number;
     weeklyDayOff?: string | null;
-    lunchBreakStartTime?: string | null;
-    lunchBreakEndTime?: string | null;
   };
   summary: PresenceBucket;
   monthly: PresenceBucket[];
-  weekly: PresenceBucket[];
-  recentDaily: DailyPresence[];
-  generatedAt: string;
 };
 
 const permissionSlugs = ['view-presence-statistics', 'view-presence', 'manage-presence-settings'];
 
+const monthOptions = [
+  { value: 'all', label: 'All Months' },
+  { value: '1', label: 'January' },
+  { value: '2', label: 'February' },
+  { value: '3', label: 'March' },
+  { value: '4', label: 'April' },
+  { value: '5', label: 'May' },
+  { value: '6', label: 'June' },
+  { value: '7', label: 'July' },
+  { value: '8', label: 'August' },
+  { value: '9', label: 'September' },
+  { value: '10', label: 'October' },
+  { value: '11', label: 'November' },
+  { value: '12', label: 'December' },
+];
+
 function currentDhakaYear() {
   return Number(new Date().toLocaleString('en-US', { year: 'numeric', timeZone: 'Asia/Dhaka' }));
-}
-
-function secondsToHuman(value: any) {
-  const total = Number(value || 0);
-  if (!Number.isFinite(total) || total <= 0) return '0m';
-  const hours = Math.floor(total / 3600);
-  const minutes = Math.floor((total % 3600) / 60);
-  if (hours <= 0) return `${minutes}m`;
-  return `${hours}h ${minutes}m`;
-}
-
-function formatDateKey(dateKey?: string | null) {
-  if (!dateKey) return '-';
-  const [year, month, day] = String(dateKey).split('-');
-  if (!year || !month || !day) return dateKey;
-  return `${day}/${month}/${year}`;
-}
-
-function verdictClass(verdict: string) {
-  if (verdict === 'present') return 'bg-green-50 text-green-700 border-green-200';
-  if (verdict === 'late') return 'bg-amber-50 text-amber-700 border-amber-200';
-  if (verdict === 'weeklyOff') return 'bg-slate-50 text-slate-600 border-slate-200';
-  if (verdict === 'excusedLeave') return 'bg-blue-50 text-blue-700 border-blue-200';
-  if (verdict === 'unwantedLeave') return 'bg-red-50 text-red-700 border-red-200';
-  return 'bg-purple-50 text-purple-700 border-purple-200';
-}
-
-function StatCard({ label, value, icon, tone }: { label: string; value: string; icon: any; tone: string }) {
-  const Icon = icon;
-  return (
-    <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-4 flex items-center justify-between">
-      <div>
-        <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{label}</div>
-        <div className="text-2xl font-bold text-gray-900 mt-1">{value}</div>
-      </div>
-      <div className={`w-11 h-11 rounded-lg flex items-center justify-center ${tone}`}>
-        <Icon />
-      </div>
-    </div>
-  );
 }
 
 export default function PresenceStatisticsPage() {
@@ -124,6 +67,7 @@ export default function PresenceStatisticsPage() {
   const [users, setUsers] = useState<StatisticsUser[]>([]);
   const [selectedUserId, setSelectedUserId] = useState('');
   const [year, setYear] = useState(currentDhakaYear());
+  const [month, setMonth] = useState('all');
   const [stats, setStats] = useState<PresenceStatistics | null>(null);
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [loadingStats, setLoadingStats] = useState(false);
@@ -133,6 +77,17 @@ export default function PresenceStatisticsPage() {
     const current = currentDhakaYear();
     return Array.from({ length: 6 }, (_, idx) => current - idx);
   }, []);
+
+  const selectedBucket = useMemo(() => {
+    if (!stats) return null;
+    if (month === 'all') return stats.summary;
+    return stats.monthly.find((row) => Number(row.month) === Number(month)) || null;
+  }, [month, stats]);
+
+  const selectedPeriodLabel = useMemo(() => {
+    const monthLabel = monthOptions.find((item) => item.value === month)?.label || 'All Months';
+    return month === 'all' ? `${year} - All Months` : `${monthLabel} ${year}`;
+  }, [month, year]);
 
   useEffect(() => {
     if (authLoading || !canView) return;
@@ -187,14 +142,14 @@ export default function PresenceStatisticsPage() {
     setExporting(true);
     try {
       const res = await apiClient.get('/presence/statistics/pdf', {
-        params: { userId: selectedUserId, year },
+        params: { userId: selectedUserId, year, month },
         responseType: 'blob',
       });
       const blob = new Blob([res.data], { type: 'application/pdf' });
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `presence-statistics-${selectedUserId}-${year}.pdf`;
+      link.download = `presence-statistics-${selectedUserId}-${year}-${month}.pdf`;
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -225,7 +180,7 @@ export default function PresenceStatisticsPage() {
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
             <div>
               <h1 className="text-2xl font-bold text-gray-900">Presence Statistics</h1>
-              <p className="text-sm text-gray-600 mt-1">Employee attendance, late entries, unwanted leave, and average working time.</p>
+              <p className="text-sm text-gray-600 mt-1">Filtered attendance summary for each employee.</p>
             </div>
             <button
               type="button"
@@ -238,7 +193,7 @@ export default function PresenceStatisticsPage() {
             </button>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-5">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-5">
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-1">Employee</label>
               <select
@@ -267,6 +222,18 @@ export default function PresenceStatisticsPage() {
                 ))}
               </select>
             </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-1">Month</label>
+              <select
+                value={month}
+                onChange={(e) => setMonth(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                {monthOptions.map((item) => (
+                  <option key={item.value} value={item.value}>{item.label}</option>
+                ))}
+              </select>
+            </div>
             <div className="bg-slate-50 border border-slate-200 rounded-lg p-3">
               <div className="text-xs font-semibold text-slate-500 uppercase">Office Rule</div>
               <div className="text-sm font-semibold text-slate-900 mt-1">
@@ -285,121 +252,33 @@ export default function PresenceStatisticsPage() {
           </div>
         )}
 
-        {stats && (
-          <>
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
-              <StatCard label="Attendance" value={`${stats.summary.attendanceRate}%`} icon={FaUserCheck} tone="bg-green-50 text-green-700" />
-              <StatCard label="Total Time" value={secondsToHuman(stats.summary.totalOnlineSeconds)} icon={FaClock} tone="bg-blue-50 text-blue-700" />
-              <StatCard label="Late" value={String(stats.summary.late)} icon={FaCalendarAlt} tone="bg-amber-50 text-amber-700" />
-              <StatCard label="Unwanted Leave" value={String(stats.summary.unwantedLeave)} icon={FaExclamationTriangle} tone="bg-red-50 text-red-700" />
-              <StatCard label="Avg Per Day" value={secondsToHuman(stats.summary.avgDailySeconds)} icon={FaChartLine} tone="bg-purple-50 text-purple-700" />
+        {stats && selectedBucket && (
+          <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
+            <div className="p-4 border-b border-gray-200">
+              <h2 className="text-lg font-bold text-gray-900">Attendance Summary</h2>
+              <p className="text-sm text-gray-500">{stats.employee.name} - {selectedPeriodLabel}</p>
             </div>
-
-            <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
-              <div className="p-4 border-b border-gray-200 flex items-center justify-between">
-                <div>
-                  <h2 className="text-lg font-bold text-gray-900">Monthly Statistics</h2>
-                  <p className="text-sm text-gray-500">{stats.employee.name} - {stats.year}</p>
-                </div>
-                <FaDownload className="text-gray-400" />
-              </div>
-              <div className="overflow-x-auto">
-                <table className="min-w-full text-sm">
-                  <thead className="bg-gray-50 text-gray-600 uppercase text-xs">
-                    <tr>
-                      {['Month', 'Counted Days', 'Present', 'Late', 'Unwanted Leave', 'Weekly Off', 'Hours', 'Avg/Day', 'Avg Check-in', 'Attendance %', 'Late %'].map((heading) => (
-                        <th key={heading} className="px-4 py-3 text-left whitespace-nowrap">{heading}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {stats.monthly.map((row) => (
-                      <tr key={row.month} className="hover:bg-gray-50">
-                        <td className="px-4 py-3 font-semibold text-gray-900">{row.label}</td>
-                        <td className="px-4 py-3">{row.countedDays}</td>
-                        <td className="px-4 py-3 text-green-700 font-semibold">{row.present}</td>
-                        <td className="px-4 py-3 text-amber-700 font-semibold">{row.late}</td>
-                        <td className="px-4 py-3 text-red-700 font-semibold">{row.unwantedLeave}</td>
-                        <td className="px-4 py-3">{row.weeklyOff}</td>
-                        <td className="px-4 py-3">{secondsToHuman(row.totalOnlineSeconds)}</td>
-                        <td className="px-4 py-3">{secondsToHuman(row.avgDailySeconds)}</td>
-                        <td className="px-4 py-3">{row.avgCheckInTime}</td>
-                        <td className="px-4 py-3 font-semibold">{row.attendanceRate}%</td>
-                        <td className="px-4 py-3">{row.lateRate}%</td>
-                      </tr>
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead className="bg-gray-50 text-gray-600 uppercase text-xs">
+                  <tr>
+                    {['Present', 'Late', 'Absent', 'Excused Off', 'Weekly Off'].map((heading) => (
+                      <th key={heading} className="px-4 py-3 text-left whitespace-nowrap">{heading}</th>
                     ))}
-                  </tbody>
-                </table>
-              </div>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="hover:bg-gray-50">
+                    <td className="px-4 py-5 text-green-700 font-bold text-lg">{selectedBucket.present}</td>
+                    <td className="px-4 py-5 text-amber-700 font-bold text-lg">{selectedBucket.late}</td>
+                    <td className="px-4 py-5 text-red-700 font-bold text-lg">{selectedBucket.unwantedLeave}</td>
+                    <td className="px-4 py-5 text-blue-700 font-bold text-lg">{selectedBucket.excusedLeave}</td>
+                    <td className="px-4 py-5 text-gray-700 font-bold text-lg">{selectedBucket.weeklyOff}</td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
-
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
-              <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
-                <div className="p-4 border-b border-gray-200">
-                  <h2 className="text-lg font-bold text-gray-900">Weekly Average</h2>
-                </div>
-                <div className="overflow-x-auto max-h-[520px]">
-                  <table className="min-w-full text-sm">
-                    <thead className="bg-gray-50 text-gray-600 uppercase text-xs sticky top-0">
-                      <tr>
-                        {['Week', 'Present', 'Late', 'Leave', 'Hours', 'Avg/Day', 'Avg In', 'Attendance'].map((heading) => (
-                          <th key={heading} className="px-4 py-3 text-left whitespace-nowrap">{heading}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
-                      {stats.weekly.map((row) => (
-                        <tr key={row.weekKey} className="hover:bg-gray-50">
-                          <td className="px-4 py-3 font-semibold text-gray-900 whitespace-nowrap">{row.label}</td>
-                          <td className="px-4 py-3">{row.present}</td>
-                          <td className="px-4 py-3">{row.late}</td>
-                          <td className="px-4 py-3">{row.unwantedLeave}</td>
-                          <td className="px-4 py-3">{secondsToHuman(row.totalOnlineSeconds)}</td>
-                          <td className="px-4 py-3">{secondsToHuman(row.avgDailySeconds)}</td>
-                          <td className="px-4 py-3">{row.avgCheckInTime}</td>
-                          <td className="px-4 py-3 font-semibold">{row.attendanceRate}%</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
-                <div className="p-4 border-b border-gray-200">
-                  <h2 className="text-lg font-bold text-gray-900">Recent Daily Breakdown</h2>
-                </div>
-                <div className="overflow-x-auto max-h-[520px]">
-                  <table className="min-w-full text-sm">
-                    <thead className="bg-gray-50 text-gray-600 uppercase text-xs sticky top-0">
-                      <tr>
-                        {['Date', 'Day', 'Verdict', 'First Entry', 'Duration', 'Check In/Out', 'Manual'].map((heading) => (
-                          <th key={heading} className="px-4 py-3 text-left whitespace-nowrap">{heading}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
-                      {stats.recentDaily.map((row) => (
-                        <tr key={row.dateKey} className="hover:bg-gray-50">
-                          <td className="px-4 py-3 font-semibold text-gray-900">{formatDateKey(row.dateKey)}</td>
-                          <td className="px-4 py-3">{row.weekday}</td>
-                          <td className="px-4 py-3">
-                            <span className={`inline-flex px-2 py-1 rounded-full border text-xs font-semibold ${verdictClass(row.verdict)}`}>
-                              {row.label}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3">{row.firstEntryTime}</td>
-                          <td className="px-4 py-3">{secondsToHuman(row.onlineSeconds)}</td>
-                          <td className="px-4 py-3">{row.checkIns} / {row.checkOuts}</td>
-                          <td className="px-4 py-3">{row.isManual ? 'Yes' : '-'}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-          </>
+          </div>
         )}
       </div>
     </AdminLayout>

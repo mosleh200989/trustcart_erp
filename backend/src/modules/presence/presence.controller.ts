@@ -148,14 +148,20 @@ export class PresenceController {
 
   @Get('statistics/pdf')
   @RequireAnyPermission('view-presence-statistics', 'view-presence', 'manage-presence-settings')
-  async statisticsPdf(@Res() res: ExpressResponse, @Query('userId') userId?: string, @Query('year') year?: string) {
+  async statisticsPdf(
+    @Res() res: ExpressResponse,
+    @Query('userId') userId?: string,
+    @Query('year') year?: string,
+    @Query('month') month?: string,
+  ) {
     const employeeId = userId != null ? Number(userId) : undefined;
     const reportYear = year != null ? Number(year) : undefined;
-    const buffer = await this.presenceService.generatePresenceStatisticsPdf({ userId: employeeId, year: reportYear });
+    const buffer = await this.presenceService.generatePresenceStatisticsPdf({ userId: employeeId, year: reportYear, month });
     const safeYear = Number.isFinite(reportYear) ? reportYear : new Date().getFullYear();
     const safeUserId = Number.isFinite(employeeId) ? employeeId : 'employee';
+    const safeMonth = month && month !== 'all' ? `-${month}` : '';
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="presence-statistics-${safeUserId}-${safeYear}.pdf"`);
+    res.setHeader('Content-Disposition', `attachment; filename="presence-statistics-${safeUserId}-${safeYear}${safeMonth}.pdf"`);
     res.send(buffer);
   }
 
