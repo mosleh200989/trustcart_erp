@@ -35,6 +35,7 @@ const menuItems: MenuItem[] = [
       { title: 'All Products', icon: FaBoxes, path: '/admin/products', requiredPermissions: ['view-products'] },
       { title: 'Manage Categories', icon: FaBoxes, path: '/admin/categories', requiredPermissions: ['manage-categories'] },
       { title: 'Combo Products', icon: FaBoxes, path: '/admin/combo-products', requiredPermissions: ['view-products'] },
+      { title: 'Product History', icon: FaHistory, path: '/admin/products/history', requiredPermissions: ['view-product-history', 'view-products'] },
       { title: 'Hot Deals', icon: FaBoxes, path: '/admin/products/hot-deals', requiredPermissions: ['manage-discounts'] },
       { title: 'Deal of the Day', icon: FaBoxes, path: '/admin/products/deal-of-the-day', requiredPermissions: ['manage-discounts', 'edit-products'] },
       { title: 'Offers & Promotions', icon: FaBoxes, path: '/admin/offers', requiredPermissions: ['manage-discounts'] },
@@ -94,15 +95,14 @@ const menuItems: MenuItem[] = [
     requiredPermissions: ['view-customers']
   },
   {
-    title: 'Check In/Out',
+    title: 'Presence',
     icon: FaUser,
     children: [
-      { title: 'Dashboard', icon: FaUser, path: '/admin/presence' },
+      { title: 'Check In/Out', icon: FaUser, path: '/admin/presence' },
       {
         title: 'History',
         icon: FaHistory,
         path: '/admin/presence/history',
-        requiredPermissions: ['view-presence', 'view-presence-history', 'manage-presence-history'],
       },
       {
         title: 'Calendar',
@@ -115,6 +115,12 @@ const menuItems: MenuItem[] = [
         icon: FaUserClock,
         path: '/admin/presence/office-time',
         requiredPermissions: ['view-presence-office-time', 'manage-presence-office-time', 'manage-presence-settings'],
+      },
+      {
+        title: 'Statistics',
+        icon: FaChartBar,
+        path: '/admin/presence/statistics',
+        requiredPermissions: ['view-presence-statistics', 'view-presence', 'manage-presence-settings'],
       },
       {
         title: 'Settings',
@@ -491,12 +497,11 @@ function ensurePresenceLink(items: MenuItem[]): MenuItem[] {
   const exists = (arr: MenuItem[], path: string): boolean =>
     arr.some((x) => x.path === path || (x.children ? exists(x.children, path) : false));
 
-  const dashboardItem: MenuItem = { title: 'Dashboard', icon: FaUser, path: '/admin/presence' };
+  const dashboardItem: MenuItem = { title: 'Check In/Out', icon: FaUser, path: '/admin/presence' };
   const historyItem: MenuItem = {
     title: 'History',
     icon: FaHistory,
     path: '/admin/presence/history',
-    requiredPermissions: ['view-presence', 'view-presence-history', 'manage-presence-history'],
   };
   const settingsItem: MenuItem = {
     title: 'Settings',
@@ -516,6 +521,12 @@ function ensurePresenceLink(items: MenuItem[]): MenuItem[] {
     path: '/admin/presence/office-time',
     requiredPermissions: ['view-presence-office-time', 'manage-presence-office-time', 'manage-presence-settings'],
   };
+  const statisticsItem: MenuItem = {
+    title: 'Statistics',
+    icon: FaChartBar,
+    path: '/admin/presence/statistics',
+    requiredPermissions: ['view-presence-statistics', 'view-presence', 'manage-presence-settings'],
+  };
 
   let inserted = false;
   const next: MenuItem[] = [];
@@ -525,27 +536,32 @@ function ensurePresenceLink(items: MenuItem[]): MenuItem[] {
     const isPresenceHistory = item.path === '/admin/presence/history';
     const isPresenceCalendar = item.path === '/admin/presence/calendar';
     const isPresenceOfficeTime = item.path === '/admin/presence/office-time';
+    const isPresenceStatistics = item.path === '/admin/presence/statistics';
     const isPresenceSettings = item.path === '/admin/presence/settings';
     const isPresenceParent = (item.title === 'Presence' || item.title === 'Check In/Out') && item.children && !item.path;
 
-    if (isPresenceHistory || isPresenceCalendar || isPresenceOfficeTime || isPresenceSettings) {
+    if (isPresenceHistory || isPresenceCalendar || isPresenceOfficeTime || isPresenceStatistics || isPresenceSettings) {
       continue;
     }
 
     if (isPresenceDashboard || isPresenceParent) {
       const children = item.children || [];
       const hasDashboard = exists(children, '/admin/presence');
+      const preservedChildren = children
+        .filter((child) => child.path !== '/admin/presence/history' && child.path !== '/admin/presence/calendar' && child.path !== '/admin/presence/office-time' && child.path !== '/admin/presence/statistics' && child.path !== '/admin/presence/settings')
+        .map((child) => child.path === '/admin/presence' ? { ...child, title: 'Check In/Out', icon: FaUser } : child);
       const mergedChildren = [
         ...(hasDashboard ? [] : [dashboardItem]),
-        ...children.filter((child) => child.path !== '/admin/presence/history' && child.path !== '/admin/presence/calendar' && child.path !== '/admin/presence/office-time' && child.path !== '/admin/presence/settings'),
+        ...preservedChildren,
         historyItem,
         calendarItem,
         officeTimeItem,
+        statisticsItem,
         settingsItem,
       ];
       next.push({
         ...item,
-        title: 'Check In/Out',
+        title: 'Presence',
         icon: FaUser,
         path: undefined,
         requiredPermissions: undefined,
@@ -566,9 +582,9 @@ function ensurePresenceLink(items: MenuItem[]): MenuItem[] {
   return [
     ...next,
     {
-      title: 'Check In/Out',
+      title: 'Presence',
       icon: FaUser,
-      children: [dashboardItem, historyItem, calendarItem, officeTimeItem, settingsItem],
+      children: [dashboardItem, historyItem, calendarItem, officeTimeItem, statisticsItem, settingsItem],
     },
   ];
 }

@@ -14,6 +14,7 @@ type CalendarRow = {
   roleId?: number | null;
   roleName?: string | null;
   roleSlug?: string | null;
+  rolePriority?: number | null;
   insertGapAfter?: boolean;
   cells: Array<{ dateKey: string; value: string; label: string; color: string; isManual?: boolean; note?: string }>;
 };
@@ -477,14 +478,14 @@ export default function PresenceCalendarPage() {
           <div>
             <Link href="/admin/presence" className="inline-flex items-center gap-2 text-sm font-semibold text-blue-700 hover:text-blue-800">
               <FaArrowLeft />
-              Check In/Out Dashboard
+              Presence
             </Link>
             <div className="flex items-center gap-3 text-sm text-blue-700 font-semibold mt-4">
               <FaUserClock />
-              Check In/Out Module
+              Presence Module
             </div>
-            <h1 className="text-3xl font-bold text-gray-900 mt-2">Check In/Out Calendar</h1>
-            <p className="text-gray-600 mt-1">Sheet-style attendance calendar for all active users.</p>
+            <h1 className="text-3xl font-bold text-gray-900 mt-2">Presence Calendar</h1>
+            <p className="text-gray-600 mt-1">Sheet-style attendance calendar for all active users, grouped by role and team by default.</p>
           </div>
 
           <div className="flex flex-col sm:flex-row gap-3">
@@ -637,7 +638,12 @@ export default function PresenceCalendarPage() {
                         <div className="flex items-center gap-3">
                           {canManageCalendar && <FaGripVertical className="text-gray-400 cursor-grab" />}
                           <div>
-                            <div className="font-semibold text-gray-900">{row.name}</div>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="font-semibold text-gray-900">{row.name}</span>
+                              <span className="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] font-bold text-blue-700">
+                                {row.roleName || 'No Role'}
+                              </span>
+                            </div>
                             <div className="text-xs text-gray-500">{row.email || `User #${row.userId}`}</div>
                           </div>
                         </div>

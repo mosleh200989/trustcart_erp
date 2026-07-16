@@ -48,6 +48,34 @@ export class CustomersService {
     return ch ? ch.slice(0, 30) : null;
   }
 
+  private normalizeForeignSourceNumber(raw: any): string | null {
+    if (raw == null) return null;
+    const input = String(raw).trim();
+    if (!input) return null;
+
+    let digits = input.replace(/[^\d+]/g, '');
+    if (digits.startsWith('00')) {
+      digits = `+${digits.slice(2).replace(/\D/g, '')}`;
+    } else if (digits.startsWith('+')) {
+      digits = `+${digits.slice(1).replace(/\D/g, '')}`;
+    } else {
+      digits = `+${digits.replace(/\D/g, '')}`;
+    }
+
+    const numberOnly = digits.slice(1);
+    if (!/^\+[0-9]{7,18}$/.test(digits)) {
+      throw new BadRequestException('Source Number must be a valid international phone number');
+    }
+    if (digits.startsWith('+88')) {
+      throw new BadRequestException('Source Number must be a foreign number and cannot start with +88');
+    }
+    if (numberOnly.length < 7 || numberOnly.length > 18) {
+      throw new BadRequestException('Source Number must be between 7 and 18 digits');
+    }
+
+    return digits;
+  }
+
   async syncForeignCustomerSourcesFromNotes(options: { force?: boolean } = {}): Promise<{ updated: number; skipped?: boolean }> {
     const now = Date.now();
     if (!options.force && this.foreignSourceLastSyncedAt && now - this.foreignSourceLastSyncedAt < this.foreignSourceSyncTtlMs) {
@@ -272,6 +300,84 @@ export class CustomersService {
       isActive: true,
       is_deleted: false,
       source: order.orderSource || 'order',
+    });
+
+    const saved = await this.customersRepository.save(newCustomer);
+    return saved.id;
+  }
+
+  async ensureCustomerForOrderContact(order: {
+    customerId?: number | null;
+    customerPhone?: string | null;
+    customerName?: string | null;
+    customerEmail?: string | null;
+    orderSource?: string | null;
+    sourceNumber?: string | null;
+  }): Promise<number | null> {
+    const sourceNumber = this.normalizeForeignSourceNumber(order.sourceNumber);
+
+    if (order.customerId) {
+      if (sourceNumber) {
+        await this.customersRepository.update(order.customerId, { source: sourceNumber });
+      }
+      return order.customerId;
+    }
+
+    const phone = typeof order.customerPhone === 'string' ? order.customerPhone.trim() : '';
+    if (!phone) return null;
+
+    const phonePlain = phone.replace(/^\+88/, '');
+    const phoneWith88 = phone.startsWith('+88') ? phone : `+88${phonePlain}`;
+
+    let customer = await this.customersRepository.findOne({ where: { phone: phonePlain } });
+    if (!customer) {
+      customer = await this.customersRepository.findOne({ where: { phone: phoneWith88 } });
+    }
+    if (!customer && phone !== phonePlain && phone !== phoneWith88) {
+      customer = await this.customersRepository.findOne({ where: { phone } });
+    }
+
+    const nameParts = (order.customerName || '').trim().split(/\s+/).filter(Boolean);
+    const firstName = nameParts[0] || 'Customer';
+    const lastName = nameParts.slice(1).join(' ') || '';
+    const email = typeof order.customerEmail === 'string' && order.customerEmail.trim()
+      ? order.customerEmail.trim()
+      : null;
+
+    if (customer) {
+      const patch: any = {};
+      if (sourceNumber) patch.source = sourceNumber;
+      if (order.customerName && (!customer.name || !customer.name.trim())) {
+        patch.name = firstName;
+        patch.lastName = lastName;
+      }
+      if (email && !customer.email) {
+        const existingByEmail = await this.customersRepository.findOne({ where: { email } });
+        if (!existingByEmail) patch.email = email;
+      }
+      if (Object.keys(patch).length > 0) {
+        await this.customersRepository.update(customer.id, patch);
+      }
+      return customer.id;
+    }
+
+    let finalEmail = email;
+    if (finalEmail) {
+      const existingByEmail = await this.customersRepository.findOne({ where: { email: finalEmail } });
+      if (existingByEmail) finalEmail = null;
+    }
+
+    const newCustomer = this.customersRepository.create({
+      name: firstName,
+      lastName,
+      phone: phoneWith88,
+      email: finalEmail,
+      isGuest: true,
+      customerType: 'new',
+      lifecycleStage: 'lead',
+      isActive: true,
+      is_deleted: false,
+      source: sourceNumber || order.orderSource || 'order',
     });
 
     const saved = await this.customersRepository.save(newCustomer);

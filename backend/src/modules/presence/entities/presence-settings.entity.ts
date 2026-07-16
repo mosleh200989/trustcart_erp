@@ -74,26 +74,6 @@ export class PresenceSettings {
   @Column({ name: 'calendar_user_order', type: 'jsonb', nullable: true })
   calendarUserOrder!: number[] | null;
 
-  @Column({ name: 'telegram_reminders_enabled', type: 'boolean', default: false })
-  telegramRemindersEnabled!: boolean;
-
-  @Column({ name: 'telegram_reminder_lead_minutes', type: 'int', default: 5 })
-  telegramReminderLeadMinutes!: number;
-
-  @Column({
-    name: 'telegram_offline_reminder_message',
-    type: 'text',
-    default: 'Hi {name}, your office time starts at {startTime}. Please come online if you are starting work.',
-  })
-  telegramOfflineReminderMessage!: string;
-
-  @Column({
-    name: 'telegram_online_thank_you_message',
-    type: 'text',
-    default: 'Thank you {name}. You are online on time for your {startTime} office start.',
-  })
-  telegramOnlineThankYouMessage!: string;
-
   @Column({ name: 'google_spreadsheet_id', type: 'varchar', length: 255, nullable: true })
   googleSpreadsheetId!: string | null;
 

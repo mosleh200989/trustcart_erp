@@ -375,6 +375,7 @@ export class TelephonyService {
           FROM customers c_foreign
           WHERE c_foreign.id = o.customer_id
             AND COALESCE(c_foreign.source, '') ~ '^\\+[0-9]{7,18}$'
+            AND COALESCE(c_foreign.source, '') !~ '^\\+88'
         )
         AND o.id = (
           SELECT so_latest.id
@@ -392,6 +393,7 @@ export class TelephonyService {
           FROM customers c_foreign
           WHERE c_foreign.id = o.customer_id
             AND COALESCE(c_foreign.source, '') ~ '^\\+[0-9]{7,18}$'
+            AND COALESCE(c_foreign.source, '') !~ '^\\+88'
         )
       `);
     }

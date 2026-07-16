@@ -32,7 +32,7 @@ export default function PresenceSettingsPage() {
       const res = await apiClient.get('/presence/settings');
       setSettings(res.data);
     } catch (err: any) {
-      setMessage(err?.response?.data?.message || 'Failed to load check-in/out settings.');
+      setMessage(err?.response?.data?.message || 'Failed to load presence settings.');
     } finally {
       setLoading(false);
     }
@@ -64,14 +64,14 @@ export default function PresenceSettingsPage() {
           <div>
             <Link href="/admin/presence" className="inline-flex items-center gap-2 text-sm font-semibold text-blue-700 hover:text-blue-800">
               <FaArrowLeft />
-              Check In/Out Dashboard
+              Presence
             </Link>
             <div className="flex items-center gap-3 text-sm text-blue-700 font-semibold mt-4">
               <FaUserClock />
-              Check In/Out Module
+              Presence Module
             </div>
-            <h1 className="text-3xl font-bold text-gray-900 mt-2">Check In/Out Settings</h1>
-            <p className="text-gray-600 mt-1">Office timing, attendance keys, Telegram reminders, and calendar layout configuration.</p>
+            <h1 className="text-3xl font-bold text-gray-900 mt-2">Presence Settings</h1>
+            <p className="text-gray-600 mt-1">Office timing, attendance keys, IP restrictions, and calendar layout configuration.</p>
           </div>
 
           <div className="flex flex-col sm:flex-row gap-3">
@@ -96,7 +96,7 @@ export default function PresenceSettingsPage() {
 
         {!canManageSettings && (
           <div className="bg-white border border-red-100 text-red-700 rounded-lg px-4 py-3 text-sm shadow-sm">
-            You do not have permission to manage check-in/out settings.
+            You do not have permission to manage presence settings.
           </div>
         )}
 
@@ -110,7 +110,7 @@ export default function PresenceSettingsPage() {
           <div className="bg-white border border-gray-200 rounded-lg shadow-sm">
             <div className="p-4 border-b border-gray-200">
               <h2 className="text-lg font-bold text-gray-900">Configuration</h2>
-              <p className="text-sm text-gray-500">These values control office timing, attendance labels, reminders, and calendar display.</p>
+              <p className="text-sm text-gray-500">These values control office timing, attendance labels, IP restrictions, and calendar display.</p>
             </div>
             <div className="p-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
               <Field label="Office Start Time">
@@ -196,48 +196,6 @@ export default function PresenceSettingsPage() {
               </Field>
               <Field label="Gap Size (px)">
                 <input type="number" min={0} max={80} value={settings.calendarTeamGapSize || 12} onChange={(e) => setSettings({ ...settings, calendarTeamGapSize: Number(e.target.value) })} className="w-full border rounded-lg px-3 py-2" />
-              </Field>
-              <div className="md:col-span-2 xl:col-span-3 border-t border-gray-100 pt-4 mt-2">
-                <h3 className="text-base font-bold text-gray-900">Telegram Reminders</h3>
-                <p className="text-sm text-gray-500 mt-1">Messages are sent only to employees who have a Telegram Chat ID in Office Time. Supported variables: {'{name}'}, {'{startTime}'}, {'{date}'}.</p>
-              </div>
-              <label className="md:col-span-2 xl:col-span-3 inline-flex items-center gap-3 rounded-lg border border-gray-200 px-3 py-3">
-                <input
-                  type="checkbox"
-                  checked={Boolean(settings.telegramRemindersEnabled)}
-                  onChange={(e) => setSettings({ ...settings, telegramRemindersEnabled: e.target.checked })}
-                  className="h-4 w-4"
-                />
-                <span>
-                  <span className="block text-sm font-semibold text-gray-800">Enable Telegram attendance reminders</span>
-                  <span className="block text-xs text-gray-500">Requires TELEGRAM_BOT_TOKEN in the backend .env.</span>
-                </span>
-              </label>
-              <Field label="Reminder Lead Minutes">
-                <input
-                  type="number"
-                  min={1}
-                  max={120}
-                  value={settings.telegramReminderLeadMinutes || 5}
-                  onChange={(e) => setSettings({ ...settings, telegramReminderLeadMinutes: Number(e.target.value) })}
-                  className="w-full border rounded-lg px-3 py-2"
-                />
-              </Field>
-              <Field label="Check-in Reminder Message">
-                <textarea
-                  value={settings.telegramOfflineReminderMessage || ''}
-                  onChange={(e) => setSettings({ ...settings, telegramOfflineReminderMessage: e.target.value })}
-                  rows={4}
-                  className="w-full border rounded-lg px-3 py-2"
-                />
-              </Field>
-              <Field label="On-time Check-in Thank You Message">
-                <textarea
-                  value={settings.telegramOnlineThankYouMessage || ''}
-                  onChange={(e) => setSettings({ ...settings, telegramOnlineThankYouMessage: e.target.value })}
-                  rows={4}
-                  className="w-full border rounded-lg px-3 py-2"
-                />
               </Field>
             </div>
           </div>

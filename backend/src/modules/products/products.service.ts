@@ -5,6 +5,27 @@ import { Product } from './product.entity';
 import { DealOfTheDay } from './deal-of-the-day.entity';
 import { HotDeal } from './hot-deal.entity';
 import { ProductSuggestion } from './product-suggestion.entity';
+import { ProductHistory } from './product-history.entity';
+
+export type ProductHistoryActor = {
+  userId?: number | null;
+  userName?: string | null;
+  ipAddress?: string | null;
+  userAgent?: string | null;
+};
+
+type ProductHistoryInput = {
+  productId?: number | null;
+  product?: Partial<Product> | any | null;
+  entityType: string;
+  entityId?: string | number | null;
+  action: string;
+  summary: string;
+  oldValues?: Record<string, any> | null;
+  newValues?: Record<string, any> | null;
+  metadata?: Record<string, any> | null;
+  actor?: ProductHistoryActor;
+};
 
 @Injectable()
 export class ProductsService {
@@ -19,7 +40,11 @@ export class ProductsService {
     private hotDealRepository: Repository<HotDeal>,
     @InjectRepository(ProductSuggestion)
     private productSuggestionRepository: Repository<ProductSuggestion>,
+    @InjectRepository(ProductHistory)
+    private productHistoryRepository: Repository<ProductHistory>,
   ) {}
+
+  private readonly ignoredHistoryFields = new Set(['updated_at', 'created_at']);
 
   private readonly productOrderSections = new Map<string, { label: string; where: string }>([
     ['products_page', { label: 'Products Page', where: `p.status = 'active'` }],
@@ -85,6 +110,142 @@ export class ProductsService {
 
   private availabilityExpression(alias = 'p') {
     return `COALESCE(inv.available_stock, ${alias}.stock_quantity, 0)`;
+  }
+
+  private normalizeHistoryPayload(value: any): any {
+    if (value == null) return value;
+    if (value instanceof Date) return value.toISOString();
+    if (Array.isArray(value)) return value.map((item) => this.normalizeHistoryPayload(item));
+    if (typeof value === 'object') {
+      const output: Record<string, any> = {};
+      for (const [key, nested] of Object.entries(value)) {
+        if (this.ignoredHistoryFields.has(key)) continue;
+        output[key] = this.normalizeHistoryPayload(nested);
+      }
+      return output;
+    }
+    return value;
+  }
+
+  private historyChangedFields(oldValues?: Record<string, any> | null, newValues?: Record<string, any> | null) {
+    if (!oldValues || !newValues) return null;
+    const keys = Array.from(new Set([...Object.keys(oldValues), ...Object.keys(newValues)]))
+      .filter((key) => !this.ignoredHistoryFields.has(key));
+    const changed = keys.filter((key) => (
+      JSON.stringify(this.normalizeHistoryPayload(oldValues[key])) !== JSON.stringify(this.normalizeHistoryPayload(newValues[key]))
+    ));
+    return changed.length > 0 ? changed : null;
+  }
+
+  private productLabel(product?: Partial<Product> | any | null) {
+    if (!product) return { productName: null, productSku: null };
+    return {
+      productName: product.name_en || product.name_bn || (product.id ? `Product #${product.id}` : null),
+      productSku: product.sku || null,
+    };
+  }
+
+  private async logProductHistory(input: ProductHistoryInput): Promise<void> {
+    try {
+      const productId = input.productId ?? input.product?.id ?? null;
+      let product = input.product || null;
+      if (!product && productId) {
+        product = await this.productsRepository.findOne({ where: { id: Number(productId) } });
+      }
+      const labels = this.productLabel(product);
+      const oldValues = input.oldValues ? this.normalizeHistoryPayload(input.oldValues) : null;
+      const newValues = input.newValues ? this.normalizeHistoryPayload(input.newValues) : null;
+
+      await this.productHistoryRepository.save(this.productHistoryRepository.create({
+        productId: productId ? Number(productId) : null,
+        productName: labels.productName,
+        productSku: labels.productSku,
+        entityType: input.entityType,
+        entityId: input.entityId == null ? null : String(input.entityId),
+        action: input.action,
+        summary: input.summary,
+        changedFields: this.historyChangedFields(oldValues, newValues),
+        oldValues,
+        newValues,
+        metadata: input.metadata ? this.normalizeHistoryPayload(input.metadata) : null,
+        performedBy: input.actor?.userId ? Number(input.actor.userId) : null,
+        performedByName: input.actor?.userName || null,
+        ipAddress: input.actor?.ipAddress || null,
+        userAgent: input.actor?.userAgent || null,
+      }));
+    } catch (error) {
+      console.error('[ProductHistory] Failed to write product history:', (error as any)?.message || error);
+    }
+  }
+
+  async getProductHistory(params: {
+    page?: number;
+    limit?: number;
+    q?: string;
+    action?: string;
+    entityType?: string;
+    productId?: number;
+    startDate?: string;
+    endDate?: string;
+  }) {
+    const page = Math.max(1, Number(params.page || 1));
+    const limit = Math.min(200, Math.max(1, Number(params.limit || 50)));
+    const qb = this.productHistoryRepository.createQueryBuilder('history')
+      .orderBy('history.createdAt', 'DESC')
+      .skip((page - 1) * limit)
+      .take(limit);
+
+    if (params.q?.trim()) {
+      const q = `%${params.q.trim().toLowerCase()}%`;
+      qb.andWhere(`(
+        LOWER(COALESCE(history.productName, '')) LIKE :q
+        OR LOWER(COALESCE(history.productSku, '')) LIKE :q
+        OR LOWER(COALESCE(history.summary, '')) LIKE :q
+        OR LOWER(COALESCE(history.performedByName, '')) LIKE :q
+      )`, { q });
+    }
+    if (params.action?.trim()) {
+      qb.andWhere('history.action = :action', { action: params.action.trim() });
+    }
+    if (params.entityType?.trim()) {
+      qb.andWhere('history.entityType = :entityType', { entityType: params.entityType.trim() });
+    }
+    if (Number.isFinite(Number(params.productId)) && Number(params.productId) > 0) {
+      qb.andWhere('history.productId = :productId', { productId: Number(params.productId) });
+    }
+    if (params.startDate?.trim()) {
+      qb.andWhere("history.createdAt >= (:startDate::date)", { startDate: params.startDate.trim() });
+    }
+    if (params.endDate?.trim()) {
+      qb.andWhere("history.createdAt < ((:endDate::date) + INTERVAL '1 day')", { endDate: params.endDate.trim() });
+    }
+
+    const [items, total] = await qb.getManyAndCount();
+    return {
+      items,
+      total,
+      page,
+      limit,
+      totalPages: Math.max(1, Math.ceil(total / limit)),
+    };
+  }
+
+  async getProductHistoryFilters() {
+    const [actions, entityTypes] = await Promise.all([
+      this.productHistoryRepository.createQueryBuilder('history')
+        .select('DISTINCT history.action', 'value')
+        .orderBy('history.action', 'ASC')
+        .getRawMany(),
+      this.productHistoryRepository.createQueryBuilder('history')
+        .select('DISTINCT history.entityType', 'value')
+        .orderBy('history.entityType', 'ASC')
+        .getRawMany(),
+    ]);
+
+    return {
+      actions: actions.map((row) => row.value).filter(Boolean),
+      entityTypes: entityTypes.map((row) => row.value).filter(Boolean),
+    };
   }
 
   async findAll() {
@@ -515,7 +676,7 @@ export class ProductsService {
       }));
   }
 
-  async addProductSuggestionShortlistItem(data: { productId: number; variantName?: string | null; userId?: number | null }) {
+  async addProductSuggestionShortlistItem(data: { productId: number; variantName?: string | null; userId?: number | null; actor?: ProductHistoryActor }) {
     await this.ensureProductSuggestionShortlistSchema();
 
     if (!Number.isFinite(data.productId) || data.productId <= 0) {
@@ -546,12 +707,23 @@ export class ProductsService {
 
     const id = Number(rows?.[0]?.id);
     const shortlist = await this.getProductSuggestionShortlist();
-    return shortlist.find((item: any) => Number(item.id) === id) || { id };
+    const item = shortlist.find((row: any) => Number(row.id) === id) || { id };
+    await this.logProductHistory({
+      productId: data.productId,
+      product,
+      entityType: 'product_suggestion_shortlist',
+      entityId: id,
+      action: 'shortlist_added',
+      summary: `Added ${product.name_en || product.name_bn || `Product #${product.id}`} to product suggestion shortlist`,
+      newValues: item,
+      actor: data.actor,
+    });
+    return item;
   }
 
   async updateProductSuggestionShortlistItem(
     id: number,
-    data: { isActive?: boolean; displayOrder?: number; userId?: number | null },
+    data: { isActive?: boolean; displayOrder?: number; userId?: number | null; actor?: ProductHistoryActor },
   ) {
     await this.ensureProductSuggestionShortlistSchema();
 
@@ -573,6 +745,9 @@ export class ProductsService {
       throw new BadRequestException('Nothing to update');
     }
 
+    const beforeRows = await this.productsRepository.query(`SELECT * FROM product_suggestion_shortlist WHERE id = $1`, [id]);
+    const before = beforeRows?.[0] || null;
+
     await this.productsRepository.query(
       `UPDATE product_suggestion_shortlist SET ${updates.join(', ')} WHERE id = $1`,
       params,
@@ -581,16 +756,37 @@ export class ProductsService {
     const shortlist = await this.getProductSuggestionShortlist();
     const item = shortlist.find((row: any) => Number(row.id) === id);
     if (!item) throw new BadRequestException('Shortlist item not found');
+    await this.logProductHistory({
+      productId: item.productId || before?.product_id || null,
+      entityType: 'product_suggestion_shortlist',
+      entityId: id,
+      action: 'shortlist_updated',
+      summary: 'Updated product suggestion shortlist item',
+      oldValues: before,
+      newValues: item,
+      actor: data.actor,
+    });
     return item;
   }
 
-  async deleteProductSuggestionShortlistItem(id: number) {
+  async deleteProductSuggestionShortlistItem(id: number, actor?: ProductHistoryActor) {
     await this.ensureProductSuggestionShortlistSchema();
 
     if (!Number.isFinite(id) || id <= 0) {
       throw new BadRequestException('Invalid shortlist item');
     }
+    const beforeRows = await this.productsRepository.query(`SELECT * FROM product_suggestion_shortlist WHERE id = $1`, [id]);
+    const before = beforeRows?.[0] || null;
     await this.productsRepository.query(`DELETE FROM product_suggestion_shortlist WHERE id = $1`, [id]);
+    await this.logProductHistory({
+      productId: before?.product_id || null,
+      entityType: 'product_suggestion_shortlist',
+      entityId: id,
+      action: 'shortlist_deleted',
+      summary: 'Deleted product suggestion shortlist item',
+      oldValues: before,
+      actor,
+    });
     return { success: true };
   }
 
@@ -633,13 +829,17 @@ export class ProductsService {
     };
   }
 
-  async updateSectionOrder(sectionKeyInput: string, productIds: number[]) {
+  async updateSectionOrder(sectionKeyInput: string, productIds: number[], actor?: ProductHistoryActor) {
     const sectionKey = this.normalizeSectionKey(sectionKeyInput);
     const uniqueIds = Array.from(new Set(
       (productIds || [])
         .map((id) => Number(id))
         .filter((id) => Number.isFinite(id) && id > 0),
     ));
+    const beforeRows = await this.productsRepository.query(
+      `SELECT product_id, display_order FROM product_section_orders WHERE section_key = $1 ORDER BY display_order ASC`,
+      [sectionKey],
+    );
 
     await this.productsRepository.manager.transaction(async (manager) => {
       await manager.query(`DELETE FROM product_section_orders WHERE section_key = $1`, [sectionKey]);
@@ -653,6 +853,17 @@ export class ProductsService {
           [sectionKey, uniqueIds[index], index],
         );
       }
+    });
+
+    await this.logProductHistory({
+      entityType: 'product_section_order',
+      entityId: sectionKey,
+      action: 'section_order_updated',
+      summary: `Updated product order for ${this.productOrderSections.get(sectionKey)?.label || sectionKey}`,
+      oldValues: { sectionKey, products: beforeRows },
+      newValues: { sectionKey, productIds: uniqueIds },
+      metadata: { affectedCount: uniqueIds.length },
+      actor,
     });
 
     return {
@@ -825,7 +1036,7 @@ export class ProductsService {
     }
   }
 
-  async create(createProductDto: any) {
+  async create(createProductDto: any, actor?: ProductHistoryActor) {
     try {
       console.log('Creating product with data:', createProductDto);
 
@@ -856,6 +1067,16 @@ export class ProductsService {
       const product = this.productsRepository.create(productData);
       const saved = await this.productsRepository.save(product);
       const savedProduct = Array.isArray(saved) ? saved[0] : saved;
+      await this.logProductHistory({
+        productId: savedProduct?.id,
+        product: savedProduct,
+        entityType: 'product',
+        entityId: savedProduct?.id,
+        action: 'created',
+        summary: `Created product ${savedProduct?.name_en || savedProduct?.name_bn || `#${savedProduct?.id}`}`,
+        newValues: savedProduct,
+        actor,
+      });
       console.log('Product created successfully:', savedProduct?.id);
       return saved;
     } catch (error: any) {
@@ -870,14 +1091,15 @@ export class ProductsService {
     }
   }
 
-  async update(id: string, updateProductDto: any) {
+  async update(id: string, updateProductDto: any, actor?: ProductHistoryActor) {
     try {
       console.log('Updating product:', id, updateProductDto);
+      const numericId = parseInt(id, 10);
+      const oldProduct = await this.productsRepository.findOne({ where: { id: numericId } });
 
       // If display_position is being changed, shift other products
       if (updateProductDto.display_position !== undefined) {
-        const numericId = parseInt(id, 10);
-        const existingProduct = await this.productsRepository.findOne({ where: { id: numericId } });
+        const existingProduct = oldProduct || await this.productsRepository.findOne({ where: { id: numericId } });
         if (existingProduct && existingProduct.display_position !== updateProductDto.display_position) {
           if (updateProductDto.display_position != null) {
             await this.shiftDisplayPositions(updateProductDto.display_position, numericId);
@@ -885,8 +1107,26 @@ export class ProductsService {
         }
       }
 
-      const result = await this.productsRepository.update(parseInt(id), updateProductDto);
+      const result = await this.productsRepository.update(numericId, updateProductDto);
       console.log('Update result:', result);
+      const updated = await this.productsRepository.findOne({ where: { id: numericId } });
+      await this.logProductHistory({
+        productId: numericId,
+        product: updated || oldProduct,
+        entityType: 'product',
+        entityId: numericId,
+        action: oldProduct?.status !== updated?.status && updated?.status === 'active'
+          ? 'activated'
+          : oldProduct?.status !== updated?.status && updated?.status !== 'active'
+            ? 'deactivated'
+            : 'updated',
+        summary: oldProduct?.status !== updated?.status
+          ? `Changed product status from ${oldProduct?.status || 'unknown'} to ${updated?.status || 'unknown'}`
+          : `Updated product ${updated?.name_en || updated?.name_bn || `#${numericId}`}`,
+        oldValues: oldProduct,
+        newValues: updated,
+        actor,
+      });
       return this.findOne(id);
     } catch (error) {
       console.error('Error updating product:', error);
@@ -913,8 +1153,21 @@ export class ProductsService {
     await query.execute();
   }
 
-  async remove(id: string) {
-    return this.productsRepository.delete(parseInt(id));
+  async remove(id: string, actor?: ProductHistoryActor) {
+    const numericId = parseInt(id, 10);
+    const oldProduct = await this.productsRepository.findOne({ where: { id: numericId } });
+    const result = await this.productsRepository.delete(numericId);
+    await this.logProductHistory({
+      productId: numericId,
+      product: oldProduct || { id: numericId },
+      entityType: 'product',
+      entityId: numericId,
+      action: 'deleted',
+      summary: `Deleted product ${oldProduct?.name_en || oldProduct?.name_bn || `#${numericId}`}`,
+      oldValues: oldProduct,
+      actor,
+    });
+    return result;
   }
 
   // Homepage Features
@@ -1177,7 +1430,7 @@ export class ProductsService {
     }
   }
 
-  async addProductImage(productId: number, imageData: { image_url: string; display_order?: number; is_primary?: boolean }) {
+  async addProductImage(productId: number, imageData: { image_url: string; display_order?: number; is_primary?: boolean }, actor?: ProductHistoryActor) {
     try {
       // If this is to be set as primary, unset any existing primary image
       if (imageData.is_primary) {
@@ -1196,6 +1449,15 @@ export class ProductsService {
         imageData.display_order || 0,
         imageData.is_primary || false
       ]);
+      await this.logProductHistory({
+        productId,
+        entityType: 'product_image',
+        entityId: result?.[0]?.id,
+        action: 'image_added',
+        summary: 'Added product image',
+        newValues: result?.[0] || imageData,
+        actor,
+      });
       return result[0];
     } catch (error) {
       console.error('Error adding product image:', error);
@@ -1203,11 +1465,22 @@ export class ProductsService {
     }
   }
 
-  async deleteProductImage(imageId: number) {
+  async deleteProductImage(imageId: number, actor?: ProductHistoryActor) {
     try {
+      const current = await this.productsRepository.query(`SELECT * FROM product_images WHERE id = $1`, [imageId]);
+      const image = current?.[0] || null;
       await this.productsRepository.query(`
         DELETE FROM product_images WHERE id = $1
       `, [imageId]);
+      await this.logProductHistory({
+        productId: image?.product_id || null,
+        entityType: 'product_image',
+        entityId: imageId,
+        action: 'image_deleted',
+        summary: 'Deleted product image',
+        oldValues: image,
+        actor,
+      });
       return { success: true, message: 'Image deleted successfully' };
     } catch (error) {
       console.error('Error deleting product image:', error);
@@ -1215,8 +1488,10 @@ export class ProductsService {
     }
   }
 
-  async updateProductImage(imageId: number, imageData: { display_order?: number; is_primary?: boolean }) {
+  async updateProductImage(imageId: number, imageData: { display_order?: number; is_primary?: boolean }, actor?: ProductHistoryActor) {
     try {
+      const beforeRows = await this.productsRepository.query(`SELECT * FROM product_images WHERE id = $1`, [imageId]);
+      const before = beforeRows?.[0] || null;
       // If setting as primary, get the product_id first and unset others
       if (imageData.is_primary) {
         const currentImage = await this.productsRepository.query(`
@@ -1257,6 +1532,17 @@ export class ProductsService {
         WHERE id = $${paramCounter}
         RETURNING *
       `, params);
+
+      await this.logProductHistory({
+        productId: result?.[0]?.product_id || before?.product_id || null,
+        entityType: 'product_image',
+        entityId: imageId,
+        action: 'image_updated',
+        summary: 'Updated product image',
+        oldValues: before,
+        newValues: result?.[0] || null,
+        actor,
+      });
 
       return result[0];
     } catch (error) {
@@ -1315,8 +1601,10 @@ export class ProductsService {
     }
   }
 
-  async setDealOfTheDay(productId: number, endDate?: Date) {
+  async setDealOfTheDay(productId: number, endDate?: Date, actor?: ProductHistoryActor) {
     try {
+      const product = await this.productsRepository.findOne({ where: { id: productId } });
+      const activeBefore = await this.dealOfTheDayRepository.find({ where: { is_active: true } });
       // Deactivate all existing deals
       await this.dealOfTheDayRepository.update(
         { is_active: true },
@@ -1331,19 +1619,42 @@ export class ProductsService {
         is_active: true,
       });
 
-      return await this.dealOfTheDayRepository.save(deal);
+      const saved = await this.dealOfTheDayRepository.save(deal);
+      await this.logProductHistory({
+        productId,
+        product,
+        entityType: 'deal_of_the_day',
+        entityId: saved.id,
+        action: 'deal_of_day_set',
+        summary: `Set ${product?.name_en || product?.name_bn || `Product #${productId}`} as deal of the day`,
+        oldValues: { activeDeals: activeBefore },
+        newValues: saved,
+        actor,
+      });
+      return saved;
     } catch (error) {
       console.error('Error setting deal of the day:', error);
       throw error;
     }
   }
 
-  async removeDealOfTheDay() {
+  async removeDealOfTheDay(actor?: ProductHistoryActor) {
     try {
+      const activeBefore = await this.dealOfTheDayRepository.find({ where: { is_active: true } });
       await this.dealOfTheDayRepository.update(
         { is_active: true },
         { is_active: false }
       );
+      await this.logProductHistory({
+        productId: activeBefore?.[0]?.product_id || null,
+        entityType: 'deal_of_the_day',
+        entityId: activeBefore?.[0]?.id || null,
+        action: 'deal_of_day_removed',
+        summary: 'Removed active deal of the day',
+        oldValues: { activeDeals: activeBefore },
+        newValues: { is_active: false },
+        actor,
+      });
       return { success: true, message: 'Deal of the day removed' };
     } catch (error) {
       console.error('Error removing deal of the day:', error);
@@ -1410,6 +1721,7 @@ export class ProductsService {
     displayOrder?: number;
     startDate?: Date;
     endDate?: Date;
+    actor?: ProductHistoryActor;
   }) {
     try {
       // Check if product already exists in hot deals
@@ -1430,7 +1742,19 @@ export class ProductsService {
         is_active: true,
       });
 
-      return await this.hotDealRepository.save(hotDeal);
+      const saved = await this.hotDealRepository.save(hotDeal);
+      const product = await this.productsRepository.findOne({ where: { id: data.productId } });
+      await this.logProductHistory({
+        productId: data.productId,
+        product,
+        entityType: 'hot_deal',
+        entityId: saved.id,
+        action: 'hot_deal_added',
+        summary: `Added ${product?.name_en || product?.name_bn || `Product #${data.productId}`} to hot deals`,
+        newValues: saved,
+        actor: data.actor,
+      });
+      return saved;
     } catch (error) {
       console.error('Error adding hot deal:', error);
       throw error;
@@ -1444,12 +1768,14 @@ export class ProductsService {
     startDate?: Date;
     endDate?: Date;
     isActive?: boolean;
+    actor?: ProductHistoryActor;
   }) {
     try {
       const hotDeal = await this.hotDealRepository.findOne({ where: { id } });
       if (!hotDeal) {
         throw new BadRequestException('Hot deal not found');
       }
+      const before = { ...hotDeal };
 
       if (data.specialPrice !== undefined) hotDeal.special_price = data.specialPrice;
       if (data.discountPercent !== undefined) hotDeal.discount_percent = data.discountPercent;
@@ -1458,16 +1784,39 @@ export class ProductsService {
       if (data.endDate !== undefined) hotDeal.end_date = data.endDate;
       if (data.isActive !== undefined) hotDeal.is_active = data.isActive;
 
-      return await this.hotDealRepository.save(hotDeal);
+      const saved = await this.hotDealRepository.save(hotDeal);
+      const product = await this.productsRepository.findOne({ where: { id: saved.product_id } });
+      await this.logProductHistory({
+        productId: saved.product_id,
+        product,
+        entityType: 'hot_deal',
+        entityId: id,
+        action: 'hot_deal_updated',
+        summary: `Updated hot deal for ${product?.name_en || product?.name_bn || `Product #${saved.product_id}`}`,
+        oldValues: before,
+        newValues: saved,
+        actor: data.actor,
+      });
+      return saved;
     } catch (error) {
       console.error('Error updating hot deal:', error);
       throw error;
     }
   }
 
-  async removeHotDeal(id: number) {
+  async removeHotDeal(id: number, actor?: ProductHistoryActor) {
     try {
+      const before = await this.hotDealRepository.findOne({ where: { id } });
       const result = await this.hotDealRepository.delete(id);
+      await this.logProductHistory({
+        productId: before?.product_id || null,
+        entityType: 'hot_deal',
+        entityId: id,
+        action: 'hot_deal_deleted',
+        summary: 'Deleted hot deal',
+        oldValues: before,
+        actor,
+      });
       return { success: true, message: 'Hot deal removed', affected: result.affected };
     } catch (error) {
       console.error('Error removing hot deal:', error);
@@ -1475,15 +1824,27 @@ export class ProductsService {
     }
   }
 
-  async toggleHotDealStatus(id: number) {
+  async toggleHotDealStatus(id: number, actor?: ProductHistoryActor) {
     try {
       const hotDeal = await this.hotDealRepository.findOne({ where: { id } });
       if (!hotDeal) {
         throw new BadRequestException('Hot deal not found');
       }
 
+      const before = { ...hotDeal };
       hotDeal.is_active = !hotDeal.is_active;
-      return await this.hotDealRepository.save(hotDeal);
+      const saved = await this.hotDealRepository.save(hotDeal);
+      await this.logProductHistory({
+        productId: saved.product_id,
+        entityType: 'hot_deal',
+        entityId: id,
+        action: saved.is_active ? 'hot_deal_activated' : 'hot_deal_deactivated',
+        summary: `${saved.is_active ? 'Activated' : 'Deactivated'} hot deal`,
+        oldValues: before,
+        newValues: saved,
+        actor,
+      });
+      return saved;
     } catch (error) {
       console.error('Error toggling hot deal status:', error);
       throw error;
@@ -1528,8 +1889,12 @@ export class ProductsService {
     }
   }
 
-  async updateSuggestions(productId: number, suggestedProductIds: number[]): Promise<{ success: boolean }> {
+  async updateSuggestions(productId: number, suggestedProductIds: number[], actor?: ProductHistoryActor): Promise<{ success: boolean }> {
     try {
+      const before = await this.productsRepository.query(
+        `SELECT * FROM product_suggestions WHERE product_id = $1 ORDER BY display_order ASC, id ASC`,
+        [productId],
+      );
       await this.productsRepository.manager.transaction(async (manager) => {
         // Delete existing suggestions
         await manager.query(
@@ -1546,6 +1911,21 @@ export class ProductsService {
             [productId, suggestedId, index]
           );
         }
+      });
+      const after = await this.productsRepository.query(
+        `SELECT * FROM product_suggestions WHERE product_id = $1 ORDER BY display_order ASC, id ASC`,
+        [productId],
+      );
+      await this.logProductHistory({
+        productId,
+        entityType: 'product_suggestion',
+        entityId: productId,
+        action: 'suggestions_updated',
+        summary: 'Updated product suggestions',
+        oldValues: { suggestions: before },
+        newValues: { suggestions: after },
+        metadata: { suggestedProductIds },
+        actor,
       });
       return { success: true };
     } catch (error) {

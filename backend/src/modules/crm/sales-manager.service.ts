@@ -2216,24 +2216,28 @@ export class SalesManagerService implements OnModuleInit {
         )`,
         'scheduled_assignment',
       )
-      // Only customers who have at least one delivered order
-      .andWhere(
+      // Rejected visibility controlled by rejectedStatus query param
+      // 'non_rejected' (default) = exclude rejected; 'rejected' = only rejected; 'all' = no filter
+      ;  // (rejection filter applied below after query param is read)
+
+    // Normal Assign Leads remains delivered-customer based. Foreign Leads is driven by
+    // customers.source because source numbers can be captured before delivery.
+    if (!foreignOnly) {
+      qb.andWhere(
         `EXISTS (
           SELECT 1
           FROM sales_orders so_delivered_base
           WHERE so_delivered_base.customer_id = c.id
             AND LOWER(so_delivered_base.status::text) = 'delivered'
         )`,
-      )
-      // Rejected visibility controlled by rejectedStatus query param
-      // 'non_rejected' (default) = exclude rejected; 'rejected' = only rejected; 'all' = no filter
-      ;  // (rejection filter applied below after query param is read)
+      );
+    }
 
     // Assignment status filter
     if (foreignOnly) {
-      qb.andWhere("COALESCE(c.source, '') ~ '^\\+[0-9]{7,18}$'");
+      qb.andWhere("COALESCE(c.source, '') ~ '^\\+[0-9]{7,18}$' AND COALESCE(c.source, '') !~ '^\\+88'");
     } else {
-      qb.andWhere("COALESCE(c.source, '') !~ '^\\+[0-9]{7,18}$'");
+      qb.andWhere("(COALESCE(c.source, '') !~ '^\\+[0-9]{7,18}$' OR COALESCE(c.source, '') ~ '^\\+88')");
     }
 
     if (query.assignmentStatus === 'unassigned' || query.unassignedOnly === 'true' || query.unassignedOnly === true) {

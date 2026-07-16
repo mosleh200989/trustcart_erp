@@ -32,8 +32,6 @@ type PresenceDashboard = {
   };
 };
 
-type RangeOption = 'today' | '7' | '30' | '90';
-
 function secondsToHuman(value: any) {
   const total = Number(value || 0);
   if (!Number.isFinite(total) || total <= 0) return '0m';
@@ -64,13 +62,18 @@ function formatDate(value?: string | null) {
   return d.toLocaleDateString('en-GB');
 }
 
-function getRangeParams(range: RangeOption) {
-  if (range !== 'today') return { rangeDays: Number(range) };
-  const from = new Date();
-  from.setHours(0, 0, 0, 0);
-  const to = new Date();
-  to.setHours(23, 59, 59, 999);
-  return { from: from.toISOString(), to: to.toISOString(), rangeDays: 1 };
+function getCurrentMonthValue() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function getMonthRangeParams(monthValue: string) {
+  const [yearRaw, monthRaw] = String(monthValue || getCurrentMonthValue()).split('-');
+  const year = Number(yearRaw);
+  const monthIndex = Number(monthRaw) - 1;
+  const from = new Date(year, monthIndex, 1, 0, 0, 0, 0);
+  const to = new Date(year, monthIndex + 1, 0, 23, 59, 59, 999);
+  return { from: from.toISOString(), to: to.toISOString() };
 }
 
 function getDayKey(value?: string | null) {
@@ -107,7 +110,7 @@ function Stat({ label, value, icon }: { label: string; value: ReactNode; icon: R
 
 export default function PresenceHistoryPage() {
   const { hasPermission } = useAuth();
-  const [range, setRange] = useState<RangeOption>('today');
+  const [month, setMonth] = useState(getCurrentMonthValue());
   const [presenceSearch, setPresenceSearch] = useState('');
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(false);
@@ -115,17 +118,20 @@ export default function PresenceHistoryPage() {
   const [history, setHistory] = useState<any[]>([]);
   const [message, setMessage] = useState('');
 
-  const canViewHistory = hasPermission('view-presence') || hasPermission('view-presence-history') || hasPermission('manage-presence-history');
+  const canViewAllHistory = hasPermission('view-presence') || hasPermission('view-presence-history') || hasPermission('manage-presence-history');
+  const canViewHistory = true;
 
   const load = async () => {
     if (!canViewHistory) return;
     setLoading(true);
     setMessage('');
     try {
-      const params = getRangeParams(range);
+      const params = getMonthRangeParams(month);
+      const summaryEndpoint = canViewAllHistory ? '/presence/dashboard' : '/presence/me/summary';
+      const historyEndpoint = canViewAllHistory ? '/presence/history' : '/presence/me/history';
       const [dashboardRes, historyRes] = await Promise.all([
-        apiClient.get('/presence/dashboard', { params }),
-        apiClient.get('/presence/history', { params }),
+        apiClient.get(summaryEndpoint, { params }),
+        apiClient.get(historyEndpoint, { params }),
       ]);
       setDashboard(dashboardRes.data);
       setHistory(Array.isArray(historyRes.data?.items) ? historyRes.data.items : []);
@@ -141,7 +147,7 @@ export default function PresenceHistoryPage() {
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [range, canViewHistory]);
+  }, [month, canViewAllHistory, canViewHistory]);
 
   const eventsByUser = useMemo(() => {
     const map = new Map<number, any[]>();
@@ -257,31 +263,6 @@ export default function PresenceHistoryPage() {
       }
     });
 
-    if (range === 'today') {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const dayKey = getDayKey(today.toISOString());
-      (dashboard?.items || []).forEach((user) => {
-        if (!dayKey || (!Number(user.seconds?.online || 0) && user.currentState !== 'online')) return;
-        const row = ensureRow(
-          {
-            userId: user.userId,
-            name: user.name,
-            email: user.email,
-            state: user.currentState,
-            startedAt: today.toISOString(),
-            occurredAt: today.toISOString(),
-          },
-          dayKey,
-          today,
-        );
-        row.durationSeconds = Math.max(Number(row.durationSeconds || 0), Number(user.seconds?.online || 0));
-        if (!row.lastEntryAt && user.currentState === 'online') row.lastEntryAt = today.toISOString();
-        if (user.currentState === 'online') row.status = 'online';
-        row.sortAt = Math.max(row.sortAt, today.getTime());
-      });
-    }
-
     return Array.from(grouped.values())
       .filter((row) => {
         if (!q) return true;
@@ -299,23 +280,21 @@ export default function PresenceHistoryPage() {
           <div>
             <Link href="/admin/presence" className="inline-flex items-center gap-2 text-sm font-semibold text-blue-700 hover:text-blue-800">
               <FaArrowLeft />
-              Check In/Out Dashboard
+              Presence
             </Link>
-            <h1 className="text-3xl font-bold text-gray-900 mt-2">Check In/Out History</h1>
-            <p className="text-gray-600 mt-1">Review current check-in status and check-in/out history with user, duration, and source details.</p>
+            <h1 className="text-3xl font-bold text-gray-900 mt-2">Presence History</h1>
+            <p className="text-gray-600 mt-1">
+              {canViewAllHistory ? 'Review employee check-in/out history by month.' : 'Review your own check-in/out history by month.'}
+            </p>
           </div>
 
           <div className="flex flex-col sm:flex-row gap-3">
-            <select
-              value={range}
-              onChange={(e) => setRange(e.target.value as RangeOption)}
+            <input
+              type="month"
+              value={month}
+              onChange={(e) => setMonth(e.target.value)}
               className="border border-gray-300 rounded-lg px-3 py-2 bg-white text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            >
-              <option value="today">Today Only</option>
-              <option value="7">Last 7 days</option>
-              <option value="30">Last 30 days</option>
-              <option value="90">Last 90 days</option>
-            </select>
+            />
             <button
               onClick={load}
               disabled={loading || !canViewHistory}
@@ -329,7 +308,7 @@ export default function PresenceHistoryPage() {
 
         {!canViewHistory && (
           <div className="bg-white border border-red-100 text-red-700 rounded-lg px-4 py-3 text-sm shadow-sm">
-            You do not have permission to view check-in/out history.
+            You do not have permission to view presence history.
           </div>
         )}
 
@@ -372,7 +351,7 @@ export default function PresenceHistoryPage() {
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">User</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Status</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Entry Time</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase">Today's Duration</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase">Duration</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Out Time</th>
                 </tr>
               </thead>
@@ -404,7 +383,7 @@ export default function PresenceHistoryPage() {
         <div className="bg-white border border-gray-200 rounded-lg shadow-sm">
           <div className="p-4 border-b border-gray-200 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
             <div>
-              <h2 className="text-lg font-bold text-gray-900">All Employee History</h2>
+              <h2 className="text-lg font-bold text-gray-900">{canViewAllHistory ? 'All Employee History' : 'My History'}</h2>
               <p className="text-sm text-gray-500">Showing {dailyHistoryRows.length} daily records</p>
             </div>
             <div className="flex flex-col sm:flex-row gap-3">

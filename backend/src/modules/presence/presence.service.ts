@@ -5,6 +5,7 @@ import { isIP } from 'net';
 import axios from 'axios';
 import jwt from 'jsonwebtoken';
 import * as fs from 'fs';
+import PDFDocument from 'pdfkit';
 import { User } from '../users/user.entity';
 import { UserPresenceEvent } from './entities/user-presence-event.entity';
 import { UserPresenceState, UserPresenceStatus } from './entities/user-presence-status.entity';
@@ -348,10 +349,6 @@ export class PresenceService {
       calendarTeamGapEvery: 0,
       calendarTeamGapSize: 12,
       calendarUserOrder: null,
-      telegramRemindersEnabled: false,
-      telegramReminderLeadMinutes: 5,
-      telegramOfflineReminderMessage: 'Hi {name}, your office time starts at {startTime}. Please check in if you are starting work.',
-      telegramOnlineThankYouMessage: 'Thank you {name}. You checked in on time for your {startTime} office start.',
       googleSpreadsheetId: '1HS4-6TSSmYRj-D6_ntJ9OyQITNfVyJRMZUN-d-ZN6C8',
       summarySheetName: 'May-26',
       eventsSheetName: '',
@@ -394,14 +391,6 @@ export class PresenceService {
     settings.attendanceUnexcusedAbsenceColor = cleanColor(input.attendanceUnexcusedAbsenceColor, settings.attendanceUnexcusedAbsenceColor || '#dc2626');
     settings.calendarTeamGapEvery = clampInt((input as any).calendarTeamGapEvery, 0, 100, settings.calendarTeamGapEvery || 0);
     settings.calendarTeamGapSize = clampInt((input as any).calendarTeamGapSize, 0, 80, settings.calendarTeamGapSize || 12);
-    settings.telegramRemindersEnabled = Boolean((input as any).telegramRemindersEnabled);
-    settings.telegramReminderLeadMinutes = clampInt((input as any).telegramReminderLeadMinutes, 1, 120, settings.telegramReminderLeadMinutes || 5);
-    settings.telegramOfflineReminderMessage =
-      String((input as any).telegramOfflineReminderMessage ?? settings.telegramOfflineReminderMessage ?? '').trim().slice(0, 2000) ||
-      'Hi {name}, your office time starts at {startTime}. Please check in if you are starting work.';
-    settings.telegramOnlineThankYouMessage =
-      String((input as any).telegramOnlineThankYouMessage ?? settings.telegramOnlineThankYouMessage ?? '').trim().slice(0, 2000) ||
-      'Thank you {name}. You checked in on time for your {startTime} office start.';
     settings.googleSpreadsheetId =
       input.googleSpreadsheetId == null ? settings.googleSpreadsheetId : String(input.googleSpreadsheetId || '').trim() || null;
     settings.summarySheetName = String(input.summarySheetName ?? settings.summarySheetName ?? this.getDefaultMonthSheetName()).trim() || this.getDefaultMonthSheetName();
@@ -613,6 +602,436 @@ export class PresenceService {
     };
   }
 
+  async getStatisticsUsers() {
+    const rows = await this.userRepo.manager.query(
+      `SELECT
+         u.id,
+         NULLIF(TRIM(CONCAT(COALESCE(u.name, ''), ' ', COALESCE(u.last_name, ''))), '') AS name,
+         u.email,
+         u.phone,
+         u.created_at,
+         u.team_leader_id,
+         NULLIF(TRIM(CONCAT(COALESCE(tl.name, ''), ' ', COALESCE(tl.last_name, ''))), '') AS team_leader_name,
+         r.name AS role_name,
+         r.slug AS role_slug,
+         r.priority AS role_priority
+       FROM users u
+       LEFT JOIN users tl ON tl.id = u.team_leader_id
+       LEFT JOIN roles r ON r.id = u.role_id
+       WHERE COALESCE(u.is_deleted, false) = false
+         AND COALESCE(u.status, 'active') = 'active'
+       ORDER BY COALESCE(r.priority, 0) DESC, team_leader_name NULLS LAST, name ASC, u.email ASC`,
+    );
+
+    return (rows || []).map((row: any) => ({
+      id: Number(row.id),
+      name: row.name || row.email || `User #${row.id}`,
+      email: row.email || null,
+      phone: row.phone || null,
+      createdAt: row.created_at || null,
+      teamLeaderId: row.team_leader_id == null ? null : Number(row.team_leader_id),
+      teamLeaderName: row.team_leader_name || null,
+      roleName: row.role_name || null,
+      roleSlug: row.role_slug || null,
+      rolePriority: Number(row.role_priority || 0),
+    }));
+  }
+
+  private dateFromDhakaKey(dateKey: string, endOfDay = false) {
+    return new Date(`${dateKey}T${endOfDay ? '23:59:59.999' : '00:00:00.000'}+06:00`);
+  }
+
+  private secondsToHours(value: number) {
+    return Math.round((Number(value || 0) / 3600) * 100) / 100;
+  }
+
+  private minutesToTimeLabel(minutes: number | null) {
+    if (minutes == null || !Number.isFinite(minutes)) return '-';
+    const clamped = Math.max(0, Math.min(1439, Math.round(minutes)));
+    return `${String(Math.floor(clamped / 60)).padStart(2, '0')}:${String(clamped % 60).padStart(2, '0')}`;
+  }
+
+  private weekKeyForDateKey(dateKey: string, timezone: string) {
+    const noon = new Date(`${dateKey}T12:00:00+06:00`);
+    const weekday = noon.toLocaleDateString('en-US', { weekday: 'long', timeZone: timezone });
+    const weekdayIndex = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].indexOf(weekday);
+    const offset = weekdayIndex < 0 ? 0 : weekdayIndex;
+    const monday = new Date(noon.getTime() - offset * 24 * 3600 * 1000);
+    return this.getDhakaDateKey(monday, timezone);
+  }
+
+  private makeEmptyPresenceBucket(label: string, extra: Record<string, any> = {}) {
+    return {
+      label,
+      days: 0,
+      countedDays: 0,
+      present: 0,
+      late: 0,
+      weeklyOff: 0,
+      excusedLeave: 0,
+      unwantedLeave: 0,
+      manualOverrides: 0,
+      checkIns: 0,
+      checkOuts: 0,
+      totalOnlineSeconds: 0,
+      avgDailySeconds: 0,
+      avgPresentDaySeconds: 0,
+      avgCheckInMinutes: null as number | null,
+      avgCheckInTime: '-',
+      ...extra,
+    };
+  }
+
+  private finalizePresenceBucket(bucket: any) {
+    bucket.avgDailySeconds = bucket.countedDays > 0 ? Math.round(bucket.totalOnlineSeconds / bucket.countedDays) : 0;
+    const attendedDays = bucket.present + bucket.late;
+    bucket.avgPresentDaySeconds = attendedDays > 0 ? Math.round(bucket.totalOnlineSeconds / attendedDays) : 0;
+    bucket.avgCheckInTime = this.minutesToTimeLabel(bucket.avgCheckInMinutes);
+    bucket.totalOnlineHours = this.secondsToHours(bucket.totalOnlineSeconds);
+    bucket.avgDailyHours = this.secondsToHours(bucket.avgDailySeconds);
+    bucket.avgPresentDayHours = this.secondsToHours(bucket.avgPresentDaySeconds);
+    bucket.attendanceRate = bucket.countedDays > 0 ? Math.round(((bucket.present + bucket.late) / bucket.countedDays) * 10000) / 100 : 0;
+    bucket.lateRate = (bucket.present + bucket.late) > 0 ? Math.round((bucket.late / (bucket.present + bucket.late)) * 10000) / 100 : 0;
+    bucket.unwantedLeaveRate = bucket.countedDays > 0 ? Math.round((bucket.unwantedLeave / bucket.countedDays) * 10000) / 100 : 0;
+    return bucket;
+  }
+
+  async getPresenceStatistics(params: { userId?: number; year?: number }) {
+    const userId = Number(params.userId);
+    if (!Number.isFinite(userId) || userId <= 0) throw new BadRequestException('Employee is required');
+    const year = clampInt(params.year, 2000, 2100, new Date().getFullYear());
+    const settings = await this.getSettings();
+    const timezone = settings.timezone || 'Asia/Dhaka';
+
+    const userRows = await this.getStatisticsUsers();
+    const employee = userRows.find((row: any) => Number(row.id) === userId);
+    if (!employee) throw new BadRequestException('Employee not found');
+
+    const officeTime = await this.officeTimeRepo.findOne({ where: { userId } as any });
+    const officeStart = officeTime?.officeStartTime || settings.officeStartTime || '09:00';
+    const officeEnd = officeTime?.officeEndTime || settings.officeEndTime || '18:00';
+    const officeStartMinutes = this.timeToMinutes(officeStart);
+    const cautionMinutes = Math.max(0, Math.min(240, Number(officeTime?.cautionMinutes || 0)));
+
+    const yearStartKey = `${year}-01-01`;
+    const yearEndKey = `${year}-12-31`;
+    const yearStart = this.dateFromDhakaKey(yearStartKey);
+    const yearEnd = this.dateFromDhakaKey(yearEndKey, true);
+    const now = new Date();
+    const todayKey = this.getDhakaDateKey(now, timezone);
+    const employeeStartKey = employee.createdAt ? this.getDhakaDateKey(new Date(employee.createdAt), timezone) : yearStartKey;
+
+    const [events, baselineRows, overrides] = await Promise.all([
+      this.eventRepo
+        .createQueryBuilder('e')
+        .where('e.userId = :userId', { userId })
+        .andWhere('e.occurredAt >= :from AND e.occurredAt <= :to', { from: yearStart, to: yearEnd })
+        .orderBy('e.occurredAt', 'ASC')
+        .getMany(),
+      this.eventRepo.query(
+        `SELECT id, user_id as "userId", state, source, occurred_at as "occurredAt", created_at as "createdAt"
+         FROM user_presence_events
+         WHERE user_id = $1 AND occurred_at < $2
+         ORDER BY occurred_at DESC
+         LIMIT 1`,
+        [userId, yearStart],
+      ),
+      this.calendarOverrideRepo
+        .createQueryBuilder('o')
+        .where('o.userId = :userId', { userId })
+        .andWhere('o.dateKey >= :from AND o.dateKey <= :to', { from: yearStartKey, to: yearEndKey })
+        .getMany(),
+    ]);
+
+    const overrideByDate = new Map(overrides.map((row) => [row.dateKey, row]));
+    const keyConfig = {
+      present: settings.attendancePresentKey || 'P',
+      late: settings.attendanceLateKey || 'L',
+      weeklyOff: settings.attendanceWeeklyOffKey || 'W',
+      excusedLeave: settings.attendanceExcusedAbsenceKey || 'U',
+      unwantedLeave: settings.attendanceUnexcusedAbsenceKey || 'A',
+    };
+
+    const monthNames = Array.from({ length: 12 }, (_, month) => new Date(year, month, 1).toLocaleString('en-US', { month: 'long' }));
+    const monthly = monthNames.map((label, month) => this.makeEmptyPresenceBucket(label, { month: month + 1 }));
+    const weeklyMap = new Map<string, any>();
+    const yearSummary = this.makeEmptyPresenceBucket(String(year), { year });
+    const daily: any[] = [];
+
+    const sortedEvents = (events || []).slice().sort((a, b) => new Date(a.occurredAt).getTime() - new Date(b.occurredAt).getTime());
+    let eventIndex = 0;
+    let currentState: UserPresenceState = baselineRows?.[0]?.state ? safeState(baselineRows[0].state) : 'offline';
+
+    for (let month = 0; month < 12; month += 1) {
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+      for (let day = 1; day <= daysInMonth; day += 1) {
+        const dateKey = this.dateKeyForMonthDay(year, month, day);
+        if (dateKey > todayKey) continue;
+        if (dateKey < employeeStartKey) continue;
+
+        const dayStart = this.dateFromDhakaKey(dateKey);
+        const naturalDayEnd = this.dateFromDhakaKey(dateKey, true);
+        const dayEnd = dateKey === todayKey && now < naturalDayEnd ? now : naturalDayEnd;
+        const dayEvents: UserPresenceEvent[] = [];
+        while (eventIndex < sortedEvents.length) {
+          const eventTime = new Date(sortedEvents[eventIndex].occurredAt);
+          if (eventTime < dayStart) {
+            currentState = safeState(sortedEvents[eventIndex].state);
+            eventIndex += 1;
+            continue;
+          }
+          if (eventTime > dayEnd) break;
+          dayEvents.push(sortedEvents[eventIndex]);
+          eventIndex += 1;
+        }
+
+        let cursor = dayStart;
+        let dayState = currentState;
+        let onlineSeconds = 0;
+        let checkIns = 0;
+        let checkOuts = 0;
+        let firstOnlineAt: Date | null = dayState === 'online' ? dayStart : null;
+
+        for (const event of dayEvents) {
+          const eventTime = new Date(event.occurredAt);
+          if (dayState === 'online') {
+            onlineSeconds += Math.max(0, Math.floor((eventTime.getTime() - cursor.getTime()) / 1000));
+          }
+          dayState = safeState(event.state);
+          if (dayState === 'online') {
+            checkIns += 1;
+            if (!firstOnlineAt) firstOnlineAt = eventTime;
+          } else {
+            checkOuts += 1;
+          }
+          cursor = eventTime;
+        }
+        if (dayState === 'online') {
+          onlineSeconds += Math.max(0, Math.floor((dayEnd.getTime() - cursor.getTime()) / 1000));
+        }
+        currentState = dayState;
+
+        const weekday = new Date(`${dateKey}T12:00:00+06:00`).toLocaleDateString('en-US', { weekday: 'long', timeZone: timezone });
+        const override = overrideByDate.get(dateKey);
+        let verdict: 'present' | 'late' | 'weeklyOff' | 'excusedLeave' | 'unwantedLeave' | 'custom' = 'unwantedLeave';
+        let label = settings.attendanceUnexcusedAbsenceLabel || 'Unexcused absence';
+        let isManual = false;
+
+        if (override) {
+          isManual = true;
+          const key = override.attendanceKey;
+          if (key === keyConfig.present) verdict = 'present';
+          else if (key === keyConfig.late) verdict = 'late';
+          else if (key === keyConfig.weeklyOff) verdict = 'weeklyOff';
+          else if (key === keyConfig.excusedLeave) verdict = 'excusedLeave';
+          else if (key === keyConfig.unwantedLeave) verdict = 'unwantedLeave';
+          else verdict = 'custom';
+          label = override.attendanceLabel || override.attendanceKey;
+        } else if (officeTime?.weeklyDayOff && officeTime.weeklyDayOff.toLowerCase() === weekday.toLowerCase()) {
+          verdict = 'weeklyOff';
+          label = settings.attendanceWeeklyOffLabel || 'Weekly off day';
+        } else if (firstOnlineAt) {
+          const firstMinutes =
+            Number(firstOnlineAt.toLocaleString('en-US', { hour: '2-digit', hour12: false, timeZone: timezone })) * 60 +
+            Number(firstOnlineAt.toLocaleString('en-US', { minute: '2-digit', timeZone: timezone }));
+          verdict = firstMinutes > officeStartMinutes + cautionMinutes ? 'late' : 'present';
+          label = verdict === 'late' ? (settings.attendanceLateLabel || 'Late') : (settings.attendancePresentLabel || 'Present');
+        }
+
+        const firstMinutes = firstOnlineAt
+          ? Number(firstOnlineAt.toLocaleString('en-US', { hour: '2-digit', hour12: false, timeZone: timezone })) * 60 +
+            Number(firstOnlineAt.toLocaleString('en-US', { minute: '2-digit', timeZone: timezone }))
+          : null;
+
+        const weekKey = this.weekKeyForDateKey(dateKey, timezone);
+        const week = weeklyMap.get(weekKey) || this.makeEmptyPresenceBucket(`Week of ${weekKey.split('-').reverse().join('/')}`, { weekKey });
+        weeklyMap.set(weekKey, week);
+
+        const buckets = [monthly[month], week, yearSummary];
+        for (const bucket of buckets) {
+          bucket.days += 1;
+          bucket.totalOnlineSeconds += onlineSeconds;
+          bucket.checkIns += checkIns;
+          bucket.checkOuts += checkOuts;
+          if (isManual) bucket.manualOverrides += 1;
+          if (verdict !== 'weeklyOff') bucket.countedDays += 1;
+          if (verdict in bucket) bucket[verdict] += 1;
+          if ((verdict === 'present' || verdict === 'late') && firstMinutes != null) {
+            const attendedBefore = bucket.present + bucket.late - 1;
+            bucket.avgCheckInMinutes = bucket.avgCheckInMinutes == null
+              ? firstMinutes
+              : ((bucket.avgCheckInMinutes * attendedBefore) + firstMinutes) / Math.max(1, attendedBefore + 1);
+          }
+        }
+
+        daily.push({
+          dateKey,
+          weekday,
+          verdict,
+          label,
+          isManual,
+          firstEntryTime: this.minutesToTimeLabel(firstMinutes),
+          onlineSeconds,
+          onlineHours: this.secondsToHours(onlineSeconds),
+          checkIns,
+          checkOuts,
+        });
+      }
+    }
+
+    const finalizedMonthly = monthly.map((bucket) => this.finalizePresenceBucket(bucket));
+    const finalizedWeekly = Array.from(weeklyMap.values())
+      .sort((a, b) => String(a.weekKey).localeCompare(String(b.weekKey)))
+      .map((bucket) => this.finalizePresenceBucket(bucket));
+    const finalizedYear = this.finalizePresenceBucket(yearSummary);
+
+    return {
+      employee,
+      year,
+      timezone,
+      officeTime: {
+        officeStartTime: officeStart,
+        officeEndTime: officeEnd,
+        cautionMinutes,
+        weeklyDayOff: officeTime?.weeklyDayOff || null,
+        lunchBreakStartTime: officeTime?.lunchBreakStartTime || null,
+        lunchBreakEndTime: officeTime?.lunchBreakEndTime || null,
+      },
+      summary: finalizedYear,
+      monthly: finalizedMonthly,
+      weekly: finalizedWeekly,
+      daily,
+      recentDaily: daily.slice(-45).reverse(),
+      generatedAt: new Date().toISOString(),
+    };
+  }
+
+  async generatePresenceStatisticsPdf(params: { userId?: number; year?: number }) {
+    const stats = await this.getPresenceStatistics(params);
+    return new Promise<Buffer>((resolve, reject) => {
+      const doc = new PDFDocument({ size: 'A4', margin: 42 });
+      const chunks: Buffer[] = [];
+      doc.on('data', (chunk) => chunks.push(Buffer.from(chunk)));
+      doc.on('end', () => resolve(Buffer.concat(chunks)));
+      doc.on('error', reject);
+
+      const moneyBlue = '#1d4ed8';
+      const dark = '#111827';
+      const muted = '#6b7280';
+      const line = '#e5e7eb';
+      const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+
+      const writeHeader = () => {
+        doc.rect(0, 0, doc.page.width, 92).fill('#0f172a');
+        doc.fillColor('#ffffff').fontSize(20).font('Helvetica-Bold').text('Presence Statistics Report', 42, 28);
+        doc.fontSize(10).font('Helvetica').fillColor('#cbd5e1').text(`Generated: ${new Date(stats.generatedAt).toLocaleString('en-GB', { timeZone: stats.timezone })}`, 42, 56);
+        doc.fillColor('#ffffff').fontSize(12).font('Helvetica-Bold').text(String(stats.year), doc.page.width - 120, 34, { width: 78, align: 'right' });
+        doc.moveDown();
+      };
+
+      const addFooter = () => {
+        const page = doc.page;
+        doc.fontSize(8).fillColor('#9ca3af').text('TrustCart ERP - Presence Module', 42, page.height - 34, { width: pageWidth, align: 'center' });
+      };
+
+      const ensureSpace = (height: number) => {
+        if (doc.y + height > doc.page.height - 60) {
+          addFooter();
+          doc.addPage();
+          writeHeader();
+          doc.y = 116;
+        }
+      };
+
+      const section = (title: string) => {
+        ensureSpace(34);
+        doc.moveDown(0.8);
+        doc.fillColor(dark).font('Helvetica-Bold').fontSize(13).text(title);
+        doc.moveTo(42, doc.y + 4).lineTo(doc.page.width - 42, doc.y + 4).strokeColor(line).stroke();
+        doc.moveDown(0.7);
+      };
+
+      const metric = (label: string, value: string, x: number, y: number, w: number) => {
+        doc.roundedRect(x, y, w, 58, 6).fillAndStroke('#f8fafc', '#e2e8f0');
+        doc.fillColor(muted).fontSize(8).font('Helvetica-Bold').text(label.toUpperCase(), x + 10, y + 10, { width: w - 20 });
+        doc.fillColor(moneyBlue).fontSize(15).font('Helvetica-Bold').text(value, x + 10, y + 29, { width: w - 20 });
+      };
+
+      const tableRow = (values: string[], widths: number[], y: number, header = false) => {
+        let x = 42;
+        const rowHeight = header ? 24 : 22;
+        if (header) doc.rect(42, y, pageWidth, rowHeight).fill('#eff6ff');
+        values.forEach((value, idx) => {
+          doc.fillColor(header ? '#1e3a8a' : dark).font(header ? 'Helvetica-Bold' : 'Helvetica').fontSize(8.5)
+            .text(value, x + 5, y + 7, { width: widths[idx] - 10, ellipsis: true });
+          x += widths[idx];
+        });
+        doc.moveTo(42, y + rowHeight).lineTo(42 + pageWidth, y + rowHeight).strokeColor(line).stroke();
+        return y + rowHeight;
+      };
+
+      writeHeader();
+      doc.y = 116;
+      doc.fillColor(dark).fontSize(15).font('Helvetica-Bold').text(stats.employee.name || `Employee #${stats.employee.id}`);
+      doc.fillColor(muted).fontSize(9).font('Helvetica').text([
+        stats.employee.roleName,
+        stats.employee.teamLeaderName ? `TL: ${stats.employee.teamLeaderName}` : null,
+        stats.employee.email,
+      ].filter(Boolean).join('   |   '));
+      doc.moveDown(0.5);
+      doc.text(`Office: ${stats.officeTime.officeStartTime} - ${stats.officeTime.officeEndTime}   Grace: ${stats.officeTime.cautionMinutes} min   Weekly Off: ${stats.officeTime.weeklyDayOff || '-'}`);
+
+      let y = doc.y + 18;
+      const cardW = (pageWidth - 24) / 4;
+      metric('Attendance', `${stats.summary.attendanceRate}%`, 42, y, cardW);
+      metric('Late', String(stats.summary.late), 42 + cardW + 8, y, cardW);
+      metric('Unwanted Leave', String(stats.summary.unwantedLeave), 42 + (cardW + 8) * 2, y, cardW);
+      metric('Total Hours', `${stats.summary.totalOnlineHours}h`, 42 + (cardW + 8) * 3, y, cardW);
+      doc.y = y + 76;
+
+      section('Monthly Summary');
+      const widths = [72, 42, 42, 42, 52, 58, 52, 56, 52, 58];
+      y = tableRow(['Month', 'Days', 'P', 'Late', 'Leave', 'Off', 'Hours', 'Avg/Day', 'In Avg', 'Attend %'], widths, doc.y, true);
+      for (const row of stats.monthly) {
+        ensureSpace(24);
+        y = tableRow([
+          row.label,
+          String(row.countedDays),
+          String(row.present),
+          String(row.late),
+          String(row.unwantedLeave),
+          String(row.weeklyOff),
+          `${row.totalOnlineHours}h`,
+          `${row.avgDailyHours}h`,
+          row.avgCheckInTime,
+          `${row.attendanceRate}%`,
+        ], widths, y);
+        doc.y = y;
+      }
+
+      section('Weekly Overview');
+      const weeklyWidths = [120, 50, 50, 50, 70, 70, 70, 80];
+      y = tableRow(['Week', 'P', 'Late', 'Leave', 'Hours', 'Avg Day', 'In Avg', 'Attend %'], weeklyWidths, doc.y, true);
+      for (const row of stats.weekly) {
+        ensureSpace(24);
+        y = tableRow([
+          row.label,
+          String(row.present),
+          String(row.late),
+          String(row.unwantedLeave),
+          `${row.totalOnlineHours}h`,
+          `${row.avgDailyHours}h`,
+          row.avgCheckInTime,
+          `${row.attendanceRate}%`,
+        ], weeklyWidths, y);
+        doc.y = y;
+      }
+
+      addFooter();
+      doc.end();
+    });
+  }
+
   async getCalendar(params?: { sheetName?: string }) {
     const settings = await this.getSettings();
     const timezone = settings.timezone || 'Asia/Dhaka';
@@ -635,6 +1054,7 @@ export class PresenceService {
       role_id: number | null;
       role_name: string | null;
       role_slug: string | null;
+      role_priority: number | null;
     }> = userIds.length
       ? await this.userRepo.manager.query(
           `SELECT
@@ -644,7 +1064,8 @@ export class PresenceService {
              tl.last_name AS team_leader_last_name,
              u.role_id,
              r.name AS role_name,
-             r.slug AS role_slug
+             r.slug AS role_slug,
+             r.priority AS role_priority
            FROM users u
            LEFT JOIN users tl ON tl.id = u.team_leader_id
            LEFT JOIN roles r ON r.id = u.role_id
@@ -692,6 +1113,16 @@ export class PresenceService {
       const ai = orderIndex.has(Number(a.id)) ? orderIndex.get(Number(a.id))! : Number.MAX_SAFE_INTEGER;
       const bi = orderIndex.has(Number(b.id)) ? orderIndex.get(Number(b.id))! : Number.MAX_SAFE_INTEGER;
       if (ai !== bi) return ai - bi;
+      if (order.length === 0) {
+        const am = userMetaById.get(Number(a.id));
+        const bm = userMetaById.get(Number(b.id));
+        const ar = Number(am?.role_priority || 0);
+        const br = Number(bm?.role_priority || 0);
+        if (ar !== br) return br - ar;
+        const atl = am?.team_leader_id == null ? Number.MAX_SAFE_INTEGER : Number(am.team_leader_id);
+        const btl = bm?.team_leader_id == null ? Number.MAX_SAFE_INTEGER : Number(bm.team_leader_id);
+        if (atl !== btl) return atl - btl;
+      }
       return String(`${a.name || ''} ${a.lastName || ''}`).localeCompare(String(`${b.name || ''} ${b.lastName || ''}`));
     });
 
@@ -732,6 +1163,7 @@ export class PresenceService {
         roleId: meta?.role_id == null ? null : Number(meta.role_id),
         roleName: meta?.role_name || null,
         roleSlug: meta?.role_slug || null,
+        rolePriority: meta?.role_priority == null ? 0 : Number(meta.role_priority),
         officeStartTime: userOfficeStart,
         insertGapAfter: settings.calendarTeamGapEvery > 0 && (idx + 1) % settings.calendarTeamGapEvery === 0 && idx < orderedUsers.length - 1,
         cells: daysList.map((day) => {
@@ -749,6 +1181,9 @@ export class PresenceService {
           }
 
           if (day.key > todayKey) return { dateKey: day.key, value: '', label: '', color: '' };
+          if (officeTime?.weeklyDayOff && officeTime.weeklyDayOff.toLowerCase() === new Date(`${day.key}T00:00:00`).toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase()) {
+            return { dateKey: day.key, value: keyConfig.weeklyOff.key, label: keyConfig.weeklyOff.label, color: keyConfig.weeklyOff.color };
+          }
           const onlineEvents = (eventsByUserDay.get(`${userId}:${day.key}`) || []).sort(
             (a, b) => new Date(a.occurredAt).getTime() - new Date(b.occurredAt).getTime(),
           );
@@ -760,7 +1195,8 @@ export class PresenceService {
           const firstMinutes =
             Number(firstOnline.toLocaleString('en-US', { hour: '2-digit', hour12: false, timeZone: timezone })) * 60 +
             Number(firstOnline.toLocaleString('en-US', { minute: '2-digit', timeZone: timezone }));
-          const config = firstMinutes > userOfficeStartMinutes ? keyConfig.late : keyConfig.present;
+          const cautionMinutes = Math.max(0, Math.min(240, Number(officeTime?.cautionMinutes || 0)));
+          const config = firstMinutes > userOfficeStartMinutes + cautionMinutes ? keyConfig.late : keyConfig.present;
           return { dateKey: day.key, value: config.key, label: config.label, color: config.color };
         }),
       };
@@ -812,8 +1248,10 @@ export class PresenceService {
           officeEndTime: row?.officeEndTime || settings.officeEndTime,
           customOfficeStartTime: row?.officeStartTime || '',
           customOfficeEndTime: row?.officeEndTime || '',
-          telegramChatId: row?.telegramChatId || '',
           weeklyDayOff: row?.weeklyDayOff || '',
+          cautionMinutes: row?.cautionMinutes || 0,
+          lunchBreakStartTime: row?.lunchBreakStartTime || '',
+          lunchBreakEndTime: row?.lunchBreakEndTime || '',
           notes: row?.notes || '',
         };
       }),
@@ -825,8 +1263,10 @@ export class PresenceService {
     input: {
       officeStartTime?: string | null;
       officeEndTime?: string | null;
-      telegramChatId?: string | null;
       weeklyDayOff?: string | null;
+      cautionMinutes?: number | string | null;
+      lunchBreakStartTime?: string | null;
+      lunchBreakEndTime?: string | null;
       notes?: string | null;
     },
   ) {
@@ -836,8 +1276,13 @@ export class PresenceService {
     const timePattern = /^([01]\d|2[0-3]):[0-5]\d$/;
     const officeStartTime = String(input.officeStartTime || '').trim();
     const officeEndTime = String(input.officeEndTime || '').trim();
+    const lunchBreakStartTime = String(input.lunchBreakStartTime || '').trim();
+    const lunchBreakEndTime = String(input.lunchBreakEndTime || '').trim();
     if (officeStartTime && !timePattern.test(officeStartTime)) throw new BadRequestException('Office start time must be HH:mm');
     if (officeEndTime && !timePattern.test(officeEndTime)) throw new BadRequestException('Office end time must be HH:mm');
+    if (lunchBreakStartTime && !timePattern.test(lunchBreakStartTime)) throw new BadRequestException('Lunch break start time must be HH:mm');
+    if (lunchBreakEndTime && !timePattern.test(lunchBreakEndTime)) throw new BadRequestException('Lunch break end time must be HH:mm');
+    const cautionMinutes = clampInt((input as any).cautionMinutes, 0, 240, 0);
     const weeklyDayOff = String(input.weeklyDayOff || '').trim().toLowerCase();
     const validWeeklyDays = new Set(['', 'saturday', 'sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday']);
     if (!validWeeklyDays.has(weeklyDayOff)) throw new BadRequestException('Weekly day off must be a valid weekday');
@@ -846,8 +1291,10 @@ export class PresenceService {
     if (!row) row = this.officeTimeRepo.create({ userId });
     row.officeStartTime = officeStartTime || null;
     row.officeEndTime = officeEndTime || null;
-    row.telegramChatId = String(input.telegramChatId || '').trim().slice(0, 80) || null;
     row.weeklyDayOff = weeklyDayOff || null;
+    row.cautionMinutes = cautionMinutes;
+    row.lunchBreakStartTime = lunchBreakStartTime || null;
+    row.lunchBreakEndTime = lunchBreakEndTime || null;
     row.notes = String(input.notes || '').trim() || null;
     return this.officeTimeRepo.save(row);
   }

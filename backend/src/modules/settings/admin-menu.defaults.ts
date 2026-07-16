@@ -17,6 +17,7 @@ export const DEFAULT_ADMIN_MENU: AdminMenuSeedNode[] = [
       { title: 'All Products', icon: 'FaBoxes', path: '/admin/products', requiredPermissions: ['view-products'] },
       { title: 'Manage Categories', icon: 'FaBoxes', path: '/admin/categories', requiredPermissions: ['manage-categories'] },
       { title: 'Combo Products', icon: 'FaBoxes', path: '/admin/combo-products', requiredPermissions: ['view-products'] },
+      { title: 'Product History', icon: 'FaHistory', path: '/admin/products/history', requiredPermissions: ['view-product-history', 'view-products'] },
       {
         title: 'Deal of the Day',
         icon: 'FaBoxes',
@@ -104,10 +105,10 @@ export const DEFAULT_ADMIN_MENU: AdminMenuSeedNode[] = [
   },
   { title: 'Customers', icon: 'FaUsers', path: '/admin/customers', requiredPermissions: ['view-customers'] },
   {
-    title: 'Check In/Out',
+    title: 'Presence',
     icon: 'FaUser',
     children: [
-      { title: 'Dashboard', icon: 'FaUser', path: '/admin/presence' },
+      { title: 'Check In/Out', icon: 'FaUser', path: '/admin/presence' },
       {
         title: 'History',
         icon: 'FaHistory',
@@ -125,6 +126,12 @@ export const DEFAULT_ADMIN_MENU: AdminMenuSeedNode[] = [
         icon: 'FaUserClock',
         path: '/admin/presence/office-time',
         requiredPermissions: ['view-presence-office-time', 'manage-presence-office-time', 'manage-presence-settings'],
+      },
+      {
+        title: 'Statistics',
+        icon: 'FaChartBar',
+        path: '/admin/presence/statistics',
+        requiredPermissions: ['view-presence-statistics', 'view-presence', 'manage-presence-settings'],
       },
       {
         title: 'Settings',

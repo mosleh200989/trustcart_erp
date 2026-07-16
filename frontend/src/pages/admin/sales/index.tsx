@@ -296,6 +296,7 @@ export default function AdminSales() {
     customer_name: '',
     customer_email: '',
     customer_phone: '',
+    source_number: '',
 
     shipping_address: '',
     courier_notes: '',
@@ -504,6 +505,7 @@ export default function AdminSales() {
       customer_name: '',
       customer_email: '',
       customer_phone: '',
+      source_number: '',
 
       shipping_address: '',
       courier_notes: '',
@@ -554,6 +556,7 @@ export default function AdminSales() {
       customer_name: customerName,
       customer_email: order.customerEmail ?? '',
       customer_phone: order.customerPhone ?? '',
+      source_number: '',
 
       shipping_address: order.shippingAddress ?? '',
       courier_notes: order.courierNotes ?? '',
@@ -1032,6 +1035,7 @@ export default function AdminSales() {
         const payload: any = {
           customerName: formData.customer_name ? String(formData.customer_name).trim() : null,
           customerPhone: formData.customer_phone ? String(formData.customer_phone).trim() : null,
+          sourceNumber: formData.source_number ? String(formData.source_number).trim() : null,
           shippingAddress: formData.shipping_address ? String(formData.shipping_address) : null,
           courierNotes: formData.courier_notes ? String(formData.courier_notes) : null,
           internalNotes: formData.internal_notes ? String(formData.internal_notes) : null,
@@ -1092,7 +1096,8 @@ export default function AdminSales() {
       setIsModalOpen(false);
       loadOrders();
     } catch (error) {
-      toast.error('Operation failed');
+      const message = (error as any)?.response?.data?.message || 'Operation failed';
+      toast.error(Array.isArray(message) ? message.join(', ') : message);
     }
   };
 
@@ -1995,6 +2000,16 @@ export default function AdminSales() {
                     required
                     placeholder="01XXXXXXXXX"
                   />
+                  <label className="block text-sm font-medium text-gray-700 mt-3 mb-1">Source Number</label>
+                  <input
+                    type="tel"
+                    name="source_number"
+                    value={formData.source_number}
+                    onChange={handleInputChange}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="+1XXXXXXXXXX"
+                  />
+                  <p className="mt-1 text-xs text-gray-500">Optional foreign phone number. If filled, this customer will be treated as a foreign lead.</p>
                 </div>
               </div>
 
