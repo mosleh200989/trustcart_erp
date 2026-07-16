@@ -13,8 +13,10 @@ type OfficeTimeRow = {
   officeEndTime: string;
   customOfficeStartTime: string;
   customOfficeEndTime: string;
-  telegramChatId: string;
   weeklyDayOff: string;
+  cautionMinutes: number;
+  lunchBreakStartTime: string;
+  lunchBreakEndTime: string;
   notes: string;
 };
 
@@ -82,8 +84,10 @@ export default function PresenceOfficeTimePage() {
       await apiClient.post(`/presence/office-times/${item.userId}`, {
         officeStartTime: item.customOfficeStartTime,
         officeEndTime: item.customOfficeEndTime,
-        telegramChatId: item.telegramChatId,
         weeklyDayOff: item.weeklyDayOff,
+        cautionMinutes: item.cautionMinutes,
+        lunchBreakStartTime: item.lunchBreakStartTime,
+        lunchBreakEndTime: item.lunchBreakEndTime,
       });
       setMessage('Office time saved successfully.');
       await load();
@@ -101,14 +105,14 @@ export default function PresenceOfficeTimePage() {
           <div>
             <Link href="/admin/presence" className="inline-flex items-center gap-2 text-sm font-semibold text-blue-700 hover:text-blue-800">
               <FaArrowLeft />
-              Check In/Out Dashboard
+              Presence
             </Link>
             <div className="flex items-center gap-3 text-sm text-blue-700 font-semibold mt-4">
               <FaUserClock />
-              Check In/Out Module
+              Presence Module
             </div>
             <h1 className="text-3xl font-bold text-gray-900 mt-2">Office Time</h1>
-            <p className="text-gray-600 mt-1">Set employee-specific office times and Telegram chat IDs for attendance reminders.</p>
+            <p className="text-gray-600 mt-1">Set employee-specific office times, grace periods, lunch breaks, and weekly days off.</p>
           </div>
 
           <button
@@ -162,9 +166,11 @@ export default function PresenceOfficeTimePage() {
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Employee</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Start Time</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Caution</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">End Time</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Lunch Start</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Lunch End</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Weekly Day Off</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Telegram Chat ID</th>
                   <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase">Action</th>
                 </tr>
               </thead>
@@ -188,6 +194,18 @@ export default function PresenceOfficeTimePage() {
                     </td>
                     <td className="px-4 py-3">
                       <input
+                        type="number"
+                        min={0}
+                        max={240}
+                        value={item.cautionMinutes || 0}
+                        onChange={(e) => updateItem(item.userId, { cautionMinutes: Math.max(0, Number(e.target.value) || 0) })}
+                        disabled={!canManage}
+                        className="w-24 border border-gray-300 rounded-lg px-3 py-2 text-sm disabled:bg-gray-50"
+                      />
+                      <div className="text-xs text-gray-400 mt-1">minutes</div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <input
                         type="time"
                         value={item.customOfficeEndTime || ''}
                         onChange={(e) => updateItem(item.userId, { customOfficeEndTime: e.target.value })}
@@ -196,6 +214,24 @@ export default function PresenceOfficeTimePage() {
                         className="border border-gray-300 rounded-lg px-3 py-2 text-sm disabled:bg-gray-50"
                       />
                       <div className="text-xs text-gray-400 mt-1">Effective: {item.officeEndTime}</div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <input
+                        type="time"
+                        value={item.lunchBreakStartTime || ''}
+                        onChange={(e) => updateItem(item.userId, { lunchBreakStartTime: e.target.value })}
+                        disabled={!canManage}
+                        className="border border-gray-300 rounded-lg px-3 py-2 text-sm disabled:bg-gray-50"
+                      />
+                    </td>
+                    <td className="px-4 py-3">
+                      <input
+                        type="time"
+                        value={item.lunchBreakEndTime || ''}
+                        onChange={(e) => updateItem(item.userId, { lunchBreakEndTime: e.target.value })}
+                        disabled={!canManage}
+                        className="border border-gray-300 rounded-lg px-3 py-2 text-sm disabled:bg-gray-50"
+                      />
                     </td>
                     <td className="px-4 py-3">
                       <select
@@ -211,16 +247,6 @@ export default function PresenceOfficeTimePage() {
                         ))}
                       </select>
                     </td>
-                    <td className="px-4 py-3">
-                      <input
-                        value={item.telegramChatId || ''}
-                        onChange={(e) => updateItem(item.userId, { telegramChatId: e.target.value })}
-                        disabled={!canManage}
-                        placeholder="123456789"
-                        className="w-full min-w-[220px] border border-gray-300 rounded-lg px-3 py-2 text-sm disabled:bg-gray-50"
-                      />
-                      <div className="text-xs text-gray-400 mt-1">Messages are sent only when this is filled.</div>
-                    </td>
                     <td className="px-4 py-3 text-right">
                       <button
                         onClick={() => save(item)}
@@ -235,7 +261,7 @@ export default function PresenceOfficeTimePage() {
                 ))}
                 {!loading && filteredItems.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="px-4 py-10 text-center text-gray-500">
+                    <td colSpan={8} className="px-4 py-10 text-center text-gray-500">
                       {items.length === 0 ? 'No active employees found.' : 'No employees match the current search.'}
                     </td>
                   </tr>

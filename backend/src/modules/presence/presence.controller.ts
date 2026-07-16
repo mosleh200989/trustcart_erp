@@ -1,5 +1,5 @@
-import { BadRequestException, Body, Controller, Get, Post, Query, Req, UseGuards } from '@nestjs/common';
-import type { Request as ExpressRequest } from 'express';
+import { BadRequestException, Body, Controller, Get, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
+import type { Request as ExpressRequest, Response as ExpressResponse } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PresenceService } from './presence.service';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
@@ -129,6 +129,34 @@ export class PresenceController {
   @RequireAnyPermission('view-presence', 'view-presence-calendar', 'manage-presence-calendar')
   async calendarOverrideHistory(@Query('userId') userId?: string, @Query('dateKey') dateKey?: string) {
     return this.presenceService.getCalendarOverrideHistory(userId, dateKey);
+  }
+
+  @Get('statistics/users')
+  @RequireAnyPermission('view-presence-statistics', 'view-presence', 'manage-presence-settings')
+  async statisticsUsers() {
+    return this.presenceService.getStatisticsUsers();
+  }
+
+  @Get('statistics')
+  @RequireAnyPermission('view-presence-statistics', 'view-presence', 'manage-presence-settings')
+  async statistics(@Query('userId') userId?: string, @Query('year') year?: string) {
+    return this.presenceService.getPresenceStatistics({
+      userId: userId != null ? Number(userId) : undefined,
+      year: year != null ? Number(year) : undefined,
+    });
+  }
+
+  @Get('statistics/pdf')
+  @RequireAnyPermission('view-presence-statistics', 'view-presence', 'manage-presence-settings')
+  async statisticsPdf(@Res() res: ExpressResponse, @Query('userId') userId?: string, @Query('year') year?: string) {
+    const employeeId = userId != null ? Number(userId) : undefined;
+    const reportYear = year != null ? Number(year) : undefined;
+    const buffer = await this.presenceService.generatePresenceStatisticsPdf({ userId: employeeId, year: reportYear });
+    const safeYear = Number.isFinite(reportYear) ? reportYear : new Date().getFullYear();
+    const safeUserId = Number.isFinite(employeeId) ? employeeId : 'employee';
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="presence-statistics-${safeUserId}-${safeYear}.pdf"`);
+    res.send(buffer);
   }
 
   @Get('office-times')

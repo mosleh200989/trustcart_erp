@@ -18,6 +18,21 @@ export class ProductsController {
     private productsRepository: Repository<Product>,
   ) {}
 
+  private getActor(req: Request) {
+    const user: any = (req as any).user || {};
+    const ip = (req.headers?.['x-forwarded-for'] || req.headers?.['x-real-ip'] || (req as any).ip || '') as string;
+    const userName = [user.name, user.lastName].filter(Boolean).join(' ').trim()
+      || user.email
+      || user.username
+      || null;
+    return {
+      userId: user.id || user.userId || null,
+      userName,
+      ipAddress: typeof ip === 'string' ? ip.split(',')[0].trim() : '',
+      userAgent: String(req.headers?.['user-agent'] || ''),
+    };
+  }
+
   @Get()
   @Public()
   async findAll(
@@ -60,6 +75,36 @@ export class ProductsController {
     return products;
   }
 
+  @Get('admin/history')
+  @RequireAnyPermission('view-product-history', 'view-products')
+  async getProductHistory(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('q') q?: string,
+    @Query('action') action?: string,
+    @Query('entityType') entityType?: string,
+    @Query('productId') productId?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+  ) {
+    return this.productsService.getProductHistory({
+      page: page ? Number(page) : 1,
+      limit: limit ? Number(limit) : 50,
+      q,
+      action,
+      entityType,
+      productId: productId ? Number(productId) : undefined,
+      startDate,
+      endDate,
+    });
+  }
+
+  @Get('admin/history/filters')
+  @RequireAnyPermission('view-product-history', 'view-products')
+  async getProductHistoryFilters() {
+    return this.productsService.getProductHistoryFilters();
+  }
+
   @Get('admin/section-orders/:sectionKey')
   @RequirePermissions('edit-products')
   async getSectionOrder(@Param('sectionKey') sectionKey: string) {
@@ -71,8 +116,9 @@ export class ProductsController {
   async updateSectionOrder(
     @Param('sectionKey') sectionKey: string,
     @Body() body: { productIds?: number[] },
+    @Req() req: Request,
   ) {
-    return this.productsService.updateSectionOrder(sectionKey, body.productIds || []);
+    return this.productsService.updateSectionOrder(sectionKey, body.productIds || [], this.getActor(req));
   }
 
   @Get('categories')
@@ -141,6 +187,7 @@ export class ProductsController {
       productId: Number(body.productId),
       variantName: body.variantName,
       userId: Number((req as any).user?.id) || null,
+      actor: this.getActor(req),
     });
   }
 
@@ -155,13 +202,14 @@ export class ProductsController {
       isActive: body.isActive,
       displayOrder: body.displayOrder,
       userId: Number((req as any).user?.id) || null,
+      actor: this.getActor(req),
     });
   }
 
   @Delete('admin/suggestion-shortlist/:id')
   @RequireAnyPermission('manage-product-suggestion-shortlist', 'update-order-product-suggestion')
-  async deleteProductSuggestionShortlistItem(@Param('id') id: string) {
-    return await this.productsService.deleteProductSuggestionShortlistItem(Number(id));
+  async deleteProductSuggestionShortlistItem(@Param('id') id: string, @Req() req: Request) {
+    return await this.productsService.deleteProductSuggestionShortlistItem(Number(id), this.getActor(req));
   }
 
   @Get('by-slug/:slug')
@@ -183,14 +231,14 @@ export class ProductsController {
 
   @Post(':id/images')
   @RequirePermissions('edit-products')
-  async addProductImage(@Param('id') id: string, @Body() imageData: { image_url: string; display_order?: number; is_primary?: boolean }) {
-    return this.productsService.addProductImage(parseInt(id), imageData);
+  async addProductImage(@Param('id') id: string, @Body() imageData: { image_url: string; display_order?: number; is_primary?: boolean }, @Req() req: Request) {
+    return this.productsService.addProductImage(parseInt(id), imageData, this.getActor(req));
   }
 
   @Delete(':id/images/:imageId')
   @RequirePermissions('edit-products')
-  async deleteProductImage(@Param('id') id: string, @Param('imageId') imageId: string) {
-    return this.productsService.deleteProductImage(parseInt(imageId));
+  async deleteProductImage(@Param('id') id: string, @Param('imageId') imageId: string, @Req() req: Request) {
+    return this.productsService.deleteProductImage(parseInt(imageId), this.getActor(req));
   }
 
   @Put(':id/images/:imageId')
@@ -198,17 +246,18 @@ export class ProductsController {
   async updateProductImage(
     @Param('id') id: string,
     @Param('imageId') imageId: string,
-    @Body() imageData: { display_order?: number; is_primary?: boolean }
+    @Body() imageData: { display_order?: number; is_primary?: boolean },
+    @Req() req: Request,
   ) {
-    return this.productsService.updateProductImage(parseInt(imageId), imageData);
+    return this.productsService.updateProductImage(parseInt(imageId), imageData, this.getActor(req));
   }
 
   @Post()
   @RequirePermissions('create-products')
-  async create(@Body() createProductDto: any) {
+  async create(@Body() createProductDto: any, @Req() req: Request) {
     try {
       console.log('POST /products called with:', createProductDto);
-      return await this.productsService.create(createProductDto);
+      return await this.productsService.create(createProductDto, this.getActor(req));
     } catch (error: any) {
       console.error('Error in create controller:', error);
       console.error('Error stack:', error?.stack);
@@ -224,10 +273,10 @@ export class ProductsController {
 
   @Put(':id')
   @RequirePermissions('edit-products')
-  async update(@Param('id') id: string, @Body() updateProductDto: any) {
+  async update(@Param('id') id: string, @Body() updateProductDto: any, @Req() req: Request) {
     try {
       console.log('PUT /products/:id called with:', id, updateProductDto);
-      return await this.productsService.update(id, updateProductDto);
+      return await this.productsService.update(id, updateProductDto, this.getActor(req));
     } catch (error) {
       console.error('Error in update controller:', error);
       throw error;
@@ -236,8 +285,8 @@ export class ProductsController {
 
   @Delete(':id')
   @RequirePermissions('delete-products')
-  async remove(@Param('id') id: string) {
-    return this.productsService.remove(id);
+  async remove(@Param('id') id: string, @Req() req: Request) {
+    return this.productsService.remove(id, this.getActor(req));
   }
 
   // Homepage Features Endpoints
@@ -332,7 +381,7 @@ export class ProductsController {
     displayOrder?: number;
     startDate?: string;
     endDate?: string;
-  }) {
+  }, @Req() req: Request) {
     return this.productsService.addHotDeal({
       productId: body.productId,
       specialPrice: body.specialPrice,
@@ -340,6 +389,7 @@ export class ProductsController {
       displayOrder: body.displayOrder,
       startDate: body.startDate ? new Date(body.startDate) : undefined,
       endDate: body.endDate ? new Date(body.endDate) : undefined,
+      actor: this.getActor(req),
     });
   }
 
@@ -352,7 +402,7 @@ export class ProductsController {
     startDate?: string;
     endDate?: string;
     isActive?: boolean;
-  }) {
+  }, @Req() req: Request) {
     return this.productsService.updateHotDeal(parseInt(id), {
       specialPrice: body.specialPrice,
       discountPercent: body.discountPercent,
@@ -360,19 +410,20 @@ export class ProductsController {
       startDate: body.startDate ? new Date(body.startDate) : undefined,
       endDate: body.endDate ? new Date(body.endDate) : undefined,
       isActive: body.isActive,
+      actor: this.getActor(req),
     });
   }
 
   @Delete('admin/hot-deals/:id')
   @RequirePermissions('manage-discounts')
-  async removeHotDeal(@Param('id') id: string) {
-    return this.productsService.removeHotDeal(parseInt(id));
+  async removeHotDeal(@Param('id') id: string, @Req() req: Request) {
+    return this.productsService.removeHotDeal(parseInt(id), this.getActor(req));
   }
 
   @Put('admin/hot-deals/:id/toggle')
   @RequirePermissions('manage-discounts')
-  async toggleHotDealStatus(@Param('id') id: string) {
-    return this.productsService.toggleHotDealStatus(parseInt(id));
+  async toggleHotDealStatus(@Param('id') id: string, @Req() req: Request) {
+    return this.productsService.toggleHotDealStatus(parseInt(id), this.getActor(req));
   }
 
   @Get(':id/suggestions')
@@ -386,8 +437,9 @@ export class ProductsController {
   async updateSuggestions(
     @Param('id') id: string,
     @Body() body: { suggestedIds: number[] },
+    @Req() req: Request,
   ) {
-    return this.productsService.updateSuggestions(parseInt(id, 10), body.suggestedIds || []);
+    return this.productsService.updateSuggestions(parseInt(id, 10), body.suggestedIds || [], this.getActor(req));
   }
 
   // NOTE: Keep this below other static GET routes (e.g. deal-of-the-day)
@@ -400,14 +452,14 @@ export class ProductsController {
 
   @Post('admin/deal-of-the-day')
   @RequirePermissions('manage-discounts')
-  async setDealOfTheDay(@Body() body: { productId: number; endDate?: string }) {
+  async setDealOfTheDay(@Body() body: { productId: number; endDate?: string }, @Req() req: Request) {
     const endDate = body.endDate ? new Date(body.endDate) : undefined;
-    return this.productsService.setDealOfTheDay(body.productId, endDate);
+    return this.productsService.setDealOfTheDay(body.productId, endDate, this.getActor(req));
   }
 
   @Delete('admin/deal-of-the-day')
   @RequirePermissions('manage-discounts')
-  async removeDealOfTheDay() {
-    return this.productsService.removeDealOfTheDay();
+  async removeDealOfTheDay(@Req() req: Request) {
+    return this.productsService.removeDealOfTheDay(this.getActor(req));
   }
 }

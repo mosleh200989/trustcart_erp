@@ -3056,6 +3056,26 @@ export class SalesService {
       null;
     sales.customerPhone = customerPhone ? String(customerPhone).trim() : null;
 
+    const sourceNumber =
+      createSalesDto.source_number ??
+      createSalesDto.sourceNumber ??
+      createSalesDto.foreign_phone ??
+      createSalesDto.foreignPhone ??
+      null;
+    if (sourceNumber != null && String(sourceNumber).trim() !== '') {
+      const customerId = await this.customersService.ensureCustomerForOrderContact({
+        customerId: sales.customerId,
+        customerPhone: sales.customerPhone,
+        customerName: sales.customerName,
+        customerEmail: sales.customerEmail,
+        orderSource: createSalesDto.order_source ?? createSalesDto.orderSource ?? 'admin_panel',
+        sourceNumber,
+      });
+      if (customerId) {
+        sales.customerId = customerId;
+      }
+    }
+
     // Allow admin UI to explicitly set order number/date (otherwise BeforeInsert generates)
     const orderNumber =
       createSalesDto.sales_order_number ??
