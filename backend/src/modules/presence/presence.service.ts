@@ -13,6 +13,8 @@ import { PresenceSettings } from './entities/presence-settings.entity';
 import { UserOfficeTime } from './entities/user-office-time.entity';
 import { PresenceCalendarOverride } from './entities/presence-calendar-override.entity';
 import { PresenceCalendarOverrideHistory } from './entities/presence-calendar-override-history.entity';
+import { PresenceUserProfile, PresenceUserStatus } from './entities/presence-user-profile.entity';
+import { BackupTeamOfficeTime } from './entities/backup-team-office-time.entity';
 import { SalesService } from '../sales/sales.service';
 
 function parseDate(value: any): Date | null {
@@ -93,6 +95,10 @@ export class PresenceService {
     private readonly calendarOverrideRepo: Repository<PresenceCalendarOverride>,
     @InjectRepository(PresenceCalendarOverrideHistory)
     private readonly calendarOverrideHistoryRepo: Repository<PresenceCalendarOverrideHistory>,
+    @InjectRepository(PresenceUserProfile)
+    private readonly presenceUserProfileRepo: Repository<PresenceUserProfile>,
+    @InjectRepository(BackupTeamOfficeTime)
+    private readonly backupTeamOfficeTimeRepo: Repository<BackupTeamOfficeTime>,
     private readonly salesService: SalesService,
   ) {}
 
@@ -115,6 +121,74 @@ export class PresenceService {
       source: 'system',
     });
     return this.statusRepo.save(status);
+  }
+
+  private cleanPresenceUserStatus(value: any): PresenceUserStatus {
+    const next = String(value || '').trim().toLowerCase();
+    if (next === 'inactive' || next === 'backup') return next;
+    return 'active';
+  }
+
+  private async getPresenceProfilesForUsers(userIds: number[]) {
+    const ids = Array.from(new Set(userIds.map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0)));
+    if (ids.length === 0) return new Map<number, PresenceUserProfile>();
+    const rows = await this.presenceUserProfileRepo.find({ where: { userId: In(ids) } as any });
+    return new Map(rows.map((row) => [Number(row.userId), row]));
+  }
+
+  private async filterUsersByPresenceStatus(users: User[], allowedStatuses: PresenceUserStatus[]) {
+    const allowed = new Set(allowedStatuses);
+    const profiles = await this.getPresenceProfilesForUsers(users.map((user) => Number(user.id)));
+    return users.filter((user) => {
+      const profileStatus = profiles.get(Number(user.id))?.status || 'active';
+      return allowed.has(this.cleanPresenceUserStatus(profileStatus));
+    });
+  }
+
+  private async getPresenceVisibleUsers(allowedStatuses: PresenceUserStatus[] = ['active', 'backup']) {
+    const users = await this.userRepo.find({
+      where: { isDeleted: false, status: 'active' } as any,
+      order: { name: 'ASC', lastName: 'ASC' } as any,
+    });
+    return this.filterUsersByPresenceStatus(users, allowedStatuses);
+  }
+
+  private async getPresenceStatusForUser(userId: number): Promise<PresenceUserStatus> {
+    const profile = await this.presenceUserProfileRepo.findOne({ where: { userId } });
+    return this.cleanPresenceUserStatus(profile?.status);
+  }
+
+  private validateTimeValue(value: string, label: string, required = false) {
+    const next = String(value || '').trim();
+    if (!next && !required) return '';
+    const timePattern = /^([01]\d|2[0-3]):[0-5]\d$/;
+    if (!timePattern.test(next)) throw new BadRequestException(`${label} must be HH:mm`);
+    return next;
+  }
+
+  private chooseBackupRuleForMinutes(rules: BackupTeamOfficeTime[] | undefined, firstMinutes: number | null) {
+    const validRules = (rules || []).filter((rule) => rule.officeStartTime && rule.officeEndTime);
+    if (validRules.length === 0) return null;
+    if (firstMinutes == null) return validRules[0];
+    return validRules
+      .slice()
+      .sort((a, b) => Math.abs(this.timeToMinutes(a.officeStartTime) - firstMinutes) - Math.abs(this.timeToMinutes(b.officeStartTime) - firstMinutes))[0];
+  }
+
+  private async getBackupRulesByUserIds(userIds: number[]) {
+    const ids = Array.from(new Set(userIds.map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0)));
+    if (ids.length === 0) return new Map<number, BackupTeamOfficeTime[]>();
+    const rows = await this.backupTeamOfficeTimeRepo.find({
+      where: { userId: In(ids) } as any,
+      order: { userId: 'ASC', sortOrder: 'ASC', id: 'ASC' } as any,
+    });
+    const byUserId = new Map<number, BackupTeamOfficeTime[]>();
+    for (const row of rows) {
+      const list = byUserId.get(Number(row.userId)) || [];
+      list.push(row);
+      byUserId.set(Number(row.userId), list);
+    }
+    return byUserId;
   }
 
   private async unassignWorkForOfflineUser(userId: number): Promise<{
@@ -273,6 +347,9 @@ export class PresenceService {
 
   async setMyStatus(userId: number, stateRaw: any, source = 'manual') {
     const userIdNum = Number(userId);
+    if (!Number.isFinite(userIdNum) || userIdNum <= 0) throw new BadRequestException('Invalid user ID');
+    const presenceStatus = await this.getPresenceStatusForUser(userIdNum);
+    if (presenceStatus === 'inactive') throw new ForbiddenException('Your Presence status is inactive.');
     const state = safeState(stateRaw);
     const now = new Date();
     const status = await this.getOrCreateStatus(userIdNum);
@@ -413,10 +490,7 @@ export class PresenceService {
 
   async getDashboard(params?: { from?: string; to?: string; rangeDays?: number; userId?: number }) {
     const { from, to, rangeDays } = this.getRange(params);
-    const users = await this.userRepo.find({
-      where: { isDeleted: false } as any,
-      order: { name: 'ASC', lastName: 'ASC' } as any,
-    });
+    const users = await this.getPresenceVisibleUsers(['active', 'backup']);
 
     const allowedUsers = params?.userId
       ? users.filter((u) => Number(u.id) === Number(params.userId))
@@ -535,11 +609,18 @@ export class PresenceService {
   async getEvents(params?: { from?: string; to?: string; rangeDays?: number; userId?: number }) {
     const { from, to, rangeDays } = this.getRange(params);
     const explicitUserId = params?.userId != null ? Number(params.userId) : null;
+    const visibleUsers = await this.getPresenceVisibleUsers(['active', 'backup']);
+    const visibleUserIds = visibleUsers.map((user) => Number(user.id));
+    if (explicitUserId != null && !visibleUserIds.includes(explicitUserId)) {
+      return { rangeDays, from, to, items: [] };
+    }
     const qb = this.eventRepo
       .createQueryBuilder('e')
       .where('e.occurredAt >= :from AND e.occurredAt <= :to', { from, to });
 
     if (explicitUserId != null) qb.andWhere('e.userId = :userId', { userId: explicitUserId });
+    else if (visibleUserIds.length > 0) qb.andWhere('e.userId IN (:...visibleUserIds)', { visibleUserIds });
+    else return { rangeDays, from, to, items: [] };
 
     const events = await qb.orderBy('e.occurredAt', 'ASC').take(1000).getMany();
     const baselineRows =
@@ -611,6 +692,7 @@ export class PresenceService {
          u.phone,
          u.created_at,
          u.team_leader_id,
+         COALESCE(pup.status, 'active') AS presence_status,
          NULLIF(TRIM(CONCAT(COALESCE(tl.name, ''), ' ', COALESCE(tl.last_name, ''))), '') AS team_leader_name,
          r.name AS role_name,
          r.slug AS role_slug,
@@ -618,8 +700,10 @@ export class PresenceService {
        FROM users u
        LEFT JOIN users tl ON tl.id = u.team_leader_id
        LEFT JOIN roles r ON r.id = u.role_id
+       LEFT JOIN presence_user_profiles pup ON pup.user_id = u.id
        WHERE COALESCE(u.is_deleted, false) = false
          AND COALESCE(u.status, 'active') = 'active'
+         AND COALESCE(pup.status, 'active') IN ('active', 'backup')
        ORDER BY COALESCE(r.priority, 0) DESC, team_leader_name NULLS LAST, name ASC, u.email ASC`,
     );
 
@@ -629,6 +713,7 @@ export class PresenceService {
       email: row.email || null,
       phone: row.phone || null,
       createdAt: row.created_at || null,
+      presenceStatus: this.cleanPresenceUserStatus(row.presence_status),
       teamLeaderId: row.team_leader_id == null ? null : Number(row.team_leader_id),
       teamLeaderName: row.team_leader_name || null,
       roleName: row.role_name || null,
@@ -708,10 +793,12 @@ export class PresenceService {
     if (!employee) throw new BadRequestException('Employee not found');
 
     const officeTime = await this.officeTimeRepo.findOne({ where: { userId } as any });
-    const officeStart = officeTime?.officeStartTime || settings.officeStartTime || '09:00';
-    const officeEnd = officeTime?.officeEndTime || settings.officeEndTime || '18:00';
+    const backupRules = employee.presenceStatus === 'backup' ? (await this.getBackupRulesByUserIds([userId])).get(userId) || [] : [];
+    const firstBackupRule = backupRules[0] || null;
+    const officeStart = firstBackupRule?.officeStartTime || officeTime?.officeStartTime || settings.officeStartTime || '09:00';
+    const officeEnd = firstBackupRule?.officeEndTime || officeTime?.officeEndTime || settings.officeEndTime || '18:00';
     const officeStartMinutes = this.timeToMinutes(officeStart);
-    const cautionMinutes = Math.max(0, Math.min(240, Number(officeTime?.cautionMinutes || 0)));
+    const cautionMinutes = Math.max(0, Math.min(240, Number(firstBackupRule?.cautionMinutes ?? officeTime?.cautionMinutes ?? 0)));
 
     const yearStartKey = `${year}-01-01`;
     const yearEndKey = `${year}-12-31`;
@@ -816,6 +903,15 @@ export class PresenceService {
         let verdict: 'present' | 'late' | 'weeklyOff' | 'excusedLeave' | 'unwantedLeave' | 'custom' = 'unwantedLeave';
         let label = settings.attendanceUnexcusedAbsenceLabel || 'Unexcused absence';
         let isManual = false;
+        const firstMinutes = firstOnlineAt
+          ? Number(firstOnlineAt.toLocaleString('en-US', { hour: '2-digit', hour12: false, timeZone: timezone })) * 60 +
+            Number(firstOnlineAt.toLocaleString('en-US', { minute: '2-digit', timeZone: timezone }))
+          : null;
+        const selectedBackupRule = employee.presenceStatus === 'backup'
+          ? this.chooseBackupRuleForMinutes(backupRules, firstMinutes)
+          : null;
+        const effectiveOfficeStartMinutes = selectedBackupRule ? this.timeToMinutes(selectedBackupRule.officeStartTime) : officeStartMinutes;
+        const effectiveCautionMinutes = selectedBackupRule ? Math.max(0, Math.min(240, Number(selectedBackupRule.cautionMinutes || 0))) : cautionMinutes;
 
         if (override) {
           isManual = true;
@@ -827,21 +923,13 @@ export class PresenceService {
           else if (key === keyConfig.unwantedLeave) verdict = 'unwantedLeave';
           else verdict = 'custom';
           label = override.attendanceLabel || override.attendanceKey;
-        } else if (officeTime?.weeklyDayOff && officeTime.weeklyDayOff.toLowerCase() === weekday.toLowerCase()) {
+        } else if (employee.presenceStatus !== 'backup' && officeTime?.weeklyDayOff && officeTime.weeklyDayOff.toLowerCase() === weekday.toLowerCase()) {
           verdict = 'weeklyOff';
           label = settings.attendanceWeeklyOffLabel || 'Weekly off day';
         } else if (firstOnlineAt) {
-          const firstMinutes =
-            Number(firstOnlineAt.toLocaleString('en-US', { hour: '2-digit', hour12: false, timeZone: timezone })) * 60 +
-            Number(firstOnlineAt.toLocaleString('en-US', { minute: '2-digit', timeZone: timezone }));
-          verdict = firstMinutes > officeStartMinutes + cautionMinutes ? 'late' : 'present';
+          verdict = (firstMinutes || 0) > effectiveOfficeStartMinutes + effectiveCautionMinutes ? 'late' : 'present';
           label = verdict === 'late' ? (settings.attendanceLateLabel || 'Late') : (settings.attendancePresentLabel || 'Present');
         }
-
-        const firstMinutes = firstOnlineAt
-          ? Number(firstOnlineAt.toLocaleString('en-US', { hour: '2-digit', hour12: false, timeZone: timezone })) * 60 +
-            Number(firstOnlineAt.toLocaleString('en-US', { minute: '2-digit', timeZone: timezone }))
-          : null;
 
         const weekKey = this.weekKeyForDateKey(dateKey, timezone);
         const week = weeklyMap.get(weekKey) || this.makeEmptyPresenceBucket(`Week of ${weekKey.split('-').reverse().join('/')}`, { weekKey });
@@ -893,9 +981,9 @@ export class PresenceService {
         officeStartTime: officeStart,
         officeEndTime: officeEnd,
         cautionMinutes,
-        weeklyDayOff: officeTime?.weeklyDayOff || null,
-        lunchBreakStartTime: officeTime?.lunchBreakStartTime || null,
-        lunchBreakEndTime: officeTime?.lunchBreakEndTime || null,
+        weeklyDayOff: employee.presenceStatus === 'backup' ? null : officeTime?.weeklyDayOff || null,
+        lunchBreakStartTime: firstBackupRule?.lunchBreakStartTime || officeTime?.lunchBreakStartTime || null,
+        lunchBreakEndTime: firstBackupRule?.lunchBreakEndTime || officeTime?.lunchBreakEndTime || null,
       },
       summary: finalizedYear,
       monthly: finalizedMonthly,
@@ -994,11 +1082,10 @@ export class PresenceService {
     const monthStart = new Date(Date.UTC(year, monthIndex, 1, 0, 0, 0));
     const monthEnd = new Date(Date.UTC(year, monthIndex + 1, 2, 23, 59, 59));
 
-    const users = await this.userRepo.find({
-      where: { isDeleted: false, status: 'active' } as any,
-      order: { name: 'ASC', lastName: 'ASC' } as any,
-    });
+    const users = await this.getPresenceVisibleUsers(['active', 'backup']);
     const userIds = users.map((u) => Number(u.id));
+    const presenceProfiles = await this.getPresenceProfilesForUsers(userIds);
+    const backupRulesByUserId = await this.getBackupRulesByUserIds(userIds);
     const userMetaRows: Array<{
       id: number;
       team_leader_id: number | null;
@@ -1105,7 +1192,10 @@ export class PresenceService {
       const userId = Number(user.id);
       const meta = userMetaById.get(userId);
       const officeTime = officeTimeByUser.get(userId);
-      const userOfficeStart = officeTime?.officeStartTime || settings.officeStartTime;
+      const presenceStatus = this.cleanPresenceUserStatus(presenceProfiles.get(userId)?.status);
+      const backupRules = backupRulesByUserId.get(userId) || [];
+      const firstBackupRule = backupRules[0] || null;
+      const userOfficeStart = firstBackupRule?.officeStartTime || officeTime?.officeStartTime || settings.officeStartTime;
       const userOfficeStartMinutes = this.timeToMinutes(userOfficeStart);
       return {
         userId,
@@ -1134,7 +1224,7 @@ export class PresenceService {
           }
 
           if (day.key > todayKey) return { dateKey: day.key, value: '', label: '', color: '' };
-          if (officeTime?.weeklyDayOff && officeTime.weeklyDayOff.toLowerCase() === new Date(`${day.key}T00:00:00`).toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase()) {
+          if (presenceStatus !== 'backup' && officeTime?.weeklyDayOff && officeTime.weeklyDayOff.toLowerCase() === new Date(`${day.key}T00:00:00`).toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase()) {
             return { dateKey: day.key, value: keyConfig.weeklyOff.key, label: keyConfig.weeklyOff.label, color: keyConfig.weeklyOff.color };
           }
           const onlineEvents = (eventsByUserDay.get(`${userId}:${day.key}`) || []).sort(
@@ -1148,8 +1238,12 @@ export class PresenceService {
           const firstMinutes =
             Number(firstOnline.toLocaleString('en-US', { hour: '2-digit', hour12: false, timeZone: timezone })) * 60 +
             Number(firstOnline.toLocaleString('en-US', { minute: '2-digit', timeZone: timezone }));
-          const cautionMinutes = Math.max(0, Math.min(240, Number(officeTime?.cautionMinutes || 0)));
-          const config = firstMinutes > userOfficeStartMinutes + cautionMinutes ? keyConfig.late : keyConfig.present;
+          const selectedBackupRule = presenceStatus === 'backup' ? this.chooseBackupRuleForMinutes(backupRules, firstMinutes) : null;
+          const effectiveOfficeStartMinutes = selectedBackupRule ? this.timeToMinutes(selectedBackupRule.officeStartTime) : userOfficeStartMinutes;
+          const cautionMinutes = selectedBackupRule
+            ? Math.max(0, Math.min(240, Number(selectedBackupRule.cautionMinutes || 0)))
+            : Math.max(0, Math.min(240, Number(officeTime?.cautionMinutes || 0)));
+          const config = firstMinutes > effectiveOfficeStartMinutes + cautionMinutes ? keyConfig.late : keyConfig.present;
           return { dateKey: day.key, value: config.key, label: config.label, color: config.color };
         }),
       };
@@ -1179,11 +1273,163 @@ export class PresenceService {
     return this.settingsRepo.save(settings);
   }
 
-  async getOfficeTimes() {
-    const users = await this.userRepo.find({
-      where: { isDeleted: false, status: 'active' } as any,
-      order: { name: 'ASC', lastName: 'ASC' } as any,
+  async getPresenceStatusUsers(statusRaw?: any) {
+    const requestedStatus = String(statusRaw || 'active').trim().toLowerCase();
+    const allowedFilter = new Set(['active', 'inactive', 'backup']);
+    const statusFilter = allowedFilter.has(requestedStatus) ? requestedStatus : 'active';
+
+    const rows = await this.userRepo.manager.query(
+      `SELECT
+         u.id,
+         NULLIF(TRIM(CONCAT(COALESCE(u.name, ''), ' ', COALESCE(u.last_name, ''))), '') AS name,
+         u.email,
+         u.phone,
+         u.status AS account_status,
+         COALESCE(pup.status, 'active') AS presence_status,
+         pup.notes AS presence_notes,
+         u.team_leader_id,
+         NULLIF(TRIM(CONCAT(COALESCE(tl.name, ''), ' ', COALESCE(tl.last_name, ''))), '') AS team_leader_name,
+         r.name AS role_name,
+         r.slug AS role_slug
+       FROM users u
+       LEFT JOIN presence_user_profiles pup ON pup.user_id = u.id
+       LEFT JOIN users tl ON tl.id = u.team_leader_id
+       LEFT JOIN roles r ON r.id = u.role_id
+       WHERE COALESCE(u.is_deleted, false) = false
+         AND COALESCE(pup.status, 'active') = $1
+       ORDER BY name ASC, u.email ASC`,
+      [statusFilter],
+    );
+
+    return {
+      status: statusFilter,
+      items: (rows || []).map((row: any) => ({
+        userId: Number(row.id),
+        name: row.name || row.email || `User #${row.id}`,
+        email: row.email || null,
+        phone: row.phone || null,
+        accountStatus: row.account_status || null,
+        presenceStatus: this.cleanPresenceUserStatus(row.presence_status),
+        notes: row.presence_notes || '',
+        teamLeaderId: row.team_leader_id == null ? null : Number(row.team_leader_id),
+        teamLeaderName: row.team_leader_name || null,
+        roleName: row.role_name || null,
+        roleSlug: row.role_slug || null,
+      })),
+    };
+  }
+
+  async updatePresenceUserStatus(userIdRaw: any, input: { status?: string; notes?: string | null }) {
+    const userId = Number(userIdRaw);
+    if (!Number.isFinite(userId) || userId <= 0) throw new BadRequestException('Valid user ID is required');
+    const status = this.cleanPresenceUserStatus(input?.status);
+    const user = await this.userRepo.findOne({ where: { id: userId, isDeleted: false } as any });
+    if (!user) throw new BadRequestException('User not found');
+
+    let row = await this.presenceUserProfileRepo.findOne({ where: { userId } });
+    if (!row) row = this.presenceUserProfileRepo.create({ userId });
+    row.status = status;
+    row.notes = String(input?.notes || '').trim() || null;
+    const saved = await this.presenceUserProfileRepo.save(row);
+
+    if (status !== 'backup') {
+      await this.backupTeamOfficeTimeRepo.delete({ userId } as any);
+    }
+
+    if (status === 'inactive') {
+      const now = new Date();
+      const currentStatus = await this.getOrCreateStatus(userId);
+      if (currentStatus.state !== 'offline') {
+        await this.eventRepo.save(this.eventRepo.create({
+          userId,
+          state: 'offline',
+          source: 'presence-status',
+          occurredAt: now,
+        }));
+        currentStatus.lastChangedAt = now;
+      }
+      currentStatus.state = 'offline';
+      currentStatus.source = 'presence-status';
+      currentStatus.lastSeenAt = now;
+      await this.statusRepo.save(currentStatus);
+    }
+
+    return {
+      userId,
+      presenceStatus: saved.status,
+      notes: saved.notes || '',
+    };
+  }
+
+  async getBackupTeam() {
+    const users = await this.getPresenceVisibleUsers(['backup']);
+    const userIds = users.map((user) => Number(user.id));
+    const rows = userIds.length
+      ? await this.backupTeamOfficeTimeRepo.find({ where: { userId: In(userIds) } as any, order: { userId: 'ASC', sortOrder: 'ASC', id: 'ASC' } as any })
+      : [];
+    const byUserId = new Map<number, BackupTeamOfficeTime[]>();
+    for (const row of rows) {
+      const list = byUserId.get(Number(row.userId)) || [];
+      list.push(row);
+      byUserId.set(Number(row.userId), list);
+    }
+
+    return {
+      items: users.map((user) => ({
+        userId: Number(user.id),
+        name: [user.name, user.lastName].filter(Boolean).join(' ').trim() || user.email,
+        email: user.email,
+        phone: user.phone,
+        rules: (byUserId.get(Number(user.id)) || []).map((row) => ({
+          id: row.id,
+          officeStartTime: row.officeStartTime,
+          officeEndTime: row.officeEndTime,
+          cautionMinutes: row.cautionMinutes || 0,
+          lunchBreakStartTime: row.lunchBreakStartTime || '',
+          lunchBreakEndTime: row.lunchBreakEndTime || '',
+          sortOrder: row.sortOrder || 0,
+          notes: row.notes || '',
+        })),
+      })),
+    };
+  }
+
+  async updateBackupTeamRules(userIdRaw: any, input: { rules?: any[] }) {
+    const userId = Number(userIdRaw);
+    if (!Number.isFinite(userId) || userId <= 0) throw new BadRequestException('Valid user ID is required');
+    const profile = await this.presenceUserProfileRepo.findOne({ where: { userId } });
+    if (this.cleanPresenceUserStatus(profile?.status) !== 'backup') {
+      throw new BadRequestException('Only backup status users can have backup team roster rules');
+    }
+
+    const rawRules = Array.isArray(input?.rules) ? input.rules : [];
+    const rules = rawRules.slice(0, 6).map((rule, index) => {
+      const officeStartTime = this.validateTimeValue(rule?.officeStartTime, 'Office start time', true);
+      const officeEndTime = this.validateTimeValue(rule?.officeEndTime, 'Office end time', true);
+      const lunchBreakStartTime = this.validateTimeValue(rule?.lunchBreakStartTime, 'Lunch break start time');
+      const lunchBreakEndTime = this.validateTimeValue(rule?.lunchBreakEndTime, 'Lunch break end time');
+      return this.backupTeamOfficeTimeRepo.create({
+        userId,
+        officeStartTime,
+        officeEndTime,
+        cautionMinutes: clampInt(rule?.cautionMinutes, 0, 240, 0),
+        lunchBreakStartTime: lunchBreakStartTime || null,
+        lunchBreakEndTime: lunchBreakEndTime || null,
+        sortOrder: index,
+        notes: String(rule?.notes || '').trim() || null,
+      });
     });
+
+    await this.backupTeamOfficeTimeRepo.manager.transaction(async (manager) => {
+      await manager.delete(BackupTeamOfficeTime, { userId });
+      if (rules.length > 0) await manager.save(BackupTeamOfficeTime, rules);
+    });
+
+    return this.getBackupTeam();
+  }
+
+  async getOfficeTimes() {
+    const users = await this.getPresenceVisibleUsers(['active']);
     const rows = await this.officeTimeRepo.find();
     const byUserId = new Map(rows.map((row) => [Number(row.userId), row]));
     const settings = await this.getSettings();

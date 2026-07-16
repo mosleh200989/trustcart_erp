@@ -171,6 +171,32 @@ export class PresenceController {
     return this.presenceService.getOfficeTimes();
   }
 
+  @Get('user-statuses')
+  @RequireAnyPermission('view-presence-status', 'manage-presence-status', 'manage-presence-settings')
+  async userStatuses(@Query('status') status?: string) {
+    return this.presenceService.getPresenceStatusUsers(status);
+  }
+
+  @Post('user-statuses/:userId')
+  @RequireAnyPermission('manage-presence-status', 'manage-presence-settings')
+  async updateUserStatus(@Req() req: ExpressRequest, @Body() body: any) {
+    const userId = (req as any).params?.userId;
+    return this.presenceService.updatePresenceUserStatus(userId, body);
+  }
+
+  @Get('backup-team')
+  @RequireAnyPermission('view-presence-backup-team', 'manage-presence-backup-team', 'manage-presence-settings')
+  async backupTeam() {
+    return this.presenceService.getBackupTeam();
+  }
+
+  @Post('backup-team/:userId')
+  @RequireAnyPermission('manage-presence-backup-team', 'manage-presence-settings')
+  async updateBackupTeam(@Req() req: ExpressRequest, @Body() body: any) {
+    const userId = (req as any).params?.userId;
+    return this.presenceService.updateBackupTeamRules(userId, body);
+  }
+
   @Post('office-times/:userId')
   @RequireAnyPermission('manage-presence-office-time', 'manage-presence-settings')
   async updateOfficeTime(@Req() req: ExpressRequest, @Body() body: any) {

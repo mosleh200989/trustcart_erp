@@ -7,6 +7,8 @@ import { PresenceSettings } from './entities/presence-settings.entity';
 import { UserOfficeTime } from './entities/user-office-time.entity';
 import { PresenceCalendarOverride } from './entities/presence-calendar-override.entity';
 import { PresenceCalendarOverrideHistory } from './entities/presence-calendar-override-history.entity';
+import { PresenceUserProfile } from './entities/presence-user-profile.entity';
+import { BackupTeamOfficeTime } from './entities/backup-team-office-time.entity';
 import { PresenceController } from './presence.controller';
 import { PresenceService } from './presence.service';
 import { PresenceStaleStatusService } from './presence-stale-status.service';
@@ -21,6 +23,8 @@ import { SalesModule } from '../sales/sales.module';
       UserOfficeTime,
       PresenceCalendarOverride,
       PresenceCalendarOverrideHistory,
+      PresenceUserProfile,
+      BackupTeamOfficeTime,
       User,
     ]),
     SalesModule,
