@@ -73,6 +73,10 @@ function cleanAllowedCheckInIps(value: any): string | null {
   return ips.join('\n') || null;
 }
 
+function isMissingRelationError(error: any): boolean {
+  return error?.code === '42P01' || String(error?.message || '').includes('relation "presence_user_profiles" does not exist') || String(error?.message || '').includes('relation "backup_team_office_times" does not exist');
+}
+
 const PRESENCE_STALE_TIMEOUT_MS = 10 * 60 * 1000;
 
 @Injectable()
@@ -132,8 +136,13 @@ export class PresenceService {
   private async getPresenceProfilesForUsers(userIds: number[]) {
     const ids = Array.from(new Set(userIds.map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0)));
     if (ids.length === 0) return new Map<number, PresenceUserProfile>();
-    const rows = await this.presenceUserProfileRepo.find({ where: { userId: In(ids) } as any });
-    return new Map(rows.map((row) => [Number(row.userId), row]));
+    try {
+      const rows = await this.presenceUserProfileRepo.find({ where: { userId: In(ids) } as any });
+      return new Map(rows.map((row) => [Number(row.userId), row]));
+    } catch (error: any) {
+      if (isMissingRelationError(error)) return new Map<number, PresenceUserProfile>();
+      throw error;
+    }
   }
 
   private async filterUsersByPresenceStatus(users: User[], allowedStatuses: PresenceUserStatus[]) {
@@ -154,8 +163,13 @@ export class PresenceService {
   }
 
   private async getPresenceStatusForUser(userId: number): Promise<PresenceUserStatus> {
-    const profile = await this.presenceUserProfileRepo.findOne({ where: { userId } });
-    return this.cleanPresenceUserStatus(profile?.status);
+    try {
+      const profile = await this.presenceUserProfileRepo.findOne({ where: { userId } });
+      return this.cleanPresenceUserStatus(profile?.status);
+    } catch (error: any) {
+      if (isMissingRelationError(error)) return 'active';
+      throw error;
+    }
   }
 
   private validateTimeValue(value: string, label: string, required = false) {
@@ -178,10 +192,16 @@ export class PresenceService {
   private async getBackupRulesByUserIds(userIds: number[]) {
     const ids = Array.from(new Set(userIds.map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0)));
     if (ids.length === 0) return new Map<number, BackupTeamOfficeTime[]>();
-    const rows = await this.backupTeamOfficeTimeRepo.find({
-      where: { userId: In(ids) } as any,
-      order: { userId: 'ASC', sortOrder: 'ASC', id: 'ASC' } as any,
-    });
+    let rows: BackupTeamOfficeTime[] = [];
+    try {
+      rows = await this.backupTeamOfficeTimeRepo.find({
+        where: { userId: In(ids) } as any,
+        order: { userId: 'ASC', sortOrder: 'ASC', id: 'ASC' } as any,
+      });
+    } catch (error: any) {
+      if (isMissingRelationError(error)) return new Map<number, BackupTeamOfficeTime[]>();
+      throw error;
+    }
     const byUserId = new Map<number, BackupTeamOfficeTime[]>();
     for (const row of rows) {
       const list = byUserId.get(Number(row.userId)) || [];
@@ -684,28 +704,53 @@ export class PresenceService {
   }
 
   async getStatisticsUsers() {
-    const rows = await this.userRepo.manager.query(
-      `SELECT
-         u.id,
-         NULLIF(TRIM(CONCAT(COALESCE(u.name, ''), ' ', COALESCE(u.last_name, ''))), '') AS name,
-         u.email,
-         u.phone,
-         u.created_at,
-         u.team_leader_id,
-         COALESCE(pup.status, 'active') AS presence_status,
-         NULLIF(TRIM(CONCAT(COALESCE(tl.name, ''), ' ', COALESCE(tl.last_name, ''))), '') AS team_leader_name,
-         r.name AS role_name,
-         r.slug AS role_slug,
-         r.priority AS role_priority
-       FROM users u
-       LEFT JOIN users tl ON tl.id = u.team_leader_id
-       LEFT JOIN roles r ON r.id = u.role_id
-       LEFT JOIN presence_user_profiles pup ON pup.user_id = u.id
-       WHERE COALESCE(u.is_deleted, false) = false
-         AND COALESCE(u.status, 'active') = 'active'
-         AND COALESCE(pup.status, 'active') IN ('active', 'backup')
-       ORDER BY COALESCE(r.priority, 0) DESC, team_leader_name NULLS LAST, name ASC, u.email ASC`,
-    );
+    let rows: any[] = [];
+    try {
+      rows = await this.userRepo.manager.query(
+        `SELECT
+           u.id,
+           NULLIF(TRIM(CONCAT(COALESCE(u.name, ''), ' ', COALESCE(u.last_name, ''))), '') AS name,
+           u.email,
+           u.phone,
+           u.created_at,
+           u.team_leader_id,
+           COALESCE(pup.status, 'active') AS presence_status,
+           NULLIF(TRIM(CONCAT(COALESCE(tl.name, ''), ' ', COALESCE(tl.last_name, ''))), '') AS team_leader_name,
+           r.name AS role_name,
+           r.slug AS role_slug,
+           r.priority AS role_priority
+         FROM users u
+         LEFT JOIN users tl ON tl.id = u.team_leader_id
+         LEFT JOIN roles r ON r.id = u.role_id
+         LEFT JOIN presence_user_profiles pup ON pup.user_id = u.id
+         WHERE COALESCE(u.is_deleted, false) = false
+           AND COALESCE(u.status, 'active') = 'active'
+           AND COALESCE(pup.status, 'active') IN ('active', 'backup')
+         ORDER BY COALESCE(r.priority, 0) DESC, team_leader_name NULLS LAST, name ASC, u.email ASC`,
+      );
+    } catch (error: any) {
+      if (!isMissingRelationError(error)) throw error;
+      rows = await this.userRepo.manager.query(
+        `SELECT
+           u.id,
+           NULLIF(TRIM(CONCAT(COALESCE(u.name, ''), ' ', COALESCE(u.last_name, ''))), '') AS name,
+           u.email,
+           u.phone,
+           u.created_at,
+           u.team_leader_id,
+           'active' AS presence_status,
+           NULLIF(TRIM(CONCAT(COALESCE(tl.name, ''), ' ', COALESCE(tl.last_name, ''))), '') AS team_leader_name,
+           r.name AS role_name,
+           r.slug AS role_slug,
+           r.priority AS role_priority
+         FROM users u
+         LEFT JOIN users tl ON tl.id = u.team_leader_id
+         LEFT JOIN roles r ON r.id = u.role_id
+         WHERE COALESCE(u.is_deleted, false) = false
+           AND COALESCE(u.status, 'active') = 'active'
+         ORDER BY COALESCE(r.priority, 0) DESC, team_leader_name NULLS LAST, name ASC, u.email ASC`,
+      );
+    }
 
     return (rows || []).map((row: any) => ({
       id: Number(row.id),
@@ -1278,28 +1323,55 @@ export class PresenceService {
     const allowedFilter = new Set(['active', 'inactive', 'backup']);
     const statusFilter = allowedFilter.has(requestedStatus) ? requestedStatus : 'active';
 
-    const rows = await this.userRepo.manager.query(
-      `SELECT
-         u.id,
-         NULLIF(TRIM(CONCAT(COALESCE(u.name, ''), ' ', COALESCE(u.last_name, ''))), '') AS name,
-         u.email,
-         u.phone,
-         u.status AS account_status,
-         COALESCE(pup.status, 'active') AS presence_status,
-         pup.notes AS presence_notes,
-         u.team_leader_id,
-         NULLIF(TRIM(CONCAT(COALESCE(tl.name, ''), ' ', COALESCE(tl.last_name, ''))), '') AS team_leader_name,
-         r.name AS role_name,
-         r.slug AS role_slug
-       FROM users u
-       LEFT JOIN presence_user_profiles pup ON pup.user_id = u.id
-       LEFT JOIN users tl ON tl.id = u.team_leader_id
-       LEFT JOIN roles r ON r.id = u.role_id
-       WHERE COALESCE(u.is_deleted, false) = false
-         AND COALESCE(pup.status, 'active') = $1
-       ORDER BY name ASC, u.email ASC`,
-      [statusFilter],
-    );
+    let rows: any[] = [];
+    try {
+      rows = await this.userRepo.manager.query(
+        `SELECT
+           u.id,
+           NULLIF(TRIM(CONCAT(COALESCE(u.name, ''), ' ', COALESCE(u.last_name, ''))), '') AS name,
+           u.email,
+           u.phone,
+           u.status AS account_status,
+           COALESCE(pup.status, 'active') AS presence_status,
+           pup.notes AS presence_notes,
+           u.team_leader_id,
+           NULLIF(TRIM(CONCAT(COALESCE(tl.name, ''), ' ', COALESCE(tl.last_name, ''))), '') AS team_leader_name,
+           r.name AS role_name,
+           r.slug AS role_slug
+         FROM users u
+         LEFT JOIN presence_user_profiles pup ON pup.user_id = u.id
+         LEFT JOIN users tl ON tl.id = u.team_leader_id
+         LEFT JOIN roles r ON r.id = u.role_id
+         WHERE COALESCE(u.is_deleted, false) = false
+           AND COALESCE(pup.status, 'active') = $1
+         ORDER BY name ASC, u.email ASC`,
+        [statusFilter],
+      );
+    } catch (error: any) {
+      if (!isMissingRelationError(error)) throw error;
+      if (statusFilter !== 'active') rows = [];
+      else {
+        rows = await this.userRepo.manager.query(
+          `SELECT
+             u.id,
+             NULLIF(TRIM(CONCAT(COALESCE(u.name, ''), ' ', COALESCE(u.last_name, ''))), '') AS name,
+             u.email,
+             u.phone,
+             u.status AS account_status,
+             'active' AS presence_status,
+             NULL AS presence_notes,
+             u.team_leader_id,
+             NULLIF(TRIM(CONCAT(COALESCE(tl.name, ''), ' ', COALESCE(tl.last_name, ''))), '') AS team_leader_name,
+             r.name AS role_name,
+             r.slug AS role_slug
+           FROM users u
+           LEFT JOIN users tl ON tl.id = u.team_leader_id
+           LEFT JOIN roles r ON r.id = u.role_id
+           WHERE COALESCE(u.is_deleted, false) = false
+           ORDER BY name ASC, u.email ASC`,
+        );
+      }
+    }
 
     return {
       status: statusFilter,
