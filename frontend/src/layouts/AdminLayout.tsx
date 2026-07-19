@@ -103,6 +103,7 @@ const menuItems: MenuItem[] = [
         title: 'History',
         icon: FaHistory,
         path: '/admin/presence/history',
+        requiredPermissions: ['view-presence', 'view-presence-history', 'manage-presence-history'],
       },
       {
         title: 'Calendar',
@@ -514,6 +515,7 @@ function ensurePresenceLink(items: MenuItem[]): MenuItem[] {
     title: 'History',
     icon: FaHistory,
     path: '/admin/presence/history',
+    requiredPermissions: ['view-presence', 'view-presence-history', 'manage-presence-history'],
   };
   const settingsItem: MenuItem = {
     title: 'Settings',

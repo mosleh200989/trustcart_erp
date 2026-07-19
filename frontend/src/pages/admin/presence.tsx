@@ -39,6 +39,13 @@ function formatTime(value?: string | null) {
   });
 }
 
+function formatDate(value?: string | null) {
+  if (!value) return '-';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return '-';
+  return d.toLocaleDateString('en-GB');
+}
+
 function getTodayRangeParams() {
   const from = new Date();
   from.setHours(0, 0, 0, 0);
@@ -49,10 +56,27 @@ function getTodayRangeParams() {
   };
 }
 
+function getCurrentMonthValue() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function getMonthRangeParams(monthValue: string) {
+  const [yearRaw, monthRaw] = String(monthValue || getCurrentMonthValue()).split('-');
+  const year = Number(yearRaw);
+  const monthIndex = Number(monthRaw) - 1;
+  const from = new Date(year, monthIndex, 1, 0, 0, 0, 0);
+  const to = new Date(year, monthIndex + 1, 0, 23, 59, 59, 999);
+  return { from: from.toISOString(), to: to.toISOString() };
+}
+
 export default function PresencePage() {
   const [loading, setLoading] = useState(false);
   const [summary, setSummary] = useState<PresenceSummary | null>(null);
   const [history, setHistory] = useState<any[]>([]);
+  const [historyMonth, setHistoryMonth] = useState(getCurrentMonthValue());
+  const [monthlyHistory, setMonthlyHistory] = useState<any[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [toggleLoading, setToggleLoading] = useState(false);
 
@@ -82,6 +106,24 @@ export default function PresencePage() {
     return () => clearInterval(iv);
   }, []);
 
+  const loadMonthlyHistory = async () => {
+    setHistoryLoading(true);
+    try {
+      const res = await apiClient.get('/presence/me/history', { params: getMonthRangeParams(historyMonth) });
+      setMonthlyHistory(Array.isArray(res.data?.items) ? res.data.items : []);
+    } catch (err: any) {
+      setMonthlyHistory([]);
+      setMessage(err?.response?.data?.message || 'Failed to load your check-in/out history.');
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadMonthlyHistory();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [historyMonth]);
+
   const myPresence = summary?.items?.[0] || null;
   const myState = myPresence?.currentState === 'online' ? 'online' : 'offline';
   const isCheckedIn = myState === 'online';
@@ -102,6 +144,18 @@ export default function PresencePage() {
       checkIns: myPresence?.onlineCount || 0,
     };
   }, [history, myPresence?.onlineCount, myPresence?.seconds?.online]);
+
+  const historyRows = useMemo(() => {
+    return [...monthlyHistory]
+      .sort((a, b) => new Date(b.startedAt || b.occurredAt || 0).getTime() - new Date(a.startedAt || a.occurredAt || 0).getTime())
+      .map((event) => ({
+        id: event.id,
+        state: event.state === 'online' ? 'Checked In' : 'Checked Out',
+        source: event.source || '-',
+        date: formatDate(event.startedAt || event.occurredAt),
+        time: formatTime(event.startedAt || event.occurredAt),
+      }));
+  }, [monthlyHistory]);
 
   const toggleMyPresence = async () => {
     const next = isCheckedIn ? 'offline' : 'online';
@@ -167,6 +221,65 @@ export default function PresencePage() {
           <TodayStat title="Entry Time" value={todayStats.entryTime} icon={<FaCalendarCheck />} tone="blue" />
           <TodayStat title="Last Check Out" value={todayStats.lastCheckOutTime} icon={<FaSignOutAlt />} tone="gray" />
           <TodayStat title="Check-ins Today" value={todayStats.checkIns} icon={<FaCircle />} tone="indigo" />
+        </section>
+
+        <section className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
+          <div className="p-5 border-b border-gray-200 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-bold text-gray-900">My Check In/Out History</h2>
+              <p className="text-sm text-gray-500 mt-1">Only your own Presence history is shown here.</p>
+            </div>
+            <input
+              type="month"
+              value={historyMonth}
+              onChange={(e) => setHistoryMonth(e.target.value || getCurrentMonthValue())}
+              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
+          </div>
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Date</th>
+                  <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Time</th>
+                  <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Status</th>
+                  <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Source</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-100">
+                {historyRows.map((row, index) => (
+                  <tr key={row.id || `${row.date}-${row.time}-${index}`} className="hover:bg-gray-50">
+                    <td className="px-5 py-3 text-sm font-medium text-gray-900">{row.date}</td>
+                    <td className="px-5 py-3 text-sm text-gray-700">{row.time}</td>
+                    <td className="px-5 py-3">
+                      <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-semibold border ${
+                        row.state === 'Checked In'
+                          ? 'bg-green-50 text-green-700 border-green-200'
+                          : 'bg-gray-50 text-gray-700 border-gray-200'
+                      }`}>
+                        {row.state}
+                      </span>
+                    </td>
+                    <td className="px-5 py-3 text-sm text-gray-500">{row.source}</td>
+                  </tr>
+                ))}
+                {!historyLoading && historyRows.length === 0 && (
+                  <tr>
+                    <td colSpan={4} className="px-5 py-10 text-center text-sm text-gray-500">
+                      No check-in/out history found for this month.
+                    </td>
+                  </tr>
+                )}
+                {historyLoading && (
+                  <tr>
+                    <td colSpan={4} className="px-5 py-10 text-center text-sm text-gray-500">
+                      Loading your history...
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </section>
       </div>
     </AdminLayout>

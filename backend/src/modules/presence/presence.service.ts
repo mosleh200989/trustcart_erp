@@ -49,28 +49,67 @@ function cleanColor(value: any, fallback: string): string {
 function normalizeIpAddress(value: any): string {
   let next = String(value || '').trim();
   if (!next) return '';
+  const cidrMatch = next.match(/^(.+)\/(\d{1,3})$/);
+  const cidrSuffix = cidrMatch ? `/${cidrMatch[2]}` : '';
+  if (cidrMatch) next = cidrMatch[1];
   if (next.startsWith('::ffff:')) next = next.slice(7);
   const bracketMatch = next.match(/^\[([^\]]+)\](?::\d+)?$/);
   if (bracketMatch) next = bracketMatch[1];
   const ipv4PortMatch = next.match(/^(\d{1,3}(?:\.\d{1,3}){3}):\d+$/);
   if (ipv4PortMatch) next = ipv4PortMatch[1];
-  return next.toLowerCase();
+  return `${next.toLowerCase()}${cidrSuffix}`;
 }
 
-function parseAllowedCheckInIps(value: any): string[] {
+function parseAllowedCheckInIpRules(value: any): string[] {
   return String(value || '')
     .split(/[\s,;]+/)
     .map(normalizeIpAddress)
     .filter(Boolean);
 }
 
-function cleanAllowedCheckInIps(value: any): string | null {
-  const ips = Array.from(new Set(parseAllowedCheckInIps(value)));
-  const invalid = ips.filter((ip) => isIP(ip) === 0);
-  if (invalid.length > 0) {
-    throw new BadRequestException(`Invalid check-in IP address${invalid.length > 1 ? 'es' : ''}: ${invalid.join(', ')}`);
+function ipv4ToInt(ip: string): number | null {
+  const parts = String(ip || '').split('.');
+  if (parts.length !== 4) return null;
+  let next = 0;
+  for (const part of parts) {
+    if (!/^\d{1,3}$/.test(part)) return null;
+    const value = Number(part);
+    if (!Number.isInteger(value) || value < 0 || value > 255) return null;
+    next = (next << 8) + value;
   }
-  return ips.join('\n') || null;
+  return next >>> 0;
+}
+
+function parseAllowedCheckInRule(rule: string): { type: 'ip'; value: string } | { type: 'cidr'; baseIp: string; prefix: number } | null {
+  const cidr = String(rule || '').match(/^([^/]+)\/(\d{1,2})$/);
+  if (cidr) {
+    const baseIp = normalizeIpAddress(cidr[1]);
+    const prefix = Number(cidr[2]);
+    if (isIP(baseIp) !== 4 || !Number.isInteger(prefix) || prefix < 0 || prefix > 32) return null;
+    return { type: 'cidr', baseIp, prefix };
+  }
+  return isIP(rule) ? { type: 'ip', value: rule } : null;
+}
+
+function isIpAllowedByRule(clientIp: string, rule: string): boolean {
+  const parsedRule = parseAllowedCheckInRule(rule);
+  if (!parsedRule) return false;
+  if (parsedRule.type === 'ip') return clientIp === parsedRule.value;
+
+  const clientInt = ipv4ToInt(clientIp);
+  const baseInt = ipv4ToInt(parsedRule.baseIp);
+  if (clientInt == null || baseInt == null) return false;
+  const mask = parsedRule.prefix === 0 ? 0 : (0xffffffff << (32 - parsedRule.prefix)) >>> 0;
+  return (clientInt & mask) === (baseInt & mask);
+}
+
+function cleanAllowedCheckInIps(value: any): string | null {
+  const rules = Array.from(new Set(parseAllowedCheckInIpRules(value)));
+  const invalid = rules.filter((rule) => !parseAllowedCheckInRule(rule));
+  if (invalid.length > 0) {
+    throw new BadRequestException(`Invalid check-in IP address or CIDR range${invalid.length > 1 ? 's' : ''}: ${invalid.join(', ')}`);
+  }
+  return rules.join('\n') || null;
 }
 
 function isMissingRelationError(error: any): boolean {
@@ -175,16 +214,6 @@ export class PresenceService {
       order: { name: 'ASC', lastName: 'ASC' } as any,
     });
     return this.filterUsersByPresenceStatus(users, allowedStatuses);
-  }
-
-  private async getPresenceStatusForUser(userId: number): Promise<PresenceUserStatus> {
-    try {
-      const profile = await this.presenceUserProfileRepo.findOne({ where: { userId } });
-      return this.cleanPresenceUserStatus(profile?.status);
-    } catch (error: any) {
-      if (isMissingRelationError(error)) return 'active';
-      throw error;
-    }
   }
 
   private validateTimeValue(value: string, label: string, required = false) {
@@ -395,8 +424,6 @@ export class PresenceService {
   async setMyStatus(userId: number, stateRaw: any, source = 'manual') {
     const userIdNum = Number(userId);
     if (!Number.isFinite(userIdNum) || userIdNum <= 0) throw new BadRequestException('Invalid user ID');
-    const presenceStatus = await this.getPresenceStatusForUser(userIdNum);
-    if (presenceStatus === 'inactive') throw new ForbiddenException('Your Presence status is inactive.');
     const state = safeState(stateRaw);
     const now = new Date();
     const status = await this.getOrCreateStatus(userIdNum);
@@ -526,11 +553,11 @@ export class PresenceService {
 
   async assertCheckInIpAllowed(clientIpRaw: any) {
     const settings = await this.getSettings();
-    const allowedIps = parseAllowedCheckInIps(settings.allowedCheckInIps);
-    if (allowedIps.length === 0) return;
+    const allowedRules = parseAllowedCheckInIpRules(settings.allowedCheckInIps);
+    if (allowedRules.length === 0) return;
 
     const clientIp = normalizeIpAddress(clientIpRaw);
-    if (clientIp && allowedIps.includes(clientIp)) return;
+    if (clientIp && allowedRules.some((rule) => isIpAllowedByRule(clientIp, rule))) return;
 
     throw new ForbiddenException(`Check in is allowed only from permitted office IP addresses. Detected IP: ${clientIp || 'unknown'}.`);
   }
@@ -1438,24 +1465,6 @@ export class PresenceService {
 
     if (status !== 'backup') {
       await this.backupTeamOfficeTimeRepo.delete({ userId } as any);
-    }
-
-    if (status === 'inactive') {
-      const now = new Date();
-      const currentStatus = await this.getOrCreateStatus(userId);
-      if (currentStatus.state !== 'offline') {
-        await this.eventRepo.save(this.eventRepo.create({
-          userId,
-          state: 'offline',
-          source: 'presence-status',
-          occurredAt: now,
-        }));
-        currentStatus.lastChangedAt = now;
-      }
-      currentStatus.state = 'offline';
-      currentStatus.source = 'presence-status';
-      currentStatus.lastSeenAt = now;
-      await this.statusRepo.save(currentStatus);
     }
 
     return {

@@ -128,11 +128,11 @@ export default function PresenceSettingsPage() {
                   value={settings.allowedCheckInIps || ''}
                   onChange={(e) => setSettings({ ...settings, allowedCheckInIps: e.target.value })}
                   rows={4}
-                  placeholder={'103.10.20.30\n203.0.113.15'}
+                  placeholder={'103.25.122.23\n103.25.122.0/27'}
                   className="w-full border rounded-lg px-3 py-2"
                 />
                 <span className="block text-xs text-gray-500 mt-1">
-                  One IP per line, or separate with comma/space. Check-in is restricted to these IPs. Leave blank to allow check-in from any IP. Check-out is always allowed from anywhere.
+                  One exact IP or CIDR range per line; comma/space also works. Use a small CIDR range when the office ISP rotates public IPs, for example 103.25.122.0/27. Leave blank to allow check-in from any IP. Check-out is always allowed from anywhere.
                 </span>
               </label>
               <Field label="Attendance Key">
