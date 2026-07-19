@@ -9,6 +9,9 @@ export class BackupTeamOfficeTime {
   @Column({ name: 'user_id', type: 'int' })
   userId!: number;
 
+  @Column({ name: 'weekdays', type: 'text', array: true, default: () => "ARRAY[]::text[]" })
+  weekdays!: string[];
+
   @Column({ name: 'office_start_time', type: 'varchar', length: 5 })
   officeStartTime!: string;
 

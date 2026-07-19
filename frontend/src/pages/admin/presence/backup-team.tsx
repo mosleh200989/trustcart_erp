@@ -8,6 +8,7 @@ import { FaArrowLeft, FaPlus, FaSave, FaSyncAlt, FaTrash, FaUsers } from 'react-
 
 type BackupRule = {
   id?: number;
+  weekdays: string[];
   officeStartTime: string;
   officeEndTime: string;
   cautionMinutes: number;
@@ -24,7 +25,18 @@ type BackupUser = {
   rules: BackupRule[];
 };
 
+const WEEKDAY_OPTIONS = [
+  { value: 'saturday', label: 'Sat' },
+  { value: 'sunday', label: 'Sun' },
+  { value: 'monday', label: 'Mon' },
+  { value: 'tuesday', label: 'Tue' },
+  { value: 'wednesday', label: 'Wed' },
+  { value: 'thursday', label: 'Thu' },
+  { value: 'friday', label: 'Fri' },
+];
+
 const emptyRule = (): BackupRule => ({
+  weekdays: [],
   officeStartTime: '',
   officeEndTime: '',
   cautionMinutes: 0,
@@ -50,7 +62,12 @@ export default function PresenceBackupTeamPage() {
     try {
       const res = await apiClient.get('/presence/backup-team');
       const rows = Array.isArray(res.data?.items) ? res.data.items : [];
-      setItems(rows.map((row: BackupUser) => ({ ...row, rules: row.rules?.length ? row.rules : [emptyRule()] })));
+      setItems(rows.map((row: BackupUser) => ({
+        ...row,
+        rules: row.rules?.length
+          ? row.rules.map((rule) => ({ ...rule, weekdays: Array.isArray(rule.weekdays) ? rule.weekdays : [] }))
+          : [emptyRule()],
+      })));
     } catch (err: any) {
       toast.error(err?.response?.data?.message || 'Failed to load backup team.');
     } finally {
@@ -83,6 +100,24 @@ export default function PresenceBackupTeamPage() {
     }));
   };
 
+  const toggleWeekday = (userId: number, index: number, weekday: string) => {
+    setItems((prev) => prev.map((item) => {
+      if (item.userId !== userId) return item;
+      return {
+        ...item,
+        rules: item.rules.map((rule, idx) => {
+          if (idx !== index) return rule;
+          if (!weekday) return { ...rule, weekdays: [] };
+          const current = Array.isArray(rule.weekdays) ? rule.weekdays : [];
+          const next = current.includes(weekday)
+            ? current.filter((item) => item !== weekday)
+            : [...current, weekday];
+          return { ...rule, weekdays: next };
+        }),
+      };
+    }));
+  };
+
   const addRule = (userId: number) => {
     setItems((prev) => prev.map((item) => {
       if (item.userId !== userId || item.rules.length >= 6) return item;
@@ -104,6 +139,7 @@ export default function PresenceBackupTeamPage() {
       const rules = item.rules
         .filter((rule) => rule.officeStartTime || rule.officeEndTime || rule.lunchBreakStartTime || rule.lunchBreakEndTime || rule.notes)
         .map((rule) => ({
+          weekdays: Array.isArray(rule.weekdays) ? rule.weekdays : [],
           officeStartTime: rule.officeStartTime,
           officeEndTime: rule.officeEndTime,
           cautionMinutes: rule.cautionMinutes,
@@ -196,6 +232,7 @@ export default function PresenceBackupTeamPage() {
                   <thead className="bg-gray-50">
                     <tr>
                       <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">#</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Weekdays</th>
                       <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Start Time</th>
                       <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Caution</th>
                       <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">End Time</th>
@@ -209,6 +246,40 @@ export default function PresenceBackupTeamPage() {
                     {item.rules.map((rule, index) => (
                       <tr key={`${item.userId}-${index}`}>
                         <td className="px-4 py-3 text-sm font-semibold text-gray-500">{index + 1}</td>
+                        <td className="px-4 py-3 min-w-[290px]">
+                          <div className="flex flex-wrap gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => toggleWeekday(item.userId, index, '')}
+                              disabled={!canManage}
+                              className={`px-2.5 py-1 rounded-full border text-xs font-semibold ${
+                                !rule.weekdays?.length
+                                  ? 'bg-blue-600 text-white border-blue-600'
+                                  : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+                              } disabled:opacity-60`}
+                            >
+                              All
+                            </button>
+                            {WEEKDAY_OPTIONS.map((day) => {
+                              const selected = Array.isArray(rule.weekdays) && rule.weekdays.includes(day.value);
+                              return (
+                                <button
+                                  key={day.value}
+                                  type="button"
+                                  onClick={() => toggleWeekday(item.userId, index, day.value)}
+                                  disabled={!canManage}
+                                  className={`px-2.5 py-1 rounded-full border text-xs font-semibold ${
+                                    selected
+                                      ? 'bg-emerald-600 text-white border-emerald-600'
+                                      : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+                                  } disabled:opacity-60`}
+                                >
+                                  {day.label}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </td>
                         <td className="px-4 py-3">
                           <input
                             type="time"
