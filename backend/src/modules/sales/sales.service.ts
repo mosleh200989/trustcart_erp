@@ -249,29 +249,7 @@ export class SalesService {
           COUNT(*) FILTER (
             WHERE DATE(order_date) >= dates.month_start
               AND ${statusSql} IN ('cancelled', 'returned')
-          )::int AS "cancelledReturnedThisMonth",
-          COALESCE(SUM(
-            CASE
-              WHEN DATE(order_date) >= dates.month_start AND ${statusSql} = 'delivered'
-                THEN COALESCE(total_amount, 0)
-              WHEN DATE(order_date) >= dates.month_start AND ${statusSql} = 'partial delivered'
-                THEN COALESCE(cod_amount, total_amount, 0)
-              ELSE 0
-            END
-          ), 0)::numeric AS "realizedRevenueThisMonth",
-          COALESCE(SUM(
-            CASE
-              WHEN DATE(order_date) >= dates.previous_month_start
-                AND DATE(order_date) < dates.month_start
-                AND ${statusSql} = 'delivered'
-                THEN COALESCE(total_amount, 0)
-              WHEN DATE(order_date) >= dates.previous_month_start
-                AND DATE(order_date) < dates.month_start
-                AND ${statusSql} = 'partial delivered'
-                THEN COALESCE(cod_amount, total_amount, 0)
-              ELSE 0
-            END
-          ), 0)::numeric AS "realizedRevenuePreviousMonth"
+          )::int AS "cancelledReturnedThisMonth"
         FROM sales_orders, dates
       `),
       this.salesRepository.query(`
@@ -295,15 +273,9 @@ export class SalesService {
         SELECT
           TO_CHAR(days.day, 'YYYY-MM-DD') AS date,
           COUNT(o.id)::int AS orders,
-          COALESCE(SUM(
-            CASE
-              WHEN LOWER(REPLACE(COALESCE(o.status::text, ''), '_', ' ')) = 'delivered'
-                THEN COALESCE(o.total_amount, 0)
-              WHEN LOWER(REPLACE(COALESCE(o.status::text, ''), '_', ' ')) = 'partial delivered'
-                THEN COALESCE(o.cod_amount, o.total_amount, 0)
-              ELSE 0
-            END
-          ), 0)::numeric AS revenue
+          COUNT(o.id) FILTER (
+            WHERE LOWER(REPLACE(COALESCE(o.status::text, ''), '_', ' ')) IN ('delivered', 'partial delivered')
+          )::int AS delivered
         FROM days
         LEFT JOIN sales_orders o ON DATE(o.order_date) = days.day
         GROUP BY days.day
@@ -364,8 +336,6 @@ export class SalesService {
       summary: {
         ...summary,
         ...products,
-        realizedRevenueThisMonth: Number(summary.realizedRevenueThisMonth || 0),
-        realizedRevenuePreviousMonth: Number(summary.realizedRevenuePreviousMonth || 0),
         fulfillmentRate: completedThisMonth > 0
           ? Number(((Number(summary.deliveredThisMonth || 0) / completedThisMonth) * 100).toFixed(1))
           : 0,
@@ -376,7 +346,7 @@ export class SalesService {
       trend: (trendRows || []).map((row: any) => ({
         date: row.date,
         orders: Number(row.orders || 0),
-        revenue: Number(row.revenue || 0),
+        delivered: Number(row.delivered || 0),
       })),
       statuses: statusRows || [],
       sources: sourceRows || [],
