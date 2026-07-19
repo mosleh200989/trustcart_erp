@@ -21,7 +21,18 @@ type PresenceBucket = {
   late: number;
   weeklyOff: number;
   excusedLeave: number;
+  halfDay: number;
   unwantedLeave: number;
+};
+
+type PresenceDailyRow = {
+  dateKey: string;
+  weekday: string;
+  verdict: string;
+  label: string;
+  firstEntryTime?: string | null;
+  onlineHours?: number;
+  requiredHours?: number;
 };
 
 type PresenceStatistics = {
@@ -36,6 +47,7 @@ type PresenceStatistics = {
   };
   summary: PresenceBucket;
   monthly: PresenceBucket[];
+  daily: PresenceDailyRow[];
 };
 
 const permissionSlugs = ['view-presence-statistics', 'view-presence', 'manage-presence-settings'];
@@ -69,6 +81,7 @@ export default function PresenceStatisticsPage() {
   const [year, setYear] = useState(currentDhakaYear());
   const [month, setMonth] = useState('all');
   const [stats, setStats] = useState<PresenceStatistics | null>(null);
+  const [showHalfDayModal, setShowHalfDayModal] = useState(false);
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [loadingStats, setLoadingStats] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -88,6 +101,18 @@ export default function PresenceStatisticsPage() {
     const monthLabel = monthOptions.find((item) => item.value === month)?.label || 'All Months';
     return month === 'all' ? `${year} - All Months` : `${monthLabel} ${year}`;
   }, [month, year]);
+
+  const halfDayRows = useMemo(() => {
+    if (!stats) return [];
+    return (stats.daily || [])
+      .filter((row) => {
+        if (row.verdict !== 'halfDay') return false;
+        if (month === 'all') return true;
+        const rowMonth = Number(String(row.dateKey || '').slice(5, 7));
+        return rowMonth === Number(month);
+      })
+      .sort((a, b) => String(a.dateKey).localeCompare(String(b.dateKey)));
+  }, [month, stats]);
 
   useEffect(() => {
     if (authLoading || !canView) return;
@@ -262,7 +287,7 @@ export default function PresenceStatisticsPage() {
               <table className="min-w-full text-sm">
                 <thead className="bg-gray-50 text-gray-600 uppercase text-xs">
                   <tr>
-                    {['Present', 'Late', 'Absent', 'Excused Off', 'Weekly Off'].map((heading) => (
+                    {['Present', 'Late', 'Absent', 'Excused Off', 'Half Day', 'Weekly Off'].map((heading) => (
                       <th key={heading} className="px-4 py-3 text-left whitespace-nowrap">{heading}</th>
                     ))}
                   </tr>
@@ -273,10 +298,73 @@ export default function PresenceStatisticsPage() {
                     <td className="px-4 py-5 text-amber-700 font-bold text-lg">{selectedBucket.late}</td>
                     <td className="px-4 py-5 text-red-700 font-bold text-lg">{selectedBucket.unwantedLeave}</td>
                     <td className="px-4 py-5 text-blue-700 font-bold text-lg">{selectedBucket.excusedLeave}</td>
+                    <td className="px-4 py-5">
+                      <button
+                        type="button"
+                        onClick={() => setShowHalfDayModal(true)}
+                        disabled={!selectedBucket.halfDay}
+                        className="text-purple-700 font-bold text-lg underline-offset-4 hover:underline disabled:no-underline disabled:cursor-default"
+                      >
+                        {selectedBucket.halfDay || 0}
+                      </button>
+                    </td>
                     <td className="px-4 py-5 text-gray-700 font-bold text-lg">{selectedBucket.weeklyOff}</td>
                   </tr>
                 </tbody>
               </table>
+            </div>
+          </div>
+        )}
+
+        {showHalfDayModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+            <div className="bg-white rounded-lg shadow-xl border border-gray-200 w-full max-w-2xl overflow-hidden">
+              <div className="p-4 border-b border-gray-200 flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-bold text-gray-900">Half Day Dates</h3>
+                  <p className="text-sm text-gray-500">{stats?.employee.name} - {selectedPeriodLabel}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowHalfDayModal(false)}
+                  className="px-3 py-1.5 rounded-lg border border-gray-300 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+                >
+                  Close
+                </button>
+              </div>
+              <div className="max-h-[60vh] overflow-y-auto">
+                <table className="min-w-full text-sm">
+                  <thead className="bg-gray-50 text-gray-600 uppercase text-xs sticky top-0">
+                    <tr>
+                      <th className="px-4 py-3 text-left">Date</th>
+                      <th className="px-4 py-3 text-left">Day</th>
+                      <th className="px-4 py-3 text-left">Entry</th>
+                      <th className="px-4 py-3 text-right">Checked In</th>
+                      <th className="px-4 py-3 text-right">Required</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {halfDayRows.map((row) => (
+                      <tr key={row.dateKey} className="hover:bg-gray-50">
+                        <td className="px-4 py-3 font-semibold text-gray-900">
+                          {row.dateKey.split('-').reverse().join('/')}
+                        </td>
+                        <td className="px-4 py-3 text-gray-600">{row.weekday}</td>
+                        <td className="px-4 py-3 text-gray-600">{row.firstEntryTime || '-'}</td>
+                        <td className="px-4 py-3 text-right font-semibold text-purple-700">{row.onlineHours ?? 0}h</td>
+                        <td className="px-4 py-3 text-right text-gray-700">{row.requiredHours ?? 0}h</td>
+                      </tr>
+                    ))}
+                    {halfDayRows.length === 0 && (
+                      <tr>
+                        <td colSpan={5} className="px-4 py-10 text-center text-gray-500">
+                          No half-day dates found for this period.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         )}

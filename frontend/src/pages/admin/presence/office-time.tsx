@@ -20,6 +20,15 @@ type OfficeTimeRow = {
   notes: string;
 };
 
+const DEFAULT_OFFICE_TIME = {
+  start: '09:00',
+  end: '18:00',
+  cautionMinutes: 5,
+  lunchStart: '13:20',
+  lunchEnd: '14:25',
+  weeklyDayOff: 'Friday',
+};
+
 const WEEKDAY_OPTIONS = [
   { value: '', label: 'No weekly off' },
   { value: 'saturday', label: 'Saturday' },
@@ -34,7 +43,7 @@ const WEEKDAY_OPTIONS = [
 export default function PresenceOfficeTimePage() {
   const { hasPermission } = useAuth();
   const [items, setItems] = useState<OfficeTimeRow[]>([]);
-  const [defaults, setDefaults] = useState({ start: '', end: '' });
+  const [defaults, setDefaults] = useState({ start: DEFAULT_OFFICE_TIME.start, end: DEFAULT_OFFICE_TIME.end });
   const [loading, setLoading] = useState(false);
   const [savingUserId, setSavingUserId] = useState<number | null>(null);
   const [message, setMessage] = useState('');
@@ -50,7 +59,10 @@ export default function PresenceOfficeTimePage() {
     try {
       const res = await apiClient.get('/presence/office-times');
       setItems(Array.isArray(res.data?.items) ? res.data.items : []);
-      setDefaults({ start: res.data?.defaultOfficeStartTime || '', end: res.data?.defaultOfficeEndTime || '' });
+      setDefaults({
+        start: res.data?.defaultOfficeStartTime || DEFAULT_OFFICE_TIME.start,
+        end: res.data?.defaultOfficeEndTime || DEFAULT_OFFICE_TIME.end,
+      });
     } catch (err: any) {
       setMessage(err?.response?.data?.message || 'Failed to load office times.');
     } finally {
@@ -140,7 +152,7 @@ export default function PresenceOfficeTimePage() {
         <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-4">
           <div className="text-sm font-semibold text-gray-900">Default office time</div>
           <div className="text-sm text-gray-500 mt-1">
-            Start: {defaults.start || '-'} | End: {defaults.end || '-'}
+            Start: {defaults.start || DEFAULT_OFFICE_TIME.start} | End: {defaults.end || DEFAULT_OFFICE_TIME.end} | Caution: {DEFAULT_OFFICE_TIME.cautionMinutes} min | Lunch: {DEFAULT_OFFICE_TIME.lunchStart} - {DEFAULT_OFFICE_TIME.lunchEnd} | Weekly off: {DEFAULT_OFFICE_TIME.weeklyDayOff}
           </div>
         </div>
 
@@ -190,7 +202,6 @@ export default function PresenceOfficeTimePage() {
                         placeholder={item.officeStartTime}
                         className="border border-gray-300 rounded-lg px-3 py-2 text-sm disabled:bg-gray-50"
                       />
-                      <div className="text-xs text-gray-400 mt-1">Effective: {item.officeStartTime}</div>
                     </td>
                     <td className="px-4 py-3">
                       <input
@@ -213,7 +224,6 @@ export default function PresenceOfficeTimePage() {
                         placeholder={item.officeEndTime}
                         className="border border-gray-300 rounded-lg px-3 py-2 text-sm disabled:bg-gray-50"
                       />
-                      <div className="text-xs text-gray-400 mt-1">Effective: {item.officeEndTime}</div>
                     </td>
                     <td className="px-4 py-3">
                       <input
