@@ -411,6 +411,14 @@ export class SalesController {
     return this.salesService.getAgentOrderStats(Number(userId));
   }
 
+  @Get('dashboard-overview')
+  async getAdminDashboardOverview(@Req() req: any) {
+    if (req?.user?.type !== 'user') {
+      throw new ForbiddenException('Staff access required');
+    }
+    return this.salesService.getAdminDashboardOverview();
+  }
+
   @Get('daily-report')
   @RequirePermissions('view-sales-reports')
   async getDailyReport(

@@ -218,6 +218,175 @@ export class SalesService {
 
   private readonly webOrderSources = ['website', 'landing_page'];
 
+  async getAdminDashboardOverview() {
+    const statusSql = `LOWER(REPLACE(COALESCE(status::text, ''), '_', ' '))`;
+    const dhakaTodaySql = `(NOW() AT TIME ZONE 'Asia/Dhaka')::date`;
+
+    const [summaryRows, productRows, trendRows, statusRows, sourceRows, recentRows] = await Promise.all([
+      this.salesRepository.query(`
+        WITH dates AS (
+          SELECT
+            ${dhakaTodaySql} AS today,
+            DATE_TRUNC('month', ${dhakaTodaySql})::date AS month_start,
+            (DATE_TRUNC('month', ${dhakaTodaySql}) - INTERVAL '1 month')::date AS previous_month_start
+        )
+        SELECT
+          COUNT(*)::int AS "totalOrders",
+          COUNT(*) FILTER (WHERE DATE(order_date) = dates.today)::int AS "ordersToday",
+          COUNT(*) FILTER (WHERE DATE(order_date) = dates.today - 1)::int AS "ordersYesterday",
+          COUNT(*) FILTER (WHERE DATE(order_date) >= dates.month_start)::int AS "ordersThisMonth",
+          COUNT(*) FILTER (
+            WHERE DATE(order_date) >= dates.previous_month_start
+              AND DATE(order_date) < dates.month_start
+          )::int AS "ordersPreviousMonth",
+          COUNT(*) FILTER (WHERE ${statusSql} = 'pending')::int AS "pendingOrders",
+          COUNT(*) FILTER (WHERE ${statusSql} = 'approved')::int AS "approvedOrders",
+          COUNT(*) FILTER (WHERE ${statusSql} = 'sent')::int AS "sentOrders",
+          COUNT(*) FILTER (
+            WHERE DATE(order_date) >= dates.month_start
+              AND ${statusSql} IN ('delivered', 'partial delivered')
+          )::int AS "deliveredThisMonth",
+          COUNT(*) FILTER (
+            WHERE DATE(order_date) >= dates.month_start
+              AND ${statusSql} IN ('cancelled', 'returned')
+          )::int AS "cancelledReturnedThisMonth",
+          COALESCE(SUM(
+            CASE
+              WHEN DATE(order_date) >= dates.month_start AND ${statusSql} = 'delivered'
+                THEN COALESCE(total_amount, 0)
+              WHEN DATE(order_date) >= dates.month_start AND ${statusSql} = 'partial delivered'
+                THEN COALESCE(cod_amount, total_amount, 0)
+              ELSE 0
+            END
+          ), 0)::numeric AS "realizedRevenueThisMonth",
+          COALESCE(SUM(
+            CASE
+              WHEN DATE(order_date) >= dates.previous_month_start
+                AND DATE(order_date) < dates.month_start
+                AND ${statusSql} = 'delivered'
+                THEN COALESCE(total_amount, 0)
+              WHEN DATE(order_date) >= dates.previous_month_start
+                AND DATE(order_date) < dates.month_start
+                AND ${statusSql} = 'partial delivered'
+                THEN COALESCE(cod_amount, total_amount, 0)
+              ELSE 0
+            END
+          ), 0)::numeric AS "realizedRevenuePreviousMonth"
+        FROM sales_orders, dates
+      `),
+      this.salesRepository.query(`
+        SELECT
+          COUNT(*) FILTER (WHERE LOWER(COALESCE(status, 'active')) = 'active')::int AS "activeProducts",
+          COUNT(*) FILTER (
+            WHERE LOWER(COALESCE(status, 'active')) = 'active'
+              AND COALESCE(stock_quantity, 0) <= 10
+          )::int AS "lowStockProducts",
+          (SELECT COUNT(*)::int FROM customers) AS "totalCustomers"
+        FROM products
+      `),
+      this.salesRepository.query(`
+        WITH days AS (
+          SELECT GENERATE_SERIES(
+            ${dhakaTodaySql} - 6,
+            ${dhakaTodaySql},
+            INTERVAL '1 day'
+          )::date AS day
+        )
+        SELECT
+          TO_CHAR(days.day, 'YYYY-MM-DD') AS date,
+          COUNT(o.id)::int AS orders,
+          COALESCE(SUM(
+            CASE
+              WHEN LOWER(REPLACE(COALESCE(o.status::text, ''), '_', ' ')) = 'delivered'
+                THEN COALESCE(o.total_amount, 0)
+              WHEN LOWER(REPLACE(COALESCE(o.status::text, ''), '_', ' ')) = 'partial delivered'
+                THEN COALESCE(o.cod_amount, o.total_amount, 0)
+              ELSE 0
+            END
+          ), 0)::numeric AS revenue
+        FROM days
+        LEFT JOIN sales_orders o ON DATE(o.order_date) = days.day
+        GROUP BY days.day
+        ORDER BY days.day
+      `),
+      this.salesRepository.query(`
+        SELECT
+          CASE
+            WHEN ${statusSql} = 'partial delivered' THEN 'Partial Delivered'
+            WHEN ${statusSql} = 'order rejected' THEN 'Order Rejected'
+            WHEN ${statusSql} = '' THEN 'Unknown'
+            ELSE INITCAP(${statusSql})
+          END AS status,
+          COUNT(*)::int AS count
+        FROM sales_orders
+        WHERE DATE(order_date) >= DATE_TRUNC('month', ${dhakaTodaySql})::date
+        GROUP BY 1
+        ORDER BY count DESC
+      `),
+      this.salesRepository.query(`
+        SELECT
+          CASE
+            WHEN LOWER(COALESCE(order_source, '')) = 'landing_page' THEN 'Landing Page'
+            WHEN LOWER(COALESCE(order_source, '')) = 'website' THEN 'Website'
+            WHEN LOWER(COALESCE(order_source, '')) IN ('admin_panel', 'agent_dashboard') THEN 'Admin / Agent'
+            ELSE 'Other'
+          END AS source,
+          COUNT(*)::int AS count
+        FROM sales_orders
+        WHERE DATE(order_date) >= DATE_TRUNC('month', ${dhakaTodaySql})::date
+        GROUP BY 1
+        ORDER BY count DESC
+      `),
+      this.salesRepository.query(`
+        SELECT
+          id,
+          sales_order_number AS "orderNumber",
+          customer_name AS "customerName",
+          customer_phone AS "customerPhone",
+          total_amount::numeric AS amount,
+          status::text AS status,
+          order_source AS source,
+          order_date AS "orderDate",
+          created_at AS "createdAt"
+        FROM sales_orders
+        ORDER BY order_date DESC NULLS LAST, created_at DESC
+        LIMIT 7
+      `),
+    ]);
+
+    const summary = summaryRows?.[0] || {};
+    const products = productRows?.[0] || {};
+    const ordersThisMonth = Number(summary.ordersThisMonth || 0);
+    const completedThisMonth = Number(summary.deliveredThisMonth || 0) + Number(summary.cancelledReturnedThisMonth || 0);
+
+    return {
+      generatedAt: new Date().toISOString(),
+      summary: {
+        ...summary,
+        ...products,
+        realizedRevenueThisMonth: Number(summary.realizedRevenueThisMonth || 0),
+        realizedRevenuePreviousMonth: Number(summary.realizedRevenuePreviousMonth || 0),
+        fulfillmentRate: completedThisMonth > 0
+          ? Number(((Number(summary.deliveredThisMonth || 0) / completedThisMonth) * 100).toFixed(1))
+          : 0,
+        deliveredShare: ordersThisMonth > 0
+          ? Number(((Number(summary.deliveredThisMonth || 0) / ordersThisMonth) * 100).toFixed(1))
+          : 0,
+      },
+      trend: (trendRows || []).map((row: any) => ({
+        date: row.date,
+        orders: Number(row.orders || 0),
+        revenue: Number(row.revenue || 0),
+      })),
+      statuses: statusRows || [],
+      sources: sourceRows || [],
+      recentOrders: (recentRows || []).map((row: any) => ({
+        ...row,
+        amount: Number(row.amount || 0),
+      })),
+    };
+  }
+
   private readonly approvedForMainOrdersSql = `
     (LOWER(o.status::text) <> 'processing')
   `;

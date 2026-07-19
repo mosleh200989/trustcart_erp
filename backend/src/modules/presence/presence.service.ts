@@ -835,6 +835,29 @@ export class PresenceService {
     return `${String(Math.floor(clamped / 60)).padStart(2, '0')}:${String(clamped % 60).padStart(2, '0')}`;
   }
 
+  private timeRangeMinutes(startTime?: string | null, endTime?: string | null) {
+    if (!startTime || !endTime) return 0;
+    const start = this.timeToMinutes(startTime);
+    const end = this.timeToMinutes(endTime);
+    if (!Number.isFinite(start) || !Number.isFinite(end)) return 0;
+    return end >= start ? end - start : end + 1440 - start;
+  }
+
+  private requiredOfficeSeconds(input: {
+    officeStartTime?: string | null;
+    officeEndTime?: string | null;
+    lunchBreakStartTime?: string | null;
+    lunchBreakEndTime?: string | null;
+    cautionMinutes?: number | null;
+  }) {
+    const officeMinutes = this.timeRangeMinutes(input.officeStartTime, input.officeEndTime);
+    const lunchMinutes = input.lunchBreakStartTime && input.lunchBreakEndTime
+      ? this.timeRangeMinutes(input.lunchBreakStartTime, input.lunchBreakEndTime)
+      : 0;
+    const cautionMinutes = Math.max(0, Math.min(240, Number(input.cautionMinutes || 0)));
+    return Math.max(0, officeMinutes - lunchMinutes - cautionMinutes) * 60;
+  }
+
   private weekKeyForDateKey(dateKey: string, timezone: string) {
     const noon = new Date(`${dateKey}T12:00:00+06:00`);
     const weekday = noon.toLocaleDateString('en-US', { weekday: 'long', timeZone: timezone });
@@ -853,6 +876,7 @@ export class PresenceService {
       late: 0,
       weeklyOff: 0,
       excusedLeave: 0,
+      halfDay: 0,
       unwantedLeave: 0,
       manualOverrides: 0,
       checkIns: 0,
@@ -868,14 +892,14 @@ export class PresenceService {
 
   private finalizePresenceBucket(bucket: any) {
     bucket.avgDailySeconds = bucket.countedDays > 0 ? Math.round(bucket.totalOnlineSeconds / bucket.countedDays) : 0;
-    const attendedDays = bucket.present + bucket.late;
+    const attendedDays = bucket.present + bucket.late + bucket.halfDay;
     bucket.avgPresentDaySeconds = attendedDays > 0 ? Math.round(bucket.totalOnlineSeconds / attendedDays) : 0;
     bucket.avgCheckInTime = this.minutesToTimeLabel(bucket.avgCheckInMinutes);
     bucket.totalOnlineHours = this.secondsToHours(bucket.totalOnlineSeconds);
     bucket.avgDailyHours = this.secondsToHours(bucket.avgDailySeconds);
     bucket.avgPresentDayHours = this.secondsToHours(bucket.avgPresentDaySeconds);
-    bucket.attendanceRate = bucket.countedDays > 0 ? Math.round(((bucket.present + bucket.late) / bucket.countedDays) * 10000) / 100 : 0;
-    bucket.lateRate = (bucket.present + bucket.late) > 0 ? Math.round((bucket.late / (bucket.present + bucket.late)) * 10000) / 100 : 0;
+    bucket.attendanceRate = bucket.countedDays > 0 ? Math.round(((bucket.present + bucket.late + bucket.halfDay) / bucket.countedDays) * 10000) / 100 : 0;
+    bucket.lateRate = (bucket.present + bucket.late + bucket.halfDay) > 0 ? Math.round((bucket.late / (bucket.present + bucket.late + bucket.halfDay)) * 10000) / 100 : 0;
     bucket.unwantedLeaveRate = bucket.countedDays > 0 ? Math.round((bucket.unwantedLeave / bucket.countedDays) * 10000) / 100 : 0;
     return bucket;
   }
@@ -998,7 +1022,7 @@ export class PresenceService {
 
         const weekday = new Date(`${dateKey}T12:00:00+06:00`).toLocaleDateString('en-US', { weekday: 'long', timeZone: timezone });
         const override = overrideByDate.get(dateKey);
-        let verdict: 'present' | 'late' | 'weeklyOff' | 'excusedLeave' | 'unwantedLeave' | 'custom' = 'unwantedLeave';
+        let verdict: 'present' | 'late' | 'halfDay' | 'weeklyOff' | 'excusedLeave' | 'unwantedLeave' | 'custom' = 'unwantedLeave';
         let label = settings.attendanceUnexcusedAbsenceLabel || 'Unexcused absence';
         let isManual = false;
         const firstMinutes = firstOnlineAt
@@ -1010,6 +1034,13 @@ export class PresenceService {
           : null;
         const effectiveOfficeStartMinutes = selectedBackupRule ? this.timeToMinutes(selectedBackupRule.officeStartTime) : officeStartMinutes;
         const effectiveCautionMinutes = selectedBackupRule ? Math.max(0, Math.min(240, Number(selectedBackupRule.cautionMinutes || 0))) : cautionMinutes;
+        const requiredSeconds = this.requiredOfficeSeconds({
+          officeStartTime: selectedBackupRule?.officeStartTime || officeStart,
+          officeEndTime: selectedBackupRule?.officeEndTime || officeEnd,
+          lunchBreakStartTime: selectedBackupRule?.lunchBreakStartTime || officeTime?.lunchBreakStartTime || null,
+          lunchBreakEndTime: selectedBackupRule?.lunchBreakEndTime || officeTime?.lunchBreakEndTime || null,
+          cautionMinutes: effectiveCautionMinutes,
+        });
 
         if (override) {
           isManual = true;
@@ -1028,8 +1059,13 @@ export class PresenceService {
           verdict = 'weeklyOff';
           label = settings.attendanceWeeklyOffLabel || 'Weekly off day';
         } else if (firstOnlineAt) {
-          verdict = (firstMinutes || 0) > effectiveOfficeStartMinutes + effectiveCautionMinutes ? 'late' : 'present';
-          label = verdict === 'late' ? (settings.attendanceLateLabel || 'Late') : (settings.attendancePresentLabel || 'Present');
+          if (requiredSeconds > 4 * 3600 && onlineSeconds >= 4 * 3600 && onlineSeconds < requiredSeconds) {
+            verdict = 'halfDay';
+            label = 'Half Day';
+          } else {
+            verdict = (firstMinutes || 0) > effectiveOfficeStartMinutes + effectiveCautionMinutes ? 'late' : 'present';
+            label = verdict === 'late' ? (settings.attendanceLateLabel || 'Late') : (settings.attendancePresentLabel || 'Present');
+          }
         }
 
         const weekKey = this.weekKeyForDateKey(dateKey, timezone);
@@ -1045,8 +1081,8 @@ export class PresenceService {
           if (isManual) bucket.manualOverrides += 1;
           if (verdict !== 'weeklyOff') bucket.countedDays += 1;
           if (verdict in bucket) bucket[verdict] += 1;
-          if ((verdict === 'present' || verdict === 'late') && firstMinutes != null) {
-            const attendedBefore = bucket.present + bucket.late - 1;
+          if ((verdict === 'present' || verdict === 'late' || verdict === 'halfDay') && firstMinutes != null) {
+            const attendedBefore = bucket.present + bucket.late + bucket.halfDay - 1;
             bucket.avgCheckInMinutes = bucket.avgCheckInMinutes == null
               ? firstMinutes
               : ((bucket.avgCheckInMinutes * attendedBefore) + firstMinutes) / Math.max(1, attendedBefore + 1);
@@ -1062,6 +1098,8 @@ export class PresenceService {
           firstEntryTime: this.minutesToTimeLabel(firstMinutes),
           onlineSeconds,
           onlineHours: this.secondsToHours(onlineSeconds),
+          requiredSeconds,
+          requiredHours: this.secondsToHours(requiredSeconds),
           checkIns,
           checkOuts,
         });
@@ -1159,13 +1197,14 @@ export class PresenceService {
       doc.moveTo(42, doc.y + 6).lineTo(doc.page.width - 42, doc.y + 6).strokeColor(line).stroke();
       doc.moveDown(1.2);
 
-      const widths = [pageWidth / 5, pageWidth / 5, pageWidth / 5, pageWidth / 5, pageWidth / 5];
-      let y = tableRow(['Present', 'Late', 'Absent', 'Excused Off', 'Weekly Off'], widths, doc.y, true);
+      const widths = Array.from({ length: 6 }, () => pageWidth / 6);
+      let y = tableRow(['Present', 'Late', 'Absent', 'Excused Off', 'Half Day', 'Weekly Off'], widths, doc.y, true);
       tableRow([
         String(selectedBucket.present || 0),
         String(selectedBucket.late || 0),
         String(selectedBucket.unwantedLeave || 0),
         String(selectedBucket.excusedLeave || 0),
+        String(selectedBucket.halfDay || 0),
         String(selectedBucket.weeklyOff || 0),
       ], widths, y);
 
@@ -1549,24 +1588,36 @@ export class PresenceService {
     const rows = await this.officeTimeRepo.find();
     const byUserId = new Map(rows.map((row) => [Number(row.userId), row]));
     const settings = await this.getSettings();
+    const defaultOfficeStartTime = settings.officeStartTime || '09:00';
+    const defaultOfficeEndTime = settings.officeEndTime || '18:00';
+    const defaultCautionMinutes = 5;
+    const defaultLunchBreakStartTime = '13:20';
+    const defaultLunchBreakEndTime = '14:25';
+    const defaultWeeklyDayOff = 'friday';
 
     return {
-      defaultOfficeStartTime: settings.officeStartTime,
-      defaultOfficeEndTime: settings.officeEndTime,
+      defaultOfficeStartTime,
+      defaultOfficeEndTime,
       items: users.map((user) => {
         const row = byUserId.get(Number(user.id));
+        const officeStartTime = row?.officeStartTime || defaultOfficeStartTime;
+        const officeEndTime = row?.officeEndTime || defaultOfficeEndTime;
+        const cautionMinutes = row?.cautionMinutes ?? defaultCautionMinutes;
+        const lunchBreakStartTime = row?.lunchBreakStartTime || defaultLunchBreakStartTime;
+        const lunchBreakEndTime = row?.lunchBreakEndTime || defaultLunchBreakEndTime;
+        const weeklyDayOff = row?.weeklyDayOff || defaultWeeklyDayOff;
         return {
           userId: Number(user.id),
           name: [user.name, user.lastName].filter(Boolean).join(' ').trim() || user.email,
           email: user.email,
-          officeStartTime: row?.officeStartTime || settings.officeStartTime,
-          officeEndTime: row?.officeEndTime || settings.officeEndTime,
-          customOfficeStartTime: row?.officeStartTime || '',
-          customOfficeEndTime: row?.officeEndTime || '',
-          weeklyDayOff: row?.weeklyDayOff || '',
-          cautionMinutes: row?.cautionMinutes || 0,
-          lunchBreakStartTime: row?.lunchBreakStartTime || '',
-          lunchBreakEndTime: row?.lunchBreakEndTime || '',
+          officeStartTime,
+          officeEndTime,
+          customOfficeStartTime: officeStartTime,
+          customOfficeEndTime: officeEndTime,
+          weeklyDayOff,
+          cautionMinutes,
+          lunchBreakStartTime,
+          lunchBreakEndTime,
           notes: row?.notes || '',
         };
       }),
