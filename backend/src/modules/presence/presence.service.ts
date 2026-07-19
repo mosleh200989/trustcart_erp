@@ -78,6 +78,21 @@ function isMissingRelationError(error: any): boolean {
 }
 
 const PRESENCE_STALE_TIMEOUT_MS = 10 * 60 * 1000;
+const VALID_BACKUP_WEEKDAYS = ['saturday', 'sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday'];
+const VALID_BACKUP_WEEKDAY_SET = new Set(VALID_BACKUP_WEEKDAYS);
+
+function cleanBackupWeekdays(value: any): string[] {
+  const raw = Array.isArray(value)
+    ? value
+    : String(value || '')
+        .split(',')
+        .map((item) => item.trim())
+        .filter(Boolean);
+  const weekdays = Array.from(new Set(raw.map((item) => String(item || '').trim().toLowerCase()).filter(Boolean)));
+  const invalid = weekdays.filter((weekday) => !VALID_BACKUP_WEEKDAY_SET.has(weekday));
+  if (invalid.length > 0) throw new BadRequestException(`Invalid roster weekday: ${invalid.join(', ')}`);
+  return weekdays;
+}
 
 @Injectable()
 export class PresenceService {
@@ -180,8 +195,20 @@ export class PresenceService {
     return next;
   }
 
-  private chooseBackupRuleForMinutes(rules: BackupTeamOfficeTime[] | undefined, firstMinutes: number | null) {
-    const validRules = (rules || []).filter((rule) => rule.officeStartTime && rule.officeEndTime);
+  private getWeekdaySlugForDateKey(dateKey: string, timezone = 'Asia/Dhaka') {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(dateKey || ''))) return null;
+    return new Date(`${dateKey}T12:00:00+06:00`)
+      .toLocaleDateString('en-US', { weekday: 'long', timeZone: timezone })
+      .toLowerCase();
+  }
+
+  private chooseBackupRuleForMinutes(rules: BackupTeamOfficeTime[] | undefined, firstMinutes: number | null, dateKey?: string, timezone = 'Asia/Dhaka') {
+    const weekday = dateKey ? this.getWeekdaySlugForDateKey(dateKey, timezone) : null;
+    const validRules = (rules || []).filter((rule) => {
+      if (!rule.officeStartTime || !rule.officeEndTime) return false;
+      const weekdays = Array.isArray(rule.weekdays) ? rule.weekdays.map((item) => String(item || '').toLowerCase()) : [];
+      return !weekday || weekdays.length === 0 || weekdays.includes(weekday);
+    });
     if (validRules.length === 0) return null;
     if (firstMinutes == null) return validRules[0];
     return validRules
@@ -505,7 +532,7 @@ export class PresenceService {
     const clientIp = normalizeIpAddress(clientIpRaw);
     if (clientIp && allowedIps.includes(clientIp)) return;
 
-    throw new ForbiddenException('Check in is allowed only from permitted office IP addresses.');
+    throw new ForbiddenException(`Check in is allowed only from permitted office IP addresses. Detected IP: ${clientIp || 'unknown'}.`);
   }
 
   async getDashboard(params?: { from?: string; to?: string; rangeDays?: number; userId?: number }) {
@@ -839,11 +866,10 @@ export class PresenceService {
 
     const officeTime = await this.officeTimeRepo.findOne({ where: { userId } as any });
     const backupRules = employee.presenceStatus === 'backup' ? (await this.getBackupRulesByUserIds([userId])).get(userId) || [] : [];
-    const firstBackupRule = backupRules[0] || null;
-    const officeStart = firstBackupRule?.officeStartTime || officeTime?.officeStartTime || settings.officeStartTime || '09:00';
-    const officeEnd = firstBackupRule?.officeEndTime || officeTime?.officeEndTime || settings.officeEndTime || '18:00';
+    const officeStart = officeTime?.officeStartTime || settings.officeStartTime || '09:00';
+    const officeEnd = officeTime?.officeEndTime || settings.officeEndTime || '18:00';
     const officeStartMinutes = this.timeToMinutes(officeStart);
-    const cautionMinutes = Math.max(0, Math.min(240, Number(firstBackupRule?.cautionMinutes ?? officeTime?.cautionMinutes ?? 0)));
+    const cautionMinutes = Math.max(0, Math.min(240, Number(officeTime?.cautionMinutes ?? 0)));
 
     const yearStartKey = `${year}-01-01`;
     const yearEndKey = `${year}-12-31`;
@@ -953,7 +979,7 @@ export class PresenceService {
             Number(firstOnlineAt.toLocaleString('en-US', { minute: '2-digit', timeZone: timezone }))
           : null;
         const selectedBackupRule = employee.presenceStatus === 'backup'
-          ? this.chooseBackupRuleForMinutes(backupRules, firstMinutes)
+          ? this.chooseBackupRuleForMinutes(backupRules, firstMinutes, dateKey, timezone)
           : null;
         const effectiveOfficeStartMinutes = selectedBackupRule ? this.timeToMinutes(selectedBackupRule.officeStartTime) : officeStartMinutes;
         const effectiveCautionMinutes = selectedBackupRule ? Math.max(0, Math.min(240, Number(selectedBackupRule.cautionMinutes || 0))) : cautionMinutes;
@@ -969,6 +995,9 @@ export class PresenceService {
           else verdict = 'custom';
           label = override.attendanceLabel || override.attendanceKey;
         } else if (employee.presenceStatus !== 'backup' && officeTime?.weeklyDayOff && officeTime.weeklyDayOff.toLowerCase() === weekday.toLowerCase()) {
+          verdict = 'weeklyOff';
+          label = settings.attendanceWeeklyOffLabel || 'Weekly off day';
+        } else if (employee.presenceStatus === 'backup' && backupRules.length > 0 && !selectedBackupRule) {
           verdict = 'weeklyOff';
           label = settings.attendanceWeeklyOffLabel || 'Weekly off day';
         } else if (firstOnlineAt) {
@@ -1027,8 +1056,8 @@ export class PresenceService {
         officeEndTime: officeEnd,
         cautionMinutes,
         weeklyDayOff: employee.presenceStatus === 'backup' ? null : officeTime?.weeklyDayOff || null,
-        lunchBreakStartTime: firstBackupRule?.lunchBreakStartTime || officeTime?.lunchBreakStartTime || null,
-        lunchBreakEndTime: firstBackupRule?.lunchBreakEndTime || officeTime?.lunchBreakEndTime || null,
+        lunchBreakStartTime: officeTime?.lunchBreakStartTime || null,
+        lunchBreakEndTime: officeTime?.lunchBreakEndTime || null,
       },
       summary: finalizedYear,
       monthly: finalizedMonthly,
@@ -1239,8 +1268,7 @@ export class PresenceService {
       const officeTime = officeTimeByUser.get(userId);
       const presenceStatus = this.cleanPresenceUserStatus(presenceProfiles.get(userId)?.status);
       const backupRules = backupRulesByUserId.get(userId) || [];
-      const firstBackupRule = backupRules[0] || null;
-      const userOfficeStart = firstBackupRule?.officeStartTime || officeTime?.officeStartTime || settings.officeStartTime;
+      const userOfficeStart = officeTime?.officeStartTime || settings.officeStartTime;
       const userOfficeStartMinutes = this.timeToMinutes(userOfficeStart);
       return {
         userId,
@@ -1272,6 +1300,10 @@ export class PresenceService {
           if (presenceStatus !== 'backup' && officeTime?.weeklyDayOff && officeTime.weeklyDayOff.toLowerCase() === new Date(`${day.key}T00:00:00`).toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase()) {
             return { dateKey: day.key, value: keyConfig.weeklyOff.key, label: keyConfig.weeklyOff.label, color: keyConfig.weeklyOff.color };
           }
+          const backupRuleForDay = presenceStatus === 'backup' ? this.chooseBackupRuleForMinutes(backupRules, null, day.key, timezone) : null;
+          if (presenceStatus === 'backup' && backupRules.length > 0 && !backupRuleForDay) {
+            return { dateKey: day.key, value: keyConfig.weeklyOff.key, label: keyConfig.weeklyOff.label, color: keyConfig.weeklyOff.color };
+          }
           const onlineEvents = (eventsByUserDay.get(`${userId}:${day.key}`) || []).sort(
             (a, b) => new Date(a.occurredAt).getTime() - new Date(b.occurredAt).getTime(),
           );
@@ -1283,7 +1315,7 @@ export class PresenceService {
           const firstMinutes =
             Number(firstOnline.toLocaleString('en-US', { hour: '2-digit', hour12: false, timeZone: timezone })) * 60 +
             Number(firstOnline.toLocaleString('en-US', { minute: '2-digit', timeZone: timezone }));
-          const selectedBackupRule = presenceStatus === 'backup' ? this.chooseBackupRuleForMinutes(backupRules, firstMinutes) : null;
+          const selectedBackupRule = presenceStatus === 'backup' ? this.chooseBackupRuleForMinutes(backupRules, firstMinutes, day.key, timezone) : null;
           const effectiveOfficeStartMinutes = selectedBackupRule ? this.timeToMinutes(selectedBackupRule.officeStartTime) : userOfficeStartMinutes;
           const cautionMinutes = selectedBackupRule
             ? Math.max(0, Math.min(240, Number(selectedBackupRule.cautionMinutes || 0)))
@@ -1454,6 +1486,7 @@ export class PresenceService {
         phone: user.phone,
         rules: (byUserId.get(Number(user.id)) || []).map((row) => ({
           id: row.id,
+          weekdays: Array.isArray(row.weekdays) ? row.weekdays : [],
           officeStartTime: row.officeStartTime,
           officeEndTime: row.officeEndTime,
           cautionMinutes: row.cautionMinutes || 0,
@@ -1476,12 +1509,14 @@ export class PresenceService {
 
     const rawRules = Array.isArray(input?.rules) ? input.rules : [];
     const rules = rawRules.slice(0, 6).map((rule, index) => {
+      const weekdays = cleanBackupWeekdays(rule?.weekdays);
       const officeStartTime = this.validateTimeValue(rule?.officeStartTime, 'Office start time', true);
       const officeEndTime = this.validateTimeValue(rule?.officeEndTime, 'Office end time', true);
       const lunchBreakStartTime = this.validateTimeValue(rule?.lunchBreakStartTime, 'Lunch break start time');
       const lunchBreakEndTime = this.validateTimeValue(rule?.lunchBreakEndTime, 'Lunch break end time');
       return this.backupTeamOfficeTimeRepo.create({
         userId,
+        weekdays,
         officeStartTime,
         officeEndTime,
         cautionMinutes: clampInt(rule?.cautionMinutes, 0, 240, 0),

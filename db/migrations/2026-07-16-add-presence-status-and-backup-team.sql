@@ -22,6 +22,7 @@ ON CONFLICT (user_id) DO NOTHING;
 CREATE TABLE IF NOT EXISTS backup_team_office_times (
   id SERIAL PRIMARY KEY,
   user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  weekdays TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
   office_start_time VARCHAR(5) NOT NULL,
   office_end_time VARCHAR(5) NOT NULL,
   caution_minutes INTEGER NOT NULL DEFAULT 0,

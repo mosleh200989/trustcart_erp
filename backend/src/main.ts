@@ -15,6 +15,7 @@ async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     rawBody: true,
   });
+  app.set('trust proxy', true);
   const port = process.env.PORT || 3001;
 
   // Set global API prefix
