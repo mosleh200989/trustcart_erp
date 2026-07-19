@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
-import Link from 'next/link';
 import AdminLayout from '@/layouts/AdminLayout';
+import AdminPageHeader from '@/components/admin/AdminPageHeader';
 import apiClient from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
-import { FaArrowLeft, FaCircle, FaFilter, FaSyncAlt } from 'react-icons/fa';
+import { FaCircle, FaFilter, FaSyncAlt } from 'react-icons/fa';
 
 type PresenceRow = {
   userId: number;
@@ -274,24 +274,17 @@ export default function PresenceHistoryPage() {
   return (
     <AdminLayout>
       <div className="space-y-6">
-        <div className="flex flex-col xl:flex-row xl:items-end xl:justify-between gap-4">
-          <div>
-            <Link href="/admin/presence" className="inline-flex items-center gap-2 text-sm font-semibold text-blue-700 hover:text-blue-800">
-              <FaArrowLeft />
-              Presence
-            </Link>
-            <h1 className="text-3xl font-bold text-gray-900 mt-2">Presence History</h1>
-            <p className="text-gray-600 mt-1">
-              Review employee check-in/out history by month.
-            </p>
-          </div>
-
-          <div className="flex flex-col sm:flex-row gap-3">
+        <AdminPageHeader
+          backHref="/admin/presence"
+          backLabel="Presence"
+          title="Presence History"
+          description="Review employee check-in/out history by month."
+          actions={<>
             <input
               type="month"
               value={month}
               onChange={(e) => setMonth(e.target.value)}
-              className="border border-gray-300 rounded-lg px-3 py-2 bg-white text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="min-h-11 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500 sm:w-auto"
             />
             <button
               onClick={load}
@@ -301,8 +294,8 @@ export default function PresenceHistoryPage() {
               <FaSyncAlt className={loading ? 'animate-spin' : ''} />
               Refresh
             </button>
-          </div>
-        </div>
+          </>}
+        />
 
         {!canViewHistory && (
           <div className="bg-white border border-red-100 text-red-700 rounded-lg px-4 py-3 text-sm shadow-sm">
@@ -336,13 +329,13 @@ export default function PresenceHistoryPage() {
                   value={presenceSearch}
                   onChange={(e) => setPresenceSearch(e.target.value)}
                   placeholder="Search user, email, phone"
-                  className="border border-gray-300 rounded-lg pl-9 pr-3 py-2 text-sm min-w-[240px] focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="min-h-11 w-full rounded-lg border border-gray-300 py-2 pl-9 pr-3 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500 sm:min-w-[240px]"
                 />
               </div>
             </div>
           </div>
 
-          <div className="overflow-x-auto">
+          <div className="admin-responsive-table overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
@@ -356,14 +349,14 @@ export default function PresenceHistoryPage() {
               <tbody className="bg-white divide-y divide-gray-100">
                 {checkedInRows.map((row) => (
                   <tr key={row.userId} className="hover:bg-gray-50">
-                    <td className="px-4 py-3">
+                    <td data-label="User" className="px-4 py-3">
                       <div className="font-semibold text-gray-900">{row.name}</div>
                       <div className="text-xs text-gray-500">{row.email || row.phone || `User #${row.userId}`}</div>
                     </td>
-                    <td className="px-4 py-3"><StatusPill state={row.currentState} /></td>
-                    <td className="px-4 py-3 text-sm text-gray-700">{row.entryTime}</td>
-                    <td className="px-4 py-3 text-sm text-gray-900 text-right font-semibold">{row.todayDuration}</td>
-                    <td className="px-4 py-3 text-sm text-gray-700">{row.outTime}</td>
+                    <td data-label="Status" className="px-4 py-3"><StatusPill state={row.currentState} /></td>
+                    <td data-label="Entry Time" className="px-4 py-3 text-sm text-gray-700">{row.entryTime}</td>
+                    <td data-label="Duration" className="px-4 py-3 text-sm text-gray-900 text-right font-semibold">{row.todayDuration}</td>
+                    <td data-label="Out Time" className="px-4 py-3 text-sm text-gray-700">{row.outTime}</td>
                   </tr>
                 ))}
                 {!loading && checkedInRows.length === 0 && (
@@ -391,13 +384,13 @@ export default function PresenceHistoryPage() {
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="Search user or email"
-                  className="border border-gray-300 rounded-lg pl-9 pr-3 py-2 text-sm min-w-[240px] focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="min-h-11 w-full rounded-lg border border-gray-300 py-2 pl-9 pr-3 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500 sm:min-w-[240px]"
                 />
               </div>
             </div>
           </div>
 
-          <div className="overflow-x-auto">
+          <div className="admin-responsive-table overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
@@ -411,14 +404,14 @@ export default function PresenceHistoryPage() {
               <tbody className="bg-white divide-y divide-gray-100">
                 {dailyHistoryRows.map((row) => (
                   <tr key={row.key} className="hover:bg-gray-50">
-                    <td className="px-4 py-3">
+                    <td data-label="User" className="px-4 py-3">
                       <div className="font-semibold text-gray-900">{row.name}</div>
                       <div className="text-xs text-gray-500">{row.email || `User #${row.userId}`} {row.dateLabel ? `- ${row.dateLabel}` : ''}</div>
                     </td>
-                    <td className="px-4 py-3"><StatusPill state={row.status} /></td>
-                    <td className="px-4 py-3 text-sm text-gray-700">{formatDateTime(row.lastEntryAt)}</td>
-                    <td className="px-4 py-3 text-sm text-gray-700">{formatDateTime(row.lastOutAt)}</td>
-                    <td className="px-4 py-3 text-sm text-gray-900 text-right font-semibold">{secondsToHuman(row.durationSeconds)}</td>
+                    <td data-label="Status" className="px-4 py-3"><StatusPill state={row.status} /></td>
+                    <td data-label="Last Entry" className="px-4 py-3 text-sm text-gray-700">{formatDateTime(row.lastEntryAt)}</td>
+                    <td data-label="Last Out" className="px-4 py-3 text-sm text-gray-700">{formatDateTime(row.lastOutAt)}</td>
+                    <td data-label="Duration" className="px-4 py-3 text-sm text-gray-900 text-right font-semibold">{secondsToHuman(row.durationSeconds)}</td>
                   </tr>
                 ))}
                 {!loading && dailyHistoryRows.length === 0 && (

@@ -33,7 +33,7 @@ export default function Modal({ isOpen, onClose, title, children, size = 'md', f
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
-      <div className="flex min-h-screen items-center justify-center p-4">
+      <div className="flex min-h-full items-end justify-center sm:items-center sm:p-4">
         {/* Backdrop */}
         <div 
           className="fixed inset-0 bg-gray-900 bg-opacity-75 transition-opacity"
@@ -41,26 +41,27 @@ export default function Modal({ isOpen, onClose, title, children, size = 'md', f
         />
         
         {/* Modal */}
-        <div className={`relative bg-white rounded-lg shadow-xl ${sizeClasses[size]} w-full`}>
+        <div className={`relative flex max-h-[96dvh] w-full flex-col rounded-t-lg bg-white shadow-xl sm:max-h-[calc(100dvh-2rem)] sm:rounded-lg ${sizeClasses[size]}`}>
           {/* Header */}
-          <div className="flex items-center justify-between p-4 border-b border-gray-200">
-            <h3 className="text-xl font-semibold text-gray-900">{title}</h3>
+          <div className="flex shrink-0 items-center justify-between gap-3 border-b border-gray-200 p-4">
+            <h3 className="min-w-0 text-lg font-semibold text-gray-900 sm:text-xl">{title}</h3>
             <button
               onClick={onClose}
-              className="text-gray-400 hover:text-gray-600 transition-colors"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700"
+              aria-label="Close modal"
             >
               <FaTimes size={20} />
             </button>
           </div>
 
           {/* Body */}
-          <div className="p-6 max-h-[calc(100vh-200px)] overflow-y-auto">
+          <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
             {children}
           </div>
 
           {/* Footer */}
           {footer && (
-            <div className="flex items-center justify-end gap-3 p-4 border-t border-gray-200 bg-gray-50">
+            <div className="flex shrink-0 flex-col-reverse gap-2 border-t border-gray-200 bg-gray-50 p-4 sm:flex-row sm:items-center sm:justify-end [&>button]:min-h-11 [&>button]:w-full sm:[&>button]:w-auto">
               {footer}
             </div>
           )}

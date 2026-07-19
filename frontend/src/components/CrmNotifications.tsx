@@ -124,8 +124,9 @@ export default function CrmNotifications() {
       {/* Bell button */}
       <button
         onClick={() => setOpen((o) => !o)}
-        className="relative p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
+        className="relative flex h-10 w-10 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:hover:text-gray-200"
         title="CRM Notifications"
+        aria-label="CRM notifications"
       >
         <Bell className="w-5 h-5" />
         {unreadCount > 0 && (
@@ -137,7 +138,7 @@ export default function CrmNotifications() {
 
       {/* Dropdown panel */}
       {open && (
-        <div className="absolute right-0 mt-2 w-80 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 z-50 flex flex-col overflow-hidden">
+        <div className="fixed left-3 right-3 top-16 z-50 mt-2 flex flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl sm:absolute sm:left-auto sm:right-0 sm:top-auto sm:w-80 dark:border-gray-700 dark:bg-gray-800">
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-700">
             <span className="font-semibold text-sm text-gray-800 dark:text-gray-100">

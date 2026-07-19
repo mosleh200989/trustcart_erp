@@ -1,9 +1,9 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
 import AdminLayout from '@/layouts/AdminLayout';
+import AdminPageHeader from '@/components/admin/AdminPageHeader';
 import apiClient from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
-import { FaArrowLeft, FaFileExcel, FaGripVertical, FaSave, FaSearch, FaSyncAlt, FaUserClock } from 'react-icons/fa';
+import { FaFileExcel, FaGripVertical, FaSave, FaSearch, FaSyncAlt, FaUserClock } from 'react-icons/fa';
 
 type CalendarRow = {
   userId: number;
@@ -474,21 +474,14 @@ export default function PresenceCalendarPage() {
   return (
     <AdminLayout>
       <div className="space-y-6">
-        <div className="flex flex-col xl:flex-row xl:items-end xl:justify-between gap-4">
-          <div>
-            <Link href="/admin/presence" className="inline-flex items-center gap-2 text-sm font-semibold text-blue-700 hover:text-blue-800">
-              <FaArrowLeft />
-              Presence
-            </Link>
-            <div className="flex items-center gap-3 text-sm text-blue-700 font-semibold mt-4">
-              <FaUserClock />
-              Presence Module
-            </div>
-            <h1 className="text-3xl font-bold text-gray-900 mt-2">Presence Calendar</h1>
-            <p className="text-gray-600 mt-1">Sheet-style attendance calendar for all active users, grouped by role and team by default.</p>
-          </div>
-
-          <div className="flex flex-col sm:flex-row gap-3">
+        <AdminPageHeader
+          backHref="/admin/presence"
+          backLabel="Presence"
+          eyebrow="Presence Module"
+          icon={<FaUserClock />}
+          title="Presence Calendar"
+          description="Sheet-style attendance calendar for all active users, grouped by role and team by default."
+          actions={<>
             <button
               onClick={load}
               disabled={loading || !canViewCalendar}
@@ -515,8 +508,8 @@ export default function PresenceCalendarPage() {
                 Save Order
               </button>
             )}
-          </div>
-        </div>
+          </>}
+        />
 
         {!canViewCalendar && (
           <div className="bg-white border border-red-100 text-red-700 rounded-lg px-4 py-3 text-sm shadow-sm">
@@ -534,7 +527,7 @@ export default function PresenceCalendarPage() {
           <div>
             <div className="text-sm font-semibold text-gray-900">{data?.sheetName || currentMonthSheetName}</div>
             <div className="text-sm text-gray-500">
-              Timezone: {data?.timezone || '-'} | Users: {filteredRows.length}{hasActiveFilters ? ` of ${rows.length}` : ''} | Gap every {data?.rowGap?.every || 0} rows
+              Timezone: {data?.timezone || '-'} <span className="mx-1 text-gray-300">|</span> Users: {filteredRows.length}{hasActiveFilters ? ` of ${rows.length}` : ''} <span className="mx-1 text-gray-300">|</span> Gap every {data?.rowGap?.every || 0} rows
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -607,11 +600,12 @@ export default function PresenceCalendarPage() {
         </div>
 
         <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
+          <div className="border-t border-gray-100 px-4 py-2 text-xs font-medium text-gray-500 md:hidden">Swipe horizontally to view all calendar dates.</div>
           <div className="overflow-auto">
             <table className="min-w-full border-separate border-spacing-0">
               <thead>
                 <tr className="bg-gray-50">
-                  <th className="sticky left-0 z-20 bg-gray-50 border-b border-r border-gray-200 px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase min-w-[240px]">
+                  <th className="sticky left-0 z-20 min-w-[168px] border-b border-r border-gray-200 bg-gray-50 px-2 py-3 text-left text-xs font-semibold uppercase text-gray-500 sm:min-w-[240px] sm:px-4">
                     User
                   </th>
                   {(data?.days || []).map((day) => (
@@ -634,8 +628,8 @@ export default function PresenceCalendarPage() {
                       onDragEnd={() => setDragUserId(null)}
                       className={dragUserId === row.userId ? 'opacity-50' : ''}
                     >
-                      <td className="sticky left-0 z-10 bg-white border-b border-r border-gray-200 px-4 py-3">
-                        <div className="flex items-center gap-3">
+                      <td className="sticky left-0 z-10 border-b border-r border-gray-200 bg-white px-2 py-3 sm:px-4">
+                        <div className="flex items-center gap-2 sm:gap-3">
                           {canManageCalendar && <FaGripVertical className="text-gray-400 cursor-grab" />}
                           <div>
                             <div className="flex flex-wrap items-center gap-2">
@@ -690,8 +684,8 @@ export default function PresenceCalendarPage() {
         </div>
 
         {editingCell && (
-          <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
-            <div className="bg-white rounded-lg shadow-xl border border-gray-200 w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+          <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center sm:p-4">
+            <div className="flex max-h-[96dvh] w-full max-w-2xl flex-col overflow-hidden rounded-t-lg border border-gray-200 bg-white shadow-xl sm:max-h-[90vh] sm:rounded-lg">
               <div className="p-4 border-b border-gray-200">
                 <h2 className="text-lg font-bold text-gray-900">Edit Calendar Cell</h2>
                 <p className="text-sm text-gray-500">{editingCell.name} | {editingCell.dateKey}</p>
@@ -762,7 +756,7 @@ export default function PresenceCalendarPage() {
                   </div>
                 </div>
               </div>
-              <div className="p-4 border-t border-gray-200 flex justify-end gap-3">
+              <div className="flex flex-col-reverse gap-2 border-t border-gray-200 p-4 sm:flex-row sm:justify-end sm:gap-3 [&>button]:min-h-11 [&>button]:w-full sm:[&>button]:w-auto">
                 <button onClick={() => setEditingCell(null)} className="px-4 py-2 rounded-lg border border-gray-300 text-sm font-semibold text-gray-700 hover:bg-gray-50">
                   Cancel
                 </button>

@@ -121,7 +121,7 @@ export default function DataTable({
   };
 
   return (
-    <div className="bg-white rounded-lg shadow">
+    <div className="overflow-hidden rounded-lg bg-white shadow">
       <div className="overflow-x-auto overflow-y-auto max-h-[600px] scrollbar-visible" style={{ scrollbarWidth: 'auto', scrollbarColor: '#cbd5e1 #f1f5f9' }}>
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gradient-to-r from-blue-500 to-blue-600">
@@ -242,16 +242,16 @@ export default function DataTable({
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <div className="bg-gray-50 px-6 py-4 flex items-center justify-between border-t border-gray-200">
+        <div className="flex flex-col gap-3 border-t border-gray-200 bg-gray-50 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
           <div className="text-sm text-gray-700">
             Page <span className="font-semibold">{currentPage}</span> of{' '}
             <span className="font-semibold">{totalPages}</span>
           </div>
-          <div className="flex gap-2 items-center">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={() => onPageChange && onPageChange(currentPage - 1)}
               disabled={currentPage === 1}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="min-h-10 flex-1 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors sm:flex-none sm:px-4"
             >
               <FaChevronLeft className="inline mr-1" />
               Previous
@@ -259,13 +259,13 @@ export default function DataTable({
             <button
               onClick={() => onPageChange && onPageChange(currentPage + 1)}
               disabled={currentPage === totalPages}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="min-h-10 flex-1 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors sm:flex-none sm:px-4"
             >
               Next
               <FaChevronRight className="inline ml-1" />
             </button>
-            <span className="mx-2 text-gray-300">|</span>
-            <span className="text-xs text-gray-500">Go to</span>
+            <span className="mx-2 hidden text-gray-300 sm:inline">|</span>
+            <span className="hidden text-xs text-gray-500 sm:inline">Go to</span>
             <input
               type="number"
               min={1}

@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
 import AdminLayout from '@/layouts/AdminLayout';
+import AdminPageHeader from '@/components/admin/AdminPageHeader';
 import apiClient from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/contexts/ToastContext';
-import { FaArrowLeft, FaFilter, FaSave, FaSyncAlt, FaUserCheck } from 'react-icons/fa';
+import { FaFilter, FaSave, FaSyncAlt, FaUserCheck } from 'react-icons/fa';
 
 type PresenceStatus = 'active' | 'inactive' | 'backup';
 
@@ -95,28 +95,22 @@ export default function PresenceStatusPage() {
   return (
     <AdminLayout>
       <div className="space-y-6">
-        <div className="flex flex-col xl:flex-row xl:items-end xl:justify-between gap-4">
-          <div>
-            <Link href="/admin/presence" className="inline-flex items-center gap-2 text-sm font-semibold text-blue-700 hover:text-blue-800">
-              <FaArrowLeft />
-              Presence
-            </Link>
-            <div className="flex items-center gap-3 text-sm text-blue-700 font-semibold mt-4">
-              <FaUserCheck />
-              Presence Module
-            </div>
-            <h1 className="text-3xl font-bold text-gray-900 mt-2">Status</h1>
-            <p className="text-gray-600 mt-1">Control which employees are active, inactive, or part of the backup team for Presence.</p>
-          </div>
-          <button
+        <AdminPageHeader
+          backHref="/admin/presence"
+          backLabel="Presence"
+          eyebrow="Presence Module"
+          icon={<FaUserCheck />}
+          title="Status"
+          description="Control which employees are active, inactive, or part of the backup team for Presence."
+          actions={<button
             onClick={load}
             disabled={loading || !canView}
             className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 disabled:opacity-60"
           >
             <FaSyncAlt className={loading ? 'animate-spin' : ''} />
             Refresh
-          </button>
-        </div>
+          </button>}
+        />
 
         {!canView && (
           <div className="bg-white border border-red-100 text-red-700 rounded-lg px-4 py-3 text-sm shadow-sm">
@@ -152,11 +146,11 @@ export default function PresenceStatusPage() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search user, role, TL, phone"
-                className="border border-gray-300 rounded-lg pl-9 pr-3 py-2 text-sm min-w-[280px] focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="min-h-11 w-full rounded-lg border border-gray-300 py-2 pl-9 pr-3 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500 sm:min-w-[280px]"
               />
             </div>
           </div>
-          <div className="overflow-x-auto">
+          <div className="admin-responsive-table overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
@@ -170,15 +164,15 @@ export default function PresenceStatusPage() {
               <tbody className="bg-white divide-y divide-gray-100">
                 {filteredItems.map((item) => (
                   <tr key={item.userId} className="hover:bg-gray-50">
-                    <td className="px-4 py-3">
+                    <td data-label="User" className="px-4 py-3">
                       <div className="font-semibold text-gray-900">{item.name}</div>
                       <div className="text-xs text-gray-500">{item.email || item.phone || `User #${item.userId}`}</div>
                     </td>
-                    <td className="px-4 py-3">
+                    <td data-label="Role / TL" className="px-4 py-3">
                       <div className="text-sm text-gray-900">{item.roleName || '-'}</div>
                       <div className="text-xs text-gray-500">TL: {item.teamLeaderName || '-'}</div>
                     </td>
-                    <td className="px-4 py-3">
+                    <td data-label="Status" className="px-4 py-3">
                       <select
                         value={item.presenceStatus}
                         onChange={(e) => updateItem(item.userId, { presenceStatus: e.target.value as PresenceStatus })}
@@ -190,7 +184,7 @@ export default function PresenceStatusPage() {
                         ))}
                       </select>
                     </td>
-                    <td className="px-4 py-3">
+                    <td data-label="Notes" className="px-4 py-3">
                       <input
                         value={item.notes || ''}
                         onChange={(e) => updateItem(item.userId, { notes: e.target.value })}
@@ -199,11 +193,11 @@ export default function PresenceStatusPage() {
                         className="w-full min-w-[220px] border border-gray-300 rounded-lg px-3 py-2 text-sm disabled:bg-gray-50"
                       />
                     </td>
-                    <td className="px-4 py-3 text-right">
+                    <td data-label="Action" className="px-4 py-3 text-right">
                       <button
                         onClick={() => save(item)}
                         disabled={!canManage || savingUserId === item.userId}
-                        className="inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-gray-900 text-white text-sm font-semibold hover:bg-gray-800 disabled:opacity-60"
+                        className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-gray-900 px-3 py-2 text-sm font-semibold text-white hover:bg-gray-800 disabled:opacity-60 sm:w-auto"
                       >
                         <FaSave />
                         Save
