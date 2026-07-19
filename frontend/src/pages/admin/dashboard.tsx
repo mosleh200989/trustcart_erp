@@ -41,10 +41,10 @@ type Summary = {
   approvedOrders: number;
   sentOrders: number;
   deliveredThisMonth: number;
+  adminCancelledThisMonth: number;
   cancelledReturnedThisMonth: number;
   activeProducts: number;
   lowStockProducts: number;
-  totalCustomers: number;
   fulfillmentRate: number;
   deliveredShare: number;
 };
@@ -234,23 +234,23 @@ export default function AdminDashboard() {
   return (
     <AdminLayout>
       <div className="space-y-5 pb-8">
-        <section className="overflow-hidden rounded-lg border border-[#d4e7dd] bg-[#edf6f1] text-[#173f35] shadow-[0_12px_32px_rgba(31,85,67,0.10)]">
+        <section className="overflow-hidden rounded-lg border border-[#285949] bg-[#326b58] text-white shadow-[0_14px_36px_rgba(25,69,55,0.16)]">
           <div className="flex flex-col gap-5 px-5 py-6 sm:px-7 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex min-w-0 items-center gap-4">
-              <div className="hidden h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-[#bfd9cc] bg-white/70 text-[#245846] sm:flex">
+              <div className="hidden h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-white/25 bg-white/10 text-white sm:flex">
                 <LayoutDashboard size={23} aria-hidden="true" />
               </div>
               <div className="min-w-0">
-                <p className="text-sm font-medium text-[#39715f]">{greeting}, {firstName}</p>
+                <p className="text-sm font-medium text-emerald-50">{greeting}, {firstName}</p>
                 <h1 className="mt-1 text-2xl font-bold sm:text-3xl">Business overview</h1>
-                <p className="mt-1 text-sm text-[#557c6f]">
+                <p className="mt-1 text-sm text-emerald-50/80">
                   {formatDhakaDate(new Date(), 'en-GB', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}
                 </p>
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-3">
               {dashboard?.generatedAt && (
-                <p className="text-xs text-[#557c6f]">
+                <p className="text-xs text-emerald-50/80">
                   Updated {formatDhakaDateTime(dashboard.generatedAt, 'en-GB', { hour: '2-digit', minute: '2-digit' })}
                 </p>
               )}
@@ -258,22 +258,22 @@ export default function AdminDashboard() {
                 type="button"
                 onClick={() => void loadDashboard(true)}
                 disabled={refreshing}
-                className="inline-flex h-10 items-center gap-2 rounded-lg border border-[#245846] bg-[#245846] px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-[#1d493a] disabled:cursor-not-allowed disabled:opacity-70"
+                className="inline-flex h-10 items-center gap-2 rounded-lg border border-white/30 bg-white px-4 text-sm font-semibold text-[#285949] shadow-sm transition hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-70"
               >
                 <RefreshCw className={refreshing ? 'animate-spin' : ''} size={16} aria-hidden="true" />
                 Refresh
               </button>
             </div>
           </div>
-          <div className="grid grid-cols-2 border-t border-[#d4e7dd] sm:grid-cols-4">
+          <div className="grid grid-cols-2 border-t border-white/15 sm:grid-cols-4">
             {[
               ['Month orders', number(summary?.ordersThisMonth)],
               ['Delivered', number(summary?.deliveredThisMonth)],
+              ['Admin Cancelled', number(summary?.adminCancelledThisMonth)],
               ['Fulfillment', `${Number(summary?.fulfillmentRate || 0).toFixed(1)}%`],
-              ['Customers', number(summary?.totalCustomers)],
             ].map(([label, value]) => (
-              <div key={label} className="border-r border-[#d4e7dd] px-5 py-4 last:border-r-0">
-                <p className="text-xs font-medium uppercase text-[#557c6f]">{label}</p>
+              <div key={label} className="border-r border-white/15 px-5 py-4 last:border-r-0">
+                <p className="text-xs font-medium uppercase text-emerald-50/75">{label}</p>
                 <p className="mt-1 text-xl font-bold">{loading ? '—' : value}</p>
               </div>
             ))}
