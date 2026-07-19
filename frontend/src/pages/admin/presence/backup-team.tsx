@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
 import AdminLayout from '@/layouts/AdminLayout';
+import AdminPageHeader from '@/components/admin/AdminPageHeader';
 import apiClient from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/contexts/ToastContext';
-import { FaArrowLeft, FaPlus, FaSave, FaSyncAlt, FaTrash, FaUsers } from 'react-icons/fa';
+import { FaPlus, FaSave, FaSyncAlt, FaTrash, FaUsers } from 'react-icons/fa';
 
 type BackupRule = {
   id?: number;
@@ -160,28 +160,22 @@ export default function PresenceBackupTeamPage() {
   return (
     <AdminLayout>
       <div className="space-y-6">
-        <div className="flex flex-col xl:flex-row xl:items-end xl:justify-between gap-4">
-          <div>
-            <Link href="/admin/presence" className="inline-flex items-center gap-2 text-sm font-semibold text-blue-700 hover:text-blue-800">
-              <FaArrowLeft />
-              Presence
-            </Link>
-            <div className="flex items-center gap-3 text-sm text-blue-700 font-semibold mt-4">
-              <FaUsers />
-              Presence Module
-            </div>
-            <h1 className="text-3xl font-bold text-gray-900 mt-2">Backup Team</h1>
-            <p className="text-gray-600 mt-1">Set roster-based office times for users marked as Backup in Presence Status.</p>
-          </div>
-          <button
+        <AdminPageHeader
+          backHref="/admin/presence"
+          backLabel="Presence"
+          eyebrow="Presence Module"
+          icon={<FaUsers />}
+          title="Backup Team"
+          description="Set roster-based office times for users marked as Backup in Presence Status."
+          actions={<button
             onClick={load}
             disabled={loading || !canView}
             className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 disabled:opacity-60"
           >
             <FaSyncAlt className={loading ? 'animate-spin' : ''} />
             Refresh
-          </button>
-        </div>
+          </button>}
+        />
 
         {!canView && (
           <div className="bg-white border border-red-100 text-red-700 rounded-lg px-4 py-3 text-sm shadow-sm">
@@ -194,7 +188,7 @@ export default function PresenceBackupTeamPage() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search backup user"
-            className="w-full md:w-[360px] border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className="min-h-11 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500 md:w-[360px]"
           />
         </div>
 
@@ -206,7 +200,7 @@ export default function PresenceBackupTeamPage() {
                   <h2 className="text-lg font-bold text-gray-900">{item.name}</h2>
                   <p className="text-sm text-gray-500">{item.email || item.phone || `User #${item.userId}`}</p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center [&>button]:min-h-11 [&>button]:w-full sm:[&>button]:w-auto">
                   <button
                     type="button"
                     onClick={() => addRule(item.userId)}
@@ -227,7 +221,7 @@ export default function PresenceBackupTeamPage() {
                   </button>
                 </div>
               </div>
-              <div className="overflow-x-auto">
+              <div className="admin-responsive-table overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
@@ -245,8 +239,8 @@ export default function PresenceBackupTeamPage() {
                   <tbody className="bg-white divide-y divide-gray-100">
                     {item.rules.map((rule, index) => (
                       <tr key={`${item.userId}-${index}`}>
-                        <td className="px-4 py-3 text-sm font-semibold text-gray-500">{index + 1}</td>
-                        <td className="px-4 py-3 min-w-[290px]">
+                        <td data-label="Rule" className="px-4 py-3 text-sm font-semibold text-gray-500">{index + 1}</td>
+                        <td data-label="Weekdays" className="px-4 py-3 min-w-[290px]">
                           <div className="flex flex-wrap gap-1.5">
                             <button
                               type="button"
@@ -280,7 +274,7 @@ export default function PresenceBackupTeamPage() {
                             })}
                           </div>
                         </td>
-                        <td className="px-4 py-3">
+                        <td data-label="Start Time" className="px-4 py-3">
                           <input
                             type="time"
                             value={rule.officeStartTime || ''}
@@ -289,7 +283,7 @@ export default function PresenceBackupTeamPage() {
                             className="border border-gray-300 rounded-lg px-3 py-2 text-sm disabled:bg-gray-50"
                           />
                         </td>
-                        <td className="px-4 py-3">
+                        <td data-label="Caution" className="px-4 py-3">
                           <input
                             type="number"
                             min={0}
@@ -300,7 +294,7 @@ export default function PresenceBackupTeamPage() {
                             className="w-24 border border-gray-300 rounded-lg px-3 py-2 text-sm disabled:bg-gray-50"
                           />
                         </td>
-                        <td className="px-4 py-3">
+                        <td data-label="End Time" className="px-4 py-3">
                           <input
                             type="time"
                             value={rule.officeEndTime || ''}
@@ -309,7 +303,7 @@ export default function PresenceBackupTeamPage() {
                             className="border border-gray-300 rounded-lg px-3 py-2 text-sm disabled:bg-gray-50"
                           />
                         </td>
-                        <td className="px-4 py-3">
+                        <td data-label="Lunch Start" className="px-4 py-3">
                           <input
                             type="time"
                             value={rule.lunchBreakStartTime || ''}
@@ -318,7 +312,7 @@ export default function PresenceBackupTeamPage() {
                             className="border border-gray-300 rounded-lg px-3 py-2 text-sm disabled:bg-gray-50"
                           />
                         </td>
-                        <td className="px-4 py-3">
+                        <td data-label="Lunch End" className="px-4 py-3">
                           <input
                             type="time"
                             value={rule.lunchBreakEndTime || ''}
@@ -327,7 +321,7 @@ export default function PresenceBackupTeamPage() {
                             className="border border-gray-300 rounded-lg px-3 py-2 text-sm disabled:bg-gray-50"
                           />
                         </td>
-                        <td className="px-4 py-3">
+                        <td data-label="Notes" className="px-4 py-3">
                           <input
                             value={rule.notes || ''}
                             onChange={(e) => updateRule(item.userId, index, { notes: e.target.value })}
@@ -335,7 +329,7 @@ export default function PresenceBackupTeamPage() {
                             className="min-w-[180px] border border-gray-300 rounded-lg px-3 py-2 text-sm disabled:bg-gray-50"
                           />
                         </td>
-                        <td className="px-4 py-3 text-right">
+                        <td data-label="Action" className="px-4 py-3 text-right">
                           <button
                             type="button"
                             onClick={() => removeRule(item.userId, index)}

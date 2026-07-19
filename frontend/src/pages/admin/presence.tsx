@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import AdminLayout from '@/layouts/AdminLayout';
+import AdminPageHeader from '@/components/admin/AdminPageHeader';
 import apiClient from '@/services/api';
 import { FaCalendarCheck, FaCircle, FaClock, FaSignInAlt, FaSignOutAlt, FaUserClock } from 'react-icons/fa';
 
@@ -191,14 +192,12 @@ export default function PresencePage() {
   return (
     <AdminLayout>
       <div className="mx-auto max-w-5xl space-y-6">
-        <div>
-          <div className="flex items-center gap-3 text-sm text-blue-700 font-semibold">
-            <FaUserClock />
-            Check In/Out
-          </div>
-          <h1 className="text-3xl font-bold text-gray-900 mt-2">Today&apos;s Attendance</h1>
-          <p className="text-gray-600 mt-1">Use the button below to manually check in or check out for today.</p>
-        </div>
+        <AdminPageHeader
+          eyebrow="Check In/Out"
+          icon={<FaUserClock />}
+          title="Today's Attendance"
+          description="Use the button below to manually check in or check out for today."
+        />
 
         {message && (
           <div className="bg-white border border-blue-100 text-blue-800 rounded-lg px-4 py-3 text-sm shadow-sm">
@@ -206,7 +205,7 @@ export default function PresencePage() {
           </div>
         )}
 
-        <section className="bg-white border border-gray-200 rounded-lg shadow-sm p-6 md:p-8">
+        <section className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm sm:p-6 md:p-8">
           <div className="flex flex-col items-center text-center gap-6">
             <div className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold border ${
               isCheckedIn ? 'bg-green-50 text-green-700 border-green-200' : 'bg-gray-50 text-gray-700 border-gray-200'
@@ -218,14 +217,14 @@ export default function PresencePage() {
             <button
               onClick={toggleMyPresence}
               disabled={toggleLoading || loading}
-              className={`w-full max-w-xl min-h-[210px] rounded-lg text-white flex flex-col items-center justify-center gap-4 shadow-lg transition-all ${
+              className={`flex min-h-[150px] w-full max-w-xl flex-col items-center justify-center gap-3 rounded-lg text-white shadow-lg transition-all sm:min-h-[210px] sm:gap-4 ${
                 isCheckedIn
                   ? 'bg-gradient-to-br from-red-500 to-red-700 hover:from-red-600 hover:to-red-800'
                   : 'bg-gradient-to-br from-green-500 to-green-700 hover:from-green-600 hover:to-green-800'
               } ${toggleLoading || loading ? 'opacity-75 cursor-wait' : 'hover:-translate-y-0.5'}`}
             >
-              <span className="text-5xl">{isCheckedIn ? <FaSignOutAlt /> : <FaSignInAlt />}</span>
-              <span className="text-4xl font-black">{toggleLoading ? 'Updating...' : isCheckedIn ? 'Check Out' : 'Check In'}</span>
+              <span className="text-4xl sm:text-5xl">{isCheckedIn ? <FaSignOutAlt /> : <FaSignInAlt />}</span>
+              <span className="text-3xl font-black sm:text-4xl">{toggleLoading ? 'Updating...' : isCheckedIn ? 'Check Out' : 'Check In'}</span>
               <span className="text-sm font-semibold opacity-90">
                 {isCheckedIn ? 'End your checked-in session' : 'Start your checked-in session'}
               </span>
@@ -246,13 +245,13 @@ export default function PresencePage() {
               <h2 className="text-lg font-bold text-gray-900">My Check In/Out History</h2>
               <p className="text-sm text-gray-500 mt-1">Only your own Presence history is shown here.</p>
             </div>
-            <div className="inline-flex rounded-lg border border-gray-300 bg-gray-50 p-1">
+            <div className="flex w-full overflow-x-auto rounded-lg border border-gray-300 bg-gray-50 p-1 md:w-auto">
               {HISTORY_RANGE_OPTIONS.map((option) => (
                 <button
                   key={option.value}
                   type="button"
                   onClick={() => setHistoryRange(option.value)}
-                  className={`px-3 py-1.5 rounded-md text-sm font-semibold transition-colors ${
+                  className={`min-h-10 flex-1 whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-semibold transition-colors md:flex-none ${
                     historyRange === option.value
                       ? 'bg-white text-blue-700 shadow-sm'
                       : 'text-gray-600 hover:text-gray-900'
@@ -263,7 +262,7 @@ export default function PresencePage() {
               ))}
             </div>
           </div>
-          <div className="overflow-x-auto">
+          <div className="admin-responsive-table overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
@@ -276,9 +275,9 @@ export default function PresencePage() {
               <tbody className="bg-white divide-y divide-gray-100">
                 {historyRows.map((row, index) => (
                   <tr key={row.id || `${row.date}-${row.time}-${index}`} className="hover:bg-gray-50">
-                    <td className="px-5 py-3 text-sm font-medium text-gray-900">{row.date}</td>
-                    <td className="px-5 py-3 text-sm text-gray-700">{row.time}</td>
-                    <td className="px-5 py-3">
+                    <td data-label="Date" className="px-5 py-3 text-sm font-medium text-gray-900">{row.date}</td>
+                    <td data-label="Time" className="px-5 py-3 text-sm text-gray-700">{row.time}</td>
+                    <td data-label="Status" className="px-5 py-3">
                       <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-semibold border ${
                         row.state === 'Checked In'
                           ? 'bg-green-50 text-green-700 border-green-200'
@@ -287,7 +286,7 @@ export default function PresencePage() {
                         {row.state}
                       </span>
                     </td>
-                    <td className="px-5 py-3 text-sm text-gray-500">{row.source}</td>
+                    <td data-label="Source" className="px-5 py-3 text-sm text-gray-500">{row.source}</td>
                   </tr>
                 ))}
                 {!historyLoading && historyRows.length === 0 && (

@@ -70,7 +70,7 @@ export default function AdminDateInput({
       isClearable={!required && !disabled}
       autoComplete="off"
       wrapperClassName="block w-full"
-      className={className}
+      className={`min-h-11 w-full ${className || ''}`}
       {...(rest as any)}
     />
   );

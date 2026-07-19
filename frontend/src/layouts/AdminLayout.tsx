@@ -8,7 +8,7 @@ import apiClient, { stockAlerts } from '@/services/api';
 import { 
   FaTachometerAlt, FaBoxes, FaShoppingCart, FaUsers, FaWarehouse, 
   FaShoppingBag, FaUserTie, FaBook, FaBullseye, FaHandshake, 
-  FaHeadset, FaUser, FaUserClock, FaUserCheck, FaCog, FaBars, FaTimes, FaBell, FaChevronDown, FaChartBar, FaTags, FaGift, FaPhone, FaMoneyBillWave, FaImage, FaList, FaRocket, FaPrint, FaBan, FaHistory, FaTruck, FaSlidersH, FaClipboardCheck, FaSearch, FaRecycle, FaShieldAlt, FaCalculator, FaGlobe
+  FaHeadset, FaUser, FaUserClock, FaUserCheck, FaCog, FaBars, FaTimes, FaBell, FaChevronDown, FaChartBar, FaTags, FaGift, FaPhone, FaMoneyBillWave, FaImage, FaList, FaRocket, FaPrint, FaBan, FaHistory, FaTruck, FaSlidersH, FaClipboardCheck, FaSearch, FaRecycle, FaShieldAlt, FaCalculator, FaGlobe, FaSignOutAlt
 } from 'react-icons/fa';
 
 interface MenuItem {
@@ -709,6 +709,7 @@ function getPanelTitleFromRoleSlugs(roleSlugs: Set<string>): string {
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [expandedMenus, setExpandedMenus] = useState<string[]>([]);
   const [alertCount, setAlertCount] = useState(0);
   const [showAlertDropdown, setShowAlertDropdown] = useState(false);
@@ -850,6 +851,19 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const currentAsPath = useMemo(() => router.asPath || router.pathname, [router.asPath, router.pathname]);
   const currentPath = useMemo(() => stripQuery(currentAsPath), [currentAsPath]);
 
+  useEffect(() => {
+    setMobileSidebarOpen(false);
+  }, [currentAsPath]);
+
+  useEffect(() => {
+    if (!mobileSidebarOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [mobileSidebarOpen]);
+
   const routeRequirement = useMemo(() => {
     return findLeafByPath(effectiveMenuItems, currentAsPath);
   }, [currentAsPath, effectiveMenuItems]);
@@ -896,23 +910,41 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   };
 
   return (
-    <div className="flex h-screen bg-gray-100">
+    <div className="flex h-[100dvh] bg-gray-100">
+      {mobileSidebarOpen && (
+        <button
+          type="button"
+          className="fixed inset-0 z-40 bg-gray-950/50 backdrop-blur-[1px] lg:hidden"
+          onClick={() => setMobileSidebarOpen(false)}
+          aria-label="Close navigation menu"
+        />
+      )}
       {/* Sidebar with Argon Gradient */}
       <aside
         className={`${
-          sidebarCollapsed ? 'w-20' : 'w-64'
-        } bg-gradient-to-b from-blue-600 via-blue-700 to-blue-800 text-white transition-all duration-300 flex flex-col shadow-xl`}
+          sidebarCollapsed ? 'lg:w-20' : 'lg:w-64'
+        } fixed inset-y-0 left-0 z-50 flex w-[min(18rem,calc(100vw-3rem))] flex-col bg-gradient-to-b from-blue-600 via-blue-700 to-blue-800 text-white shadow-xl transition-all duration-300 lg:static lg:z-auto ${
+          mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+        }`}
       >
         {/* Logo */}
-        <div className="p-4 border-b border-blue-500 flex items-center justify-between">
-          {!sidebarCollapsed && (
+        <div className="flex min-h-16 items-center justify-between border-b border-blue-500 p-3 sm:p-4">
+          {(!sidebarCollapsed || mobileSidebarOpen) && (
             <img src="/trust-cart-logo-main.png" alt="TrustCart ERP" className="h-12 object-contain" />
           )}
           <button
             onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-            className="text-white hover:text-blue-200 transition-colors"
+            className="hidden h-10 w-10 items-center justify-center rounded-lg text-white transition-colors hover:bg-blue-700 hover:text-blue-100 lg:flex"
+            aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           >
             {sidebarCollapsed ? <FaBars size={20} /> : <FaTimes size={20} />}
+          </button>
+          <button
+            onClick={() => setMobileSidebarOpen(false)}
+            className="flex h-10 w-10 items-center justify-center rounded-lg text-white transition-colors hover:bg-blue-700 lg:hidden"
+            aria-label="Close navigation menu"
+          >
+            <FaTimes size={20} />
           </button>
         </div>
 
@@ -922,7 +954,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             <MenuItem
               key={item.title}
               item={item}
-              collapsed={sidebarCollapsed}
+              collapsed={sidebarCollapsed && !mobileSidebarOpen}
               expandedMenus={expandedMenus}
               onToggle={toggleMenu}
               currentPath={currentPath}
@@ -933,17 +965,25 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       </aside>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         {/* Top Bar with Gradient */}
         <header className="bg-gradient-to-r from-white to-gray-50 shadow-md z-10">
-          <div className="flex items-center justify-between px-6 py-4">
-            <div className="flex items-center">
-              <h2 className="text-2xl font-bold text-gray-800">{panelTitle}</h2>
+          <div className="flex min-h-16 items-center justify-between gap-2 px-3 py-2 sm:px-4 lg:px-6">
+            <div className="flex min-w-0 items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setMobileSidebarOpen(true)}
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-700 shadow-sm transition-colors hover:bg-gray-50 lg:hidden"
+                aria-label="Open navigation menu"
+              >
+                <FaBars size={18} />
+              </button>
+              <h2 className="truncate text-base font-bold text-gray-800 sm:text-xl lg:text-2xl">{panelTitle}</h2>
             </div>
-            <div className="flex items-center space-x-4">
+            <div className="flex shrink-0 items-center gap-1 sm:gap-2 lg:gap-4">
               {/* Inventory Alert Bell */}
               <div ref={alertRef} className="relative">
-                <button onClick={toggleAlertDropdown} className="relative p-2 text-gray-600 hover:text-blue-600 transition-colors">
+                <button onClick={toggleAlertDropdown} className="relative flex h-10 w-10 items-center justify-center rounded-lg text-gray-600 transition-colors hover:bg-blue-50 hover:text-blue-600" aria-label="Inventory alerts">
                   <FaBell className="text-lg" />
                   {alertCount > 0 && (
                     <span className="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-[10px] font-bold rounded-full w-4.5 h-4.5 flex items-center justify-center min-w-[18px] px-1">
@@ -952,7 +992,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   )}
                 </button>
                 {showAlertDropdown && (
-                  <div className="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-xl border z-50">
+                  <div className="fixed left-3 right-3 top-16 z-50 mt-2 rounded-lg border bg-white shadow-xl sm:absolute sm:left-auto sm:right-0 sm:top-auto sm:w-80">
                     <div className="p-3 border-b flex justify-between items-center">
                       <span className="font-semibold text-sm text-gray-700">Inventory Alerts</span>
                       {alertCount > 0 && (
@@ -989,33 +1029,35 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 onClick={togglePresence}
                 disabled={presenceLoading}
                 title={presenceState === 'online' ? 'Check out' : 'Check in'}
-                className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-semibold transition-all shadow-sm ${
+                className={`inline-flex min-h-10 items-center gap-2 rounded-lg border px-2.5 py-2 text-sm font-semibold shadow-sm transition-all sm:px-3 ${
                   presenceState === 'online'
                     ? 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100'
                     : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'
                 } ${presenceLoading ? 'opacity-70 cursor-wait' : ''}`}
               >
                 <span className={`w-2.5 h-2.5 rounded-full ${presenceState === 'online' ? 'bg-green-500' : 'bg-gray-400'}`} />
-                {presenceState === 'online' ? 'Check Out' : 'Check In'}
+                <span className="hidden sm:inline">{presenceState === 'online' ? 'Check Out' : 'Check In'}</span>
               </button>
-              <span className="text-sm text-gray-700 font-medium">
+              <span className="hidden max-w-56 truncate text-sm font-medium text-gray-700 xl:inline">
                 {isLoading ? 'Loading…' : (user?.email || user?.phone || 'User')}
               </span>
               <button
                 onClick={handleLogout}
-                className="bg-gradient-to-r from-red-500 to-red-600 text-white px-4 py-2 rounded-lg hover:from-red-600 hover:to-red-700 transition-all shadow-md"
+                className="flex h-10 min-w-10 items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-red-500 to-red-600 px-2.5 text-white shadow-md transition-all hover:from-red-600 hover:to-red-700 sm:px-4"
+                aria-label="Logout"
               >
-                Logout
+                <FaSignOutAlt className="sm:hidden" />
+                <span className="hidden sm:inline">Logout</span>
               </button>
             </div>
           </div>
         </header>
 
         {/* Page Content */}
-        <main className="flex-1 overflow-y-auto bg-gray-100 p-6" style={{ scrollBehavior: 'smooth' }}>
+        <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-100 p-3 sm:p-4 lg:p-6" style={{ scrollBehavior: 'smooth' }}>
           {!hasRouteAccess ? (
-            <div className="max-w-xl mx-auto bg-white rounded-lg shadow p-6">
-              <h1 className="text-2xl font-bold text-gray-800">403 - Access denied</h1>
+            <div className="mx-auto max-w-xl rounded-lg bg-white p-5 shadow sm:p-6">
+              <h1 className="text-xl font-bold text-gray-800 sm:text-2xl">403 - Access denied</h1>
               <p className="text-gray-600 mt-2">Your role does not have permission to view this page.</p>
             </div>
           ) : (

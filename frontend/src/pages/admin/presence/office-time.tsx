@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
 import AdminLayout from '@/layouts/AdminLayout';
+import AdminPageHeader from '@/components/admin/AdminPageHeader';
 import apiClient from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
-import { FaArrowLeft, FaFilter, FaSave, FaSyncAlt, FaUserClock } from 'react-icons/fa';
+import { FaFilter, FaSave, FaSyncAlt, FaUserClock } from 'react-icons/fa';
 
 type OfficeTimeRow = {
   userId: number;
@@ -113,29 +113,22 @@ export default function PresenceOfficeTimePage() {
   return (
     <AdminLayout>
       <div className="space-y-6">
-        <div className="flex flex-col xl:flex-row xl:items-end xl:justify-between gap-4">
-          <div>
-            <Link href="/admin/presence" className="inline-flex items-center gap-2 text-sm font-semibold text-blue-700 hover:text-blue-800">
-              <FaArrowLeft />
-              Presence
-            </Link>
-            <div className="flex items-center gap-3 text-sm text-blue-700 font-semibold mt-4">
-              <FaUserClock />
-              Presence Module
-            </div>
-            <h1 className="text-3xl font-bold text-gray-900 mt-2">Office Time</h1>
-            <p className="text-gray-600 mt-1">Set employee-specific office times, grace periods, lunch breaks, and weekly days off.</p>
-          </div>
-
-          <button
+        <AdminPageHeader
+          backHref="/admin/presence"
+          backLabel="Presence"
+          eyebrow="Presence Module"
+          icon={<FaUserClock />}
+          title="Office Time"
+          description="Set employee-specific office times, grace periods, lunch breaks, and weekly days off."
+          actions={<button
             onClick={load}
             disabled={loading || !canView}
             className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 disabled:opacity-60"
           >
             <FaSyncAlt className={loading ? 'animate-spin' : ''} />
             Refresh
-          </button>
-        </div>
+          </button>}
+        />
 
         {!canView && (
           <div className="bg-white border border-red-100 text-red-700 rounded-lg px-4 py-3 text-sm shadow-sm">
@@ -151,8 +144,12 @@ export default function PresenceOfficeTimePage() {
 
         <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-4">
           <div className="text-sm font-semibold text-gray-900">Default office time</div>
-          <div className="text-sm text-gray-500 mt-1">
-            Start: {defaults.start || DEFAULT_OFFICE_TIME.start} | End: {defaults.end || DEFAULT_OFFICE_TIME.end} | Caution: {DEFAULT_OFFICE_TIME.cautionMinutes} min | Lunch: {DEFAULT_OFFICE_TIME.lunchStart} - {DEFAULT_OFFICE_TIME.lunchEnd} | Weekly off: {DEFAULT_OFFICE_TIME.weeklyDayOff}
+          <div className="mt-3 grid grid-cols-2 gap-3 text-sm text-gray-600 sm:grid-cols-3 lg:grid-cols-5">
+            <div><span className="block text-xs font-semibold uppercase text-gray-400">Start</span>{defaults.start || DEFAULT_OFFICE_TIME.start}</div>
+            <div><span className="block text-xs font-semibold uppercase text-gray-400">End</span>{defaults.end || DEFAULT_OFFICE_TIME.end}</div>
+            <div><span className="block text-xs font-semibold uppercase text-gray-400">Caution</span>{DEFAULT_OFFICE_TIME.cautionMinutes} min</div>
+            <div><span className="block text-xs font-semibold uppercase text-gray-400">Lunch</span>{DEFAULT_OFFICE_TIME.lunchStart} - {DEFAULT_OFFICE_TIME.lunchEnd}</div>
+            <div><span className="block text-xs font-semibold uppercase text-gray-400">Weekly off</span>{DEFAULT_OFFICE_TIME.weeklyDayOff}</div>
           </div>
         </div>
 
@@ -168,11 +165,11 @@ export default function PresenceOfficeTimePage() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search user, email, ID"
-                className="border border-gray-300 rounded-lg pl-9 pr-3 py-2 text-sm min-w-[260px] focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="min-h-11 w-full rounded-lg border border-gray-300 py-2 pl-9 pr-3 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500 sm:min-w-[260px]"
               />
             </div>
           </div>
-          <div className="overflow-x-auto">
+          <div className="admin-responsive-table overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
@@ -189,11 +186,11 @@ export default function PresenceOfficeTimePage() {
               <tbody className="bg-white divide-y divide-gray-100">
                 {filteredItems.map((item) => (
                   <tr key={item.userId} className="hover:bg-gray-50">
-                    <td className="px-4 py-3">
+                    <td data-label="Employee" className="px-4 py-3">
                       <div className="font-semibold text-gray-900">{item.name}</div>
                       <div className="text-xs text-gray-500">{item.email || `User #${item.userId}`}</div>
                     </td>
-                    <td className="px-4 py-3">
+                    <td data-label="Start Time" className="px-4 py-3">
                       <input
                         type="time"
                         value={item.customOfficeStartTime || ''}
@@ -203,7 +200,7 @@ export default function PresenceOfficeTimePage() {
                         className="border border-gray-300 rounded-lg px-3 py-2 text-sm disabled:bg-gray-50"
                       />
                     </td>
-                    <td className="px-4 py-3">
+                    <td data-label="Caution" className="px-4 py-3">
                       <input
                         type="number"
                         min={0}
@@ -215,7 +212,7 @@ export default function PresenceOfficeTimePage() {
                       />
                       <div className="text-xs text-gray-400 mt-1">minutes</div>
                     </td>
-                    <td className="px-4 py-3">
+                    <td data-label="End Time" className="px-4 py-3">
                       <input
                         type="time"
                         value={item.customOfficeEndTime || ''}
@@ -225,7 +222,7 @@ export default function PresenceOfficeTimePage() {
                         className="border border-gray-300 rounded-lg px-3 py-2 text-sm disabled:bg-gray-50"
                       />
                     </td>
-                    <td className="px-4 py-3">
+                    <td data-label="Lunch Start" className="px-4 py-3">
                       <input
                         type="time"
                         value={item.lunchBreakStartTime || ''}
@@ -234,7 +231,7 @@ export default function PresenceOfficeTimePage() {
                         className="border border-gray-300 rounded-lg px-3 py-2 text-sm disabled:bg-gray-50"
                       />
                     </td>
-                    <td className="px-4 py-3">
+                    <td data-label="Lunch End" className="px-4 py-3">
                       <input
                         type="time"
                         value={item.lunchBreakEndTime || ''}
@@ -243,7 +240,7 @@ export default function PresenceOfficeTimePage() {
                         className="border border-gray-300 rounded-lg px-3 py-2 text-sm disabled:bg-gray-50"
                       />
                     </td>
-                    <td className="px-4 py-3">
+                    <td data-label="Weekly Off" className="px-4 py-3">
                       <select
                         value={item.weeklyDayOff || ''}
                         onChange={(e) => updateItem(item.userId, { weeklyDayOff: e.target.value })}
@@ -257,11 +254,11 @@ export default function PresenceOfficeTimePage() {
                         ))}
                       </select>
                     </td>
-                    <td className="px-4 py-3 text-right">
+                    <td data-label="Action" className="px-4 py-3 text-right">
                       <button
                         onClick={() => save(item)}
                         disabled={!canManage || savingUserId === item.userId}
-                        className="inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-gray-900 text-white text-sm font-semibold hover:bg-gray-800 disabled:opacity-60"
+                        className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-gray-900 px-3 py-2 text-sm font-semibold text-white hover:bg-gray-800 disabled:opacity-60 sm:w-auto"
                       >
                         <FaSave />
                         Save

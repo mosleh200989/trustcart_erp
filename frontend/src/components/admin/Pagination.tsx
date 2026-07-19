@@ -100,7 +100,7 @@ export default function Pagination({
   }
 
   return (
-    <div className={`flex flex-col sm:flex-row items-center justify-between gap-4 ${className}`}>
+    <div className={`flex flex-col items-center justify-between gap-3 sm:flex-row sm:gap-4 ${className}`}>
       {showInfo && totalItems ? (
         <div className="text-sm text-gray-600">
           Showing {startItem} - {endItem} of {totalItems} items
@@ -109,7 +109,7 @@ export default function Pagination({
         <div />
       )}
       
-      <div className="flex items-center gap-1">
+      <div className="flex w-full flex-wrap items-center justify-center gap-1 sm:w-auto sm:flex-nowrap">
         {/* First page button */}
         <button
           onClick={() => onPageChange(1)}
@@ -133,6 +133,10 @@ export default function Pagination({
         </button>
         
         {/* Page numbers */}
+        <span className="px-2 text-sm font-semibold text-gray-700 sm:hidden">
+          {currentPage} / {totalPages}
+        </span>
+        <span className="hidden items-center gap-1 sm:flex">
         {pageNumbers.map((page, index) => (
           page === 'ellipsis' ? (
             <span
@@ -157,6 +161,7 @@ export default function Pagination({
             </button>
           )
         ))}
+        </span>
         
         {/* Next button */}
         <button
@@ -182,7 +187,7 @@ export default function Pagination({
 
         {/* Go to page input */}
         {showGoToPage && (
-          <div className="flex items-center gap-1 ml-2">
+          <div className="mt-2 flex w-full items-center justify-center gap-1 sm:ml-2 sm:mt-0 sm:w-auto">
             <span className="text-sm text-gray-500">Go to</span>
             <input
               type="number"

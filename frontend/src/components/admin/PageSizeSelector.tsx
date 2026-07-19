@@ -51,7 +51,7 @@ export default function PageSizeSelector({
   };
 
   return (
-    <div className={`flex flex-wrap items-center gap-2 ${className}`}>
+    <div className={`flex w-full flex-wrap items-center gap-2 sm:w-auto ${className}`}>
       <label className="text-sm text-gray-600 whitespace-nowrap">{label}:</label>
       <select
         value={!customMode && isPresetValue ? String(value) : CUSTOM_VALUE}
@@ -64,7 +64,7 @@ export default function PageSizeSelector({
           setCustomMode(false);
           onChange(clampSize(Number(e.target.value)));
         }}
-        className="border border-gray-300 rounded-md px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+        className="min-h-10 flex-1 border border-gray-300 rounded-md px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:flex-none"
       >
         {normalizedOptions.map((size) => (
           <option key={size} value={size}>

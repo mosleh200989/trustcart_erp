@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
-import Link from 'next/link';
 import AdminLayout from '@/layouts/AdminLayout';
+import AdminPageHeader from '@/components/admin/AdminPageHeader';
 import apiClient from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
-import { FaArrowLeft, FaSave, FaSyncAlt, FaUserClock } from 'react-icons/fa';
+import { FaSave, FaSyncAlt, FaUserClock } from 'react-icons/fa';
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -60,21 +60,14 @@ export default function PresenceSettingsPage() {
   return (
     <AdminLayout>
       <div className="space-y-6">
-        <div className="flex flex-col xl:flex-row xl:items-end xl:justify-between gap-4">
-          <div>
-            <Link href="/admin/presence" className="inline-flex items-center gap-2 text-sm font-semibold text-blue-700 hover:text-blue-800">
-              <FaArrowLeft />
-              Presence
-            </Link>
-            <div className="flex items-center gap-3 text-sm text-blue-700 font-semibold mt-4">
-              <FaUserClock />
-              Presence Module
-            </div>
-            <h1 className="text-3xl font-bold text-gray-900 mt-2">Presence Settings</h1>
-            <p className="text-gray-600 mt-1">Office timing, attendance keys, IP restrictions, and calendar layout configuration.</p>
-          </div>
-
-          <div className="flex flex-col sm:flex-row gap-3">
+        <AdminPageHeader
+          backHref="/admin/presence"
+          backLabel="Presence"
+          eyebrow="Presence Module"
+          icon={<FaUserClock />}
+          title="Presence Settings"
+          description="Office timing, attendance keys, IP restrictions, and calendar layout configuration."
+          actions={<>
             <button
               onClick={load}
               disabled={loading || !canManageSettings}
@@ -91,8 +84,8 @@ export default function PresenceSettingsPage() {
               <FaSave />
               Save Settings
             </button>
-          </div>
-        </div>
+          </>}
+        />
 
         {!canManageSettings && (
           <div className="bg-white border border-red-100 text-red-700 rounded-lg px-4 py-3 text-sm shadow-sm">
@@ -107,7 +100,7 @@ export default function PresenceSettingsPage() {
         )}
 
         {settings && (
-          <div className="bg-white border border-gray-200 rounded-lg shadow-sm">
+          <div className="rounded-lg border border-gray-200 bg-white shadow-sm [&_input]:min-h-11 [&_select]:min-h-11">
             <div className="p-4 border-b border-gray-200">
               <h2 className="text-lg font-bold text-gray-900">Configuration</h2>
               <p className="text-sm text-gray-500">These values control office timing, attendance labels, IP restrictions, and calendar display.</p>

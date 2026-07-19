@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import AdminLayout from '@/layouts/AdminLayout';
+import AdminPageHeader from '@/components/admin/AdminPageHeader';
+import Modal from '@/components/admin/Modal';
 import apiClient from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/contexts/ToastContext';
@@ -201,13 +203,11 @@ export default function PresenceStatisticsPage() {
   return (
     <AdminLayout>
       <div className="space-y-5">
-        <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-5">
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Presence Statistics</h1>
-              <p className="text-sm text-gray-600 mt-1">Filtered attendance summary for each employee.</p>
-            </div>
-            <button
+        <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
+          <AdminPageHeader
+            title="Presence Statistics"
+            description="Filtered attendance summary for each employee."
+            actions={<button
               type="button"
               onClick={exportPdf}
               disabled={!stats || exporting}
@@ -215,8 +215,8 @@ export default function PresenceStatisticsPage() {
             >
               <FaFilePdf />
               {exporting ? 'Exporting...' : 'Export PDF'}
-            </button>
-          </div>
+            </button>}
+          />
 
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-5">
             <div>
@@ -283,22 +283,21 @@ export default function PresenceStatisticsPage() {
               <h2 className="text-lg font-bold text-gray-900">Attendance Summary</h2>
               <p className="text-sm text-gray-500">{stats.employee.name} - {selectedPeriodLabel}</p>
             </div>
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-sm">
-                <thead className="bg-gray-50 text-gray-600 uppercase text-xs">
-                  <tr>
-                    {['Present', 'Late', 'Absent', 'Excused Off', 'Half Day', 'Weekly Off'].map((heading) => (
-                      <th key={heading} className="px-4 py-3 text-left whitespace-nowrap">{heading}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr className="hover:bg-gray-50">
-                    <td className="px-4 py-5 text-green-700 font-bold text-lg">{selectedBucket.present}</td>
-                    <td className="px-4 py-5 text-amber-700 font-bold text-lg">{selectedBucket.late}</td>
-                    <td className="px-4 py-5 text-red-700 font-bold text-lg">{selectedBucket.unwantedLeave}</td>
-                    <td className="px-4 py-5 text-blue-700 font-bold text-lg">{selectedBucket.excusedLeave}</td>
-                    <td className="px-4 py-5">
+            <div className="grid grid-cols-2 gap-px bg-gray-200 sm:grid-cols-3 lg:grid-cols-6">
+              {[
+                { label: 'Present', value: selectedBucket.present, tone: 'text-green-700' },
+                { label: 'Late', value: selectedBucket.late, tone: 'text-amber-700' },
+                { label: 'Absent', value: selectedBucket.unwantedLeave, tone: 'text-red-700' },
+                { label: 'Excused Off', value: selectedBucket.excusedLeave, tone: 'text-blue-700' },
+              ].map((metric) => (
+                <div key={metric.label} className="bg-white p-4 sm:p-5">
+                  <div className="text-xs font-semibold uppercase text-gray-500">{metric.label}</div>
+                  <div className={`mt-2 text-2xl font-bold ${metric.tone}`}>{metric.value}</div>
+                </div>
+              ))}
+              <div className="bg-white p-4 sm:p-5">
+                <div className="text-xs font-semibold uppercase text-gray-500">Half Day</div>
+                <div className="mt-2">
                       <button
                         type="button"
                         onClick={() => setShowHalfDayModal(true)}
@@ -307,32 +306,24 @@ export default function PresenceStatisticsPage() {
                       >
                         {selectedBucket.halfDay || 0}
                       </button>
-                    </td>
-                    <td className="px-4 py-5 text-gray-700 font-bold text-lg">{selectedBucket.weeklyOff}</td>
-                  </tr>
-                </tbody>
-              </table>
+                </div>
+              </div>
+              <div className="bg-white p-4 sm:p-5">
+                <div className="text-xs font-semibold uppercase text-gray-500">Weekly Off</div>
+                <div className="mt-2 text-2xl font-bold text-gray-700">{selectedBucket.weeklyOff}</div>
+              </div>
             </div>
           </div>
         )}
 
-        {showHalfDayModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-            <div className="bg-white rounded-lg shadow-xl border border-gray-200 w-full max-w-2xl overflow-hidden">
-              <div className="p-4 border-b border-gray-200 flex items-center justify-between">
-                <div>
-                  <h3 className="text-lg font-bold text-gray-900">Half Day Dates</h3>
-                  <p className="text-sm text-gray-500">{stats?.employee.name} - {selectedPeriodLabel}</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setShowHalfDayModal(false)}
-                  className="px-3 py-1.5 rounded-lg border border-gray-300 text-sm font-semibold text-gray-700 hover:bg-gray-50"
-                >
-                  Close
-                </button>
-              </div>
-              <div className="max-h-[60vh] overflow-y-auto">
+        <Modal
+          isOpen={showHalfDayModal}
+          onClose={() => setShowHalfDayModal(false)}
+          title="Half Day Dates"
+          size="lg"
+        >
+          <p className="mb-4 text-sm text-gray-500">{stats?.employee.name} - {selectedPeriodLabel}</p>
+              <div className="admin-responsive-table max-h-[60vh] overflow-y-auto">
                 <table className="min-w-full text-sm">
                   <thead className="bg-gray-50 text-gray-600 uppercase text-xs sticky top-0">
                     <tr>
@@ -346,13 +337,13 @@ export default function PresenceStatisticsPage() {
                   <tbody className="divide-y divide-gray-100">
                     {halfDayRows.map((row) => (
                       <tr key={row.dateKey} className="hover:bg-gray-50">
-                        <td className="px-4 py-3 font-semibold text-gray-900">
+                        <td data-label="Date" className="px-4 py-3 font-semibold text-gray-900">
                           {row.dateKey.split('-').reverse().join('/')}
                         </td>
-                        <td className="px-4 py-3 text-gray-600">{row.weekday}</td>
-                        <td className="px-4 py-3 text-gray-600">{row.firstEntryTime || '-'}</td>
-                        <td className="px-4 py-3 text-right font-semibold text-purple-700">{row.onlineHours ?? 0}h</td>
-                        <td className="px-4 py-3 text-right text-gray-700">{row.requiredHours ?? 0}h</td>
+                        <td data-label="Day" className="px-4 py-3 text-gray-600">{row.weekday}</td>
+                        <td data-label="Entry" className="px-4 py-3 text-gray-600">{row.firstEntryTime || '-'}</td>
+                        <td data-label="Checked In" className="px-4 py-3 text-right font-semibold text-purple-700">{row.onlineHours ?? 0}h</td>
+                        <td data-label="Required" className="px-4 py-3 text-right text-gray-700">{row.requiredHours ?? 0}h</td>
                       </tr>
                     ))}
                     {halfDayRows.length === 0 && (
@@ -365,9 +356,7 @@ export default function PresenceStatisticsPage() {
                   </tbody>
                 </table>
               </div>
-            </div>
-          </div>
-        )}
+        </Modal>
       </div>
     </AdminLayout>
   );
