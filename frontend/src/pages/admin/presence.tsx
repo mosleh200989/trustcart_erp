@@ -19,6 +19,14 @@ type PresenceSummary = {
   items: PresenceRow[];
 };
 
+type HistoryRange = 'today' | 'last7days' | 'lastMonth';
+
+const HISTORY_RANGE_OPTIONS: Array<{ value: HistoryRange; label: string }> = [
+  { value: 'today', label: 'Today' },
+  { value: 'last7days', label: 'Last 7 Days' },
+  { value: 'lastMonth', label: 'Last Month' },
+];
+
 function secondsToHuman(value: any) {
   const total = Number(value || 0);
   if (!Number.isFinite(total) || total <= 0) return '0m';
@@ -56,17 +64,26 @@ function getTodayRangeParams() {
   };
 }
 
-function getCurrentMonthValue() {
+function getHistoryRangeParams(range: HistoryRange) {
   const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-}
+  const from = new Date(now);
+  const to = new Date(now);
 
-function getMonthRangeParams(monthValue: string) {
-  const [yearRaw, monthRaw] = String(monthValue || getCurrentMonthValue()).split('-');
-  const year = Number(yearRaw);
-  const monthIndex = Number(monthRaw) - 1;
-  const from = new Date(year, monthIndex, 1, 0, 0, 0, 0);
-  const to = new Date(year, monthIndex + 1, 0, 23, 59, 59, 999);
+  if (range === 'last7days') {
+    from.setDate(now.getDate() - 6);
+    from.setHours(0, 0, 0, 0);
+    return { from: from.toISOString(), to: to.toISOString() };
+  }
+
+  if (range === 'lastMonth') {
+    from.setMonth(now.getMonth() - 1, 1);
+    from.setHours(0, 0, 0, 0);
+    to.setDate(0);
+    to.setHours(23, 59, 59, 999);
+    return { from: from.toISOString(), to: to.toISOString() };
+  }
+
+  from.setHours(0, 0, 0, 0);
   return { from: from.toISOString(), to: to.toISOString() };
 }
 
@@ -74,7 +91,7 @@ export default function PresencePage() {
   const [loading, setLoading] = useState(false);
   const [summary, setSummary] = useState<PresenceSummary | null>(null);
   const [history, setHistory] = useState<any[]>([]);
-  const [historyMonth, setHistoryMonth] = useState(getCurrentMonthValue());
+  const [historyRange, setHistoryRange] = useState<HistoryRange>('today');
   const [monthlyHistory, setMonthlyHistory] = useState<any[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [message, setMessage] = useState('');
@@ -109,7 +126,7 @@ export default function PresencePage() {
   const loadMonthlyHistory = async () => {
     setHistoryLoading(true);
     try {
-      const res = await apiClient.get('/presence/me/history', { params: getMonthRangeParams(historyMonth) });
+      const res = await apiClient.get('/presence/me/history', { params: getHistoryRangeParams(historyRange) });
       setMonthlyHistory(Array.isArray(res.data?.items) ? res.data.items : []);
     } catch (err: any) {
       setMonthlyHistory([]);
@@ -122,7 +139,7 @@ export default function PresencePage() {
   useEffect(() => {
     loadMonthlyHistory();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [historyMonth]);
+  }, [historyRange]);
 
   const myPresence = summary?.items?.[0] || null;
   const myState = myPresence?.currentState === 'online' ? 'online' : 'offline';
@@ -134,12 +151,12 @@ export default function PresencePage() {
       const bTime = new Date(b.startedAt || b.occurredAt || 0).getTime();
       return aTime - bTime;
     });
-    const firstCheckIn = sorted.find((event) => event.state === 'online');
+    const lastCheckIn = [...sorted].reverse().find((event) => event.state === 'online');
     const lastCheckOut = [...sorted].reverse().find((event) => event.state === 'offline');
 
     return {
       duration: secondsToHuman(myPresence?.seconds?.online),
-      entryTime: formatTime(firstCheckIn?.startedAt || firstCheckIn?.occurredAt),
+      entryTime: formatTime(lastCheckIn?.startedAt || lastCheckIn?.occurredAt),
       lastCheckOutTime: formatTime(lastCheckOut?.startedAt || lastCheckOut?.occurredAt),
       checkIns: myPresence?.onlineCount || 0,
     };
@@ -163,7 +180,7 @@ export default function PresencePage() {
     setMessage('');
     try {
       await apiClient.post('/presence/me', { state: next });
-      await load();
+      await Promise.all([load(), loadMonthlyHistory()]);
     } catch (err: any) {
       setMessage(err?.response?.data?.message || 'Failed to update your check-in status.');
     } finally {
@@ -229,12 +246,22 @@ export default function PresencePage() {
               <h2 className="text-lg font-bold text-gray-900">My Check In/Out History</h2>
               <p className="text-sm text-gray-500 mt-1">Only your own Presence history is shown here.</p>
             </div>
-            <input
-              type="month"
-              value={historyMonth}
-              onChange={(e) => setHistoryMonth(e.target.value || getCurrentMonthValue())}
-              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            />
+            <div className="inline-flex rounded-lg border border-gray-300 bg-gray-50 p-1">
+              {HISTORY_RANGE_OPTIONS.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setHistoryRange(option.value)}
+                  className={`px-3 py-1.5 rounded-md text-sm font-semibold transition-colors ${
+                    historyRange === option.value
+                      ? 'bg-white text-blue-700 shadow-sm'
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
           </div>
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
@@ -266,7 +293,7 @@ export default function PresencePage() {
                 {!historyLoading && historyRows.length === 0 && (
                   <tr>
                     <td colSpan={4} className="px-5 py-10 text-center text-sm text-gray-500">
-                      No check-in/out history found for this month.
+                      No check-in/out history found for this range.
                     </td>
                   </tr>
                 )}
