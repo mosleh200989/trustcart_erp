@@ -248,6 +248,10 @@ export class SalesService {
           )::int AS "deliveredThisMonth",
           COUNT(*) FILTER (
             WHERE DATE(order_date) >= dates.month_start
+              AND ${statusSql} = 'admin cancelled'
+          )::int AS "adminCancelledThisMonth",
+          COUNT(*) FILTER (
+            WHERE DATE(order_date) >= dates.month_start
               AND ${statusSql} IN ('cancelled', 'returned')
           )::int AS "cancelledReturnedThisMonth"
         FROM sales_orders, dates
@@ -258,8 +262,7 @@ export class SalesService {
           COUNT(*) FILTER (
             WHERE LOWER(COALESCE(status, 'active')) = 'active'
               AND COALESCE(stock_quantity, 0) <= 10
-          )::int AS "lowStockProducts",
-          (SELECT COUNT(*)::int FROM customers) AS "totalCustomers"
+          )::int AS "lowStockProducts"
         FROM products
       `),
       this.salesRepository.query(`
