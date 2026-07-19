@@ -119,7 +119,7 @@ export default function PresenceHistoryPage() {
   const [message, setMessage] = useState('');
 
   const canViewAllHistory = hasPermission('view-presence') || hasPermission('view-presence-history') || hasPermission('manage-presence-history');
-  const canViewHistory = true;
+  const canViewHistory = canViewAllHistory;
 
   const load = async () => {
     if (!canViewHistory) return;
@@ -127,11 +127,9 @@ export default function PresenceHistoryPage() {
     setMessage('');
     try {
       const params = getMonthRangeParams(month);
-      const summaryEndpoint = canViewAllHistory ? '/presence/dashboard' : '/presence/me/summary';
-      const historyEndpoint = canViewAllHistory ? '/presence/history' : '/presence/me/history';
       const [dashboardRes, historyRes] = await Promise.all([
-        apiClient.get(summaryEndpoint, { params }),
-        apiClient.get(historyEndpoint, { params }),
+        apiClient.get('/presence/dashboard', { params }),
+        apiClient.get('/presence/history', { params }),
       ]);
       setDashboard(dashboardRes.data);
       setHistory(Array.isArray(historyRes.data?.items) ? historyRes.data.items : []);
@@ -284,7 +282,7 @@ export default function PresenceHistoryPage() {
             </Link>
             <h1 className="text-3xl font-bold text-gray-900 mt-2">Presence History</h1>
             <p className="text-gray-600 mt-1">
-              {canViewAllHistory ? 'Review employee check-in/out history by month.' : 'Review your own check-in/out history by month.'}
+              Review employee check-in/out history by month.
             </p>
           </div>
 
