@@ -20,7 +20,6 @@ import {
   TriangleAlert,
   Truck,
   UsersRound,
-  WalletCards,
 } from 'lucide-react';
 import {
   Area,
@@ -43,8 +42,6 @@ type Summary = {
   sentOrders: number;
   deliveredThisMonth: number;
   cancelledReturnedThisMonth: number;
-  realizedRevenueThisMonth: number;
-  realizedRevenuePreviousMonth: number;
   activeProducts: number;
   lowStockProducts: number;
   totalCustomers: number;
@@ -55,7 +52,7 @@ type Summary = {
 type DashboardData = {
   generatedAt: string;
   summary: Summary;
-  trend: Array<{ date: string; orders: number; revenue: number }>;
+  trend: Array<{ date: string; orders: number; delivered: number }>;
   statuses: Array<{ status: string; count: number }>;
   sources: Array<{ source: string; count: number }>;
   recentOrders: Array<{
@@ -237,23 +234,23 @@ export default function AdminDashboard() {
   return (
     <AdminLayout>
       <div className="space-y-5 pb-8">
-        <section className="overflow-hidden rounded-lg bg-[#12372a] text-white shadow-[0_16px_40px_rgba(18,55,42,0.18)]">
+        <section className="overflow-hidden rounded-lg border border-[#d4e7dd] bg-[#edf6f1] text-[#173f35] shadow-[0_12px_32px_rgba(31,85,67,0.10)]">
           <div className="flex flex-col gap-5 px-5 py-6 sm:px-7 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex min-w-0 items-center gap-4">
-              <div className="hidden h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-white/15 bg-white/10 sm:flex">
+              <div className="hidden h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-[#bfd9cc] bg-white/70 text-[#245846] sm:flex">
                 <LayoutDashboard size={23} aria-hidden="true" />
               </div>
               <div className="min-w-0">
-                <p className="text-sm font-medium text-emerald-100">{greeting}, {firstName}</p>
+                <p className="text-sm font-medium text-[#39715f]">{greeting}, {firstName}</p>
                 <h1 className="mt-1 text-2xl font-bold sm:text-3xl">Business overview</h1>
-                <p className="mt-1 text-sm text-emerald-100/80">
+                <p className="mt-1 text-sm text-[#557c6f]">
                   {formatDhakaDate(new Date(), 'en-GB', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}
                 </p>
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-3">
               {dashboard?.generatedAt && (
-                <p className="text-xs text-emerald-100/75">
+                <p className="text-xs text-[#557c6f]">
                   Updated {formatDhakaDateTime(dashboard.generatedAt, 'en-GB', { hour: '2-digit', minute: '2-digit' })}
                 </p>
               )}
@@ -261,22 +258,22 @@ export default function AdminDashboard() {
                 type="button"
                 onClick={() => void loadDashboard(true)}
                 disabled={refreshing}
-                className="inline-flex h-10 items-center gap-2 rounded-lg border border-white/20 bg-white px-4 text-sm font-semibold text-[#12372a] shadow-sm transition hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-70"
+                className="inline-flex h-10 items-center gap-2 rounded-lg border border-[#245846] bg-[#245846] px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-[#1d493a] disabled:cursor-not-allowed disabled:opacity-70"
               >
                 <RefreshCw className={refreshing ? 'animate-spin' : ''} size={16} aria-hidden="true" />
                 Refresh
               </button>
             </div>
           </div>
-          <div className="grid grid-cols-2 border-t border-white/10 sm:grid-cols-4">
+          <div className="grid grid-cols-2 border-t border-[#d4e7dd] sm:grid-cols-4">
             {[
               ['Month orders', number(summary?.ordersThisMonth)],
               ['Delivered', number(summary?.deliveredThisMonth)],
               ['Fulfillment', `${Number(summary?.fulfillmentRate || 0).toFixed(1)}%`],
               ['Customers', number(summary?.totalCustomers)],
             ].map(([label, value]) => (
-              <div key={label} className="border-r border-white/10 px-5 py-4 last:border-r-0">
-                <p className="text-xs font-medium uppercase text-emerald-100/70">{label}</p>
+              <div key={label} className="border-r border-[#d4e7dd] px-5 py-4 last:border-r-0">
+                <p className="text-xs font-medium uppercase text-[#557c6f]">{label}</p>
                 <p className="mt-1 text-xl font-bold">{loading ? '—' : value}</p>
               </div>
             ))}
@@ -300,10 +297,10 @@ export default function AdminDashboard() {
             loading={loading}
           />
           <MetricCard
-            label="Realized Revenue"
-            value={money(summary?.realizedRevenueThisMonth)}
-            detail={`${percentageChange(Number(summary?.realizedRevenueThisMonth || 0), Number(summary?.realizedRevenuePreviousMonth || 0))} vs last month`}
-            icon={WalletCards}
+            label="Delivered This Month"
+            value={number(summary?.deliveredThisMonth)}
+            detail={`${Number(summary?.deliveredShare || 0).toFixed(1)}% of this month's orders`}
+            icon={PackageCheck}
             accent="bg-blue-50 text-blue-700"
             loading={loading}
           />
@@ -333,11 +330,11 @@ export default function AdminDashboard() {
                   <ChartNoAxesCombined size={18} className="text-emerald-700" />
                   <h2 className="text-base font-bold text-gray-950">Seven-day sales pulse</h2>
                 </div>
-                <p className="mt-1 text-sm text-gray-500">Daily orders and realized revenue in Dhaka time</p>
+                <p className="mt-1 text-sm text-gray-500">Daily orders and deliveries in Dhaka time</p>
               </div>
               <div className="flex items-center gap-4 text-xs font-semibold text-gray-600">
                 <span className="inline-flex items-center gap-2"><i className="h-2.5 w-2.5 rounded-full bg-emerald-600" /> Orders</span>
-                <span className="inline-flex items-center gap-2"><i className="h-2.5 w-2.5 rounded-full bg-orange-500" /> Revenue</span>
+                <span className="inline-flex items-center gap-2"><i className="h-2.5 w-2.5 rounded-full bg-blue-600" /> Delivered</span>
               </div>
             </div>
             <div className="h-[280px] w-full">
@@ -349,15 +346,15 @@ export default function AdminDashboard() {
                     <CartesianGrid stroke="#e5e7eb" strokeDasharray="4 4" vertical={false} />
                     <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fill: '#6b7280', fontSize: 12 }} dy={10} />
                     <YAxis yAxisId="orders" tickLine={false} axisLine={false} allowDecimals={false} tick={{ fill: '#9ca3af', fontSize: 11 }} />
-                    <YAxis yAxisId="revenue" orientation="right" hide />
+                    <YAxis yAxisId="delivered" orientation="right" hide />
                     <Tooltip
                       cursor={{ stroke: '#d1d5db', strokeDasharray: '4 4' }}
                       contentStyle={{ borderRadius: 8, border: '1px solid #e5e7eb', boxShadow: '0 12px 30px rgba(15,23,42,.10)' }}
                       labelFormatter={(_, payload) => payload?.[0]?.payload?.fullLabel || ''}
-                      formatter={(value: number | undefined, name: string | undefined) => [name === 'Revenue' ? money(value) : number(value), name || 'Value']}
+                      formatter={(value: number | undefined, name: string | undefined) => [number(value), name || 'Value']}
                     />
                     <Area yAxisId="orders" type="monotone" dataKey="orders" name="Orders" stroke="#059669" fill="#d1fae5" fillOpacity={0.65} strokeWidth={2.5} activeDot={{ r: 4 }} />
-                    <Area yAxisId="revenue" type="monotone" dataKey="revenue" name="Revenue" stroke="#ea580c" fill="#ffedd5" fillOpacity={0.25} strokeWidth={2} activeDot={{ r: 4 }} />
+                    <Area yAxisId="delivered" type="monotone" dataKey="delivered" name="Delivered" stroke="#2563eb" fill="#dbeafe" fillOpacity={0.35} strokeWidth={2} activeDot={{ r: 4 }} />
                   </AreaChart>
                 </ResponsiveContainer>
               ) : (
