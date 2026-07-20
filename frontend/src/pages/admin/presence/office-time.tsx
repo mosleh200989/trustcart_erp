@@ -177,8 +177,8 @@ export default function PresenceOfficeTimePage() {
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Start Time</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Caution</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">End Time</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Lunch Start</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Lunch End</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Lunch Start (Optional)</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Lunch End (Optional)</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Weekly Day Off</th>
                   <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase">Action</th>
                 </tr>

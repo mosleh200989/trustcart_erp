@@ -72,7 +72,9 @@ function getMonthRangeParams(monthValue: string) {
   const year = Number(yearRaw);
   const monthIndex = Number(monthRaw) - 1;
   const from = new Date(year, monthIndex, 1, 0, 0, 0, 0);
-  const to = new Date(year, monthIndex + 1, 0, 23, 59, 59, 999);
+  const monthEnd = new Date(year, monthIndex + 1, 0, 23, 59, 59, 999);
+  const now = new Date();
+  const to = monthEnd.getTime() > now.getTime() ? now : monthEnd;
   return { from: from.toISOString(), to: to.toISOString() };
 }
 
@@ -113,6 +115,8 @@ export default function PresenceHistoryPage() {
   const [month, setMonth] = useState(getCurrentMonthValue());
   const [presenceSearch, setPresenceSearch] = useState('');
   const [search, setSearch] = useState('');
+  const [roleFilter, setRoleFilter] = useState('all');
+  const [teamLeaderFilter, setTeamLeaderFilter] = useState('all');
   const [loading, setLoading] = useState(false);
   const [dashboard, setDashboard] = useState<PresenceDashboard | null>(null);
   const [history, setHistory] = useState<any[]>([]);
@@ -161,6 +165,36 @@ export default function PresenceHistoryPage() {
     return map;
   }, [history]);
 
+  const roleOptions = useMemo(() => {
+    const options = new Map<string, string>();
+    history.forEach((event) => {
+      const key = event.roleId ? String(event.roleId) : event.roleSlug || 'unassigned';
+      options.set(key, event.roleName || 'Unassigned Role');
+    });
+    return Array.from(options.entries())
+      .map(([value, label]) => ({ value, label }))
+      .sort((a, b) => {
+        if (a.value === 'unassigned') return 1;
+        if (b.value === 'unassigned') return -1;
+        return a.label.localeCompare(b.label);
+      });
+  }, [history]);
+
+  const teamLeaderOptions = useMemo(() => {
+    const options = new Map<string, string>();
+    history.forEach((event) => {
+      const key = event.teamLeaderId ? String(event.teamLeaderId) : 'unassigned';
+      options.set(key, event.teamLeaderName || 'Unassigned Team Leader');
+    });
+    return Array.from(options.entries())
+      .map(([value, label]) => ({ value, label }))
+      .sort((a, b) => {
+        if (a.value === 'unassigned') return 1;
+        if (b.value === 'unassigned') return -1;
+        return a.label.localeCompare(b.label);
+      });
+  }, [history]);
+
   const checkedInRows = useMemo(() => {
     const q = presenceSearch.trim().toLowerCase();
     return (dashboard?.items || []).filter((row) => {
@@ -200,6 +234,11 @@ export default function PresenceHistoryPage() {
         userId: event.userId,
         name: event.name,
         email: event.email,
+        roleId: event.roleId,
+        roleName: event.roleName,
+        roleSlug: event.roleSlug,
+        teamLeaderId: event.teamLeaderId,
+        teamLeaderName: event.teamLeaderName,
         dayKey,
         dateLabel: formatDate(date),
         status: event.state,
@@ -263,13 +302,17 @@ export default function PresenceHistoryPage() {
 
     return Array.from(grouped.values())
       .filter((row) => {
+        const roleKey = row.roleId ? String(row.roleId) : row.roleSlug || 'unassigned';
+        const teamLeaderKey = row.teamLeaderId ? String(row.teamLeaderId) : 'unassigned';
+        if (roleFilter !== 'all' && roleKey !== roleFilter) return false;
+        if (teamLeaderFilter !== 'all' && teamLeaderKey !== teamLeaderFilter) return false;
         if (!q) return true;
-        return [row.name, row.email, String(row.userId)]
+        return [row.name, row.email, row.roleName, row.teamLeaderName, String(row.userId)]
           .filter(Boolean)
           .some((value) => String(value).toLowerCase().includes(q));
       })
       .sort((a, b) => b.sortAt - a.sortAt);
-  }, [history, search]);
+  }, [history, roleFilter, search, teamLeaderFilter]);
 
   return (
     <AdminLayout>
@@ -377,16 +420,45 @@ export default function PresenceHistoryPage() {
               <h2 className="text-lg font-bold text-gray-900">{canViewAllHistory ? 'All Employee History' : 'My History'}</h2>
               <p className="text-sm text-gray-500">Showing {dailyHistoryRows.length} daily records</p>
             </div>
-            <div className="flex flex-col sm:flex-row gap-3">
-              <div className="relative">
-                <FaFilter className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                <input
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search user or email"
-                  className="min-h-11 w-full rounded-lg border border-gray-300 py-2 pl-9 pr-3 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500 sm:min-w-[240px]"
-                />
-              </div>
+            <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2 xl:w-auto xl:grid-cols-3">
+              <label className="block">
+                <span className="mb-1 block text-xs font-semibold uppercase text-gray-500">Role</span>
+                <select
+                  value={roleFilter}
+                  onChange={(e) => setRoleFilter(e.target.value)}
+                  className="min-h-11 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500 xl:min-w-[180px]"
+                >
+                  <option value="all">All Roles</option>
+                  {roleOptions.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-xs font-semibold uppercase text-gray-500">Team Leader</span>
+                <select
+                  value={teamLeaderFilter}
+                  onChange={(e) => setTeamLeaderFilter(e.target.value)}
+                  className="min-h-11 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500 xl:min-w-[210px]"
+                >
+                  <option value="all">All Team Leaders</option>
+                  {teamLeaderOptions.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="block sm:col-span-2 xl:col-span-1">
+                <span className="mb-1 block text-xs font-semibold uppercase text-gray-500">Search</span>
+                <div className="relative">
+                  <FaFilter className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder="Search user or email"
+                    className="min-h-11 w-full rounded-lg border border-gray-300 py-2 pl-9 pr-3 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500 xl:min-w-[240px]"
+                  />
+                </div>
+              </label>
             </div>
           </div>
 
