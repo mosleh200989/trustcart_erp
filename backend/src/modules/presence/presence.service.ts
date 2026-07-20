@@ -861,6 +861,15 @@ export class PresenceService {
     return new Date(`${dateKey}T${endOfDay ? '23:59:59.999' : '00:00:00.000'}+06:00`);
   }
 
+  private async getTrackingStartDateKey(): Promise<string | null> {
+    const rows = await this.eventRepo.query(
+      `SELECT MIN(occurred_at)::date::text AS "dateKey"
+       FROM user_presence_events`,
+    );
+    const dateKey = String(rows?.[0]?.dateKey || '').trim();
+    return /^\d{4}-\d{2}-\d{2}$/.test(dateKey) ? dateKey : null;
+  }
+
   private secondsToHours(value: number) {
     return Math.round((Number(value || 0) / 3600) * 100) / 100;
   }
@@ -965,6 +974,10 @@ export class PresenceService {
     const now = new Date();
     const todayKey = this.getDhakaDateKey(now, timezone);
     const employeeStartKey = employee.createdAt ? this.getDhakaDateKey(new Date(employee.createdAt), timezone) : yearStartKey;
+    const trackingStartDateKey = await this.getTrackingStartDateKey();
+    const effectiveStartKey = trackingStartDateKey
+      ? [yearStartKey, employeeStartKey, trackingStartDateKey].sort().at(-1)!
+      : null;
 
     const [events, baselineRows, overrides] = await Promise.all([
       this.eventRepo
@@ -1012,7 +1025,7 @@ export class PresenceService {
       for (let day = 1; day <= daysInMonth; day += 1) {
         const dateKey = this.dateKeyForMonthDay(year, month, day);
         if (dateKey > todayKey) continue;
-        if (dateKey < employeeStartKey) continue;
+        if (!effectiveStartKey || dateKey < effectiveStartKey) continue;
 
         const dayStart = this.dateFromDhakaKey(dateKey);
         const naturalDayEnd = this.dateFromDhakaKey(dateKey, true);
@@ -1058,7 +1071,7 @@ export class PresenceService {
 
         const weekday = new Date(`${dateKey}T12:00:00+06:00`).toLocaleDateString('en-US', { weekday: 'long', timeZone: timezone });
         const override = overrideByDate.get(dateKey);
-        let verdict: 'present' | 'late' | 'halfDay' | 'weeklyOff' | 'excusedLeave' | 'unwantedLeave' | 'custom' = 'unwantedLeave';
+        let verdict: 'present' | 'late' | 'halfDay' | 'weeklyOff' | 'excusedLeave' | 'unwantedLeave' | 'pending' | 'custom' = 'unwantedLeave';
         let label = settings.attendanceUnexcusedAbsenceLabel || 'Unexcused absence';
         let isManual = false;
         const firstMinutes = firstOnlineAt
@@ -1094,6 +1107,9 @@ export class PresenceService {
         } else if (employee.presenceStatus === 'backup' && backupRules.length > 0 && !selectedBackupRule) {
           verdict = 'weeklyOff';
           label = settings.attendanceWeeklyOffLabel || 'Weekly off day';
+        } else if (dateKey === todayKey && !firstOnlineAt) {
+          verdict = 'pending';
+          label = 'Pending';
         } else if (firstOnlineAt) {
           if (requiredSeconds > 4 * 3600 && onlineSeconds >= 4 * 3600 && onlineSeconds < requiredSeconds) {
             verdict = 'halfDay';
@@ -1115,7 +1131,7 @@ export class PresenceService {
           bucket.checkIns += checkIns;
           bucket.checkOuts += checkOuts;
           if (isManual) bucket.manualOverrides += 1;
-          if (verdict !== 'weeklyOff') bucket.countedDays += 1;
+          if (verdict !== 'weeklyOff' && verdict !== 'pending') bucket.countedDays += 1;
           if (verdict in bucket) bucket[verdict] += 1;
           if ((verdict === 'present' || verdict === 'late' || verdict === 'halfDay') && firstMinutes != null) {
             const attendedBefore = bucket.present + bucket.late + bucket.halfDay - 1;
@@ -1152,6 +1168,7 @@ export class PresenceService {
       employee,
       year,
       timezone,
+      trackingStartDateKey,
       officeTime: {
         officeStartTime: officeStart,
         officeEndTime: officeEnd,
@@ -1255,6 +1272,7 @@ export class PresenceService {
     const sheetName = String(params?.sheetName || settings.summarySheetName || this.getDefaultMonthSheetName()).trim();
     const { year, monthIndex, days } = this.getDaysInSheetMonth(sheetName, timezone);
     const todayKey = this.getDhakaDateKey(new Date(), timezone);
+    const trackingStartDateKey = await this.getTrackingStartDateKey();
     const monthStart = new Date(Date.UTC(year, monthIndex, 1, 0, 0, 0));
     const monthEnd = new Date(Date.UTC(year, monthIndex + 1, 2, 23, 59, 59));
 
@@ -1352,6 +1370,8 @@ export class PresenceService {
         label: settings.attendanceUnexcusedAbsenceLabel || 'Unexcused absence',
         color: settings.attendanceUnexcusedAbsenceColor || '#dc2626',
       },
+      notTracked: { key: 'NT', label: 'Not tracked', color: '#94a3b8', editable: false },
+      pending: { key: '...', label: 'Pending', color: '#d97706', editable: false },
     };
 
     const daysList = Array.from({ length: days }, (_, idx) => {
@@ -1385,6 +1405,16 @@ export class PresenceService {
         officeStartTime: userOfficeStart,
         insertGapAfter: settings.calendarTeamGapEvery > 0 && (idx + 1) % settings.calendarTeamGapEvery === 0 && idx < orderedUsers.length - 1,
         cells: daysList.map((day) => {
+          if (!trackingStartDateKey || day.key < trackingStartDateKey) {
+            return {
+              dateKey: day.key,
+              value: keyConfig.notTracked.key,
+              label: keyConfig.notTracked.label,
+              color: keyConfig.notTracked.color,
+              isTracked: false,
+            };
+          }
+
           const override = overrideByUserDay.get(`${userId}:${day.key}`);
           if (override) {
             const matched = Object.values(keyConfig).find((config) => config.key === override.attendanceKey);
@@ -1410,6 +1440,15 @@ export class PresenceService {
             (a, b) => new Date(a.occurredAt).getTime() - new Date(b.occurredAt).getTime(),
           );
           if (onlineEvents.length === 0) {
+            if (day.key === todayKey) {
+              return {
+                dateKey: day.key,
+                value: keyConfig.pending.key,
+                label: keyConfig.pending.label,
+                color: keyConfig.pending.color,
+                isPending: true,
+              };
+            }
             return { dateKey: day.key, value: keyConfig.unexcusedAbsence.key, label: keyConfig.unexcusedAbsence.label, color: keyConfig.unexcusedAbsence.color };
           }
 
@@ -1433,6 +1472,7 @@ export class PresenceService {
       year,
       month: monthIndex + 1,
       timezone,
+      trackingStartDateKey,
       days: daysList,
       keyConfig,
       rowGap: {
