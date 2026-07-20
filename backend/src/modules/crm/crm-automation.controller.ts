@@ -3,10 +3,14 @@ import { CrmAutomationService } from './crm-automation.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
+import { RbacService } from '../rbac/rbac.service';
 
 @Controller('crm/automation')
 export class CrmAutomationController {
-  constructor(private readonly automationService: CrmAutomationService) {}
+  constructor(
+    private readonly automationService: CrmAutomationService,
+    private readonly rbacService: RbacService,
+  ) {}
 
   // ==================== CALL TASKS ====================
   
@@ -170,9 +174,29 @@ export class CrmAutomationController {
   @Get('engagement/:customerId')
   async getEngagementHistory(
     @Param('customerId') customerId: string,
-    @Query('limit') limit?: number
+    @Query('limit') limit: number | undefined,
+    @Request() req: any,
   ) {
-    return await this.automationService.getCustomerEngagementHistory(customerId, limit || 50);
+    const userId = Number(req.user?.id ?? req.user?.userId);
+    const canManageVisibility = await this.rbacService.checkPermission(userId, 'manage-call-log-visibility');
+    return await this.automationService.getCustomerEngagementHistory(customerId, limit || 50, canManageVisibility);
+  }
+
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions('manage-call-log-visibility')
+  @Put('engagement/:customerId/call-log-visibility')
+  async updateCallLogVisibility(
+    @Param('customerId') customerId: string,
+    @Body() body: { logKey?: string; hiddenFromSalesAgents?: boolean },
+    @Request() req: any,
+  ) {
+    const userId = Number(req.user?.id ?? req.user?.userId);
+    return this.automationService.setCustomerCallLogVisibility(
+      customerId,
+      String(body.logKey || ''),
+      Boolean(body.hiddenFromSalesAgents),
+      userId,
+    );
   }
   
   @Get('engagement/:customerId/stats')

@@ -2268,6 +2268,13 @@ export class SalesManagerService implements OnModuleInit {
         { s: `%${query.search}%` },
       );
     }
+    if (foreignOnly && query.sourceNumber && String(query.sourceNumber).trim()) {
+      const sourceNumber = String(query.sourceNumber).trim();
+      const sourceDigits = sourceNumber.replace(/\D/g, '');
+      qb.andWhere(`COALESCE(c.source, '') ILIKE :sourceNumber`, {
+        sourceNumber: `%${sourceDigits || sourceNumber}%`,
+      });
+    }
     if (query.address && String(query.address).trim()) {
       const address = `%${String(query.address).trim()}%`;
       qb.andWhere(

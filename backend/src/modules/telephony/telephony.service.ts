@@ -895,6 +895,15 @@ export class TelephonyService {
        LEFT JOIN users u ON u.id = l.caller_user_id
        WHERE l.record_type = $1
          AND l.order_id = ANY($2::int[])
+         AND NOT EXISTS (
+           SELECT 1
+           FROM call_log_visibility clv
+           WHERE clv.log_key = CONCAT(
+             CASE WHEN l.record_type = 'incomplete_order' THEN 'telephony-incomplete-' ELSE 'telephony-' END,
+             l.id
+           )
+             AND clv.hidden_from_sales_agents = TRUE
+         )
        ORDER BY l.record_type, l.order_id, l.called_at DESC, l.id DESC`,
       [recordType, orderIds],
     );
@@ -927,6 +936,17 @@ export class TelephonyService {
        FROM order_activity_logs
        WHERE order_id = ANY($1::int[])
          AND action_type = 'telephony_call_logged'
+         AND NOT EXISTS (
+           SELECT 1
+           FROM telephony_assignment_call_logs tal_hidden
+           INNER JOIN call_log_visibility clv_hidden
+             ON clv_hidden.log_key = CONCAT('telephony-', tal_hidden.id)
+            AND clv_hidden.hidden_from_sales_agents = TRUE
+           WHERE tal_hidden.record_type = 'sales_order'
+             AND tal_hidden.order_id = order_activity_logs.order_id
+             AND COALESCE(tal_hidden.caller_user_id, -1) = COALESCE(order_activity_logs.performed_by, -1)
+             AND ABS(EXTRACT(EPOCH FROM (COALESCE(tal_hidden.called_at, tal_hidden.created_at) - order_activity_logs.created_at))) <= 300
+         )
        ORDER BY order_id, created_at DESC, id DESC`,
       [missingOrderIds],
     );
@@ -956,6 +976,16 @@ export class TelephonyService {
        FROM sales_orders
        WHERE id = ANY($1::int[])
          AND telephony_called_at IS NOT NULL
+         AND NOT EXISTS (
+           SELECT 1
+           FROM telephony_assignment_call_logs tal_hidden
+           INNER JOIN call_log_visibility clv_hidden
+             ON clv_hidden.log_key = CONCAT('telephony-', tal_hidden.id)
+            AND clv_hidden.hidden_from_sales_agents = TRUE
+           WHERE tal_hidden.record_type = 'sales_order'
+             AND tal_hidden.order_id = sales_orders.id
+             AND ABS(EXTRACT(EPOCH FROM (COALESCE(tal_hidden.called_at, tal_hidden.created_at) - sales_orders.telephony_called_at))) <= 300
+         )
        ORDER BY telephony_called_at DESC, id DESC`,
       [stillMissingOrderIds],
     );
@@ -1003,6 +1033,15 @@ export class TelephonyService {
        LEFT JOIN users u ON u.id = l.caller_user_id
        WHERE l.record_type = $1
          AND l.order_id = $2
+         AND NOT EXISTS (
+           SELECT 1
+           FROM call_log_visibility clv
+           WHERE clv.log_key = CONCAT(
+             CASE WHEN l.record_type = 'incomplete_order' THEN 'telephony-incomplete-' ELSE 'telephony-' END,
+             l.id
+           )
+             AND clv.hidden_from_sales_agents = TRUE
+         )
        ORDER BY l.called_at DESC, l.id DESC`,
       [recordType, orderId],
     );
@@ -1024,7 +1063,17 @@ export class TelephonyService {
               telephony_called_at AS created_at
            FROM incomplete_orders
            WHERE id = $1
-             AND telephony_called_at IS NOT NULL`,
+             AND telephony_called_at IS NOT NULL
+             AND NOT EXISTS (
+               SELECT 1
+               FROM telephony_assignment_call_logs tal_hidden
+               INNER JOIN call_log_visibility clv_hidden
+                 ON clv_hidden.log_key = CONCAT('telephony-incomplete-', tal_hidden.id)
+                AND clv_hidden.hidden_from_sales_agents = TRUE
+               WHERE tal_hidden.record_type = 'incomplete_order'
+                 AND tal_hidden.order_id = incomplete_orders.id
+                 AND ABS(EXTRACT(EPOCH FROM (COALESCE(tal_hidden.called_at, tal_hidden.created_at) - incomplete_orders.telephony_called_at))) <= 300
+             )`,
           [orderId],
         );
         return (incompleteFallbackRows || []).map((row: any) => this.mapAssignmentCallLog(row));
@@ -1048,6 +1097,17 @@ export class TelephonyService {
        FROM order_activity_logs
        WHERE order_id = $1
          AND action_type = 'telephony_call_logged'
+         AND NOT EXISTS (
+           SELECT 1
+           FROM telephony_assignment_call_logs tal_hidden
+           INNER JOIN call_log_visibility clv_hidden
+             ON clv_hidden.log_key = CONCAT('telephony-', tal_hidden.id)
+            AND clv_hidden.hidden_from_sales_agents = TRUE
+           WHERE tal_hidden.record_type = 'sales_order'
+             AND tal_hidden.order_id = order_activity_logs.order_id
+             AND COALESCE(tal_hidden.caller_user_id, -1) = COALESCE(order_activity_logs.performed_by, -1)
+             AND ABS(EXTRACT(EPOCH FROM (COALESCE(tal_hidden.called_at, tal_hidden.created_at) - order_activity_logs.created_at))) <= 300
+         )
        ORDER BY created_at DESC, id DESC`,
       [orderId],
     );
@@ -1071,7 +1131,17 @@ export class TelephonyService {
           telephony_called_at AS created_at
        FROM sales_orders
        WHERE id = $1
-         AND telephony_called_at IS NOT NULL`,
+         AND telephony_called_at IS NOT NULL
+         AND NOT EXISTS (
+           SELECT 1
+           FROM telephony_assignment_call_logs tal_hidden
+           INNER JOIN call_log_visibility clv_hidden
+             ON clv_hidden.log_key = CONCAT('telephony-', tal_hidden.id)
+            AND clv_hidden.hidden_from_sales_agents = TRUE
+           WHERE tal_hidden.record_type = 'sales_order'
+             AND tal_hidden.order_id = sales_orders.id
+             AND ABS(EXTRACT(EPOCH FROM (COALESCE(tal_hidden.called_at, tal_hidden.created_at) - sales_orders.telephony_called_at))) <= 300
+         )`,
       [orderId],
     );
 

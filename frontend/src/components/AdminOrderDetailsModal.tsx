@@ -4,7 +4,8 @@ import { useToast } from '@/contexts/ToastContext';
 import { 
   FaTimes, FaEdit, FaTrash, FaPlus, FaSave, FaCheck, FaPause, FaBan, 
   FaShippingFast, FaMapMarkerAlt, FaStickyNote, FaHistory, FaGlobe, 
-  FaMobile, FaDesktop, FaChrome, FaExclamationTriangle, FaPhone, FaPhoneSlash, FaTag
+  FaMobile, FaDesktop, FaChrome, FaExclamationTriangle, FaPhone, FaPhoneSlash, FaTag,
+  FaEye, FaEyeSlash
 } from 'react-icons/fa';
 import PhoneInput, { validateBDPhone } from '@/components/PhoneInput';
 import { getOrderStatusLabel, getOrderStatusColor } from '@/utils/orderStatus';
@@ -42,6 +43,7 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
   const toast = useToast();
   const { hasPermission } = useAuth();
   const canViewCallLogs = hasPermission('view-call-logs');
+  const canManageCallLogVisibility = hasPermission('manage-call-log-visibility');
   const [order, setOrder] = useState<any>(null);
   const [items, setItems] = useState<any[]>([]);
   const [activityLogs, setActivityLogs] = useState<any[]>([]);
@@ -183,6 +185,7 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
   // Call Logs state
   const [callLogs, setCallLogs] = useState<any[]>([]);
   const [callLogsLoading, setCallLogsLoading] = useState(false);
+  const [updatingCallLogVisibilityKey, setUpdatingCallLogVisibilityKey] = useState<string | null>(null);
 
   useEffect(() => {
     setCurrentOrderId(orderId);
@@ -651,6 +654,8 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
         agentId: e.agent_id || e.agentId || e.user_id || e.userId || e.created_by || e.createdBy || e.metadata?.agent_id || null,
         duration: e.metadata?.duration || e.duration || '',
         callType: e.metadata?.type || e.callType || '',
+        visibilityKey: e.visibility_key || e.visibilityKey || e.id,
+        hiddenFromSalesAgents: Boolean(e.hidden_from_sales_agents ?? e.hiddenFromSalesAgents),
       }));
       const normalizeText = (value: any) => String(value || '').replace(/\s+/g, ' ').trim().toLowerCase();
       const getCallTime = (call: any) => {
@@ -703,6 +708,31 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
       setCallLogs([]);
     } finally {
       setCallLogsLoading(false);
+    }
+  };
+
+  const toggleCallLogVisibility = async (call: any) => {
+    const customerId = customerRecord?.id;
+    const visibilityKey = String(call?.visibilityKey || '').trim();
+    if (!customerId || !visibilityKey || !canManageCallLogVisibility) return;
+
+    const hiddenFromSalesAgents = !Boolean(call.hiddenFromSalesAgents);
+    setUpdatingCallLogVisibilityKey(visibilityKey);
+    try {
+      await apiClient.put(`/crm/automation/engagement/${customerId}/call-log-visibility`, {
+        logKey: visibilityKey,
+        hiddenFromSalesAgents,
+      });
+      setCallLogs((current) => current.map((item) => (
+        item.visibilityKey === visibilityKey
+          ? { ...item, hiddenFromSalesAgents }
+          : item
+      )));
+      toast.success(hiddenFromSalesAgents ? 'Call log hidden from Sales Agents' : 'Call log visible to Sales Agents');
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || 'Failed to update call log visibility');
+    } finally {
+      setUpdatingCallLogVisibilityKey(null);
     }
   };
 
@@ -2540,12 +2570,33 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                                   </span>
                                 )}
                               </div>
-                              <span className="text-xs text-gray-500 whitespace-nowrap">
-                                {(call.engagementDate || call.createdAt)
-                                  ? new Date(call.engagementDate || call.createdAt).toLocaleString('en-GB', { timeZone: 'Asia/Dhaka' })
-                                  : 'N/A'}
-                              </span>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-gray-500 whitespace-nowrap">
+                                  {(call.engagementDate || call.createdAt)
+                                    ? new Date(call.engagementDate || call.createdAt).toLocaleString('en-GB', { timeZone: 'Asia/Dhaka' })
+                                    : 'N/A'}
+                                </span>
+                                {canManageCallLogVisibility && (
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleCallLogVisibility(call)}
+                                    disabled={updatingCallLogVisibilityKey === call.visibilityKey}
+                                    title={call.hiddenFromSalesAgents ? 'Show this call log to Sales Agents' : 'Hide this call log from Sales Agents'}
+                                    aria-label={call.hiddenFromSalesAgents ? 'Show call log to Sales Agents' : 'Hide call log from Sales Agents'}
+                                    className={`inline-flex h-8 w-8 items-center justify-center rounded border transition-colors disabled:cursor-wait disabled:opacity-50 ${
+                                      call.hiddenFromSalesAgents
+                                        ? 'border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100'
+                                        : 'border-gray-200 bg-white text-gray-500 hover:border-green-300 hover:bg-green-50 hover:text-green-700'
+                                    }`}
+                                  >
+                                    {call.hiddenFromSalesAgents ? <FaEyeSlash size={14} /> : <FaEye size={14} />}
+                                  </button>
+                                )}
+                              </div>
                             </div>
+                            {canManageCallLogVisibility && call.hiddenFromSalesAgents && (
+                              <div className="mt-1 text-[11px] font-semibold text-amber-700">Hidden from Sales Agents</div>
+                            )}
                             <div className="text-sm text-gray-600 mt-1 whitespace-pre-wrap">
                               {call.notes?.trim() ? call.notes : 'No notes'}
                             </div>
@@ -3585,10 +3636,32 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                                 </span>
                               )}
                             </div>
-                            <span className="text-xs text-gray-500">
-                              {new Date(call.engagementDate || call.createdAt).toLocaleString('en-GB', { timeZone: 'Asia/Dhaka' })}
-                            </span>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-gray-500">
+                                {new Date(call.engagementDate || call.createdAt).toLocaleString('en-GB', { timeZone: 'Asia/Dhaka' })}
+                              </span>
+                              {canManageCallLogVisibility && (
+                                <button
+                                  type="button"
+                                  onClick={() => toggleCallLogVisibility(call)}
+                                  disabled={updatingCallLogVisibilityKey === call.visibilityKey}
+                                  title={call.hiddenFromSalesAgents ? 'Show this call log to Sales Agents' : 'Hide this call log from Sales Agents'}
+                                  aria-label={call.hiddenFromSalesAgents ? 'Show call log to Sales Agents' : 'Hide call log from Sales Agents'}
+                                  className={`inline-flex h-8 w-8 items-center justify-center rounded border transition-colors disabled:cursor-wait disabled:opacity-50 ${
+                                    call.hiddenFromSalesAgents
+                                      ? 'border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100'
+                                      : 'border-gray-200 bg-white text-gray-500 hover:border-green-300 hover:bg-green-50 hover:text-green-700'
+                                  }`}
+                                >
+                                  {call.hiddenFromSalesAgents ? <FaEyeSlash size={14} /> : <FaEye size={14} />}
+                                </button>
+                              )}
+                            </div>
                           </div>
+
+                          {canManageCallLogVisibility && call.hiddenFromSalesAgents && (
+                            <div className="mb-2 text-xs font-semibold text-amber-700">Hidden from Sales Agents</div>
+                          )}
 
                           {call.notes && (
                             <p className="text-gray-700 mt-2">{call.notes}</p>
