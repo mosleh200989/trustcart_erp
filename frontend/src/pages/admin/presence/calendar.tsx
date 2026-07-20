@@ -16,14 +16,23 @@ type CalendarRow = {
   roleSlug?: string | null;
   rolePriority?: number | null;
   insertGapAfter?: boolean;
-  cells: Array<{ dateKey: string; value: string; label: string; color: string; isManual?: boolean; note?: string }>;
+  cells: Array<{
+    dateKey: string;
+    value: string;
+    label: string;
+    color: string;
+    isManual?: boolean;
+    isTracked?: boolean;
+    isPending?: boolean;
+    note?: string;
+  }>;
 };
 
 type CalendarData = {
   sheetName: string;
   timezone: string;
   days: Array<{ day: number; key: string; label: string; weekday: string }>;
-  keyConfig: Record<string, { key: string; label: string; color: string }>;
+  keyConfig: Record<string, { key: string; label: string; color: string; editable?: boolean }>;
   rowGap: { every: number; size: number };
   rows: CalendarRow[];
 };
@@ -351,6 +360,11 @@ export default function PresenceCalendarPage() {
     return Object.values(config).filter((item: any) => item?.key);
   }, [data?.keyConfig]);
 
+  const editableLegend = useMemo(
+    () => legend.filter((item: any) => item.editable !== false),
+    [legend],
+  );
+
   const teamLeaderOptions = useMemo(() => {
     const options = new Map<string, string>();
     rows.forEach((row) => {
@@ -648,8 +662,9 @@ export default function PresenceCalendarPage() {
                             <button
                               type="button"
                               title={cell.label}
-                              onClick={() => canManageCalendar && setEditingCell({ userId: row.userId, name: row.name, dateKey: cell.dateKey, value: cell.value, note: cell.note || '' })}
-                              className={`inline-flex items-center justify-center w-9 h-8 rounded text-xs font-black text-white ${canManageCalendar ? 'cursor-pointer ring-offset-1 hover:ring-2 hover:ring-gray-400' : ''} ${cell.isManual ? 'ring-2 ring-gray-900' : ''}`}
+                              disabled={cell.isTracked === false}
+                              onClick={() => cell.isTracked !== false && canManageCalendar && setEditingCell({ userId: row.userId, name: row.name, dateKey: cell.dateKey, value: cell.isPending ? '' : cell.value, note: cell.note || '' })}
+                              className={`inline-flex items-center justify-center w-9 h-8 rounded text-xs font-black text-white ${cell.isTracked === false ? 'cursor-default opacity-80' : canManageCalendar ? 'cursor-pointer ring-offset-1 hover:ring-2 hover:ring-gray-400' : ''} ${cell.isManual ? 'ring-2 ring-gray-900' : ''}`}
                               style={{ backgroundColor: cell.color }}
                             >
                               {cell.value}
@@ -699,7 +714,7 @@ export default function PresenceCalendarPage() {
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white"
                   >
                     <option value="">Automatic</option>
-                    {legend.map((item: any) => (
+                    {editableLegend.map((item: any) => (
                       <option key={`${item.key}-${item.label}`} value={item.key}>
                         {item.key} - {item.label}
                       </option>
