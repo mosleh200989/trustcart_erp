@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { CallTask, TaskPriority, TaskStatus } from './entities/call-task.entity';
@@ -530,8 +530,73 @@ export class CrmAutomationService {
     };
   }
   
-  async getCustomerEngagementHistory(customerId: string, limit: number = 50) {
+  private callLogSourcePriority(row: any) {
+    const id = String(row?.id || '');
+    if (id.startsWith('telephony-')) return 0;
+    if (/^\d+$/.test(id)) return 1;
+    if (id.startsWith('order-activity-')) return 2;
+    return 3;
+  }
+
+  private callLogVisibilityKey(row: any) {
+    const id = String(row?.id || '').trim();
+    return /^\d+$/.test(id) ? `engagement-${id}` : id;
+  }
+
+  private deduplicateCustomerCallLogs(rows: any[]) {
+    const normalize = (value: any) => String(value || '').replace(/\s+/g, ' ').trim().toLowerCase();
+    const groupsBySignature = new Map<string, Array<{ row: any; time: number }>>();
+
+    const sorted = [...(rows || [])].sort((a, b) => {
+      const aTime = new Date(a?.created_at || 0).getTime() || 0;
+      const bTime = new Date(b?.created_at || 0).getTime() || 0;
+      return bTime - aTime || this.callLogSourcePriority(a) - this.callLogSourcePriority(b);
+    });
+
+    for (const row of sorted) {
+      const metadata = row?.metadata && typeof row.metadata === 'object' ? row.metadata : {};
+      const caller = normalize(row?.agent_id || row?.agent_name || metadata.agent_id || 'unknown');
+      const notes = normalize(row?.message_content || metadata.notes || '');
+      const suggestion = normalize(metadata.product_suggestion || '');
+      const recordIdentity = metadata.order_id
+        ? `${normalize(metadata.record_type || 'sales_order')}:${normalize(metadata.order_id)}`
+        : caller;
+      const signature = `${recordIdentity}|${notes}|${suggestion}`;
+      const time = new Date(row?.created_at || 0).getTime() || 0;
+      const candidates = groupsBySignature.get(signature) || [];
+      const existing = candidates.find((candidate) => !time || !candidate.time || Math.abs(candidate.time - time) <= 5 * 60 * 1000);
+
+      if (!existing) {
+        candidates.push({ row: { ...row, metadata }, time });
+        groupsBySignature.set(signature, candidates);
+        continue;
+      }
+
+      if (this.callLogSourcePriority(row) < this.callLogSourcePriority(existing.row)) {
+        existing.row = {
+          ...existing.row,
+          ...row,
+          metadata: { ...(existing.row.metadata || {}), ...metadata },
+        };
+        existing.time = time || existing.time;
+      } else {
+        existing.row = {
+          ...row,
+          ...existing.row,
+          metadata: { ...metadata, ...(existing.row.metadata || {}) },
+        };
+      }
+    }
+
+    return Array.from(groupsBySignature.values())
+      .flat()
+      .map(({ row }) => ({ ...row, visibility_key: this.callLogVisibilityKey(row) }))
+      .sort((a, b) => (new Date(b?.created_at || 0).getTime() || 0) - (new Date(a?.created_at || 0).getTime() || 0));
+  }
+
+  async getCustomerEngagementHistory(customerId: string, limit: number = 50, includeHidden = false) {
     const safeLimit = Math.max(1, Math.min(Number(limit) || 50, 2000));
+    const rawLimit = Math.min(8000, safeLimit * 4);
     const rows = await this.engagementRepo.query(`
       WITH input_key AS (
         SELECT NULLIF(regexp_replace(regexp_replace($1, '\\D', '', 'g'), '^88', ''), '') AS normalized_phone
@@ -586,7 +651,9 @@ export class CrmAutomationService {
             'notes', l.notes,
             'product_suggestion', l.suggestion,
             'agent_id', l.caller_user_id,
-            'source', 'telephony_assignment_call_logs'
+            'source', 'telephony_assignment_call_logs',
+            'record_type', l.record_type,
+            'order_id', l.order_id
           ) AS metadata,
           l.caller_user_id AS agent_id,
           COALESCE(l.called_at, l.created_at) AS created_at,
@@ -616,7 +683,8 @@ export class CrmAutomationService {
             'product_suggestion', l.suggestion,
             'agent_id', l.caller_user_id,
             'source', 'telephony_assignment_call_logs',
-            'record_type', l.record_type
+            'record_type', l.record_type,
+            'order_id', l.order_id
           ) AS metadata,
           l.caller_user_id AS agent_id,
           COALESCE(l.called_at, l.created_at) AS created_at,
@@ -645,7 +713,9 @@ export class CrmAutomationService {
             'notes', COALESCE(NULLIF(oal.new_value->>'notes', ''), oal.action_description),
             'product_suggestion', oal.new_value->>'suggestion',
             'agent_id', oal.performed_by,
-            'source', 'order_activity_logs'
+            'source', 'order_activity_logs',
+            'record_type', 'sales_order',
+            'order_id', oal.order_id
           ) AS metadata,
           oal.performed_by AS agent_id,
           oal.created_at AS created_at,
@@ -673,7 +743,9 @@ export class CrmAutomationService {
             'outcome', so.telephony_outcome,
             'notes', COALESCE(NULLIF(so.telephony_notes, ''), CONCAT('Call outcome: ', COALESCE(so.telephony_outcome, 'called'))),
             'product_suggestion', so.telephony_suggestion,
-            'source', 'sales_orders'
+            'source', 'sales_orders',
+            'record_type', 'sales_order',
+            'order_id', so.id
           ) AS metadata,
           NULL::integer AS agent_id,
           so.telephony_called_at AS created_at,
@@ -699,7 +771,9 @@ export class CrmAutomationService {
             'outcome', io.telephony_outcome,
             'notes', COALESCE(NULLIF(io.telephony_notes, ''), CONCAT('Call outcome: ', COALESCE(io.telephony_outcome, 'called'))),
             'product_suggestion', io.telephony_suggestion,
-            'source', 'incomplete_orders'
+            'source', 'incomplete_orders',
+            'record_type', 'incomplete_order',
+            'order_id', io.id
           ) AS metadata,
           NULL::integer AS agent_id,
           io.telephony_called_at AS created_at,
@@ -716,8 +790,81 @@ export class CrmAutomationService {
       ) logs
       ORDER BY logs.created_at DESC
       LIMIT $2
-    `, [customerId, safeLimit]);
-    return rows;
+    `, [customerId, rawLimit]);
+
+    const callRows = (rows || []).filter((row: any) => ['call', 'follow_up_call', 'phone_call'].includes(String(row?.engagement_type || '')));
+    const nonCallRows = (rows || []).filter((row: any) => !['call', 'follow_up_call', 'phone_call'].includes(String(row?.engagement_type || '')));
+    const uniqueRows = [...this.deduplicateCustomerCallLogs(callRows), ...nonCallRows]
+      .map((row: any) => ({ ...row, visibility_key: row.visibility_key || this.callLogVisibilityKey(row) }))
+      .sort((a, b) => (new Date(b?.created_at || 0).getTime() || 0) - (new Date(a?.created_at || 0).getTime() || 0));
+    const visibilityKeys = uniqueRows.map((row) => row.visibility_key).filter(Boolean);
+    const visibilityRows = visibilityKeys.length
+      ? await this.engagementRepo.query(
+          `SELECT log_key, hidden_from_sales_agents, updated_by, updated_at
+           FROM call_log_visibility
+           WHERE log_key = ANY($1::varchar[])`,
+          [visibilityKeys],
+        )
+      : [];
+    const visibilityByKey = new Map<string, any>(
+      (visibilityRows || []).map((row: any) => [String(row.log_key), row] as [string, any]),
+    );
+
+    return uniqueRows
+      .map((row) => {
+        const visibility = visibilityByKey.get(String(row.visibility_key));
+        return {
+          ...row,
+          hidden_from_sales_agents: Boolean(visibility?.hidden_from_sales_agents),
+          visibility_updated_by: visibility?.updated_by ?? null,
+          visibility_updated_at: visibility?.updated_at ?? null,
+        };
+      })
+      .filter((row) => includeHidden || !row.hidden_from_sales_agents)
+      .slice(0, safeLimit);
+  }
+
+  async setCustomerCallLogVisibility(
+    customerId: string,
+    logKeyRaw: string,
+    hiddenFromSalesAgents: boolean,
+    updatedBy: number,
+  ) {
+    const logKey = String(logKeyRaw || '').trim();
+    if (!logKey || logKey.length > 160 || !/^[a-z0-9-]+$/i.test(logKey)) {
+      throw new BadRequestException('Invalid call log identifier');
+    }
+
+    const customerLogs = await this.getCustomerEngagementHistory(customerId, 2000, true);
+    if (!customerLogs.some((row: any) => String(row.visibility_key) === logKey)) {
+      throw new NotFoundException('Call log not found for this customer');
+    }
+
+    await this.engagementRepo.manager.transaction(async (manager) => {
+      await manager.query(
+        `INSERT INTO call_log_visibility
+          (log_key, customer_id, hidden_from_sales_agents, updated_by, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, NOW(), NOW())
+         ON CONFLICT (log_key) DO UPDATE SET
+           customer_id = EXCLUDED.customer_id,
+           hidden_from_sales_agents = EXCLUDED.hidden_from_sales_agents,
+           updated_by = EXCLUDED.updated_by,
+           updated_at = NOW()`,
+        [logKey, customerId, Boolean(hiddenFromSalesAgents), updatedBy || null],
+      );
+      await manager.query(
+        `INSERT INTO call_log_visibility_history
+          (log_key, customer_id, hidden_from_sales_agents, changed_by, changed_at)
+         VALUES ($1, $2, $3, $4, NOW())`,
+        [logKey, customerId, Boolean(hiddenFromSalesAgents), updatedBy || null],
+      );
+    });
+
+    return {
+      success: true,
+      visibilityKey: logKey,
+      hiddenFromSalesAgents: Boolean(hiddenFromSalesAgents),
+    };
   }
   
   async getEngagementStats(customerId: string) {

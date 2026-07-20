@@ -189,6 +189,7 @@ const SalesManagerLeadAssignment = ({
   // Filters
   const [search, setSearch] = useState('');
   const [searchInput, setSearchInput] = useState('');
+  const [sourceNumberFilter, setSourceNumberFilter] = useState('');
   const [assignmentStatus, setAssignmentStatus] = useState('');
   const [tierFilter, setTierFilter] = useState('');
   const [tlFilter, setTlFilter] = useState('');
@@ -254,6 +255,7 @@ const SalesManagerLeadAssignment = ({
   const filterSignature = useMemo(
     () => JSON.stringify({
       search,
+      sourceNumberFilter,
       assignmentStatus,
       tierFilter,
       tlFilter,
@@ -285,7 +287,7 @@ const SalesManagerLeadAssignment = ({
       rowsPerPage,
       foreignOnly,
     }),
-    [search, assignmentStatus, tierFilter, tlFilter, agentFilter, lifecycleFilter, productFilter, lastOrderStartFilter, lastOrderEndFilter, deliveryStartFilter, deliveryEndFilter, tierUpdatedFromFilter, tierUpdatedToFilter, assignedFromFilter, assignedToFilter, addressFilter, noteSearchFilter, segmentFilter, rejectedStatusFilter, lastCallFilter, tagFilter, callOutcomeFilter, productSuggestionFilter, orderRejectedReasonFilter, scheduledAssignmentStatusFilter, scheduledAssignmentActionFilter, scheduledAssignmentAgentFilter, scheduledFromFilter, scheduledToFilter, rowsPerPage, foreignOnly],
+    [search, sourceNumberFilter, assignmentStatus, tierFilter, tlFilter, agentFilter, lifecycleFilter, productFilter, lastOrderStartFilter, lastOrderEndFilter, deliveryStartFilter, deliveryEndFilter, tierUpdatedFromFilter, tierUpdatedToFilter, assignedFromFilter, assignedToFilter, addressFilter, noteSearchFilter, segmentFilter, rejectedStatusFilter, lastCallFilter, tagFilter, callOutcomeFilter, productSuggestionFilter, orderRejectedReasonFilter, scheduledAssignmentStatusFilter, scheduledAssignmentActionFilter, scheduledAssignmentAgentFilter, scheduledFromFilter, scheduledToFilter, rowsPerPage, foreignOnly],
   );
 
   const fetchLeads = useCallback(async (pg = 1, options?: { silent?: boolean }) => {
@@ -307,6 +309,7 @@ const SalesManagerLeadAssignment = ({
       });
       if (foreignOnly) params.set('foreignOnly', 'true');
       if (search) params.set('search', search);
+      if (foreignOnly && sourceNumberFilter.trim()) params.set('sourceNumber', sourceNumberFilter.trim());
       if (assignmentStatus) params.set('assignmentStatus', assignmentStatus);
       if (tierFilter) params.set('tier', tierFilter);
       if (tlFilter) params.set('supervisor', tlFilter);
@@ -365,7 +368,7 @@ const SalesManagerLeadAssignment = ({
       }
       if (leadsAbortRef.current === abortController) leadsAbortRef.current = null;
     }
-  }, [search, assignmentStatus, tierFilter, tlFilter, agentFilter, lifecycleFilter, productFilter, lastOrderStartFilter, lastOrderEndFilter, deliveryStartFilter, deliveryEndFilter, tierUpdatedFromFilter, tierUpdatedToFilter, assignedFromFilter, assignedToFilter, addressFilter, noteSearchFilter, segmentFilter, rejectedStatusFilter, lastCallFilter, tagFilter, callOutcomeFilter, productSuggestionFilter, orderRejectedReasonFilter, scheduledAssignmentStatusFilter, scheduledAssignmentActionFilter, scheduledAssignmentAgentFilter, scheduledFromFilter, scheduledToFilter, rowsPerPage, foreignOnly, toast]);
+  }, [search, sourceNumberFilter, assignmentStatus, tierFilter, tlFilter, agentFilter, lifecycleFilter, productFilter, lastOrderStartFilter, lastOrderEndFilter, deliveryStartFilter, deliveryEndFilter, tierUpdatedFromFilter, tierUpdatedToFilter, assignedFromFilter, assignedToFilter, addressFilter, noteSearchFilter, segmentFilter, rejectedStatusFilter, lastCallFilter, tagFilter, callOutcomeFilter, productSuggestionFilter, orderRejectedReasonFilter, scheduledAssignmentStatusFilter, scheduledAssignmentActionFilter, scheduledAssignmentAgentFilter, scheduledFromFilter, scheduledToFilter, rowsPerPage, foreignOnly, toast]);
 
   const fetchTeamLeaders = useCallback(async () => {
     try {
@@ -785,6 +788,19 @@ const SalesManagerLeadAssignment = ({
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
             />
             </FilterField>
+
+            {foreignOnly && (
+              <FilterField label="Source Number">
+                <input
+                  type="search"
+                  inputMode="tel"
+                  placeholder="Search country code or number..."
+                  value={sourceNumberFilter}
+                  onChange={e => setSourceNumberFilter(e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                />
+              </FilterField>
+            )}
 
             {/* Assignment Status */}
             <FilterField label="Assignment Status">
