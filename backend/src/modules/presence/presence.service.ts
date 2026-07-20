@@ -161,9 +161,12 @@ export class PresenceService {
   ) {}
 
   private getRange(params?: { from?: string; to?: string; rangeDays?: number }) {
-    const to = parseDate(params?.to) ?? new Date();
+    const now = new Date();
+    const requestedTo = parseDate(params?.to) ?? now;
+    const to = requestedTo.getTime() > now.getTime() ? now : requestedTo;
     const rangeDays = clampInt(params?.rangeDays, 1, 3650, 7);
-    const from = parseDate(params?.from) ?? new Date(to.getTime() - rangeDays * 24 * 3600 * 1000);
+    const requestedFrom = parseDate(params?.from) ?? new Date(to.getTime() - rangeDays * 24 * 3600 * 1000);
+    const from = requestedFrom.getTime() > to.getTime() ? new Date(to) : requestedFrom;
     return { from, to, rangeDays };
   }
 
@@ -709,7 +712,35 @@ export class PresenceService {
           )
         : [];
     const userIds = Array.from(new Set([...events.map((e) => Number(e.userId)), ...(explicitUserId != null ? [explicitUserId] : [])]));
-    const users = userIds.length ? await this.userRepo.find({ where: { id: In(userIds) } as any }) : [];
+    const users: Array<{
+      id: number;
+      name: string | null;
+      lastName: string | null;
+      email: string | null;
+      roleId: number | null;
+      roleName: string | null;
+      roleSlug: string | null;
+      teamLeaderId: number | null;
+      teamLeaderName: string | null;
+    }> = userIds.length
+      ? await this.userRepo.manager.query(
+          `SELECT
+             u.id,
+             u.name,
+             u.last_name AS "lastName",
+             u.email,
+             u.role_id AS "roleId",
+             r.name AS "roleName",
+             r.slug AS "roleSlug",
+             u.team_leader_id AS "teamLeaderId",
+             NULLIF(TRIM(CONCAT(COALESCE(tl.name, ''), ' ', COALESCE(tl.last_name, ''))), '') AS "teamLeaderName"
+           FROM users u
+           LEFT JOIN roles r ON r.id = u.role_id
+           LEFT JOIN users tl ON tl.id = u.team_leader_id
+           WHERE u.id = ANY($1::int[])`,
+          [userIds],
+        )
+      : [];
     const userById = new Map(users.map((u) => [Number(u.id), u]));
     const eventsByUser = new Map<number, UserPresenceEvent[]>();
 
@@ -736,6 +767,11 @@ export class PresenceService {
           userId: event.userId,
           name: user ? [user.name, user.lastName].filter(Boolean).join(' ').trim() || user.email : `User #${event.userId}`,
           email: user?.email || null,
+          roleId: user?.roleId == null ? null : Number(user.roleId),
+          roleName: user?.roleName || null,
+          roleSlug: user?.roleSlug || null,
+          teamLeaderId: user?.teamLeaderId == null ? null : Number(user.teamLeaderId),
+          teamLeaderName: user?.teamLeaderName || null,
           state: event.state,
           source: event.source,
           occurredAt: event.occurredAt,
@@ -1603,8 +1639,8 @@ export class PresenceService {
         const officeStartTime = row?.officeStartTime || defaultOfficeStartTime;
         const officeEndTime = row?.officeEndTime || defaultOfficeEndTime;
         const cautionMinutes = row?.cautionMinutes ?? defaultCautionMinutes;
-        const lunchBreakStartTime = row?.lunchBreakStartTime || defaultLunchBreakStartTime;
-        const lunchBreakEndTime = row?.lunchBreakEndTime || defaultLunchBreakEndTime;
+        const lunchBreakStartTime = row ? (row.lunchBreakStartTime || '') : defaultLunchBreakStartTime;
+        const lunchBreakEndTime = row ? (row.lunchBreakEndTime || '') : defaultLunchBreakEndTime;
         const weeklyDayOff = row?.weeklyDayOff || defaultWeeklyDayOff;
         return {
           userId: Number(user.id),
