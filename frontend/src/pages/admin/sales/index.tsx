@@ -1415,26 +1415,26 @@ export default function AdminSales() {
   return (
     <AdminLayout>
       <div>
-        <div className="flex justify-between items-center mb-6">
+        <div className="sales-page-header flex justify-between items-center mb-6">
           <div>
             <h1 className="text-3xl font-bold text-gray-800">Sales Management</h1>
             <p className="text-gray-600 mt-1">Manage your sales orders</p>
           </div>
           <button
             onClick={handleAdd}
-            className="flex items-center gap-2 bg-gradient-to-r from-green-500 to-green-600 text-white px-6 py-3 rounded-lg hover:from-green-600 hover:to-green-700 transition-all shadow-lg"
+            className="flex w-full items-center justify-center gap-2 bg-gradient-to-r from-green-500 to-green-600 text-white px-6 py-3 rounded-lg hover:from-green-600 hover:to-green-700 transition-all shadow-lg sm:w-auto"
           >
             <FaPlus />
             Add New Order
           </button>
         </div>
 
-        <div className="mb-4 bg-white rounded-lg shadow p-4 flex items-center justify-between gap-4">
+        <div className="sales-bulk-toolbar mb-4 bg-white rounded-lg shadow p-4 flex items-center justify-between gap-4">
           <div className="text-sm text-gray-700">
             Selected: <span className="font-semibold">{selectedRowIds.length}</span>
           </div>
 
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="sales-bulk-actions flex items-center gap-2 flex-wrap">
             <button
               type="button"
               onClick={bulkSendToSteadfast}
@@ -1497,7 +1497,7 @@ export default function AdminSales() {
             >
               Apply
             </button>
-            <div className="flex items-center gap-2 border-l border-gray-200 pl-3">
+            <div className="sales-bulk-group contents sm:flex sm:items-center sm:gap-2 sm:border-l sm:border-gray-200 sm:pl-3">
               <button
                 type="button"
                 onClick={openBulkAssignmentModal}

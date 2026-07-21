@@ -755,7 +755,7 @@ const SalesManagerLeadAssignment = ({
 
   return (
     <AdminLayout>
-      <div className="container mx-auto px-4 py-8 max-w-[1800px]">
+      <div className="container mx-auto max-w-[1800px] px-0 py-2 sm:px-4 sm:py-8">
         {/* Header */}
         <div className="mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
@@ -1152,7 +1152,7 @@ const SalesManagerLeadAssignment = ({
             </FilterField>
           </div>
 
-          <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
             <PageSizeSelector
               label="Rows"
               value={rowsPerPage}
@@ -1168,7 +1168,7 @@ const SalesManagerLeadAssignment = ({
             <button
               onClick={() => fetchLeads(1, { silent: true })}
               disabled={tableUpdating}
-              className="bg-indigo-600 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-wait transition-colors"
+              className="min-h-11 w-full rounded-lg bg-indigo-600 px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-700 disabled:cursor-wait disabled:opacity-60 sm:w-auto"
             >
               {tableUpdating ? 'Applying...' : 'Apply Filters'}
             </button>
@@ -1177,7 +1177,7 @@ const SalesManagerLeadAssignment = ({
 
         {/* Bulk Action Bar */}
         {selected.size > 0 && (
-          <div className="bg-indigo-50 border border-indigo-200 rounded-xl px-5 py-3 mb-4 flex flex-wrap items-center gap-4">
+          <div className="mb-4 flex flex-col gap-3 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4 sm:px-5 [&>button]:min-h-11 [&>button]:w-full sm:[&>button]:w-auto [&>input]:w-full sm:[&>input]:w-auto [&>select]:w-full sm:[&>select]:w-auto">
             <span className="text-indigo-800 font-semibold text-sm">
               {selected.size} lead{selected.size !== 1 ? 's' : ''} selected
             </span>

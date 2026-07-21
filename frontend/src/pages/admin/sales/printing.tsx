@@ -513,7 +513,7 @@ export default function PrintingPage() {
   return (
     <AdminLayout>
       <div>
-        <div className="flex justify-between items-center mb-6">
+        <div className="sales-page-header flex justify-between items-center mb-6">
           <div>
             <h1 className="text-3xl font-bold text-gray-800">
               <FaPrint className="inline-block mr-2 text-indigo-600" />
@@ -532,12 +532,12 @@ export default function PrintingPage() {
         </div>
 
         {/* Bulk Actions Bar */}
-        <div className="mb-4 bg-white rounded-lg shadow p-4 flex items-center justify-between gap-4">
+        <div className="sales-bulk-toolbar mb-4 bg-white rounded-lg shadow p-4 flex items-center justify-between gap-4">
           <div className="text-sm text-gray-700">
             Selected: <span className="font-semibold">{selectedRowIds.length}</span>
           </div>
 
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="sales-bulk-actions flex items-center gap-2 flex-wrap">
             <button
               type="button"
               onClick={() => handlePrintInvoice()}
@@ -558,13 +558,13 @@ export default function PrintingPage() {
               <FaFileInvoice /> Mark Invoice Printed
             </button>
 
-            <div className="border-l border-gray-300 h-8 mx-1" />
+            <div className="sales-bulk-divider border-l border-gray-300 h-8 mx-1" />
 
             <button
               type="button"
               onClick={() => handlePrintSticker()}
               disabled={selectedRowIds.length === 0}
-              className="px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-green-500 to-green-600 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:from-green-600 hover:to-green-700 transition-all flex items-center gap-1.5"
+              className="sales-action-wide px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-green-500 to-green-600 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:from-green-600 hover:to-green-700 transition-all flex items-center gap-1.5"
               title="Print Sticker & Mark as Printed for selected orders"
             >
               <FaTag /> Print Sticker

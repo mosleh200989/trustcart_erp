@@ -494,7 +494,7 @@ export default function SentCourierOrdersPage() {
     <AdminLayout>
       <div>
         {/* Header */}
-        <div className="flex justify-between items-center mb-6">
+        <div className="sales-page-header flex justify-between items-center mb-6">
           <div>
             <h1 className="text-3xl font-bold text-gray-800">Sent Courier Orders</h1>
             <p className="text-gray-600 mt-1">
@@ -502,7 +502,7 @@ export default function SentCourierOrdersPage() {
               {!loading && <span className="ml-2 text-sm font-medium text-gray-500">({totalCount} order{totalCount !== 1 ? 's' : ''})</span>}
             </p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="sales-page-actions flex items-center gap-3">
             <button
               type="button"
               onClick={() => setShowFilters(!showFilters)}

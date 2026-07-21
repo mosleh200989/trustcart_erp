@@ -122,7 +122,7 @@ export default function DataTable({
 
   return (
     <div className="overflow-hidden rounded-lg bg-white shadow">
-      <div className="overflow-x-auto overflow-y-auto max-h-[600px] scrollbar-visible" style={{ scrollbarWidth: 'auto', scrollbarColor: '#cbd5e1 #f1f5f9' }}>
+      <div className="admin-responsive-table overflow-x-auto overflow-y-auto max-h-[600px] scrollbar-visible" style={{ scrollbarWidth: 'auto', scrollbarColor: '#cbd5e1 #f1f5f9' }}>
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gradient-to-r from-blue-500 to-blue-600">
             <tr>
@@ -184,7 +184,7 @@ export default function DataTable({
               sortedData.map((row, index) => (
                 <tr key={index} className={`hover:bg-gray-50 transition-colors ${rowClassName ? rowClassName(row, index) : ''}`}>
                   {selection && (
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    <td data-label="Select" className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       <input
                         type="checkbox"
                         checked={selectedSet.has(getRowId(row))}
@@ -195,12 +195,12 @@ export default function DataTable({
                     </td>
                   )}
                   {columns.map((column) => (
-                    <td key={column.key} className={`px-6 py-4 whitespace-nowrap text-sm text-gray-900 ${column.className || ''}`}>
+                    <td data-label={column.label} key={column.key} className={`px-6 py-4 whitespace-nowrap text-sm text-gray-900 ${column.className || ''}`}>
                       {column.render ? column.render(row[column.key], row) : row[column.key] || '-'}
                     </td>
                   ))}
                   {hasActions && (
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                    <td data-label="Actions" className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex justify-end gap-2">
                         {renderActions?.(row)}
                         {onView && (
