@@ -756,6 +756,79 @@ body {
   .sales-admin-page .admin-responsive-table {
     border-radius: 0.5rem;
   }
+
+  /* Mobile filter panels start closed and are controlled by the shared
+     AdminLayout button. Pages with their own filter toggle keep that native
+     behavior and are not marked as automatic panels. */
+  .admin-module-page[data-mobile-filters-expanded='false'] [data-admin-auto-filter-panel='true'] {
+    display: none !important;
+  }
+
+  .admin-module-page[data-mobile-filters-expanded='true'] [data-admin-auto-filter-panel='true'] {
+    display: block;
+    animation: admin-filter-reveal 180ms ease-out;
+  }
+
+  /* Card rows expose only the most useful operational fields initially.
+     Tapping the card reveals the complete record without navigating away. */
+  .admin-module-page table[data-admin-mobile-collapsible='true'] tbody tr[data-mobile-has-details='true'] {
+    cursor: pointer;
+    outline: none;
+    transition: border-color 160ms ease, box-shadow 160ms ease;
+  }
+
+  .admin-module-page table[data-admin-mobile-collapsible='true'] tbody tr[data-mobile-has-details='true']:focus-visible {
+    border-color: #60a5fa;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.18);
+  }
+
+  .admin-module-page table[data-admin-mobile-collapsible='true'] tbody tr[data-mobile-expanded='false'] td[data-mobile-priority='secondary'] {
+    display: none !important;
+  }
+
+  .admin-module-page table[data-admin-mobile-collapsible='true'] tbody tr[data-mobile-expanded='true'] {
+    border-color: #bfdbfe;
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+  }
+
+  .admin-module-page table[data-admin-mobile-collapsible='true'] tbody tr[data-mobile-has-details='true']::after {
+    content: attr(data-mobile-toggle-label);
+    display: flex;
+    min-height: 2.75rem;
+    align-items: center;
+    justify-content: center;
+    border-top: 1px solid #e5e7eb;
+    background: #f8fafc;
+    color: #2563eb;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0;
+  }
+
+  .admin-module-page table[data-admin-mobile-collapsible='true'] tbody tr[data-mobile-expanded='false']::after {
+    content: attr(data-mobile-toggle-label) '  +';
+  }
+
+  .admin-module-page table[data-admin-mobile-collapsible='true'] tbody tr[data-mobile-expanded='true']::after {
+    content: attr(data-mobile-toggle-label) '  -';
+    background: #eff6ff;
+  }
+
+  .admin-module-page table[data-admin-mobile-collapsible='true'] tbody td {
+    padding-top: 0.6rem !important;
+    padding-bottom: 0.6rem !important;
+  }
+}
+
+@keyframes admin-filter-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(-0.25rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* Scrollbar Styling */

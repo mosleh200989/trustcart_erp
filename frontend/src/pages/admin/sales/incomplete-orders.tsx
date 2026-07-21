@@ -115,7 +115,7 @@ export default function AdminSalesIncompleteOrders() {
   const [filters, setFilters] = useState(INITIAL_FILTERS);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(50);
-  const [showFilters, setShowFilters] = useState(true);
+  const [showFilters, setShowFilters] = useState(false);
   const [expandedRow, setExpandedRow] = useState<number | null>(null);
   const [editingOrder, setEditingOrder] = useState<IncompleteOrder | null>(null);
   const [editForm, setEditForm] = useState({ name: '', phone: '', email: '', address: '', note: '', deliveryZone: '', deliveryCharge: '0', totalAmount: '', source: 'landing_page' });

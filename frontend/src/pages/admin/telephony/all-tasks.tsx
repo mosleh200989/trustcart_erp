@@ -68,7 +68,7 @@ export default function AllTasksPage() {
   const [statusFilter, setStatusFilter] = useState<FilterStatus>('');
   const [dueFilter, setDueFilter] = useState<FilterDue>('');
   const [categoryFilter, setCategoryFilter] = useState('');
-  const [showFilters, setShowFilters] = useState(true);
+  const [showFilters, setShowFilters] = useState(false);
   const [sortBy, setSortBy] = useState<SortBy>('dueDate');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   
