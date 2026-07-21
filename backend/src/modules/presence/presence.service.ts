@@ -117,6 +117,10 @@ function isMissingRelationError(error: any): boolean {
 }
 
 const PRESENCE_STALE_TIMEOUT_MS = 10 * 60 * 1000;
+const DEFAULT_OFFICE_START_TIME = '09:00';
+const DEFAULT_OFFICE_END_TIME = '18:00';
+const DEFAULT_CAUTION_MINUTES = 5;
+const OFFICE_END_AUTO_CHECKOUT_DELAY_MINUTES = 60;
 const VALID_BACKUP_WEEKDAYS = ['saturday', 'sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday'];
 const VALID_BACKUP_WEEKDAY_SET = new Set(VALID_BACKUP_WEEKDAYS);
 
@@ -246,6 +250,62 @@ export class PresenceService {
     return validRules
       .slice()
       .sort((a, b) => Math.abs(this.timeToMinutes(a.officeStartTime) - firstMinutes) - Math.abs(this.timeToMinutes(b.officeStartTime) - firstMinutes))[0];
+  }
+
+  private getZonedDateTimeParts(date: Date, timezone: string) {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: timezone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hourCycle: 'h23',
+    }).formatToParts(date);
+    const values = new Map(parts.map((part) => [part.type, part.value]));
+    return {
+      year: Number(values.get('year')),
+      month: Number(values.get('month')),
+      day: Number(values.get('day')),
+      hour: Number(values.get('hour')),
+      minute: Number(values.get('minute')),
+      second: Number(values.get('second')),
+    };
+  }
+
+  private zonedDateTimeToUtc(dateKey: string, time: string, timezone: string) {
+    const [year, month, day] = dateKey.split('-').map(Number);
+    const [hour, minute] = time.split(':').map(Number);
+    const desiredAsUtc = Date.UTC(year, month - 1, day, hour, minute, 0, 0);
+    let guess = new Date(desiredAsUtc);
+
+    // Two passes cover timezone offsets and daylight-saving transitions.
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const observed = this.getZonedDateTimeParts(guess, timezone);
+      const observedAsUtc = Date.UTC(
+        observed.year,
+        observed.month - 1,
+        observed.day,
+        observed.hour,
+        observed.minute,
+        observed.second,
+        0,
+      );
+      guess = new Date(guess.getTime() + desiredAsUtc - observedAsUtc);
+    }
+    return guess;
+  }
+
+  private addDaysToDateKey(dateKey: string, days: number) {
+    const [year, month, day] = dateKey.split('-').map(Number);
+    const date = new Date(Date.UTC(year, month - 1, day + days));
+    return date.toISOString().slice(0, 10);
+  }
+
+  private isLateArrival(firstMinutes: number, officeStartMinutes: number, cautionMinutes: number) {
+    const safeCaution = Math.max(0, Math.min(240, Number(cautionMinutes) || 0));
+    return firstMinutes > officeStartMinutes + safeCaution;
   }
 
   private async getBackupRulesByUserIds(userIds: number[]) {
@@ -418,6 +478,83 @@ export class PresenceService {
     }
 
     return { expired: staleStatuses.length };
+  }
+
+  async autoCheckoutAfterOfficeEnd(now = new Date()) {
+    const onlineStatuses = await this.statusRepo.find({ where: { state: 'online' } as any });
+    if (onlineStatuses.length === 0) return { checkedOut: 0, userIds: [] as number[] };
+
+    const settings = await this.getSettings();
+    const timezone = settings.timezone || 'Asia/Dhaka';
+    const userIds = onlineStatuses.map((status) => Number(status.userId));
+    const [officeTimes, profiles, backupRulesByUserId] = await Promise.all([
+      this.officeTimeRepo.find({ where: { userId: In(userIds) } as any }),
+      this.getPresenceProfilesForUsers(userIds),
+      this.getBackupRulesByUserIds(userIds),
+    ]);
+    const officeTimeByUserId = new Map(officeTimes.map((row) => [Number(row.userId), row]));
+    const checkedOutUserIds: number[] = [];
+
+    for (const status of onlineStatuses) {
+      const userId = Number(status.userId);
+      const checkedInAt = status.lastChangedAt ? new Date(status.lastChangedAt) : null;
+      if (!checkedInAt || Number.isNaN(checkedInAt.getTime())) continue;
+
+      const checkedInDateKey = this.getDhakaDateKey(checkedInAt, timezone);
+      const checkedInParts = this.getZonedDateTimeParts(checkedInAt, timezone);
+      const checkedInMinutes = checkedInParts.hour * 60 + checkedInParts.minute;
+      const presenceStatus = this.cleanPresenceUserStatus(profiles.get(userId)?.status);
+      const backupRule = presenceStatus === 'backup'
+        ? this.chooseBackupRuleForMinutes(backupRulesByUserId.get(userId), checkedInMinutes, checkedInDateKey, timezone)
+        : null;
+
+      // Backup employees without a roster for the check-in day are left for a
+      // manual checkout instead of applying an unrelated regular-office shift.
+      if (presenceStatus === 'backup' && !backupRule) continue;
+
+      const officeTime = officeTimeByUserId.get(userId);
+      const officeStartTime = backupRule?.officeStartTime || officeTime?.officeStartTime || settings.officeStartTime || DEFAULT_OFFICE_START_TIME;
+      const officeEndTime = backupRule?.officeEndTime || officeTime?.officeEndTime || settings.officeEndTime || DEFAULT_OFFICE_END_TIME;
+      const officeStartMinutes = this.timeToMinutes(officeStartTime);
+      const officeEndMinutes = this.timeToMinutes(officeEndTime);
+      const endDateKey = officeEndMinutes <= officeStartMinutes
+        ? this.addDaysToDateKey(checkedInDateKey, 1)
+        : checkedInDateKey;
+      const officeEndAt = this.zonedDateTimeToUtc(endDateKey, officeEndTime, timezone);
+      const checkoutAt = new Date(officeEndAt.getTime() + OFFICE_END_AUTO_CHECKOUT_DELAY_MINUTES * 60_000);
+      if (now.getTime() < checkoutAt.getTime()) continue;
+
+      const changed = await this.statusRepo.manager.transaction(async (manager) => {
+        const updateResult = await manager
+          .createQueryBuilder()
+          .update(UserPresenceStatus)
+          .set({
+            state: 'offline',
+            source: 'office-end-auto-checkout',
+            lastChangedAt: checkoutAt,
+            lastSeenAt: checkoutAt,
+          })
+          .where('user_id = :userId', { userId })
+          .andWhere('state = :state', { state: 'online' })
+          .execute();
+        if (!updateResult.affected) return false;
+
+        await manager.save(UserPresenceEvent, manager.create(UserPresenceEvent, {
+          userId,
+          state: 'offline',
+          source: 'office-end-auto-checkout',
+          occurredAt: checkoutAt,
+        }));
+        return true;
+      });
+
+      if (changed) {
+        checkedOutUserIds.push(userId);
+        await this.unassignWorkForOfflineUser(userId);
+      }
+    }
+
+    return { checkedOut: checkedOutUserIds.length, userIds: checkedOutUserIds };
   }
 
   async getMyStatus(userId: number) {
@@ -962,10 +1099,10 @@ export class PresenceService {
 
     const officeTime = await this.officeTimeRepo.findOne({ where: { userId } as any });
     const backupRules = employee.presenceStatus === 'backup' ? (await this.getBackupRulesByUserIds([userId])).get(userId) || [] : [];
-    const officeStart = officeTime?.officeStartTime || settings.officeStartTime || '09:00';
-    const officeEnd = officeTime?.officeEndTime || settings.officeEndTime || '18:00';
+    const officeStart = officeTime?.officeStartTime || settings.officeStartTime || DEFAULT_OFFICE_START_TIME;
+    const officeEnd = officeTime?.officeEndTime || settings.officeEndTime || DEFAULT_OFFICE_END_TIME;
     const officeStartMinutes = this.timeToMinutes(officeStart);
-    const cautionMinutes = Math.max(0, Math.min(240, Number(officeTime?.cautionMinutes ?? 0)));
+    const cautionMinutes = Math.max(0, Math.min(240, Number(officeTime?.cautionMinutes ?? DEFAULT_CAUTION_MINUTES)));
 
     const yearStartKey = `${year}-01-01`;
     const yearEndKey = `${year}-12-31`;
@@ -1115,7 +1252,7 @@ export class PresenceService {
             verdict = 'halfDay';
             label = 'Half Day';
           } else {
-            verdict = (firstMinutes || 0) > effectiveOfficeStartMinutes + effectiveCautionMinutes ? 'late' : 'present';
+            verdict = this.isLateArrival(firstMinutes || 0, effectiveOfficeStartMinutes, effectiveCautionMinutes) ? 'late' : 'present';
             label = verdict === 'late' ? (settings.attendanceLateLabel || 'Late') : (settings.attendancePresentLabel || 'Present');
           }
         }
@@ -1460,8 +1597,8 @@ export class PresenceService {
           const effectiveOfficeStartMinutes = selectedBackupRule ? this.timeToMinutes(selectedBackupRule.officeStartTime) : userOfficeStartMinutes;
           const cautionMinutes = selectedBackupRule
             ? Math.max(0, Math.min(240, Number(selectedBackupRule.cautionMinutes || 0)))
-            : Math.max(0, Math.min(240, Number(officeTime?.cautionMinutes || 0)));
-          const config = firstMinutes > effectiveOfficeStartMinutes + cautionMinutes ? keyConfig.late : keyConfig.present;
+            : Math.max(0, Math.min(240, Number(officeTime?.cautionMinutes ?? DEFAULT_CAUTION_MINUTES)));
+          const config = this.isLateArrival(firstMinutes, effectiveOfficeStartMinutes, cautionMinutes) ? keyConfig.late : keyConfig.present;
           return { dateKey: day.key, value: config.key, label: config.label, color: config.color };
         }),
       };
@@ -1664,9 +1801,9 @@ export class PresenceService {
     const rows = await this.officeTimeRepo.find();
     const byUserId = new Map(rows.map((row) => [Number(row.userId), row]));
     const settings = await this.getSettings();
-    const defaultOfficeStartTime = settings.officeStartTime || '09:00';
-    const defaultOfficeEndTime = settings.officeEndTime || '18:00';
-    const defaultCautionMinutes = 5;
+    const defaultOfficeStartTime = settings.officeStartTime || DEFAULT_OFFICE_START_TIME;
+    const defaultOfficeEndTime = settings.officeEndTime || DEFAULT_OFFICE_END_TIME;
+    const defaultCautionMinutes = DEFAULT_CAUTION_MINUTES;
     const defaultLunchBreakStartTime = '13:20';
     const defaultLunchBreakEndTime = '14:25';
     const defaultWeeklyDayOff = 'friday';

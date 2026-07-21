@@ -17,20 +17,23 @@ export class PresenceStaleStatusService implements OnModuleInit {
 
   @Cron(CronExpression.EVERY_MINUTE)
   async markIdleUsersOffline() {
-    // Check-in/out is intentionally manual now. Keep the old expiry path
-    // available only for an explicit emergency opt-in.
-    if (process.env.ENABLE_BACKGROUND_JOBS !== 'true') {
-      return;
-    }
-    if (String(process.env.PRESENCE_AUTO_EXPIRE_ENABLED || '').toLowerCase() !== 'true') {
-      return;
-    }
     if (this.running) return;
     this.running = true;
     try {
-      await this.presenceService.expireStaleOnlineStatuses();
+      const result = await this.presenceService.autoCheckoutAfterOfficeEnd();
+      if (result.checkedOut > 0) {
+        this.logger.log(`Automatically checked out ${result.checkedOut} employee(s) after office end time`);
+      }
+
+      // The old idle timeout remains an explicit emergency-only option.
+      if (
+        process.env.ENABLE_BACKGROUND_JOBS === 'true' &&
+        String(process.env.PRESENCE_AUTO_EXPIRE_ENABLED || '').toLowerCase() === 'true'
+      ) {
+        await this.presenceService.expireStaleOnlineStatuses();
+      }
     } catch (err: any) {
-      this.logger.warn(`Presence idle timeout job failed: ${err?.message || err}`);
+      this.logger.warn(`Presence automation job failed: ${err?.message || err}`);
     } finally {
       this.running = false;
     }
