@@ -3,6 +3,7 @@ import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateCol
 export interface SizeVariant {
   name: string;
   price: number;
+  compare_price?: number;
   stock?: number;
   sku_suffix?: string;
 }

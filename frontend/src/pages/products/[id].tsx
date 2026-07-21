@@ -32,6 +32,7 @@ import {
 interface SizeVariant {
   name: string;
   price: number;
+  compare_price?: number;
   stock?: number;
   sku_suffix?: string;
 }
@@ -472,8 +473,11 @@ export default function ProductDetailsPage() {
   const basePrice = Number(product.base_price || product.price || 0);
   const salePrice = product.sale_price !== null && product.sale_price !== undefined ? Number(product.sale_price) : null;
   // Use selected variant price if a variant is selected; otherwise use sale_price (offer price) if available, then base price
-  const price = selectedVariant ? selectedVariant.price : (salePrice != null && salePrice >= 0 && salePrice < basePrice ? salePrice : basePrice);
-  const hasDiscount = !selectedVariant && salePrice != null && salePrice >= 0 && salePrice < basePrice;
+  const price = selectedVariant ? Number(selectedVariant.price) : (salePrice != null && salePrice >= 0 && salePrice < basePrice ? salePrice : basePrice);
+  const comparePrice = selectedVariant && Number(selectedVariant.compare_price) > 0
+    ? Number(selectedVariant.compare_price)
+    : basePrice;
+  const hasDiscount = comparePrice > price;
   const additionalInfo = product.additional_info || {};
   const sizeVariants: SizeVariant[] = Array.isArray(product.size_variants) ? product.size_variants : [];
 
@@ -869,18 +873,13 @@ export default function ProductDetailsPage() {
                   </div>
                   {hasDiscount && (
                     <p className="text-gray-500 text-lg line-through">
-                      ৳{basePrice.toFixed(2)}
+                      ৳{comparePrice.toFixed(2)}
                     </p>
                   )}
                   {hasDiscount && (
                     <span className="inline-block mt-1 bg-red-100 text-red-600 text-sm font-semibold px-2 py-0.5 rounded">
-                      {Math.round(((basePrice - price) / basePrice) * 100)}% OFF
+                      {Math.round(((comparePrice - price) / comparePrice) * 100)}% OFF
                     </span>
-                  )}
-                  {selectedVariant && basePrice !== selectedVariant.price && (
-                    <p className="text-gray-500 text-sm line-through">
-                      Base price: ৳{basePrice.toFixed(2)}
-                    </p>
                   )}
                   {product.sku && (
                     <p className="text-gray-600 text-sm">

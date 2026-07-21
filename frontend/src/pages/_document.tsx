@@ -1,7 +1,6 @@
 import NextDocument, { DocumentContext, DocumentInitialProps, Head, Html, Main, NextScript } from 'next/document';
 
 const MAIN_TRUSTCART_GTM_ID = 'GTM-TSC7TFV6';
-const MAIN_TRUSTCART_PIXEL_ID = '1882443545705830';
 const HERBOLIN_GTM_ID = 'GTM-PK5G5DWZ';
 const ARABIAN_KHALTA_GTM_ID = 'GTM-KVLD23CH';
 const ARABIAN_KHALTA_PIXEL_ID = ['227057045377', '2206'].join('');
@@ -61,21 +60,19 @@ export default function Document({ isArabianKhaltaSurface, isVeshojSurface }: Tr
           rel="stylesheet"
           href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css"
         />
-        {/* Prevent blocked Meta pixels from being initialized by GTM */}
+        {/* Prevent Arabian Khalta pixel from being initialized by TrustCart GTM */}
         <script
           dangerouslySetInnerHTML={{
             __html: `(function(w){
-              var blockedTrustCartPixelId='${MAIN_TRUSTCART_PIXEL_ID}';
-              var blockedArabianPixelId=['227057045377','2206'].join('');
+              var blockedPixelId=['227057045377','2206'].join('');
               var h=w.location.hostname;
               var allowArabianKhaltaPixel=h==='arabiankhalta.com'||h==='www.arabiankhalta.com';
+              if(allowArabianKhaltaPixel)return;
 
               function shouldBlock(args){
                 var command=args&&args[0];
                 var pixelId=args&&args[1];
-                if((command==='init'||command==='trackSingle'||command==='trackSingleCustom')&&String(pixelId)===blockedTrustCartPixelId)return true;
-                if(!allowArabianKhaltaPixel&&(command==='init'||command==='trackSingle'||command==='trackSingleCustom')&&String(pixelId)===blockedArabianPixelId)return true;
-                return false;
+                return (command==='init'||command==='trackSingle'||command==='trackSingleCustom')&&String(pixelId)===blockedPixelId;
               }
 
               function wrapFbq(fn){
