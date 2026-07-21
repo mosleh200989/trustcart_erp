@@ -5,7 +5,7 @@ import {
   FaTimes, FaEdit, FaTrash, FaPlus, FaSave, FaCheck, FaPause, FaBan, 
   FaShippingFast, FaMapMarkerAlt, FaStickyNote, FaHistory, FaGlobe, 
   FaMobile, FaDesktop, FaChrome, FaExclamationTriangle, FaPhone, FaPhoneSlash, FaTag,
-  FaEye, FaEyeSlash
+  FaEye, FaEyeSlash, FaCopy
 } from 'react-icons/fa';
 import PhoneInput, { validateBDPhone } from '@/components/PhoneInput';
 import { getOrderStatusLabel, getOrderStatusColor } from '@/utils/orderStatus';
@@ -1626,6 +1626,28 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
     }
   };
 
+  const copyPhoneNumber = async (phone: string) => {
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(phone);
+      } else {
+        const textarea = document.createElement('textarea');
+        textarea.value = phone;
+        textarea.readOnly = true;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.select();
+        const copied = document.execCommand('copy');
+        document.body.removeChild(textarea);
+        if (!copied) throw new Error('Copy command was rejected');
+      }
+      toast.success('Phone number copied');
+    } catch {
+      toast.error('Failed to copy phone number');
+    }
+  };
+
   const viewCustomer: any = {
     ...(customerRecord || {}),
     id: customerRecord?.id ?? customer?.customerId ?? order?.customerId ?? null,
@@ -1637,6 +1659,7 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
     district: customerRecord?.district || null,
     city: customerRecord?.city || null,
   };
+  const customerPhone = String(viewCustomer.phone || viewCustomer.mobile || '').trim();
   if (loading) {
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -2308,7 +2331,29 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                   </div>
                   <div className="flex items-start gap-3">
                     <span className="font-semibold text-blue-700 min-w-[70px]">Phone:</span>
-                    <span className="text-gray-900">{viewCustomer.phone || viewCustomer.mobile || 'N/A'}</span>
+                    {customerPhone ? (
+                      <div className="flex min-w-0 flex-wrap items-center gap-2">
+                        <a
+                          href={`tel:${customerPhone.replace(/[^\d+]/g, '')}`}
+                          className="inline-flex min-h-10 items-center gap-1.5 rounded-md px-1 text-blue-700 transition-colors hover:bg-blue-100 hover:text-blue-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
+                          title={`Call ${customerPhone}`}
+                        >
+                          <FaPhone className="shrink-0 text-xs" aria-hidden="true" />
+                          <span className="break-all font-medium">{customerPhone}</span>
+                        </a>
+                        <button
+                          type="button"
+                          onClick={() => copyPhoneNumber(customerPhone)}
+                          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-gray-500 transition-colors hover:bg-white hover:text-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
+                          title="Copy phone number"
+                          aria-label={`Copy phone number ${customerPhone}`}
+                        >
+                          <FaCopy aria-hidden="true" />
+                        </button>
+                      </div>
+                    ) : (
+                      <span className="text-gray-500">N/A</span>
+                    )}
                   </div>
                   <div className="border-t border-blue-200 pt-3">
                     <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-blue-800">
