@@ -710,6 +710,8 @@ function getPanelTitleFromRoleSlugs(roleSlugs: Set<string>): string {
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [mobileFiltersExpanded, setMobileFiltersExpanded] = useState(false);
+  const [mobileFilterPanelCount, setMobileFilterPanelCount] = useState(0);
   const [expandedMenus, setExpandedMenus] = useState<string[]>([]);
   const [alertCount, setAlertCount] = useState(0);
   const [showAlertDropdown, setShowAlertDropdown] = useState(false);
@@ -902,6 +904,34 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           if (text) return text;
           return cell.querySelector('input[type="checkbox"]') ? 'Select' : `Column ${index + 1}`;
         });
+        const normalizedLabels = labels.map((label) => label.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim());
+        const primaryIndexes = new Set<number>();
+        const addFirstMatch = (patterns: RegExp[]) => {
+          const index = normalizedLabels.findIndex((label) => patterns.some((pattern) => pattern.test(label)));
+          if (index >= 0) primaryIndexes.add(index);
+          return index;
+        };
+
+        normalizedLabels.forEach((label, index) => {
+          if (label === 'select' || headerCells[index]?.querySelector('input[type="checkbox"]')) {
+            primaryIndexes.add(index);
+          }
+        });
+        const identityIndex = addFirstMatch([
+          /^customer(?: name)?$/,
+          /^name$/,
+          /^product(?: name)?$/,
+          /^user$/,
+          /^employee$/,
+          /^agent$/,
+          /^order(?: number| no| #)?$/,
+          /^id$/,
+        ]);
+        const statusIndex = addFirstMatch([/status/, /^assigned(?: to)?$/, /^assignment$/, /^tier$/, /^stage$/, /outcome/]);
+        const amountIndex = addFirstMatch([/^amount$/, /^total amount$/, /^price$/, /commission/, /^balance$/, /revenue/]);
+        addFirstMatch([/^actions?$/, /^manage$/]);
+        if (identityIndex < 0) addFirstMatch([/order/, /customer/, /product/, /user/, /name/, /^id/]);
+        if (statusIndex < 0 || amountIndex < 0) addFirstMatch([/^date$/, /created at/, /order date/, /delivery date/]);
 
         if (isCrmRoute) {
           table.dataset.crmMobileTable = 'cards';
@@ -912,18 +942,91 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           table.dataset.adminMobileTable = 'cards';
           table.parentElement?.setAttribute('data-admin-table-shell', 'cards');
         }
+        table.dataset.adminMobileCollapsible = 'true';
         Array.from(table.tBodies).forEach((body) => {
           Array.from(body.rows).forEach((row) => {
-            Array.from(row.cells).forEach((cell, index) => {
+            const rowCells = Array.from(row.cells);
+            const hasDetails = rowCells.some((cell, index) => cell.colSpan === 1 && !primaryIndexes.has(index));
+            if (hasDetails) {
+              row.dataset.mobileHasDetails = 'true';
+              if (!row.dataset.mobileExpanded) row.dataset.mobileExpanded = 'false';
+              row.dataset.mobileToggleLabel = row.dataset.mobileExpanded === 'true' ? 'Hide details' : 'Show details';
+              if (window.matchMedia('(max-width: 767px)').matches) row.tabIndex = 0;
+              else row.removeAttribute('tabindex');
+              row.setAttribute('aria-expanded', row.dataset.mobileExpanded);
+            }
+            rowCells.forEach((cell, index) => {
               if (cell.colSpan > 1) {
                 cell.dataset.label = '';
                 return;
               }
               cell.dataset.label = labels[index] || `Column ${index + 1}`;
+              cell.dataset.mobilePriority = primaryIndexes.has(index) ? 'primary' : 'secondary';
             });
           });
         });
       });
+
+      root.querySelectorAll<HTMLElement>('[data-admin-auto-filter-panel]').forEach((panel) => {
+        panel.removeAttribute('data-admin-auto-filter-panel');
+      });
+      const hasNativeFilterToggle = Array.from(root.querySelectorAll<HTMLButtonElement>('button')).some((button) => {
+        if (button.classList.contains('admin-mobile-filter-toggle')) return false;
+        return /^filters?(?:\s|\(|$)/i.test(String(button.textContent || '').trim());
+      });
+
+      if (hasNativeFilterToggle) {
+        setMobileFilterPanelCount((current) => current === 0 ? current : 0);
+      } else {
+        const candidates = Array.from(root.querySelectorAll<HTMLElement>('form, section.bg-white, div.bg-white'));
+        const qualifyingPanels = candidates.filter((candidate) => {
+          if (candidate.closest('.fixed, [role="dialog"], table')) return false;
+          if (candidate.querySelector('table')) return false;
+          const controls = candidate.querySelectorAll('input:not([type="checkbox"]):not([type="radio"]), select, [role="combobox"]');
+          if (controls.length < 2) return false;
+
+          const text = String(candidate.textContent || '').replace(/\s+/g, ' ').trim();
+          const actionText = Array.from(candidate.querySelectorAll('button'))
+            .map((button) => String(button.textContent || '').trim())
+            .join(' ');
+          const hasSearchInput = Array.from(candidate.querySelectorAll<HTMLInputElement>('input')).some((input) =>
+            /search|filter/i.test(input.placeholder || ''),
+          );
+          const hasFilterAction = /(?:apply|clear|reset|show)?\s*filters?|search/i.test(actionText);
+          const hasDateRange = /start date|end date|date from|date to|from date|to date/i.test(text);
+          const hasFilterHeading = Array.from(candidate.querySelectorAll('h1, h2, h3, h4, strong')).some((heading) =>
+            /^(?:filter|filters|filter orders|search & filters)$/i.test(String(heading.textContent || '').trim()),
+          );
+          const looksLikeEditor = /(?:save|create|update)\s+(?:customer|product|order|record|settings?)/i.test(actionText);
+          return (hasSearchInput || hasFilterAction || hasDateRange || hasFilterHeading) && (!looksLikeEditor || hasFilterHeading);
+        });
+        const panels = qualifyingPanels.filter((panel) =>
+          !qualifyingPanels.some((nested) => nested !== panel && panel.contains(nested)),
+        );
+        panels.forEach((panel) => panel.setAttribute('data-admin-auto-filter-panel', 'true'));
+        setMobileFilterPanelCount((current) => current === panels.length ? current : panels.length);
+      }
+    };
+
+    const toggleMobileRow = (row: HTMLTableRowElement) => {
+      const expanded = row.dataset.mobileExpanded === 'true';
+      row.dataset.mobileExpanded = expanded ? 'false' : 'true';
+      row.dataset.mobileToggleLabel = expanded ? 'Show details' : 'Hide details';
+      row.setAttribute('aria-expanded', expanded ? 'false' : 'true');
+    };
+    const handleRowClick = (event: MouseEvent) => {
+      if (!window.matchMedia('(max-width: 767px)').matches) return;
+      const target = event.target as HTMLElement;
+      if (target.closest('a, button, input, select, textarea, label')) return;
+      const row = target.closest<HTMLTableRowElement>('table[data-admin-mobile-collapsible="true"] tbody tr[data-mobile-has-details="true"]');
+      if (row && root.contains(row)) toggleMobileRow(row);
+    };
+    const handleRowKeyDown = (event: KeyboardEvent) => {
+      if (!window.matchMedia('(max-width: 767px)').matches || !['Enter', ' '].includes(event.key)) return;
+      const row = (event.target as HTMLElement).closest<HTMLTableRowElement>('table[data-admin-mobile-collapsible="true"] tbody tr[data-mobile-has-details="true"]');
+      if (!row || !root.contains(row)) return;
+      event.preventDefault();
+      toggleMobileRow(row);
     };
 
     const scheduleEnhancement = () => {
@@ -933,14 +1036,19 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     scheduleEnhancement();
     const observer = new MutationObserver(scheduleEnhancement);
     observer.observe(root, { childList: true, subtree: true });
+    root.addEventListener('click', handleRowClick);
+    root.addEventListener('keydown', handleRowKeyDown);
     return () => {
       observer.disconnect();
+      root.removeEventListener('click', handleRowClick);
+      root.removeEventListener('keydown', handleRowKeyDown);
       if (animationFrame) window.cancelAnimationFrame(animationFrame);
     };
   }, [currentAsPath, currentPath, isCrmRoute, isSalesRoute]);
 
   useEffect(() => {
     setMobileSidebarOpen(false);
+    setMobileFiltersExpanded(false);
   }, [currentAsPath]);
 
   useEffect(() => {
@@ -1145,9 +1253,32 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <main
           ref={mainContentRef}
           data-admin-module={currentAdminModule}
+          data-mobile-filters-expanded={mobileFiltersExpanded ? 'true' : 'false'}
           className={`admin-module-page admin-module-${currentAdminModule} flex-1 overflow-x-hidden overflow-y-auto bg-gray-100 p-3 sm:p-4 lg:p-6 ${isCrmRoute ? 'crm-admin-page' : ''} ${isSalesRoute ? 'sales-admin-page' : ''}`}
           style={{ scrollBehavior: 'smooth' }}
         >
+          {hasRouteAccess && mobileFilterPanelCount > 0 && (
+            <div className="mb-3 md:hidden">
+              <button
+                type="button"
+                onClick={() => setMobileFiltersExpanded((expanded) => !expanded)}
+                className="admin-mobile-filter-toggle flex min-h-11 w-full items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-700 shadow-sm transition-colors hover:border-blue-300 hover:bg-blue-50"
+                aria-expanded={mobileFiltersExpanded}
+              >
+                <span className="flex items-center gap-2">
+                  <FaSlidersH className="text-blue-600" aria-hidden="true" />
+                  Filters
+                  {mobileFilterPanelCount > 1 && (
+                    <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs text-blue-700">{mobileFilterPanelCount}</span>
+                  )}
+                </span>
+                <FaChevronDown
+                  className={`text-gray-400 transition-transform ${mobileFiltersExpanded ? 'rotate-180' : ''}`}
+                  aria-hidden="true"
+                />
+              </button>
+            </div>
+          )}
           {!hasRouteAccess ? (
             <div className="mx-auto max-w-xl rounded-lg bg-white p-5 shadow sm:p-6">
               <h1 className="text-xl font-bold text-gray-800 sm:text-2xl">403 - Access denied</h1>
