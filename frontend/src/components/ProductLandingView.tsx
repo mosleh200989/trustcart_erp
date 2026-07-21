@@ -27,6 +27,7 @@ import { TrackingService } from "@/utils/tracking";
 interface SizeVariant {
   name: string;
   price: number;
+  compare_price?: number;
   stock?: number;
   sku_suffix?: string;
 }
@@ -229,15 +230,16 @@ export default function ProductLandingView({
   const basePrice = Number(product.base_price || product.price || 0);
   const salePrice = (product.sale_price !== null && product.sale_price !== undefined) ? Number(product.sale_price) : null;
   const unitPrice = selectedVariant
-    ? selectedVariant.price
+    ? Number(selectedVariant.price)
     : salePrice != null && salePrice < basePrice
       ? salePrice
       : basePrice;
-  const originalPrice = selectedVariant ? basePrice : basePrice;
-  const hasDiscount = selectedVariant
-    ? selectedVariant.price < basePrice
-    : salePrice != null && salePrice < basePrice;
-  const discountPercent = hasDiscount
+  const selectedVariantComparePrice = selectedVariant && Number(selectedVariant.compare_price) > 0
+    ? Number(selectedVariant.compare_price)
+    : basePrice;
+  const originalPrice = selectedVariant ? selectedVariantComparePrice : basePrice;
+  const hasDiscount = originalPrice > unitPrice;
+  const discountPercent = hasDiscount && originalPrice > 0
     ? Math.round(((originalPrice - unitPrice) / originalPrice) * 100)
     : 0;
 
@@ -567,9 +569,12 @@ export default function ProductLandingView({
                 {sizeVariants.map((v) => {
                   const isSelected = selectedVariant?.name === v.name;
                   const isOOS = v.stock !== undefined && v.stock <= 0;
+                  const variantComparePrice = Number(v.compare_price) > 0
+                    ? Number(v.compare_price)
+                    : basePrice;
                   const vDiscount =
-                    v.price < basePrice
-                      ? Math.round(((basePrice - v.price) / basePrice) * 100)
+                    variantComparePrice > Number(v.price) && variantComparePrice > 0
+                      ? Math.round(((variantComparePrice - Number(v.price)) / variantComparePrice) * 100)
                       : 0;
                   const vQty = variantQuantities[v.name] || 1;
                   return (
@@ -604,7 +609,7 @@ export default function ProductLandingView({
                           <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mt-1">
                             {vDiscount > 0 && (
                               <span className="text-xs sm:text-sm line-through font-medium text-red-500">
-                                ৳{basePrice}
+                                ৳{variantComparePrice}
                               </span>
                             )}
                             <span className="text-base sm:text-xl font-extrabold text-white px-2 py-0.5 rounded bg-orange-500">

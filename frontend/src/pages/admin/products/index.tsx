@@ -31,6 +31,7 @@ interface Product {
 interface SizeVariant {
   name: string;
   price: number;
+  compare_price?: number;
   stock?: number;
   sku_suffix?: string;
 }
@@ -485,7 +486,12 @@ export default function AdminProducts() {
     if (sizeVariants.length > 0) {
       // Filter out empty variants
       const validVariants = sizeVariants.filter(v => v.name && v.name.trim() && v.price > 0);
-      payload.size_variants = validVariants;
+      payload.size_variants = validVariants.map((variant) => ({
+        ...variant,
+        compare_price: Number(variant.compare_price) > 0
+          ? Number(variant.compare_price)
+          : undefined,
+      }));
     } else {
       payload.size_variants = [];
     }
@@ -980,16 +986,20 @@ export default function AdminProducts() {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Size Variants</label>
                   <div className="bg-purple-50 rounded-lg p-3">
-                    <div className="grid grid-cols-4 gap-2 text-xs font-medium text-gray-600 mb-2 pb-2 border-b border-purple-200">
+                    <div className="grid grid-cols-5 gap-2 text-xs font-medium text-gray-600 mb-2 pb-2 border-b border-purple-200">
                       <span>Size</span>
                       <span>Price</span>
+                      <span>Compare Price</span>
                       <span>Stock</span>
                       <span>SKU Suffix</span>
                     </div>
                     {viewProductDetails.size_variants.map((variant: SizeVariant, idx: number) => (
-                      <div key={idx} className="grid grid-cols-4 gap-2 py-1 text-sm">
+                      <div key={idx} className="grid grid-cols-5 gap-2 py-1 text-sm">
                         <span className="text-gray-900 font-medium">{variant.name}</span>
                         <span className="text-gray-900">৳{variant.price}</span>
+                        <span className="text-gray-900">
+                          {Number(variant.compare_price) > 0 ? `৳${variant.compare_price}` : '—'}
+                        </span>
                         <span className="text-gray-900">{variant.stock || 0}</span>
                         <span className="text-gray-600">{variant.sku_suffix || '—'}</span>
                       </div>
@@ -1204,7 +1214,7 @@ export default function AdminProducts() {
                   </label>
                   <button
                     type="button"
-                    onClick={() => setSizeVariants([...sizeVariants, { name: '', price: 0, stock: 0, sku_suffix: '' }])}
+                    onClick={() => setSizeVariants([...sizeVariants, { name: '', price: 0, compare_price: 0, stock: 0, sku_suffix: '' }])}
                     className="inline-flex items-center gap-2 px-3 py-1.5 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700"
                   >
                     <FaPlus className="h-3 w-3" />
@@ -1220,7 +1230,7 @@ export default function AdminProducts() {
                   <div className="space-y-3">
                     {sizeVariants.map((variant, idx) => (
                       <div key={idx} className="bg-gray-50 p-3 rounded-lg border border-gray-200">
-                        <div className="grid grid-cols-12 gap-2">
+                        <div className="grid grid-cols-1 gap-2 md:grid-cols-12">
                           <input
                             type="text"
                             value={variant.name}
@@ -1230,7 +1240,7 @@ export default function AdminProducts() {
                               setSizeVariants(next);
                             }}
                             placeholder="Size name (e.g., 500g, Large)"
-                            className="col-span-4 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                            className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 md:col-span-3"
                           />
                           <input
                             type="number"
@@ -1241,7 +1251,21 @@ export default function AdminProducts() {
                               setSizeVariants(next);
                             }}
                             placeholder="Price"
-                            className="col-span-3 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                            className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 md:col-span-2"
+                          />
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={variant.compare_price || ''}
+                            onChange={(e) => {
+                              const next = [...sizeVariants];
+                              next[idx] = { ...next[idx], compare_price: parseFloat(e.target.value) || 0 };
+                              setSizeVariants(next);
+                            }}
+                            placeholder="Compare price"
+                            aria-label={`Compare price for ${variant.name || `variant ${idx + 1}`}`}
+                            className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 md:col-span-2"
                           />
                           <input
                             type="number"
@@ -1252,7 +1276,7 @@ export default function AdminProducts() {
                               setSizeVariants(next);
                             }}
                             placeholder="Stock"
-                            className="col-span-2 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                            className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 md:col-span-2"
                           />
                           <input
                             type="text"
@@ -1263,12 +1287,12 @@ export default function AdminProducts() {
                               setSizeVariants(next);
                             }}
                             placeholder="SKU suffix"
-                            className="col-span-2 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                            className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 md:col-span-2"
                           />
                           <button
                             type="button"
                             onClick={() => setSizeVariants(sizeVariants.filter((_, i) => i !== idx))}
-                            className="col-span-1 px-2 py-2 border border-red-300 rounded-lg text-red-600 hover:bg-red-50"
+                            className="px-2 py-2 border border-red-300 rounded-lg text-red-600 hover:bg-red-50 md:col-span-1"
                             aria-label="Remove variant"
                             title="Remove variant"
                           >
@@ -1276,7 +1300,7 @@ export default function AdminProducts() {
                           </button>
                         </div>
                         <div className="mt-1 text-xs text-gray-500">
-                          Size: {variant.name || '—'} | Price: ৳{variant.price || 0} | Stock: {variant.stock || 0}
+                          Size: {variant.name || '—'} | Price: ৳{variant.price || 0} | Compare price: {Number(variant.compare_price) > 0 ? `৳${variant.compare_price}` : 'Not set'} | Stock: {variant.stock || 0}
                         </div>
                       </div>
                     ))}
