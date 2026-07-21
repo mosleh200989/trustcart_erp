@@ -594,7 +594,7 @@ export default function AssignedOrdersPage() {
           </div>
         )}
 
-        <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-3">
+        <div className="sales-metric-grid mb-6 grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-4">
           <div className="rounded-lg bg-white p-4 shadow">
             <div className="text-sm text-gray-500">Waiting Assignment</div>
             <div className="mt-1 text-2xl font-bold text-gray-900">{stats.total}</div>

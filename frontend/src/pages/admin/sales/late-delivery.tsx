@@ -960,7 +960,7 @@ export function SalesFollowupOrdersPage({ mode = 'late-delivery' }: { mode?: Sal
     <AdminLayout>
       <div>
         {/* Header */}
-        <div className="flex justify-between items-center mb-6">
+        <div className="sales-page-header flex justify-between items-center mb-6">
           <div>
             <h1 className="text-3xl font-bold text-gray-800">{config.title}</h1>
             <p className="text-gray-600 mt-1">
@@ -968,7 +968,7 @@ export function SalesFollowupOrdersPage({ mode = 'late-delivery' }: { mode?: Sal
               {!loading && <span className="ml-2 text-sm font-medium text-gray-500">({filtered.length} order{filtered.length !== 1 ? 's' : ''})</span>}
             </p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="sales-page-actions flex items-center gap-3">
             <button
               type="button"
               onClick={() => setShowFilters(!showFilters)}
@@ -1120,11 +1120,11 @@ export function SalesFollowupOrdersPage({ mode = 'late-delivery' }: { mode?: Sal
         )}
 
         {hasAssignmentSystem && (
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+          <div className="sales-bulk-toolbar mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
             <div className="text-sm text-gray-600">
               <span className="font-semibold text-gray-900">{selectedRowIds.length}</span> selected
             </div>
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="sales-bulk-actions flex flex-wrap items-center gap-2">
               <button
                 type="button"
                 onClick={openBulkAssignmentModal}
@@ -1148,11 +1148,11 @@ export function SalesFollowupOrdersPage({ mode = 'late-delivery' }: { mode?: Sal
         )}
 
         {mode === 'late-delivery' && (
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+          <div className="sales-bulk-toolbar mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
             <div className="text-sm text-gray-600">
               <span className="font-semibold text-gray-900">{selectedRowIds.length}</span> selected
             </div>
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="sales-bulk-actions flex flex-wrap items-center gap-2">
               <select
                 value={bulkStatus}
                 onChange={(e) => setBulkStatus(e.target.value)}

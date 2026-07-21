@@ -129,7 +129,7 @@ export default function CourierReturnOrdersPage() {
             </div>
 
             {/* Buttons */}
-            <div className="flex items-center gap-3 pt-2">
+            <div className="sales-page-actions flex items-center gap-3 pt-2 sm:flex sm:w-auto">
               <button
                 type="submit"
                 disabled={submitting || courierIds.length === 0}

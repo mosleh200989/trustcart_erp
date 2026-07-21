@@ -483,9 +483,9 @@ export default function CouponsPage() {
               )}
 
               {camTotal > camLimit && (
-                <div className="bg-gray-50 px-4 py-3 border-t flex items-center justify-between text-sm">
+                <div className="bg-gray-50 px-4 py-3 border-t flex flex-col gap-3 text-sm sm:flex-row sm:items-center sm:justify-between">
                   <div className="text-gray-600">Page {camPage} of {camPages} ({camTotal} campaigns)</div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <PageSizeSelector value={camLimit} onChange={(s) => { setCamLimit(s); setCamPage(1); }} options={[10, 20, 50]} />
                     <button disabled={camPage <= 1} onClick={() => setCamPage(p => p - 1)} className="px-3 py-1 border rounded disabled:opacity-40 hover:bg-gray-100">Prev</button>
                     <button disabled={camPage >= camPages} onClick={() => setCamPage(p => p + 1)} className="px-3 py-1 border rounded disabled:opacity-40 hover:bg-gray-100">Next</button>
@@ -587,9 +587,9 @@ export default function CouponsPage() {
               )}
 
               {custTotal > custLimit && (
-                <div className="bg-gray-50 px-4 py-3 border-t flex items-center justify-between text-sm">
+                <div className="bg-gray-50 px-4 py-3 border-t flex flex-col gap-3 text-sm sm:flex-row sm:items-center sm:justify-between">
                   <div className="text-gray-600">Page {custPage} of {custPages} ({custTotal} customers)</div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <PageSizeSelector value={custLimit} onChange={(s) => { setCustLimit(s); setCustPage(1); }} options={[10, 20, 50, 100]} />
                     <button disabled={custPage <= 1} onClick={() => setCustPage(p => p - 1)} className="px-3 py-1 border rounded disabled:opacity-40 hover:bg-gray-100">Prev</button>
                     <button disabled={custPage >= custPages} onClick={() => setCustPage(p => p + 1)} className="px-3 py-1 border rounded disabled:opacity-40 hover:bg-gray-100">Next</button>
@@ -665,7 +665,7 @@ export default function CouponsPage() {
               </div>
 
               {/* Discount */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Discount Type</label>
                   <select value={camForm.discountType} onChange={(e) => setCamForm(f => ({ ...f, discountType: e.target.value }))}
@@ -681,7 +681,7 @@ export default function CouponsPage() {
                     placeholder={camForm.discountType === 'percentage' ? 'e.g. 10' : 'e.g. 100'} />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Min Order Amount (৳)</label>
                   <input value={camForm.minOrderAmount} onChange={(e) => setCamForm(f => ({ ...f, minOrderAmount: e.target.value }))}
@@ -695,7 +695,7 @@ export default function CouponsPage() {
               </div>
 
               {/* Usage limits */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Max Total Uses</label>
                   <input value={camForm.maxUses} onChange={(e) => setCamForm(f => ({ ...f, maxUses: e.target.value }))}
@@ -710,7 +710,7 @@ export default function CouponsPage() {
               </div>
 
               {/* Validity dates */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Valid From</label>
                   <input value={camForm.validFrom} onChange={(e) => setCamForm(f => ({ ...f, validFrom: e.target.value }))}

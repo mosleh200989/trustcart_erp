@@ -5,7 +5,7 @@ import {
   FaTimes, FaEdit, FaTrash, FaPlus, FaSave, FaCheck, FaPause, FaBan, 
   FaShippingFast, FaMapMarkerAlt, FaStickyNote, FaHistory, FaGlobe, 
   FaMobile, FaDesktop, FaChrome, FaExclamationTriangle, FaPhone, FaPhoneSlash, FaTag,
-  FaEye, FaEyeSlash
+  FaEye, FaEyeSlash, FaCopy
 } from 'react-icons/fa';
 import PhoneInput, { validateBDPhone } from '@/components/PhoneInput';
 import { getOrderStatusLabel, getOrderStatusColor } from '@/utils/orderStatus';
@@ -1626,6 +1626,28 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
     }
   };
 
+  const copyPhoneNumber = async (phone: string) => {
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(phone);
+      } else {
+        const textarea = document.createElement('textarea');
+        textarea.value = phone;
+        textarea.readOnly = true;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.select();
+        const copied = document.execCommand('copy');
+        document.body.removeChild(textarea);
+        if (!copied) throw new Error('Copy command was rejected');
+      }
+      toast.success('Phone number copied');
+    } catch {
+      toast.error('Failed to copy phone number');
+    }
+  };
+
   const viewCustomer: any = {
     ...(customerRecord || {}),
     id: customerRecord?.id ?? customer?.customerId ?? order?.customerId ?? null,
@@ -1637,6 +1659,7 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
     district: customerRecord?.district || null,
     city: customerRecord?.city || null,
   };
+  const customerPhone = String(viewCustomer.phone || viewCustomer.mobile || '').trim();
   if (loading) {
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -1676,21 +1699,21 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
   const canHoldOrCancel = !['picked', 'in_transit', 'delivered'].includes(order.status);
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
-      <div className="bg-white rounded-lg max-w-7xl w-full max-h-[95vh] overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-end justify-center overflow-y-auto bg-black bg-opacity-50 sm:items-center sm:p-4">
+      <div className="max-h-[96dvh] w-full max-w-7xl overflow-y-auto rounded-t-lg bg-white sm:max-h-[95vh] sm:rounded-lg">
         {/* Header */}
-        <div className="sticky top-0 bg-gradient-to-r from-blue-600 to-blue-800 text-white p-6 flex justify-between items-center rounded-t-lg">
-          <div>
-            <h2 className="text-2xl font-bold">Order #{order.salesOrderNumber}</h2>
+        <div className="sticky top-0 z-20 flex items-center justify-between gap-3 rounded-t-lg bg-gradient-to-r from-blue-600 to-blue-800 p-4 text-white sm:p-6">
+          <div className="min-w-0">
+            <h2 className="break-words text-lg font-bold sm:text-2xl">Order #{order.salesOrderNumber}</h2>
             <p className="text-blue-100 text-sm">Status: <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold ${getOrderStatusColor(order.status)}`}>{getOrderStatusLabel(order.status)}</span></p>
           </div>
-          <button onClick={onClose} className="text-white hover:bg-blue-700 p-2 rounded-full transition">
+          <button onClick={onClose} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-white transition hover:bg-blue-700" aria-label="Close order details">
             <FaTimes size={24} />
           </button>
         </div>
 
         {/* Action Buttons */}
-        <div className="p-6 border-b bg-gray-50 flex gap-3 flex-wrap">
+        <div className="flex flex-col gap-2 border-b bg-gray-50 p-4 sm:flex-row sm:flex-wrap sm:gap-3 sm:p-6 [&>button]:min-h-11 [&>button]:w-full sm:[&>button]:w-auto">
           <button 
             onClick={() => {
               setNewOrderShippingAddress(order?.shippingAddress || customerRecord?.address || '');
@@ -1752,12 +1775,12 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
         </div>
 
         {/* Manual Status Update */}
-        {hasPermission('change-order-status') && <div className="px-6 py-3 border-b bg-white flex items-center gap-3 flex-wrap">
+        {hasPermission('change-order-status') && <div className="flex flex-col gap-2 border-b bg-white px-4 py-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3 sm:px-6">
           <span className="text-sm font-medium text-gray-700">Update Status:</span>
           <select
             value={manualStatus}
             onChange={(e) => setManualStatus(e.target.value)}
-            className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="min-h-11 w-full rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 sm:w-auto"
           >
             <option value="">Select status...</option>
             <option value="processing">Processing</option>
@@ -1781,7 +1804,7 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
             type="button"
             onClick={handleManualStatusUpdate}
             disabled={!manualStatus}
-            className="px-4 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="min-h-11 w-full rounded-lg bg-blue-600 px-4 py-1.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
           >
             Update
           </button>
@@ -1790,12 +1813,14 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
 
         {/* Tabs */}
         <div className="border-b">
-          <div className="flex gap-1 p-2 bg-gray-50">
+          <div className="scrollbar-hide flex gap-1 overflow-x-auto bg-gray-50 p-2" role="tablist" aria-label="Order details sections">
             {['customer', 'items', 'product', 'order history', 'delivery', 'notes', 'tracking', 'fraud', 'logs'].map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab === 'order history' ? 'order-history' : tab)}
-                className={`px-6 py-3 rounded-t-lg font-semibold transition ${
+                role="tab"
+                aria-selected={activeTab === (tab === 'order history' ? 'order-history' : tab)}
+                className={`min-h-11 shrink-0 whitespace-nowrap rounded-t-lg px-4 py-3 text-sm font-semibold transition sm:px-6 ${
                   activeTab === (tab === 'order history' ? 'order-history' : tab) 
                     ? 'bg-white text-blue-600 border-b-2 border-blue-600' 
                     : 'text-gray-600 hover:bg-gray-100'
@@ -1808,7 +1833,7 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
         </div>
 
         {/* Tab Content */}
-        <div className="p-6">
+        <div className="p-3 sm:p-6">
           {/* ITEMS TAB */}
           {activeTab === 'items' && (
             <div>
@@ -2306,7 +2331,29 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
                   </div>
                   <div className="flex items-start gap-3">
                     <span className="font-semibold text-blue-700 min-w-[70px]">Phone:</span>
-                    <span className="text-gray-900">{viewCustomer.phone || viewCustomer.mobile || 'N/A'}</span>
+                    {customerPhone ? (
+                      <div className="flex min-w-0 flex-wrap items-center gap-2">
+                        <a
+                          href={`tel:${customerPhone.replace(/[^\d+]/g, '')}`}
+                          className="inline-flex min-h-10 items-center gap-1.5 rounded-md px-1 text-blue-700 transition-colors hover:bg-blue-100 hover:text-blue-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
+                          title={`Call ${customerPhone}`}
+                        >
+                          <FaPhone className="shrink-0 text-xs" aria-hidden="true" />
+                          <span className="break-all font-medium">{customerPhone}</span>
+                        </a>
+                        <button
+                          type="button"
+                          onClick={() => copyPhoneNumber(customerPhone)}
+                          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-gray-500 transition-colors hover:bg-white hover:text-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
+                          title="Copy phone number"
+                          aria-label={`Copy phone number ${customerPhone}`}
+                        >
+                          <FaCopy aria-hidden="true" />
+                        </button>
+                      </div>
+                    ) : (
+                      <span className="text-gray-500">N/A</span>
+                    )}
                   </div>
                   <div className="border-t border-blue-200 pt-3">
                     <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-blue-800">

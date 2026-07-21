@@ -140,7 +140,7 @@ export default function AdminCRM() {
         </div>
 
         {/* Dashboard Stats Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="crm-metric-grid grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
           {/* Total Customers */}
           <div className="bg-white rounded-lg shadow p-5 border-l-4 border-blue-500">
             <div className="flex items-center justify-between">
@@ -203,7 +203,7 @@ export default function AdminCRM() {
         </div>
 
         {/* Second Row Stats */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="crm-metric-grid grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
           {/* Today's Total Calls */}
           <div className="bg-white rounded-lg shadow p-5 border-l-4 border-green-500">
             <div className="flex items-center justify-between">

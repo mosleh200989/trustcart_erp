@@ -719,6 +719,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [presenceError, setPresenceError] = useState('');
   const [telephonyAssignmentCounts, setTelephonyAssignmentCounts] = useState<Record<string, number>>({});
   const alertRef = useRef<HTMLDivElement>(null);
+  const mainContentRef = useRef<HTMLElement>(null);
   const presenceStateRef = useRef<'online' | 'offline'>('offline');
   const router = useRouter();
   const { user, roles, isLoading, hasAnyPermission, logout } = useAuth();
@@ -850,6 +851,93 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   const currentAsPath = useMemo(() => router.asPath || router.pathname, [router.asPath, router.pathname]);
   const currentPath = useMemo(() => stripQuery(currentAsPath), [currentAsPath]);
+  const isCrmRoute = currentPath === '/admin/crm' || currentPath.startsWith('/admin/crm/');
+  const isSalesRoute = currentPath === '/admin/sales' || currentPath.startsWith('/admin/sales/');
+  const currentAdminModule = useMemo(() => {
+    const [, root, moduleName] = currentPath.split('/');
+    if (root !== 'admin') return 'general';
+    return (moduleName || 'dashboard').replace(/[^a-z0-9-]/gi, '-').toLowerCase();
+  }, [currentPath]);
+
+  useEffect(() => {
+    const root = mainContentRef.current;
+    if (!root) return;
+
+    let animationFrame = 0;
+    const enhanceModuleTables = () => {
+      animationFrame = 0;
+      root.querySelectorAll<HTMLTableElement>('table').forEach((table) => {
+        const headerRows = Array.from(table.tHead?.rows || []);
+        const headerCells = Array.from(headerRows.at(-1)?.cells || []);
+        const hasSpanningCells = Array.from(table.querySelectorAll('th, td')).some(
+          (cell) => (cell as HTMLTableCellElement).rowSpan > 1,
+        );
+        const keepScrollable =
+          table.dataset.mobileTable === 'scroll' ||
+          table.closest('[data-mobile-table="scroll"]') !== null ||
+          (currentPath === '/admin/reports' || currentPath.startsWith('/admin/reports/')) ||
+          currentPath === '/admin/presence/calendar' ||
+          hasSpanningCells ||
+          (!isCrmRoute && !isSalesRoute && headerCells.length > 10);
+
+        if (keepScrollable) {
+          table.dataset.adminMobileTable = 'scroll';
+          table.parentElement?.setAttribute('data-admin-table-shell', 'scroll');
+          if (isCrmRoute) table.parentElement?.setAttribute('data-crm-table-shell', 'scroll');
+          return;
+        }
+
+        if (headerCells.length === 0) {
+          table.dataset.adminMobileTable = 'scroll';
+          table.parentElement?.setAttribute('data-admin-table-shell', 'scroll');
+          if (isCrmRoute) table.parentElement?.setAttribute('data-crm-table-shell', 'scroll');
+          return;
+        }
+
+        const labels = headerCells.map((cell, index) => {
+          const text = String(cell.textContent || '')
+            .replace(/[▲▼⇅]/g, '')
+            .replace(/\s+/g, ' ')
+            .trim();
+          if (text) return text;
+          return cell.querySelector('input[type="checkbox"]') ? 'Select' : `Column ${index + 1}`;
+        });
+
+        if (isCrmRoute) {
+          table.dataset.crmMobileTable = 'cards';
+          table.parentElement?.setAttribute('data-crm-table-shell', 'cards');
+        } else if (isSalesRoute) {
+          table.parentElement?.classList.add('admin-responsive-table');
+        } else {
+          table.dataset.adminMobileTable = 'cards';
+          table.parentElement?.setAttribute('data-admin-table-shell', 'cards');
+        }
+        Array.from(table.tBodies).forEach((body) => {
+          Array.from(body.rows).forEach((row) => {
+            Array.from(row.cells).forEach((cell, index) => {
+              if (cell.colSpan > 1) {
+                cell.dataset.label = '';
+                return;
+              }
+              cell.dataset.label = labels[index] || `Column ${index + 1}`;
+            });
+          });
+        });
+      });
+    };
+
+    const scheduleEnhancement = () => {
+      if (animationFrame) return;
+      animationFrame = window.requestAnimationFrame(enhanceModuleTables);
+    };
+    scheduleEnhancement();
+    const observer = new MutationObserver(scheduleEnhancement);
+    observer.observe(root, { childList: true, subtree: true });
+    return () => {
+      observer.disconnect();
+      if (animationFrame) window.cancelAnimationFrame(animationFrame);
+    };
+  }, [currentAsPath, currentPath, isCrmRoute, isSalesRoute]);
 
   useEffect(() => {
     setMobileSidebarOpen(false);
@@ -1054,7 +1142,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </header>
 
         {/* Page Content */}
-        <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-100 p-3 sm:p-4 lg:p-6" style={{ scrollBehavior: 'smooth' }}>
+        <main
+          ref={mainContentRef}
+          data-admin-module={currentAdminModule}
+          className={`admin-module-page admin-module-${currentAdminModule} flex-1 overflow-x-hidden overflow-y-auto bg-gray-100 p-3 sm:p-4 lg:p-6 ${isCrmRoute ? 'crm-admin-page' : ''} ${isSalesRoute ? 'sales-admin-page' : ''}`}
+          style={{ scrollBehavior: 'smooth' }}
+        >
           {!hasRouteAccess ? (
             <div className="mx-auto max-w-xl rounded-lg bg-white p-5 shadow sm:p-6">
               <h1 className="text-xl font-bold text-gray-800 sm:text-2xl">403 - Access denied</h1>

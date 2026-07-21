@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
 import { useAuth } from '@/contexts/AuthContext';
+import { setAuthReturnPath } from '@/utils/authReturnPath';
 
 export default function AdminRouteGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -34,11 +35,13 @@ export default function AdminRouteGuard({ children }: { children: React.ReactNod
     }
 
     if (!token) {
+      setAuthReturnPath(router.asPath);
       router.replace('/admin/login');
       return;
     }
 
     if (!user) {
+      setAuthReturnPath(router.asPath);
       router.replace('/admin/login');
       return;
     }

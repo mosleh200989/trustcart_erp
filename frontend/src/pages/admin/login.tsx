@@ -1,8 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import Router from 'next/router';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
-import { getAuthReturnPath } from '@/utils/authReturnPath';
+import { consumeAuthReturnPath, getAuthReturnPath } from '@/utils/authReturnPath';
 import { FaArrowLeft } from 'react-icons/fa';
 import PasswordInput from '@/components/common/PasswordInput';
 
@@ -12,16 +12,20 @@ export default function AdminLogin() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const redirectingRef = useRef(false);
 
-  // Redirect to dashboard if already authenticated as admin
+  // An already authenticated admin may have arrived here while the auth
+  // context was still hydrating. Honor the original protected route once.
   useEffect(() => {
-    if (!isLoading && user && isAdminUser) {
-      Router.replace('/admin/dashboard');
+    if (!isLoading && user && isAdminUser && !redirectingRef.current) {
+      redirectingRef.current = true;
+      Router.replace(consumeAuthReturnPath('/admin/dashboard', '/admin'));
     }
   }, [isLoading, user, isAdminUser]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    const destination = getAuthReturnPath('/admin/dashboard', '/admin');
     setLoading(true);
     setError(null);
     try {
@@ -35,7 +39,9 @@ export default function AdminLogin() {
           return;
         }
 
-        Router.push('/admin/dashboard');
+        redirectingRef.current = true;
+        consumeAuthReturnPath('/admin/dashboard', '/admin');
+        await Router.replace(destination);
       } else {
         setError('Invalid response from server');
       }
@@ -51,7 +57,7 @@ export default function AdminLogin() {
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8">
         <button
           type="button"
-          onClick={() => Router.push(getAuthReturnPath('/'))}
+          onClick={() => Router.push(getAuthReturnPath('/', '/admin'))}
           className="group mb-4 inline-flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60 focus-visible:ring-offset-2 focus-visible:ring-offset-green-700"
         >
           <FaArrowLeft className="text-xs transition-transform group-hover:-translate-x-0.5" />

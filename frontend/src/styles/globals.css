@@ -125,6 +125,498 @@ body {
   }
 }
 
+/* Shared mobile contract for every authenticated admin module. AdminLayout
+   labels ordinary tables at runtime; report matrices and calendars explicitly
+   retain horizontal scrolling because their columns must stay comparable. */
+.admin-module-page,
+.admin-module-page > * {
+  min-width: 0;
+}
+
+.admin-module-page input,
+.admin-module-page select,
+.admin-module-page textarea {
+  max-width: 100%;
+}
+
+@media (max-width: 767px) {
+  .admin-module-page {
+    padding: 0.75rem !important;
+  }
+
+  .admin-module-page .container,
+  .admin-module-page [class*='max-w-'] {
+    max-width: 100%;
+  }
+
+  .admin-module-page .p-8,
+  .admin-module-page .p-6 {
+    padding: 1rem !important;
+  }
+
+  .admin-module-page .px-8,
+  .admin-module-page .px-6 {
+    padding-left: 0.875rem !important;
+    padding-right: 0.875rem !important;
+  }
+
+  .admin-module-page h1 {
+    font-size: 1.5rem !important;
+    line-height: 1.25 !important;
+    overflow-wrap: anywhere;
+  }
+
+  .admin-module-page h2,
+  .admin-module-page h3,
+  .admin-module-page p,
+  .admin-module-page span {
+    overflow-wrap: anywhere;
+  }
+
+  .admin-module-page .flex.justify-between,
+  .admin-module-page .flex.items-center.justify-between {
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+
+  .admin-module-page button,
+  .admin-module-page [role='button'] {
+    min-height: 2.5rem;
+  }
+
+  .admin-module-page [class*='min-w-[']:not(table) {
+    min-width: 0 !important;
+  }
+
+  .admin-module-page form .grid.grid-cols-2,
+  .admin-module-page form .grid.grid-cols-3,
+  .admin-module-page form .grid.grid-cols-4,
+  .admin-module-page form .grid.grid-cols-5,
+  .admin-module-page form .grid.grid-cols-6,
+  .admin-module-page form .grid.grid-cols-7,
+  .admin-module-page .fixed .grid.grid-cols-2,
+  .admin-module-page .fixed .grid.grid-cols-3,
+  .admin-module-page .fixed .grid.grid-cols-4 {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .admin-module-page .grid.grid-cols-3,
+  .admin-module-page .grid.grid-cols-4,
+  .admin-module-page .grid.grid-cols-5,
+  .admin-module-page .grid.grid-cols-6,
+  .admin-module-page .grid.grid-cols-7 {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .admin-module-page [data-admin-table-shell='cards'] {
+    max-width: 100%;
+    max-height: none !important;
+    overflow: visible !important;
+    padding: 0.625rem;
+    background: #f8fafc;
+  }
+
+  .admin-module-page table[data-admin-mobile-table='cards'],
+  .admin-module-page table[data-admin-mobile-table='cards'] tbody {
+    display: block;
+    width: 100%;
+    min-width: 0 !important;
+  }
+
+  .admin-module-page table[data-admin-mobile-table='cards'] thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  .admin-module-page table[data-admin-mobile-table='cards'] tbody {
+    display: grid;
+    gap: 0.75rem;
+    background: transparent;
+  }
+
+  .admin-module-page table[data-admin-mobile-table='cards'] tbody tr {
+    display: block;
+    overflow: hidden;
+    border: 1px solid #dbe3ed;
+    border-radius: 0.5rem;
+    background: #fff;
+    box-shadow: 0 2px 5px rgba(15, 23, 42, 0.05);
+  }
+
+  .admin-module-page table[data-admin-mobile-table='cards'] tbody tr.hidden {
+    display: none !important;
+  }
+
+  .admin-module-page table[data-admin-mobile-table='cards'] tbody td {
+    display: grid;
+    grid-template-columns: minmax(6.5rem, 38%) minmax(0, 1fr);
+    align-items: center;
+    gap: 0.75rem;
+    width: 100%;
+    min-width: 0 !important;
+    max-width: none !important;
+    padding: 0.7rem 0.8rem !important;
+    border-right: 0 !important;
+    border-bottom: 1px solid #eef2f7;
+    text-align: left !important;
+    white-space: normal !important;
+  }
+
+  .admin-module-page table[data-admin-mobile-table='cards'] tbody td:last-child {
+    border-bottom: 0;
+  }
+
+  .admin-module-page table[data-admin-mobile-table='cards'] tbody td::before {
+    content: attr(data-label);
+    color: #64748b;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    line-height: 1.25;
+    text-transform: uppercase;
+  }
+
+  .admin-module-page table[data-admin-mobile-table='cards'] tbody td[data-label=''],
+  .admin-module-page table[data-admin-mobile-table='cards'] tbody td[colspan] {
+    display: block;
+    padding: 1rem !important;
+    text-align: center !important;
+  }
+
+  .admin-module-page table[data-admin-mobile-table='cards'] tbody td[data-label='']::before,
+  .admin-module-page table[data-admin-mobile-table='cards'] tbody td[colspan]::before {
+    display: none;
+  }
+
+  .admin-module-page table[data-admin-mobile-table='cards'] tbody td > .flex {
+    min-width: 0;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+
+  .admin-module-page table[data-admin-mobile-table='cards'] input:not([type='checkbox']),
+  .admin-module-page table[data-admin-mobile-table='cards'] select,
+  .admin-module-page table[data-admin-mobile-table='cards'] textarea {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .admin-module-page [data-admin-table-shell='scroll'] {
+    max-width: 100%;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-inline: contain;
+  }
+
+  .admin-module-page table[data-admin-mobile-table='scroll'] {
+    width: max-content;
+    min-width: 100%;
+  }
+
+  .admin-module-page .fixed.inset-0[class*='items-center'] {
+    align-items: flex-end !important;
+    padding: 0 !important;
+  }
+
+  .admin-module-page .fixed.inset-0[class*='items-center'] > div[class*='bg-white'] {
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: 96dvh !important;
+    margin: 0 !important;
+    overflow-y: auto;
+    border-radius: 0.75rem 0.75rem 0 0 !important;
+  }
+
+  /* Editing and detail views use long tab rows. Keep every destination
+     reachable without squeezing or wrapping labels into uneven rows. */
+  .admin-module-landing-pages .border-b.mb-6 > .flex.gap-1,
+  .admin-module-customers .border-b > .flex.gap-2,
+  .admin-module-products [role='tablist'],
+  .admin-module-inventory [role='tablist'] {
+    flex-wrap: nowrap !important;
+    max-width: 100%;
+    overflow-x: auto;
+    padding-bottom: 0.25rem;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .admin-module-landing-pages .border-b.mb-6 > .flex.gap-1::-webkit-scrollbar,
+  .admin-module-customers .border-b > .flex.gap-2::-webkit-scrollbar,
+  .admin-module-products [role='tablist']::-webkit-scrollbar,
+  .admin-module-inventory [role='tablist']::-webkit-scrollbar {
+    display: none;
+  }
+
+  .admin-module-landing-pages .border-b.mb-6 > .flex.gap-1 > *,
+  .admin-module-customers .border-b > .flex.gap-2 > *,
+  .admin-module-products [role='tablist'] > *,
+  .admin-module-inventory [role='tablist'] > * {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+
+  /* Filter toolbars that are authored as wrapping flex rows become a clean
+     single-column control stack at phone widths. */
+  .admin-module-page .flex.flex-wrap.items-end > div,
+  .admin-module-page .flex.flex-wrap.items-end > label {
+    flex: 1 1 12rem;
+    min-width: 0;
+  }
+
+  .admin-module-page .flex.flex-wrap.items-end input,
+  .admin-module-page .flex.flex-wrap.items-end select {
+    width: 100% !important;
+  }
+
+  .admin-module-page .flex.flex-wrap.items-end > button {
+    flex: 1 1 10rem;
+    justify-content: center;
+  }
+
+  /* Detailed customer headers contain long emails, phone numbers, and badges. */
+  .admin-module-customers .bg-gradient-to-r .flex.items-start.justify-between {
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .admin-module-customers .bg-gradient-to-r .flex.items-center.gap-4 {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .admin-module-customers .bg-gradient-to-r .flex.items-start.justify-between > button {
+    width: 100%;
+  }
+}
+
+@media (max-width: 420px) {
+  .admin-module-page table[data-admin-mobile-table='cards'] tbody td {
+    grid-template-columns: minmax(5.75rem, 34%) minmax(0, 1fr);
+    gap: 0.625rem;
+    padding: 0.65rem 0.7rem !important;
+  }
+}
+
+/* CRM pages contain a mix of newer shared tables and older page-local tables.
+   AdminLayout supplies data labels at runtime so both render as readable mobile
+   records without changing their desktop table behavior. */
+.crm-admin-page,
+.crm-admin-page > * {
+  min-width: 0;
+}
+
+.crm-admin-page input,
+.crm-admin-page select,
+.crm-admin-page textarea {
+  max-width: 100%;
+}
+
+@media (max-width: 767px) {
+  .crm-admin-page {
+    padding: 0.75rem !important;
+  }
+
+  .crm-admin-page .container {
+    max-width: 100%;
+  }
+
+  .crm-admin-page .p-8,
+  .crm-admin-page .p-6 {
+    padding: 1rem !important;
+  }
+
+  .crm-admin-page .px-8,
+  .crm-admin-page .px-6 {
+    padding-left: 0.875rem !important;
+    padding-right: 0.875rem !important;
+  }
+
+  .crm-admin-page .flex.justify-between {
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+
+  .crm-admin-page button,
+  .crm-admin-page a {
+    overflow-wrap: anywhere;
+  }
+
+  .crm-admin-page [class*='min-w-[']:not(table) {
+    min-width: 0 !important;
+  }
+
+  .crm-admin-page [data-crm-table-shell='cards'] {
+    max-height: none !important;
+    overflow: visible !important;
+    padding: 0.625rem;
+    background: #f8fafc;
+  }
+
+  .crm-admin-page table[data-crm-mobile-table='cards'],
+  .crm-admin-page table[data-crm-mobile-table='cards'] tbody {
+    display: block;
+    width: 100%;
+    min-width: 0 !important;
+  }
+
+  .crm-admin-page table[data-crm-mobile-table='cards'] thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  .crm-admin-page table[data-crm-mobile-table='cards'] tbody {
+    display: grid;
+    gap: 0.75rem;
+    background: transparent;
+  }
+
+  .crm-admin-page table[data-crm-mobile-table='cards'] tbody tr {
+    display: block;
+    overflow: hidden;
+    border: 1px solid #dbe3ed;
+    border-radius: 0.5rem;
+    background: #fff;
+    box-shadow: 0 2px 5px rgba(15, 23, 42, 0.05);
+  }
+
+  .crm-admin-page table[data-crm-mobile-table='cards'] tbody tr.hidden {
+    display: none !important;
+  }
+
+  .crm-admin-page table[data-crm-mobile-table='cards'] tbody td {
+    display: grid;
+    grid-template-columns: minmax(6.75rem, 38%) minmax(0, 1fr);
+    align-items: center;
+    gap: 0.75rem;
+    width: 100%;
+    min-width: 0 !important;
+    max-width: none !important;
+    padding: 0.7rem 0.8rem !important;
+    border-right: 0 !important;
+    border-bottom: 1px solid #eef2f7;
+    text-align: left !important;
+    white-space: normal !important;
+  }
+
+  .crm-admin-page table[data-crm-mobile-table='cards'] tbody td:last-child {
+    border-bottom: 0;
+  }
+
+  .crm-admin-page table[data-crm-mobile-table='cards'] tbody td::before {
+    content: attr(data-label);
+    color: #64748b;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    line-height: 1.25;
+    text-transform: uppercase;
+  }
+
+  .crm-admin-page table[data-crm-mobile-table='cards'] tbody td[data-label=''],
+  .crm-admin-page table[data-crm-mobile-table='cards'] tbody td[colspan] {
+    display: block;
+    padding: 1rem !important;
+  }
+
+  .crm-admin-page table[data-crm-mobile-table='cards'] tbody td[data-label='']::before,
+  .crm-admin-page table[data-crm-mobile-table='cards'] tbody td[colspan]::before {
+    display: none;
+  }
+
+  .crm-admin-page table[data-crm-mobile-table='cards'] tbody td > .flex {
+    min-width: 0;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+
+  .crm-admin-page table[data-crm-mobile-table='cards'] input:not([type='checkbox']),
+  .crm-admin-page table[data-crm-mobile-table='cards'] select,
+  .crm-admin-page table[data-crm-mobile-table='cards'] textarea {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .crm-admin-page [data-crm-table-shell='scroll'] {
+    max-width: 100%;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .crm-admin-page .fixed.inset-0[class*='items-center'] {
+    align-items: flex-end !important;
+    padding: 0 !important;
+  }
+
+  .crm-admin-page .fixed.inset-0[class*='items-center'] > div[class*='bg-white'] {
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: 96dvh !important;
+    margin: 0 !important;
+    overflow-y: auto;
+    border-radius: 0.75rem 0.75rem 0 0 !important;
+  }
+}
+
+@media (max-width: 639px) {
+  .crm-admin-page .grid.grid-cols-2,
+  .crm-admin-page .grid.grid-cols-3,
+  .crm-admin-page .grid.grid-cols-4,
+  .crm-admin-page .grid.grid-cols-5,
+  .crm-admin-page .grid.grid-cols-6,
+  .crm-admin-page .grid.grid-cols-7 {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .crm-admin-page .crm-metric-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .crm-admin-page .crm-metric-grid > div {
+    min-width: 0;
+    padding: 1rem !important;
+  }
+
+  .crm-admin-page .crm-metric-grid > div > .flex {
+    gap: 0.5rem;
+  }
+
+  .crm-admin-page .crm-metric-grid > div > .flex > div:first-child {
+    min-width: 0;
+  }
+
+  .crm-admin-page .crm-metric-grid p.text-3xl {
+    font-size: 1.5rem !important;
+    line-height: 2rem !important;
+  }
+
+  .crm-admin-page .crm-metric-grid .rounded-full {
+    flex-shrink: 0;
+    padding: 0.625rem !important;
+  }
+
+  .crm-admin-page .crm-metric-grid .rounded-full svg {
+    font-size: 1.125rem !important;
+  }
+
+  .crm-admin-page h1 {
+    font-size: 1.5rem !important;
+    line-height: 1.25 !important;
+  }
+}
+
 @media (max-width: 639px) {
   .react-datepicker-popper {
     max-width: calc(100vw - 1rem);
@@ -132,6 +624,137 @@ body {
 
   .react-datepicker {
     max-width: calc(100vw - 1rem);
+  }
+}
+
+/* Sales pages share dense operational controls. Keep filters and detailed
+   content stacked on mobile while presenting actions and summary cards in
+   compact, predictable grids. */
+.sales-admin-page,
+.sales-admin-page > * {
+  min-width: 0;
+}
+
+.sales-admin-page input,
+.sales-admin-page select,
+.sales-admin-page textarea {
+  max-width: 100%;
+}
+
+@media (max-width: 767px) {
+  .sales-admin-page {
+    padding: 0.75rem !important;
+  }
+
+  .sales-admin-page .container,
+  .sales-admin-page [class*='max-w-'] {
+    max-width: 100%;
+  }
+
+  .sales-admin-page .p-8,
+  .sales-admin-page .p-6 {
+    padding: 1rem !important;
+  }
+
+  .sales-admin-page .px-8,
+  .sales-admin-page .px-6 {
+    padding-left: 0.875rem !important;
+    padding-right: 0.875rem !important;
+  }
+
+  .sales-admin-page h1 {
+    font-size: 1.5rem !important;
+    line-height: 1.25 !important;
+  }
+
+  .sales-admin-page button,
+  .sales-admin-page a {
+    overflow-wrap: anywhere;
+  }
+
+  .sales-admin-page [class*='min-w-[']:not(table) {
+    min-width: 0 !important;
+  }
+
+  .sales-admin-page .sales-page-header {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.875rem;
+  }
+
+  .sales-admin-page .sales-page-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+    gap: 0.625rem;
+  }
+
+  .sales-admin-page .sales-page-actions > button,
+  .sales-admin-page .sales-page-actions > a {
+    width: 100%;
+    min-height: 2.75rem;
+    justify-content: center;
+  }
+
+  .sales-admin-page .sales-bulk-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .sales-admin-page .sales-bulk-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+    gap: 0.625rem;
+  }
+
+  .sales-admin-page .sales-bulk-actions > button,
+  .sales-admin-page .sales-bulk-actions > select {
+    width: 100%;
+    min-width: 0 !important;
+    min-height: 2.75rem;
+    justify-content: center;
+  }
+
+  .sales-admin-page .sales-bulk-actions > .sales-action-wide {
+    grid-column: 1 / -1;
+  }
+
+  .sales-admin-page .sales-bulk-divider {
+    display: none;
+  }
+
+  .sales-admin-page .sales-metric-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 0.75rem !important;
+  }
+
+  .sales-admin-page .sales-metric-grid > div {
+    min-width: 0;
+    padding: 1rem !important;
+  }
+
+  .sales-admin-page .sales-metric-grid > :last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+  }
+
+  .sales-admin-page .fixed.inset-0[class*='items-center'] {
+    align-items: flex-end !important;
+    padding: 0 !important;
+  }
+
+  .sales-admin-page .fixed.inset-0[class*='items-center'] > div[class*='bg-white'] {
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: 96dvh !important;
+    margin: 0 !important;
+    overflow-y: auto;
+    border-radius: 0.75rem 0.75rem 0 0 !important;
+  }
+
+  .sales-admin-page .admin-responsive-table {
+    border-radius: 0.5rem;
   }
 }
 
