@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
+import { Cron } from '@nestjs/schedule';
 import axios from 'axios';
 import { createHash } from 'crypto';
 import { Repository } from 'typeorm';
@@ -29,6 +30,7 @@ const VESHOJ_DOMAINS = ['veshoj.site', 'www.veshoj.site'];
 @Injectable()
 export class MetaCapiService {
   private readonly logger = new Logger(MetaCapiService.name);
+  private retrySweepRunning = false;
 
   constructor(
     private readonly configService: ConfigService,
@@ -66,6 +68,12 @@ export class MetaCapiService {
     });
     if (existing && existing.status === 'sent') return;
     if (existing && existing.status === 'pending') return;
+    if (existing && Number(existing.attemptCount || 0) >= this.getMaxAttempts()) {
+      this.logger.warn(
+        `Meta CAPI ${lifecycleEvent.eventName} retry limit reached for order #${orderId}.`,
+      );
+      return;
+    }
 
     const eventId = this.buildEventId(orderId, lifecycleEvent);
     const event = existing || this.eventRepository.create({
@@ -81,11 +89,21 @@ export class MetaCapiService {
       event.eventId = eventId;
     }
 
+    event.status = 'pending';
+    event.pixelId = configs[0]?.pixelId || event.pixelId || null;
+    event.errorMessage = null;
+    event.responsePayload = null;
+    event.attemptCount = Number(event.attemptCount || 0) + 1;
     await this.eventRepository.save(event);
 
-    const payload = await this.buildPayload(order, lifecycleEvent.eventName, event.eventId);
+    const payload = await this.buildPayload(
+      order,
+      lifecycleEvent.eventName,
+      event.eventId,
+      event.createdAt || new Date(),
+    );
     event.requestPayload = this.redactPayload(payload);
-    event.attemptCount = Number(event.attemptCount || 0) + 1;
+    await this.eventRepository.save(event);
 
     const graphVersion = this.configService.get<string>('META_CAPI_GRAPH_VERSION') || 'v20.0';
     const responses: any[] = [];
@@ -124,9 +142,69 @@ export class MetaCapiService {
     }
   }
 
+  @Cron('*/5 * * * *')
+  async retryRecoverableEvents(): Promise<void> {
+    if (!this.isEnabled() || this.retrySweepRunning) return;
+
+    this.retrySweepRunning = true;
+    try {
+      const maxAttempts = this.getMaxAttempts();
+      const batchSize = this.getPositiveIntegerConfig('META_CAPI_RETRY_BATCH_SIZE', 50, 200);
+      const staleMinutes = this.getPositiveIntegerConfig('META_CAPI_PENDING_STALE_MINUTES', 5, 60);
+      const maxAgeHours = this.getPositiveIntegerConfig('META_CAPI_RETRY_MAX_AGE_HOURS', 168, 720);
+      const staleBefore = new Date(Date.now() - staleMinutes * 60 * 1000);
+      const oldestRetryable = new Date(Date.now() - maxAgeHours * 60 * 60 * 1000);
+
+      const events = await this.eventRepository
+        .createQueryBuilder('event')
+        .where(
+          `(event.status = :failedStatus
+            OR (event.status = :pendingStatus AND event.updatedAt < :staleBefore))`,
+          {
+            failedStatus: 'failed',
+            pendingStatus: 'pending',
+            staleBefore,
+          },
+        )
+        .andWhere('event.attemptCount < :maxAttempts', { maxAttempts })
+        .andWhere('event.createdAt >= :oldestRetryable', { oldestRetryable })
+        .orderBy('event.updatedAt', 'ASC')
+        .take(batchSize)
+        .getMany();
+
+      for (const event of events) {
+        if (event.status === 'pending') {
+          event.status = 'failed';
+          event.errorMessage = `Recovered after remaining pending for more than ${staleMinutes} minutes`;
+          await this.eventRepository.save(event);
+        }
+
+        await this.sendForStatusTransition(event.orderId, event.statusTrigger);
+      }
+
+      if (events.length > 0) {
+        this.logger.log(`Retried ${events.length} recoverable Meta CAPI event(s).`);
+      }
+    } catch (error: any) {
+      this.logger.warn(`Meta CAPI retry sweep failed: ${error?.message || error}`);
+    } finally {
+      this.retrySweepRunning = false;
+    }
+  }
+
   private isEnabled(): boolean {
     const value = String(this.configService.get<string>('META_CAPI_ENABLED') || '').toLowerCase();
     return ['1', 'true', 'yes', 'on'].includes(value);
+  }
+
+  private getMaxAttempts(): number {
+    return this.getPositiveIntegerConfig('META_CAPI_MAX_ATTEMPTS', 5, 20);
+  }
+
+  private getPositiveIntegerConfig(key: string, fallback: number, maximum: number): number {
+    const value = Number(this.configService.get<string>(key));
+    if (!Number.isFinite(value) || value <= 0) return fallback;
+    return Math.min(Math.floor(value), maximum);
   }
 
   private mapStatusToEvent(status: string): OrderLifecycleEvent | null {
@@ -323,7 +401,7 @@ export class MetaCapiService {
     }
   }
 
-  private async buildPayload(order: SalesOrder, eventName: string, eventId: string) {
+  private async buildPayload(order: SalesOrder, eventName: string, eventId: string, eventTime: Date) {
     const items = await this.getOrderItems(order.id);
     const contentIds = this.getContentIds(items);
     const contents = items.map((item) => ({
@@ -341,7 +419,7 @@ export class MetaCapiService {
       data: [
         {
           event_name: eventName,
-          event_time: Math.floor(Date.now() / 1000),
+          event_time: Math.floor(new Date(eventTime).getTime() / 1000),
           event_id: eventId,
           action_source: 'website',
           event_source_url: eventSourceUrl,
