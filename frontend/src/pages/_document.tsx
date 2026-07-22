@@ -1,6 +1,7 @@
 import NextDocument, { DocumentContext, DocumentInitialProps, Head, Html, Main, NextScript } from 'next/document';
 
 const MAIN_TRUSTCART_GTM_ID = 'GTM-TSC7TFV6';
+const MAIN_TRUSTCART_PIXEL_ID = '1882443545705830';
 const HERBOLIN_GTM_ID = 'GTM-PK5G5DWZ';
 const ARABIAN_KHALTA_GTM_ID = 'GTM-KVLD23CH';
 const ARABIAN_KHALTA_PIXEL_ID = ['227057045377', '2206'].join('');
@@ -60,27 +61,50 @@ export default function Document({ isArabianKhaltaSurface, isVeshojSurface }: Tr
           rel="stylesheet"
           href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css"
         />
-        {/* Prevent Arabian Khalta pixel from being initialized by TrustCart GTM */}
+        {/* Keep each Meta pixel initialized once and make main-site PageView emission explicit. */}
         <script
           dangerouslySetInnerHTML={{
             __html: `(function(w){
-              var blockedPixelId=['227057045377','2206'].join('');
+              var mainPixelId='${MAIN_TRUSTCART_PIXEL_ID}';
+              var arabianPixelId=['227057045377','2206'].join('');
               var h=w.location.hostname;
-              var allowArabianKhaltaPixel=h==='arabiankhalta.com'||h==='www.arabiankhalta.com';
-              if(allowArabianKhaltaPixel)return;
+              var p=w.location.pathname.replace(/\\\/$/,'')||'/';
+              var params=new URLSearchParams(w.location.search);
+              var routeSlug=p.indexOf('/lp/')===0?p.split('/').filter(Boolean).pop():null;
+              var querySlug=params.get('landing_page')||params.get('landing_page_intl')||params.get('cartflows_step');
+              var isArabian=h==='arabiankhalta.com'||h==='www.arabiankhalta.com';
+              var isVeshojHost=h==='veshoj.site'||h==='www.veshoj.site';
+              var isVeshoj=(isVeshojHost&&(p==='/'||p==='/lp/veshoj'||p==='/veshoj'))||routeSlug==='veshoj'||querySlug==='veshoj';
+              var isHerbolin=h==='herbolin.com'||h==='www.herbolin.com'||routeSlug==='Harbora-kosthogut'||querySlug==='Harbora-kosthogut';
+              var isMain=!isArabian&&!isVeshoj&&!isHerbolin;
+              var initialized={};
+              var pageViews={};
 
               function shouldBlock(args){
                 var command=args&&args[0];
                 var pixelId=args&&args[1];
-                return (command==='init'||command==='trackSingle'||command==='trackSingleCustom')&&String(pixelId)===blockedPixelId;
+                if(!isArabian&&(command==='init'||command==='trackSingle'||command==='trackSingleCustom')&&String(pixelId)===arabianPixelId)return true;
+                if(command==='init'){
+                  pixelId=String(pixelId||'');
+                  if(initialized[pixelId])return true;
+                  initialized[pixelId]=true;
+                }
+                if(!isMain)return false;
+                if(command==='track'&&args&&args[1]==='PageView')return true;
+                if(command==='trackSingle'&&String(pixelId)===mainPixelId&&args&&args[2]==='PageView'){
+                  var options=args[4]||{};
+                  var eventId=String(options.eventID||options.eventId||'');
+                  if(eventId.indexOf('pv_')!==0||pageViews[eventId])return true;
+                  pageViews[eventId]=true;
+                }
+                return false;
               }
 
               function wrapFbq(fn){
-                if(typeof fn!=='function'||fn.__trustcartArabianPixelGuard)return fn;
+                if(typeof fn!=='function')return fn;
                 var guarded=typeof Proxy==='function'
                   ? new Proxy(fn,{apply:function(target,thisArg,args){if(shouldBlock(args))return;return target.apply(thisArg,args);}})
                   : function(){if(shouldBlock(arguments))return;return fn.apply(this,arguments);};
-                try{guarded.__trustcartArabianPixelGuard=true;}catch(e){}
                 return guarded;
               }
 
@@ -95,6 +119,24 @@ export default function Document({ isArabianKhaltaSurface, isVeshojSurface }: Tr
                 if(w.fbq)w.fbq=wrapFbq(w.fbq);
               }
             })(window);`,
+          }}
+        />
+        {/* Main TrustCart Meta Pixel. PageView is fired by _app with a shared browser/server event ID. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(w,d){
+              var h=w.location.hostname.replace(/^www\\./,'').toLowerCase();
+              var isMainHost=h==='trustcart.com.bd'||h==='trustkert.com'||h==='shop.trustcart.com.bd';
+              if(!isMainHost)return;
+              !function(f,b,e,v,n,t,s)
+              {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+              n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+              if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+              n.queue=[];t=b.createElement(e);t.async=!0;
+              t.src=v;s=b.getElementsByTagName(e)[0];
+              s.parentNode.insertBefore(t,s)}(w,d,'script','https://connect.facebook.net/en_US/fbevents.js');
+              w.fbq('init','${MAIN_TRUSTCART_PIXEL_ID}');
+            })(window,document);`,
           }}
         />
         {/* Google Tag Manager - Arabian Khalta only */}
