@@ -24,6 +24,7 @@ type OrderLifecycleEvent = {
 };
 
 const VESHOJ_PIXEL_ID = ['339637066199', '40423'].join('');
+const MAIN_TRUSTCART_PIXEL_ID = '1882443545705830';
 const VESHOJ_LANDING_PAGE_SLUGS = ['veshoj'];
 const VESHOJ_DOMAINS = ['veshoj.site', 'www.veshoj.site'];
 
@@ -140,6 +141,87 @@ export class MetaCapiService {
       await this.eventRepository.save(event);
       this.logger.warn(`Meta CAPI ${lifecycleEvent.eventName} failed for order #${orderId}: ${event.errorMessage}`);
     }
+  }
+
+  async sendPageView(input: {
+    eventId: unknown;
+    eventSourceUrl: unknown;
+    pageTitle?: unknown;
+    fbp?: unknown;
+    fbc?: unknown;
+    clientIp?: unknown;
+    userAgent?: unknown;
+  }): Promise<{ sent: boolean }> {
+    if (!this.isEnabled()) return { sent: false };
+
+    const eventId = String(input.eventId || '').trim();
+    const eventSourceUrl = String(input.eventSourceUrl || '').trim();
+    if (!/^pv_[A-Za-z0-9_-]{8,116}$/.test(eventId) || !this.isMainTrustCartUrl(eventSourceUrl)) {
+      return { sent: false };
+    }
+
+    const routingOrder = Object.assign(new SalesOrder(), {
+      orderSource: 'website',
+      metaEventSourceUrl: eventSourceUrl,
+      metaLandingUrl: eventSourceUrl,
+    });
+    const configs = this.getPixelConfigs(routingOrder)
+      .filter((config) => String(config.pixelId) === MAIN_TRUSTCART_PIXEL_ID);
+    if (configs.length === 0) {
+      this.logger.warn('Meta CAPI PageView skipped because the main TrustCart pixel is not configured.');
+      return { sent: false };
+    }
+
+    const userData: Record<string, any> = {};
+    const clientIp = String(input.clientIp || '').trim();
+    const userAgent = String(input.userAgent || '').trim();
+    if (clientIp && clientIp !== 'unknown' && this.isLikelyRawUserAgent(userAgent)) {
+      userData.client_ip_address = clientIp;
+      userData.client_user_agent = userAgent;
+    }
+    const fbp = String(input.fbp || '').trim().slice(0, 500);
+    const fbc = String(input.fbc || '').trim().slice(0, 500);
+    if (fbp) userData.fbp = fbp;
+    if (fbc) userData.fbc = fbc;
+
+    const payload = {
+      data: [{
+        event_name: 'PageView',
+        event_time: Math.floor(Date.now() / 1000),
+        event_id: eventId,
+        action_source: 'website',
+        event_source_url: eventSourceUrl,
+        user_data: userData,
+        custom_data: {
+          page_title: String(input.pageTitle || '').trim().slice(0, 300) || undefined,
+        },
+      }],
+    };
+
+    const graphVersion = this.configService.get<string>('META_CAPI_GRAPH_VERSION') || 'v20.0';
+    let sent = false;
+    for (const config of configs) {
+      try {
+        await axios.post(
+          `https://graph.facebook.com/${graphVersion}/${encodeURIComponent(config.pixelId)}/events`,
+          {
+            ...payload,
+            ...(config.testEventCode ? { test_event_code: config.testEventCode } : {}),
+          },
+          {
+            params: { access_token: config.accessToken },
+            timeout: 5000,
+          },
+        );
+        sent = true;
+      } catch (error: any) {
+        this.logger.warn(
+          `Meta CAPI PageView failed: ${error?.response?.data?.error?.message || error?.message || error}`,
+        );
+      }
+    }
+
+    return { sent };
   }
 
   @Cron('*/5 * * * *')
@@ -453,12 +535,30 @@ export class MetaCapiService {
     if (phoneHash) userData.ph = [phoneHash];
     if (nameParts.firstName) userData.fn = [this.hashIdentifier(nameParts.firstName)];
     if (nameParts.lastName) userData.ln = [this.hashIdentifier(nameParts.lastName)];
-    if (order.userIp && order.userIp !== 'unknown') userData.client_ip_address = order.userIp;
-    if (order.browserInfo) userData.client_user_agent = order.browserInfo;
+    const clientIp = String(order.userIp || '').trim();
+    const userAgent = String(order.browserInfo || '').trim();
+    if (clientIp && clientIp !== 'unknown' && this.isLikelyRawUserAgent(userAgent)) {
+      userData.client_ip_address = clientIp;
+      userData.client_user_agent = userAgent;
+    }
     if (order.metaFbp) userData.fbp = order.metaFbp;
     if (order.metaFbc) userData.fbc = order.metaFbc;
 
     return userData;
+  }
+
+  private isLikelyRawUserAgent(value: string): boolean {
+    return /Mozilla\/|Dalvik\/|okhttp\/|curl\/|PostmanRuntime\/|facebookexternalhit|Instagram|FBAN|FBAV/i.test(value);
+  }
+
+  private isMainTrustCartUrl(value: string): boolean {
+    try {
+      const url = new URL(value);
+      const host = url.hostname.replace(/^www\./, '').toLowerCase();
+      return ['trustcart.com.bd', 'trustkert.com'].includes(host) || host === 'shop.trustcart.com.bd';
+    } catch {
+      return false;
+    }
   }
 
   private normalizeTrackingValue(value: unknown): string {

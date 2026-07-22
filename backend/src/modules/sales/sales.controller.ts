@@ -10,6 +10,7 @@ import { RequireAnyPermission, RequirePermissions } from '../../common/decorator
 import { Public } from '../../common/decorators/public.decorator';
 import { getDhakaDateString } from '../../common/utils/dhaka-date';
 import * as jwt from 'jsonwebtoken';
+import { getRequestClientIp, getRequestUserAgent } from '../../common/utils/request-client';
 
 @Controller('sales')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -35,9 +36,7 @@ export class SalesController {
   }
 
   private getClientIp(req: any): string {
-    const forwarded = req?.headers?.['x-forwarded-for'];
-    const raw = Array.isArray(forwarded) ? forwarded[0] : forwarded || req?.headers?.['x-real-ip'] || req?.ip || req?.socket?.remoteAddress || '';
-    return String(raw).split(',')[0].trim().replace(/^::ffff:/, '');
+    return getRequestClientIp(req);
   }
 
   private getAuditUserInfo(req: any) {
@@ -584,6 +583,15 @@ export class SalesController {
     }
   }
 
+  @Post('meta/page-view')
+  @Public()
+  async trackMetaPageView(@Body() body: any, @Req() req: any) {
+    return this.salesService.trackMetaPageView(body, {
+      clientIp: this.getClientIp(req),
+      userAgent: getRequestUserAgent(req),
+    });
+  }
+
   @Post()
   @Public()
   async create(@Body() createSalesDto: any, @Req() req: any) {
@@ -610,7 +618,10 @@ export class SalesController {
       }
     }
 
-    return this.salesService.create(createSalesDto, { clientIp: this.getClientIp(req) });
+    return this.salesService.create(createSalesDto, {
+      clientIp: this.getClientIp(req),
+      userAgent: getRequestUserAgent(req),
+    });
   }
 
   @Put('sync-customer/:customerId')

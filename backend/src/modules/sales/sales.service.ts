@@ -471,6 +471,21 @@ export class SalesService {
     }
   }
 
+  async trackMetaPageView(
+    payload: any,
+    context: { clientIp?: string; userAgent?: string },
+  ) {
+    return this.metaCapiService.sendPageView({
+      eventId: payload?.event_id ?? payload?.eventId,
+      eventSourceUrl: payload?.event_source_url ?? payload?.eventSourceUrl,
+      pageTitle: payload?.page_title ?? payload?.pageTitle,
+      fbp: payload?.fbp ?? payload?.meta_fbp,
+      fbc: payload?.fbc ?? payload?.meta_fbc,
+      clientIp: context.clientIp,
+      userAgent: context.userAgent,
+    });
+  }
+
   private normalizeAssignmentStatus(status: string | null | undefined) {
     return String(status || '').trim().toLowerCase();
   }
@@ -3154,7 +3169,7 @@ export class SalesService {
     };
   }
 
-  async create(createSalesDto: any, context?: { clientIp?: string }) {
+  async create(createSalesDto: any, context?: { clientIp?: string; userAgent?: string }) {
     // Map incoming payload (including web checkout orders) to existing sales_orders schema
     const sales = new SalesOrder();
 
@@ -3406,6 +3421,7 @@ export class SalesService {
 
     if (createSalesDto.browser_info != null) sales.browserInfo = String(createSalesDto.browser_info);
     if (createSalesDto.browserInfo != null) sales.browserInfo = String(createSalesDto.browserInfo);
+    if (context?.userAgent) sales.browserInfo = context.userAgent;
 
     if (createSalesDto.device_type != null) sales.deviceType = String(createSalesDto.device_type);
     if (createSalesDto.deviceType != null) sales.deviceType = String(createSalesDto.deviceType);
