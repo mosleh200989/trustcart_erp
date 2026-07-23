@@ -1450,7 +1450,7 @@ export default function SpecialEventTemplate({
                     {/* Thank you page button */}
                     {savedOrderId && (
                       <button
-                        onClick={() => window.location.href = `/thank-you?orderId=${savedOrderId}`}
+                        onClick={() => window.location.href = `/thank-you?orderId=${savedOrderId}&landing_page=${encodeURIComponent(page.slug)}`}
                         className="w-full py-3.5 rounded-xl text-sm font-semibold border border-white/10 bg-white/5 hover:bg-white/[0.08] text-gray-300 hover:text-white transition-all duration-300 flex items-center justify-center gap-2"
                       >
                         <FaCheckCircle className="text-green-400 text-xs" />

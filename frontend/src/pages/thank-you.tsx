@@ -55,6 +55,14 @@ function getLandingPageSlugFromOrder(order: any) {
   return String(order?.utm_source || order?.landingPageSlug || order?.landing_page_slug || '').trim();
 }
 
+function isWebsiteConversionOrder(order: any) {
+  if (typeof order?.metaConversionEligible === 'boolean') {
+    return order.metaConversionEligible;
+  }
+  const source = String(order?.orderSource || order?.order_source || '').trim().toLowerCase();
+  return source === 'website' || source === 'landing_page';
+}
+
 function normalizeTrackingValue(value: unknown) {
   return String(value ?? '').trim();
 }
@@ -343,6 +351,7 @@ export default function ThankYouPage() {
   // This ensures purchase is tracked even if checkout tracking failed
   useEffect(() => {
     if (!order || !items || items.length === 0 || purchaseTrackedRef.current) return;
+    if (!isWebsiteConversionOrder(order)) return;
     const landingPageSlug = getLandingPageSlugFromOrder(order);
     
     // Check sessionStorage to prevent duplicate tracking on page refresh
@@ -397,6 +406,7 @@ export default function ThankYouPage() {
 
   useEffect(() => {
     if (!orderId || !order || items.length === 0 || typeof window === 'undefined') return;
+    if (!isWebsiteConversionOrder(order)) return;
     const pageSlug = getLandingPageSlugFromOrder(order);
     if (!isLandingPagePixelSurface() && !isLandingPagePixelSlug(pageSlug)) return;
 

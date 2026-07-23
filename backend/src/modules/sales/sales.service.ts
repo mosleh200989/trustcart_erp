@@ -17,6 +17,7 @@ import { LeadManagementService } from '../lead-management/lead-management.servic
 import { getDhakaDateString } from '../../common/utils/dhaka-date';
 import { OrderGuardSettings } from '../settings/order-guard-settings.entity';
 import { MetaCapiService } from './meta-capi.service';
+import { getMetaPixelIdForOrder } from './meta-conversion-policy';
 
 type StatusAuditActor = {
   actorId?: number;
@@ -481,6 +482,7 @@ export class SalesService {
       pageTitle: payload?.page_title ?? payload?.pageTitle,
       fbp: payload?.fbp ?? payload?.meta_fbp,
       fbc: payload?.fbc ?? payload?.meta_fbc,
+      fbclid: payload?.fbclid ?? payload?.meta_fbclid,
       clientIp: context.clientIp,
       userAgent: context.userAgent,
     });
@@ -3166,6 +3168,10 @@ export class SalesService {
       ...order,
       subtotal,
       deliveryCharge,
+      metaConversionEligible: getMetaPixelIdForOrder(
+        order,
+        Number(process.env.SYSTEM_USER_ID || 1),
+      ) !== null,
     };
   }
 
@@ -3577,6 +3583,7 @@ export class SalesService {
     }
 
     await this.tryAutoAssignIncomingOrder(savedOrder.id);
+    void this.dispatchMetaCapiForStatus(savedOrder.id, 'created');
 
     return savedOrder;
   }

@@ -392,7 +392,7 @@ export default function ProductLandingView({
       const savedOrderId = res.data?.id || res.data?.data?.id;
 
       if (savedOrderId) {
-        window.location.href = `/thank-you?orderId=${savedOrderId}`;
+        window.location.href = `/thank-you?orderId=${savedOrderId}&landing_page=${encodeURIComponent(product.slug || `product-${product.id}`)}`;
       } else {
         toast.success("Your order has been placed successfully!");
       }
@@ -404,7 +404,7 @@ export default function ProductLandingView({
       }
       const savedId = err?.response?.data?.id || err?.response?.data?.data?.id;
       if (savedId) {
-        window.location.href = `/thank-you?orderId=${savedId}`;
+        window.location.href = `/thank-you?orderId=${savedId}&landing_page=${encodeURIComponent(product.slug || `product-${product.id}`)}`;
         return;
       }
       const status = err?.response?.status;

@@ -512,7 +512,7 @@ export default function GheeTemplate({
           .catch(() => {});
       }
       if (savedOrderId) {
-        window.location.href = `/thank-you?orderId=${savedOrderId}`;
+        window.location.href = `/thank-you?orderId=${savedOrderId}&landing_page=${encodeURIComponent(page.slug)}`;
         return;
       } else {
         setSubmitted(true);
@@ -538,7 +538,7 @@ export default function GheeTemplate({
             })
             .catch(() => {});
         }
-        window.location.href = `/thank-you?orderId=${savedId}`;
+        window.location.href = `/thank-you?orderId=${savedId}&landing_page=${encodeURIComponent(page.slug)}`;
         return;
       }
       if (status && status >= 500) {

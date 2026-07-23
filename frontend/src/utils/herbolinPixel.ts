@@ -3,7 +3,7 @@ const ARABIAN_KHALTA_PIXEL_ID = ['227057045377', '2206'].join('');
 const VESHOJ_PIXEL_ID = ['339637066199', '40423'].join('');
 
 const HERBOLIN_HOSTS = new Set(['herbolin.com', 'www.herbolin.com']);
-const HERBOLIN_LANDING_PAGE_SLUGS = new Set(['Harbora-kosthogut']);
+const HERBOLIN_LANDING_PAGE_SLUGS = new Set(['harbora-kosthogut']);
 
 const ARABIAN_KHALTA_HOSTS = new Set(['arabiankhalta.com', 'www.arabiankhalta.com']);
 const ARABIAN_KHALTA_LANDING_PAGE_SLUGS = new Set(['arabiankhalta']);
@@ -50,15 +50,15 @@ export function isVeshojHost() {
 }
 
 export function isHerbolinLandingPageSlug(slug?: string | null) {
-  return Boolean(slug && HERBOLIN_LANDING_PAGE_SLUGS.has(slug));
+  return Boolean(slug && HERBOLIN_LANDING_PAGE_SLUGS.has(slug.toLowerCase()));
 }
 
 export function isArabianKhaltaLandingPageSlug(slug?: string | null) {
-  return Boolean(slug && ARABIAN_KHALTA_LANDING_PAGE_SLUGS.has(slug));
+  return Boolean(slug && ARABIAN_KHALTA_LANDING_PAGE_SLUGS.has(slug.toLowerCase()));
 }
 
 export function isVeshojLandingPageSlug(slug?: string | null) {
-  return Boolean(slug && VESHOJ_LANDING_PAGE_SLUGS.has(slug));
+  return Boolean(slug && VESHOJ_LANDING_PAGE_SLUGS.has(slug.toLowerCase()));
 }
 
 export function isLandingPagePixelSlug(slug?: string | null) {
@@ -89,7 +89,16 @@ export function isHerbolinPixelSurface() {
 export function isArabianKhaltaPixelSurface() {
   if (typeof window === 'undefined') return false;
 
-  return isArabianKhaltaHost();
+  const pathname = currentPathname();
+  const routeSlug = currentRouteSlug();
+  const querySlug = currentQuerySlug();
+
+  return (
+    isArabianKhaltaHost() ||
+    ARABIAN_KHALTA_PATHS.has(pathname) ||
+    isArabianKhaltaLandingPageSlug(routeSlug) ||
+    isArabianKhaltaLandingPageSlug(querySlug)
+  );
 }
 
 export function isVeshojPixelSurface() {

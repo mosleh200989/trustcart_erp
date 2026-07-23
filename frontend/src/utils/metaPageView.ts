@@ -10,7 +10,24 @@ function isMainTrustCartSurface() {
   if (typeof window === 'undefined') return false;
 
   const host = window.location.hostname.replace(/^www\./, '').toLowerCase();
-  return host === 'trustcart.com.bd' || host === 'trustkert.com' || host === 'shop.trustcart.com.bd';
+  if (host !== 'trustcart.com.bd' && host !== 'trustkert.com' && host !== 'shop.trustcart.com.bd') {
+    return false;
+  }
+
+  const pathname = window.location.pathname.replace(/\/$/, '') || '/';
+  const params = new URLSearchParams(window.location.search);
+  const routeSlug = pathname.startsWith('/lp/')
+    ? pathname.split('/').filter(Boolean).pop()?.toLowerCase()
+    : '';
+  const querySlug = (
+    params.get('landing_page') ||
+    params.get('landing_page_intl') ||
+    params.get('cartflows_step') ||
+    ''
+  ).toLowerCase();
+  const dedicatedSlugs = new Set(['veshoj', 'arabiankhalta', 'harbora-kosthogut']);
+
+  return !dedicatedSlugs.has(routeSlug || '') && !dedicatedSlugs.has(querySlug);
 }
 
 function getSessionId() {
@@ -58,6 +75,7 @@ export function trackMetaPageView() {
     page_title: pageTitle,
     fbp: attribution.meta_fbp,
     fbc: attribution.meta_fbc,
+    fbclid: attribution.meta_fbclid,
   }).catch(() => {
     // Analytics must never interrupt navigation or checkout.
   });
