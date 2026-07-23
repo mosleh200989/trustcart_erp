@@ -25,33 +25,12 @@ const queryClient = new QueryClient({
   },
 });
 
-function isLandingPagePixelUrl() {
-  if (typeof window === 'undefined') return false;
-
-  const hostname = window.location.hostname;
-  const pathname = window.location.pathname.replace(/\/$/, '') || '/';
-  const params = new URLSearchParams(window.location.search);
-  const routeSlug = pathname.startsWith('/lp/') ? pathname.split('/').filter(Boolean).pop() : null;
-  const querySlug = params.get('landing_page') || params.get('landing_page_intl') || params.get('cartflows_step');
-  const isVeshojLandingPage =
-    ((hostname === 'veshoj.site' || hostname === 'www.veshoj.site') &&
-      (pathname === '/' || pathname === '/lp/veshoj' || pathname === '/veshoj')) ||
-    routeSlug === 'veshoj' ||
-    querySlug === 'veshoj';
-
-  return (
-    hostname === 'herbolin.com' ||
-    hostname === 'www.herbolin.com' ||
-    isVeshojLandingPage ||
-    routeSlug === 'Harbora-kosthogut' ||
-    querySlug === 'Harbora-kosthogut'
-  );
-}
-
 function trackLandingPageViewIfNeeded() {
-  if (!isLandingPagePixelUrl()) return Promise.resolve();
+  if (typeof window === 'undefined') return Promise.resolve();
 
-  return import('@/utils/herbolinPixel').then(({ initLandingPagePixel, trackLandingPagePageView }) => {
+  return import('@/utils/herbolinPixel').then((pixel) => {
+    if (!pixel.isLandingPagePixelSurface()) return;
+    const { initLandingPagePixel, trackLandingPagePageView } = pixel;
     initLandingPagePixel();
     trackLandingPagePageView();
   });

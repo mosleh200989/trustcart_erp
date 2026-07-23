@@ -27,9 +27,13 @@ export class TrackingService {
     if (typeof window === 'undefined') return {};
 
     const urlParams = new URLSearchParams(window.location.search);
-    const fbclid = urlParams.get('fbclid') || undefined;
-    const fbp = this.getCookie('_fbp') || undefined;
-    const fbc = this.getCookie('_fbc') || this.buildFbcFromFbclid(fbclid) || undefined;
+    const fbclid = this.normalizeFbclid(urlParams.get('fbclid')) || undefined;
+    const fbp = this.normalizeFbp(this.getCookie('_fbp')) || undefined;
+    const existingFbc = this.getCookie('_fbc');
+    const fbc = this.normalizeFbc(existingFbc, fbclid) || undefined;
+    if (fbc && fbc !== existingFbc) {
+      this.setCookie('_fbc', fbc, 90 * 24 * 60 * 60);
+    }
     const landingUrl = window.location.href;
 
     return {
@@ -168,9 +172,39 @@ export class TrackingService {
     return match ? decodeURIComponent(match[1]) : null;
   }
 
+  static setCookie(name: string, value: string, maxAgeSeconds: number): void {
+    document.cookie = `${name}=${encodeURIComponent(value)}; path=/; max-age=${maxAgeSeconds}; SameSite=Lax`;
+  }
+
+  static normalizeFbclid(value?: string | null): string | null {
+    const normalized = String(value || '').trim();
+    if (!normalized || normalized.length > 500 || /\s/.test(normalized)) return null;
+    return normalized;
+  }
+
+  static normalizeFbp(value?: string | null): string | null {
+    const normalized = String(value || '').trim();
+    return /^fb\.[12]\.\d{10,13}\.[A-Za-z0-9_-]+$/.test(normalized)
+      ? normalized
+      : null;
+  }
+
+  static normalizeFbc(value?: string | null, fbclid?: string): string | null {
+    const normalizedFbclid = this.normalizeFbclid(fbclid);
+    const normalizedFbc = String(value || '').trim();
+    const match = /^fb\.[12]\.\d{10,13}\.(\S+)$/.exec(normalizedFbc);
+
+    if (match && (!normalizedFbclid || match[1] === normalizedFbclid)) {
+      return normalizedFbc;
+    }
+
+    return this.buildFbcFromFbclid(normalizedFbclid || undefined);
+  }
+
   static buildFbcFromFbclid(fbclid?: string): string | null {
-    if (!fbclid) return null;
-    return `fb.1.${Date.now()}.${fbclid}`;
+    const normalized = this.normalizeFbclid(fbclid);
+    if (!normalized) return null;
+    return `fb.1.${Date.now()}.${normalized}`;
   }
 
   static async getGeoLocation(): Promise<{

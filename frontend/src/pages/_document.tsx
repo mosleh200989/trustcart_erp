@@ -70,12 +70,12 @@ export default function Document({ isArabianKhaltaSurface, isVeshojSurface }: Tr
               var h=w.location.hostname;
               var p=w.location.pathname.replace(/\\\/$/,'')||'/';
               var params=new URLSearchParams(w.location.search);
-              var routeSlug=p.indexOf('/lp/')===0?p.split('/').filter(Boolean).pop():null;
-              var querySlug=params.get('landing_page')||params.get('landing_page_intl')||params.get('cartflows_step');
-              var isArabian=h==='arabiankhalta.com'||h==='www.arabiankhalta.com';
+              var routeSlug=(p.indexOf('/lp/')===0?p.split('/').filter(Boolean).pop():'').toLowerCase();
+              var querySlug=(params.get('landing_page')||params.get('landing_page_intl')||params.get('cartflows_step')||'').toLowerCase();
+              var isArabian=h==='arabiankhalta.com'||h==='www.arabiankhalta.com'||p==='/arabiankhalta'||routeSlug==='arabiankhalta'||querySlug==='arabiankhalta';
               var isVeshojHost=h==='veshoj.site'||h==='www.veshoj.site';
               var isVeshoj=(isVeshojHost&&(p==='/'||p==='/lp/veshoj'||p==='/veshoj'))||routeSlug==='veshoj'||querySlug==='veshoj';
-              var isHerbolin=h==='herbolin.com'||h==='www.herbolin.com'||routeSlug==='Harbora-kosthogut'||querySlug==='Harbora-kosthogut';
+              var isHerbolin=h==='herbolin.com'||h==='www.herbolin.com'||routeSlug==='harbora-kosthogut'||querySlug==='harbora-kosthogut';
               var isMain=!isArabian&&!isVeshoj&&!isHerbolin;
               var initialized={};
               var pageViews={};
@@ -84,19 +84,19 @@ export default function Document({ isArabianKhaltaSurface, isVeshojSurface }: Tr
                 var command=args&&args[0];
                 var pixelId=args&&args[1];
                 if(!isArabian&&(command==='init'||command==='trackSingle'||command==='trackSingleCustom')&&String(pixelId)===arabianPixelId)return true;
+                if(!isMain&&(command==='init'||command==='trackSingle'||command==='trackSingleCustom')&&String(pixelId)===mainPixelId)return true;
                 if(command==='init'){
                   pixelId=String(pixelId||'');
                   if(initialized[pixelId])return true;
                   initialized[pixelId]=true;
                 }
-                if(!isMain)return false;
                 if(command==='track'&&args&&args[1]==='PageView')return true;
-                if(command==='trackSingle'&&String(pixelId)===mainPixelId&&args&&args[2]==='PageView'){
-                  var options=args[4]||{};
-                  var eventId=String(options.eventID||options.eventId||'');
-                  if(eventId.indexOf('pv_')!==0||pageViews[eventId])return true;
-                  pageViews[eventId]=true;
+                if(command==='trackSingle'&&args&&args[2]==='PageView'){
+                  var pageViewKey=String(pixelId||'')+':'+w.location.pathname+w.location.search+w.location.hash;
+                  if(pageViews[pageViewKey])return true;
+                  pageViews[pageViewKey]=true;
                 }
+                if(!isMain)return false;
                 return false;
               }
 
@@ -126,8 +126,13 @@ export default function Document({ isArabianKhaltaSurface, isVeshojSurface }: Tr
           dangerouslySetInnerHTML={{
             __html: `(function(w,d){
               var h=w.location.hostname.replace(/^www\\./,'').toLowerCase();
+              var p=w.location.pathname.replace(/\\/$/,'')||'/';
+              var params=new URLSearchParams(w.location.search);
+              var routeSlug=(p.indexOf('/lp/')===0?p.split('/').filter(Boolean).pop():'').toLowerCase();
+              var querySlug=(params.get('landing_page')||params.get('landing_page_intl')||params.get('cartflows_step')||'').toLowerCase();
+              var isDedicated=routeSlug==='veshoj'||routeSlug==='arabiankhalta'||routeSlug==='harbora-kosthogut'||querySlug==='veshoj'||querySlug==='arabiankhalta'||querySlug==='harbora-kosthogut';
               var isMainHost=h==='trustcart.com.bd'||h==='trustkert.com'||h==='shop.trustcart.com.bd';
-              if(!isMainHost)return;
+              if(!isMainHost||isDedicated)return;
               !function(f,b,e,v,n,t,s)
               {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
               n.callMethod.apply(n,arguments):n.queue.push(arguments)};
@@ -144,7 +149,11 @@ export default function Document({ isArabianKhaltaSurface, isVeshojSurface }: Tr
           dangerouslySetInnerHTML={{
             __html: `(function(w,d,s,l,i){
               var h=w.location.hostname;
-              var isArabianKhaltaSurface=h==='arabiankhalta.com'||h==='www.arabiankhalta.com';
+              var p=w.location.pathname.replace(/\\/$/,'')||'/';
+              var params=new URLSearchParams(w.location.search);
+              var routeSlug=(p.indexOf('/lp/')===0?p.split('/').filter(Boolean).pop():'').toLowerCase();
+              var querySlug=(params.get('landing_page')||params.get('landing_page_intl')||params.get('cartflows_step')||'').toLowerCase();
+              var isArabianKhaltaSurface=h==='arabiankhalta.com'||h==='www.arabiankhalta.com'||p==='/arabiankhalta'||routeSlug==='arabiankhalta'||querySlug==='arabiankhalta';
               if(!isArabianKhaltaSurface)return;
               w.__arabianKhaltaGtmLoaded=true;
               w[l]=w[l]||[];w[l].push({'gtm.start':
@@ -161,13 +170,13 @@ export default function Document({ isArabianKhaltaSurface, isVeshojSurface }: Tr
             __html: `(function(w,d,s,l,mainId,herbolinId){var hostname=w.location.hostname;
                   var pathname=w.location.pathname.replace(/\\/$/,'')||'/';
                   var params=new URLSearchParams(w.location.search);
-                  var routeSlug=pathname.indexOf('/lp/')===0?pathname.split('/').filter(Boolean).pop():null;
-                  var querySlug=params.get('landing_page')||params.get('landing_page_intl')||params.get('cartflows_step');
-                  var isArabianKhaltaSurface=hostname==='arabiankhalta.com'||hostname==='www.arabiankhalta.com';
+                  var routeSlug=(pathname.indexOf('/lp/')===0?pathname.split('/').filter(Boolean).pop():'').toLowerCase();
+                  var querySlug=(params.get('landing_page')||params.get('landing_page_intl')||params.get('cartflows_step')||'').toLowerCase();
+                  var isArabianKhaltaSurface=hostname==='arabiankhalta.com'||hostname==='www.arabiankhalta.com'||pathname==='/arabiankhalta'||routeSlug==='arabiankhalta'||querySlug==='arabiankhalta';
                   var isVeshojHost=hostname==='veshoj.site'||hostname==='www.veshoj.site';
                   var isVeshojSurface=(isVeshojHost&&(pathname==='/'||pathname==='/lp/veshoj'||pathname==='/veshoj'))||routeSlug==='veshoj'||querySlug==='veshoj';
                   if(isArabianKhaltaSurface||isVeshojSurface)return;
-                  var isHerbolinPixelSurface=hostname==='herbolin.com'||hostname==='www.herbolin.com'||routeSlug==='Harbora-kosthogut'||querySlug==='Harbora-kosthogut';
+                  var isHerbolinPixelSurface=hostname==='herbolin.com'||hostname==='www.herbolin.com'||routeSlug==='harbora-kosthogut'||querySlug==='harbora-kosthogut';
                   var containerId=isHerbolinPixelSurface?herbolinId:mainId;
                   if(!containerId)return;
                   w[l]=w[l]||[];w[l].push({'gtm.start':
@@ -227,7 +236,7 @@ export default function Document({ isArabianKhaltaSurface, isVeshojSurface }: Tr
               'https://connect.facebook.net/en_US/fbevents.js');
               var pixelId=['227057045377','2206'].join('');
               w.fbq('init', pixelId);
-              w.fbq('track', 'PageView');
+              w.fbq('trackSingle', pixelId, 'PageView');
               w.__landingPagePixelsInitialized = w.__landingPagePixelsInitialized || {};
               w.__landingPagePixelsInitialized[pixelId] = true;
               w.__arabianKhaltaPixelPageViewTracked = true;
@@ -272,13 +281,19 @@ export default function Document({ isArabianKhaltaSurface, isVeshojSurface }: Tr
               var priceElement = document.getElementById('price');
               var price = priceElement ? Number(priceElement.value) : 0;
               var h = window.location.hostname;
-              var useArabianKhalta = h === 'arabiankhalta.com' || h === 'www.arabiankhalta.com';
-              if (useArabianKhalta) {
-                var arabianPixelId = ['227057045377','2206'].join('');
-                if (window.fbq) fbq('trackSingle', arabianPixelId, 'AddToCart', { value: price, currency: 'BDT' });
-              } else {
-                if (window.fbq) fbq('track', 'AddToCart', { value: price, currency: 'BDT' });
+              var p = window.location.pathname.replace(/\\/$/,'') || '/';
+              var params = new URLSearchParams(window.location.search);
+              var routeSlug = (p.indexOf('/lp/') === 0 ? p.split('/').filter(Boolean).pop() : '').toLowerCase();
+              var querySlug = (params.get('landing_page') || params.get('landing_page_intl') || params.get('cartflows_step') || '').toLowerCase();
+              var pixelId = '${MAIN_TRUSTCART_PIXEL_ID}';
+              if (h === 'arabiankhalta.com' || h === 'www.arabiankhalta.com' || p === '/arabiankhalta' || routeSlug === 'arabiankhalta' || querySlug === 'arabiankhalta') {
+                pixelId = '${ARABIAN_KHALTA_PIXEL_ID}';
+              } else if (h === 'veshoj.site' || h === 'www.veshoj.site' || routeSlug === 'veshoj' || querySlug === 'veshoj') {
+                pixelId = '${VESHOJ_PIXEL_ID}';
+              } else if (h === 'herbolin.com' || h === 'www.herbolin.com' || routeSlug === 'harbora-kosthogut' || querySlug === 'harbora-kosthogut') {
+                pixelId = '1433976858485362';
               }
+              if (window.fbq) fbq('trackSingle', pixelId, 'AddToCart', { value: price, currency: 'BDT' });
             }`,
           }}
         />

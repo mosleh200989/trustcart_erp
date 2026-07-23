@@ -9,6 +9,15 @@ import { SalesOrder } from './sales-order.entity';
 import { SalesOrderItem } from './sales-order-item.entity';
 import { OrderItem } from './entities/order-item.entity';
 import { MetaCapiEvent } from './entities/meta-capi-event.entity';
+import {
+  ARABIAN_KHALTA_PIXEL_ID,
+  HERBOLIN_PIXEL_ID,
+  MAIN_TRUSTCART_PIXEL_ID,
+  VESHOJ_PIXEL_ID,
+  getMetaPixelIdForOrder,
+  normalizeMetaFbc,
+  normalizeMetaFbp,
+} from './meta-conversion-policy';
 
 type MetaPixelConfig = {
   pixelId: string;
@@ -23,8 +32,6 @@ type OrderLifecycleEvent = {
   eventName: string;
 };
 
-const VESHOJ_PIXEL_ID = ['339637066199', '40423'].join('');
-const MAIN_TRUSTCART_PIXEL_ID = '1882443545705830';
 const VESHOJ_LANDING_PAGE_SLUGS = ['veshoj'];
 const VESHOJ_DOMAINS = ['veshoj.site', 'www.veshoj.site'];
 
@@ -54,9 +61,27 @@ export class MetaCapiService {
     const order = await this.orderRepository.findOne({ where: { id: orderId } });
     if (!order) return;
 
+    const targetPixelId = getMetaPixelIdForOrder(order, this.getSystemUserId());
+    if (!targetPixelId) {
+      await this.eventRepository
+        .createQueryBuilder()
+        .update(MetaCapiEvent)
+        .set({
+          status: 'skipped',
+          errorMessage: 'Skipped because the order did not originate from the website or a landing page.',
+        })
+        .where('order_id = :orderId', { orderId })
+        .andWhere('event_name = :eventName', { eventName: lifecycleEvent.eventName })
+        .andWhere('status IN (:...statuses)', { statuses: ['pending', 'failed'] })
+        .execute();
+      return;
+    }
+
     const configs = this.getPixelConfigs(order);
     if (configs.length === 0) {
-      this.logger.warn(`Meta CAPI is enabled, but no pixel/access token is configured for order #${orderId}.`);
+      this.logger.warn(
+        `Meta CAPI pixel ${targetPixelId} is not configured for eligible order #${orderId}.`,
+      );
       return;
     }
 
@@ -64,11 +89,12 @@ export class MetaCapiService {
       where: {
         orderId,
         eventName: lifecycleEvent.eventName,
-        statusTrigger: lifecycleEvent.statusTrigger,
       },
+      order: { createdAt: 'ASC' },
     });
     if (existing && existing.status === 'sent') return;
     if (existing && existing.status === 'pending') return;
+    if (existing && existing.status === 'skipped') return;
     if (existing && Number(existing.attemptCount || 0) >= this.getMaxAttempts()) {
       this.logger.warn(
         `Meta CAPI ${lifecycleEvent.eventName} retry limit reached for order #${orderId}.`,
@@ -102,6 +128,8 @@ export class MetaCapiService {
       lifecycleEvent.eventName,
       event.eventId,
       event.createdAt || new Date(),
+      event.statusTrigger,
+      configs[0].pixelId,
     );
     event.requestPayload = this.redactPayload(payload);
     await this.eventRepository.save(event);
@@ -149,6 +177,7 @@ export class MetaCapiService {
     pageTitle?: unknown;
     fbp?: unknown;
     fbc?: unknown;
+    fbclid?: unknown;
     clientIp?: unknown;
     userAgent?: unknown;
   }): Promise<{ sent: boolean }> {
@@ -179,8 +208,8 @@ export class MetaCapiService {
       userData.client_ip_address = clientIp;
       userData.client_user_agent = userAgent;
     }
-    const fbp = String(input.fbp || '').trim().slice(0, 500);
-    const fbc = String(input.fbc || '').trim().slice(0, 500);
+    const fbp = normalizeMetaFbp(input.fbp);
+    const fbc = normalizeMetaFbc(input.fbc, input.fbclid);
     if (fbp) userData.fbp = fbp;
     if (fbc) userData.fbc = fbc;
 
@@ -283,6 +312,11 @@ export class MetaCapiService {
     return this.getPositiveIntegerConfig('META_CAPI_MAX_ATTEMPTS', 5, 20);
   }
 
+  private getSystemUserId(): number {
+    const value = Number(this.configService.get<string>('SYSTEM_USER_ID') || 1);
+    return Number.isFinite(value) && value > 0 ? Math.floor(value) : 1;
+  }
+
   private getPositiveIntegerConfig(key: string, fallback: number, maximum: number): number {
     const value = Number(this.configService.get<string>(key));
     if (!Number.isFinite(value) || value <= 0) return fallback;
@@ -291,6 +325,9 @@ export class MetaCapiService {
 
   private mapStatusToEvent(status: string): OrderLifecycleEvent | null {
     const normalized = String(status || '').trim().toLowerCase();
+    if (normalized === 'created') {
+      return { statusTrigger: 'created', eventName: 'Purchase' };
+    }
     if (normalized === 'approved') {
       return { statusTrigger: 'approved', eventName: 'Purchase' };
     }
@@ -309,13 +346,11 @@ export class MetaCapiService {
 
   private getPixelConfigs(order: SalesOrder): MetaPixelConfig[] {
     const parsedConfigs: MetaPixelConfig[] = [];
-    let hasConfiguredPixelGroups = false;
     const rawGroups = this.configService.get<string>('META_CAPI_PIXEL_GROUPS');
     if (rawGroups) {
       try {
         const parsed = JSON.parse(rawGroups);
         if (Array.isArray(parsed)) {
-          hasConfiguredPixelGroups = true;
           parsedConfigs.push(...parsed
             .map((item) => ({
               pixelId: String(item.pixelId || item.pixel_id || '').trim(),
@@ -336,25 +371,20 @@ export class MetaCapiService {
       parsedConfigs.unshift(veshojEnvConfig);
     }
 
-    if (this.isVeshojOrder(order)) {
-      return this.dedupePixelConfigs(
-        parsedConfigs.filter((config) => this.isVeshojPixelConfig(config) && this.pixelConfigAppliesToOrder(config, order)),
-      );
-    }
+    const targetPixelId = getMetaPixelIdForOrder(order, this.getSystemUserId());
+    if (!targetPixelId) return [];
 
-    if (parsedConfigs.length > 0) {
-      const applicableConfigs = this.dedupePixelConfigs(
-        parsedConfigs.filter((config) => !this.isVeshojPixelConfig(config) && this.pixelConfigAppliesToOrder(config, order)),
-      );
-      if (applicableConfigs.length > 0 || hasConfiguredPixelGroups) {
-        return applicableConfigs;
-      }
-    }
+    const configuredTarget = this.dedupePixelConfigs(
+      parsedConfigs.filter((config) => config.pixelId === targetPixelId),
+    );
+    if (configuredTarget.length > 0) return configuredTarget;
 
     const pixelId = String(this.configService.get<string>('META_CAPI_PIXEL_ID') || '').trim();
     const accessToken = String(this.configService.get<string>('META_CAPI_ACCESS_TOKEN') || '').trim();
     const testEventCode = String(this.configService.get<string>('META_CAPI_TEST_EVENT_CODE') || '').trim();
-    return pixelId && accessToken ? [{ pixelId, accessToken, testEventCode: testEventCode || undefined }] : [];
+    return targetPixelId === MAIN_TRUSTCART_PIXEL_ID && pixelId === targetPixelId && accessToken
+      ? [{ pixelId, accessToken, testEventCode: testEventCode || undefined }]
+      : [];
   }
 
   private getVeshojPixelConfigFromEnv(): MetaPixelConfig | null {
@@ -382,36 +412,13 @@ export class MetaCapiService {
     const unique: MetaPixelConfig[] = [];
 
     for (const config of configs) {
-      const key = `${config.pixelId}:${config.accessToken}`;
+      const key = config.pixelId;
       if (seen.has(key)) continue;
       seen.add(key);
       unique.push(config);
     }
 
     return unique;
-  }
-
-  private isVeshojOrder(order: SalesOrder): boolean {
-    if (String(order.orderSource || '').trim().toLowerCase() !== 'landing_page') {
-      return false;
-    }
-
-    return (
-      this.orderMatchesLandingPageSlug(order, VESHOJ_LANDING_PAGE_SLUGS) ||
-      this.orderMatchesDomain(order, VESHOJ_DOMAINS)
-    );
-  }
-
-  private isVeshojPixelConfig(config: MetaPixelConfig): boolean {
-    const pixelId = String(config.pixelId || '').trim();
-    const slugScopes = config.landingPageSlugs || [];
-    const domainScopes = config.domains || [];
-
-    return (
-      pixelId === VESHOJ_PIXEL_ID ||
-      slugScopes.some((slug) => VESHOJ_LANDING_PAGE_SLUGS.includes(String(slug || '').toLowerCase())) ||
-      domainScopes.some((domain) => VESHOJ_DOMAINS.includes(String(domain || '').replace(/^www\./, '').toLowerCase()))
-    );
   }
 
   private normalizeConfigList(value: unknown): string[] {
@@ -422,68 +429,14 @@ export class MetaCapiService {
       .filter(Boolean);
   }
 
-  private pixelConfigAppliesToOrder(config: MetaPixelConfig, order: SalesOrder): boolean {
-    const slugScope = config.landingPageSlugs || [];
-    const domainScope = config.domains || [];
-    if (slugScope.length === 0 && domainScope.length === 0) return true;
-
-    if (String(order.orderSource || '').trim().toLowerCase() !== 'landing_page') {
-      return false;
-    }
-
-    const slugMatches = slugScope.length === 0 || this.orderMatchesLandingPageSlug(order, slugScope);
-    const domainMatches = domainScope.length === 0 || this.orderMatchesDomain(order, domainScope);
-    return slugMatches && domainMatches;
-  }
-
-  private orderMatchesLandingPageSlug(order: SalesOrder, slugs: string[]): boolean {
-    const slugSet = new Set(slugs.map((slug) => slug.toLowerCase()));
-    const candidates = [
-      order.utmSource,
-      order.utmCampaign,
-      order.metaAttribution?.landingPageSlug,
-      order.metaAttribution?.landing_page_slug,
-      order.metaAttribution?.utm_source,
-    ];
-
-    return candidates.some((candidate) => {
-      const normalized = String(candidate || '').trim().toLowerCase();
-      return normalized && slugSet.has(normalized);
-    });
-  }
-
-  private orderMatchesDomain(order: SalesOrder, domains: string[]): boolean {
-    const domainSet = new Set(domains.map((domain) => domain.replace(/^www\./, '').toLowerCase()));
-    const urls = [
-      order.metaEventSourceUrl,
-      order.metaLandingUrl,
-      order.referrerUrl,
-      order.metaAttribution?.eventSourceUrl,
-      order.metaAttribution?.event_source_url,
-      order.metaAttribution?.landingUrl,
-      order.metaAttribution?.landing_url,
-      order.metaAttribution?.currentUrl,
-      order.metaAttribution?.current_url,
-    ];
-
-    return urls.some((url) => {
-      const host = this.extractHostname(url);
-      return Boolean(host && domainSet.has(host.replace(/^www\./, '')));
-    });
-  }
-
-  private extractHostname(value: unknown): string {
-    const raw = String(value || '').trim();
-    if (!raw) return '';
-
-    try {
-      return new URL(raw).hostname.toLowerCase();
-    } catch {
-      return '';
-    }
-  }
-
-  private async buildPayload(order: SalesOrder, eventName: string, eventId: string, eventTime: Date) {
+  private async buildPayload(
+    order: SalesOrder,
+    eventName: string,
+    eventId: string,
+    eventTime: Date,
+    statusTrigger: string,
+    pixelId: string,
+  ) {
     const items = await this.getOrderItems(order.id);
     const contentIds = this.getContentIds(items);
     const contents = items.map((item) => ({
@@ -495,7 +448,11 @@ export class MetaCapiService {
     const contentSkus = this.uniqueValues(items.map((item) => item.productSku));
 
     const userData = this.buildUserData(order);
-    const eventSourceUrl = order.metaEventSourceUrl || order.metaLandingUrl || order.referrerUrl || this.configService.get<string>('FRONTEND_URL') || undefined;
+    const eventSourceUrl =
+      order.metaEventSourceUrl ||
+      order.metaLandingUrl ||
+      order.referrerUrl ||
+      this.getDefaultEventSourceUrl(pixelId);
 
     return {
       data: [
@@ -517,7 +474,7 @@ export class MetaCapiService {
             content_skus: contentSkus,
             contents,
             num_items: contents.reduce((sum, item) => sum + Number(item.quantity || 0), 0),
-            status_trigger: eventName === 'Purchase' ? 'approved' : 'delivered',
+            status_trigger: statusTrigger,
           },
         },
       ],
@@ -541,14 +498,25 @@ export class MetaCapiService {
       userData.client_ip_address = clientIp;
       userData.client_user_agent = userAgent;
     }
-    if (order.metaFbp) userData.fbp = order.metaFbp;
-    if (order.metaFbc) userData.fbc = order.metaFbc;
+    const fbp = normalizeMetaFbp(order.metaFbp);
+    const fbc = normalizeMetaFbc(order.metaFbc, order.metaFbclid, order.createdAt || new Date());
+    if (fbp) userData.fbp = fbp;
+    if (fbc) userData.fbc = fbc;
 
     return userData;
   }
 
   private isLikelyRawUserAgent(value: string): boolean {
     return /Mozilla\/|Dalvik\/|okhttp\/|curl\/|PostmanRuntime\/|facebookexternalhit|Instagram|FBAN|FBAV/i.test(value);
+  }
+
+  private getDefaultEventSourceUrl(pixelId: string): string {
+    if (pixelId === VESHOJ_PIXEL_ID) return 'https://veshoj.site/';
+    if (pixelId === ARABIAN_KHALTA_PIXEL_ID) return 'https://arabiankhalta.com/';
+    if (pixelId === HERBOLIN_PIXEL_ID) return 'https://herbolin.com/';
+
+    const configured = String(this.configService.get<string>('FRONTEND_URL') || '').trim();
+    return this.isMainTrustCartUrl(configured) ? configured : 'https://trustcart.com.bd/';
   }
 
   private isMainTrustCartUrl(value: string): boolean {
