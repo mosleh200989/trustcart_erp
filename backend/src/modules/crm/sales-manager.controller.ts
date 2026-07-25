@@ -78,6 +78,18 @@ export class SalesManagerController {
     );
   }
 
+  @Post('reject-leads')
+  @RequireAnyPermission('assign-leads-data-analyst', 'view-data-analyst-dashboard', 'view-sales-manager-dashboard')
+  async rejectLeads(
+    @Body() body: { customerIds: number[] },
+    @Request() req: any,
+  ) {
+    return await this.salesManagerService.bulkRejectLeads(
+      body.customerIds,
+      Number(req.user?.id ?? req.user?.userId),
+    );
+  }
+
   @Post('schedule-lead-assignment')
   @RequireAnyPermission('assign-leads-data-analyst', 'view-data-analyst-dashboard', 'view-sales-manager-dashboard')
   async scheduleLeadAssignment(
