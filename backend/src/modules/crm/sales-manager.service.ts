@@ -1,4 +1,4 @@
-import { Injectable, OnModuleInit } from '@nestjs/common';
+import { BadRequestException, Injectable, OnModuleInit } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -2879,6 +2879,126 @@ export class SalesManagerService implements OnModuleInit {
     await this.clearForeignOrderAssignments(customerIds);
 
     return { unassigned: updated.affected || 0 };
+  }
+
+  async bulkRejectLeads(customerIds: number[], actorUserId: number) {
+    const ids = this.normalizeCustomerIds(customerIds);
+    if (ids.length === 0) {
+      throw new BadRequestException('Select at least one customer to reject');
+    }
+    if (ids.length > 2000) {
+      throw new BadRequestException('A maximum of 2000 customers can be rejected at once');
+    }
+    if (!Number.isInteger(actorUserId) || actorUserId <= 0) {
+      throw new BadRequestException('Unable to identify the user performing this action');
+    }
+
+    await this.ensureScheduledLeadAssignmentSchema();
+    const assignmentShape = await this.getAssignmentColumnShape();
+
+    return this.customerRepository.manager.transaction(async (manager) => {
+      const existingRows: Array<{ id: number | string }> = await manager.query(
+        `SELECT id
+         FROM customers
+         WHERE id = ANY($1::int[])
+         FOR UPDATE`,
+        [ids],
+      );
+      const existingIds = this.normalizeCustomerIds(existingRows.map((row) => Number(row.id)));
+      if (existingIds.length === 0) {
+        throw new BadRequestException('None of the selected customers were found');
+      }
+
+      const optionalAssignmentColumns = [
+        assignmentShape.assignedBy ? 'assigned_by = NULL' : '',
+        assignmentShape.assignedAt ? 'assigned_at = NULL' : '',
+      ].filter(Boolean);
+      const assignmentSql = optionalAssignmentColumns.length > 0
+        ? `,\n             ${optionalAssignmentColumns.join(',\n             ')}`
+        : '';
+
+      await manager.query(
+        `UPDATE customers
+         SET assigned_to = NULL,
+             assigned_supervisor_id = NULL,
+             customer_type = 'rejected',
+             lead_status = 'rejected',
+             updated_at = NOW()${assignmentSql}
+         WHERE id = ANY($1::int[])`,
+        [existingIds],
+      );
+
+      await manager.query(
+        `INSERT INTO customer_tiers (
+           customer_id,
+           is_active,
+           tier,
+           tier_assigned_at,
+           tier_assigned_by_id,
+           auto_assigned,
+           notes
+         )
+         SELECT
+           selected_customer.id,
+           FALSE,
+           'rejected',
+           NOW(),
+           $2,
+           FALSE,
+           CONCAT('Bulk rejected by user ', $2::text)
+         FROM customers selected_customer
+         WHERE selected_customer.id = ANY($1::int[])
+         ON CONFLICT (customer_id) DO UPDATE
+         SET is_active = FALSE,
+             tier = 'rejected',
+             tier_assigned_at = NOW(),
+             tier_assigned_by_id = EXCLUDED.tier_assigned_by_id,
+             auto_assigned = FALSE,
+             notes = CONCAT_WS(
+               E'\n',
+               NULLIF(customer_tiers.notes, ''),
+               EXCLUDED.notes
+             ),
+             updated_at = NOW()`,
+        [existingIds, actorUserId],
+      );
+
+      await manager.query(
+        `UPDATE scheduled_lead_assignments
+         SET status = 'cancelled',
+             cancelled_at = NOW(),
+             updated_at = NOW(),
+             error_message = 'Cancelled because the customer was bulk rejected'
+         WHERE customer_id = ANY($1::int[])
+           AND status = 'pending'`,
+        [existingIds],
+      );
+
+      // Foreign-customer telephony queues are order-backed, so clear those
+      // assignment links when the corresponding customer is rejected.
+      await manager.query(
+        `UPDATE sales_orders order_row
+         SET assigned_to = NULL,
+             assigned_by = NULL,
+             assigned_at = NULL,
+             updated_at = NOW()
+         WHERE order_row.customer_id = ANY($1::int[])
+           AND EXISTS (
+             SELECT 1
+             FROM customers foreign_customer
+             WHERE foreign_customer.id = order_row.customer_id
+               AND COALESCE(foreign_customer.source, '') ~ '^\\+[0-9]{7,18}$'
+               AND COALESCE(foreign_customer.source, '') !~ '^\\+88'
+           )`,
+        [existingIds],
+      );
+
+      return {
+        requested: ids.length,
+        rejected: existingIds.length,
+        notFound: ids.length - existingIds.length,
+      };
+    });
   }
 
   /**

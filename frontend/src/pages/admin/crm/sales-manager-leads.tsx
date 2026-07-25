@@ -6,7 +6,7 @@ import AdminOrderDetailsModal from '@/components/AdminOrderDetailsModal';
 import ProductAutocomplete from '@/components/admin/ProductAutocomplete';
 import AdminDateInput from '@/components/admin/AdminDateInput';
 import PageSizeSelector from '@/components/admin/PageSizeSelector';
-import { FaEye, FaUsers, FaGlobe, FaExchangeAlt } from 'react-icons/fa';
+import { FaBan, FaEye, FaUsers, FaGlobe, FaExchangeAlt } from 'react-icons/fa';
 import { CALL_OUTCOME_OPTIONS, type CallOutcomeValue, ORDER_REJECTION_REASON_OPTIONS } from '@/constants/adminOptions';
 
 interface Lead {
@@ -225,6 +225,7 @@ const SalesManagerLeadAssignment = ({
   const [bulkAgent, setBulkAgent] = useState<number | ''>('');
   const [bulkScheduleAt, setBulkScheduleAt] = useState('');
   const [assigning, setAssigning] = useState(false);
+  const [rejecting, setRejecting] = useState(false);
 
   // View (order) modal
   const [showOrderModal, setShowOrderModal] = useState(false);
@@ -543,6 +544,30 @@ const SalesManagerLeadAssignment = ({
     setSelected(prev => new Set([...prev].filter(id => !ids.has(id))));
   }, [assignmentStatus]);
 
+  const applyRejectedLeadsLocally = useCallback((customerIds: number[]) => {
+    const ids = new Set(customerIds);
+
+    if (rejectedStatusFilter === 'non_rejected') {
+      setLeads(prev => prev.filter(lead => !ids.has(lead.id)));
+      setTotal(prev => Math.max(0, prev - ids.size));
+    } else {
+      setLeads(prev => prev.map(lead => (
+        ids.has(lead.id)
+          ? {
+              ...lead,
+              tier: 'rejected',
+              tierAssignedAt: new Date().toISOString(),
+              assigned_to: null,
+              assignedAgentName: null,
+              leadStatus: 'rejected',
+            }
+          : lead
+      )));
+    }
+
+    setSelected(new Set());
+  }, [rejectedStatusFilter]);
+
   const handleViewOrder = async (customerId: number) => {
     markLeadViewed(customerId);
     try {
@@ -729,6 +754,32 @@ const SalesManagerLeadAssignment = ({
       toast.error('Failed to schedule bulk unassign');
     } finally {
       setAssigning(false);
+    }
+  };
+
+  const handleBulkReject = async () => {
+    if (selected.size === 0) return;
+    const selectedCount = selected.size;
+    if (!confirm(
+      `Reject ${selectedCount} selected customer${selectedCount !== 1 ? 's' : ''}? `
+      + 'They will be unassigned and any pending scheduled assignments will be cancelled.',
+    )) return;
+
+    setRejecting(true);
+    try {
+      const customerIds = Array.from(selected);
+      const response = await api.post('/crm/data-analyst/reject-leads', { customerIds });
+      const result = response.data || {};
+      const rejectedCount = Number(result.rejected || customerIds.length);
+      applyRejectedLeadsLocally(customerIds);
+      toast.success(
+        `${rejectedCount} customer${rejectedCount !== 1 ? 's' : ''} marked as Rejected`,
+      );
+      refreshCurrentPageSafely();
+    } catch (error: any) {
+      toast.error(getApiErrorMessage(error, 'Failed to reject selected customers'));
+    } finally {
+      setRejecting(false);
     }
   };
 
@@ -1200,34 +1251,45 @@ const SalesManagerLeadAssignment = ({
             />
             <button
               onClick={handleBulkAssign}
-              disabled={assigning || !bulkAgent}
+              disabled={assigning || rejecting || !bulkAgent}
               className="bg-indigo-600 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {assigning ? 'Assigning…' : `Assign ${selected.size} Lead${selected.size !== 1 ? 's' : ''}`}
             </button>
             <button
               onClick={handleBulkUnassign}
-              disabled={assigning}
+              disabled={assigning || rejecting}
               className="bg-red-600 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {assigning ? 'Unassigning…' : `Unassign ${selected.size} Lead${selected.size !== 1 ? 's' : ''}`}
             </button>
             <button
               onClick={handleBulkScheduleAssign}
-              disabled={assigning || !bulkAgent || !bulkScheduleAt}
+              disabled={assigning || rejecting || !bulkAgent || !bulkScheduleAt}
               className="bg-emerald-600 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               Schedule Assign
             </button>
             <button
               onClick={handleBulkScheduleUnassign}
-              disabled={assigning || !bulkScheduleAt}
+              disabled={assigning || rejecting || !bulkScheduleAt}
               className="bg-orange-600 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               Schedule Unassign
             </button>
             <button
+              onClick={handleBulkReject}
+              disabled={assigning || rejecting}
+              className="inline-flex items-center justify-center gap-2 rounded-lg bg-rose-700 px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-rose-800 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <FaBan aria-hidden="true" />
+              {rejecting
+                ? 'Rejecting...'
+                : `Reject ${selected.size} Customer${selected.size !== 1 ? 's' : ''}`}
+            </button>
+            <button
               onClick={() => setSelected(new Set())}
+              disabled={assigning || rejecting}
               className="text-indigo-600 text-sm hover:underline"
             >
               Clear selection
