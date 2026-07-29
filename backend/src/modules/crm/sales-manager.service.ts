@@ -2992,9 +2992,9 @@ export class SalesManagerService implements OnModuleInit {
            FALSE,
            'rejected',
            NOW(),
-           $2,
+           $2::integer,
            FALSE,
-           CONCAT('Bulk rejected by user ', $2::text)
+           CONCAT('Bulk rejected by user ', ($2::integer)::text)
          FROM customers selected_customer
          WHERE selected_customer.id = ANY($1::int[])
          ON CONFLICT (customer_id) DO UPDATE

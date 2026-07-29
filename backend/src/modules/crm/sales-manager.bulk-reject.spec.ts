@@ -56,6 +56,8 @@ describe('SalesManagerService bulk rejection', () => {
     expect(transactionQueries[1].sql).toContain("lead_status = 'rejected'");
     expect(transactionQueries[2].sql).toContain('INSERT INTO customer_tiers');
     expect(transactionQueries[2].sql).toContain("tier = 'rejected'");
+    expect(transactionQueries[2].sql).toContain('$2::integer');
+    expect(transactionQueries[2].sql).toContain("($2::integer)::text");
     expect(transactionQueries[3].sql).toContain('UPDATE scheduled_lead_assignments');
     expect(transactionQueries[3].sql).toContain("status = 'cancelled'");
     expect(transactionQueries[4].sql).toContain('UPDATE sales_orders');
