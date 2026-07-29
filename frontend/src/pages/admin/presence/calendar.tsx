@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import AdminLayout from '@/layouts/AdminLayout';
 import AdminPageHeader from '@/components/admin/AdminPageHeader';
 import apiClient from '@/services/api';
@@ -304,6 +304,11 @@ export default function PresenceCalendarPage() {
   const [userSearch, setUserSearch] = useState('');
   const [teamLeaderFilter, setTeamLeaderFilter] = useState('all');
   const [roleFilter, setRoleFilter] = useState('all');
+  const [calendarScrollWidth, setCalendarScrollWidth] = useState(0);
+  const [hasHorizontalOverflow, setHasHorizontalOverflow] = useState(false);
+  const calendarTopScrollRef = useRef<HTMLDivElement | null>(null);
+  const calendarScrollRef = useRef<HTMLDivElement | null>(null);
+  const calendarTableRef = useRef<HTMLTableElement | null>(null);
 
   const canViewCalendar = hasPermission('view-presence') || hasPermission('view-presence-calendar') || hasPermission('manage-presence-calendar');
   const canManageCalendar = hasPermission('manage-presence-calendar') || hasPermission('manage-presence-settings');
@@ -420,6 +425,47 @@ export default function PresenceCalendarPage() {
   }, [roleFilter, rows, teamLeaderFilter, userSearch]);
 
   const hasActiveFilters = Boolean(userSearch.trim()) || teamLeaderFilter !== 'all' || roleFilter !== 'all';
+
+  useEffect(() => {
+    const scrollContainer = calendarScrollRef.current;
+    const table = calendarTableRef.current;
+    if (!scrollContainer || !table) return;
+
+    const updateScrollMetrics = () => {
+      const nextWidth = table.scrollWidth;
+      setCalendarScrollWidth(nextWidth);
+      setHasHorizontalOverflow(nextWidth > scrollContainer.clientWidth + 1);
+    };
+
+    updateScrollMetrics();
+    const resizeObserver = typeof ResizeObserver !== 'undefined'
+      ? new ResizeObserver(updateScrollMetrics)
+      : null;
+    resizeObserver?.observe(scrollContainer);
+    resizeObserver?.observe(table);
+    window.addEventListener('resize', updateScrollMetrics);
+
+    return () => {
+      resizeObserver?.disconnect();
+      window.removeEventListener('resize', updateScrollMetrics);
+    };
+  }, [data?.days?.length, filteredRows.length]);
+
+  const syncCalendarFromTop = () => {
+    const topScroller = calendarTopScrollRef.current;
+    const calendarScroller = calendarScrollRef.current;
+    if (topScroller && calendarScroller && calendarScroller.scrollLeft !== topScroller.scrollLeft) {
+      calendarScroller.scrollLeft = topScroller.scrollLeft;
+    }
+  };
+
+  const syncCalendarFromTable = () => {
+    const topScroller = calendarTopScrollRef.current;
+    const calendarScroller = calendarScrollRef.current;
+    if (topScroller && calendarScroller && topScroller.scrollLeft !== calendarScroller.scrollLeft) {
+      topScroller.scrollLeft = calendarScroller.scrollLeft;
+    }
+  };
 
   const moveRow = (targetUserId: number) => {
     if (!canManageCalendar || dragUserId == null || dragUserId === targetUserId) return;
@@ -613,10 +659,33 @@ export default function PresenceCalendarPage() {
           )}
         </div>
 
-        <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
-          <div className="border-t border-gray-100 px-4 py-2 text-xs font-medium text-gray-500 md:hidden">Swipe horizontally to view all calendar dates.</div>
-          <div className="overflow-auto">
-            <table className="min-w-full border-separate border-spacing-0">
+        <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+          <div className="flex items-center justify-between gap-3 border-b border-gray-100 px-4 py-2 text-xs font-medium text-gray-500">
+            <span>{hasHorizontalOverflow ? 'Scroll horizontally to view all calendar dates.' : 'All calendar dates are visible.'}</span>
+            {hasHorizontalOverflow && <span className="hidden text-gray-400 sm:inline">Drag the bar or use Shift + mouse wheel</span>}
+          </div>
+          {hasHorizontalOverflow && (
+            <div className="border-b border-gray-200 bg-gray-50 pt-1">
+              <div
+                ref={calendarTopScrollRef}
+                onScroll={syncCalendarFromTop}
+                role="region"
+                aria-label="Calendar horizontal scrollbar"
+                tabIndex={0}
+                className="overflow-x-scroll overscroll-x-contain outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500 [&::-webkit-scrollbar]:h-3 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-gray-200 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-500 hover:[&::-webkit-scrollbar-thumb]:bg-gray-600"
+                style={{ scrollbarColor: '#6b7280 #e5e7eb', scrollbarWidth: 'auto' }}
+              >
+                <div className="h-1" style={{ width: `${calendarScrollWidth}px` }} />
+              </div>
+            </div>
+          )}
+          <div
+            ref={calendarScrollRef}
+            onScroll={syncCalendarFromTable}
+            className="overflow-x-auto overscroll-x-contain [&::-webkit-scrollbar]:h-3 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-gray-200 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-gray-500 hover:[&::-webkit-scrollbar-thumb]:bg-gray-600"
+            style={{ scrollbarColor: '#6b7280 #e5e7eb', scrollbarWidth: 'auto' }}
+          >
+            <table ref={calendarTableRef} className="min-w-full border-separate border-spacing-0">
               <thead>
                 <tr className="bg-gray-50">
                   <th className="sticky left-0 z-20 min-w-[168px] border-b border-r border-gray-200 bg-gray-50 px-2 py-3 text-left text-xs font-semibold uppercase text-gray-500 sm:min-w-[240px] sm:px-4">

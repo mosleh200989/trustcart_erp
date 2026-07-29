@@ -592,12 +592,23 @@ const SalesManagerLeadAssignment = ({
     setAssigning(true);
     try {
       const customerIds = Array.from(selected);
-      await api.post('/crm/data-analyst/assign-leads', {
+      const response = await api.post('/crm/data-analyst/assign-leads', {
         customerIds,
         agentId: Number(bulkAgent),
       });
+      const assignedCount = Number(response.data?.assigned || 0);
+      if (assignedCount !== customerIds.length) {
+        toast.warning(
+          assignedCount > 0
+            ? `${assignedCount} of ${customerIds.length} leads were assigned. Rejected leads were skipped.`
+            : 'No leads were assigned. Rejected leads cannot be assigned.',
+        );
+        setSelected(new Set());
+        refreshCurrentPageSafely();
+        return;
+      }
       const agentName = agents.find(a => a.id === Number(bulkAgent))?.name || '';
-      toast.success(`${selected.size} lead(s) assigned to ${agentName}`);
+      toast.success(`${assignedCount} lead(s) assigned to ${agentName}`);
       applyAssignedLeadsLocally(customerIds, Number(bulkAgent));
       setBulkAgent('');
       refreshCurrentPageSafely();
@@ -638,10 +649,17 @@ const SalesManagerLeadAssignment = ({
     if (!assignModalLead || !assignModalAgent) return;
     setAssigningSingle(true);
     try {
-      await api.post('/crm/data-analyst/assign-leads', {
+      const response = await api.post('/crm/data-analyst/assign-leads', {
         customerIds: [assignModalLead.id],
         agentId: Number(assignModalAgent),
       });
+      if (Number(response.data?.assigned || 0) !== 1) {
+        toast.warning('This customer could not be assigned because the lead is Rejected.');
+        setAssignModalLead(null);
+        setAssignModalAgent('');
+        refreshCurrentPageSafely();
+        return;
+      }
       const agentName = agents.find(a => a.id === Number(assignModalAgent))?.name || '';
       toast.success(`Assigned to ${agentName}`);
       applyAssignedLeadsLocally([assignModalLead.id], Number(assignModalAgent));
@@ -770,11 +788,19 @@ const SalesManagerLeadAssignment = ({
       const customerIds = Array.from(selected);
       const response = await api.post('/crm/data-analyst/reject-leads', { customerIds });
       const result = response.data || {};
-      const rejectedCount = Number(result.rejected || customerIds.length);
-      applyRejectedLeadsLocally(customerIds);
+      const rejectedCustomerIds = Array.isArray(result.customerIds)
+        ? result.customerIds
+            .map((id: any) => Number(id))
+            .filter((id: number) => Number.isInteger(id) && id > 0)
+        : customerIds;
+      const rejectedCount = Number(result.rejected ?? rejectedCustomerIds.length);
+      applyRejectedLeadsLocally(rejectedCustomerIds);
       toast.success(
         `${rejectedCount} customer${rejectedCount !== 1 ? 's' : ''} marked as Rejected`,
       );
+      if (Number(result.notFound || 0) > 0) {
+        toast.warning(`${result.notFound} selected customer record(s) no longer existed and were skipped.`);
+      }
       refreshCurrentPageSafely();
     } catch (error: any) {
       toast.error(getApiErrorMessage(error, 'Failed to reject selected customers'));
