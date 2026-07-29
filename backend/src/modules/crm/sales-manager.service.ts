@@ -228,6 +228,23 @@ export class SalesManagerService implements OnModuleInit {
 
         CREATE INDEX IF NOT EXISTS idx_scheduled_lead_assignments_filters
           ON scheduled_lead_assignments(status, action, agent_id, scheduled_at);
+
+        DO $$
+        BEGIN
+          IF EXISTS (
+            SELECT 1
+            FROM pg_constraint
+            WHERE conrelid = 'scheduled_lead_assignments'::regclass
+              AND conname = 'scheduled_lead_assignments_status_check'
+              AND pg_get_constraintdef(oid) NOT ILIKE '%cancelled%'
+          ) THEN
+            ALTER TABLE scheduled_lead_assignments
+              DROP CONSTRAINT scheduled_lead_assignments_status_check;
+            ALTER TABLE scheduled_lead_assignments
+              ADD CONSTRAINT scheduled_lead_assignments_status_check
+              CHECK (status IN ('pending', 'processing', 'processed', 'failed', 'cancelled'));
+          END IF;
+        END $$;
       `).then(() => undefined);
     }
 
@@ -912,7 +929,14 @@ export class SalesManagerService implements OnModuleInit {
     for (const job of jobs) {
       try {
         if (job.action === 'assign') {
-          await this.assignLeadToAgent([Number(job.customer_id)], Number(job.agent_id), Number(job.scheduled_by || 0));
+          const result = await this.assignLeadToAgent(
+            [Number(job.customer_id)],
+            Number(job.agent_id),
+            Number(job.scheduled_by || 0),
+          );
+          if (result.assigned === 0) {
+            throw new Error('Scheduled assignment skipped because the customer is rejected or unavailable');
+          }
         } else {
           await this.unassignLeadsFromAgent([Number(job.customer_id)], Number(job.scheduled_by || 0));
         }
@@ -2816,11 +2840,23 @@ export class SalesManagerService implements OnModuleInit {
         leadStatus: 'assigned',
       } as any)
       .where('id IN (:...ids)', { ids: customerIds })
+      .andWhere("(customer_type IS NULL OR customer_type <> :rejectedCustomerType)", {
+        rejectedCustomerType: 'rejected',
+      })
+      .returning('id')
       .execute();
 
-    await this.syncForeignOrderAssignments(customerIds, agentId, dataAnalystId || null);
+    const assignedCustomerIds = this.normalizeCustomerIds(
+      (updated.raw || []).map((row: any) => Number(row.id)),
+    );
+    await this.syncForeignOrderAssignments(assignedCustomerIds, agentId, dataAnalystId || null);
 
-    return { assigned: updated.affected || 0, agentId, teamLeaderId: agent.teamLeaderId ?? null };
+    return {
+      assigned: assignedCustomerIds.length,
+      skippedRejected: Math.max(0, this.normalizeCustomerIds(customerIds).length - assignedCustomerIds.length),
+      agentId,
+      teamLeaderId: agent.teamLeaderId ?? null,
+    };
   }
 
   /**
@@ -2850,11 +2886,23 @@ export class SalesManagerService implements OnModuleInit {
       } as any)
       .where('id IN (:...ids)', { ids: customerIds })
       .andWhere(fromAgentId ? 'assigned_to = :fromAgentId' : '1=1', { fromAgentId })
+      .andWhere("(customer_type IS NULL OR customer_type <> :rejectedCustomerType)", {
+        rejectedCustomerType: 'rejected',
+      })
+      .returning('id')
       .execute();
 
-    await this.syncForeignOrderAssignments(customerIds, toAgentId, dataAnalystId || null);
+    const reassignedCustomerIds = this.normalizeCustomerIds(
+      (updated.raw || []).map((row: any) => Number(row.id)),
+    );
+    await this.syncForeignOrderAssignments(reassignedCustomerIds, toAgentId, dataAnalystId || null);
 
-    return { reassigned: updated.affected || 0, fromAgentId, toAgentId, teamLeaderId: targetAgent.teamLeaderId ?? null };
+    return {
+      reassigned: reassignedCustomerIds.length,
+      fromAgentId,
+      toAgentId,
+      teamLeaderId: targetAgent.teamLeaderId ?? null,
+    };
   }
 
   // Unassign leads from their agent and direct assignment owner.
@@ -2901,6 +2949,7 @@ export class SalesManagerService implements OnModuleInit {
         `SELECT id
          FROM customers
          WHERE id = ANY($1::int[])
+         ORDER BY id
          FOR UPDATE`,
         [ids],
       );
@@ -2997,6 +3046,7 @@ export class SalesManagerService implements OnModuleInit {
         requested: ids.length,
         rejected: existingIds.length,
         notFound: ids.length - existingIds.length,
+        customerIds: existingIds,
       };
     });
   }
