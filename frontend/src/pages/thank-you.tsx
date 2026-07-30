@@ -8,6 +8,7 @@ import ElectroProductCard from "@/components/ElectroProductCard";
 import apiClient from "@/services/api";
 import { trackPurchaseWithUser, extractLocationFromAddress } from "@/utils/gtm";
 import { isLandingPagePixelSlug, isLandingPagePixelSurface, trackLandingPagePurchase } from "@/utils/herbolinPixel";
+import { normalizeMetaCatalogProductId } from "@/utils/metaCatalog";
 import { 
   FaCheckCircle, 
   FaShoppingCart, 
@@ -78,23 +79,14 @@ function getPurchaseItemName(item: OrderItem) {
 }
 
 function getPurchasePrimaryContentId(item: OrderItem) {
-  return normalizeTrackingValue(
-    item.conversionId ||
-    item.productSku ||
-    item.productId ||
-    getPurchaseItemName(item),
-  );
+  return normalizeMetaCatalogProductId(item.productId);
 }
 
 function getPurchaseContentIds(items: OrderItem[]) {
   return Array.from(
     new Set(
       items
-        .flatMap((item) => [
-          getPurchasePrimaryContentId(item),
-          item.productSku,
-          item.productId,
-        ])
+        .map(getPurchasePrimaryContentId)
         .map(normalizeTrackingValue)
         .filter(Boolean),
     ),
@@ -103,7 +95,7 @@ function getPurchaseContentIds(items: OrderItem[]) {
 
 function toPurchaseTrackingItems(items: OrderItem[]) {
   return items.map((item) => ({
-    id: item.productId || getPurchasePrimaryContentId(item),
+    id: item.productId,
     sku: item.productSku || undefined,
     contentId: getPurchasePrimaryContentId(item),
     name: getPurchaseItemName(item) + (item.variantName ? ` (${item.variantName})` : ''),
@@ -120,11 +112,16 @@ function trackZipPolyPurchase(order: any, fallbackOrderId: string, items: OrderI
 
   const trackingItems = toPurchaseTrackingItems(items);
   const contentIds = getPurchaseContentIds(items);
-  const contents = trackingItems.map((item) => ({
-    id: String(item.contentId || item.sku || item.id),
-    quantity: item.quantity,
-    item_price: item.price,
-  }));
+  const contents = trackingItems.flatMap((item) => {
+    const id = normalizeMetaCatalogProductId(item.id);
+    return id
+      ? [{
+          id,
+          quantity: item.quantity,
+          item_price: item.price,
+        }]
+      : [];
+  });
 
   (window as any).dataLayer = (window as any).dataLayer || [];
   (window as any).dataLayer.push({
@@ -142,7 +139,7 @@ function trackZipPolyPurchase(order: any, fallbackOrderId: string, items: OrderI
       currency: 'BDT',
       value: Number(totalAmount || 0),
       items: trackingItems.map((item) => ({
-        item_id: String(item.contentId || item.sku || item.id),
+        item_id: normalizeMetaCatalogProductId(item.id) || String(item.sku || item.name),
         item_name: item.name,
         item_sku: item.sku || undefined,
         price: item.price,

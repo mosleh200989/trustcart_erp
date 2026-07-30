@@ -64,3 +64,31 @@ describe('MetaCapiService pixel routing', () => {
     })).toEqual([]);
   });
 });
+
+describe('MetaCapiService catalog identifiers', () => {
+  it('uses only the numeric product ID used by the Meta catalog feed', () => {
+    const service = createService() as any;
+    const items = [{
+      productId: 42,
+      productName: 'Example product',
+      productSku: 'SKU-42',
+      conversionId: 'SKU-42',
+    }];
+
+    expect(service.getPrimaryContentId(items[0])).toBe('42');
+    expect(service.getContentIds(items)).toEqual(['42']);
+  });
+
+  it('does not send SKU, product name, or order-item fallbacks as catalog IDs', () => {
+    const service = createService() as any;
+    const item = {
+      productId: null,
+      productName: 'Custom product',
+      productSku: 'CUSTOM-SKU',
+      conversionId: 'CUSTOM-SKU',
+    };
+
+    expect(service.getPrimaryContentId(item)).toBe('');
+    expect(service.getContentIds([item])).toEqual([]);
+  });
+});

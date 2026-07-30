@@ -439,11 +439,21 @@ export class MetaCapiService {
   ) {
     const items = await this.getOrderItems(order.id);
     const contentIds = this.getContentIds(items);
-    const contents = items.map((item) => ({
-      id: this.getPrimaryContentId(item) || `order-${order.id}`,
-      quantity: item.quantity,
-      item_price: item.unitPrice,
-    }));
+    const contents = items.flatMap((item) => {
+      const id = this.getPrimaryContentId(item);
+      return id
+        ? [{
+            id,
+            quantity: item.quantity,
+            item_price: item.unitPrice,
+          }]
+        : [];
+    });
+    if (contents.length < items.length) {
+      this.logger.warn(
+        `Meta CAPI order #${order.id} has ${items.length - contents.length} item(s) without a catalog product ID; those items were excluded from catalog matching.`,
+      );
+    }
     const productIds = this.uniqueValues(items.map((item) => item.productId));
     const contentSkus = this.uniqueValues(items.map((item) => item.productSku));
 
@@ -544,17 +554,12 @@ export class MetaCapiService {
   }
 
   private getPrimaryContentId(item: { productId: number | null; productName: string | null; productSku?: string | null; conversionId?: string | null }) {
-    return this.normalizeTrackingValue(item.conversionId || item.productSku || item.productId || item.productName);
+    const productId = this.normalizeTrackingValue(item.productId);
+    return /^[1-9]\d*$/.test(productId) ? productId : '';
   }
 
   private getContentIds(items: Array<{ productId: number | null; productName: string | null; productSku?: string | null; conversionId?: string | null }>) {
-    return this.uniqueValues(
-      items.flatMap((item) => [
-        this.getPrimaryContentId(item),
-        item.productSku,
-        item.productId,
-      ]),
-    );
+    return this.uniqueValues(items.map((item) => this.getPrimaryContentId(item)));
   }
 
   private async getOrderItems(orderId: number): Promise<Array<{ productId: number | null; productName: string | null; productSku: string | null; conversionId: string | null; variantName: string | null; quantity: number; unitPrice: number }>> {
@@ -565,7 +570,7 @@ export class MetaCapiService {
         'item.product_id AS "productId"',
         'COALESCE(item.custom_product_name, product.name_en, item.product_name) AS "productName"',
         'product.sku AS "productSku"',
-        'COALESCE(NULLIF(product.sku, \'\'), item.product_id::text, item.product_name) AS "conversionId"',
+        'item.product_id::text AS "conversionId"',
         'item.variant_name AS "variantName"',
         'item.quantity AS quantity',
         'item.unit_price AS "unitPrice"',
@@ -593,7 +598,7 @@ export class MetaCapiService {
         'item.product_id AS "productId"',
         'COALESCE(item.custom_product_name, product.name_en, item.product_name) AS "productName"',
         'product.sku AS "productSku"',
-        'COALESCE(NULLIF(product.sku, \'\'), item.product_id::text, item.product_name) AS "conversionId"',
+        'item.product_id::text AS "conversionId"',
         'NULL AS "variantName"',
         'item.quantity AS quantity',
         'item.unit_price AS "unitPrice"',
