@@ -61,7 +61,7 @@ export default function Document({ isArabianKhaltaSurface, isVeshojSurface }: Tr
           rel="stylesheet"
           href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css"
         />
-        {/* Keep each Meta pixel initialized once and make main-site PageView emission explicit. */}
+        {/* Keep each Meta pixel initialized once and suppress duplicate PageViews from legacy GTM tags. */}
         <script
           dangerouslySetInnerHTML={{
             __html: `(function(w){
@@ -102,26 +102,33 @@ export default function Document({ isArabianKhaltaSurface, isVeshojSurface }: Tr
 
               function wrapFbq(fn){
                 if(typeof fn!=='function')return fn;
+                if(fn.__trustcartMetaGuarded)return fn;
                 var guarded=typeof Proxy==='function'
                   ? new Proxy(fn,{apply:function(target,thisArg,args){if(shouldBlock(args))return;return target.apply(thisArg,args);}})
                   : function(){if(shouldBlock(arguments))return;return fn.apply(this,arguments);};
+                try{Object.defineProperty(guarded,'__trustcartMetaGuarded',{value:true});}catch(e){}
                 return guarded;
               }
 
-              var currentFbq;
-              try{
-                Object.defineProperty(w,'fbq',{
-                  configurable:true,
-                  get:function(){return currentFbq;},
-                  set:function(next){currentFbq=wrapFbq(next);}
-                });
-              }catch(e){
-                if(w.fbq)w.fbq=wrapFbq(w.fbq);
+              function guardQueue(name){
+                var currentQueue;
+                try{
+                  Object.defineProperty(w,name,{
+                    configurable:true,
+                    get:function(){return currentQueue;},
+                    set:function(next){currentQueue=wrapFbq(next);}
+                  });
+                }catch(e){
+                  if(w[name])w[name]=wrapFbq(w[name]);
+                }
               }
+
+              guardQueue('fbq');
+              guardQueue('_fbq');
             })(window);`,
           }}
         />
-        {/* Main TrustCart Meta Pixel. PageView is fired by _app with a shared browser/server event ID. */}
+        {/* Main TrustCart Meta Pixel. The GTM container owns PageView and ecommerce emission. */}
         <script
           dangerouslySetInnerHTML={{
             __html: `(function(w,d){
