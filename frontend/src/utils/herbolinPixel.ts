@@ -1,3 +1,5 @@
+import { normalizeMetaCatalogProductId } from './metaCatalog';
+
 const HERBOLIN_PIXEL_ID = ['1433976858485', '362'].join('');
 const ARABIAN_KHALTA_PIXEL_ID = ['227057045377', '2206'].join('');
 const VESHOJ_PIXEL_ID = ['339637066199', '40423'].join('');
@@ -206,18 +208,14 @@ function normalizeTrackingValue(value: unknown) {
 }
 
 function getPurchasePrimaryContentId(item: LandingPagePurchaseItem) {
-  return normalizeTrackingValue(item.conversion_id || item.product_sku || item.product_id || item.product_name);
+  return normalizeMetaCatalogProductId(item.product_id);
 }
 
 function getPurchaseContentIds(items: LandingPagePurchaseItem[]) {
   return Array.from(
     new Set(
       items
-        .flatMap((item) => [
-          getPurchasePrimaryContentId(item),
-          item.product_sku,
-          item.product_id,
-        ])
+        .map(getPurchasePrimaryContentId)
         .map(normalizeTrackingValue)
         .filter(Boolean),
     ),
@@ -234,11 +232,16 @@ export function trackLandingPagePurchase(payload: LandingPagePurchasePayload) {
 
   initLandingPagePixel(payload.pageSlug);
   const contentIds = getPurchaseContentIds(payload.items);
-  const contents = payload.items.map((item) => ({
-    id: getPurchasePrimaryContentId(item),
-    quantity: item.quantity,
-    item_price: item.item_price,
-  }));
+  const contents = payload.items.flatMap((item) => {
+    const id = getPurchasePrimaryContentId(item);
+    return id
+      ? [{
+          id,
+          quantity: item.quantity,
+          item_price: item.item_price,
+        }]
+      : [];
+  });
   const eventId = payload.eventId || (payload.orderId ? `purchase_${payload.orderId}` : undefined);
 
   fbq(

@@ -8,6 +8,8 @@
  * @see https://developers.google.com/analytics/devguides/collection/ga4/ecommerce
  */
 
+import { normalizeMetaCatalogProductId } from './metaCatalog';
+
 // Declare dataLayer on window
 declare global {
   interface Window {
@@ -109,23 +111,26 @@ const uniqueValues = (values: Array<string | number | null | undefined>) =>
   );
 
 const getPurchasePrimaryContentId = (item: PurchaseItem) =>
-  normalizeTrackingValue(item.contentId || item.sku || item.id || item.name);
+  normalizeMetaCatalogProductId(item.id);
 
 const getPurchaseContentIds = (items: PurchaseItem[]) =>
-  uniqueValues(
-    items.flatMap((item) => [
-      getPurchasePrimaryContentId(item),
-      item.sku,
-      item.id,
-    ]),
-  );
+  uniqueValues(items.map(getPurchasePrimaryContentId));
 
 const getPurchaseContents = (items: PurchaseItem[]) =>
-  items.map((item) => ({
-    id: getPurchasePrimaryContentId(item),
-    quantity: item.quantity,
-    item_price: item.price,
-  }));
+  items.flatMap((item) => {
+    const id = getPurchasePrimaryContentId(item);
+    return id
+      ? [{
+          id,
+          quantity: item.quantity,
+          item_price: item.price,
+        }]
+      : [];
+  });
+
+const getPurchaseAnalyticsItemId = (item: PurchaseItem) =>
+  getPurchasePrimaryContentId(item) ||
+  normalizeTrackingValue(item.sku || item.contentId || item.id || item.name);
 
 /**
  * Track when a user views a product (Product Detail Page)
@@ -353,7 +358,7 @@ export const trackPurchase = (order: {
       discount: order.discount || 0,
       coupon: order.coupon || undefined,
       items: order.items.map(item => ({
-        item_id: getPurchasePrimaryContentId(item),
+        item_id: getPurchaseAnalyticsItemId(item),
         item_name: item.name,
         price: item.price,
         quantity: item.quantity,
@@ -548,7 +553,7 @@ export const trackPurchaseWithUser = (order: {
       discount: order.discount || 0,
       coupon: order.coupon || undefined,
       items: order.items.map(item => ({
-        item_id: getPurchasePrimaryContentId(item),
+        item_id: getPurchaseAnalyticsItemId(item),
         item_name: item.name,
         price: item.price,
         quantity: item.quantity,

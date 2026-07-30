@@ -3849,7 +3849,7 @@ export class SalesService {
          item.quantity AS quantity,
          item.unit_price AS "unitPrice",
          item.subtotal AS "lineTotal",
-         COALESCE(NULLIF(product.sku, ''), item.product_id::text, item.product_name) AS "conversionId"
+         item.product_id::text AS "conversionId"
        FROM order_items item
        LEFT JOIN products product ON product.id = item.product_id
        WHERE item.order_id = $1
@@ -3879,7 +3879,7 @@ export class SalesService {
         'item.quantity as quantity',
         'item.unit_price as "unitPrice"',
         'item.line_total as "lineTotal"',
-        'COALESCE(NULLIF(product.sku, \'\'), item.product_id::text, item.product_name) as "conversionId"',
+        'item.product_id::text as "conversionId"',
       ])
       .where('item.sales_order_id = :orderId', { orderId: numericOrderId })
       .orderBy('item.id', 'ASC')
