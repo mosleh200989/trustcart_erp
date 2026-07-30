@@ -12,7 +12,6 @@ import FloatingCartButton from '@/components/FloatingCartButton';
 import { isAuthPath, setAuthReturnPath } from '@/utils/authReturnPath';
 import { initDataLayer, trackPageView } from '@/utils/gtm';
 import { initDhakaTimezoneDefaults } from '@/utils/dhakaDate';
-import { trackMetaPageView } from '@/utils/metaPageView';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -47,7 +46,6 @@ export default function App({ Component, pageProps }: AppProps) {
     
     // Track initial page view
     trackPageView(window.location.pathname);
-    trackMetaPageView();
     trackLandingPageViewIfNeeded();
   }, []);
 
@@ -55,7 +53,6 @@ export default function App({ Component, pageProps }: AppProps) {
   useEffect(() => {
     const handleRouteChange = (url: string) => {
       trackPageView(url);
-      trackMetaPageView();
       trackLandingPageViewIfNeeded();
     };
 
