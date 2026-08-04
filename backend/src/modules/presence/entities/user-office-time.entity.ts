@@ -18,7 +18,7 @@ export class UserOfficeTime {
   @Column({ name: 'weekly_day_off', type: 'varchar', length: 20, nullable: true })
   weeklyDayOff!: string | null;
 
-  @Column({ name: 'caution_minutes', type: 'int', default: 0 })
+  @Column({ name: 'caution_minutes', type: 'int', default: 10 })
   cautionMinutes!: number;
 
   @Column({ name: 'lunch_break_start_time', type: 'varchar', length: 5, nullable: true })

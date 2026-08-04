@@ -23,7 +23,7 @@ type OfficeTimeRow = {
 const DEFAULT_OFFICE_TIME = {
   start: '09:00',
   end: '18:00',
-  cautionMinutes: 5,
+  cautionMinutes: 10,
   lunchStart: '13:20',
   lunchEnd: '14:25',
   weeklyDayOff: 'Friday',
