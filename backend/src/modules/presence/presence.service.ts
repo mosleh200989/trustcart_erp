@@ -119,7 +119,7 @@ function isMissingRelationError(error: any): boolean {
 const PRESENCE_STALE_TIMEOUT_MS = 10 * 60 * 1000;
 const DEFAULT_OFFICE_START_TIME = '09:00';
 const DEFAULT_OFFICE_END_TIME = '18:00';
-const DEFAULT_CAUTION_MINUTES = 5;
+const DEFAULT_CAUTION_MINUTES = 10;
 const OFFICE_END_AUTO_CHECKOUT_DELAY_MINUTES = 60;
 const VALID_BACKUP_WEEKDAYS = ['saturday', 'sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday'];
 const VALID_BACKUP_WEEKDAY_SET = new Set(VALID_BACKUP_WEEKDAYS);
