@@ -35,20 +35,8 @@ async function runMigration() {
     database: process.env.DB_NAME || 'trustcart_erp',
   };
 
-  // Secondary Natural Glowra Database Config (if running)
-  const glowraConfig = {
-    host: process.env.DB_HOST || '127.0.0.1',
-    port: 5433, // port 5433 mapped in docker-compose for glowra
-    user: process.env.DB_USER || 'postgres',
-    password: process.env.DB_PASSWORD || '123456',
-    database: 'natural_glowra',
-  };
-
   console.log('Running TrustCart database migrations...');
   await runSQL(trustcartConfig, sql);
-
-  console.log('\nRunning Natural Glowra database migrations (if active)...');
-  await runSQL(glowraConfig, sql);
 }
 
 runMigration();

@@ -1,11 +1,11 @@
 import { Module } from '@nestjs/common';
-import { TenantTypeOrmModule } from '../tenant/tenant-typeorm.module';
+import { TypeOrmModule } from '@nestjs/typeorm';
 import { BannersController } from './banners.controller';
 import { BannersService } from './banners.service';
 import { Banner } from './banner.entity';
 
 @Module({
-  imports: [TenantTypeOrmModule.forFeature([Banner])],
+  imports: [TypeOrmModule.forFeature([Banner])],
   controllers: [BannersController],
   providers: [BannersService],
   exports: [BannersService],

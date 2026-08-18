@@ -7,7 +7,6 @@ const apiClient = axios.create({
   headers: {
     'Content-Type': 'application/json; charset=utf-8',
     'Accept': 'application/json; charset=utf-8',
-    'x-tenant-id': process.env.NEXT_PUBLIC_TENANT_ID || 'trustcart',
   },
 });
 

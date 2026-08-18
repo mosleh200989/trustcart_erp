@@ -1,11 +1,11 @@
 import { Module } from '@nestjs/common';
-import { TenantTypeOrmModule } from '../tenant/tenant-typeorm.module';
+import { TypeOrmModule } from '@nestjs/typeorm';
 import { ComboDeal } from './combo-deal.entity';
 import { CombosService } from './combos.service';
 import { CombosController } from './combos.controller';
 
 @Module({
-  imports: [TenantTypeOrmModule.forFeature([ComboDeal])],
+  imports: [TypeOrmModule.forFeature([ComboDeal])],
   controllers: [CombosController],
   providers: [CombosService],
   exports: [CombosService],

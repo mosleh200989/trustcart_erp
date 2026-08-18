@@ -198,9 +198,6 @@ import { AuditLogModule } from './modules/audit-log/audit-log.module';
 import { CartItem } from './modules/cart/cart-item.entity';
 import { CartModule } from './modules/cart/cart.module';
 
-// Tenant Module (Multi-Tenancy)
-import { TenantModule } from './modules/tenant/tenant.module';
-
 // Sitemap & Feed Module
 import { SitemapFeedModule } from './modules/sitemap-feed/sitemap-feed.module';
 
@@ -234,6 +231,22 @@ import { PurchaseOrderItem } from './modules/purchase/entities/purchase-order-it
 import { GoodsReceivedNote } from './modules/purchase/entities/goods-received-note.entity';
 import { GrnItem } from './modules/purchase/entities/grn-item.entity';
 
+// Additional entities
+import { CustomerSession } from './modules/lead-management/entities/customer-session.entity';
+import { TeamAssignment } from './modules/lead-management/entities/team-assignment.entity';
+import { TeamAData } from './modules/lead-management/entities/team-a-data.entity';
+import { TeamBData } from './modules/lead-management/entities/team-b-data.entity';
+import { TeamCData } from './modules/lead-management/entities/team-c-data.entity';
+import { TeamDData } from './modules/lead-management/entities/team-d-data.entity';
+import { TeamEData } from './modules/lead-management/entities/team-e-data.entity';
+import { OfferCode } from './modules/offers/entities/offer-code.entity';
+import { PackagingConfig } from './modules/inventory/entities/packaging-config.entity';
+import { RepackOrder } from './modules/inventory/entities/repack-order.entity';
+import { PrinterSettings } from './modules/settings/printer-settings.entity';
+import { ProductHistory } from './modules/products/product-history.entity';
+import { TelephonyAgentPresenceEvent } from './modules/telephony/entities/telephony-agent-presence-event.entity';
+import { WalletWithdrawalRequest } from './modules/loyalty/entities/wallet-withdrawal-request.entity';
+
 @Module({
   imports: [
     // Config Module - must be first
@@ -244,9 +257,6 @@ import { GrnItem } from './modules/purchase/entities/grn-item.entity';
 
     // Task scheduler (nightly tier sync, etc.)
     ScheduleModule.forRoot(),
-
-    // Tenant Module - must be before TypeORM (provides multi-tenant context)
-    TenantModule,
 
     // Database Module
     TypeOrmModule.forRootAsync({
@@ -330,6 +340,21 @@ import { GrnItem } from './modules/purchase/entities/grn-item.entity';
             // Coupon entities
             CouponCampaign,
             CampaignCustomer,
+            // Lead management team entities
+            CustomerSession, TeamAssignment,
+            TeamAData, TeamBData, TeamCData, TeamDData, TeamEData,
+            // Offers
+            OfferCode,
+            // Inventory repackaging
+            PackagingConfig, RepackOrder,
+            // Settings
+            PrinterSettings,
+            // Products
+            ProductHistory,
+            // Telephony
+            TelephonyAgentPresenceEvent,
+            // Loyalty
+            WalletWithdrawalRequest,
           ],
           synchronize: false,
           logging: configService.get<string>('NODE_ENV') === 'development',

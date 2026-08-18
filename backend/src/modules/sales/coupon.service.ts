@@ -128,7 +128,7 @@ export class CouponService {
     qb.skip((page - 1) * limit).take(limit);
     const data = await qb.getMany();
 
-    // Load campaigns separately to avoid relation-join metadata issue with tenant proxy
+    // Load campaigns separately to avoid relation-join metadata issues
     if (data.length > 0) {
       const campaignIds = [...new Set(data.map(d => d.campaignId))];
       const campaigns = await this.campaignRepo.find({ where: { id: In(campaignIds) } });

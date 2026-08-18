@@ -1,5 +1,5 @@
 -- Add button style columns to landing_pages table
--- Run on all three databases: trustcart_erp, natural_glowra, chinova_db
+-- Run on the trustcart_erp database
 
 ALTER TABLE landing_pages
   ADD COLUMN IF NOT EXISTS btn_bg_color VARCHAR(50) NOT NULL DEFAULT '#2d6a4f',

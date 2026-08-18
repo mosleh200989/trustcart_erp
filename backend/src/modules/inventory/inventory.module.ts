@@ -1,5 +1,5 @@
 import { Module, OnModuleInit, Logger } from '@nestjs/common';
-import { TenantTypeOrmModule } from '../tenant/tenant-typeorm.module';
+import { TypeOrmModule } from '@nestjs/typeorm';
 import { InventoryService } from './inventory.service';
 import { StockMovementService } from './stock-movement.service';
 import { InventoryController } from './inventory.controller';
@@ -20,7 +20,7 @@ import { RepackOrder } from './entities/repack-order.entity';
 
 @Module({
   imports: [
-    TenantTypeOrmModule.forFeature([
+    TypeOrmModule.forFeature([
       StockLevel,
       StockMovement,
       StockBatch,

@@ -1,5 +1,5 @@
 import { Module, forwardRef } from '@nestjs/common';
-import { TenantTypeOrmModule } from '../tenant/tenant-typeorm.module';
+import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule } from '@nestjs/config';
 import { SalesService } from './sales.service';
 import { SalesController } from './sales.controller';
@@ -36,7 +36,7 @@ import { MetaCapiService } from './meta-capi.service';
 @Module({
   imports: [
     ConfigModule,
-    TenantTypeOrmModule.forFeature([
+    TypeOrmModule.forFeature([
       SalesOrder,
       SalesOrderItem,
       OrderItem,

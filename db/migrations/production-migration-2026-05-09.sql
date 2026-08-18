@@ -2,8 +2,6 @@
 -- COMMISSION MODULE — PRODUCTION MIGRATION 2026-05-09
 -- Only commission-related changes. Run on each DB:
 --   psql -h <host> -U postgres -d trustcart_erp   -f production-migration-2026-05-09.sql
---   psql -h <host> -U postgres -d natural_glowra  -f production-migration-2026-05-09.sql
---   psql -h <host> -U postgres -d chinova_db       -f production-migration-2026-05-09.sql
 -- All statements are idempotent (safe to re-run).
 -- =============================================================================
 
