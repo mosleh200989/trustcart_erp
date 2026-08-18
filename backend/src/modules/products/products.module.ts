@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { TenantTypeOrmModule } from '../tenant/tenant-typeorm.module';
+import { TypeOrmModule } from '@nestjs/typeorm';
 import { ProductsService } from './products.service';
 import { ProductsController } from './products.controller';
 import { Product } from './product.entity';
@@ -9,7 +9,7 @@ import { ProductSuggestion } from './product-suggestion.entity';
 import { ProductHistory } from './product-history.entity';
 
 @Module({
-  imports: [TenantTypeOrmModule.forFeature([Product, DealOfTheDay, HotDeal, ProductSuggestion, ProductHistory])],
+  imports: [TypeOrmModule.forFeature([Product, DealOfTheDay, HotDeal, ProductSuggestion, ProductHistory])],
   controllers: [ProductsController],
   providers: [ProductsService],
   exports: [ProductsService],

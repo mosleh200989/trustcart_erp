@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { TenantTypeOrmModule } from '../tenant/tenant-typeorm.module';
+import { TypeOrmModule } from '@nestjs/typeorm';
 import { PurchaseService } from './purchase.service';
 import { PurchaseController } from './purchase.controller';
 import { PurchaseOrder } from './entities/purchase-order.entity';
@@ -10,7 +10,7 @@ import { InventoryModule } from '../inventory/inventory.module';
 
 @Module({
   imports: [
-    TenantTypeOrmModule.forFeature([PurchaseOrder, PurchaseOrderItem, GoodsReceivedNote, GrnItem]),
+    TypeOrmModule.forFeature([PurchaseOrder, PurchaseOrderItem, GoodsReceivedNote, GrnItem]),
     InventoryModule,
   ],
   controllers: [PurchaseController],

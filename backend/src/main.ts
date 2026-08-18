@@ -7,7 +7,6 @@ import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
 import { AuditInterceptor } from './modules/audit-log/audit.interceptor';
 import { AuditLogService } from './modules/audit-log/audit-log.service';
-import { TenantService } from './modules/tenant/tenant.service';
 import { join } from 'path';
 import * as fs from 'fs';
 
@@ -34,28 +33,37 @@ async function bootstrap() {
   const auditLogService = app.get(AuditLogService);
   app.useGlobalInterceptors(new AuditInterceptor(auditLogService));
 
-  // Build CORS allowed origins from all tenant domains
-  const tenantService = app.get(TenantService);
-  const allowedOrigins = new Set<string>();
-  for (const tenant of tenantService.getAllTenants()) {
-    for (const domain of tenant.domains) {
-      if (domain.startsWith('localhost')) {
-        allowedOrigins.add(`http://${domain}`);
-      } else {
-        allowedOrigins.add(`https://${domain}`);
-        // Add www. variant only if domain doesn't already start with www./api.
-        if (!domain.startsWith('www.') && !domain.startsWith('api.')) {
-          allowedOrigins.add(`https://www.${domain}`);
-        }
-      }
+  // CORS allowed origins — all domains served by this backend
+  const APP_DOMAINS = [
+    'trustcart.com.bd',
+    'shop.trustcart.com.bd',
+    'trustkert.com',
+    'api.trustkert.com',
+    'herbolin.com',
+    'api.herbolin.com',
+    'arabiankhalta.com',
+    'veshoj.site',
+    'api.veshoj.site',
+    'kasrioil.com',
+  ];
+  const allowedOrigins = new Set<string>([
+    'http://localhost:3000', // local frontend dev
+    'http://localhost:3001', // local backend dev
+  ]);
+  for (const domain of APP_DOMAINS) {
+    allowedOrigins.add(`https://${domain}`);
+    // Add www. variant only if domain doesn't already start with www./api.
+    if (!domain.startsWith('www.') && !domain.startsWith('api.')) {
+      allowedOrigins.add(`https://www.${domain}`);
     }
-    if (tenant.frontendUrl) {
-      allowedOrigins.add(tenant.frontendUrl);
-    }
+  }
+  const frontendUrl = process.env.FRONTEND_URL;
+  if (frontendUrl) {
+    allowedOrigins.add(frontendUrl);
   }
   const originsArray = [...allowedOrigins];
 
-  // CORS — automatically derived from tenant domains
+  // CORS
   // When running behind nginx in production, you may disable this
   // and let nginx handle CORS instead.
   app.enableCors({
@@ -73,7 +81,7 @@ async function bootstrap() {
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin', 'x-tenant-id'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
   });
 
   // Handle Private Network Access preflight (Chrome's local network access prompt)
@@ -102,12 +110,11 @@ async function bootstrap() {
 
   // Swagger Documentation
   const swaggerConfig = new DocumentBuilder()
-    .setTitle('TrustCart / Natural Glowra Multi-Tenant ERP API')
-    .setDescription('Shared backend for TrustCart (Organic Grocery) and Natural Glowra (Cosmetics)')
+    .setTitle('TrustCart ERP API')
+    .setDescription('Backend API for TrustCart (Organic Grocery)')
     .setVersion('2.0.0')
     .addBearerAuth()
     .addBasicAuth()
-    .addApiKey({ type: 'apiKey', name: 'x-tenant-id', in: 'header' }, 'tenant-id')
     .build();
 
   const document = SwaggerModule.createDocument(app, swaggerConfig);
@@ -115,15 +122,13 @@ async function bootstrap() {
 
   await app.listen(port);
   
-  const tenants = tenantService.getAllTenants().map((t) => t.id).join(', ');
   console.log(`
-    ╔══════════════════════════════════════════════╗
-    ║   🚀 Multi-Tenant ERP Backend Started       ║
-    ╠══════════════════════════════════════════════╣
+    ╔════════════════════════════════════════════╗
+    ║   🚀 TrustCart ERP Backend Started       ║
+    ╠════════════════════════════════════════════╣
     ║   Server:  http://localhost:${port}
     ║   API Docs: http://localhost:${port}/api/docs
-    ║   Tenants: ${tenants}
-    ╚══════════════════════════════════════════════╝
+    ╚════════════════════════════════════════════╝
     `);
 }
 

@@ -8,8 +8,6 @@ import { SalesTeam } from './entities/sales-team.entity';
 import { User } from '../users/user.entity';
 import { CallTask } from './entities/call-task.entity';
 import { getDhakaDateString } from '../../common/utils/dhaka-date';
-import { TenantService } from '../tenant/tenant.service';
-import { TenantContext } from '../tenant/tenant.context';
 
 interface ScheduledLeadAssignmentJob {
   id: number;
@@ -35,7 +33,6 @@ export class SalesManagerService implements OnModuleInit {
     private usersRepository: Repository<User>,
     @InjectRepository(CallTask)
     private callTaskRepo: Repository<CallTask>,
-    private readonly tenantService: TenantService,
     private readonly customersService: CustomersService,
   ) {}
 
@@ -51,19 +48,13 @@ export class SalesManagerService implements OnModuleInit {
       return;
     }
     console.log('[SalesManagerService] Starting scheduled background cleanup of invalid team leader assignments...');
-    const tenants = this.tenantService.getAllTenants();
-    for (const tenant of tenants) {
-      if (!tenant.isActive) continue;
-      await TenantContext.run(tenant.id, async () => {
-        try {
-          const cleanedCount = await this.cleanupInvalidTeamLeaderAssignments();
-          if (cleanedCount > 0) {
-            console.log(`[SalesManagerService] Cleanup completed: ${cleanedCount} assignments cleaned up for tenant ${tenant.id}.`);
-          }
-        } catch (err: any) {
-          console.error(`[SalesManagerService] Cleanup failed for tenant ${tenant.id}:`, err?.message || err);
-        }
-      });
+    try {
+      const cleanedCount = await this.cleanupInvalidTeamLeaderAssignments();
+      if (cleanedCount > 0) {
+        console.log(`[SalesManagerService] Cleanup completed: ${cleanedCount} assignments cleaned up.`);
+      }
+    } catch (err: any) {
+      console.error('[SalesManagerService] Cleanup failed:', err?.message || err);
     }
   }
 
@@ -72,16 +63,10 @@ export class SalesManagerService implements OnModuleInit {
     if (process.env.ENABLE_BACKGROUND_JOBS !== 'true') {
       return;
     }
-    const tenants = this.tenantService.getAllTenants();
-    for (const tenant of tenants) {
-      if (!tenant.isActive) continue;
-      await TenantContext.run(tenant.id, async () => {
-        try {
-          await this.processDueScheduledLeadAssignments(100);
-        } catch (err: any) {
-          console.error(`[SalesManagerService] Scheduled lead assignment processing failed for tenant ${tenant.id}:`, err?.message || err);
-        }
-      });
+    try {
+      await this.processDueScheduledLeadAssignments(100);
+    } catch (err: any) {
+      console.error('[SalesManagerService] Scheduled lead assignment processing failed:', err?.message || err);
     }
   }
 

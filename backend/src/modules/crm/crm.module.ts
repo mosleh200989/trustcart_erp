@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { TenantTypeOrmModule } from '../tenant/tenant-typeorm.module';
+import { TypeOrmModule } from '@nestjs/typeorm';
 import { CrmService } from './crm.service';
 import { CrmController } from './crm.controller';
 import { CrmTeamService } from './crm-team.service';
@@ -90,7 +90,7 @@ import { CrmNotificationsController } from './crm-notifications.controller';
 
 @Module({
   imports: [
-    TenantTypeOrmModule.forFeature([
+    TypeOrmModule.forFeature([
       // Existing entities
       Customer,
       User,

@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
-import { TenantTypeOrmModule } from '../tenant/tenant-typeorm.module';
+import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { UsersModule } from '../users/users.module';
 import { RbacModule } from '../rbac/rbac.module';
@@ -13,7 +13,7 @@ import { JwtStrategy } from './jwt.strategy';
 
 @Module({
   imports: [
-    TenantTypeOrmModule.forFeature([User, Customer]),
+    TypeOrmModule.forFeature([User, Customer]),
     UsersModule,
     RbacModule,
     PassportModule.register({ defaultStrategy: 'jwt' }),

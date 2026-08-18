@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { TenantTypeOrmModule } from '../tenant/tenant-typeorm.module';
+import { TypeOrmModule } from '@nestjs/typeorm';
 
 // Entities
 import { HrmBranches } from './entities/hrm-branches.entity';
@@ -80,7 +80,7 @@ import { HrmDocumentTypesController } from './controllers/hrm-document-types.con
 import { HrmEmployeeDocumentsController } from './controllers/hrm-employee-documents.controller';
 
 @Module({
-  imports: [TenantTypeOrmModule.forFeature([
+  imports: [TypeOrmModule.forFeature([
     HrmBranches,
     HrmDepartments,
     HrmDesignations,

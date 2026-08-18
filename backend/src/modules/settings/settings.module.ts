@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { TenantTypeOrmModule } from '../tenant/tenant-typeorm.module';
+import { TypeOrmModule } from '@nestjs/typeorm';
 import { CourierConfiguration } from './courier-configuration.entity';
 import { CourierConfigurationController } from './courier-configuration.controller';
 import { CourierConfigurationService } from './courier-configuration.service';
@@ -14,7 +14,7 @@ import { OrderGuardSettingsController } from './order-guard-settings.controller'
 import { OrderGuardSettingsService } from './order-guard-settings.service';
 
 @Module({
-  imports: [TenantTypeOrmModule.forFeature([CourierConfiguration, AdminMenuItem, PrinterSettings, OrderGuardSettings])],
+  imports: [TypeOrmModule.forFeature([CourierConfiguration, AdminMenuItem, PrinterSettings, OrderGuardSettings])],
   controllers: [CourierConfigurationController, AdminMenuController, PrinterSettingsController, OrderGuardSettingsController],
   providers: [CourierConfigurationService, AdminMenuService, PrinterSettingsService, OrderGuardSettingsService],
   exports: [PrinterSettingsService, OrderGuardSettingsService],

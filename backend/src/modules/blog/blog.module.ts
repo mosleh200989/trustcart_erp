@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { TenantTypeOrmModule } from '../tenant/tenant-typeorm.module';
+import { TypeOrmModule } from '@nestjs/typeorm';
 import { BlogController } from './blog.controller';
 import { BlogService } from './blog.service';
 import { BlogPost } from './blog-post.entity';
@@ -8,7 +8,7 @@ import { BlogTag } from './blog-tag.entity';
 
 @Module({
   imports: [
-    TenantTypeOrmModule.forFeature([BlogPost, BlogCategory, BlogTag]),
+    TypeOrmModule.forFeature([BlogPost, BlogCategory, BlogTag]),
   ],
   controllers: [BlogController],
   providers: [BlogService],

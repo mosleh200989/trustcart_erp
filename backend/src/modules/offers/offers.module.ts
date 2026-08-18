@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { TenantTypeOrmModule } from '../tenant/tenant-typeorm.module';
+import { TypeOrmModule } from '@nestjs/typeorm';
 import { OffersController } from './offers.controller';
 import { OffersService } from './offers.service';
 import { Offer } from './entities/offer.entity';
@@ -12,7 +12,7 @@ import { OfferCode } from './entities/offer-code.entity';
 
 @Module({
   imports: [
-    TenantTypeOrmModule.forFeature([
+    TypeOrmModule.forFeature([
       Offer,
       OfferCondition,
       OfferReward,

@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { TenantTypeOrmModule } from '../tenant/tenant-typeorm.module';
+import { TypeOrmModule } from '@nestjs/typeorm';
 import { User } from '../users/user.entity';
 import { UserPresenceEvent } from './entities/user-presence-event.entity';
 import { UserPresenceStatus } from './entities/user-presence-status.entity';
@@ -16,7 +16,7 @@ import { SalesModule } from '../sales/sales.module';
 
 @Module({
   imports: [
-    TenantTypeOrmModule.forFeature([
+    TypeOrmModule.forFeature([
       UserPresenceStatus,
       UserPresenceEvent,
       PresenceSettings,
