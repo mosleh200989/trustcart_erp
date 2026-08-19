@@ -32,7 +32,7 @@ const PACKAGES_SECTION_ID = 'natural-packages';
 
 interface LandingPageSection {
   id: string;
-  type: 'hero' | 'benefits' | 'images' | 'trust' | 'order-form' | 'cta' | 'custom-html' | 'phone-cta' | 'spacer';
+  type: 'hero' | 'benefits' | 'images' | 'trust' | 'order-form' | 'cta' | 'custom-html' | 'packages' | 'phone-cta' | 'spacer';
   title?: string;
   content?: string;
   items?: Array<{ icon?: string; text: string }>;
@@ -464,15 +464,21 @@ export default function NaturalTemplate({ page, trafficSource = 'landing_page' }
     .sort((a, b) => a.order - b.order);
 
   const heroBadgeSection = visibleSections.find((s) => s.id === HERO_BADGES_SECTION_ID);
-  const packagesSection = visibleSections.find((s) => s.id === PACKAGES_SECTION_ID);
-  const bodySections = visibleSections.filter(
-    (s) => s.id !== HERO_BADGES_SECTION_ID && s.id !== PACKAGES_SECTION_ID,
-  );
+  const bodySections = visibleSections.filter((s) => s.id !== HERO_BADGES_SECTION_ID);
+
+  /**
+   * The package cards are a 'packages' section, so they can be retitled, recoloured,
+   * reordered and hidden from the Page Sections tab like anything else. `natural-packages`
+   * is honoured for pages seeded before the type existed.
+   */
+  const isPackagesSection = (s: LandingPageSection) =>
+    s.type === 'packages' || s.id === PACKAGES_SECTION_ID;
 
   const packages = page.products || [];
-  const showPackages = packages.length > 0;
-  const packagesTitle = packagesSection?.title || 'আমাদের প্যাকেজ সমূহ';
-  const packagesSubtitle = packagesSection?.content || 'আপনার পছন্দমতো প্যাকেজ বেছে নিন';
+  // A page with products but no packages section at all still shows them, right after
+  // the hero — otherwise adding the template to a page would silently drop the products.
+  const hasPackagesSection = (page.sections || []).some(isPackagesSection);
+  const showOrphanPackages = packages.length > 0 && !hasPackagesSection;
 
   const whatsappHref = page.whatsapp_number
     ? `https://wa.me/${page.whatsapp_number.replace(/\D/g, '')}`
@@ -499,6 +505,119 @@ export default function NaturalTemplate({ page, trafficSource = 'landing_page' }
     color: orderFormTitleColor,
     ['--tw-ring-color' as any]: `${orderFormAccentColor}55`,
   } as React.CSSProperties;
+
+  const DEFAULT_PACKAGES_TITLE = 'আমাদের প্যাকেজ সমূহ';
+  const DEFAULT_PACKAGES_SUBTITLE = 'আপনার পছন্দমতো প্যাকেজ বেছে নিন';
+
+  const renderPackages = (sec?: LandingPageSection) => {
+    if (!packages.length) return null;
+    return (
+        <section
+          className="px-4 py-12 sm:py-14"
+          style={{ backgroundColor: sec?.backgroundColor || tint(secondaryColor, 0.9) }}
+        >
+          <div className="mx-auto max-w-5xl">
+            <div className="mb-9 text-center">
+              <h2
+                className="inline-block rounded-lg px-6 py-2 text-2xl font-bold sm:text-3xl"
+                style={{ backgroundColor: primaryColor, color: '#FFFFFF' }}
+                dangerouslySetInnerHTML={html(sec?.title || DEFAULT_PACKAGES_TITLE)}
+              />
+              {(sec?.content ?? DEFAULT_PACKAGES_SUBTITLE) && (
+                <p
+                  className="mt-4 text-lg font-medium"
+                  style={{ color: sec?.textColor || '#38493F' }}
+                  dangerouslySetInnerHTML={html(sec?.content ?? DEFAULT_PACKAGES_SUBTITLE)}
+                />
+              )}
+            </div>
+
+            <div
+              className={`grid gap-6 ${
+                packages.length === 1
+                  ? 'mx-auto max-w-md grid-cols-1'
+                  : packages.length % 3 === 0
+                    ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3'
+                    : 'grid-cols-1 sm:grid-cols-2'
+              }`}
+            >
+              {packages.map((product) => {
+                const discount =
+                  product.compare_price && product.compare_price > product.price
+                    ? Math.round(((product.compare_price - product.price) / product.compare_price) * 100)
+                    : 0;
+                return (
+                  <article
+                    key={product.id}
+                    className="relative flex flex-col overflow-hidden rounded-xl border bg-white p-5 shadow-sm transition-shadow hover:shadow-md"
+                    style={{
+                      borderColor: product.is_featured ? primaryColor : orderFormBorderColor,
+                      borderWidth: product.is_featured ? 2 : 1,
+                    }}
+                  >
+                    {product.is_featured && (
+                      <span
+                        className="absolute right-4 top-4 rounded-full px-3 py-1 text-xs font-bold text-white shadow"
+                        style={{ backgroundColor: secondaryColor }}
+                      >
+                        {product.featured_label || '🔥 জনপ্রিয়'}
+                      </span>
+                    )}
+
+                    {product.image_url && (
+                      <img
+                        src={product.image_url}
+                        alt={product.name}
+                        className="mb-4 h-52 w-full rounded-lg object-cover"
+                        loading="lazy"
+                      />
+                    )}
+
+                    <h3 className="text-xl font-bold" style={{ color: primaryColor }}>
+                      {product.name}
+                    </h3>
+
+                    {product.description && (
+                      <p className="mt-1.5 text-base leading-relaxed" style={{ color: '#4A5A50' }}>
+                        {product.description}
+                      </p>
+                    )}
+
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      <span className="text-2xl font-bold" style={{ color: primaryColor }}>
+                        {priceLabel(product.price)}
+                      </span>
+                      {discount > 0 && (
+                        <>
+                          <span className="text-base font-medium text-gray-400 line-through">
+                            {money(product.compare_price!)}৳
+                          </span>
+                          <span
+                            className="rounded-full px-2 py-0.5 text-xs font-bold text-white"
+                            style={{ backgroundColor: '#D64545' }}
+                          >
+                            {discount}% ছাড়
+                          </span>
+                        </>
+                      )}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => selectPackageAndScroll(product)}
+                      className="mt-5 w-full py-3 text-lg font-semibold transition-transform hover:-translate-y-0.5"
+                      style={btnStyle}
+                    >
+                      অর্ডার করুন
+                    </button>
+                  </article>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+    );
+  };
 
   return (
     <>
@@ -652,116 +771,15 @@ export default function NaturalTemplate({ page, trafficSource = 'landing_page' }
           </div>
         </header>
 
-        {/* ═══════════ PACKAGES ═══════════ */}
-        {showPackages && (
-          <section
-            className="px-4 py-12 sm:py-14"
-            style={{ backgroundColor: packagesSection?.backgroundColor || tint(secondaryColor, 0.9) }}
-          >
-            <div className="mx-auto max-w-5xl">
-              <div className="mb-9 text-center">
-                <h2
-                  className="inline-block rounded-lg px-6 py-2 text-2xl font-bold sm:text-3xl"
-                  style={{ backgroundColor: primaryColor, color: '#FFFFFF' }}
-                  dangerouslySetInnerHTML={html(packagesTitle)}
-                />
-                {packagesSubtitle && (
-                  <p
-                    className="mt-4 text-lg font-medium"
-                    style={{ color: packagesSection?.textColor || '#38493F' }}
-                    dangerouslySetInnerHTML={html(packagesSubtitle)}
-                  />
-                )}
-              </div>
-
-              <div
-                className={`grid gap-6 ${
-                  packages.length === 1
-                    ? 'mx-auto max-w-md grid-cols-1'
-                    : packages.length % 3 === 0
-                      ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3'
-                      : 'grid-cols-1 sm:grid-cols-2'
-                }`}
-              >
-                {packages.map((product) => {
-                  const discount =
-                    product.compare_price && product.compare_price > product.price
-                      ? Math.round(((product.compare_price - product.price) / product.compare_price) * 100)
-                      : 0;
-                  return (
-                    <article
-                      key={product.id}
-                      className="relative flex flex-col overflow-hidden rounded-xl border bg-white p-5 shadow-sm transition-shadow hover:shadow-md"
-                      style={{
-                        borderColor: product.is_featured ? primaryColor : orderFormBorderColor,
-                        borderWidth: product.is_featured ? 2 : 1,
-                      }}
-                    >
-                      {product.is_featured && (
-                        <span
-                          className="absolute right-4 top-4 rounded-full px-3 py-1 text-xs font-bold text-white shadow"
-                          style={{ backgroundColor: secondaryColor }}
-                        >
-                          {product.featured_label || '🔥 জনপ্রিয়'}
-                        </span>
-                      )}
-
-                      {product.image_url && (
-                        <img
-                          src={product.image_url}
-                          alt={product.name}
-                          className="mb-4 h-52 w-full rounded-lg object-cover"
-                          loading="lazy"
-                        />
-                      )}
-
-                      <h3 className="text-xl font-bold" style={{ color: primaryColor }}>
-                        {product.name}
-                      </h3>
-
-                      {product.description && (
-                        <p className="mt-1.5 text-base leading-relaxed" style={{ color: '#4A5A50' }}>
-                          {product.description}
-                        </p>
-                      )}
-
-                      <div className="mt-3 flex flex-wrap items-center gap-2">
-                        <span className="text-2xl font-bold" style={{ color: primaryColor }}>
-                          {priceLabel(product.price)}
-                        </span>
-                        {discount > 0 && (
-                          <>
-                            <span className="text-base font-medium text-gray-400 line-through">
-                              {money(product.compare_price!)}৳
-                            </span>
-                            <span
-                              className="rounded-full px-2 py-0.5 text-xs font-bold text-white"
-                              style={{ backgroundColor: '#D64545' }}
-                            >
-                              {discount}% ছাড়
-                            </span>
-                          </>
-                        )}
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() => selectPackageAndScroll(product)}
-                        className="mt-5 w-full py-3 text-lg font-semibold transition-transform hover:-translate-y-0.5"
-                        style={btnStyle}
-                      >
-                        অর্ডার করুন
-                      </button>
-                    </article>
-                  );
-                })}
-              </div>
-            </div>
-          </section>
-        )}
+        {/* ═══════════ PACKAGE CARDS (rendered per 'packages' section) ═══════════ */}
+        {showOrphanPackages && renderPackages(undefined)}
 
         {/* ═══════════ BODY SECTIONS ═══════════ */}
         {bodySections.map((section) => {
+          if (isPackagesSection(section)) {
+            return <div key={section.id}>{renderPackages(section)}</div>;
+          }
+
           if (section.type === 'spacer') {
             return (
               <div

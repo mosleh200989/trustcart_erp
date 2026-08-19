@@ -121,6 +121,7 @@ Each landing page has a flexible sections builder. Available section types:
 | `cta` | Call to action with button | "Order now" prompts |
 | `images` | Image gallery grid | Product photos, before/after |
 | `custom-html` | Raw HTML content | Any custom content |
+| `packages` | Product package cards built from the Products tab | Pricing/offer blocks (Natural template) |
 
 Sections can be:
 - **Reordered** with up/down arrows
@@ -155,23 +156,27 @@ Light cream canvas, deep-green brand colour, Hind Siliguri throughout.
 **Page flow:** hero (image + headline + inline trust pills + CTA) → package cards →
 your sections in `order` → cross-sell → order form → footer, with floating call/WhatsApp buttons.
 
-**Package cards are generated from the Products tab** — one card per product, showing image,
-name, description, price with strike-through compare price and a `%` off badge. The card's
-"অর্ডার করুন" button adds that package to the cart and scrolls to the form.
+**Package cards are a `packages` section.** Add **🛍️ Product Packages** from the Sections
+tab and place it wherever you want the block; one card is generated per entry in the
+**Products** tab, showing image, name, description, price with strike-through compare price
+and a `%` off badge. The card's "অর্ডার করুন" button adds that package to the cart and
+scrolls to the form. The section's Title and Content become the heading and sub-heading, and
+hiding the section hides the cards. A page that has products but no `packages` section still
+renders them right after the hero, so adding the template never silently drops products.
 
 **Order form is multi-select**, mirroring a CartFlows-style embedded checkout: tick any
 combination of packages with per-package quantity steppers on the left, and a live
 Product / Subtotal / Delivery / Total review table on the right.
 
-**Two section ids get special placement** (everything else renders in order):
+**One section id still gets special placement** (everything else renders in order):
 
 | Section id | Type | Where it renders |
 |------------|------|------------------|
 | `natural-hero-badges` | Benefits | Inline trust pills inside the hero — `icon` + `text` per item |
-| `natural-packages` | Custom HTML | `title` and `content` become the heading and sub-heading above the package cards; `backgroundColor` tints that band |
 
 Because section ids are auto-generated in the editor, use the **Load Natural Sections**
-button on the Sections tab to scaffold both ids plus a starter "why us" and phone CTA.
+button on the Sections tab to scaffold that id plus the packages block, a starter
+"why us" and a phone CTA.
 
 **Colour roles:** Primary = deep brand green (headings, hero tint, buttons); Secondary =
 fresh accent green (order-form header bar, prices, checkmarks); Background = page canvas.
