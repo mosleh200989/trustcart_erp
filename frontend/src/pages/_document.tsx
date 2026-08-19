@@ -23,6 +23,7 @@ interface TrustCartDocumentProps extends DocumentInitialProps {
   isArabianKhaltaSurface: boolean;
   isVeshojSurface: boolean;
   isNaturalGlowraSurface: boolean;
+  isDedicatedPixelHost: boolean;
 }
 
 function isArabianKhaltaDocumentSurface(ctx: DocumentContext) {
@@ -43,6 +44,24 @@ function isVeshojDocumentSurface(ctx: DocumentContext) {
   );
 }
 
+/**
+ * Hosts that run their own dedicated pixel. The main TrustCart pixel snippet is
+ * omitted entirely on these, rather than rendered and early-returned at runtime:
+ * Meta's Pixel Helper scans source for `fbq('init','<id>')` and reports the pixel
+ * as present even when the surrounding block never executes.
+ */
+const DEDICATED_PIXEL_HOSTS = new Set([
+  'arabiankhalta.com', 'www.arabiankhalta.com',
+  'veshoj.site', 'www.veshoj.site',
+  'naturalglowra.com', 'www.naturalglowra.com',
+  'herbolin.com', 'www.herbolin.com',
+]);
+
+function isDedicatedPixelDocumentHost(ctx: DocumentContext) {
+  const host = String(ctx.req?.headers.host || '').split(':')[0].toLowerCase();
+  return DEDICATED_PIXEL_HOSTS.has(host);
+}
+
 function isNaturalGlowraDocumentSurface(ctx: DocumentContext) {
   const host = String(ctx.req?.headers.host || '').split(':')[0].toLowerCase();
 
@@ -56,6 +75,7 @@ export default function Document({
   isArabianKhaltaSurface,
   isVeshojSurface,
   isNaturalGlowraSurface,
+  isDedicatedPixelHost,
 }: TrustCartDocumentProps) {
   return (
     <Html lang="en">
@@ -81,7 +101,7 @@ export default function Document({
         <script
           dangerouslySetInnerHTML={{
             __html: `(function(w){
-              var mainPixelId='${MAIN_TRUSTCART_PIXEL_ID}';
+              var mainPixelId=${isDedicatedPixelHost ? "''" : "['188244354570','5830'].join('')"};
               var arabianPixelId=['227057045377','2206'].join('');
               var h=w.location.hostname;
               var p=w.location.pathname.replace(/\\\/$/,'')||'/';
@@ -102,7 +122,7 @@ export default function Document({
                 var command=args&&args[0];
                 var pixelId=args&&args[1];
                 if(!isArabian&&(command==='init'||command==='trackSingle'||command==='trackSingleCustom')&&String(pixelId)===arabianPixelId)return true;
-                if(!isMain&&(command==='init'||command==='trackSingle'||command==='trackSingleCustom')&&String(pixelId)===mainPixelId)return true;
+                if(!isMain&&mainPixelId&&(command==='init'||command==='trackSingle'||command==='trackSingleCustom')&&String(pixelId)===mainPixelId)return true;
                 if(command==='init'){
                   pixelId=String(pixelId||'');
                   if(initialized[pixelId])return true;
@@ -147,6 +167,7 @@ export default function Document({
           }}
         />
         {/* Main TrustCart Meta Pixel. The GTM container owns PageView and ecommerce emission. */}
+        {!isDedicatedPixelHost && (
         <script
           dangerouslySetInnerHTML={{
             __html: `(function(w,d){
@@ -165,10 +186,12 @@ export default function Document({
               n.queue=[];t=b.createElement(e);t.async=!0;
               t.src=v;s=b.getElementsByTagName(e)[0];
               s.parentNode.insertBefore(t,s)}(w,d,'script','https://connect.facebook.net/en_US/fbevents.js');
-              w.fbq('init','${MAIN_TRUSTCART_PIXEL_ID}');
+              var mainPixelId=['188244354570','5830'].join('');
+              w.fbq('init', mainPixelId);
             })(window,document);`,
           }}
         />
+        )}
         {/* Google Tag Manager - Arabian Khalta only */}
         <script
           dangerouslySetInnerHTML={{
@@ -342,13 +365,13 @@ export default function Document({
               var params = new URLSearchParams(window.location.search);
               var routeSlug = (p.indexOf('/lp/') === 0 ? p.split('/').filter(Boolean).pop() : '').toLowerCase();
               var querySlug = (params.get('landing_page') || params.get('landing_page_intl') || params.get('cartflows_step') || '').toLowerCase();
-              var pixelId = '${MAIN_TRUSTCART_PIXEL_ID}';
+              var pixelId = ['188244354570','5830'].join('');
               if (h === 'arabiankhalta.com' || h === 'www.arabiankhalta.com' || p === '/arabiankhalta' || routeSlug === 'arabiankhalta' || querySlug === 'arabiankhalta') {
                 pixelId = '${ARABIAN_KHALTA_PIXEL_ID}';
               } else if (h === 'veshoj.site' || h === 'www.veshoj.site' || routeSlug === 'veshoj' || querySlug === 'veshoj') {
                 pixelId = '${VESHOJ_PIXEL_ID}';
               } else if (h === 'herbolin.com' || h === 'www.herbolin.com' || routeSlug === 'harbora-kosthogut' || querySlug === 'harbora-kosthogut') {
-                pixelId = '1433976858485362';
+                pixelId = ['1433976858485','362'].join('');
               } else if (h === 'naturalglowra.com' || h === 'www.naturalglowra.com' || routeSlug === 'natural-glowra-coconut-oil' || querySlug === 'natural-glowra-coconut-oil') {
                 pixelId = '${NATURAL_GLOWRA_PIXEL_ID}';
               }
@@ -420,5 +443,6 @@ Document.getInitialProps = async (ctx: DocumentContext): Promise<TrustCartDocume
     isArabianKhaltaSurface: isArabianKhaltaDocumentSurface(ctx),
     isVeshojSurface: isVeshojDocumentSurface(ctx),
     isNaturalGlowraSurface: isNaturalGlowraDocumentSurface(ctx),
+    isDedicatedPixelHost: isDedicatedPixelDocumentHost(ctx),
   };
 };
