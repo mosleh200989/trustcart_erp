@@ -1298,7 +1298,7 @@ export default function LandingPageEditor() {
             {/* Hero Layout Order */}
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2">Hero Layout Order</label>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
                 <button
                   type="button"
                   onClick={() => setForm((prev) => ({ ...prev, hero_layout: 'image-first' }))}
@@ -1338,8 +1338,25 @@ export default function LandingPageEditor() {
                   <span>Video First</span>
                   <span className="text-[10px] text-gray-400">Video sales style</span>
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setForm((prev) => ({ ...prev, hero_layout: 'banner' }))}
+                  className={`py-2.5 px-3 rounded-lg text-sm font-medium border-2 transition-all flex flex-col items-center gap-1 ${
+                    form.hero_layout === 'banner'
+                      ? 'border-blue-500 bg-blue-50 text-blue-700'
+                      : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
+                  }`}
+                >
+                  <span className="text-lg">🏞️</span>
+                  <span>Banner</span>
+                  <span className="text-[10px] text-gray-400">Natural template only</span>
+                </button>
               </div>
-              <p className="text-xs text-gray-400 mt-1">Controls whether image, video, or title/subtitle leads the hero.</p>
+              <p className="text-xs text-gray-400 mt-1">
+                Controls whether image, video, or title/subtitle leads the hero. <strong>Banner</strong> renders wide
+                artwork full width with the order button directly under it, and hides the hero title/subtitle so
+                headline text baked into the artwork is not repeated.
+              </p>
             </div>
             {/* Show Price in Hero */}
             <div>

@@ -135,6 +135,9 @@ interface NaturalTemplateProps {
 
 const money = (value: number) => Number(value || 0).toLocaleString('en-US');
 
+/** Free-trial funnels price the headline product at 0 — show that as "ফ্রি", not "0৳". */
+const priceLabel = (value: number) => (Number(value) === 0 ? 'ফ্রি' : `${money(value)}৳`);
+
 /** Mix a hex colour towards white by `amount` (0..1) so cards can sit on the page tint. */
 const tint = (hex: string, amount: number) => {
   const clean = (hex || '').replace('#', '');
@@ -483,6 +486,11 @@ export default function NaturalTemplate({ page, trafficSource = 'landing_page' }
   const nameInvalid = formTouched && !orderForm.name;
   const addressInvalid = formTouched && !orderForm.address;
 
+  // 'banner' hero: the artwork already carries the headline, sub-headline and
+  // trust badges, so the hero renders the image full width with the CTA
+  // directly beneath it and suppresses the duplicate text.
+  const isBannerHero = page.hero_layout === 'banner';
+
   const inputClass =
     'w-full rounded-lg px-4 py-3 outline-none transition-all border focus:ring-2 focus:ring-offset-0';
   const inputStyle = {
@@ -542,7 +550,9 @@ export default function NaturalTemplate({ page, trafficSource = 'landing_page' }
       <div className="natural-landing min-h-screen" style={{ backgroundColor: bgColor, color: '#22312A' }}>
         {/* ═══════════ HERO ═══════════ */}
         <header
-          className="relative overflow-hidden px-4 pt-8 pb-12 sm:pt-12 sm:pb-16"
+          className={`relative overflow-hidden ${
+            isBannerHero ? 'pb-9' : 'px-4 pt-8 pb-12 sm:pt-12 sm:pb-16'
+          }`}
           style={{
             backgroundImage: `linear-gradient(180deg, ${tint(primaryColor, 0.78)} 0%, ${tint(primaryColor, 0.96)} 100%)`,
           }}
@@ -559,25 +569,32 @@ export default function NaturalTemplate({ page, trafficSource = 'landing_page' }
             />
           )}
 
-          <div className="relative z-10 mx-auto max-w-4xl text-center">
+          <div className={`relative z-10 mx-auto text-center ${isBannerHero ? 'max-w-6xl' : 'max-w-4xl'}`}>
             {page.hero_image_url && page.hero_layout !== 'title-first' && (
-              <div className="mb-6 flex justify-center">
+              <div className={isBannerHero ? 'mb-7' : 'mb-6 flex justify-center'}>
                 <img
                   src={page.hero_image_url}
-                  alt={page.title}
-                  className="natural-float w-full max-w-md rounded-2xl object-cover shadow-lg"
-                  style={{ boxShadow: `0 18px 45px -25px ${primaryColor}` }}
+                  alt={page.hero_title ? page.hero_title.replace(/<[^>]*>/g, ' ') : page.title}
+                  className={
+                    isBannerHero
+                      ? 'w-full object-contain'
+                      : 'natural-float w-full max-w-md rounded-2xl object-cover shadow-lg'
+                  }
+                  style={isBannerHero ? undefined : { boxShadow: `0 18px 45px -25px ${primaryColor}` }}
                 />
               </div>
             )}
 
-            <h1
-              className="text-[28px] font-bold leading-snug sm:text-4xl md:text-[42px]"
-              style={{ color: primaryColor }}
-              dangerouslySetInnerHTML={html(page.hero_title || page.title)}
-            />
+            {/* A banner carries its own headline — rendering one here would duplicate it. */}
+            {!isBannerHero && (
+              <h1
+                className="text-[28px] font-bold leading-snug sm:text-4xl md:text-[42px]"
+                style={{ color: primaryColor }}
+                dangerouslySetInnerHTML={html(page.hero_title || page.title)}
+              />
+            )}
 
-            {page.hero_subtitle && (
+            {!isBannerHero && page.hero_subtitle && (
               <p
                 className="mx-auto mt-4 max-w-2xl text-base font-medium leading-relaxed sm:text-lg"
                 style={{ color: '#38493F' }}
@@ -620,7 +637,7 @@ export default function NaturalTemplate({ page, trafficSource = 'landing_page' }
             )}
 
             {page.hero_button_text && (
-              <div className="mt-8">
+              <div className={isBannerHero ? 'px-4' : 'mt-8'}>
                 <button
                   type="button"
                   onClick={scrollToOrderForm}
@@ -710,7 +727,7 @@ export default function NaturalTemplate({ page, trafficSource = 'landing_page' }
 
                       <div className="mt-3 flex flex-wrap items-center gap-2">
                         <span className="text-2xl font-bold" style={{ color: primaryColor }}>
-                          {money(product.price)}৳
+                          {priceLabel(product.price)}
                         </span>
                         {discount > 0 && (
                           <>
@@ -798,7 +815,8 @@ export default function NaturalTemplate({ page, trafficSource = 'landing_page' }
                 paddingBottom: `${section.paddingY ?? 48}px`,
               }}
             >
-              <div className="mx-auto max-w-4xl">
+              {/* Infographic artwork carries its own text, so it needs the wider container to stay legible. */}
+              <div className={`mx-auto ${section.type === 'images' ? 'max-w-5xl' : 'max-w-4xl'}`}>
                 {section.title && section.type !== 'cta' && (
                   <h2
                     className="mb-7 text-center text-2xl font-bold leading-snug sm:text-3xl md:text-[38px]"
@@ -853,9 +871,7 @@ export default function NaturalTemplate({ page, trafficSource = 'landing_page' }
                 {section.type === 'images' && !!(section.images || []).length && (
                   <div
                     className={`grid gap-4 ${
-                      (section.images || []).length === 1
-                        ? 'mx-auto max-w-2xl grid-cols-1'
-                        : 'grid-cols-1 sm:grid-cols-2'
+                      (section.images || []).length === 1 ? 'grid-cols-1' : 'grid-cols-1 sm:grid-cols-2'
                     }`}
                   >
                     {(section.images || []).map((img, idx) => (
@@ -1058,7 +1074,7 @@ export default function NaturalTemplate({ page, trafficSource = 'landing_page' }
                                     </div>
                                   )}
                                   <div className="text-lg font-bold" style={{ color: orderFormAccentColor }}>
-                                    {money(product.price)}৳
+                                    {priceLabel(product.price)}
                                   </div>
                                 </div>
                               </div>
@@ -1212,7 +1228,7 @@ export default function NaturalTemplate({ page, trafficSource = 'landing_page' }
                                   className="py-2 text-right font-semibold"
                                   style={{ color: orderFormTitleColor }}
                                 >
-                                  {money(item.product.price * item.quantity)}৳
+                                  {priceLabel(item.product.price * item.quantity)}
                                 </td>
                               </tr>
                             ))}
@@ -1230,7 +1246,7 @@ export default function NaturalTemplate({ page, trafficSource = 'landing_page' }
                           <tfoot style={{ color: orderFormTextColor }}>
                             <tr className="border-t" style={{ borderColor: orderFormBorderColor }}>
                               <th className="py-2 text-left font-medium">সাবটোটাল</th>
-                              <td className="py-2 text-right">{money(getSubtotal())}৳</td>
+                              <td className="py-2 text-right">{priceLabel(getSubtotal())}</td>
                             </tr>
                             <tr>
                               <th className="py-2 text-left font-medium">ডেলিভারি চার্জ</th>
