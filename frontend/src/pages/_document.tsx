@@ -6,6 +6,7 @@ const HERBOLIN_GTM_ID = 'GTM-PK5G5DWZ';
 const ARABIAN_KHALTA_GTM_ID = 'GTM-KVLD23CH';
 const ARABIAN_KHALTA_PIXEL_ID = ['227057045377', '2206'].join('');
 const VESHOJ_PIXEL_ID = ['339637066199', '40423'].join('');
+const NATURAL_GLOWRA_PIXEL_ID = ['161357191048', '7102'].join('');
 
 declare global {
   interface Window {
@@ -14,12 +15,14 @@ declare global {
     __landingPagePixelsInitialized?: Record<string, boolean>;
     __arabianKhaltaPixelPageViewTracked?: boolean;
     __veshojPixelPageViewTracked?: boolean;
+    __naturalGlowraPixelPageViewTracked?: boolean;
   }
 }
 
 interface TrustCartDocumentProps extends DocumentInitialProps {
   isArabianKhaltaSurface: boolean;
   isVeshojSurface: boolean;
+  isNaturalGlowraSurface: boolean;
 }
 
 function isArabianKhaltaDocumentSurface(ctx: DocumentContext) {
@@ -40,7 +43,20 @@ function isVeshojDocumentSurface(ctx: DocumentContext) {
   );
 }
 
-export default function Document({ isArabianKhaltaSurface, isVeshojSurface }: TrustCartDocumentProps) {
+function isNaturalGlowraDocumentSurface(ctx: DocumentContext) {
+  const host = String(ctx.req?.headers.host || '').split(':')[0].toLowerCase();
+
+  return (
+    host === 'naturalglowra.com' ||
+    host === 'www.naturalglowra.com'
+  );
+}
+
+export default function Document({
+  isArabianKhaltaSurface,
+  isVeshojSurface,
+  isNaturalGlowraSurface,
+}: TrustCartDocumentProps) {
   return (
     <Html lang="en">
       <Head>
@@ -76,7 +92,9 @@ export default function Document({ isArabianKhaltaSurface, isVeshojSurface }: Tr
               var isVeshojHost=h==='veshoj.site'||h==='www.veshoj.site';
               var isVeshoj=(isVeshojHost&&(p==='/'||p==='/lp/veshoj'||p==='/veshoj'))||routeSlug==='veshoj'||querySlug==='veshoj';
               var isHerbolin=h==='herbolin.com'||h==='www.herbolin.com'||routeSlug==='harbora-kosthogut'||querySlug==='harbora-kosthogut';
-              var isMain=!isArabian&&!isVeshoj&&!isHerbolin;
+              var isGlowraHost=h==='naturalglowra.com'||h==='www.naturalglowra.com';
+              var isGlowra=(isGlowraHost&&(p==='/'||p==='/lp/natural-glowra-coconut-oil'))||routeSlug==='natural-glowra-coconut-oil'||querySlug==='natural-glowra-coconut-oil';
+              var isMain=!isArabian&&!isVeshoj&&!isHerbolin&&!isGlowra;
               var initialized={};
               var pageViews={};
 
@@ -137,7 +155,7 @@ export default function Document({ isArabianKhaltaSurface, isVeshojSurface }: Tr
               var params=new URLSearchParams(w.location.search);
               var routeSlug=(p.indexOf('/lp/')===0?p.split('/').filter(Boolean).pop():'').toLowerCase();
               var querySlug=(params.get('landing_page')||params.get('landing_page_intl')||params.get('cartflows_step')||'').toLowerCase();
-              var isDedicated=routeSlug==='veshoj'||routeSlug==='arabiankhalta'||routeSlug==='harbora-kosthogut'||querySlug==='veshoj'||querySlug==='arabiankhalta'||querySlug==='harbora-kosthogut';
+              var isDedicated=routeSlug==='veshoj'||routeSlug==='arabiankhalta'||routeSlug==='harbora-kosthogut'||routeSlug==='natural-glowra-coconut-oil'||querySlug==='veshoj'||querySlug==='arabiankhalta'||querySlug==='harbora-kosthogut'||querySlug==='natural-glowra-coconut-oil';
               var isMainHost=h==='trustcart.com.bd'||h==='trustkert.com'||h==='shop.trustcart.com.bd';
               if(!isMainHost||isDedicated)return;
               !function(f,b,e,v,n,t,s)
@@ -281,6 +299,36 @@ export default function Document({ isArabianKhaltaSurface, isVeshojSurface }: Tr
           }}
         />
         {/* End Meta Pixel - Veshoj only */}
+        {/* Meta Pixel - Natural Glowra only */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(w,d){
+              var h=w.location.hostname;
+              var p=w.location.pathname.replace(/\\/$/,'')||'/';
+              var params=new URLSearchParams(w.location.search);
+              var routeSlug=p.indexOf('/lp/')===0?p.split('/').filter(Boolean).pop():null;
+              var querySlug=params.get('landing_page')||params.get('landing_page_intl')||params.get('cartflows_step');
+              var isGlowraHost=h==='naturalglowra.com'||h==='www.naturalglowra.com';
+              var isGlowraSurface=(isGlowraHost&&(p==='/'||p==='/lp/natural-glowra-coconut-oil'))||routeSlug==='natural-glowra-coconut-oil'||querySlug==='natural-glowra-coconut-oil';
+              if(!isGlowraSurface)return;
+              !function(f,b,e,v,n,t,s)
+              {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+              n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+              if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+              n.queue=[];t=b.createElement(e);t.async=!0;
+              t.src=v;s=b.getElementsByTagName(e)[0];
+              s.parentNode.insertBefore(t,s)}(w, d,'script',
+              'https://connect.facebook.net/en_US/fbevents.js');
+              var pixelId='${NATURAL_GLOWRA_PIXEL_ID}';
+              w.fbq('init', pixelId);
+              w.fbq('trackSingle', pixelId, 'PageView');
+              w.__landingPagePixelsInitialized = w.__landingPagePixelsInitialized || {};
+              w.__landingPagePixelsInitialized[pixelId] = true;
+              w.__naturalGlowraPixelPageViewTracked = true;
+            })(window, document);`,
+          }}
+        />
+        {/* End Meta Pixel - Natural Glowra only */}
         {/* Global AddToCart Tracker for Custom Landing Pages */}
         <script
           dangerouslySetInnerHTML={{
@@ -299,6 +347,8 @@ export default function Document({ isArabianKhaltaSurface, isVeshojSurface }: Tr
                 pixelId = '${VESHOJ_PIXEL_ID}';
               } else if (h === 'herbolin.com' || h === 'www.herbolin.com' || routeSlug === 'harbora-kosthogut' || querySlug === 'harbora-kosthogut') {
                 pixelId = '1433976858485362';
+              } else if (h === 'naturalglowra.com' || h === 'www.naturalglowra.com' || routeSlug === 'natural-glowra-coconut-oil' || querySlug === 'natural-glowra-coconut-oil') {
+                pixelId = '${NATURAL_GLOWRA_PIXEL_ID}';
               }
               if (window.fbq) fbq('trackSingle', pixelId, 'AddToCart', { value: price, currency: 'BDT' });
             }`,
@@ -340,6 +390,17 @@ export default function Document({ isArabianKhaltaSurface, isVeshojSurface }: Tr
             />
           </noscript>
         )}
+        {isNaturalGlowraSurface && (
+          <noscript>
+            <img
+              height="1"
+              width="1"
+              style={{ display: 'none' }}
+              src={`https://www.facebook.com/tr?id=${NATURAL_GLOWRA_PIXEL_ID}&ev=PageView&noscript=1`}
+              alt=""
+            />
+          </noscript>
+        )}
         <Main />
         <NextScript />
         {/* Bootstrap Bundle JS (includes Popper) */}
@@ -356,5 +417,6 @@ Document.getInitialProps = async (ctx: DocumentContext): Promise<TrustCartDocume
     ...initialProps,
     isArabianKhaltaSurface: isArabianKhaltaDocumentSurface(ctx),
     isVeshojSurface: isVeshojDocumentSurface(ctx),
+    isNaturalGlowraSurface: isNaturalGlowraDocumentSurface(ctx),
   };
 };
