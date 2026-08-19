@@ -130,6 +130,54 @@ Sections can be:
 
 ---
 
+## Page Templates
+
+Every landing page picks one template on the **General** tab. The template decides the whole
+visual language; the sections, products, colours and order-form settings then fill it in.
+Routing lives in `frontend/src/pages/lp/[slug].tsx` — one `if (page.template === '…')` per template.
+
+| `template` value | Component | Look & best fit |
+|------------------|-----------|-----------------|
+| `classic` | (inline in `lp/[slug].tsx`) | Original layout — hero + sections |
+| `elegant` | `ElegantTemplate.tsx` | Premium glassmorphism & animations |
+| `ghee` | `GheeTemplate.tsx` | Warm amber variant for ghee/dairy |
+| `pickle` | `PickleTemplate.tsx` | Spicy warm theme for achar |
+| `special-event` | `SpecialEventTemplate.tsx` | Dark fiery theme for challenges/events |
+| `free-offer` | `FreeOfferTemplate.tsx` | Dark high-converting free-sample offer |
+| `veshoj` | `VeshojTemplate.tsx` | Branded Bengali checkout clone |
+| `natural` | `NaturalTemplate.tsx` | Light organic/cream theme — package cards + embedded checkout |
+
+### The `natural` template
+
+Built for organic/food products sold as size-based packages (oil, honey, ghee, spices).
+Light cream canvas, deep-green brand colour, Hind Siliguri throughout.
+
+**Page flow:** hero (image + headline + inline trust pills + CTA) → package cards →
+your sections in `order` → cross-sell → order form → footer, with floating call/WhatsApp buttons.
+
+**Package cards are generated from the Products tab** — one card per product, showing image,
+name, description, price with strike-through compare price and a `%` off badge. The card's
+"অর্ডার করুন" button adds that package to the cart and scrolls to the form.
+
+**Order form is multi-select**, mirroring a CartFlows-style embedded checkout: tick any
+combination of packages with per-package quantity steppers on the left, and a live
+Product / Subtotal / Delivery / Total review table on the right.
+
+**Two section ids get special placement** (everything else renders in order):
+
+| Section id | Type | Where it renders |
+|------------|------|------------------|
+| `natural-hero-badges` | Benefits | Inline trust pills inside the hero — `icon` + `text` per item |
+| `natural-packages` | Custom HTML | `title` and `content` become the heading and sub-heading above the package cards; `backgroundColor` tints that band |
+
+Because section ids are auto-generated in the editor, use the **Load Natural Sections**
+button on the Sections tab to scaffold both ids plus a starter "why us" and phone CTA.
+
+**Colour roles:** Primary = deep brand green (headings, hero tint, buttons); Secondary =
+fresh accent green (order-form header bar, prices, checkmarks); Background = page canvas.
+
+---
+
 ## API Reference
 
 ### Public Endpoints (No Auth Required)
@@ -261,52 +309,47 @@ Currently, the landing page order form is standalone (records view/order counts)
 
 ---
 
-## Advanced: Custom Domain / Subdomain Routing
+## Giving a Landing Page Its Own Domain
 
-For production, you may want URLs like `shop.yourdomain.com/seed-mix` instead of `yourdomain.com/lp/seed-mix`.
+Several landing pages are served at the root of their own domain — `veshoj.site`,
+`kasrioil.com`, `arabiankhalta.com`, `naturalglowra.com`. They all share one frontend
+process on `localhost:3000`; nginx routes the domain in and the Next.js middleware
+rewrites `/` to the right landing page.
 
-### Option A: Nginx Rewrite (Recommended)
+**1 — Map the domain in `frontend/src/middleware.ts`:**
 
-```nginx
-# In your nginx config
-location ~ ^/([a-z0-9-]+)$ {
-    # Check if it's a landing page slug
-    proxy_pass http://frontend_server/lp/$1;
-}
+```typescript
+const DOMAIN_LANDING_PAGES: Record<string, string> = {
+  // …
+  'naturalglowra.com': 'natural-glowra-coconut-oil',
+  'www.naturalglowra.com': 'natural-glowra-coconut-oil',
+};
 ```
 
-### Option B: Next.js Rewrites
+Only the root path is rewritten, so `/products`, `/admin`, etc. still work on that host.
+Use `'id-25'` instead of a slug to target a page by id. `DOMAIN_PATH_LANDING_PAGES` maps
+extra campaign paths on a host (e.g. `herbolin.com/arabiankhalta`).
 
-In `next.config.js`:
-```javascript
-async rewrites() {
-  return [
-    {
-      source: '/p/:slug',  // or any pattern you prefer
-      destination: '/lp/:slug',
-    },
-  ];
-}
+**2 — Add an nginx server block**, copying `nginx/naturalglowra.conf` and swapping the
+domain. It terminates TLS and proxies everything to `localhost:3000`.
+
+**3 — On the server:**
+
+```bash
+sudo certbot certonly --nginx -d naturalglowra.com -d www.naturalglowra.com
+sudo cp nginx/naturalglowra.conf /etc/nginx/sites-available/naturalglowra.conf
+sudo ln -s /etc/nginx/sites-available/naturalglowra.conf /etc/nginx/sites-enabled/
+sudo nginx -t && sudo systemctl reload nginx
 ```
 
-### Option C: Query Param Style (like grambanglastore)
+Point the domain's A record at the server first, and rebuild the frontend
+(`cd frontend && npm run build && pm2 restart trustcart-frontend`) so the middleware
+picks up the new mapping.
 
-If you want `?cartflows_step=seed-mix` style URLs for compatibility:
+### Query-param compatibility
 
-In `next.config.js`:
-```javascript
-async rewrites() {
-  return [
-    {
-      source: '/',
-      has: [{ type: 'query', key: 'cartflows_step' }],
-      destination: '/lp/:cartflows_step',
-    },
-  ];
-}
-```
-
-Then `yourdomain.com/?cartflows_step=seed-mix` → renders `/lp/seed-mix`.
+`/lp/[slug].tsx` also accepts `?landing_page=slug`, `?cartflows_step=slug` and
+`?landing_page_id=25`, so WordPress/CartFlows-era ad links keep working.
 
 ---
 
@@ -322,7 +365,10 @@ Then `yourdomain.com/?cartflows_step=seed-mix` → renders `/lp/seed-mix`.
 | `frontend/src/pages/admin/landing-pages/index.tsx` | Admin list + stats |
 | `frontend/src/pages/admin/landing-pages/[id].tsx` | Admin editor (5-tab) |
 | `frontend/src/pages/admin/landing-pages/create.tsx` | Create page entry |
-| `frontend/src/pages/lp/[slug].tsx` | Public landing page |
+| `frontend/src/pages/lp/[slug].tsx` | Public landing page + template routing |
+| `frontend/src/components/landing-pages/*.tsx` | Template components (Elegant, Ghee, Pickle, Veshoj, Natural, …) |
+| `frontend/src/middleware.ts` | Custom-domain → landing page mapping |
+| `nginx/*.conf` | Per-domain nginx server blocks |
 | `frontend/src/layouts/AdminLayout.tsx` | Sidebar menu (updated) |
 | `db/migrations/create_landing_pages.sql` | Database migration + seed |
 | `run-landing-pages-migration.bat` | Migration runner |
