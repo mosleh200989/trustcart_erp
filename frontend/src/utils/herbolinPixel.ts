@@ -3,6 +3,7 @@ import { normalizeMetaCatalogProductId } from './metaCatalog';
 const HERBOLIN_PIXEL_ID = ['1433976858485', '362'].join('');
 const ARABIAN_KHALTA_PIXEL_ID = ['227057045377', '2206'].join('');
 const VESHOJ_PIXEL_ID = ['339637066199', '40423'].join('');
+const NATURAL_GLOWRA_PIXEL_ID = ['161357191048', '7102'].join('');
 
 const HERBOLIN_HOSTS = new Set(['herbolin.com', 'www.herbolin.com']);
 const HERBOLIN_LANDING_PAGE_SLUGS = new Set(['harbora-kosthogut']);
@@ -15,6 +16,10 @@ const VESHOJ_HOSTS = new Set(['veshoj.site', 'www.veshoj.site']);
 const VESHOJ_LANDING_PAGE_SLUGS = new Set(['veshoj']);
 const VESHOJ_LANDING_PATHS = new Set(['/', '/lp/veshoj', '/veshoj']);
 
+const NATURAL_GLOWRA_HOSTS = new Set(['naturalglowra.com', 'www.naturalglowra.com']);
+const NATURAL_GLOWRA_LANDING_PAGE_SLUGS = new Set(['natural-glowra-coconut-oil']);
+const NATURAL_GLOWRA_LANDING_PATHS = new Set(['/', '/lp/natural-glowra-coconut-oil']);
+
 let lastTrackedPageKey = '';
 
 declare global {
@@ -22,6 +27,7 @@ declare global {
     __landingPagePixelsInitialized?: Record<string, boolean>;
     __arabianKhaltaPixelPageViewTracked?: boolean;
     __veshojPixelPageViewTracked?: boolean;
+    __naturalGlowraPixelPageViewTracked?: boolean;
   }
 }
 
@@ -63,8 +69,21 @@ export function isVeshojLandingPageSlug(slug?: string | null) {
   return Boolean(slug && VESHOJ_LANDING_PAGE_SLUGS.has(slug.toLowerCase()));
 }
 
+export function isNaturalGlowraHost() {
+  return typeof window !== 'undefined' && NATURAL_GLOWRA_HOSTS.has(window.location.hostname);
+}
+
+export function isNaturalGlowraLandingPageSlug(slug?: string | null) {
+  return Boolean(slug && NATURAL_GLOWRA_LANDING_PAGE_SLUGS.has(slug.toLowerCase()));
+}
+
 export function isLandingPagePixelSlug(slug?: string | null) {
-  return isHerbolinLandingPageSlug(slug) || isArabianKhaltaLandingPageSlug(slug) || isVeshojLandingPageSlug(slug);
+  return (
+    isHerbolinLandingPageSlug(slug) ||
+    isArabianKhaltaLandingPageSlug(slug) ||
+    isVeshojLandingPageSlug(slug) ||
+    isNaturalGlowraLandingPageSlug(slug)
+  );
 }
 
 export function isHerbolinPixelSurface() {
@@ -118,8 +137,28 @@ export function isVeshojPixelSurface() {
   );
 }
 
+export function isNaturalGlowraPixelSurface() {
+  if (typeof window === 'undefined') return false;
+
+  const pathname = currentPathname();
+  const routeSlug = currentRouteSlug();
+  const querySlug = currentQuerySlug();
+  const isNaturalGlowraHostSurface = isNaturalGlowraHost() && NATURAL_GLOWRA_LANDING_PATHS.has(pathname);
+
+  return (
+    isNaturalGlowraHostSurface ||
+    isNaturalGlowraLandingPageSlug(routeSlug) ||
+    isNaturalGlowraLandingPageSlug(querySlug)
+  );
+}
+
 export function isLandingPagePixelSurface() {
-  return isHerbolinPixelSurface() || isArabianKhaltaPixelSurface() || isVeshojPixelSurface();
+  return (
+    isHerbolinPixelSurface() ||
+    isArabianKhaltaPixelSurface() ||
+    isVeshojPixelSurface() ||
+    isNaturalGlowraPixelSurface()
+  );
 }
 
 function getLandingPagePixelId(slug?: string | null) {
@@ -128,6 +167,9 @@ function getLandingPagePixelId(slug?: string | null) {
   }
   if (isVeshojPixelSurface() || isVeshojLandingPageSlug(slug)) {
     return VESHOJ_PIXEL_ID;
+  }
+  if (isNaturalGlowraPixelSurface() || isNaturalGlowraLandingPageSlug(slug)) {
+    return NATURAL_GLOWRA_PIXEL_ID;
   }
   if (isHerbolinPixelSurface() || isHerbolinLandingPageSlug(slug)) {
     return HERBOLIN_PIXEL_ID;
@@ -174,6 +216,10 @@ export function trackLandingPagePageView() {
     lastTrackedPageKey = pageKey;
     return;
   }
+  if (pixelId === NATURAL_GLOWRA_PIXEL_ID && window.__naturalGlowraPixelPageViewTracked) {
+    lastTrackedPageKey = pageKey;
+    return;
+  }
 
   fbq('trackSingle', pixelId, 'PageView');
   if (pixelId === ARABIAN_KHALTA_PIXEL_ID) {
@@ -181,6 +227,9 @@ export function trackLandingPagePageView() {
   }
   if (pixelId === VESHOJ_PIXEL_ID) {
     window.__veshojPixelPageViewTracked = true;
+  }
+  if (pixelId === NATURAL_GLOWRA_PIXEL_ID) {
+    window.__naturalGlowraPixelPageViewTracked = true;
   }
   lastTrackedPageKey = pageKey;
 }
