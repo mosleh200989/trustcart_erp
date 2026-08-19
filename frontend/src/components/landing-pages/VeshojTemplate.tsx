@@ -34,7 +34,7 @@ const html = (value: string) => ({ __html: value });
 
 interface LandingPageSection {
   id: string;
-  type: 'hero' | 'benefits' | 'images' | 'trust' | 'order-form' | 'cta' | 'custom-html' | 'phone-cta' | 'spacer';
+  type: 'hero' | 'benefits' | 'images' | 'trust' | 'order-form' | 'cta' | 'custom-html' | 'packages' | 'phone-cta' | 'spacer';
   title?: string;
   content?: string;
   items?: Array<{ icon?: string; text: string }>;

@@ -430,7 +430,7 @@ function ProductSearchField({
 
 interface LandingPageSection {
   id: string;
-  type: 'hero' | 'benefits' | 'images' | 'trust' | 'order-form' | 'cta' | 'custom-html' | 'event-rules' | 'event-prizes' | 'event-how-to' | 'event-countdown' | 'phone-cta' | 'spacer';
+  type: 'hero' | 'benefits' | 'images' | 'trust' | 'order-form' | 'cta' | 'custom-html' | 'packages' | 'event-rules' | 'event-prizes' | 'event-how-to' | 'event-countdown' | 'phone-cta' | 'spacer';
   title?: string;
   content?: string;
   items?: Array<{ icon?: string; text: string }>;
@@ -546,6 +546,7 @@ const SECTION_TYPES = [
   { value: 'trust', label: 'Trust / Why Choose Us' },
   { value: 'cta', label: 'Call to Action' },
   { value: 'custom-html', label: 'Custom HTML / Text' },
+  { value: 'packages', label: '🛍️ Product Packages (cards)' },
   { value: 'phone-cta', label: '📞 Phone / WhatsApp CTA' },
   { value: 'spacer', label: '↕️ Spacer / Gap' },
   { value: 'event-rules', label: '📋 Event Rules' },
@@ -700,7 +701,7 @@ const createNaturalDefaultSections = (): LandingPageSection[] => [
   },
   {
     id: 'natural-packages',
-    type: 'custom-html',
+    type: 'packages',
     title: 'আমাদের প্যাকেজ সমূহ',
     content: 'আপনার পছন্দমতো প্যাকেজ বেছে নিন',
     backgroundColor: '#E8F6EC',
@@ -1700,11 +1701,11 @@ export default function LandingPageEditor() {
 
       {form.template === 'natural' && (
         <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-xs text-green-900 mb-2">
-          <span className="font-semibold">Natural template:</span> two section ids get special treatment —{' '}
+          <span className="font-semibold">Natural template:</span> add a{' '}
+          <span className="font-semibold">🛍️ Product Packages</span> section wherever you want the package cards — they
+          are built from the <span className="font-semibold">Products</span> tab. One section id is still special:{' '}
           <code className="bg-white px-1 rounded">natural-hero-badges</code> (Benefits list) renders as the inline trust
-          pills inside the hero, and <code className="bg-white px-1 rounded">natural-packages</code> (Custom HTML)
-          supplies the heading and sub-heading above the package cards. The package cards themselves come from the{' '}
-          <span className="font-semibold">Products</span> tab. Every other section renders in order below the packages.
+          pills inside the hero. Everything else renders in order.
         </div>
       )}
 
@@ -1917,7 +1918,7 @@ export default function LandingPageEditor() {
                 </div>
 
                 {/* Content */}
-                {(section.type === 'hero' || section.type === 'cta' || section.type === 'custom-html' || section.type === 'event-countdown') && (
+                {(section.type === 'hero' || section.type === 'cta' || section.type === 'custom-html' || section.type === 'packages' || section.type === 'event-countdown') && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Content</label>
                     <textarea
@@ -1927,6 +1928,19 @@ export default function LandingPageEditor() {
                       className="w-full border rounded-lg px-3 py-2 font-mono text-sm"
                       placeholder={section.type === 'custom-html' ? 'Enter HTML content...' : 'Section content...'}
                     />
+                  </div>
+                )}
+
+                {section.type === 'packages' && (
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                    <h4 className="text-sm font-semibold text-green-900">Product Packages</h4>
+                    <p className="text-xs text-green-800 mt-1">
+                      Renders one card per entry in the <span className="font-semibold">Products</span> tab — image,
+                      name, description, price, compare price and a discount badge. Edit the cards themselves there;
+                      this section controls the heading (<span className="font-semibold">Section Title</span>), the
+                      sub-heading (<span className="font-semibold">Content</span>), the band background, and where the
+                      block sits on the page. Hiding this section hides the package cards.
+                    </p>
                   </div>
                 )}
 

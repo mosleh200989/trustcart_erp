@@ -129,7 +129,7 @@ INSERT INTO landing_pages (
   },
   {
     "id": "natural-packages",
-    "type": "custom-html",
+    "type": "packages",
     "title": "ফ্রি ট্রায়াল প্যাক নিন",
     "content": "৭৫ মি.লি. ট্রায়াল প্যাকের কোনো মূল্য নেই — শুধু ডেলিভারি চার্জ দিন। ভালো লাগলে নিচের বড় প্যাকেজ থেকে বেছে নিতে পারেন।",
     "backgroundColor": "#E8F6EC",
