@@ -200,7 +200,9 @@ export default function Document({
                   var isArabianKhaltaSurface=hostname==='arabiankhalta.com'||hostname==='www.arabiankhalta.com'||pathname==='/arabiankhalta'||routeSlug==='arabiankhalta'||querySlug==='arabiankhalta';
                   var isVeshojHost=hostname==='veshoj.site'||hostname==='www.veshoj.site';
                   var isVeshojSurface=(isVeshojHost&&(pathname==='/'||pathname==='/lp/veshoj'||pathname==='/veshoj'))||routeSlug==='veshoj'||querySlug==='veshoj';
-                  if(isArabianKhaltaSurface||isVeshojSurface)return;
+                  var isGlowraHost=hostname==='naturalglowra.com'||hostname==='www.naturalglowra.com';
+                  var isNaturalGlowraSurface=(isGlowraHost&&(pathname==='/'||pathname==='/lp/natural-glowra-coconut-oil'))||routeSlug==='natural-glowra-coconut-oil'||querySlug==='natural-glowra-coconut-oil';
+                  if(isArabianKhaltaSurface||isVeshojSurface||isNaturalGlowraSurface)return;
                   var isHerbolinPixelSurface=hostname==='herbolin.com'||hostname==='www.herbolin.com'||routeSlug==='harbora-kosthogut'||querySlug==='harbora-kosthogut';
                   var containerId=isHerbolinPixelSurface?herbolinId:mainId;
                   if(!containerId)return;
