@@ -8,6 +8,11 @@ import { PathaoWebhookGuard } from '../../common/guards/pathao-webhook.guard';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import { SteadfastWebhookDto } from './dto/steadfast-webhook.dto';
+import {
+  PATHAO_INTEGRATION_SECRET_HEADER,
+  PATHAO_WEBHOOK_INTEGRATION_EVENT,
+  resolvePathaoIntegrationSecret,
+} from '../../common/constants/pathao-webhook.constants';
 
 @Controller('order-management')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -217,7 +222,8 @@ export class OrderManagementController {
    * Pathao webhook receiver.
    * Public endpoint — Pathao requires:
    *  - HTTP 202 response
-   *  - X-Pathao-Merchant-Webhook-Integration-Secret header
+   *  - X-Pathao-Merchant-Webhook-Integration-Secret header echoing Pathao's published
+   *    constant (see common/constants/pathao-webhook.constants.ts)
    */
   @Public()
   @Post('webhook/pathao')
@@ -228,13 +234,13 @@ export class OrderManagementController {
     @Headers() headers: Record<string, string>,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const integrationSecret = process.env.PATHAO_WEBHOOK_INTEGRATION_SECRET || '';
-    if (integrationSecret) {
-      res.setHeader('X-Pathao-Merchant-Webhook-Integration-Secret', integrationSecret);
-    }
+    res.setHeader(
+      PATHAO_INTEGRATION_SECRET_HEADER,
+      resolvePathaoIntegrationSecret(process.env.PATHAO_WEBHOOK_INTEGRATION_SECRET),
+    );
 
     // Pathao sends { event: "webhook_integration" } during verification — just acknowledge it
-    if (dto.event === 'webhook_integration') {
+    if (dto?.event === PATHAO_WEBHOOK_INTEGRATION_EVENT) {
       return { status: 'ok', message: 'Webhook integration verified' };
     }
 
@@ -250,10 +256,10 @@ export class OrderManagementController {
   @Get('webhook/pathao')
   @HttpCode(202)
   async pathaoWebhookHealth(@Res({ passthrough: true }) res: Response) {
-    const integrationSecret = process.env.PATHAO_WEBHOOK_INTEGRATION_SECRET || '';
-    if (integrationSecret) {
-      res.setHeader('X-Pathao-Merchant-Webhook-Integration-Secret', integrationSecret);
-    }
+    res.setHeader(
+      PATHAO_INTEGRATION_SECRET_HEADER,
+      resolvePathaoIntegrationSecret(process.env.PATHAO_WEBHOOK_INTEGRATION_SECRET),
+    );
     return {
       status: 'ok',
       webhook: 'pathao',
@@ -269,15 +275,23 @@ export class OrderManagementController {
   async pathaoWebhookInfo() {
     const secret = process.env.PATHAO_WEBHOOK_SECRET;
     const webhookUrl = process.env.PATHAO_WEBHOOK_URL || '';
-    const integrationSecret = process.env.PATHAO_WEBHOOK_INTEGRATION_SECRET || '';
     return {
       webhookUrl,
       secured: !!secret,
-      integrationSecretSet: !!integrationSecret,
+      integrationSecretEchoed: resolvePathaoIntegrationSecret(
+        process.env.PATHAO_WEBHOOK_INTEGRATION_SECRET,
+      ),
+      allowUnsigned:
+        String(process.env.PATHAO_WEBHOOK_ALLOW_UNSIGNED ?? '').toLowerCase() === 'true',
+      contract: {
+        pathaoSends: 'X-PATHAO-Signature header containing PATHAO_WEBHOOK_SECRET verbatim',
+        weRespond: `HTTP 202 + ${PATHAO_INTEGRATION_SECRET_HEADER}`,
+      },
       setup: {
         step1: 'Go to https://merchant.pathao.com/courier/developer-api',
         step2: `Set Webhook URL to: ${webhookUrl}`,
-        step3: 'Save — Pathao will verify the URL automatically',
+        step3: 'Set Webhook Secret to the exact value of PATHAO_WEBHOOK_SECRET in backend/.env',
+        step4: 'Save — Pathao will verify the URL automatically',
       },
     };
   }

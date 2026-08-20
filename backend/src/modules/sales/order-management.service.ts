@@ -15,6 +15,12 @@ import { WhatsAppService } from '../messaging/whatsapp.service';
 import { InventoryService } from '../inventory/inventory.service';
 import { MetaCapiService } from './meta-capi.service';
 import { LeadManagementService } from '../lead-management/lead-management.service';
+import { Cron } from '@nestjs/schedule';
+import {
+  humanizePathaoEvent,
+  isPathaoStatusRegression,
+  lookupPathaoEventStatus,
+} from './pathao-status.map';
 
 @Injectable()
 export class OrderManagementService {
@@ -3359,27 +3365,37 @@ export class OrderManagementService {
     return value == null ? undefined : String(value).trim();
   }
 
+  /**
+   * Our own reference that we sent to Pathao as `merchant_order_id` (the sales order
+   * number, or the numeric order id as a fallback).
+   *
+   * Deliberately does NOT read `invoice_id`: on `order.paid` events that field holds
+   * *Pathao's* invoice number, which is unrelated to our numbering and — being numeric
+   * — could otherwise match a completely different order by primary key.
+   */
   private getPathaoMerchantOrderId(payload: any): string | undefined {
     const value = this.pickPathaoField(payload, [
       'merchant_order_id',
       'merchantOrderId',
       'merchantOrderID',
       'merchant_order',
-      'invoice_id',
-      'invoice',
       'data.merchant_order_id',
       'data.merchantOrderId',
       'data.merchantOrderID',
-      'data.invoice_id',
-      'data.invoice',
       'data.order.merchant_order_id',
       'data.order.merchantOrderId',
-      'data.order.invoice_id',
       'order.merchant_order_id',
       'order.merchantOrderId',
-      'order.invoice_id',
     ]);
     return value == null ? undefined : String(value).trim();
+  }
+
+  /** Raw Pathao webhook `event` name (`order.delivered`, `webhook_integration`, …). */
+  private getPathaoEvent(payload: any): string | undefined {
+    const value = this.pickPathaoField(payload, ['event', 'event_type', 'eventType']);
+    if (value == null) return undefined;
+    const event = String(value).trim();
+    return event || undefined;
   }
 
   private getPathaoStatus(payload: any): string | undefined {
@@ -3505,6 +3521,9 @@ export class OrderManagementService {
     if (s.includes('cancel')) return 'cancelled';
     if (s.includes('return')) return 'returned';
     if (s.includes('hold')) return 'hold';
+    // Must precede the "contains deliver" rule below, otherwise a failed delivery
+    // ("delivery-failed", "delivery unsuccessful") is misread as a successful one.
+    if (s.includes('fail') || s.includes('unsuccessful')) return 'hold';
     if (s.includes('deliver') && !s.includes('hub') && !s.includes('assign') && !s.includes('ready') && !s.includes('way')) return 'delivered';
     if (s.includes('picked') || s.includes('pickup')) return 'picked';
     if (s.includes('transit') || s.includes('hub') || s.includes('way') || s.includes('delivery')) return 'in_transit';
@@ -3552,13 +3571,29 @@ export class OrderManagementService {
 
     if (!order && merchantOrderId) {
       const merchantOrder = String(merchantOrderId).trim();
-      const merchantOrderWhere: any[] = [{ salesOrderNumber: merchantOrder }];
-      if (/^\d+$/.test(merchantOrder)) {
-        merchantOrderWhere.push({ id: Number(merchantOrder) });
-      }
+
+      // Prefer our own order number — it is unambiguous.
       order = await this.salesOrderRepository.findOne({
-        where: merchantOrderWhere,
+        where: { salesOrderNumber: merchantOrder },
       });
+
+      // Numeric fallback (we send String(order.id) when an order has no order number).
+      // Only accept it when the matched order is actually a Pathao order or has no
+      // courier yet, so a stray numeric reference can never hijack another courier's order.
+      if (!order && /^\d+$/.test(merchantOrder)) {
+        const candidate = await this.salesOrderRepository.findOne({
+          where: { id: Number(merchantOrder) },
+        });
+        const candidateCourier = String(candidate?.courierCompany || '').toLowerCase();
+        if (candidate && (!candidateCourier || candidateCourier === 'pathao')) {
+          order = candidate;
+        } else if (candidate) {
+          this.logger.warn(
+            `[Pathao Webhook] merchant_order_id=${merchantOrder} matched order #${candidate.id} ` +
+              `by id, but it belongs to "${candidate.courierCompany}" — ignoring.`,
+          );
+        }
+      }
 
       if (order && !order.courierCompany && consignmentId) {
         order.courierCompany = 'Pathao';
@@ -3594,17 +3629,93 @@ export class OrderManagementService {
     return this.processPathaoStatusUpdate(order, dto);
   }
 
+  /**
+   * Acknowledge a Pathao event that carries no delivery state (`order.updated`,
+   * `order.paid`, `order.return-id-created`, `store.*`).
+   *
+   * These are logged and their COD figure is captured, but the order status is left
+   * untouched — mapping them onto a delivery status is what used to knock delivered
+   * orders back to "sent".
+   */
+  private async recordPathaoInformationalEvent(
+    order: SalesOrder,
+    dto: any,
+    event: string,
+  ): Promise<{ status: string; message: string }> {
+    const codAmount = this.pickPathaoField(dto, [
+      'cod_amount', 'codAmount', 'data.cod_amount', 'data.codAmount',
+      'amount_to_collect', 'data.amount_to_collect',
+      'collected_amount', 'data.collected_amount',
+    ]);
+    const deliveryFee = this.pickPathaoField(dto, [
+      'delivery_fee', 'deliveryFee', 'data.delivery_fee', 'data.deliveryFee', 'price', 'data.price',
+    ]);
+    const consignmentId = this.getPathaoConsignmentId(dto);
+    const numericCodAmount =
+      codAmount != null && Number.isFinite(Number(codAmount)) ? Number(codAmount) : null;
+    const numericDeliveryFee =
+      deliveryFee != null && Number.isFinite(Number(deliveryFee)) ? Number(deliveryFee) : null;
+
+    if (numericCodAmount != null) order.codAmount = numericCodAmount;
+    await this.salesOrderRepository.save(order);
+
+    await this.courierTrackingRepository.save({
+      orderId: order.id,
+      courierCompany: 'Pathao',
+      trackingId: order.trackingId,
+      status: this.formatCourierStatusText(humanizePathaoEvent(event), order.status),
+      codAmount: numericCodAmount,
+      deliveryCharge: numericDeliveryFee,
+      consignmentId: consignmentId != null ? String(consignmentId) : null,
+      rawPayload: dto,
+      remarks: `Pathao webhook: ${event} (informational — order status left at "${order.status}")`,
+    });
+
+    this.logger.log(
+      `[Pathao Webhook] Order #${order.id}: informational event "${event}" recorded; ` +
+        `status stays "${order.status}".`,
+    );
+
+    return {
+      status: 'success',
+      message: `Informational event "${event}" recorded for order #${order.id}`,
+    };
+  }
+
   private async processPathaoStatusUpdate(
     order: SalesOrder,
     dto: any,
   ): Promise<{ status: string; message: string }> {
+    const event = this.getPathaoEvent(dto);
     const rawStatus = this.getPathaoStatus(dto);
-    if (!rawStatus) {
-      return { status: 'error', message: 'No status in webhook payload' };
+
+    // Pathao's webhook payload has no `order_status` field — the delivery state IS the
+    // event name. Resolve it from the explicit event map first; only fall back to the
+    // generic (substring-based) mapper for payload shapes we don't recognise.
+    const mappedEvent = lookupPathaoEventStatus(event);
+    let newStatus: string;
+
+    if (mappedEvent) {
+      if (mappedEvent.status === null) {
+        // Recognised but carries no delivery state (order.updated, order.paid, store.*).
+        // Record it for audit, refresh COD, but never touch the order status.
+        return this.recordPathaoInformationalEvent(order, dto, event as string);
+      }
+      newStatus = mappedEvent.status;
+    } else {
+      if (!rawStatus) {
+        this.logger.warn(
+          `[Pathao Webhook] Order #${order.id}: no recognisable event or status ` +
+            `(event=${event ?? '—'}) — payload: ${JSON.stringify(dto)}`,
+        );
+        return { status: 'error', message: 'No status in webhook payload' };
+      }
+      newStatus = this.mapPathaoStatus(rawStatus);
     }
 
-    const newStatus = this.mapPathaoStatus(rawStatus);
-    const courierStatusText = this.formatCourierStatusText(rawStatus, newStatus);
+    const courierStatusText = event
+      ? this.formatCourierStatusText(humanizePathaoEvent(event), newStatus)
+      : this.formatCourierStatusText(rawStatus, newStatus);
     const codAmount = this.pickPathaoField(dto, ['cod_amount', 'codAmount', 'data.cod_amount', 'data.codAmount', 'amount_to_collect', 'data.amount_to_collect', 'collected_amount', 'data.collected_amount']);
     const deliveryFee = this.pickPathaoField(dto, ['delivery_fee', 'deliveryFee', 'data.delivery_fee', 'data.deliveryFee', 'price', 'data.price']);
     const reason = this.pickPathaoField(dto, ['reason', 'data.reason', 'remarks', 'data.remarks', 'note', 'data.note']);
@@ -3626,6 +3737,31 @@ export class OrderManagementService {
     if (!statusChanged) {
       await this.salesOrderRepository.save(order);
       return { status: 'success', message: 'Status unchanged, COD/tracking fields updated' };
+    }
+
+    // Pathao does not guarantee webhook ordering — a delayed `order.created` can arrive
+    // after `order.delivered`. Never drag a finished order back into an in-flight state.
+    if (isPathaoStatusRegression(prevStatus, newStatus)) {
+      await this.salesOrderRepository.save(order);
+      await this.courierTrackingRepository.save({
+        orderId: order.id,
+        courierCompany: 'Pathao',
+        trackingId: order.trackingId,
+        status: courierStatusText,
+        codAmount: numericCodAmount,
+        deliveryCharge: numericDeliveryFee,
+        consignmentId: consignmentId != null ? String(consignmentId) : null,
+        rawPayload: dto,
+        remarks: `Pathao webhook: ${event ?? rawStatus} → ${newStatus} IGNORED (order already ${prevStatus})`,
+      });
+      this.logger.warn(
+        `[Pathao Webhook] Order #${order.id}: ignoring out-of-order ${event ?? rawStatus} ` +
+          `(${newStatus}) — order is already terminal (${prevStatus}).`,
+      );
+      return {
+        status: 'success',
+        message: `Ignored out-of-order event: order #${order.id} is already ${prevStatus}`,
+      };
     }
 
     order.status = newStatus;
@@ -3681,23 +3817,62 @@ export class OrderManagementService {
       deliveryCharge: numericDeliveryFee,
       consignmentId: consignmentId != null ? String(consignmentId) : null,
       rawPayload: dto,
-      remarks: `Pathao webhook: ${prevStatus || 'null'} → ${newStatus}`,
+      remarks: `Pathao webhook: ${event ?? rawStatus} — ${prevStatus || 'null'} → ${newStatus}`,
     });
 
     // Activity log
     await this.logActivity({
       orderId: saved.id,
       actionType: 'courier_status_webhook',
-      actionDescription: `Pathao webhook: ${prevStatus || 'null'} → ${newStatus}${reason ? ` — "${reason}"` : ''}`,
+      actionDescription: `Pathao webhook ${event ?? rawStatus}: ${prevStatus || 'null'} → ${newStatus}${reason ? ` — "${reason}"` : ''}`,
       oldValue: { status: prevStatus },
       newValue: { status: newStatus, codAmount: numericCodAmount, deliveryFee: numericDeliveryFee },
       performedBy: undefined,
       performedByName: 'Pathao Webhook',
     });
 
-    await this.dispatchMetaCapiForStatus(saved.id, saved.status);
+    this.logger.log(
+      `[Pathao Webhook] Order #${saved.id} ${event ?? rawStatus}: ${prevStatus || 'null'} → ${newStatus}`,
+    );
+
+    // Fire-and-forget: Meta CAPI is an outbound HTTP call and Pathao drops the delivery
+    // if we do not answer within ~10s. dispatchMetaCapiForStatus swallows its own errors.
+    void this.dispatchMetaCapiForStatus(saved.id, saved.status);
 
     return { status: 'success', message: `Order #${saved.id} updated: ${prevStatus} → ${newStatus}` };
+  }
+
+  /**
+   * Scheduled reconciliation backstop for Pathao.
+   *
+   * Webhooks are the primary path, but they can be missed (Pathao retries are limited,
+   * and a deploy/restart can drop an in-flight delivery). Polling the still-in-flight
+   * Pathao orders on a schedule guarantees statuses converge even if a webhook is lost.
+   *
+   * Disable with PATHAO_SYNC_CRON_ENABLED=false; interval is the standard cron field
+   * PATHAO_SYNC_CRON (default: every 30 minutes).
+   */
+  @Cron(process.env.PATHAO_SYNC_CRON || '*/30 * * * *', { name: 'pathao-status-reconcile' })
+  async reconcilePathaoStatuses(): Promise<void> {
+    if (String(process.env.PATHAO_SYNC_CRON_ENABLED ?? 'true').toLowerCase() === 'false') {
+      return;
+    }
+    if (!process.env.PATHAO_CLIENT_ID || !process.env.PATHAO_CLIENT_SECRET) {
+      return; // Pathao not configured on this deployment
+    }
+
+    try {
+      const result = await this.syncAllPathaoStatuses();
+      if (result.selected > 0) {
+        this.logger.log(
+          `[Pathao Reconcile] processed=${result.processed} synced=${result.synced} ` +
+            `failed=${result.failed} remaining=${result.remaining}` +
+            (result.rateLimited ? ` (rate limited, retry in ~${result.retryAfterSeconds}s)` : ''),
+        );
+      }
+    } catch (e: any) {
+      this.logger.warn(`[Pathao Reconcile] Failed: ${e?.message || e}`);
+    }
   }
 
   /**
@@ -3780,7 +3955,10 @@ export class OrderManagementService {
         const courierStatusText = this.formatCourierStatusText(rawStatus, newStatus);
         order.courierStatus = courierStatusText;
 
-        if (String(order.status || '').trim() !== newStatus.trim()) {
+        if (
+          String(order.status || '').trim() !== newStatus.trim() &&
+          !isPathaoStatusRegression(order.status, newStatus)
+        ) {
           const prevStatus = order.status;
           order.status = newStatus;
 
