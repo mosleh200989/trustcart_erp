@@ -22,7 +22,14 @@
     "migration:generate": "npm run typeorm migration:generate",
     "migration:run": "npm run typeorm migration:run",
     "migration:revert": "npm run typeorm migration:revert",
-    "crm:migrate:phase1": "node run-phase1-crm-enhancements-migration.js"
+    "crm:migrate:phase1": "node run-phase1-crm-enhancements-migration.js",
+    "db:status": "node scripts/migrate.js status",
+    "db:up": "node scripts/migrate.js up",
+    "db:new": "node scripts/migrate.js new",
+    "db:adopt": "node scripts/migrate.js adopt",
+    "db:baseline": "node scripts/migrate.js baseline",
+    "db:repair": "node scripts/migrate.js repair",
+    "db:check": "node scripts/migrate.js check"
   },
   "dependencies": {
     "@nestjs/bull": "^11.0.4",

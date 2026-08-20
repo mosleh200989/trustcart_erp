@@ -1,0 +1,5 @@
+# Shell scripts run on the Linux VPS - CRLF would break the shebang.
+*.sh text eol=lf
+
+# SQL is executed server-side; keep it stable across checkouts.
+*.sql text eol=lf
