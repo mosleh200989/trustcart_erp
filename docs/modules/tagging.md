@@ -65,7 +65,7 @@ Base prefix: `/api`
 
 ## Database migration
 
-Run: [backend/migrations/2026-01-12_customer_tagging_tables.sql](backend/migrations/2026-01-12_customer_tagging_tables.sql)
+Run: [backend/migrations/2026-01-12_customer_tagging_tables.sql](../../db/migrations/2026-01-12_customer_tagging_tables.sql)
 
 Creates:
 

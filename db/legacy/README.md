@@ -6,4 +6,4 @@ One-off scripts from before migrations were consolidated into `db/migrations`.
 schema changes stays searchable. Their effects are already baked into the
 production database and into `db/baseline/`.
 
-New schema changes go through `npm run db:new` — see [docs/MIGRATIONS.md](../../docs/MIGRATIONS.md).
+New schema changes go through `npm run db:new` — see [docs/migrations.md](../../docs/operations/migrations.md).

@@ -31,25 +31,25 @@ This repo already contains a **baseline referral program** in the Loyalty module
 ### Already implemented (backend)
 
 - Referral entity/table: `customer_referrals`
-  - Migration creates this table in [backend/membership-loyalty-migration.sql](../backend/membership-loyalty-migration.sql)
-  - Entity: [backend/src/modules/loyalty/entities/customer-referral.entity.ts](../backend/src/modules/loyalty/entities/customer-referral.entity.ts)
+  - Migration creates this table in [backend/membership-loyalty-migration.sql](../../db/legacy/backend/membership-loyalty-migration.sql)
+  - Entity: [backend/src/modules/loyalty/entities/customer-referral.entity.ts](../../backend/src/modules/loyalty/entities/customer-referral.entity.ts)
 - Referral APIs in Loyalty controller:
-  - [backend/src/modules/loyalty/loyalty.controller.ts](../backend/src/modules/loyalty/loyalty.controller.ts)
+  - [backend/src/modules/loyalty/loyalty.controller.ts](../../backend/src/modules/loyalty/loyalty.controller.ts)
   - Create referral, get referrals, get referral-code, mark complete, stats
 - Wallet reward credit path exists:
-  - DB trigger `credit_referral_reward()` in [backend/membership-loyalty-migration.sql](../backend/membership-loyalty-migration.sql)
-  - Service fallback credits wallet idempotently in [backend/src/modules/loyalty/loyalty.service.ts](../backend/src/modules/loyalty/loyalty.service.ts)
+  - DB trigger `credit_referral_reward()` in [backend/membership-loyalty-migration.sql](../../db/legacy/backend/membership-loyalty-migration.sql)
+  - Service fallback credits wallet idempotently in [backend/src/modules/loyalty/loyalty.service.ts](../../backend/src/modules/loyalty/loyalty.service.ts)
 
 ### Already implemented (frontend)
 
-- Frontend API wrapper for referrals exists in [frontend/src/services/api.ts](../frontend/src/services/api.ts)
-- Admin loyalty dashboard references referral KPIs (completed referrals, average referrals, total rewards paid) in [frontend/src/pages/admin/loyalty/index.tsx](../frontend/src/pages/admin/loyalty/index.tsx)
-- Customer portal has a dedicated “Refer & Earn” page with share UI (copy link + WhatsApp/Facebook/Email share) in [frontend/src/pages/customer/referrals.tsx](../frontend/src/pages/customer/referrals.tsx)
+- Frontend API wrapper for referrals exists in [frontend/src/services/api.ts](../../frontend/src/services/api.ts)
+- Admin loyalty dashboard references referral KPIs (completed referrals, average referrals, total rewards paid) in [frontend/src/pages/admin/loyalty/index.tsx](../../frontend/src/pages/admin/loyalty/index.tsx)
+- Customer portal has a dedicated “Refer & Earn” page with share UI (copy link + WhatsApp/Facebook/Email share) in [frontend/src/pages/customer/referrals.tsx](../../frontend/src/pages/customer/referrals.tsx)
 - Referral attribution capture exists for signup/checkout:
-  - Local storage helper: [frontend/src/utils/referralAttribution.ts](../frontend/src/utils/referralAttribution.ts)
-  - Signup pages capture `?ref=`: [frontend/src/pages/register.tsx](../frontend/src/pages/register.tsx), [frontend/src/pages/customer/register.tsx](../frontend/src/pages/customer/register.tsx)
-  - Guest checkout attaches referral attribution when creating a customer: [frontend/src/pages/checkout.tsx](../frontend/src/pages/checkout.tsx)
-  - Offline/QR landing route stores the code then redirects: [frontend/src/pages/r/[code].tsx](../frontend/src/pages/r/[code].tsx)
+  - Local storage helper: [frontend/src/utils/referralAttribution.ts](../../frontend/src/utils/referralAttribution.ts)
+  - Signup pages capture `?ref=`: [frontend/src/pages/register.tsx](../../frontend/src/pages/register.tsx), [frontend/src/pages/customer/register.tsx](../../frontend/src/pages/customer/register.tsx)
+  - Guest checkout attaches referral attribution when creating a customer: [frontend/src/pages/checkout.tsx](../../frontend/src/pages/checkout.tsx)
+  - Offline/QR landing route stores the code then redirects: [frontend/src/pages/r/[code].tsx](../../frontend/src/pages/r/[code].tsx)
 
 ### Likely missing / incomplete (based on current code)
 
@@ -84,7 +84,7 @@ To support all 12+ ideas, use one shared backbone.
 - `referral_campaigns` table (campaign definition) — added via SQL migration
 - `referral_partners` table (partner/affiliate codes) — added via SQL migration
 - `referral_events` table (audit log: invited, registered, first_order_paid, delivered, reward_credited) — added via SQL migration
-- Migration file: [backend/migrations/2026-01-12_referral_backbone_and_automation.sql](../backend/migrations/2026-01-12_referral_backbone_and_automation.sql)
+- Migration file: [backend/migrations/2026-01-12_referral_backbone_and_automation.sql](../../db/migrations/2026-01-12_referral_backbone_and_automation.sql)
 - Anti-abuse checks (phone/email uniqueness, device fingerprint, IP limits)
 
 ## 4) 12+ referral system ideas (Bangladesh-focused)
@@ -360,8 +360,8 @@ Avoid early-stage mistakes:
 
 ## 7) References in this repo
 
-- Referrals audit notes: [docs/ORDERS_SUPPORT_REFERRALS_NEXT_STEPS.md](ORDERS_SUPPORT_REFERRALS_NEXT_STEPS.md)
-- Referral entity: [backend/src/modules/loyalty/entities/customer-referral.entity.ts](../backend/src/modules/loyalty/entities/customer-referral.entity.ts)
-- Referral API controller: [backend/src/modules/loyalty/loyalty.controller.ts](../backend/src/modules/loyalty/loyalty.controller.ts)
-- Referral logic: [backend/src/modules/loyalty/loyalty.service.ts](../backend/src/modules/loyalty/loyalty.service.ts)
-- Frontend API wrapper: [frontend/src/services/api.ts](../frontend/src/services/api.ts)
+- Referrals audit notes: [docs/ORDERS_SUPPORT_REFERRALS_NEXT_STEPS.md](../archive/ORDERS_SUPPORT_REFERRALS_NEXT_STEPS.md)
+- Referral entity: [backend/src/modules/loyalty/entities/customer-referral.entity.ts](../../backend/src/modules/loyalty/entities/customer-referral.entity.ts)
+- Referral API controller: [backend/src/modules/loyalty/loyalty.controller.ts](../../backend/src/modules/loyalty/loyalty.controller.ts)
+- Referral logic: [backend/src/modules/loyalty/loyalty.service.ts](../../backend/src/modules/loyalty/loyalty.service.ts)
+- Frontend API wrapper: [frontend/src/services/api.ts](../../frontend/src/services/api.ts)
