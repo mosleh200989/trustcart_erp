@@ -76,8 +76,16 @@ interface SalesOrder {
   orderDate?: string;
 }
 
+// Statuses meaning the parcel is with the courier and undelivered. Kept in sync with
+// IN_COURIER_HANDS_STATUSES in utils/orderStatus.ts and the backend constant of the
+// same name — the API already filters to these, so this is the in-page refine filter.
 const STATUS_OPTIONS = [
   { value: 'pending', label: 'Pending' },
+  { value: 'sent', label: 'Sent' },
+  { value: 'picked', label: 'Picked' },
+  { value: 'in_transit', label: 'In Transit' },
+  { value: 'shipped', label: 'Shipped' },
+  { value: 'courier_hold', label: 'Courier Hold' },
 ];
 
 const CANCELLED_STATUS_OPTIONS = [
@@ -95,6 +103,8 @@ const COURIER_COMPANY_OPTIONS = [
 
 const MANUAL_STATUS_OPTIONS = [
   { value: 'pending', label: 'Pending' },
+  { value: 'in_transit', label: 'In Transit' },
+  { value: 'courier_hold', label: 'Courier Hold' },
   { value: 'delivered', label: 'Delivered' },
   { value: 'partial_delivered', label: 'Partial Delivered' },
   { value: 'cancelled', label: 'Cancelled' },

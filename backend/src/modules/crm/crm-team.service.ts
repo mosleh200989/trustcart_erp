@@ -1750,7 +1750,7 @@ export class CrmTeamService {
        SELECT
          COUNT(*) FILTER (
            WHERE assigned_to = ANY($1::int[])
-             AND LOWER(status::text) IN ('processing', 'pending', 'approved', 'hold', 'on_hold', 'sent', 'picked', 'in_transit', 'shipped')
+             AND LOWER(status::text) IN ('processing', 'pending', 'approved', 'hold', 'on_hold', 'customer_hold', 'courier_hold', 'sent', 'picked', 'in_transit', 'shipped')
          )::int AS active_assigned_orders,
          COUNT(*) FILTER (
            WHERE approved_at IS NOT NULL

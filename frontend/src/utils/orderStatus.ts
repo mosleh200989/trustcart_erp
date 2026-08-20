@@ -22,7 +22,10 @@ export const ORDER_STATUS_MAP: Record<string, StatusConfig> = {
   shipped:           { label: 'Shipped',            color: 'bg-purple-100 text-purple-800' },
   delivered:         { label: 'Delivered',          color: 'bg-green-100 text-green-800' },
   completed:         { label: 'Completed',          color: 'bg-green-100 text-green-800' },
-  hold:              { label: 'On Hold',            color: 'bg-orange-100 text-orange-800' },
+  customer_hold:     { label: 'Customer Hold',      color: 'bg-orange-100 text-orange-800' },
+  courier_hold:      { label: 'Courier Hold',        color: 'bg-amber-200 text-amber-900' },
+  /** @deprecated Legacy ambiguous value, kept so historical orders still render. */
+  hold:              { label: 'On Hold (legacy)',    color: 'bg-orange-100 text-orange-800' },
   cancelled:         { label: 'Cancelled',          color: 'bg-red-100 text-red-800' },
   admin_cancelled:   { label: 'Order Rejected',     color: 'bg-red-200 text-red-900' },
   pickup_failed:     { label: 'Pickup Failed',      color: 'bg-rose-100 text-rose-800' },
@@ -48,4 +51,34 @@ export function getOrderStatusColor(status?: string | null): string {
 export function getOrderStatusConfig(status?: string | null): StatusConfig {
   if (!status) return { ...DEFAULT_CONFIG, label: 'Unknown' };
   return ORDER_STATUS_MAP[status.toLowerCase()] || { ...DEFAULT_CONFIG, label: status };
+}
+
+/**
+ * Every hold flavour, including the legacy ambiguous `hold`.
+ *
+ * `hold` used to mean both "we paused this before it went to a courier" and "the
+ * courier paused it after pickup". It is now split into `customer_hold` and
+ * `courier_hold`; `hold` only ever appears on historical rows.
+ */
+export const HOLD_STATUSES = ['customer_hold', 'courier_hold', 'hold'] as const;
+
+/** Holds an agent applied themselves, and can resume. */
+export const RELEASABLE_HOLD_STATUSES = ['customer_hold', 'hold'] as const;
+
+/**
+ * Statuses meaning the parcel is with the courier and has no final outcome yet —
+ * what the Late Delivery page lists. Delivered / returned / cancelled orders drop
+ * off automatically, and `pickup_failed` is excluded because the parcel is back
+ * with us rather than in transit.
+ */
+export const IN_COURIER_HANDS_STATUSES = [
+  'pending', 'sent', 'picked', 'in_transit', 'shipped', 'courier_hold',
+] as const;
+
+export function isHoldStatus(status?: string | null): boolean {
+  return (HOLD_STATUSES as readonly string[]).includes(String(status ?? '').toLowerCase());
+}
+
+export function isReleasableHoldStatus(status?: string | null): boolean {
+  return (RELEASABLE_HOLD_STATUSES as readonly string[]).includes(String(status ?? '').toLowerCase());
 }

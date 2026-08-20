@@ -18,6 +18,7 @@ import { getDhakaDateString } from '../../common/utils/dhaka-date';
 import { OrderGuardSettings } from '../settings/order-guard-settings.entity';
 import { MetaCapiService } from './meta-capi.service';
 import { getMetaPixelIdForOrder } from './meta-conversion-policy';
+import { IN_COURIER_HANDS_STATUSES } from './order-status.constants';
 
 type StatusAuditActor = {
   actorId?: number;
@@ -649,7 +650,7 @@ export class SalesService {
             AND LOWER(ps.state) = 'online'
            LEFT JOIN sales_orders active_orders
              ON active_orders.assigned_to = u.id
-            AND LOWER(active_orders.status::text) IN ('processing', 'pending', 'approved', 'hold', 'sent', 'in_review', 'in_transit', 'picked', 'shipped')
+            AND LOWER(active_orders.status::text) IN ('processing', 'pending', 'approved', 'hold', 'customer_hold', 'courier_hold', 'sent', 'in_review', 'in_transit', 'picked', 'shipped')
            LEFT JOIN today_assignment_counts today_orders
              ON today_orders.agent_id = u.id
             AND today_orders.team_leader_id = at.team_leader_id
@@ -989,7 +990,7 @@ export class SalesService {
        LEFT JOIN products p ON p.id = pref.product_id
        LEFT JOIN sales_orders o
          ON o.assigned_to = u.id
-        AND LOWER(o.status::text) IN ('processing', 'pending', 'approved', 'hold', 'sent', 'in_review', 'in_transit', 'picked', 'shipped')
+        AND LOWER(o.status::text) IN ('processing', 'pending', 'approved', 'hold', 'customer_hold', 'courier_hold', 'sent', 'in_review', 'in_transit', 'picked', 'shipped')
        LEFT JOIN today_assignment_counts l
          ON l.agent_id = u.id
         AND l.team_leader_id = at.team_leader_id
@@ -1159,7 +1160,7 @@ export class SalesService {
        LEFT JOIN user_presence_statuses ps ON ps.user_id = ta.agent_id
        LEFT JOIN sales_orders so_active
          ON so_active.assigned_to = ta.agent_id
-        AND LOWER(so_active.status::text) IN ('processing', 'pending', 'approved', 'hold', 'sent', 'in_review', 'in_transit', 'picked', 'shipped')
+        AND LOWER(so_active.status::text) IN ('processing', 'pending', 'approved', 'hold', 'customer_hold', 'courier_hold', 'sent', 'in_review', 'in_transit', 'picked', 'shipped')
        LEFT JOIN incomplete_orders io_active
          ON io_active.assigned_to = ta.agent_id
         AND COALESCE(io_active.converted_to_order, FALSE) = FALSE
@@ -1201,7 +1202,7 @@ export class SalesService {
         AND l.created_at <= $3::timestamp
        LEFT JOIN sales_orders so_active
          ON so_active.assigned_to = u.id
-        AND LOWER(so_active.status::text) IN ('processing', 'pending', 'approved', 'hold', 'sent', 'in_review', 'in_transit', 'picked', 'shipped')
+        AND LOWER(so_active.status::text) IN ('processing', 'pending', 'approved', 'hold', 'customer_hold', 'courier_hold', 'sent', 'in_review', 'in_transit', 'picked', 'shipped')
        LEFT JOIN incomplete_orders io_active
          ON io_active.assigned_to = u.id
         AND COALESCE(io_active.converted_to_order, FALSE) = FALSE
@@ -2979,7 +2980,9 @@ export class SalesService {
     const qb = this.salesRepository.createQueryBuilder('o');
     qb.where("LTRIM(COALESCE(o.sales_order_number, ''), '#') NOT ILIKE 'LEG%'")
       .andWhere(`${ageDateExpr} <= :cutoffDate`, { cutoffDate })
-      .andWhere('LOWER(o.status::text) = :lateDeliveryStatus', { lateDeliveryStatus: 'pending' })
+      .andWhere('LOWER(o.status::text) IN (:...lateDeliveryStatuses)', {
+        lateDeliveryStatuses: IN_COURIER_HANDS_STATUSES,
+      })
       .andWhere(courierSubmittedCondition)
       .orderBy(ageDateExpr, 'ASC')
       .addOrderBy('o.shipped_at', 'ASC', 'NULLS LAST')
@@ -4150,7 +4153,9 @@ export class SalesService {
         `COUNT(CASE WHEN LOWER(o.status::text) = 'processing' THEN 1 END) AS processing_orders`,
         `COUNT(CASE WHEN ${approvedEverCondition} THEN 1 END) AS approved_orders`,
         `COUNT(CASE WHEN LOWER(o.status::text) = 'sent' THEN 1 END) AS sent_orders`,
-        `COUNT(CASE WHEN LOWER(o.status::text) = 'hold' THEN 1 END) AS hold_orders`,
+        `COUNT(CASE WHEN LOWER(o.status::text) IN ('hold', 'customer_hold', 'courier_hold') THEN 1 END) AS hold_orders`,
+        `COUNT(CASE WHEN LOWER(o.status::text) IN ('hold', 'customer_hold') THEN 1 END) AS customer_hold_orders`,
+        `COUNT(CASE WHEN LOWER(o.status::text) = 'courier_hold' THEN 1 END) AS courier_hold_orders`,
         `COUNT(CASE WHEN LOWER(o.status::text) = 'in_review' THEN 1 END) AS in_review_orders`,
         `COUNT(CASE WHEN LOWER(o.status::text) = 'picked' THEN 1 END) AS picked_orders`,
         `COUNT(CASE WHEN LOWER(o.status::text) = 'in_transit' THEN 1 END) AS in_transit_orders`,
@@ -4369,6 +4374,8 @@ export class SalesService {
       approvedOrders: toNum(raw?.approved_orders),
       sentOrders: toNum(raw?.sent_orders),
       holdOrders: toNum(raw?.hold_orders),
+      customerHoldOrders: toNum(raw?.customer_hold_orders),
+      courierHoldOrders: toNum(raw?.courier_hold_orders),
       inReviewOrders: toNum(raw?.in_review_orders),
       pickedOrders: toNum(raw?.picked_orders),
       inTransitOrders: toNum(raw?.in_transit_orders),

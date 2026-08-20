@@ -8,7 +8,10 @@ import {
   FaEye, FaEyeSlash, FaCopy
 } from 'react-icons/fa';
 import PhoneInput, { validateBDPhone } from '@/components/PhoneInput';
-import { getOrderStatusLabel, getOrderStatusColor } from '@/utils/orderStatus';
+import { getOrderStatusLabel, getOrderStatusColor, isHoldStatus, isReleasableHoldStatus } from '@/utils/orderStatus';
+
+/** Once the parcel is with the courier, a manual (customer) hold no longer applies. */
+const COURIER_HELD_OR_SHIPPED = ['sent', 'picked', 'in_transit', 'shipped', 'delivered', 'partial_delivered'];
 import { useAuth } from '@/contexts/AuthContext';
 import { CALL_OUTCOME_LABELS, ORDER_REJECTION_REASON_OPTIONS } from '@/constants/adminOptions';
 
@@ -1738,16 +1741,26 @@ export default function AdminOrderDetailsModal({ orderId, onClose, onUpdate }: O
             </button>
           )}
           
-          {canHoldOrCancel && order.status !== 'hold' && order.status !== 'cancelled' && order.status !== 'admin_cancelled' && (
+          {/* A manual hold is always a CUSTOMER hold — something we decide before the
+              parcel reaches a courier. Once it is with the courier, only the courier
+              can pause it, and that arrives automatically as "Courier Hold". */}
+          {canHoldOrCancel && !isHoldStatus(order.status) && !COURIER_HELD_OR_SHIPPED.includes(order.status)
+            && order.status !== 'cancelled' && order.status !== 'admin_cancelled' && (
             <button onClick={holdOrder} className="bg-yellow-600 text-white px-4 py-2 rounded-lg hover:bg-yellow-700 flex items-center gap-2">
-              <FaPause /> Hold
+              <FaPause /> Customer Hold
             </button>
           )}
 
-          {order.status === 'hold' && (
+          {isReleasableHoldStatus(order.status) && (
             <button onClick={unholdOrder} className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2">
               <FaCheck /> Resume
             </button>
+          )}
+
+          {order.status === 'courier_hold' && (
+            <span className="px-4 py-2 rounded-lg bg-amber-50 text-amber-900 text-sm flex items-center gap-2">
+              <FaPause /> On hold at the courier — resumes on the next courier update
+            </span>
           )}
           
           {canHoldOrCancel && order.status !== 'cancelled' && order.status !== 'admin_cancelled' && (
