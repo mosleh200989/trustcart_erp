@@ -6,24 +6,36 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Request } from 'express';
+import { Request, Response } from 'express';
 import * as crypto from 'crypto';
+import {
+  PATHAO_INTEGRATION_SECRET_HEADER,
+  PATHAO_SIGNATURE_HEADER,
+  PATHAO_WEBHOOK_INTEGRATION_EVENT,
+  resolvePathaoIntegrationSecret,
+} from '../constants/pathao-webhook.constants';
 
 /**
  * Guard that validates incoming Pathao webhook requests.
  *
- * Supports three authentication methods (checked in order):
+ * Pathao's real contract (see `pathao-webhook.constants.ts`) is that the merchant's
+ * webhook secret arrives **verbatim** in the `X-PATHAO-Signature` header. That is the
+ * primary check. The remaining methods are defensive fallbacks for proxies/senders
+ * that cannot set that header:
  *
- * 1. **HMAC-SHA256 Signature** — `X-PATHAO-Signature` header containing
- *    HMAC-SHA256(body, PATHAO_WEBHOOK_SECRET) in hex.
+ * 1. `X-PATHAO-Signature` == PATHAO_WEBHOOK_SECRET (verbatim)  ← what Pathao sends
+ * 2. `X-PATHAO-Signature` == HMAC-SHA256(rawBody, PATHAO_WEBHOOK_SECRET) in hex
+ * 3. `X-Pathao-Merchant-Webhook-Integration-Secret` == PATHAO_WEBHOOK_INTEGRATION_SECRET
+ * 4. `Authorization: Bearer <PATHAO_WEBHOOK_SECRET>`
+ * 5. `?secret=<PATHAO_WEBHOOK_SECRET>` on the URL
  *
- * 2. **Bearer Token** — `Authorization: Bearer <PATHAO_WEBHOOK_SECRET>` header.
+ * The `webhook_integration` handshake is always allowed through — Pathao sends it
+ * without credentials while registering the URL.
  *
- * 3. **Query Param** — `?secret=<PATHAO_WEBHOOK_SECRET>` on the URL
- *    (useful when the sender doesn't support custom headers).
- *
- * If PATHAO_WEBHOOK_SECRET is NOT configured, the guard allows all requests
- * and logs a warning on every call (open mode for dev/testing).
+ * If no secret is configured at all the guard runs in open mode and warns on every
+ * call. Set `PATHAO_WEBHOOK_ALLOW_UNSIGNED=true` to accept unsigned events while
+ * still logging loudly (useful if Pathao ever changes the header again — it keeps
+ * status updates flowing instead of silently dropping them).
  */
 @Injectable()
 export class PathaoWebhookGuard implements CanActivate {
@@ -32,86 +44,123 @@ export class PathaoWebhookGuard implements CanActivate {
   constructor(private readonly configService: ConfigService) {}
 
   private timingSafeStringEqual(a: string, b: string): boolean {
-    const left = Buffer.from(a);
-    const right = Buffer.from(b);
+    const left = Buffer.from(String(a));
+    const right = Buffer.from(String(b));
     return left.length === right.length && crypto.timingSafeEqual(left, right);
   }
 
-  canActivate(context: ExecutionContext): boolean {
-    const request = context.switchToHttp().getRequest<Request>();
-    const secret = this.configService.get<string>('PATHAO_WEBHOOK_SECRET');
-    const integrationSecret = this.configService.get<string>('PATHAO_WEBHOOK_INTEGRATION_SECRET');
+  private getRawBody(request: Request): Buffer {
+    const raw = (request as any).rawBody;
+    if (Buffer.isBuffer(raw)) return raw;
+    if (typeof raw === 'string') return Buffer.from(raw);
+    return Buffer.from(JSON.stringify(request.body ?? {}));
+  }
 
-    // Pathao's webhook registration handshake expects the endpoint to echo the
-    // integration secret header in the response. Let that verification event through.
-    if ((request.body as any)?.event === 'webhook_integration') {
+  canActivate(context: ExecutionContext): boolean {
+    const http = context.switchToHttp();
+    const request = http.getRequest<Request>();
+    const response = http.getResponse<Response>();
+
+    // Always echo the integration secret, even on a rejected request. Pathao inspects
+    // this header on every response and de-activates webhooks that stop returning it.
+    const integrationSecret = resolvePathaoIntegrationSecret(
+      this.configService.get<string>('PATHAO_WEBHOOK_INTEGRATION_SECRET'),
+    );
+    response.setHeader(PATHAO_INTEGRATION_SECRET_HEADER, integrationSecret);
+
+    // Registration handshake — Pathao sends this with no credentials.
+    if ((request.body as any)?.event === PATHAO_WEBHOOK_INTEGRATION_EVENT) {
       return true;
     }
 
+    const secret = String(this.configService.get<string>('PATHAO_WEBHOOK_SECRET') ?? '').trim();
+
+    if (!secret) {
+      this.logger.warn(
+        'PATHAO_WEBHOOK_SECRET is not set — the Pathao webhook endpoint is OPEN. ' +
+          'Set it here and in the Pathao merchant portal to secure the endpoint.',
+      );
+      return true;
+    }
+
+    const signature = (
+      request.headers[PATHAO_SIGNATURE_HEADER] ||
+      request.headers['x-pathao-webhook-signature']
+    ) as string | undefined;
+
+    // Method 1 — the header Pathao actually sends: the secret, verbatim.
+    if (signature && this.timingSafeStringEqual(signature.trim(), secret)) {
+      return true;
+    }
+
+    // Method 2 — HMAC-SHA256 of the raw body, kept as a defensive fallback.
+    if (signature) {
+      const expected = crypto
+        .createHmac('sha256', secret)
+        .update(this.getRawBody(request))
+        .digest('hex');
+      const normalized = signature.startsWith('sha256=')
+        ? signature.slice('sha256='.length)
+        : signature.trim();
+      if (this.timingSafeStringEqual(normalized, expected)) {
+        return true;
+      }
+    }
+
+    // Method 3 — integration secret header.
     const integrationHeader = (
       request.headers['x-pathao-merchant-webhook-integration-secret'] ||
       request.headers['x-pathao-webhook-integration-secret'] ||
       request.headers['x-pathao-webhook-secret']
     ) as string | undefined;
-    if (integrationHeader && integrationSecret) {
-      if (this.timingSafeStringEqual(String(integrationHeader), integrationSecret)) {
-        return true;
-      }
-      this.logger.warn(`[Pathao Webhook] Integration secret header did not match from ${request.ip}`);
+    if (
+      integrationHeader &&
+      (this.timingSafeStringEqual(String(integrationHeader).trim(), integrationSecret) ||
+        this.timingSafeStringEqual(String(integrationHeader).trim(), secret))
+    ) {
+      return true;
     }
 
-    if (!secret && !integrationSecret) {
+    // Method 4 — Bearer token.
+    const authHeader = String(request.headers['authorization'] || '');
+    if (authHeader) {
+      const token = authHeader.startsWith('Bearer ')
+        ? authHeader.slice(7).trim()
+        : authHeader.trim();
+      if (token && this.timingSafeStringEqual(token, secret)) {
+        return true;
+      }
+    }
+
+    // Method 5 — ?secret= query param.
+    const querySecret = request.query?.secret as string | undefined;
+    if (querySecret && this.timingSafeStringEqual(String(querySecret).trim(), secret)) {
+      return true;
+    }
+
+    // Log the header names that did arrive (never their values) so a future change
+    // to Pathao's contract is diagnosable straight from the logs.
+    const pathaoHeaderNames = Object.keys(request.headers)
+      .filter((name) => name.toLowerCase().includes('pathao') || name.toLowerCase() === 'authorization')
+      .join(', ') || 'none';
+
+    const allowUnsigned =
+      String(this.configService.get<string>('PATHAO_WEBHOOK_ALLOW_UNSIGNED') ?? '')
+        .trim()
+        .toLowerCase() === 'true';
+
+    if (allowUnsigned) {
       this.logger.warn(
-        'PATHAO_WEBHOOK_SECRET and PATHAO_WEBHOOK_INTEGRATION_SECRET are not set - webhook endpoint is OPEN. ' +
-          'Set one of these env variables to secure the endpoint.',
+        `[Pathao Webhook] Unauthenticated event ACCEPTED because PATHAO_WEBHOOK_ALLOW_UNSIGNED=true. ` +
+          `ip=${request.ip} pathao-ish headers=[${pathaoHeaderNames}]`,
       );
       return true;
     }
 
-    // Method 1: HMAC signature header
-    const signature = (
-      request.headers['x-pathao-signature'] ||
-      request.headers['x-pathao-webhook-signature']
-    ) as string | undefined;
-    if (signature && secret) {
-      const rawBody =
-        Buffer.isBuffer((request as any).rawBody)
-          ? (request as any).rawBody
-          : typeof (request as any).rawBody === 'string'
-            ? Buffer.from((request as any).rawBody)
-            : Buffer.from(JSON.stringify(request.body));
-      const expected = crypto
-        .createHmac('sha256', secret)
-        .update(rawBody)
-        .digest('hex');
-      const normalizedSignature = signature.startsWith('sha256=')
-        ? signature.slice('sha256='.length)
-        : signature;
-      if (this.timingSafeStringEqual(normalizedSignature, expected)) {
-        return true;
-      }
-      this.logger.warn(`[Pathao Webhook] HMAC signature mismatch from ${request.ip}`);
-    }
-
-    // Method 2: Bearer token in Authorization header
-    const authHeader = (request.headers['authorization'] || '') as string;
-    if (authHeader && secret) {
-      const token = authHeader.startsWith('Bearer ')
-        ? authHeader.slice(7).trim()
-        : authHeader.trim();
-      if (token && token === secret) {
-        return true;
-      }
-      this.logger.warn(`[Pathao Webhook] Invalid Bearer token from ${request.ip}`);
-    }
-
-    // Method 3: Query param ?secret=...
-    const querySecret = request.query?.secret as string | undefined;
-    if (querySecret && secret && querySecret === secret) {
-      return true;
-    }
-
-    this.logger.warn(`[Pathao Webhook] No valid auth from ${request.ip}`);
+    this.logger.warn(
+      `[Pathao Webhook] Rejected: no valid credentials. ip=${request.ip} ` +
+        `pathao-ish headers=[${pathaoHeaderNames}] signatureHeaderPresent=${!!signature}`,
+    );
     throw new UnauthorizedException('Missing webhook authentication');
   }
 }
