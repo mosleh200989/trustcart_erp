@@ -21,6 +21,14 @@ import {
   isPathaoStatusRegression,
   lookupPathaoEventStatus,
 } from './pathao-status.map';
+import {
+  COURIER_SYNC_ELIGIBLE_STATUSES,
+  MANUALLY_SETTABLE_STATUSES,
+  NOT_HOLDABLE_STATUSES,
+  ORDER_STATUS,
+  RELEASABLE_HOLD_STATUSES,
+  REQUIRED_ORDER_STATUS_ENUM_VALUES,
+} from './order-status.constants';
 
 @Injectable()
 export class OrderManagementService {
@@ -265,7 +273,14 @@ export class OrderManagementService {
       data?.consignment?.status ??
       data?.consignment_status ??
       null;
-    return status == null ? null : String(status);
+    if (status == null) return null;
+    // Steadfast's raw status is written straight to sales_orders.status, so its
+    // ambiguous `hold` has to be resolved here. A hold reported by the courier is
+    // always a courier-side hold.
+    const raw = String(status).trim();
+    return raw.toLowerCase() === ORDER_STATUS.HOLD_LEGACY
+      ? ORDER_STATUS.COURIER_HOLD
+      : raw;
   }
 
   private isDeliveredStatus(status: string): boolean {
@@ -1079,13 +1094,20 @@ export class OrderManagementService {
     const order = await this.salesOrderRepository.findOne({ where: { id: orderId } });
     if (!order) throw new Error('Order not found');
 
-    // Cannot hold if already picked/in_transit/delivered
-    if (['picked', 'in_transit', 'delivered'].includes(order.status)) {
-      throw new Error('Cannot hold order - already shipped');
+    // A manual hold is always a CUSTOMER hold — it is something we decide before the
+    // parcel reaches a courier. Once the courier has it, only the courier can hold it
+    // (that arrives as `courier_hold` via webhook), so block the action here.
+    if (NOT_HOLDABLE_STATUSES.includes(order.status)) {
+      throw new BadRequestException(
+        'Cannot hold this order — it is already with the courier. ' +
+          'A courier-side pause arrives automatically as "Courier Hold".',
+      );
     }
 
+    await this.ensureOrderStatusEnumCompatibility();
+
     const oldStatus = order.status;
-    order.status = 'hold';
+    order.status = ORDER_STATUS.CUSTOMER_HOLD;
 
     const updatedOrder = await this.salesOrderRepository.save(order);
 
@@ -1093,7 +1115,7 @@ export class OrderManagementService {
       orderId,
       actionType: 'hold',
       oldStatus,
-      newStatus: 'hold',
+      newStatus: ORDER_STATUS.CUSTOMER_HOLD,
       actorName: userName,
       actorId: userId,
       ipAddress,
@@ -1111,19 +1133,29 @@ export class OrderManagementService {
     const order = await this.salesOrderRepository.findOne({ where: { id: orderId } });
     if (!order) throw new Error('Order not found');
 
-    if (order.status !== 'hold') {
-      throw new Error('Order is not on hold');
+    // Courier holds are not ours to release — the courier's next webhook moves the
+    // order on. Only holds we applied ourselves can be resumed here.
+    if (order.status === ORDER_STATUS.COURIER_HOLD) {
+      throw new BadRequestException(
+        'This order is on hold at the courier. It will resume automatically when the ' +
+          'courier updates it; use a manual status change if you need to override.',
+      );
     }
 
-    order.status = 'processing';
+    if (!RELEASABLE_HOLD_STATUSES.includes(order.status)) {
+      throw new BadRequestException('Order is not on hold');
+    }
+
+    const oldStatus = order.status;
+    order.status = ORDER_STATUS.PROCESSING;
 
     const updatedOrder = await this.salesOrderRepository.save(order);
 
     await this.logStatusChange({
       orderId,
       actionType: 'unhold',
-      oldStatus: 'hold',
-      newStatus: 'processing',
+      oldStatus,
+      newStatus: ORDER_STATUS.PROCESSING,
       actorName: userName,
       actorId: userId,
       ipAddress,
@@ -1188,12 +1220,7 @@ export class OrderManagementService {
     ipAddress?: string,
     cancelReason?: string,
   ): Promise<SalesOrder> {
-    const validStatuses = [
-      'processing', 'approved', 'sent', 'pending', 'in_review',
-      'in_transit', 'picked', 'hold', 'shipped', 'delivered',
-      'partial_delivered', 'completed', 'cancelled', 'admin_cancelled', 'pickup_failed', 'returned',
-    ];
-    if (!validStatuses.includes(newStatus)) {
+    if (!MANUALLY_SETTABLE_STATUSES.includes(newStatus)) {
       throw new BadRequestException(`Invalid status: ${newStatus}`);
     }
 
@@ -3439,11 +3466,17 @@ export class OrderManagementService {
 
   private async ensureOrderStatusEnumCompatibility() {
     if (!this.orderStatusEnumCompatibilityReady) {
-      this.orderStatusEnumCompatibilityReady = this.salesOrderRepository.query(
-        `ALTER TYPE order_status_enum ADD VALUE IF NOT EXISTS 'pickup_failed'`,
-      ).then(() => undefined).catch((error: any) => {
+      // Each ADD VALUE runs in its own statement — Postgres will not let a new enum
+      // value be added and used inside one transaction.
+      this.orderStatusEnumCompatibilityReady = (async () => {
+        for (const value of REQUIRED_ORDER_STATUS_ENUM_VALUES) {
+          await this.salesOrderRepository.query(
+            `ALTER TYPE order_status_enum ADD VALUE IF NOT EXISTS '${value}'`,
+          );
+        }
+      })().then(() => undefined).catch((error: any) => {
         this.orderStatusEnumCompatibilityReady = undefined;
-        this.logger.warn(`[Order Status Enum] Failed to ensure pickup_failed status: ${error?.message || error}`);
+        this.logger.warn(`[Order Status Enum] Failed to ensure required statuses: ${error?.message || error}`);
       });
     }
 
@@ -3467,8 +3500,8 @@ export class OrderManagementService {
       assignedforpickup: 'sent',
       pickupassigned: 'sent',
       pickupfailed: 'pickup_failed',
-      pickuponhold: 'hold',
-      pickuphold: 'hold',
+      pickuponhold: 'courier_hold',
+      pickuphold: 'courier_hold',
       pickupcancelled: 'cancelled',
       pickupcanceled: 'cancelled',
       atthehub: 'in_transit',
@@ -3505,9 +3538,9 @@ export class OrderManagementService {
       returnedtomerchant: 'returned',
       returndelivered: 'returned',
       paidreturn: 'returned',
-      deliveryfailed: 'hold',
-      onhold: 'hold',
-      hold: 'hold',
+      deliveryfailed: 'courier_hold',
+      onhold: 'courier_hold',
+      hold: 'courier_hold',
       pickuphub: 'picked',
       cancelled: 'cancelled',
       canceled: 'cancelled',
@@ -3520,10 +3553,10 @@ export class OrderManagementService {
     if (s.includes('pickup') && s.includes('fail')) return 'pickup_failed';
     if (s.includes('cancel')) return 'cancelled';
     if (s.includes('return')) return 'returned';
-    if (s.includes('hold')) return 'hold';
+    if (s.includes('hold')) return 'courier_hold';
     // Must precede the "contains deliver" rule below, otherwise a failed delivery
     // ("delivery-failed", "delivery unsuccessful") is misread as a successful one.
-    if (s.includes('fail') || s.includes('unsuccessful')) return 'hold';
+    if (s.includes('fail') || s.includes('unsuccessful')) return 'courier_hold';
     if (s.includes('deliver') && !s.includes('hub') && !s.includes('assign') && !s.includes('ready') && !s.includes('way')) return 'delivered';
     if (s.includes('picked') || s.includes('pickup')) return 'picked';
     if (s.includes('transit') || s.includes('hub') || s.includes('way') || s.includes('delivery')) return 'in_transit';
@@ -3892,7 +3925,7 @@ export class OrderManagementService {
     await this.ensureOrderStatusEnumCompatibility();
     await this.ensurePathaoSyncSchema();
 
-    const eligibleStatuses = ['pending', 'processing', 'approved', 'sent', 'shipped', 'picked', 'in_transit', 'hold'];
+    const eligibleStatuses = COURIER_SYNC_ELIGIBLE_STATUSES;
     const totalRows: Array<{ total: string | number }> = await this.dataSource.query(
       `SELECT COUNT(*) AS total
        FROM sales_orders

@@ -36,8 +36,8 @@ export const PATHAO_EVENT_STATUS_MAP: Record<string, PathaoMappedStatus> = {
   // ── Delivery outcome ──
   'order.delivered': 'delivered',
   'order.partial-delivery': 'partial_delivered',
-  'order.delivery-failed': 'hold', // NOT delivered — parcel is back on hold
-  'order.on-hold': 'hold',
+  'order.delivery-failed': 'courier_hold', // NOT delivered — the courier is holding it
+  'order.on-hold': 'courier_hold',
 
   // ── Returns ──
   'order.return-id-created': null, // a return consignment exists; parcel not returned yet

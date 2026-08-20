@@ -20,7 +20,7 @@ describe('Pathao webhook event mapping', () => {
       ['order.assigned-for-delivery', 'in_transit'],
       ['order.delivered', 'delivered'],
       ['order.partial-delivery', 'partial_delivered'],
-      ['order.on-hold', 'hold'],
+      ['order.on-hold', 'courier_hold'],
       ['order.returned', 'returned'],
       ['order.returned-to-merchant', 'returned'],
       ['order.paid-return', 'returned'],
@@ -33,7 +33,7 @@ describe('Pathao webhook event mapping', () => {
   it('never reads a FAILED delivery as a successful one', () => {
     // Regression guard: "order.delivery-failed" contains "deliver" and was previously
     // matched by a substring heuristic, marking undelivered parcels as delivered.
-    expect(lookupPathaoEventStatus('order.delivery-failed')).toEqual({ status: 'hold' });
+    expect(lookupPathaoEventStatus('order.delivery-failed')).toEqual({ status: 'courier_hold' });
   });
 
   it('treats non-delivery events as informational, not as a status', () => {
@@ -62,7 +62,7 @@ describe('Pathao webhook event mapping', () => {
   it('never maps an event to a raw event string', () => {
     const allowed = new Set([
       'sent', 'picked', 'in_transit', 'delivered',
-      'partial_delivered', 'returned', 'cancelled', 'hold', 'pickup_failed',
+      'partial_delivered', 'returned', 'cancelled', 'courier_hold', 'pickup_failed',
     ]);
     for (const status of Object.values(PATHAO_EVENT_STATUS_MAP)) {
       if (status !== null) expect(allowed.has(status)).toBe(true);
@@ -75,7 +75,7 @@ describe('out-of-order webhook protection', () => {
     expect(isPathaoStatusRegression('delivered', 'sent')).toBe(true);
     expect(isPathaoStatusRegression('delivered', 'in_transit')).toBe(true);
     expect(isPathaoStatusRegression('returned', 'picked')).toBe(true);
-    expect(isPathaoStatusRegression('cancelled', 'hold')).toBe(true);
+    expect(isPathaoStatusRegression('cancelled', 'courier_hold')).toBe(true);
   });
 
   it('allows normal forward progress', () => {

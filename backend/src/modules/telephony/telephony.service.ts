@@ -314,12 +314,17 @@ export class TelephonyService {
     }
 
     if (params?.status && params.status !== 'all') {
-      const statusAliases: Record<string, string> = {
-        on_hold: 'hold',
-        rejected: 'admin_cancelled',
+      // `hold` was split into customer_hold / courier_hold; the legacy aliases and the
+      // bare `hold` filter must still match every flavour, including historical rows.
+      const statusGroupAliases: Record<string, string[]> = {
+        on_hold: ['hold', 'customer_hold', 'courier_hold'],
+        hold: ['hold', 'customer_hold', 'courier_hold'],
+        customer_hold: ['hold', 'customer_hold'],
+        rejected: ['admin_cancelled'],
       };
-      const status = statusAliases[String(params.status).trim()] || String(params.status).trim();
-      qb.andWhere('o.status = :status', { status });
+      const requested = String(params.status).trim();
+      const statuses = statusGroupAliases[requested] || [requested];
+      qb.andWhere('o.status::text IN (:...statuses)', { statuses });
     }
 
     const calledStatus = String(params?.calledStatus || '').trim();
