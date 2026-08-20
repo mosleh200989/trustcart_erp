@@ -5,12 +5,12 @@
 এই ডকুমেন্টটি আজ তৈরি হওয়া নিচের ৬টি ডককে একত্রে **একটি master guide** হিসেবে সাজিয়েছে—যাতে Team Ops, CRM+CDM pipeline, agent script/training, softphone UI এবং Bracknet PBX integration—সবকিছু এক জায়গায় থাকে।
 
 ## Included sources (আজকের ৬টি ফাইল)
-1. `docs/AGENT_CALL_SCRIPT_BN_READY_TO_USE.md`
-2. `docs/AGENT_TRAINING_ROLEPLAY_BN.md`
-3. `docs/BRACKNET_CRM_API_CONTRACT_IMPLEMENTATION_BN.md`
-4. `docs/CRM_CDM_12_MONTH_OFFER_PIPELINE_BN.md`
-5. `docs/TEAM_CALLCENTER_TEAMOPS_IMPLEMENTATION_BN.md`
-6. `docs/WEBRTC_SOFTPHONE_UI_GUIDE_BN.md`
+1. `docs/agent-call-script.bn.md`
+2. `docs/agent-training-roleplay.bn.md`
+3. `docs/bracknet-crm-api.bn.md`
+4. `docs/offer-pipeline-12-month.bn.md`
+5. `docs/team-operations.bn.md`
+6. `docs/webrtc-softphone.bn.md`
 
 ## Table of contents
 - [Agent Call Script (BN)](#agent-call-script-bn)
@@ -168,9 +168,9 @@
 - Frontend Team Dashboard UI তে “Agent Training (Role Play)” সেকশনে দেখায়
 
 ## কোথায় ইমপ্লিমেন্ট করা হয়েছে
-- Backend: [backend/src/modules/crm/crm-team.service.ts](backend/src/modules/crm/crm-team.service.ts)
+- Backend: [backend/src/modules/crm/crm-team.service.ts](../../backend/src/modules/crm/crm-team.service.ts)
   - `getTeamLeaderDashboard()` রেসপন্সে `trainingRolePlays` যোগ করা হয়েছে
-- Frontend: [frontend/src/pages/admin/crm/team-dashboard.tsx](frontend/src/pages/admin/crm/team-dashboard.tsx)
+- Frontend: [frontend/src/pages/admin/crm/team-dashboard.tsx](../../frontend/src/pages/admin/crm/team-dashboard.tsx)
   - নতুন UI সেকশন যোগ করা হয়েছে
 
 ## API

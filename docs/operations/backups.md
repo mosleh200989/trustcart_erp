@@ -121,7 +121,7 @@ cd backend && npm run db:status     # expect: all applied, 0 pending
 ```
 
 The dump contains the `schema_migrations` ledger, so migration tracking comes
-back with it. See [MIGRATIONS.md](MIGRATIONS.md).
+back with it. See [migrations.md](migrations.md).
 
 If you only have the schema and no data, `db/baseline/2026-08-20-schema.sql`
 rebuilds the structure — but it is schema only, no rows.

@@ -1,6 +1,6 @@
 # TrustCart ERP — Permissions (RBAC) Features Checklist
 
-Reference: [docs/ADMIN_RBAC_PANELS_AND_ROLES.md](ADMIN_RBAC_PANELS_AND_ROLES.md)
+Reference: [docs/rbac-panels-and-roles.md](rbac-panels-and-roles.md)
 
 This is a **simple** inventory of permission-related features and a checklist of whether each is already implemented in the repo.
 
@@ -15,7 +15,7 @@ This is a **simple** inventory of permission-related features and a checklist of
 - [x] `user_permissions` override table exists (direct grants/revokes)
 - [x] `activity_logs` table exists (audit trail)
 - [x] Migration/seed file exists to create + seed roles/permissions
-  - Source: [backend/rbac-migration.sql](../backend/rbac-migration.sql)
+  - Source: [backend/rbac-migration.sql](../../db/legacy/backend/rbac-migration.sql)
 
 ---
 
@@ -38,9 +38,9 @@ This is a **simple** inventory of permission-related features and a checklist of
 ### 3.1 Permission enforcement building blocks
 
 - [x] Permission decorator exists: `@RequirePermissions(...slugs)`
-  - Source: [backend/src/common/decorators/permissions.decorator.ts](../backend/src/common/decorators/permissions.decorator.ts)
+  - Source: [backend/src/common/decorators/permissions.decorator.ts](../../backend/src/common/decorators/permissions.decorator.ts)
 - [x] Permission guard exists: `PermissionsGuard`
-  - Source: [backend/src/common/guards/permissions.guard.ts](../backend/src/common/guards/permissions.guard.ts)
+  - Source: [backend/src/common/guards/permissions.guard.ts](../../backend/src/common/guards/permissions.guard.ts)
 - [x] Guard checks permissions using the DB-driven RBAC service
   - Uses `rbacService.checkPermission(user.id, permissionSlug)`
 
@@ -60,7 +60,7 @@ This is a **simple** inventory of permission-related features and a checklist of
 - [x] Assign/remove role: `POST /rbac/users/:userId/roles`, `DELETE /rbac/users/:userId/roles/:roleId`
 - [x] Grant/revoke user override permission: `POST /rbac/users/:userId/permissions`, `DELETE /rbac/users/:userId/permissions/:permissionId`
 - [x] Activity logs: `GET /rbac/activity-logs`, `POST /rbac/activity-logs`
-  - Source: [backend/src/modules/rbac/rbac.controller.ts](../backend/src/modules/rbac/rbac.controller.ts)
+  - Source: [backend/src/modules/rbac/rbac.controller.ts](../../backend/src/modules/rbac/rbac.controller.ts)
 
 ### 3.4 Where permissions are actually enforced today
 
@@ -97,7 +97,7 @@ Backend modules present in this repo that **do not currently show permission-gua
 
 - [x] `/auth/me` returns the logged-in user’s roles + permissions
   - This is the key endpoint for the frontend to build role-based panels.
-  - Source: [backend/src/modules/auth/auth.controller.ts](../backend/src/modules/auth/auth.controller.ts)
+  - Source: [backend/src/modules/auth/auth.controller.ts](../../backend/src/modules/auth/auth.controller.ts)
 
 ---
 
@@ -106,7 +106,7 @@ Backend modules present in this repo that **do not currently show permission-gua
 ### 5.1 Admin navigation definition
 
 - [x] Central admin menu exists (drives all admin routes)
-  - Source: [frontend/src/layouts/AdminLayout.tsx](../frontend/src/layouts/AdminLayout.tsx)
+  - Source: [frontend/src/layouts/AdminLayout.tsx](../../frontend/src/layouts/AdminLayout.tsx)
 
 ### 5.2 UI enforcement status
 
@@ -177,7 +177,7 @@ Best practice: **Use permissions as the source of truth**, and treat “panel co
 You have two valid options:
 
 **Option 1 (recommended): Single AdminLayout + dynamic filtering**
-- Keep [frontend/src/layouts/AdminLayout.tsx](../frontend/src/layouts/AdminLayout.tsx) as the single layout.
+- Keep [frontend/src/layouts/AdminLayout.tsx](../../frontend/src/layouts/AdminLayout.tsx) as the single layout.
 - Add `requiredPermissions?: string[]` (and/or `requiredAnyPermissions?: string[]`) to each menu item.
 - Filter `menuItems` based on the logged-in user’s permissions.
 - Also protect each page route (redirect to “Not Authorized” if missing permission).
@@ -266,7 +266,7 @@ This is a practical checklist to verify RBAC end-to-end: database → backend en
 ### A) Prerequisites
 
 1) Database has roles + permissions seeded
-- Ensure the RBAC seed has been applied: [backend/rbac-migration.sql](../backend/rbac-migration.sql)
+- Ensure the RBAC seed has been applied: [backend/rbac-migration.sql](../../db/legacy/backend/rbac-migration.sql)
 - Confirm tables exist: `roles`, `permissions`, `role_permissions`, `user_roles`, `user_permissions`, `activity_logs`
 
 2) Start backend and frontend

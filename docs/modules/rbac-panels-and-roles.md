@@ -19,13 +19,13 @@
 
 This spec is based on **real repo artifacts**:
 
-- Seeded roles + permission model: [backend/rbac-migration.sql](../backend/rbac-migration.sql)
-- RBAC API endpoints (roles/permissions/assignment): [backend/src/modules/rbac/rbac.controller.ts](../backend/src/modules/rbac/rbac.controller.ts)
-- Admin navigation (feature universe to split into panels): [frontend/src/layouts/AdminLayout.tsx](../frontend/src/layouts/AdminLayout.tsx)
-- Existing RBAC baseline doc (older “12 roles” doc): [RBAC_IMPLEMENTATION_GUIDE.md](../RBAC_IMPLEMENTATION_GUIDE.md)
+- Seeded roles + permission model: [backend/rbac-migration.sql](../../db/legacy/backend/rbac-migration.sql)
+- RBAC API endpoints (roles/permissions/assignment): [backend/src/modules/rbac/rbac.controller.ts](../../backend/src/modules/rbac/rbac.controller.ts)
+- Admin navigation (feature universe to split into panels): [frontend/src/layouts/AdminLayout.tsx](../../frontend/src/layouts/AdminLayout.tsx)
+- Existing RBAC baseline doc (older “12 roles” doc): [rbac.md](./rbac.md)
 - CRM Team Ops / Call Center flows (Agent/TL operations):
-  - [docs/TEAM_CALLCENTER_TEAMOPS_IMPLEMENTATION_BN.md](TEAM_CALLCENTER_TEAMOPS_IMPLEMENTATION_BN.md)
-  - [TEAM_LEAD_QUICK_START.md](../TEAM_LEAD_QUICK_START.md)
+  - [docs/team-operations.bn.md](../callcenter/team-operations.bn.md)
+  - [TEAM_LEAD_QUICK_START.md](../archive/TEAM_LEAD_QUICK_START.md)
 
 ---
 

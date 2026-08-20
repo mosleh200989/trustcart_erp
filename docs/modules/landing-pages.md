@@ -377,4 +377,4 @@ picks up the new mapping.
 | `frontend/src/layouts/AdminLayout.tsx` | Sidebar menu (updated) |
 | `db/migrations/create_landing_pages.sql` | Database migration + seed |
 | `run-landing-pages-migration.bat` | Migration runner |
-| `LANDING_PAGES_GUIDE.md` | This guide |
+| `landing-pages.md` | This guide |

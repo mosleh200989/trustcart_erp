@@ -8,9 +8,9 @@
 - Frontend Team Dashboard UI তে “Agent Training (Role Play)” সেকশনে দেখায়
 
 ## কোথায় ইমপ্লিমেন্ট করা হয়েছে
-- Backend: [backend/src/modules/crm/crm-team.service.ts](backend/src/modules/crm/crm-team.service.ts)
+- Backend: [backend/src/modules/crm/crm-team.service.ts](../../backend/src/modules/crm/crm-team.service.ts)
   - `getTeamLeaderDashboard()` রেসপন্সে `trainingRolePlays` যোগ করা হয়েছে
-- Frontend: [frontend/src/pages/admin/crm/team-dashboard.tsx](frontend/src/pages/admin/crm/team-dashboard.tsx)
+- Frontend: [frontend/src/pages/admin/crm/team-dashboard.tsx](../../frontend/src/pages/admin/crm/team-dashboard.tsx)
   - নতুন UI সেকশন যোগ করা হয়েছে
 
 ## API
