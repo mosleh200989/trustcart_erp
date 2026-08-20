@@ -2,6 +2,9 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ScheduleModule } from '@nestjs/schedule';
+import { APP_GUARD } from '@nestjs/core';
+import { ThrottlerModule } from '@nestjs/throttler';
+import { ThrottlerBehindProxyGuard } from './common/guards/throttler-behind-proxy.guard';
 
 // Entities
 import { Product } from './modules/products/product.entity';
@@ -374,6 +377,25 @@ import { WalletWithdrawalRequest } from './modules/loyalty/entities/wallet-withd
       },
     }),
 
+    // Rate limiting.
+    //
+    // The ceiling is deliberately high. Mobile networks in Bangladesh use
+    // carrier-grade NAT, so a large number of genuine customers can share one
+    // public IP — a tight global limit would lock out real traffic long before
+    // it inconvenienced an attacker. This exists to stop runaway scripts and
+    // cheap scraping, not to be a precision control.
+    //
+    // Authentication routes carry their own, much tighter limit; see
+    // AuthController. Courier webhooks opt out entirely with @SkipThrottle,
+    // because a delivery-status burst is legitimate and must never be dropped.
+    ThrottlerModule.forRoot([
+      {
+        name: 'default',
+        ttl: 60_000, // one minute
+        limit: 1_000,
+      },
+    ]),
+
     // Feature Modules
     AuthModule,
     UsersModule,
@@ -417,6 +439,11 @@ import { WalletWithdrawalRequest } from './modules/loyalty/entities/wallet-withd
     AuditLogModule,
   ],
   controllers: [],
-  providers: [],
+  providers: [
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerBehindProxyGuard,
+    },
+  ],
 })
 export class AppModule {}

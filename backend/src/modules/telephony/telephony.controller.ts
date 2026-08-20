@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Headers, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { SkipThrottle } from '@nestjs/throttler';
 import type { Request as ExpressRequest } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
@@ -235,6 +236,7 @@ export class TelephonyController {
   }
 
   // Webhook endpoint for Bracknet to send call events/status updates
+  @SkipThrottle()
   @Post('webhook/bracknet')
   async bracknetWebhook(@Body() body: any, @Headers() headers: any) {
     return this.telephonyService.handleBracknetWebhook(body, headers);

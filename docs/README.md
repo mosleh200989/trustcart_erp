@@ -12,6 +12,7 @@ Running the thing. Start here when something is on fire.
 | [operations/deployment.md](operations/deployment.md) | The VPS, pm2 processes, how to deploy and roll back |
 | [operations/migrations.md](operations/migrations.md) | Changing the database schema; the migration ledger |
 | [operations/backups.md](operations/backups.md) | Nightly backups, pulling a copy locally, restoring |
+| [operations/security.md](operations/security.md) | Rate limiting, security headers, CORS, and what is still missing |
 
 ## Modules
 
