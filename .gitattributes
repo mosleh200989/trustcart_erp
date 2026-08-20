@@ -1,5 +1,12 @@
 # Shell scripts run on the Linux VPS - CRLF would break the shebang.
 *.sh text eol=lf
 
-# SQL is executed server-side; keep it stable across checkouts.
-*.sql text eol=lf
+# Live migrations and the baseline are executed server-side; keep them
+# byte-stable across a Windows checkout and the Linux server.
+db/migrations/*.sql text eol=lf
+db/baseline/*.sql   text eol=lf
+
+# Legacy SQL is frozen reference material and some of it was committed with
+# CRLF. Normalising it would rewrite ~2 MB of history for no benefit and show
+# up forever as phantom modifications on the server. Leave it exactly as-is.
+db/legacy/** -text

@@ -2,6 +2,23 @@
 
 A comprehensive Enterprise Resource Planning (ERP) system designed for organic grocery businesses, combining e-commerce capabilities with complete business management.
 
+## 🔧 Operations — start here
+
+The two things you will need and will not remember:
+
+| I want to... | Do this | Details |
+| --- | --- | --- |
+| **Pull a copy of the live database** | `powershell -ExecutionPolicy Bypass -File scripts\fetch-backup.ps1` | [docs/BACKUPS.md](docs/BACKUPS.md) |
+| **Change the database schema** | `cd backend && npm run db:new -- <name>` then `npm run db:up` | [docs/MIGRATIONS.md](docs/MIGRATIONS.md) |
+
+Backups run automatically on the VPS every night at **02:30 Dhaka time**, and
+are kept for 14 days. They live on the same server as the database, so pulling a
+copy down with `fetch-backup.ps1` is what protects you if that server is lost.
+
+**Never** apply schema changes by hand or with a loose `.sql` file — migrations
+are tracked in a ledger, and anything applied outside it goes unrecorded.
+`npm run db:check` fails the moment a `.sql` file appears outside `db/migrations`.
+
 ## 📋 Project Structure
 
 ```
