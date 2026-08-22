@@ -24,6 +24,21 @@ interface TrustCartDocumentProps extends DocumentInitialProps {
   isVeshojSurface: boolean;
   isNaturalGlowraSurface: boolean;
   isDedicatedPixelHost: boolean;
+  isStorefrontHost: boolean;
+}
+
+/**
+ * Storefront brand domains. They supply their own title, description, favicon
+ * and pixel from the storefronts table, so TrustCart's own branding metadata
+ * must not be emitted on them.
+ */
+const STOREFRONT_HOSTS = new Set([
+  'handsomemanbd.com', 'www.handsomemanbd.com',
+]);
+
+function isStorefrontDocumentHost(ctx: DocumentContext) {
+  const host = String(ctx.req?.headers.host || '').split(':')[0].toLowerCase();
+  return STOREFRONT_HOSTS.has(host);
 }
 
 function isArabianKhaltaDocumentSurface(ctx: DocumentContext) {
@@ -78,18 +93,23 @@ export default function Document({
   isVeshojSurface,
   isNaturalGlowraSurface,
   isDedicatedPixelHost,
+  isStorefrontHost,
 }: TrustCartDocumentProps) {
   return (
     <Html lang="en">
       <Head>
         <meta charSet="utf-8" />
-        <meta name="description" content="TrustCart — Shop premium organic groceries, pure ghee, honey, spices & healthy food online. Fresh, authentic & delivered to your door in Bangladesh." />
-        {/* Facebook Domain Verification */}
-        <meta name="facebook-domain-verification" content="k9s0mrkab3u3ir6tgt7i2o97es1pa2" />
-        {/* Favicon */}
-        <link rel="icon" type="image/jpeg" href="/trustcart-logo-tab.jpg" />
-        <link rel="shortcut icon" type="image/jpeg" href="/trustcart-logo-tab.jpg" />
-        <link rel="apple-touch-icon" href="/trustcart-logo-tab.jpg" />
+        {!isStorefrontHost && (
+          <>
+            <meta name="description" content="TrustCart — Shop premium organic groceries, pure ghee, honey, spices & healthy food online. Fresh, authentic & delivered to your door in Bangladesh." />
+            {/* Facebook Domain Verification */}
+            <meta name="facebook-domain-verification" content="k9s0mrkab3u3ir6tgt7i2o97es1pa2" />
+            {/* Favicon */}
+            <link rel="icon" type="image/jpeg" href="/trustcart-logo-tab.jpg" />
+            <link rel="shortcut icon" type="image/jpeg" href="/trustcart-logo-tab.jpg" />
+            <link rel="apple-touch-icon" href="/trustcart-logo-tab.jpg" />
+          </>
+        )}
         {/* Google Fonts - Supports Bangla */}
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
@@ -446,5 +466,6 @@ Document.getInitialProps = async (ctx: DocumentContext): Promise<TrustCartDocume
     isVeshojSurface: isVeshojDocumentSurface(ctx),
     isNaturalGlowraSurface: isNaturalGlowraDocumentSurface(ctx),
     isDedicatedPixelHost: isDedicatedPixelDocumentHost(ctx),
+    isStorefrontHost: isStorefrontDocumentHost(ctx),
   };
 };
