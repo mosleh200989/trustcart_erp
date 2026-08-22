@@ -60,3 +60,9 @@ export default function HMThankYou() {
     </HMLayout>
   );
 }
+
+// Server-rendered so _document can detect the storefront host and omit
+// TrustCart branding metadata (static prerendering has no request context).
+export async function getServerSideProps() {
+  return { props: {} };
+}
