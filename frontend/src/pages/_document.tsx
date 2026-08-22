@@ -119,6 +119,11 @@ export default function Document({
           rel="stylesheet"
           href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css"
         />
+        {/* TrustCart's tracking stack (Meta pixels, GTM, GA). Storefront brands
+            run their own pixel from the storefronts table, so none of this is
+            emitted on their domains — not even inert, host-guarded copies. */}
+        {!isStorefrontHost && (
+        <>
         {/* Keep each Meta pixel initialized once and suppress duplicate PageViews from legacy GTM tags. */}
         <script
           dangerouslySetInnerHTML={{
@@ -401,6 +406,8 @@ export default function Document({
             }`,
           }}
         />
+        </>
+        )}
       </Head>
       <body>
         {isArabianKhaltaSurface && (
