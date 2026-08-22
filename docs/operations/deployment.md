@@ -89,13 +89,44 @@ left behind — investigate rather than ignoring it. Dumps, logs and editor
 leftovers are gitignored, so they will not appear; a modified tracked file is a
 real signal that code was changed in production without going through git.
 
-## Known fragilities
+## Process definitions
 
-**pm2 processes were started ad hoc**, not from an ecosystem file. The process
-list survives reboot because `pm2 save` was run and the systemd unit is enabled,
-but the exact start commands are not recorded anywhere in the repo. If the pm2
-state is ever lost, they have to be reconstructed by hand. An
-`ecosystem.config.js` would fix this.
+Both TrustCart processes are defined in
+[ecosystem.config.js](../../ecosystem.config.js) at the repo root. After a
+deploy that changes how a process runs:
+
+```bash
+pm2 startOrRestart ecosystem.config.js
+pm2 save
+```
+
+`pm2 save` is not optional — it writes the list to `~/.pm2/dump.pm2`, which the
+systemd unit replays on boot. Without it, changes are lost at the next reboot.
+
+Both run in **fork mode with one instance**, deliberately. The backend registers
+`@nestjs/schedule` cron jobs and holds Socket.IO connections; under cluster mode
+every worker would run its own copy of each cron, and websockets would need
+sticky sessions nginx is not set up for.
+
+### Recovering the other product's processes
+
+`assalamah-api` and `assalamah-web` share this server but belong to a different
+product and are not managed from this repo. Recorded here so they can be
+restored if the pm2 state is ever lost:
+
+```bash
+# assalamah-api  — cluster mode, 1 instance
+pm2 start /var/www/assalamah/current/backend/dist/src/server.js \
+  --name assalamah-api -i 1 \
+  --cwd /var/www/assalamah/current/backend
+
+# assalamah-web  — cluster mode, 1 instance
+pm2 start npm --name assalamah-web -i 1 \
+  --cwd /var/www/assalamah/current \
+  -- run start --workspace frontend -- --hostname 127.0.0.1 --port 3100
+```
+
+## Known fragilities
 
 **Everything shares one box** — database, both applications, nginx. There is no
 staging environment, so `main` goes straight to production.

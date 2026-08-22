@@ -1,4 +1,5 @@
 import { Controller, Get, Post, Put, Delete, Body, Param, Req, UseGuards, UnauthorizedException, Headers, Res, Query, UsePipes, ValidationPipe, HttpCode } from '@nestjs/common';
+import { SkipThrottle } from '@nestjs/throttler';
 import { OrderManagementService } from './order-management.service';
 import { Request, Response } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -226,6 +227,7 @@ export class OrderManagementController {
    *    constant (see common/constants/pathao-webhook.constants.ts)
    */
   @Public()
+  @SkipThrottle()
   @Post('webhook/pathao')
   @HttpCode(202)
   @UseGuards(PathaoWebhookGuard)
@@ -710,6 +712,7 @@ export class OrderManagementController {
    * - Returns HTTP 200 on success as required by Steadfast's webhook contract.
    */
   @Public()
+  @SkipThrottle()
   @Post('webhook/steadfast')
   @HttpCode(200)
   @UseGuards(SteadfastWebhookGuard)

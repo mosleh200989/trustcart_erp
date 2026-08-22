@@ -27,9 +27,10 @@ describe('SalesManagerService bulk rejection', () => {
       },
     };
 
+    // customerRepository, salesTeamRepository, usersRepository, callTaskRepo,
+    // customersService — only the first is exercised by this test.
     const service = new SalesManagerService(
       customerRepository as any,
-      {} as any,
       {} as any,
       {} as any,
       {} as any,

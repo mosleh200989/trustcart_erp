@@ -1,6 +1,8 @@
 process.env.TZ = process.env.TZ || 'Asia/Dhaka';
 
 import { NestFactory } from '@nestjs/core';
+import helmet from 'helmet';
+import { buildAllowedOrigins, isOriginAllowed } from './common/cors-origin';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { ValidationPipe } from '@nestjs/common';
@@ -16,6 +18,26 @@ async function bootstrap() {
   });
   app.set('trust proxy', true);
   const port = process.env.PORT || 3001;
+
+  // Security headers.
+  //
+  // Two defaults are overridden deliberately:
+  //
+  //  - contentSecurityPolicy is off. This process serves JSON and the Swagger
+  //    UI, nothing else. Helmet's default CSP breaks Swagger's inline scripts,
+  //    and a CSP for the storefront belongs on the Next.js side where the HTML
+  //    is actually rendered.
+  //
+  //  - crossOriginResourcePolicy is relaxed to cross-origin because /uploads
+  //    is served from this process and loaded by the storefronts, which are on
+  //    different origins. Helmet's same-origin default would blank every
+  //    product image.
+  app.use(
+    helmet({
+      contentSecurityPolicy: false,
+      crossOriginResourcePolicy: { policy: 'cross-origin' },
+    }),
+  );
 
   // Set global API prefix
   app.setGlobalPrefix('api');
@@ -33,52 +55,15 @@ async function bootstrap() {
   const auditLogService = app.get(AuditLogService);
   app.useGlobalInterceptors(new AuditInterceptor(auditLogService));
 
-  // CORS allowed origins — all domains served by this backend
-  const APP_DOMAINS = [
-    'trustcart.com.bd',
-    'shop.trustcart.com.bd',
-    'trustkert.com',
-    'api.trustkert.com',
-    'herbolin.com',
-    'api.herbolin.com',
-    'arabiankhalta.com',
-    'veshoj.site',
-    'api.veshoj.site',
-    'kasrioil.com',
-    'naturalglowra.com',
-  ];
-  const allowedOrigins = new Set<string>([
-    'http://localhost:3000', // local frontend dev
-    'http://localhost:3001', // local backend dev
-  ]);
-  for (const domain of APP_DOMAINS) {
-    allowedOrigins.add(`https://${domain}`);
-    // Add www. variant only if domain doesn't already start with www./api.
-    if (!domain.startsWith('www.') && !domain.startsWith('api.')) {
-      allowedOrigins.add(`https://www.${domain}`);
-    }
-  }
-  const frontendUrl = process.env.FRONTEND_URL;
-  if (frontendUrl) {
-    allowedOrigins.add(frontendUrl);
-  }
-  const originsArray = [...allowedOrigins];
-
   // CORS
   // When running behind nginx in production, you may disable this
   // and let nginx handle CORS instead.
+  const allowedOrigins = buildAllowedOrigins(process.env.FRONTEND_URL);
+
   app.enableCors({
     origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
-      // Allow requests with no origin (Postman, server-to-server, etc.)
-      if (!origin) return callback(null, true);
-      if (originsArray.some((o) => origin === o || origin.startsWith(o))) {
-        return callback(null, true);
-      }
-      // In development, allow all origins
-      if (process.env.NODE_ENV === 'development') {
-        return callback(null, true);
-      }
-      callback(null, false);
+      const allowAny = process.env.NODE_ENV === 'development';
+      callback(null, isOriginAllowed(origin, allowedOrigins, { allowAny }));
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
