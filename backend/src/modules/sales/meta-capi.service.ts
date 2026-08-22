@@ -9,6 +9,7 @@ import { SalesOrder } from './sales-order.entity';
 import { SalesOrderItem } from './sales-order-item.entity';
 import { OrderItem } from './entities/order-item.entity';
 import { MetaCapiEvent } from './entities/meta-capi-event.entity';
+import { Storefront } from '../storefronts/storefront.entity';
 import {
   ARABIAN_KHALTA_PIXEL_ID,
   HERBOLIN_PIXEL_ID,
@@ -50,7 +51,44 @@ export class MetaCapiService {
     private readonly salesOrderItemRepository: Repository<SalesOrderItem>,
     @InjectRepository(OrderItem)
     private readonly orderItemRepository: Repository<OrderItem>,
+    @InjectRepository(Storefront)
+    private readonly storefrontRepository: Repository<Storefront>,
   ) {}
+
+  /**
+   * Storefront orders (order_source = storefront slug, e.g. 'handsomeman')
+   * carry their pixel + CAPI token on the storefronts table instead of env vars.
+   */
+  private async getStorefrontPixelConfig(order: SalesOrder): Promise<MetaPixelConfig | null> {
+    const source = String((order as any).orderSource || '').trim().toLowerCase();
+    if (!source || ['website', 'landing_page'].includes(source)) return null;
+
+    const storefront = await this.storefrontRepository.findOne({
+      where: { slug: source, is_active: true },
+    });
+    if (!storefront?.meta_pixel_id || !storefront?.meta_capi_access_token) return null;
+
+    // Same creator gating as isWebsiteConversionOrder: only fire for
+    // customer-placed orders, not ones an admin keyed in manually.
+    const creatorId = Number((order as any).createdBy);
+    const systemUserId = this.getSystemUserId();
+    if (
+      Number.isFinite(systemUserId) &&
+      Number.isFinite(creatorId) &&
+      creatorId > 0 &&
+      creatorId !== systemUserId
+    ) {
+      return null;
+    }
+
+    return {
+      pixelId: String(storefront.meta_pixel_id).trim(),
+      accessToken: String(storefront.meta_capi_access_token).trim(),
+      testEventCode: storefront.meta_test_event_code
+        ? String(storefront.meta_test_event_code).trim()
+        : undefined,
+    };
+  }
 
   async sendForStatusTransition(orderId: number, newStatus: string): Promise<void> {
     const lifecycleEvent = this.mapStatusToEvent(newStatus);
@@ -61,28 +99,34 @@ export class MetaCapiService {
     const order = await this.orderRepository.findOne({ where: { id: orderId } });
     if (!order) return;
 
-    const targetPixelId = getMetaPixelIdForOrder(order, this.getSystemUserId());
-    if (!targetPixelId) {
-      await this.eventRepository
-        .createQueryBuilder()
-        .update(MetaCapiEvent)
-        .set({
-          status: 'skipped',
-          errorMessage: 'Skipped because the order did not originate from the website or a landing page.',
-        })
-        .where('order_id = :orderId', { orderId })
-        .andWhere('event_name = :eventName', { eventName: lifecycleEvent.eventName })
-        .andWhere('status IN (:...statuses)', { statuses: ['pending', 'failed'] })
-        .execute();
-      return;
-    }
+    let configs: MetaPixelConfig[];
+    const storefrontConfig = await this.getStorefrontPixelConfig(order);
+    if (storefrontConfig) {
+      configs = [storefrontConfig];
+    } else {
+      const targetPixelId = getMetaPixelIdForOrder(order, this.getSystemUserId());
+      if (!targetPixelId) {
+        await this.eventRepository
+          .createQueryBuilder()
+          .update(MetaCapiEvent)
+          .set({
+            status: 'skipped',
+            errorMessage: 'Skipped because the order did not originate from the website, a landing page or a storefront.',
+          })
+          .where('order_id = :orderId', { orderId })
+          .andWhere('event_name = :eventName', { eventName: lifecycleEvent.eventName })
+          .andWhere('status IN (:...statuses)', { statuses: ['pending', 'failed'] })
+          .execute();
+        return;
+      }
 
-    const configs = this.getPixelConfigs(order);
-    if (configs.length === 0) {
-      this.logger.warn(
-        `Meta CAPI pixel ${targetPixelId} is not configured for eligible order #${orderId}.`,
-      );
-      return;
+      configs = this.getPixelConfigs(order);
+      if (configs.length === 0) {
+        this.logger.warn(
+          `Meta CAPI pixel ${targetPixelId} is not configured for eligible order #${orderId}.`,
+        );
+        return;
+      }
     }
 
     const existing = await this.eventRepository.findOne({

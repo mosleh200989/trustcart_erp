@@ -7,6 +7,7 @@ import { useCart } from '@/contexts/CartContext';
 
 const hiddenPathPrefixes = [
   '/admin',
+  '/hm', // Handsome Man storefront has its own cart
   '/cart',
   '/checkout',
   '/thank-you',

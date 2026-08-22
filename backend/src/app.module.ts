@@ -188,6 +188,10 @@ import { LegacyMigrationModule } from './modules/legacy-migration/legacy-migrati
 import { LandingPagesModule } from './modules/landing-pages/landing-pages.module';
 import { LandingPage } from './modules/landing-pages/landing-page.entity';
 import { LandingPageOrder } from './modules/landing-pages/landing-page-order.entity';
+import { StorefrontsModule } from './modules/storefronts/storefronts.module';
+import { Storefront } from './modules/storefronts/storefront.entity';
+import { StorefrontCategory } from './modules/storefronts/storefront-category.entity';
+import { StorefrontProduct } from './modules/storefronts/storefront-product.entity';
 import { PaymentModule } from './modules/payment/payment.module';
 import { PresenceModule } from './modules/presence/presence.module';
 
@@ -315,6 +319,10 @@ import { WalletWithdrawalRequest } from './modules/loyalty/entities/wallet-withd
             // Landing Page Entities
             LandingPage,
             LandingPageOrder,
+            // Storefront Entities
+            Storefront,
+            StorefrontCategory,
+            StorefrontProduct,
             // Payment Entities
             PaymentTransaction,
             // HRM Entities
@@ -410,6 +418,7 @@ import { WalletWithdrawalRequest } from './modules/loyalty/entities/wallet-withd
     TaggingModule,
     LegacyMigrationModule,
     LandingPagesModule,
+    StorefrontsModule,
     SitemapFeedModule,
     PaymentModule,
     PresenceModule,
