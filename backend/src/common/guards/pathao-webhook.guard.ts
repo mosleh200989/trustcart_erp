@@ -106,6 +106,31 @@ export class PathaoWebhookGuard implements CanActivate {
       return true;
     }
 
+    // Method 1b — Pathao sends the *integration secret* as the credential whenever no
+    // merchant Webhook Secret is configured in the portal, and it puts it in
+    // X-PATHAO-Signature / Authorization rather than an integration-secret header.
+    // Accept it so status updates keep flowing, but say loudly that this is weak: the
+    // integration secret is a public constant, identical for every Pathao merchant.
+    // Setting a real Webhook Secret in the portal upgrades this to Method 1 by itself.
+    const bearerToken = (() => {
+      const raw = String(request.headers['authorization'] || '');
+      return raw.startsWith('Bearer ') ? raw.slice(7).trim() : raw.trim();
+    })();
+    for (const [source, presented] of [
+      ['X-PATHAO-Signature', signature?.trim()],
+      ['Authorization', bearerToken],
+    ] as Array<[string, string | undefined]>) {
+      if (presented && this.timingSafeStringEqual(presented, integrationSecret)) {
+        this.logger.warn(
+          `[Pathao Webhook] Accepted via the PUBLIC integration secret in ${source}. ` +
+            'Pathao is not sending a merchant webhook secret, so this endpoint is only as ' +
+            'protected as a value published in Pathao\'s own docs. Set a Webhook Secret in ' +
+            'the Pathao merchant portal matching PATHAO_WEBHOOK_SECRET to secure it properly.',
+        );
+        return true;
+      }
+    }
+
     // Method 2 — HMAC-SHA256 of the raw body, kept as a defensive fallback.
     if (signature) {
       const expected = crypto

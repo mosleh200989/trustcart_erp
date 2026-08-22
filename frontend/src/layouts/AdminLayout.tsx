@@ -8,7 +8,7 @@ import apiClient, { stockAlerts } from '@/services/api';
 import { 
   FaTachometerAlt, FaBoxes, FaShoppingCart, FaUsers, FaWarehouse, 
   FaShoppingBag, FaUserTie, FaBook, FaBullseye, FaHandshake, 
-  FaHeadset, FaUser, FaUserClock, FaUserCheck, FaCog, FaBars, FaTimes, FaBell, FaChevronDown, FaChartBar, FaTags, FaGift, FaPhone, FaMoneyBillWave, FaImage, FaList, FaRocket, FaPrint, FaBan, FaHistory, FaTruck, FaSlidersH, FaClipboardCheck, FaSearch, FaRecycle, FaShieldAlt, FaCalculator, FaGlobe, FaSignOutAlt
+  FaHeadset, FaUser, FaUserClock, FaUserCheck, FaCog, FaBars, FaTimes, FaBell, FaChevronDown, FaChartBar, FaTags, FaGift, FaPhone, FaMoneyBillWave, FaImage, FaList, FaRocket, FaStore, FaPrint, FaBan, FaHistory, FaTruck, FaSlidersH, FaClipboardCheck, FaSearch, FaRecycle, FaShieldAlt, FaCalculator, FaGlobe, FaSignOutAlt
 } from 'react-icons/fa';
 
 interface MenuItem {
@@ -54,6 +54,13 @@ const menuItems: MenuItem[] = [
     path: '/admin/landing-pages',
     requiredPermissions: ['view-landing-pages'],
     // Orders now go to Sales -> Orders module
+  },
+  {
+    title: 'Storefronts',
+    icon: FaStore,
+    path: '/admin/storefronts',
+    requiredPermissions: ['view-storefronts'],
+    // Brand sites (e.g. Handsome Man) selling from the shared inventory
   },
   {
     title: 'Sales',

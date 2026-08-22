@@ -22,6 +22,7 @@ function createService() {
     {} as any,
     {} as any,
     {} as any,
+    { findOne: async () => null } as any,
   );
 }
 

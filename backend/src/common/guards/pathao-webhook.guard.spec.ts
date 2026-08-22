@@ -37,6 +37,30 @@ describe('PathaoWebhookGuard', () => {
     expect(guard.canActivate(ctx)).toBe(true);
   });
 
+  it('accepts the public integration secret that Pathao actually sends', () => {
+    // Observed in production: Pathao sends the 36-char integration-secret constant in
+    // BOTH X-PATHAO-Signature and Authorization when no merchant Webhook Secret is
+    // configured in the portal. Rejecting it drops every real status update.
+    expect(
+      guard.canActivate(
+        makeContext({ 'x-pathao-signature': PATHAO_DEFAULT_INTEGRATION_SECRET }, { event: 'order.on-hold' }).ctx,
+      ),
+    ).toBe(true);
+    expect(
+      guard.canActivate(
+        makeContext({ authorization: `Bearer ${PATHAO_DEFAULT_INTEGRATION_SECRET}` }, { event: 'order.delivered' }).ctx,
+      ),
+    ).toBe(true);
+  });
+
+  it('does not accept an arbitrary UUID in place of the integration secret', () => {
+    expect(() =>
+      guard.canActivate(
+        makeContext({ 'x-pathao-signature': '00000000-0000-4000-8000-000000000000' }).ctx,
+      ),
+    ).toThrow(UnauthorizedException);
+  });
+
   it('still accepts an HMAC-SHA256 signature as a fallback', () => {
     const crypto = require('crypto');
     const body = { event: 'order.delivered' };

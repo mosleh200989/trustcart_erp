@@ -46,6 +46,7 @@ async function bootstrap() {
     'api.veshoj.site',
     'kasrioil.com',
     'naturalglowra.com',
+    'handsomemanbd.com',
   ];
   const allowedOrigins = new Set<string>([
     'http://localhost:3000', // local frontend dev

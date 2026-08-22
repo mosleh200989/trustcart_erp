@@ -14,6 +14,7 @@ import { FraudCheck } from './entities/fraud-check.entity';
 import { FraudCheckService } from './fraud-check.service';
 import { FraudCheckController } from './fraud-check.controller';
 import { Product } from '../products/product.entity';
+import { Storefront } from '../storefronts/storefront.entity';
 import { CustomersModule } from '../customers/customers.module';
 import { SpecialOffersModule } from '../special-offers/special-offers.module';
 import { User } from '../users/user.entity';
@@ -49,6 +50,7 @@ import { MetaCapiService } from './meta-capi.service';
       CampaignCustomer,
       OrderGuardSettings,
       MetaCapiEvent,
+      Storefront,
     ]),
     CustomersModule,
     SpecialOffersModule,

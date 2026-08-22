@@ -12,7 +12,7 @@ export default function MobileBottomNav() {
   const cartCount = cartItems.reduce((sum, item) => sum + item.quantity, 0);
 
   // Hide on admin pages, checkout, auth pages, and landing pages
-  const hiddenPaths = ['/admin', '/checkout', '/customer/login', '/customer/register', '/lp/'];
+  const hiddenPaths = ['/admin', '/hm', '/checkout', '/customer/login', '/customer/register', '/lp/'];
   if (hiddenPaths.some(p => router.pathname.startsWith(p) || router.asPath.startsWith(p))) return null;
 
   const accountHref = user ? '/customer/dashboard' : '/customer/login';

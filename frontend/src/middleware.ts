@@ -31,9 +31,37 @@ const DOMAIN_PATH_LANDING_PAGES: Record<string, Record<string, string>> = {
   },
 };
 
+/**
+ * Domain → storefront path prefix mapping.
+ * A storefront domain serves the whole /hm/* page tree with clean URLs:
+ *   handsomemanbd.com/            → internally /hm
+ *   handsomemanbd.com/products    → internally /hm/products
+ *   handsomemanbd.com/hm/products → 308 redirect to /products (strip prefix)
+ */
+const STOREFRONT_DOMAINS: Record<string, string> = {
+  'handsomemanbd.com': '/hm',
+  'www.handsomemanbd.com': '/hm',
+};
+
 export function middleware(request: NextRequest) {
   const host = request.headers.get('host')?.split(':')[0] || '';
   const pathname = request.nextUrl.pathname.replace(/\/$/, '') || '/';
+
+  const storefrontPrefix = STOREFRONT_DOMAINS[host];
+  if (storefrontPrefix && !pathname.startsWith('/_next') && !pathname.startsWith('/api')) {
+    // Keep public URLs clean: /hm/... links redirect to the unprefixed path
+    if (pathname === storefrontPrefix || pathname.startsWith(`${storefrontPrefix}/`)) {
+      const clean = pathname.slice(storefrontPrefix.length) || '/';
+      const url = request.nextUrl.clone();
+      url.pathname = clean;
+      return NextResponse.redirect(url, 308);
+    }
+    // Serve everything else from the storefront page tree
+    const url = request.nextUrl.clone();
+    url.pathname = `${storefrontPrefix}${pathname === '/' ? '' : pathname}`;
+    return NextResponse.rewrite(url);
+  }
+
   const pathSlug = DOMAIN_PATH_LANDING_PAGES[host]?.[pathname];
 
   if (pathSlug) {

@@ -55,6 +55,8 @@ const DEDICATED_PIXEL_HOSTS = new Set([
   'veshoj.site', 'www.veshoj.site',
   'naturalglowra.com', 'www.naturalglowra.com',
   'herbolin.com', 'www.herbolin.com',
+  // Handsome Man storefront injects its own pixel from the storefronts table
+  'handsomemanbd.com', 'www.handsomemanbd.com',
 ]);
 
 function isDedicatedPixelDocumentHost(ctx: DocumentContext) {
