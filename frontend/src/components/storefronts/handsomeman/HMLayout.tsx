@@ -9,6 +9,16 @@ import {
   HMStorefront, HMCartItem, useHMCart, taka, fetchHMConfig, hmTrack,
 } from './hm';
 
+// Gold "H" on charcoal — used until a favicon is uploaded in the admin panel.
+const HM_FALLBACK_FAVICON =
+  "data:image/svg+xml," +
+  encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">' +
+      '<rect width="64" height="64" rx="10" fill="#0c0c0e"/>' +
+      '<text x="32" y="45" font-family="Georgia,serif" font-size="40" font-weight="bold" ' +
+      'fill="#c8a24a" text-anchor="middle">H</text></svg>',
+  );
+
 export const HM_COLORS = {
   bg: '#0c0c0e',
   panel: '#141417',
@@ -134,7 +144,12 @@ export default function HMLayout({
         <meta property="og:title" content={pageTitle} />
         <meta property="og:description" content={pageDescription} />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        {cfg?.favicon_url && <link rel="icon" href={cfg.favicon_url} />}
+        {/* Own favicon so the tab never falls back to the TrustCart logo */}
+        {cfg?.favicon_url ? (
+          <link rel="icon" href={cfg.favicon_url} />
+        ) : (
+          <link rel="icon" href={HM_FALLBACK_FAVICON} />
+        )}
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link
