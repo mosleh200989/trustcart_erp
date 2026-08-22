@@ -49,6 +49,19 @@ export class PathaoWebhookGuard implements CanActivate {
     return left.length === right.length && crypto.timingSafeEqual(left, right);
   }
 
+  /**
+   * Short, non-reversible fingerprint of a credential, for diagnosing a mismatch
+   * without ever writing the value itself to the logs. Comparing the fingerprint of
+   * what arrived against the fingerprint of what is configured tells us instantly
+   * whether the two sides hold the same secret.
+   */
+  private fingerprint(value?: string | null): string {
+    const v = String(value ?? '').trim();
+    if (!v) return 'absent';
+    const hash = crypto.createHash('sha256').update(v).digest('hex').slice(0, 12);
+    return `len=${v.length},sha=${hash}`;
+  }
+
   private getRawBody(request: Request): Buffer {
     const raw = (request as any).rawBody;
     if (Buffer.isBuffer(raw)) return raw;
@@ -157,9 +170,17 @@ export class PathaoWebhookGuard implements CanActivate {
       return true;
     }
 
+    const bearer = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : authHeader.trim();
     this.logger.warn(
       `[Pathao Webhook] Rejected: no valid credentials. ip=${request.ip} ` +
-        `pathao-ish headers=[${pathaoHeaderNames}] signatureHeaderPresent=${!!signature}`,
+        `headers=[${pathaoHeaderNames}] event=${(request.body as any)?.event ?? '—'} ` +
+        `| signature(${this.fingerprint(signature)}) ` +
+        `authorization(${this.fingerprint(bearer)}) ` +
+        `integrationHeader(${this.fingerprint(integrationHeader)}) ` +
+        `vs configured secret(${this.fingerprint(secret)}) ` +
+        `integrationSecret(${this.fingerprint(integrationSecret)}). ` +
+        `Matching fingerprints on either side means the secrets agree; differing ones mean ` +
+        `the value in the Pathao merchant portal does not match PATHAO_WEBHOOK_SECRET.`,
     );
     throw new UnauthorizedException('Missing webhook authentication');
   }
