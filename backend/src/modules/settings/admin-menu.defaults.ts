@@ -62,8 +62,20 @@ export const DEFAULT_ADMIN_MENU: AdminMenuSeedNode[] = [
   {
     title: 'Storefronts',
     icon: 'FaStore',
-    path: '/admin/storefronts',
-    requiredPermissions: ['view-storefronts'],
+    children: [
+      {
+        title: 'All Storefronts',
+        icon: 'FaStore',
+        path: '/admin/storefronts',
+        requiredPermissions: ['view-storefronts'],
+      },
+      {
+        title: 'Landing Pages',
+        icon: 'FaRocket',
+        path: '/admin/landing-pages',
+        requiredPermissions: ['view-landing-pages'],
+      },
+    ],
   },
   {
     title: 'Reports',

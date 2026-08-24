@@ -49,18 +49,15 @@ const menuItems: MenuItem[] = [
     requiredPermissions: ['manage-system-settings']
   },
   {
-    title: 'Landing Pages',
-    icon: FaRocket,
-    path: '/admin/landing-pages',
-    requiredPermissions: ['view-landing-pages'],
-    // Orders now go to Sales -> Orders module
-  },
-  {
+    // Everything customer-facing that isn't the main TrustCart site:
+    // brand storefronts (e.g. Handsome Man) and campaign landing pages.
+    // Orders from both go to Sales -> Orders, tagged by source.
     title: 'Storefronts',
     icon: FaStore,
-    path: '/admin/storefronts',
-    requiredPermissions: ['view-storefronts'],
-    // Brand sites (e.g. Handsome Man) selling from the shared inventory
+    children: [
+      { title: 'All Storefronts', icon: FaStore, path: '/admin/storefronts', requiredPermissions: ['view-storefronts'] },
+      { title: 'Landing Pages', icon: FaRocket, path: '/admin/landing-pages', requiredPermissions: ['view-landing-pages'] },
+    ],
   },
   {
     title: 'Sales',

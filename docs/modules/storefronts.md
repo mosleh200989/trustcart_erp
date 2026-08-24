@@ -40,7 +40,15 @@ Public (no auth, consumed by the brand site):
 
 ## Admin UI
 
-- `/admin/storefronts` — list + create (sidebar: **Storefronts**).
+Sidebar group **Storefronts** holds everything customer-facing that isn't the
+main TrustCart site:
+
+- **All Storefronts** → `/admin/storefronts`  (permission `view-storefronts`)
+- **Landing Pages** → `/admin/landing-pages`  (permission `view-landing-pages`)
+
+A user holding only one of the two permissions sees only that entry.
+
+- `/admin/storefronts` — list + create.
 - `/admin/storefronts/:id` — tabs: **Products** (search inventory → add, per-row category/sort/feature/publish), **Categories** (CRUD), **Settings** (domain, theme, pixel/CAPI, delivery charges, SEO).
 
 ## Adding a new storefront later
