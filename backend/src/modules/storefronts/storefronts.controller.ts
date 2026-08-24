@@ -65,6 +65,16 @@ export class StorefrontsController {
     return this.storefrontsService.findAll();
   }
 
+  // Declared before ':id' so "performance" is not captured as an id
+  @Get('performance/summary')
+  @RequirePermissions('view-storefronts')
+  performanceSummary(@Query('days') days?: string) {
+    const parsed = Number(days);
+    return this.storefrontsService.performanceSummary(
+      Number.isFinite(parsed) && parsed > 0 ? Math.min(365, parsed) : null,
+    );
+  }
+
   @Get(':id')
   @RequirePermissions('view-storefronts')
   findOne(@Param('id', ParseIntPipe) id: number): Promise<Storefront> {

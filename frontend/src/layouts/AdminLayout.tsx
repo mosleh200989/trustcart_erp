@@ -8,7 +8,7 @@ import apiClient, { stockAlerts } from '@/services/api';
 import { 
   FaTachometerAlt, FaBoxes, FaShoppingCart, FaUsers, FaWarehouse, 
   FaShoppingBag, FaUserTie, FaBook, FaBullseye, FaHandshake, 
-  FaHeadset, FaUser, FaUserClock, FaUserCheck, FaCog, FaBars, FaTimes, FaBell, FaChevronDown, FaChartBar, FaTags, FaGift, FaPhone, FaMoneyBillWave, FaImage, FaList, FaRocket, FaStore, FaPrint, FaBan, FaHistory, FaTruck, FaSlidersH, FaClipboardCheck, FaSearch, FaRecycle, FaShieldAlt, FaCalculator, FaGlobe, FaSignOutAlt
+  FaHeadset, FaUser, FaUserClock, FaUserCheck, FaCog, FaBars, FaTimes, FaBell, FaChevronDown, FaChartBar, FaTags, FaGift, FaPhone, FaMoneyBillWave, FaImage, FaList, FaRocket, FaStore, FaMagic, FaLayerGroup, FaFlask, FaQuoteRight, FaPhotoVideo, FaChartLine, FaPrint, FaBan, FaHistory, FaTruck, FaSlidersH, FaClipboardCheck, FaSearch, FaRecycle, FaShieldAlt, FaCalculator, FaGlobe, FaSignOutAlt
 } from 'react-icons/fa';
 
 interface MenuItem {
@@ -49,18 +49,22 @@ const menuItems: MenuItem[] = [
     requiredPermissions: ['manage-system-settings']
   },
   {
-    title: 'Landing Pages',
-    icon: FaRocket,
-    path: '/admin/landing-pages',
-    requiredPermissions: ['view-landing-pages'],
-    // Orders now go to Sales -> Orders module
-  },
-  {
+    // Everything customer-facing that isn't the main TrustCart site:
+    // brand storefronts (e.g. Handsome Man) and campaign landing pages.
+    // Orders from both go to Sales -> Orders, tagged by source.
     title: 'Storefronts',
     icon: FaStore,
-    path: '/admin/storefronts',
-    requiredPermissions: ['view-storefronts'],
-    // Brand sites (e.g. Handsome Man) selling from the shared inventory
+    children: [
+      { title: 'All Storefronts', icon: FaStore, path: '/admin/storefronts', requiredPermissions: ['view-storefronts'] },
+      { title: 'Landing Pages', icon: FaRocket, path: '/admin/landing-pages', requiredPermissions: ['view-landing-pages'] },
+      { title: 'LP Maker', icon: FaMagic, path: '/admin/lp-maker', requiredPermissions: ['view-landing-pages'] },
+      { title: 'Templates', icon: FaLayerGroup, path: '/admin/lp-templates', requiredPermissions: ['view-landing-pages'] },
+      { title: 'Experiments', icon: FaFlask, path: '/admin/experiments', requiredPermissions: ['view-landing-pages'] },
+      { title: 'Testimonials', icon: FaQuoteRight, path: '/admin/testimonials', requiredPermissions: ['view-testimonials'] },
+      { title: 'Media Library', icon: FaPhotoVideo, path: '/admin/media-library', requiredPermissions: ['view-media-library'] },
+      { title: 'Domains', icon: FaGlobe, path: '/admin/storefronts/domains', requiredPermissions: ['view-storefronts'] },
+      { title: 'Performance', icon: FaChartLine, path: '/admin/storefronts/performance', requiredPermissions: ['view-storefronts'] },
+    ],
   },
   {
     title: 'Sales',

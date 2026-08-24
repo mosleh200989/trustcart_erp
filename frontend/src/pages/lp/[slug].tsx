@@ -12,6 +12,7 @@ import SpecialEventTemplate from '@/components/landing-pages/SpecialEventTemplat
 import FreeOfferTemplate from '@/components/landing-pages/FreeOfferTemplate';
 import VeshojTemplate from '@/components/landing-pages/VeshojTemplate';
 import NaturalTemplate from '@/components/landing-pages/NaturalTemplate';
+import BuilderTemplate from '@/components/lp-maker/BuilderTemplate';
 import HeroVideoEmbed from '@/components/landing-pages/HeroVideoEmbed';
 import { getOrderGuardNoteHtml, isOrderGuardBlocked } from '@/utils/orderGuard';
 import { TrackingService } from '@/utils/tracking';
@@ -95,6 +96,10 @@ interface LandingPageData {
   delivery_note: string;
   hero_layout?: string;
   hero_subtitle_position?: string;
+  // LP Maker (template === 'builder')
+  builder_blocks?: any[];
+  floating_whatsapp_color?: string;
+  floating_phone_color?: string;
 }
 
 interface OrderItem {
@@ -238,13 +243,48 @@ export default function LandingPagePublic() {
       ? `/landing-pages/public/id/${encodeURIComponent(landingPageId)}`
       : `/landing-pages/public/slug/${encodeURIComponent(pageSlug || '')}`;
 
-    apiClient
-      .get(endpoint)
-      .then((res) => {
-        const data = res.data;
+    // Running A/B experiment for this slug (null when none). Variant A's
+    // slug is the public URL; assignment is sticky per browser.
+    const experimentPromise = pageSlug
+      ? apiClient
+          .get(`/lp-experiments/public/for-slug/${encodeURIComponent(pageSlug)}`)
+          .then((res) => res.data || null)
+          .catch(() => null)
+      : Promise.resolve(null);
+
+    Promise.all([apiClient.get(endpoint), experimentPromise])
+      .then(async ([res, experiment]) => {
+        let data = res.data;
         if (!data) {
           setNotFound(true);
           return;
+        }
+
+        if (experiment && data.id === experiment.variant_a_page_id) {
+          const storageKey = `lp_exp_${experiment.id}`;
+          let variant: 'a' | 'b' = 'a';
+          try {
+            const stored = window.localStorage.getItem(storageKey);
+            if (stored === 'a' || stored === 'b') {
+              variant = stored;
+            } else {
+              variant = Math.random() * 100 < Number(experiment.traffic_split || 50) ? 'a' : 'b';
+              window.localStorage.setItem(storageKey, variant);
+            }
+          } catch { /* storage unavailable → serve A */ }
+
+          if (variant === 'b') {
+            try {
+              const bRes = await apiClient.get(
+                `/landing-pages/public/id/${experiment.variant_b_page_id}`,
+              );
+              if (bRes.data) data = bRes.data;
+            } catch { /* B unavailable → keep serving A */ }
+          }
+          // Experiment-scoped view counter (fire and forget)
+          apiClient
+            .post(`/lp-experiments/${experiment.id}/track-view`, { variant })
+            .catch(() => {});
         }
 
         setPage(data);
@@ -438,6 +478,11 @@ export default function LandingPagePublic() {
         </div>
       </div>
     );
+  }
+
+  // ─── Template Routing: LP Maker pages render their block tree ───
+  if (page.template === 'builder') {
+    return <BuilderTemplate page={page} />;
   }
 
   // ─── Template Routing: Render Elegant template if selected ───
