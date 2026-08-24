@@ -75,6 +75,12 @@ export const DEFAULT_ADMIN_MENU: AdminMenuSeedNode[] = [
         path: '/admin/landing-pages',
         requiredPermissions: ['view-landing-pages'],
       },
+      {
+        title: 'LP Maker',
+        icon: 'FaMagic',
+        path: '/admin/lp-maker',
+        requiredPermissions: ['view-landing-pages'],
+      },
     ],
   },
   {

@@ -185,6 +185,11 @@ export class LandingPage {
   @Column({ type: 'jsonb', default: '[]' })
   sections!: LandingPageSection[];
 
+  // LP Maker: block tree for pages with template = 'builder'.
+  // Shape is owned by frontend/src/components/lp-maker/blocks.ts.
+  @Column({ type: 'jsonb', default: '[]' })
+  builder_blocks!: any[];
+
   @Column({ type: 'jsonb', default: '[]' })
   products!: LandingPageProduct[];
 

@@ -45,8 +45,30 @@ main TrustCart site:
 
 - **All Storefronts** → `/admin/storefronts`  (permission `view-storefronts`)
 - **Landing Pages** → `/admin/landing-pages`  (permission `view-landing-pages`)
+- **LP Maker** → `/admin/lp-maker`  (permission `view-landing-pages`)
 
-A user holding only one of the two permissions sees only that entry.
+A user holding only the permissions for some entries sees only those.
+
+## LP Maker (drag-and-drop page builder)
+
+Builder pages ARE landing pages: rows in `landing_pages` with
+`template = 'builder'` and their block tree in the `builder_blocks` jsonb
+column (migration `db/migrations/2026-08-24-add-builder-blocks.sql`). They
+inherit everything landing pages have — public URL `/lp/<slug>`, orders into
+Sales with `order_source = 'landing_page'`, view/order counters,
+duplicate/toggle/delete, per-page delivery charges, phone/WhatsApp buttons.
+
+- Editor: `/admin/lp-maker/<id>` — palette (click to add), canvas
+  (drag to reorder via `@hello-pangea/dnd`, click to select, hover toolbar),
+  settings panel driven by each block's field schema.
+- Block registry: `frontend/src/components/lp-maker/blocks.ts` — add a new
+  block type there (defaults + fields) plus a render case in
+  `BlockRenderer.tsx`; the settings panel needs no changes.
+- Shared renderer: `BlockRenderer.tsx` is used by the canvas AND the public
+  page, so the preview matches production. The interactive order form lives
+  in `BuilderTemplate.tsx` (order-form block → real checkout).
+- Delivery charges, phone/WhatsApp, SEO and publish state are in the
+  editor's **Page settings** tab (stored on the landing_pages row itself).
 
 - `/admin/storefronts` — list + create.
 - `/admin/storefronts/:id` — tabs: **Products** (search inventory → add, per-row category/sort/feature/publish), **Categories** (CRUD), **Settings** (domain, theme, pixel/CAPI, delivery charges, SEO).

@@ -8,7 +8,7 @@ import apiClient, { stockAlerts } from '@/services/api';
 import { 
   FaTachometerAlt, FaBoxes, FaShoppingCart, FaUsers, FaWarehouse, 
   FaShoppingBag, FaUserTie, FaBook, FaBullseye, FaHandshake, 
-  FaHeadset, FaUser, FaUserClock, FaUserCheck, FaCog, FaBars, FaTimes, FaBell, FaChevronDown, FaChartBar, FaTags, FaGift, FaPhone, FaMoneyBillWave, FaImage, FaList, FaRocket, FaStore, FaPrint, FaBan, FaHistory, FaTruck, FaSlidersH, FaClipboardCheck, FaSearch, FaRecycle, FaShieldAlt, FaCalculator, FaGlobe, FaSignOutAlt
+  FaHeadset, FaUser, FaUserClock, FaUserCheck, FaCog, FaBars, FaTimes, FaBell, FaChevronDown, FaChartBar, FaTags, FaGift, FaPhone, FaMoneyBillWave, FaImage, FaList, FaRocket, FaStore, FaMagic, FaPrint, FaBan, FaHistory, FaTruck, FaSlidersH, FaClipboardCheck, FaSearch, FaRecycle, FaShieldAlt, FaCalculator, FaGlobe, FaSignOutAlt
 } from 'react-icons/fa';
 
 interface MenuItem {
@@ -57,6 +57,7 @@ const menuItems: MenuItem[] = [
     children: [
       { title: 'All Storefronts', icon: FaStore, path: '/admin/storefronts', requiredPermissions: ['view-storefronts'] },
       { title: 'Landing Pages', icon: FaRocket, path: '/admin/landing-pages', requiredPermissions: ['view-landing-pages'] },
+      { title: 'LP Maker', icon: FaMagic, path: '/admin/lp-maker', requiredPermissions: ['view-landing-pages'] },
     ],
   },
   {

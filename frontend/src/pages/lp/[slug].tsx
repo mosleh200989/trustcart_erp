@@ -12,6 +12,7 @@ import SpecialEventTemplate from '@/components/landing-pages/SpecialEventTemplat
 import FreeOfferTemplate from '@/components/landing-pages/FreeOfferTemplate';
 import VeshojTemplate from '@/components/landing-pages/VeshojTemplate';
 import NaturalTemplate from '@/components/landing-pages/NaturalTemplate';
+import BuilderTemplate from '@/components/lp-maker/BuilderTemplate';
 import HeroVideoEmbed from '@/components/landing-pages/HeroVideoEmbed';
 import { getOrderGuardNoteHtml, isOrderGuardBlocked } from '@/utils/orderGuard';
 import { TrackingService } from '@/utils/tracking';
@@ -95,6 +96,10 @@ interface LandingPageData {
   delivery_note: string;
   hero_layout?: string;
   hero_subtitle_position?: string;
+  // LP Maker (template === 'builder')
+  builder_blocks?: any[];
+  floating_whatsapp_color?: string;
+  floating_phone_color?: string;
 }
 
 interface OrderItem {
@@ -438,6 +443,11 @@ export default function LandingPagePublic() {
         </div>
       </div>
     );
+  }
+
+  // ─── Template Routing: LP Maker pages render their block tree ───
+  if (page.template === 'builder') {
+    return <BuilderTemplate page={page} />;
   }
 
   // ─── Template Routing: Render Elegant template if selected ───
