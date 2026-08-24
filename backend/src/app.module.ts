@@ -192,6 +192,14 @@ import { StorefrontsModule } from './modules/storefronts/storefronts.module';
 import { Storefront } from './modules/storefronts/storefront.entity';
 import { StorefrontCategory } from './modules/storefronts/storefront-category.entity';
 import { StorefrontProduct } from './modules/storefronts/storefront-product.entity';
+import { StorefrontDomain } from './modules/storefronts/storefront-domain.entity';
+import { LpTemplate } from './modules/landing-pages/lp-template.entity';
+import { ExperimentsModule } from './modules/experiments/experiments.module';
+import { LpExperiment } from './modules/experiments/lp-experiment.entity';
+import { MediaModule } from './modules/media/media.module';
+import { MediaAsset } from './modules/media/media-asset.entity';
+import { TestimonialsModule } from './modules/testimonials/testimonials.module';
+import { Testimonial } from './modules/testimonials/testimonial.entity';
 import { PaymentModule } from './modules/payment/payment.module';
 import { PresenceModule } from './modules/presence/presence.module';
 
@@ -323,6 +331,12 @@ import { WalletWithdrawalRequest } from './modules/loyalty/entities/wallet-withd
             Storefront,
             StorefrontCategory,
             StorefrontProduct,
+            StorefrontDomain,
+            // Storefront suite: templates, experiments, media, testimonials
+            LpTemplate,
+            LpExperiment,
+            MediaAsset,
+            Testimonial,
             // Payment Entities
             PaymentTransaction,
             // HRM Entities
@@ -419,6 +433,9 @@ import { WalletWithdrawalRequest } from './modules/loyalty/entities/wallet-withd
     LegacyMigrationModule,
     LandingPagesModule,
     StorefrontsModule,
+    ExperimentsModule,
+    MediaModule,
+    TestimonialsModule,
     SitemapFeedModule,
     PaymentModule,
     PresenceModule,

@@ -15,6 +15,7 @@ import {
   Block, BLOCK_DEFS, BLOCK_MAP, Field, newBlock, starterBlocks, BuilderProduct,
 } from '@/components/lp-maker/blocks';
 import BlockRenderer from '@/components/lp-maker/BlockRenderer';
+import MediaPickerModal from '@/components/lp-maker/MediaPickerModal';
 
 interface PageMeta {
   title: string;
@@ -68,10 +69,20 @@ export default function LpMakerEditor() {
   const [savedAt, setSavedAt] = useState<Date | null>(null);
   const savedIdRef = useRef<number | null>(pageId);
 
-  // Load existing page
+  // Load existing page (or seed a new one — from a template if requested)
   useEffect(() => {
     if (!router.isReady) return;
     if (isCreate) {
+      const templateId = Number(router.query.template);
+      if (templateId) {
+        apiClient.get(`/lp-templates/${templateId}`).then((res) => {
+          const tplBlocks = Array.isArray(res.data?.blocks) ? res.data.blocks : [];
+          // Re-key the blocks so two pages from one template never share ids
+          setBlocks(tplBlocks.map((b: Block) => ({ ...newBlock(b.type), props: JSON.parse(JSON.stringify(b.props || {})) })));
+        }).catch(() => setBlocks(starterBlocks())).finally(() => setLoading(false));
+        setLoading(true);
+        return;
+      }
       setBlocks(starterBlocks());
       setLoading(false);
       return;
@@ -245,6 +256,7 @@ export default function LpMakerEditor() {
               <FaExternalLinkAlt /> Preview
             </a>
           )}
+          <SaveAsTemplateButton blocks={blocks} pageTitle={meta.title} />
           <button
             onClick={save}
             disabled={saving}
@@ -456,15 +468,202 @@ function FieldInput({ field, value, onChange }: { field: Field; value: any; onCh
       return <div>{label}<ItemsField value={value || []} onChange={onChange} /></div>;
     case 'products':
       return <div>{label}<ProductsField value={value || []} onChange={onChange} /></div>;
+    case 'testimonials':
+      return <div>{label}<TestimonialsField value={value || []} onChange={onChange} /></div>;
     default:
       return null;
   }
+}
+
+// ─── Save as template ────────────────────────────────────────
+
+function SaveAsTemplateButton({ blocks, pageTitle }: { blocks: Block[]; pageTitle: string }) {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const save = async () => {
+    if (!name.trim()) return;
+    try {
+      setSaving(true);
+      await apiClient.post('/lp-templates', { name: name.trim(), blocks });
+      setOpen(false);
+      setName('');
+      alert('Saved to Templates.');
+    } catch (err: any) {
+      alert(err?.response?.data?.message || 'Failed to save the template.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <>
+      <button
+        onClick={() => { setName(pageTitle ? `${pageTitle} layout` : ''); setOpen(true); }}
+        className="px-3 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:text-gray-900"
+        title="Save the current blocks as a reusable template"
+      >
+        Save as template
+      </button>
+      {open && (
+        <div className="fixed inset-0 z-[60] bg-black/40 flex items-center justify-center p-4" onClick={() => setOpen(false)}>
+          <div className="bg-white rounded-card shadow-xl w-full max-w-sm p-5" onClick={(e) => e.stopPropagation()}>
+            <h3 className="font-semibold text-gray-900 mb-3">Save as template</h3>
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Template name…"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm mb-4"
+              autoFocus
+              onKeyDown={(e) => e.key === 'Enter' && save()}
+            />
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setOpen(false)} className="px-3 py-2 text-sm text-gray-500">Cancel</button>
+              <button
+                onClick={save}
+                disabled={saving || !name.trim()}
+                className="bg-brand hover:bg-brand-dark text-white px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-50"
+              >
+                {saving ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+// ─── Testimonials field (manual + copy from library) ─────────
+
+interface TestimonialItem {
+  name: string;
+  location?: string;
+  rating: number;
+  text: string;
+  image_url?: string;
+}
+
+function TestimonialsField({ value, onChange }: { value: TestimonialItem[]; onChange: (v: TestimonialItem[]) => void }) {
+  const [libraryOpen, setLibraryOpen] = useState(false);
+  const [library, setLibrary] = useState<any[]>([]);
+  const [libraryLoading, setLibraryLoading] = useState(false);
+
+  const openLibrary = async () => {
+    setLibraryOpen(true);
+    setLibraryLoading(true);
+    try {
+      const res = await apiClient.get('/testimonials?approved=true');
+      setLibrary(res.data || []);
+    } catch { setLibrary([]); } finally { setLibraryLoading(false); }
+  };
+
+  const patch = (i: number, p: Partial<TestimonialItem>) =>
+    onChange(value.map((item, j) => (j === i ? { ...item, ...p } : item)));
+
+  return (
+    <div className="space-y-2">
+      {value.map((item, i) => (
+        <div key={i} className="border border-gray-200 rounded-lg p-2 space-y-1.5">
+          <div className="flex items-center gap-1.5">
+            <input
+              className="flex-1 border border-gray-300 rounded px-2 py-1 text-xs"
+              value={item.name}
+              placeholder="Name"
+              onChange={(e) => patch(i, { name: e.target.value })}
+            />
+            <input
+              className="w-24 border border-gray-300 rounded px-2 py-1 text-xs"
+              value={item.location || ''}
+              placeholder="Location"
+              onChange={(e) => patch(i, { location: e.target.value })}
+            />
+            <select
+              className="border border-gray-300 rounded px-1 py-1 text-xs bg-white"
+              value={item.rating}
+              onChange={(e) => patch(i, { rating: Number(e.target.value) })}
+            >
+              {[5, 4, 3, 2, 1].map((n) => <option key={n} value={n}>{'★'.repeat(n)}</option>)}
+            </select>
+            <button onClick={() => onChange(value.filter((_, j) => j !== i))} className="text-gray-300 hover:text-red-500"><FaTimes size={12} /></button>
+          </div>
+          <textarea
+            className="w-full border border-gray-300 rounded px-2 py-1 text-xs"
+            rows={2}
+            value={item.text}
+            placeholder="Review text…"
+            onChange={(e) => patch(i, { text: e.target.value })}
+          />
+        </div>
+      ))}
+      <div className="flex gap-2">
+        <button
+          onClick={() => onChange([...value, { name: '', rating: 5, text: '' }])}
+          className="text-xs px-2.5 py-1.5 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50 flex items-center gap-1"
+        >
+          <FaPlus size={9} /> Write one
+        </button>
+        <button
+          onClick={openLibrary}
+          className="text-xs px-2.5 py-1.5 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50"
+        >
+          ⭐ From library
+        </button>
+      </div>
+
+      {libraryOpen && (
+        <div className="fixed inset-0 z-[60] bg-black/40 flex items-center justify-center p-4" onClick={() => setLibraryOpen(false)}>
+          <div className="bg-white rounded-card shadow-xl w-full max-w-lg max-h-[70vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
+              <h3 className="font-semibold text-gray-900 text-sm">Add from testimonial library</h3>
+              <button onClick={() => setLibraryOpen(false)} className="text-gray-400 hover:text-gray-900"><FaTimes /></button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-3 space-y-2">
+              {libraryLoading ? (
+                <p className="text-center text-sm text-gray-400 py-8">Loading…</p>
+              ) : library.length === 0 ? (
+                <p className="text-center text-sm text-gray-400 py-8">
+                  No approved testimonials yet — add some in Storefronts → Testimonials.
+                </p>
+              ) : (
+                library.map((t) => (
+                  <button
+                    key={t.id}
+                    onClick={() => {
+                      onChange([...value, {
+                        name: t.customer_name,
+                        location: t.location || undefined,
+                        rating: t.rating || 5,
+                        text: t.text,
+                        image_url: t.image_url || undefined,
+                      }]);
+                      setLibraryOpen(false);
+                    }}
+                    className="w-full text-left border border-gray-200 rounded-lg p-2.5 hover:border-brand hover:bg-orange-50 transition-colors"
+                  >
+                    <div className="flex items-center gap-2 text-xs">
+                      <span className="font-semibold text-gray-900">{t.customer_name}</span>
+                      {t.location && <span className="text-gray-400">· {t.location}</span>}
+                      <span className="text-amber-500 ml-auto">{'★'.repeat(t.rating || 5)}</span>
+                    </div>
+                    <p className="text-xs text-gray-600 mt-1 line-clamp-2">{t.text}</p>
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 // ─── Image upload field (uses the shared /upload/image endpoint) ──
 
 function ImageField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const [uploading, setUploading] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   const upload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -474,7 +673,14 @@ function ImageField({ value, onChange }: { value: string; onChange: (v: string) 
       const fd = new FormData();
       fd.append('file', file);
       const res = await apiClient.post('/upload/image', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
-      if (res.data?.url) onChange(res.data.url);
+      const url = res.data?.url;
+      if (url) {
+        onChange(url);
+        // Every editor upload also lands in the shared media library
+        apiClient.post('/media/register', {
+          url, filename: file.name, mime: file.type, size_bytes: file.size,
+        }).catch(() => {});
+      }
     } catch {
       alert('Image upload failed.');
     } finally {
@@ -496,11 +702,19 @@ function ImageField({ value, onChange }: { value: string; onChange: (v: string) 
           {uploading ? 'Uploading…' : '⬆ Upload'}
           <input type="file" accept="image/*" className="hidden" onChange={upload} disabled={uploading} />
         </label>
+        <button
+          type="button"
+          onClick={() => setPickerOpen(true)}
+          className="text-xs px-2.5 py-1.5 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50"
+        >
+          📚 Library
+        </button>
         {value && (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={value} alt="" className="h-9 w-9 rounded object-cover border border-gray-200" />
         )}
       </div>
+      {pickerOpen && <MediaPickerModal onSelect={onChange} onClose={() => setPickerOpen(false)} />}
     </div>
   );
 }

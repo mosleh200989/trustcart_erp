@@ -81,6 +81,42 @@ export const DEFAULT_ADMIN_MENU: AdminMenuSeedNode[] = [
         path: '/admin/lp-maker',
         requiredPermissions: ['view-landing-pages'],
       },
+      {
+        title: 'Templates',
+        icon: 'FaLayerGroup',
+        path: '/admin/lp-templates',
+        requiredPermissions: ['view-landing-pages'],
+      },
+      {
+        title: 'Experiments',
+        icon: 'FaFlask',
+        path: '/admin/experiments',
+        requiredPermissions: ['view-landing-pages'],
+      },
+      {
+        title: 'Testimonials',
+        icon: 'FaQuoteRight',
+        path: '/admin/testimonials',
+        requiredPermissions: ['view-testimonials'],
+      },
+      {
+        title: 'Media Library',
+        icon: 'FaPhotoVideo',
+        path: '/admin/media-library',
+        requiredPermissions: ['view-media-library'],
+      },
+      {
+        title: 'Domains',
+        icon: 'FaGlobe',
+        path: '/admin/storefronts/domains',
+        requiredPermissions: ['view-storefronts'],
+      },
+      {
+        title: 'Performance',
+        icon: 'FaChartLine',
+        path: '/admin/storefronts/performance',
+        requiredPermissions: ['view-storefronts'],
+      },
     ],
   },
   {

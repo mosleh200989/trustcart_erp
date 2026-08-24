@@ -5,6 +5,10 @@ import { Storefront } from './storefront.entity';
 import { StorefrontCategory } from './storefront-category.entity';
 import { StorefrontProduct } from './storefront-product.entity';
 import { Product } from '../products/product.entity';
+import { SalesOrder } from '../sales/sales-order.entity';
+
+// Orders in these states don't count as performance
+const EXCLUDED_ORDER_STATUSES = ['cancelled', 'admin_cancelled'];
 
 export interface PublicStorefrontProduct {
   id: number;
@@ -34,7 +38,74 @@ export class StorefrontsService {
     private readonly listingRepo: Repository<StorefrontProduct>,
     @InjectRepository(Product)
     private readonly productRepo: Repository<Product>,
+    @InjectRepository(SalesOrder)
+    private readonly salesOrderRepo: Repository<SalesOrder>,
   ) {}
+
+  // ─── Performance (admin dashboard) ───────────────────────
+
+  /**
+   * Orders and revenue per storefront (by order_source) and per landing
+   * page (by utm_source where utm_medium = 'landing_page'), within an
+   * optional trailing window. Views live on landing_pages rows and are
+   * lifetime numbers — the frontend merges and labels them accordingly.
+   */
+  async performanceSummary(days: number | null) {
+    const from = days ? new Date(Date.now() - days * 24 * 60 * 60 * 1000) : null;
+
+    const applyWindow = (qb: any) => {
+      qb.andWhere('o.status NOT IN (:...excluded)', { excluded: EXCLUDED_ORDER_STATUSES });
+      if (from) qb.andWhere('o.created_at >= :from', { from });
+      return qb;
+    };
+
+    const storefronts = await this.storefrontRepo.find({ order: { id: 'ASC' } });
+    const storefrontRows = storefronts.length
+      ? await applyWindow(
+          this.salesOrderRepo
+            .createQueryBuilder('o')
+            .select('o.order_source', 'slug')
+            .addSelect('COUNT(*)', 'orders')
+            .addSelect('COALESCE(SUM(o.total_amount), 0)', 'revenue')
+            .where('o.order_source IN (:...slugs)', { slugs: storefronts.map((s) => s.slug) }),
+        )
+          .groupBy('o.order_source')
+          .getRawMany()
+      : [];
+    const sfStats = new Map<string, { orders: any; revenue: any }>(
+      storefrontRows.map((r: any) => [r.slug, r]),
+    );
+
+    const landingRows = await applyWindow(
+      this.salesOrderRepo
+        .createQueryBuilder('o')
+        .select('o.utm_source', 'slug')
+        .addSelect('COUNT(*)', 'orders')
+        .addSelect('COALESCE(SUM(o.total_amount), 0)', 'revenue')
+        .where("o.utm_medium = 'landing_page'")
+        .andWhere('o.utm_source IS NOT NULL'),
+    )
+      .groupBy('o.utm_source')
+      .getRawMany();
+
+    return {
+      days,
+      storefronts: storefronts.map((s) => ({
+        id: s.id,
+        name: s.name,
+        slug: s.slug,
+        domain: s.domain,
+        is_active: s.is_active,
+        orders: Number(sfStats.get(s.slug)?.orders || 0),
+        revenue: Number(sfStats.get(s.slug)?.revenue || 0),
+      })),
+      landing_pages: landingRows.map((r: any) => ({
+        slug: r.slug,
+        orders: Number(r.orders || 0),
+        revenue: Number(r.revenue || 0),
+      })),
+    };
+  }
 
   // ─── Storefront CRUD (admin) ─────────────────────────────
 

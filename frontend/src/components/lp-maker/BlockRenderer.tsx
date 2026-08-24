@@ -246,6 +246,63 @@ export default function BlockRenderer({
       );
     }
 
+    case 'testimonials': {
+      const items: Array<{ name: string; location?: string; rating: number; text: string; image_url?: string }> =
+        p.items || [];
+      return (
+        <section className="px-6 py-8" style={{ background: p.background }}>
+          {p.heading && (
+            <h2 className="text-2xl font-bold text-center mb-6" style={{ color: p.text_color }}>{p.heading}</h2>
+          )}
+          {items.length === 0 ? (
+            <div className="max-w-xl mx-auto h-24 bg-white/60 border-2 border-dashed border-gray-300 rounded-xl flex items-center justify-center text-gray-400 text-sm">
+              ⭐ রিভিউ যুক্ত করুন — নিজে লিখুন অথবা লাইব্রেরি থেকে নিন
+            </div>
+          ) : (
+            <div
+              className="grid gap-4 max-w-4xl mx-auto"
+              style={{ gridTemplateColumns: `repeat(${Math.min(3, Math.max(1, p.columns || 2))}, 1fr)` }}
+            >
+              {items.map((review, i) => (
+                <figure
+                  key={i}
+                  className="p-5 border border-gray-100 shadow-sm flex flex-col gap-3"
+                  style={{ background: p.card_background, borderRadius: p.radius }}
+                >
+                  <div aria-label={`${review.rating} out of 5`} style={{ color: p.star_color }}>
+                    {'★'.repeat(Math.min(5, Math.max(1, review.rating || 5)))}
+                    <span className="opacity-25">{'★'.repeat(5 - Math.min(5, Math.max(1, review.rating || 5)))}</span>
+                  </div>
+                  <blockquote className="text-sm leading-relaxed flex-1" style={{ color: p.text_color }}>
+                    “{review.text}”
+                  </blockquote>
+                  <figcaption className="flex items-center gap-3">
+                    {review.image_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={review.image_url} alt="" className="w-9 h-9 rounded-full object-cover" />
+                    ) : (
+                      <div
+                        className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold text-white"
+                        style={{ background: p.star_color }}
+                      >
+                        {(review.name || '?').charAt(0)}
+                      </div>
+                    )}
+                    <div>
+                      <div className="text-sm font-semibold" style={{ color: p.text_color }}>{review.name}</div>
+                      {review.location && (
+                        <div className="text-xs opacity-60" style={{ color: p.text_color }}>{review.location}</div>
+                      )}
+                    </div>
+                  </figcaption>
+                </figure>
+              ))}
+            </div>
+          )}
+        </section>
+      );
+    }
+
     case 'countdown':
       return (
         <div className="px-6 py-3 max-w-xl mx-auto">

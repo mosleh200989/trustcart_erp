@@ -20,9 +20,10 @@ export type FieldType =
   | 'select'
   | 'toggle'
   | 'image'      // url input + upload button
-  | 'items'      // list of {icon, text}
-  | 'images'     // list of image urls
-  | 'products'   // list of products picked from inventory
+  | 'items'         // list of {icon, text}
+  | 'images'        // list of image urls
+  | 'products'      // list of products picked from inventory
+  | 'testimonials'  // list of reviews, manual or copied from the library
   | 'datetime';
 
 export interface Field {
@@ -243,6 +244,32 @@ export const BLOCK_DEFS: BlockDef[] = [
       { key: 'columns', label: 'Columns', type: 'number', min: 1, max: 3 },
       { key: 'background', label: 'Background', type: 'color' },
       { key: 'color', label: 'Text color', type: 'color' },
+      { key: 'radius', label: 'Corner radius', type: 'number', min: 0, max: 40 },
+    ],
+  },
+  {
+    type: 'testimonials',
+    label: 'Reviews',
+    icon: '⭐',
+    description: 'Customer testimonials with photos and star ratings',
+    defaults: {
+      heading: 'ক্রেতারা যা বলছেন',
+      items: [],
+      columns: 2,
+      background: '#f9fafb',
+      card_background: '#ffffff',
+      text_color: '#374151',
+      star_color: '#f59e0b',
+      radius: 12,
+    },
+    fields: [
+      { key: 'heading', label: 'Heading (empty = none)', type: 'text' },
+      { key: 'items', label: 'Reviews', type: 'testimonials' },
+      { key: 'columns', label: 'Columns', type: 'number', min: 1, max: 3 },
+      { key: 'background', label: 'Section background', type: 'color' },
+      { key: 'card_background', label: 'Card background', type: 'color' },
+      { key: 'text_color', label: 'Text color', type: 'color' },
+      { key: 'star_color', label: 'Star color', type: 'color' },
       { key: 'radius', label: 'Corner radius', type: 'number', min: 0, max: 40 },
     ],
   },

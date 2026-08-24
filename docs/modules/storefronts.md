@@ -43,11 +43,65 @@ Public (no auth, consumed by the brand site):
 Sidebar group **Storefronts** holds everything customer-facing that isn't the
 main TrustCart site:
 
-- **All Storefronts** → `/admin/storefronts`  (permission `view-storefronts`)
-- **Landing Pages** → `/admin/landing-pages`  (permission `view-landing-pages`)
-- **LP Maker** → `/admin/lp-maker`  (permission `view-landing-pages`)
+| Entry | Path | Permission |
+|---|---|---|
+| All Storefronts | `/admin/storefronts` | `view-storefronts` |
+| Landing Pages | `/admin/landing-pages` | `view-landing-pages` |
+| LP Maker | `/admin/lp-maker` | `view-landing-pages` |
+| Templates | `/admin/lp-templates` | `view-landing-pages` |
+| Experiments | `/admin/experiments` | `view-landing-pages` |
+| Testimonials | `/admin/testimonials` | `view-testimonials` |
+| Media Library | `/admin/media-library` | `view-media-library` |
+| Domains | `/admin/storefronts/domains` | `view-storefronts` |
+| Performance | `/admin/storefronts/performance` | `view-storefronts` |
 
 A user holding only the permissions for some entries sees only those.
+Suite migration: `db/migrations/2026-08-24-storefront-suite.sql`.
+
+## Domains
+
+Maps custom domains to a storefront (whole page tree) or a landing page
+(root URL). The Next.js middleware fetches `/storefront-domains/public/map`
+(cached 60s in-memory, hardcoded constants as fallback), so adding a
+campaign domain is a form, not a deploy. DNS + nginx + certbot remain
+one-time server steps per domain. The admin table has a live DNS check
+(compares against `SERVER_PUBLIC_IP` env when set).
+
+## Experiments (A/B tests)
+
+Two landing pages behind variant A's URL. Assignment is sticky per browser
+(localStorage), split configurable 10–90%. Views are experiment-scoped
+counters (`POST /lp-experiments/:id/track-view`); orders/revenue come from
+`sales_orders` by each variant's `utm_source` within the run window, so
+they're real sales, time-windowed. Stats include CVR, uplift and a
+two-proportion z-test. "Declare winner" on B offers to swap the two pages'
+slugs so the winner takes over the advertised URL.
+
+## Media Library
+
+Browsable index (`media_assets`) over the existing `/upload/image` flow.
+LP Maker image fields get a "📚 Library" picker, and editor uploads
+auto-register here. Deleting removes only the index entry — the CDN file
+survives, so pages using the URL keep working.
+
+## Templates
+
+Saved LP Maker block trees (`lp_templates`). "Save as template" in the
+editor top bar; "Use template" opens `/admin/lp-maker/create?template=<id>`
+with blocks re-keyed. Two starter templates are seeded by the migration.
+
+## Testimonials
+
+Curated review library (`storefront_testimonials`). LP Maker's Reviews
+block copies approved entries as snapshots — published pages never query
+this table at render time.
+
+## Performance
+
+Orders + revenue per storefront (`order_source`) and per landing page
+(`utm_source` where `utm_medium='landing_page'`), windowed 7/30/90 days or
+all-time, cancelled orders excluded. Page views are lifetime counters, so
+CVR shows only on all-time.
 
 ## LP Maker (drag-and-drop page builder)
 
