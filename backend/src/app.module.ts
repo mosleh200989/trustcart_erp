@@ -259,6 +259,17 @@ import { ProductHistory } from './modules/products/product-history.entity';
 import { TelephonyAgentPresenceEvent } from './modules/telephony/entities/telephony-agent-presence-event.entity';
 import { WalletWithdrawalRequest } from './modules/loyalty/entities/wallet-withdrawal-request.entity';
 
+// Automation Entities (Facebook / Messenger automation)
+import { AutomationSetting } from './modules/automation/entities/automation-setting.entity';
+import { AutomationChannel } from './modules/automation/entities/automation-channel.entity';
+import { AutomationEvent } from './modules/automation/entities/automation-event.entity';
+import { AutomationConversation } from './modules/automation/entities/automation-conversation.entity';
+import { AutomationMessage } from './modules/automation/entities/automation-message.entity';
+import { AutomationRule } from './modules/automation/entities/automation-rule.entity';
+import { AutomationOutbox } from './modules/automation/entities/automation-outbox.entity';
+import { AutomationAudit } from './modules/automation/entities/automation-audit.entity';
+import { AutomationModule } from './modules/automation/automation.module';
+
 @Module({
   imports: [
     // Config Module - must be first
@@ -377,6 +388,15 @@ import { WalletWithdrawalRequest } from './modules/loyalty/entities/wallet-withd
             TelephonyAgentPresenceEvent,
             // Loyalty
             WalletWithdrawalRequest,
+            // Automation entities
+            AutomationSetting,
+            AutomationChannel,
+            AutomationEvent,
+            AutomationConversation,
+            AutomationMessage,
+            AutomationRule,
+            AutomationOutbox,
+            AutomationAudit,
           ],
           synchronize: false,
           logging: configService.get<string>('NODE_ENV') === 'development',
@@ -441,6 +461,7 @@ import { WalletWithdrawalRequest } from './modules/loyalty/entities/wallet-withd
     PresenceModule,
     CartModule,
     AuditLogModule,
+    AutomationModule,
   ],
   controllers: [],
   providers: [],

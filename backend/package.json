@@ -32,6 +32,7 @@
     "db:check": "node scripts/migrate.js check"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.121.0",
     "@nestjs/bull": "^11.0.4",
     "@nestjs/common": "^10.2.0",
     "@nestjs/config": "^3.1.0",

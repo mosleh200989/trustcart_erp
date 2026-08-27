@@ -8,7 +8,7 @@ import apiClient, { stockAlerts } from '@/services/api';
 import { 
   FaTachometerAlt, FaBoxes, FaShoppingCart, FaUsers, FaWarehouse, 
   FaShoppingBag, FaUserTie, FaBook, FaBullseye, FaHandshake, 
-  FaHeadset, FaUser, FaUserClock, FaUserCheck, FaCog, FaBars, FaTimes, FaBell, FaChevronDown, FaChartBar, FaTags, FaGift, FaPhone, FaMoneyBillWave, FaImage, FaList, FaRocket, FaStore, FaMagic, FaLayerGroup, FaFlask, FaQuoteRight, FaPhotoVideo, FaChartLine, FaPrint, FaBan, FaHistory, FaTruck, FaSlidersH, FaClipboardCheck, FaSearch, FaRecycle, FaShieldAlt, FaCalculator, FaGlobe, FaSignOutAlt
+  FaHeadset, FaUser, FaUserClock, FaUserCheck, FaCog, FaBars, FaTimes, FaBell, FaChevronDown, FaChartBar, FaTags, FaGift, FaPhone, FaMoneyBillWave, FaImage, FaList, FaRocket, FaStore, FaMagic, FaLayerGroup, FaFlask, FaQuoteRight, FaPhotoVideo, FaChartLine, FaPrint, FaBan, FaHistory, FaTruck, FaSlidersH, FaClipboardCheck, FaSearch, FaRecycle, FaShieldAlt, FaCalculator, FaGlobe, FaSignOutAlt, FaRobot
 } from 'react-icons/fa';
 
 interface MenuItem {
@@ -1225,6 +1225,19 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   </div>
                 )}
               </div>
+              {/* Automation panel — separate sub-panel behind its own password.
+                  Visible only to roles granted `view-automation` on the
+                  Roles & Permissions page. */}
+              {hasAnyPermission(['view-automation']) && (
+                <Link
+                  href="/admin/automation"
+                  title="Automation panel"
+                  className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-2 text-sm font-semibold text-amber-700 shadow-sm transition-all hover:bg-amber-100 sm:px-3"
+                >
+                  <FaRobot />
+                  <span className="hidden sm:inline">Automation</span>
+                </Link>
+              )}
               {/* CRM Notifications Bell */}
               <CrmNotifications />
               {presenceError && (
