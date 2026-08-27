@@ -31,20 +31,20 @@ export class AutomationRule {
   @Column({ type: 'int', nullable: true })
   channel_id!: number | null;
 
-  @Column({ length: 255 })
+  @Column({ type: 'varchar', length: 255 })
   name!: string;
 
-  @Column({ length: 20, default: 'contains' })
+  @Column({ type: 'varchar', length: 20, default: 'contains' })
   match_type!: AutomationRuleMatchType;
 
   /** Any pattern matching is enough to fire the rule. */
   @Column({ type: 'jsonb', default: () => "'[]'::jsonb" })
   patterns!: string[];
 
-  @Column({ length: 20, default: 'both' })
+  @Column({ type: 'varchar', length: 20, default: 'both' })
   applies_to!: AutomationRuleAppliesTo;
 
-  @Column({ length: 20, default: 'reply' })
+  @Column({ type: 'varchar', length: 20, default: 'reply' })
   action!: AutomationRuleAction;
 
   @Column({ type: 'text', nullable: true })

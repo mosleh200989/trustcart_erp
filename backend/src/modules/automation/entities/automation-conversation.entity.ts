@@ -30,29 +30,29 @@ export class AutomationConversation {
   @Column({ type: 'int' })
   channel_id!: number;
 
-  @Column({ length: 20 })
+  @Column({ type: 'varchar', length: 20 })
   thread_type!: AutomationThreadType;
 
-  @Column({ length: 191 })
+  @Column({ type: 'varchar', length: 191 })
   thread_key!: string;
 
-  @Column({ length: 64, nullable: true })
+  @Column({ type: 'varchar', length: 64, nullable: true })
   psid!: string | null;
 
-  @Column({ length: 191, nullable: true })
+  @Column({ type: 'varchar', length: 191, nullable: true })
   post_id!: string | null;
 
   /** Filled in when we can match the person to an existing ERP customer. */
   @Column({ type: 'int', nullable: true })
   customer_id!: number | null;
 
-  @Column({ length: 255, nullable: true })
+  @Column({ type: 'varchar', length: 255, nullable: true })
   display_name!: string | null;
 
-  @Column({ length: 20, default: 'bot' })
+  @Column({ type: 'varchar', length: 20, default: 'bot' })
   status!: AutomationConversationStatus;
 
-  @Column({ length: 255, nullable: true })
+  @Column({ type: 'varchar', length: 255, nullable: true })
   escalation_reason!: string | null;
 
   @Column({ type: 'int', nullable: true })

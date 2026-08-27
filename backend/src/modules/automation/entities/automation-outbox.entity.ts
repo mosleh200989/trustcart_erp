@@ -34,13 +34,13 @@ export class AutomationOutbox {
   @Column({ type: 'int', nullable: true })
   message_id!: number | null;
 
-  @Column({ length: 30 })
+  @Column({ type: 'varchar', length: 30 })
   action!: AutomationOutboxAction;
 
   @Column({ type: 'jsonb', default: () => "'{}'::jsonb" })
   payload!: Record<string, any>;
 
-  @Column({ length: 20, default: 'pending' })
+  @Column({ type: 'varchar', length: 20, default: 'pending' })
   status!: AutomationOutboxStatus;
 
   @Column({ type: 'int', default: 0 })
@@ -56,7 +56,7 @@ export class AutomationOutbox {
   last_error!: string | null;
 
   /** The id Meta returned for the created comment/message. */
-  @Column({ length: 191, nullable: true })
+  @Column({ type: 'varchar', length: 191, nullable: true })
   external_id!: string | null;
 
   @CreateDateColumn({ name: 'created_at' })

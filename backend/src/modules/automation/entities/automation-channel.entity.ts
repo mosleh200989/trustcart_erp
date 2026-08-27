@@ -28,27 +28,27 @@ export class AutomationChannel {
   @PrimaryGeneratedColumn()
   id!: number;
 
-  @Column({ length: 255 })
+  @Column({ type: 'varchar', length: 255 })
   name!: string;
 
-  @Column({ length: 20, default: 'facebook' })
+  @Column({ type: 'varchar', length: 20, default: 'facebook' })
   platform!: AutomationPlatform;
 
   /** The Page ID Meta sends as `entry[].id`. Also the bot's own author id. */
-  @Column({ length: 64 })
+  @Column({ type: 'varchar', length: 64 })
   page_id!: string;
 
   @Column({ type: 'text', nullable: true })
   page_access_token!: string | null;
 
-  @Column({ length: 64, nullable: true })
+  @Column({ type: 'varchar', length: 64, nullable: true })
   ig_account_id!: string | null;
 
   /** Links this page to a brand so replies can use that brand's catalogue. */
   @Column({ type: 'int', nullable: true })
   storefront_id!: number | null;
 
-  @Column({ length: 20, default: 'off' })
+  @Column({ type: 'varchar', length: 20, default: 'off' })
   mode!: AutomationChannelMode;
 
   @Column({ type: 'boolean', default: true })
@@ -69,7 +69,7 @@ export class AutomationChannel {
   greeting!: string | null;
 
   /** Appended to every outgoing reply, e.g. "— TrustCart". */
-  @Column({ length: 255, nullable: true })
+  @Column({ type: 'varchar', length: 255, nullable: true })
   signature!: string | null;
 
   /** Loop brake: hard cap on auto-replies per thread per hour. */
