@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { FaCheck, FaPaperPlane, FaSyncAlt } from 'react-icons/fa';
 import AutomationLayout from '@/layouts/AutomationLayout';
+import { useAutomationUnlocked } from '@/hooks/useAutomationGate';
 import { useToast } from '@/contexts/ToastContext';
 import { useAuth } from '@/contexts/AuthContext';
 import {
@@ -33,6 +34,7 @@ const STATUS_FILTERS = [
  */
 export default function AutomationInboxPage() {
   const toast = useToast();
+  const unlocked = useAutomationUnlocked();
   const { hasPermission } = useAuth();
   const canReply = hasPermission('reply-automation-inbox');
 
@@ -48,6 +50,9 @@ export default function AutomationInboxPage() {
   const [sending, setSending] = useState(false);
 
   const loadList = useCallback(async () => {
+    // Never call the panel API while the gate is closed: the request is
+    // guaranteed to 403 and the error toast lands behind the password screen.
+    if (!unlocked) return;
     setLoading(true);
     try {
       const result = await automation.listConversations(status ? { status } : {});
@@ -58,13 +63,14 @@ export default function AutomationInboxPage() {
     } finally {
       setLoading(false);
     }
-  }, [status, toast]);
+  }, [status, toast, unlocked]);
 
   useEffect(() => {
     loadList();
   }, [loadList]);
 
   const loadThread = useCallback(async () => {
+    if (!unlocked) return;
     if (!selectedId) {
       setThread(null);
       return;
@@ -74,7 +80,7 @@ export default function AutomationInboxPage() {
     } catch (error) {
       toast.error(errorMessage(error, 'Could not load the conversation'));
     }
-  }, [selectedId, toast]);
+  }, [selectedId, toast, unlocked]);
 
   useEffect(() => {
     loadThread();

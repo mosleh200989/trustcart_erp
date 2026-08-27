@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useCallback, useMemo, ReactNode } from 'react';
 import Toast, { ToastData, ToastType } from '@/components/Toast';
 
 interface ToastContextType {
@@ -42,8 +42,20 @@ export const ToastProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     showToast(message, 'info', duration);
   }, [showToast]);
 
+  // Memoised: showing a toast calls setToasts, which re-renders this provider.
+  // An inline object literal here would hand every consumer a new `toast`
+  // identity on each toast, so any `useCallback(..., [toast])` would be
+  // recreated and any `useEffect` depending on it would re-fire — a component
+  // that toasts on a failed request then re-requests in an unbounded loop.
+  // The five functions below are already useCallback-stable, so this value
+  // never needs to change.
+  const value = useMemo<ToastContextType>(
+    () => ({ showToast, success, error, warning, info }),
+    [showToast, success, error, warning, info],
+  );
+
   return (
-    <ToastContext.Provider value={{ showToast, success, error, warning, info }}>
+    <ToastContext.Provider value={value}>
       {children}
       {/* Toast Container - rendered directly without portal */}
       <div 

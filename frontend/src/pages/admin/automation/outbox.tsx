@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { FaBan, FaRedo, FaSyncAlt } from 'react-icons/fa';
 import AutomationLayout from '@/layouts/AutomationLayout';
+import { useAutomationUnlocked } from '@/hooks/useAutomationGate';
 import { useToast } from '@/contexts/ToastContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { automation, AutomationOutboxRow } from '@/services/automation';
@@ -23,6 +24,7 @@ const PAGE_SIZE = 50;
  */
 export default function AutomationOutboxPage() {
   const toast = useToast();
+  const unlocked = useAutomationUnlocked();
   const { hasPermission } = useAuth();
   const canManage = hasPermission('manage-automation');
 
@@ -33,6 +35,9 @@ export default function AutomationOutboxPage() {
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
+    // Never call the panel API while the gate is closed: the request is
+    // guaranteed to 403 and the error toast lands behind the password screen.
+    if (!unlocked) return;
     setLoading(true);
     try {
       const result = await automation.listOutbox({
@@ -47,7 +52,7 @@ export default function AutomationOutboxPage() {
     } finally {
       setLoading(false);
     }
-  }, [status, page, toast]);
+  }, [status, page, toast, unlocked]);
 
   useEffect(() => {
     load();
