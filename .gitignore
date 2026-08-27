@@ -56,6 +56,13 @@ backend\uploads\
 *.sql.gz
 .env.backup
 *.env.bak*
+# Timestamped copies made before editing .env on the server, e.g.
+# backend/.env.backup-20260827-192456. Without the trailing wildcard these
+# showed up as untracked rather than ignored, so a single `git add -A` on the
+# VPS would have committed every production secret.
+.env.backup*
+*.env.backup*
+.env.*.backup*
 vps-local-changes-backup.patch
 
 # Process / run artifacts that accumulate on the server
