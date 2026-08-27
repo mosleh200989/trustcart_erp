@@ -18,6 +18,10 @@ import {
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/contexts/ToastContext';
 import { automationGate, getAutomationToken, clearAutomationToken } from '@/services/automation';
+import {
+  AUTOMATION_LOCKED_EVENT,
+  AUTOMATION_UNLOCKED_EVENT,
+} from '@/hooks/useAutomationGate';
 
 type NavItem = { title: string; path: string; icon: any; permissions?: string[] };
 
@@ -109,8 +113,8 @@ export default function AutomationLayout({
       setGate('locked');
       refreshGate();
     };
-    window.addEventListener('automation:locked', onLocked);
-    return () => window.removeEventListener('automation:locked', onLocked);
+    window.addEventListener(AUTOMATION_LOCKED_EVENT, onLocked);
+    return () => window.removeEventListener(AUTOMATION_LOCKED_EVENT, onLocked);
   }, [refreshGate]);
 
   const handleUnlock = async (event: React.FormEvent) => {
@@ -122,6 +126,9 @@ export default function AutomationLayout({
       await automationGate.unlock(password);
       setPassword('');
       setGate('unlocked');
+      // Panel pages are our parent, so they cannot see this state change —
+      // tell them the gate opened so they can load their data.
+      window.dispatchEvent(new Event(AUTOMATION_UNLOCKED_EVENT));
       toast.success('Automation panel unlocked');
     } catch (error: any) {
       const message = error?.response?.data?.message || 'Incorrect password';
@@ -150,6 +157,7 @@ export default function AutomationLayout({
       setPassword('');
       setConfirmPassword('');
       setGate('unlocked');
+      window.dispatchEvent(new Event(AUTOMATION_UNLOCKED_EVENT));
       toast.success('Panel password set');
     } catch (error: any) {
       const message = error?.response?.data?.message || 'Could not set the password';
@@ -162,6 +170,7 @@ export default function AutomationLayout({
   const handleLock = () => {
     automationGate.lock();
     setGate('locked');
+    window.dispatchEvent(new Event(AUTOMATION_LOCKED_EVENT));
     toast.info('Automation panel locked');
   };
 

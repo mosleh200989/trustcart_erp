@@ -1,6 +1,7 @@
 import { Fragment, useCallback, useEffect, useState } from 'react';
 import { FaSyncAlt } from 'react-icons/fa';
 import AutomationLayout from '@/layouts/AutomationLayout';
+import { useAutomationUnlocked } from '@/hooks/useAutomationGate';
 import { useToast } from '@/contexts/ToastContext';
 import { automation, AutomationAuditRow } from '@/services/automation';
 import {
@@ -25,6 +26,7 @@ const ENTITIES = ['channel', 'rule', 'settings', 'conversation', 'message', 'out
  */
 export default function AutomationAuditPage() {
   const toast = useToast();
+  const unlocked = useAutomationUnlocked();
   const [rows, setRows] = useState<AutomationAuditRow[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(0);
@@ -33,6 +35,9 @@ export default function AutomationAuditPage() {
   const [expanded, setExpanded] = useState<number | null>(null);
 
   const load = useCallback(async () => {
+    // Never call the panel API while the gate is closed: the request is
+    // guaranteed to 403 and the error toast lands behind the password screen.
+    if (!unlocked) return;
     setLoading(true);
     try {
       const result = await automation.listAudit({
@@ -47,7 +52,7 @@ export default function AutomationAuditPage() {
     } finally {
       setLoading(false);
     }
-  }, [entity, page, toast]);
+  }, [entity, page, toast, unlocked]);
 
   useEffect(() => {
     load();

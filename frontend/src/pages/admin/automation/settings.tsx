@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { FaKey, FaSave, FaSyncAlt } from 'react-icons/fa';
 import AutomationLayout from '@/layouts/AutomationLayout';
+import { useAutomationUnlocked } from '@/hooks/useAutomationGate';
 import { useToast } from '@/contexts/ToastContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { automation, automationGate, AutomationSettings } from '@/services/automation';
@@ -18,6 +19,7 @@ import {
 /** Every knob in one place: global behaviour, the AI layer, escalation, the password. */
 export default function AutomationSettingsPage() {
   const toast = useToast();
+  const unlocked = useAutomationUnlocked();
   const { hasPermission } = useAuth();
   const canManage = hasPermission('manage-automation');
   const canManageSecurity = hasPermission('manage-automation-security');
@@ -31,6 +33,9 @@ export default function AutomationSettingsPage() {
   const [newPassword, setNewPassword] = useState('');
 
   const load = useCallback(async () => {
+    // Never call the panel API while the gate is closed: the request is
+    // guaranteed to 403 and the error toast lands behind the password screen.
+    if (!unlocked) return;
     setLoading(true);
     try {
       const next = await automation.getSettings();
@@ -41,7 +46,7 @@ export default function AutomationSettingsPage() {
     } finally {
       setLoading(false);
     }
-  }, [toast]);
+  }, [toast, unlocked]);
 
   useEffect(() => {
     load();

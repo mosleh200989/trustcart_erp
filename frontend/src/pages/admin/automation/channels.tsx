@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { FaBullhorn, FaCheckCircle, FaPlus, FaSyncAlt, FaTrash } from 'react-icons/fa';
 import AutomationLayout from '@/layouts/AutomationLayout';
+import { useAutomationUnlocked } from '@/hooks/useAutomationGate';
 import { useToast } from '@/contexts/ToastContext';
 import { useAuth } from '@/contexts/AuthContext';
 import apiClient from '@/services/api';
@@ -36,6 +37,7 @@ const EMPTY_DRAFT: Draft = {
 /** Connected Facebook / Instagram pages: tokens, mode, brand voice, limits. */
 export default function AutomationChannelsPage() {
   const toast = useToast();
+  const unlocked = useAutomationUnlocked();
   const { hasPermission } = useAuth();
   const canManage = hasPermission('manage-automation');
 
@@ -47,6 +49,9 @@ export default function AutomationChannelsPage() {
   const [postDraft, setPostDraft] = useState<{ channelId: number; message: string } | null>(null);
 
   const load = useCallback(async () => {
+    // Never call the panel API while the gate is closed: the request is
+    // guaranteed to 403 and the error toast lands behind the password screen.
+    if (!unlocked) return;
     setLoading(true);
     try {
       setChannels(await automation.listChannels());
@@ -55,16 +60,17 @@ export default function AutomationChannelsPage() {
     } finally {
       setLoading(false);
     }
-  }, [toast]);
+  }, [toast, unlocked]);
 
   useEffect(() => {
     load();
+    if (!unlocked) return;
     // Brand list is read through the normal admin API — it is not automation data.
     apiClient
       .get('/storefronts')
       .then((res) => setStorefronts(Array.isArray(res.data) ? res.data : []))
       .catch(() => setStorefronts([]));
-  }, [load]);
+  }, [load, unlocked]);
 
   const save = async () => {
     if (!draft) return;
