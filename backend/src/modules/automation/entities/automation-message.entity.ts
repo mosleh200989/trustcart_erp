@@ -26,20 +26,20 @@ export class AutomationMessage {
   @Column({ type: 'int' })
   channel_id!: number;
 
-  @Column({ length: 10 })
+  @Column({ type: 'varchar', length: 10 })
   direction!: AutomationMessageDirection;
 
-  @Column({ length: 20, default: 'message' })
+  @Column({ type: 'varchar', length: 20, default: 'message' })
   kind!: AutomationMessageKind;
 
   /** Meta's id for the comment/message, used for replies and de-duplication. */
-  @Column({ length: 191, nullable: true })
+  @Column({ type: 'varchar', length: 191, nullable: true })
   external_id!: string | null;
 
   @Column({ type: 'text', nullable: true })
   text!: string | null;
 
-  @Column({ length: 20, nullable: true })
+  @Column({ type: 'varchar', length: 20, nullable: true })
   source!: AutomationReplySource | null;
 
   @Column({ type: 'int', nullable: true })
@@ -51,13 +51,13 @@ export class AutomationMessage {
   @Column({ type: 'boolean', default: false })
   shadow!: boolean;
 
-  @Column({ length: 20, default: 'sent' })
+  @Column({ type: 'varchar', length: 20, default: 'sent' })
   status!: AutomationMessageStatus;
 
   @Column({ type: 'text', nullable: true })
   error!: string | null;
 
-  @Column({ length: 60, nullable: true })
+  @Column({ type: 'varchar', length: 60, nullable: true })
   ai_model!: string | null;
 
   @Column({ type: 'jsonb', nullable: true })

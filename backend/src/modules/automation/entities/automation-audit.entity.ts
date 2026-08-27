@@ -15,17 +15,17 @@ export class AutomationAudit {
   @Column({ type: 'int', nullable: true })
   user_id!: number | null;
 
-  @Column({ length: 255, nullable: true })
+  @Column({ type: 'varchar', length: 255, nullable: true })
   user_email!: string | null;
 
   /** e.g. gate.unlock, channel.update, rule.create, settings.update, mode.change */
-  @Column({ length: 80 })
+  @Column({ type: 'varchar', length: 80 })
   action!: string;
 
-  @Column({ length: 60, nullable: true })
+  @Column({ type: 'varchar', length: 60, nullable: true })
   entity!: string | null;
 
-  @Column({ length: 60, nullable: true })
+  @Column({ type: 'varchar', length: 60, nullable: true })
   entity_id!: string | null;
 
   @Column({ type: 'jsonb', nullable: true })
@@ -34,7 +34,7 @@ export class AutomationAudit {
   @Column({ type: 'jsonb', nullable: true })
   after!: Record<string, any> | null;
 
-  @Column({ length: 64, nullable: true })
+  @Column({ type: 'varchar', length: 64, nullable: true })
   ip!: string | null;
 
   @CreateDateColumn({ name: 'created_at' })

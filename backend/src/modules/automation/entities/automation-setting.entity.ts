@@ -10,7 +10,7 @@ import { Entity, PrimaryColumn, Column, UpdateDateColumn } from 'typeorm';
  */
 @Entity('automation_settings')
 export class AutomationSetting {
-  @PrimaryColumn({ length: 100 })
+  @PrimaryColumn({ type: 'varchar', length: 100 })
   key!: string;
 
   @Column({ type: 'jsonb', default: () => "'{}'::jsonb" })

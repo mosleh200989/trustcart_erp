@@ -17,28 +17,28 @@ export class AutomationEvent {
   @Column({ type: 'int', nullable: true })
   channel_id!: number | null;
 
-  @Column({ length: 20, default: 'facebook' })
+  @Column({ type: 'varchar', length: 20, default: 'facebook' })
   platform!: string;
 
-  @Column({ length: 64, nullable: true })
+  @Column({ type: 'varchar', length: 64, nullable: true })
   page_id!: string | null;
 
   /** comment | comment_edit | message | message_echo | postback | reaction | unknown */
-  @Column({ length: 40, default: 'unknown' })
+  @Column({ type: 'varchar', length: 40, default: 'unknown' })
   event_type!: string;
 
-  @Column({ length: 191 })
+  @Column({ type: 'varchar', length: 191 })
   meta_event_id!: string;
 
   /** Whether X-Hub-Signature-256 verified. False means it came in on a permissive mode. */
   @Column({ type: 'boolean', default: false })
   signature_valid!: boolean;
 
-  @Column({ length: 20, default: 'received' })
+  @Column({ type: 'varchar', length: 20, default: 'received' })
   status!: AutomationEventStatus;
 
   /** Why nothing was sent: own_page_echo, channel_off, no_text, rate_limited, ... */
-  @Column({ length: 160, nullable: true })
+  @Column({ type: 'varchar', length: 160, nullable: true })
   skip_reason!: string | null;
 
   @Column({ type: 'jsonb', default: () => "'{}'::jsonb" })
