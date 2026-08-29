@@ -8,7 +8,7 @@ import apiClient, { stockAlerts } from '@/services/api';
 import { 
   FaTachometerAlt, FaBoxes, FaShoppingCart, FaUsers, FaWarehouse, 
   FaShoppingBag, FaUserTie, FaBook, FaBullseye, FaHandshake, 
-  FaHeadset, FaUser, FaUserClock, FaUserCheck, FaCog, FaBars, FaTimes, FaBell, FaChevronDown, FaChartBar, FaTags, FaGift, FaPhone, FaMoneyBillWave, FaImage, FaList, FaRocket, FaStore, FaMagic, FaLayerGroup, FaFlask, FaQuoteRight, FaPhotoVideo, FaChartLine, FaPrint, FaBan, FaHistory, FaTruck, FaSlidersH, FaClipboardCheck, FaSearch, FaRecycle, FaShieldAlt, FaCalculator, FaGlobe, FaSignOutAlt, FaRobot
+  FaHeadset, FaUser, FaUserClock, FaUserCheck, FaCog, FaBars, FaTimes, FaBell, FaChevronDown, FaChartBar, FaTags, FaGift, FaPhone, FaMoneyBillWave, FaImage, FaList, FaRocket, FaStore, FaMagic, FaLayerGroup, FaFlask, FaQuoteRight, FaPhotoVideo, FaChartLine, FaPrint, FaBan, FaHistory, FaTruck, FaSlidersH, FaClipboardCheck, FaSearch, FaRecycle, FaShieldAlt, FaCalculator, FaGlobe, FaSignOutAlt, FaRobot, FaBug
 } from 'react-icons/fa';
 
 interface MenuItem {
@@ -466,6 +466,14 @@ const menuItems: MenuItem[] = [
       { title: 'Assign Roles', icon: FaUsers, path: '/admin/roles/assign', requiredPermissions: ['assign-roles'] },
       { title: 'Role Permissions', icon: FaUsers, path: '/admin/roles/permissions', requiredPermissions: ['assign-roles'] },
     ],
+  },
+  {
+    // Staff -> development team, about the software itself. Visible to every
+    // staff role (view-issues is granted to all non-customer roles).
+    title: 'Issues',
+    icon: FaBug,
+    path: '/admin/issues',
+    requiredPermissions: ['view-issues'],
   },
   { title: 'Profile', icon: FaUser, path: '/admin/profile' },
   {

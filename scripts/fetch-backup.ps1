@@ -30,6 +30,10 @@
     Show what is on the VPS and what is held locally, then exit. Downloads
     nothing.
 
+.PARAMETER Uploads
+    Also download the newest uploads archive (product images, issue
+    attachments and voice notes) alongside the database dump.
+
 .EXAMPLE
     .\fetch-backup.ps1
     Download last night's backup.
@@ -51,7 +55,8 @@ param(
     [int]$KeepLocal      = 0,
     [switch]$Fresh,
     [switch]$Force,
-    [switch]$List
+    [switch]$List,
+    [switch]$Uploads
 )
 
 $ErrorActionPreference = 'Stop'
@@ -238,6 +243,45 @@ if ($KeepLocal -gt 0) {
         foreach ($f in $old) {
             Write-Host "    deleting $($f.Name) ($(Format-Size $f.Length))" -ForegroundColor DarkGray
             Remove-Item $f.FullName -Force
+        }
+    }
+}
+
+# --- optional uploads archive -------------------------------------------
+
+if ($Uploads) {
+    Write-Step 'Looking for the newest uploads archive on the VPS'
+    $upListing = Invoke-Remote "ls -1t $RemoteDir/trustcart_uploads_*.tar.gz 2>/dev/null | head -1 | xargs -r stat -c '%n|%s'"
+    if ([string]::IsNullOrWhiteSpace($upListing)) {
+        Write-Warn2 'No uploads archive found on the VPS (the nightly job creates one).'
+    } else {
+        $upParts = ($upListing | Select-Object -First 1).ToString().Trim() -split '\|'
+        $upRemote = $upParts[0]
+        $upSize   = [long]$upParts[1]
+        $upName   = Split-Path $upRemote -Leaf
+        $upLocal  = Join-Path $Destination $upName
+        if ((Test-Path $upLocal) -and ((Get-Item $upLocal).Length -eq $upSize) -and (-not $Force)) {
+            Write-Ok "$upName is already downloaded."
+        } else {
+            $upPartial = "$upLocal.partial"
+            if (Test-Path $upPartial) { Remove-Item $upPartial -Force }
+            Write-Step "Downloading uploads archive ($(Format-Size $upSize))"
+            & scp -o BatchMode=yes "${RemoteHost}:${upRemote}" $upPartial
+            if ($LASTEXITCODE -ne 0) {
+                Write-Err 'scp failed for the uploads archive.'
+                if (Test-Path $upPartial) { Remove-Item $upPartial -Force }
+            } else {
+                $upGot = (Get-Item $upPartial).Length
+                $upRemoteHash = (Invoke-Remote "sha256sum '$upRemote' | cut -c1-64" | Select-Object -First 1).ToString().Trim()
+                $upLocalHash  = (Get-FileHash -Path $upPartial -Algorithm SHA256).Hash.ToLower()
+                if ($upGot -ne $upSize -or $upRemoteHash -ne $upLocalHash) {
+                    Move-Item $upPartial "$upLocal.BAD" -Force
+                    Write-Err "Uploads archive failed verification; kept as $upName.BAD."
+                } else {
+                    Move-Item $upPartial $upLocal -Force
+                    Write-Ok "Uploads archive verified and saved to $upLocal"
+                }
+            }
         }
     }
 }

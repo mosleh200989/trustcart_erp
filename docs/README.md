@@ -36,6 +36,7 @@ How each part of the product behaves.
 [CDM](modules/cdm.md) ([user guide](modules/cdm-user-guide.md))
 
 **Operations and staff**
+[issues](modules/issues.md) ·
 [inventory](modules/inventory.md) ·
 [recruitment](modules/recruitment.md) ·
 [RBAC](modules/rbac.md) ·

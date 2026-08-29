@@ -77,5 +77,34 @@ DELETED="$(find "$BACKUP_DIR" -maxdepth 1 -name "trustcart_${DB_NAME}_*.dump" \
   -type f -mtime "+${RETENTION_DAYS}" -print -delete | wc -l)"
 [ "$DELETED" -gt 0 ] && log "pruned ${DELETED} backup(s) older than ${RETENTION_DAYS} days"
 
+# ---- uploads archive ------------------------------------------------------
+# pg_dump covers the database only. Product images and issue attachments
+# (screenshots, voice notes) live in backend/uploads and would otherwise die
+# with the server — and the Issues module keeps voice notes there precisely
+# as an accountability record, so they must survive.
+UPLOADS_DIR="${UPLOADS_DIR:-${BACKEND_DIR}/uploads}"
+if [ -d "$UPLOADS_DIR" ]; then
+  UP_FINAL="${BACKUP_DIR}/trustcart_uploads_${STAMP}.tar.gz"
+  UP_TMP="${UP_FINAL}.partial"
+  if tar -czf "$UP_TMP" -C "$(dirname "$UPLOADS_DIR")" "$(basename "$UPLOADS_DIR")" 2>>"$LOG"; then
+    # A tar we cannot list is not a backup.
+    if tar -tzf "$UP_TMP" >/dev/null 2>>"$LOG"; then
+      mv "$UP_TMP" "$UP_FINAL"
+      log "uploads ok: $(basename "$UP_FINAL") ($(du -h "$UP_FINAL" | cut -f1))"
+    else
+      mv "$UP_TMP" "${UP_FINAL}.BAD"
+      log "FAILED: uploads archive failed verification; kept as $(basename "${UP_FINAL}.BAD")"
+    fi
+  else
+    rm -f "$UP_TMP"
+    log "FAILED: could not archive ${UPLOADS_DIR}"
+  fi
+  UP_DELETED="$(find "$BACKUP_DIR" -maxdepth 1 -name "trustcart_uploads_*.tar.gz" \
+    -type f -mtime "+${RETENTION_DAYS}" -print -delete | wc -l)"
+  [ "$UP_DELETED" -gt 0 ] && log "pruned ${UP_DELETED} uploads archive(s) older than ${RETENTION_DAYS} days"
+else
+  log "uploads dir not found at ${UPLOADS_DIR}; skipping uploads archive"
+fi
+
 log "free space: $(df -h "$BACKUP_DIR" | tail -1 | awk '{print $4}')"
 exit 0
