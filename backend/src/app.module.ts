@@ -205,6 +205,11 @@ import { PresenceModule } from './modules/presence/presence.module';
 
 // Audit Log Module
 import { AuditLogModule } from './modules/audit-log/audit-log.module';
+import { IssuesModule } from './modules/issues/issues.module';
+import { Issue } from './modules/issues/entities/issue.entity';
+import { IssueComment } from './modules/issues/entities/issue-comment.entity';
+import { IssueAttachment } from './modules/issues/entities/issue-attachment.entity';
+import { IssueEvent } from './modules/issues/entities/issue-event.entity';
 
 // Cart Module
 import { CartItem } from './modules/cart/cart-item.entity';
@@ -397,6 +402,8 @@ import { AutomationModule } from './modules/automation/automation.module';
             AutomationRule,
             AutomationOutbox,
             AutomationAudit,
+            // Issues
+            Issue, IssueComment, IssueAttachment, IssueEvent,
           ],
           synchronize: false,
           logging: configService.get<string>('NODE_ENV') === 'development',
@@ -462,6 +469,7 @@ import { AutomationModule } from './modules/automation/automation.module';
     CartModule,
     AuditLogModule,
     AutomationModule,
+    IssuesModule,
   ],
   controllers: [],
   providers: [],
