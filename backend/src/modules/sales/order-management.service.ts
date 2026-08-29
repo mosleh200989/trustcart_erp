@@ -22,6 +22,10 @@ import {
   lookupPathaoEventStatus,
 } from './pathao-status.map';
 import {
+  COURIER_STATUS_HELD_ACTION,
+  isAutoAppliableCourierStatus,
+} from './courier-automation.policy';
+import {
   COURIER_SYNC_ELIGIBLE_STATUSES,
   MANUALLY_SETTABLE_STATUSES,
   NOT_HOLDABLE_STATUSES,
@@ -2374,6 +2378,25 @@ export class OrderManagementService {
       return { status: 'success', message: 'Status unchanged, COD/tracking fields updated' };
     }
 
+    // Same policy as Pathao: terminal, money-affecting outcomes are recorded and
+    // surfaced, never applied by automation. Keeping the two couriers on one rule is
+    // the point — ops cannot predict a system that auto-cancels for one and not the other.
+    if (!isAutoAppliableCourierStatus(newStatus)) {
+      return this.holdCourierStatusForReview({
+        order,
+        courierCompany: 'Steadfast',
+        proposedStatus: newStatus,
+        courierStatusText: this.formatCourierStatusText(newStatus, prevStatus),
+        rawPayload: dto,
+        codAmount: dto.cod_amount ?? null,
+        deliveryCharge: dto.delivery_charge ?? null,
+        consignmentId: dto.consignment_id != null ? String(dto.consignment_id) : null,
+        notificationType: 'delivery_status',
+        reason: dto.tracking_message || null,
+        sourceLabel: 'Steadfast webhook',
+      });
+    }
+
     // Set the single unified status directly from Steadfast
     order.status = newStatus;
 
@@ -3715,6 +3738,82 @@ export class OrderManagementService {
     };
   }
 
+  /**
+   * Record a courier status that automation is not allowed to apply on its own
+   * (cancelled / returned / partial_delivered — see courier-automation.policy.ts).
+   *
+   * Everything except `sales_orders.status` still happens: the courier's own wording
+   * lands in `courier_status` so the UI can show it next to the order status, the raw
+   * payload is kept, and the activity log gets a queryable
+   * `courier_status_held_for_review` entry. The order keeps its current status and so
+   * stays in the operational queues until a human decides.
+   */
+  private async holdCourierStatusForReview(params: {
+    order: SalesOrder;
+    courierCompany: string;
+    proposedStatus: string;
+    courierStatusText: string;
+    rawPayload: any;
+    codAmount?: number | null;
+    deliveryCharge?: number | null;
+    consignmentId?: string | null;
+    notificationType?: string | null;
+    reason?: string | null;
+    sourceLabel: string;
+  }): Promise<{ status: string; message: string }> {
+    const {
+      order, courierCompany, proposedStatus, courierStatusText, rawPayload,
+      codAmount = null, deliveryCharge = null, consignmentId = null,
+      notificationType = null, reason = null, sourceLabel,
+    } = params;
+
+    const currentStatus = order.status;
+
+    // Surface the courier's own wording without moving the order.
+    order.courierStatus = courierStatusText;
+    if (codAmount != null) order.codAmount = codAmount;
+    await this.salesOrderRepository.save(order);
+
+    await this.courierTrackingRepository.save({
+      orderId: order.id,
+      courierCompany,
+      trackingId: order.trackingId,
+      status: courierStatusText,
+      notificationType,
+      codAmount,
+      deliveryCharge,
+      consignmentId,
+      rawPayload,
+      remarks:
+        `${sourceLabel}: "${proposedStatus}" HELD FOR REVIEW — order status left at ` +
+        `"${currentStatus}". Terminal outcomes are not applied automatically.`,
+    });
+
+    await this.logActivity({
+      orderId: order.id,
+      actionType: COURIER_STATUS_HELD_ACTION,
+      actionDescription:
+        `${courierCompany} reported "${proposedStatus}"${reason ? ` — "${reason}"` : ''}. ` +
+        `Not applied automatically; order remains "${currentStatus}" pending review.`,
+      oldValue: { status: currentStatus },
+      newValue: { proposedStatus, courierStatus: courierStatusText, codAmount, deliveryCharge },
+      performedBy: undefined,
+      performedByName: `${courierCompany} (held for review)`,
+    });
+
+    this.logger.log(
+      `[${courierCompany}] Order #${order.id}: "${proposedStatus}" held for review — ` +
+        `status stays "${currentStatus}".`,
+    );
+
+    return {
+      status: 'success',
+      message:
+        `Order #${order.id}: courier reported "${proposedStatus}" — held for review, ` +
+        `status unchanged (${currentStatus})`,
+    };
+  }
+
   private async processPathaoStatusUpdate(
     order: SalesOrder,
     dto: any,
@@ -3795,6 +3894,23 @@ export class OrderManagementService {
         status: 'success',
         message: `Ignored out-of-order event: order #${order.id} is already ${prevStatus}`,
       };
+    }
+
+    // Terminal, money-affecting outcomes (cancelled / returned / partial_delivered) are
+    // recorded and surfaced but never written by automation — a human decides.
+    if (!isAutoAppliableCourierStatus(newStatus)) {
+      return this.holdCourierStatusForReview({
+        order,
+        courierCompany: 'Pathao',
+        proposedStatus: newStatus,
+        courierStatusText,
+        rawPayload: dto,
+        codAmount: numericCodAmount,
+        deliveryCharge: numericDeliveryFee,
+        consignmentId: consignmentId != null ? String(consignmentId) : null,
+        reason: reason ? String(reason) : null,
+        sourceLabel: `Pathao webhook ${event ?? rawStatus}`,
+      });
     }
 
     order.status = newStatus;
@@ -3988,10 +4104,28 @@ export class OrderManagementService {
         const courierStatusText = this.formatCourierStatusText(rawStatus, newStatus);
         order.courierStatus = courierStatusText;
 
-        if (
-          String(order.status || '').trim() !== newStatus.trim() &&
-          !isPathaoStatusRegression(order.status, newStatus)
-        ) {
+        const statusDiffers = String(order.status || '').trim() !== newStatus.trim();
+
+        // The reconciler must honour the same policy as the webhook, or a cancellation
+        // the webhook deliberately held would simply be applied here 30 minutes later.
+        if (statusDiffers && !isPathaoStatusRegression(order.status, newStatus)
+            && !isAutoAppliableCourierStatus(newStatus)) {
+          await this.holdCourierStatusForReview({
+            order,
+            courierCompany: 'Pathao',
+            proposedStatus: newStatus,
+            courierStatusText,
+            rawPayload: info,
+            sourceLabel: 'Pathao polling sync',
+          });
+          await this.touchPathaoLastSyncedAt(order.id);
+          results.processed++;
+          results.synced++;
+          if (this.pathaoSyncDelayMs > 0) await this.sleep(this.pathaoSyncDelayMs);
+          continue;
+        }
+
+        if (statusDiffers && !isPathaoStatusRegression(order.status, newStatus)) {
           const prevStatus = order.status;
           order.status = newStatus;
 
