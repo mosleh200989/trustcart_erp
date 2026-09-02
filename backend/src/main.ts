@@ -83,7 +83,18 @@ async function bootstrap() {
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
+    // X-Automation-Token is the automation panel's unlock header. A custom header
+    // makes the browser send a CORS preflight, and anything missing from this list
+    // is rejected before the request leaves — which surfaces as an opaque
+    // "Network Error" in the UI, not as a CORS message.
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'X-Requested-With',
+      'Accept',
+      'Origin',
+      'X-Automation-Token',
+    ],
   });
 
   // Handle Private Network Access preflight (Chrome's local network access prompt)
