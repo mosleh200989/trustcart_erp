@@ -32,10 +32,11 @@ const EMPTY_DRAFT: Draft = {
   is_active: true,
 };
 
+// No stock placeholder by design: stock is company-internal and must never
+// appear in a customer message.
 const PLACEHOLDERS = [
   '{{product_name}}',
   '{{product_price}}',
-  '{{product_stock}}',
   '{{order_number}}',
   '{{order_status}}',
   '{{customer_name}}',
