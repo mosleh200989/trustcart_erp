@@ -22,6 +22,15 @@ export type AutomationGlobalSettings = {
    * usually what a busy public comment thread wants.
    */
   fallback_action: 'escalate' | 'ignore';
+  /**
+   * Which `products.status` values the bot may quote from.
+   *
+   * Includes `inactive` by default: in this catalogue that means "not listed on
+   * the main site", not "discontinued" — most products carry it, many still have
+   * stock, and ads run against them, so customers ask and the bot must answer.
+   * Narrow this list if a status ever comes to mean genuinely unsellable.
+   */
+  product_statuses: string[];
 };
 
 export type AutomationAiSettings = {
@@ -67,6 +76,7 @@ const DEFAULTS: {
     typing_indicator: true,
     mark_seen: true,
     fallback_action: 'escalate',
+    product_statuses: ['active', 'inactive'],
   },
   ai: {
     enabled: false,

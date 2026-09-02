@@ -210,6 +210,41 @@ export default function AutomationSettingsPage() {
               </select>
             </Field>
 
+            <div className="md:col-span-2">
+              <Field
+                label="Products the bot may quote"
+                hint="“Inactive” here means not listed on the main site, not discontinued — most of the catalogue carries it and much of it still has stock. Untick it only if inactive ever comes to mean genuinely unsellable."
+              >
+                <div className="flex flex-wrap gap-4 pt-1">
+                  {['active', 'inactive'].map((status) => {
+                    const selected = (settings.global.product_statuses || []).includes(status);
+                    return (
+                      <label key={status} className="inline-flex items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 rounded border-slate-300"
+                          disabled={!canManage}
+                          checked={selected}
+                          onChange={(e) => {
+                            const current = new Set(settings.global.product_statuses || []);
+                            if (e.target.checked) current.add(status);
+                            else current.delete(status);
+                            patch('global', { product_statuses: [...current] });
+                          }}
+                        />
+                        <span className="capitalize">{status}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </Field>
+              {(settings.global.product_statuses || []).length === 0 && (
+                <p className="mt-1 text-xs font-medium text-red-600">
+                  Nothing selected — the bot will not be able to quote any product.
+                </p>
+              )}
+            </div>
+
             <Field
               label="Log retention (days)"
               hint="Old events are pruned nightly. 0 keeps everything — the disk will grow."
