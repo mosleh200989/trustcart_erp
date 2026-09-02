@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import * as crypto from 'crypto';
 import { AutomationChannel } from '../entities/automation-channel.entity';
 import { AutomationEvent } from '../entities/automation-event.entity';
 import { AutomationConversation } from '../entities/automation-conversation.entity';
@@ -176,6 +177,23 @@ export class FacebookEventService {
   async processWebhook(body: any, signatureValid: boolean): Promise<void> {
     const events = FacebookEventService.normalize(body);
 
+    this.logger.log(
+      `Webhook received: object=${body?.object ?? 'none'} ` +
+        `entries=${Array.isArray(body?.entry) ? body.entry.length : 0} ` +
+        `normalized=${events.length} signed=${signatureValid} ` +
+        `keys=[${Object.keys(body ?? {}).join(',')}]`,
+    );
+
+    // A body we cannot read must still be visible. Meta's webhook test tool
+    // sends a `{ sample: { field, value } }` shape rather than the usual
+    // `{ object, entry[] }` envelope, and any future contract change would look
+    // the same: 200 returned, nothing stored, nothing logged, and no way to tell
+    // a delivery that arrived and was ignored from one that never arrived.
+    if (events.length === 0) {
+      await this.recordUnparsedDelivery(body, signatureValid);
+      return;
+    }
+
     for (const event of events) {
       try {
         await this.processEvent(event, signatureValid);
@@ -185,6 +203,41 @@ export class FacebookEventService {
           error?.stack,
         );
       }
+    }
+  }
+
+  /**
+   * Stores a delivery we could not turn into any event, so it shows up in the
+   * Events log instead of vanishing. Keyed by a hash of the body plus the
+   * timestamp: identical retries stay distinguishable, which matters when the
+   * question being answered is "did anything actually arrive?".
+   */
+  private async recordUnparsedDelivery(body: any, signatureValid: boolean): Promise<void> {
+    try {
+      const serialized = JSON.stringify(body ?? {});
+      const digest = crypto.createHash('sha1').update(serialized).digest('hex').slice(0, 12);
+
+      await this.eventRepository.save(
+        this.eventRepository.create({
+          channel_id: null,
+          platform: 'facebook',
+          page_id: body?.entry?.[0]?.id ?? null,
+          event_type: 'unparsed',
+          meta_event_id: `unparsed:${Date.now()}:${digest}`,
+          signature_valid: signatureValid,
+          status: 'skipped',
+          skip_reason:
+            'Delivery arrived but matched no known event shape — likely a webhook test payload',
+          payload: body ?? {},
+          processed_at: new Date(),
+        }),
+      );
+
+      this.logger.warn(
+        'Webhook delivery could not be parsed into any event; recorded as "unparsed" so it is visible in Events.',
+      );
+    } catch (error: any) {
+      this.logger.error(`Could not record unparsed delivery: ${error?.message}`);
     }
   }
 

@@ -144,6 +144,26 @@ describe('FacebookEventService.normalize', () => {
     expect(FacebookEventService.normalize({ entry: [{ id: PAGE_ID }] })).toEqual([]);
   });
 
+  it("yields nothing for Meta's webhook test payload, which has no entry[] envelope", () => {
+    // The App Dashboard "Test" button posts this shape rather than the real
+    // envelope. It must produce zero events — and because zero events used to
+    // mean nothing was stored at all, the delivery was invisible. The service
+    // now records an `unparsed` row for exactly this case.
+    const events = FacebookEventService.normalize({
+      sample: {
+        field: 'messages',
+        value: {
+          sender: { id: '12334' },
+          recipient: { id: '23245' },
+          timestamp: '1527459824',
+          message: { mid: 'test_message_id', text: 'test_message' },
+        },
+      },
+    });
+
+    expect(events).toEqual([]);
+  });
+
   it('ignores page-feed activity that is not a comment or reaction', () => {
     const events = FacebookEventService.normalize({
       object: 'page',
