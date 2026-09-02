@@ -98,6 +98,7 @@ export default function AutomationEventsPage() {
             <option value="message_echo">Message echo</option>
             <option value="postback">Postback</option>
             <option value="reaction">Reaction</option>
+            <option value="unparsed">Unparsed delivery</option>
           </select>
 
           <div className="flex items-center justify-end gap-2 text-sm text-slate-600">
