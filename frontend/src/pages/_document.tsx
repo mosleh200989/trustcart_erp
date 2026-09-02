@@ -7,6 +7,7 @@ const ARABIAN_KHALTA_GTM_ID = 'GTM-KVLD23CH';
 const ARABIAN_KHALTA_PIXEL_ID = ['227057045377', '2206'].join('');
 const VESHOJ_PIXEL_ID = ['339637066199', '40423'].join('');
 const NATURAL_GLOWRA_PIXEL_ID = ['161357191048', '7102'].join('');
+const HANDSOME_MAN_PIXEL_ID = '1400043995434164';
 
 declare global {
   interface Window {
@@ -25,6 +26,7 @@ interface TrustCartDocumentProps extends DocumentInitialProps {
   isNaturalGlowraSurface: boolean;
   isDedicatedPixelHost: boolean;
   isStorefrontHost: boolean;
+  isHandsomeManSurface: boolean;
 }
 
 /**
@@ -39,6 +41,19 @@ const STOREFRONT_HOSTS = new Set([
 function isStorefrontDocumentHost(ctx: DocumentContext) {
   const host = String(ctx.req?.headers.host || '').split(':')[0].toLowerCase();
   return STOREFRONT_HOSTS.has(host);
+}
+
+/**
+ * Handsome Man runs its own Meta pixel, emitted here rather than only from the
+ * storefronts table: the DB-driven snippet in HMLayout initialises after
+ * hydration, which Meta's Pixel Helper and the noscript fallback both miss.
+ * HMLayout skips its own init once this one has defined `fbq`.
+ */
+const HANDSOME_MAN_HOSTS = new Set(['handsomemanbd.com', 'www.handsomemanbd.com']);
+
+function isHandsomeManDocumentSurface(ctx: DocumentContext) {
+  const host = String(ctx.req?.headers.host || '').split(':')[0].toLowerCase();
+  return HANDSOME_MAN_HOSTS.has(host);
 }
 
 function isArabianKhaltaDocumentSurface(ctx: DocumentContext) {
@@ -94,6 +109,7 @@ export default function Document({
   isNaturalGlowraSurface,
   isDedicatedPixelHost,
   isStorefrontHost,
+  isHandsomeManSurface,
 }: TrustCartDocumentProps) {
   return (
     <Html lang="en">
@@ -408,6 +424,29 @@ export default function Document({
         />
         </>
         )}
+        {/* Meta Pixel - Handsome Man only. Emitted server-side for this host
+            alone, so the id never appears in source on any other domain. */}
+        {isHandsomeManSurface && (
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(w,d){
+              !function(f,b,e,v,n,t,s)
+              {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+              n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+              if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+              n.queue=[];t=b.createElement(e);t.async=!0;
+              t.src=v;s=b.getElementsByTagName(e)[0];
+              s.parentNode.insertBefore(t,s)}(w, d,'script',
+              'https://connect.facebook.net/en_US/fbevents.js');
+              w.fbq('init', '${HANDSOME_MAN_PIXEL_ID}');
+              w.fbq('track', 'PageView');
+              w.__landingPagePixelsInitialized = w.__landingPagePixelsInitialized || {};
+              w.__landingPagePixelsInitialized['${HANDSOME_MAN_PIXEL_ID}'] = true;
+            })(window, document);`,
+          }}
+        />
+        )}
+        {/* End Meta Pixel - Handsome Man only */}
       </Head>
       <body>
         {isArabianKhaltaSurface && (
@@ -444,6 +483,17 @@ export default function Document({
             />
           </noscript>
         )}
+        {isHandsomeManSurface && (
+          <noscript>
+            <img
+              height="1"
+              width="1"
+              style={{ display: 'none' }}
+              src={`https://www.facebook.com/tr?id=${HANDSOME_MAN_PIXEL_ID}&ev=PageView&noscript=1`}
+              alt=""
+            />
+          </noscript>
+        )}
         {isNaturalGlowraSurface && (
           <noscript>
             <img
@@ -474,5 +524,6 @@ Document.getInitialProps = async (ctx: DocumentContext): Promise<TrustCartDocume
     isNaturalGlowraSurface: isNaturalGlowraDocumentSurface(ctx),
     isDedicatedPixelHost: isDedicatedPixelDocumentHost(ctx),
     isStorefrontHost: isStorefrontDocumentHost(ctx),
+    isHandsomeManSurface: isHandsomeManDocumentSurface(ctx),
   };
 };

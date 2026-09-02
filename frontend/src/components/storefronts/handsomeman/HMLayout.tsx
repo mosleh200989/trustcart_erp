@@ -100,7 +100,9 @@ export default function HMLayout({
     return () => router.events.off('routeChangeComplete', done);
   }, [router.events]);
 
-  // Meta Pixel — injected from the storefront's DB config
+  // Meta Pixel — injected from the storefront's DB config. On handsomemanbd.com
+  // _document already initialises the brand pixel server-side, so this only runs
+  // on hosts that reach the storefront without that snippet (e.g. /hm previews).
   useEffect(() => {
     const pixelId = cfg?.meta_pixel_id;
     if (!pixelId || typeof window === 'undefined') return;
