@@ -13,6 +13,8 @@ import { AutomationSettingsService } from './automation-settings.service';
 export const AUTOMATION_TOKEN_SCOPE = 'automation-panel';
 
 export type AutomationGateStatus = {
+  /** False when the panel password is switched off — the frontend skips the gate. */
+  required: boolean;
   configured: boolean;
   locked: boolean;
   locked_until: string | null;
@@ -44,11 +46,15 @@ export class AutomationGateService {
   constructor(private readonly settings: AutomationSettingsService) {}
 
   async status(): Promise<AutomationGateStatus> {
-    const gate = await this.settings.getGate();
+    const [gate, global] = await Promise.all([
+      this.settings.getGate(),
+      this.settings.getGlobal(),
+    ]);
     const lockedUntil = gate.locked_until ? new Date(gate.locked_until) : null;
     const locked = Boolean(lockedUntil && lockedUntil.getTime() > Date.now());
 
     return {
+      required: Boolean(global.require_panel_password),
       configured: Boolean(gate.password_hash),
       locked,
       locked_until: locked ? lockedUntil!.toISOString() : null,

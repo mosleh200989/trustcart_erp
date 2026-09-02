@@ -31,6 +31,15 @@ export type AutomationGlobalSettings = {
    * Narrow this list if a status ever comes to mean genuinely unsellable.
    */
   product_statuses: string[];
+  /**
+   * Whether the panel asks for its own password on top of the admin login.
+   *
+   * Off by default. The panel is already behind the admin login and the
+   * `view-automation` permission; the extra password is a re-authentication step
+   * for teams who want one, not a load-bearing control. Turn it on in Settings
+   * if you want an unattended admin session to be insufficient here.
+   */
+  require_panel_password: boolean;
 };
 
 export type AutomationAiSettings = {
@@ -77,6 +86,7 @@ const DEFAULTS: {
     mark_seen: true,
     fallback_action: 'escalate',
     product_statuses: ['active', 'inactive'],
+    require_panel_password: false,
   },
   ai: {
     enabled: false,

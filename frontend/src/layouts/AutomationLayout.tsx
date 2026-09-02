@@ -66,7 +66,12 @@ export default function AutomationLayout({
   const { user, isLoading, isAuthenticated, hasPermission } = useAuth();
 
   const [gate, setGate] = useState<GateState>('checking');
-  const [status, setStatus] = useState<{ locked: boolean; locked_until: string | null; attempts_remaining: number } | null>(null);
+  const [status, setStatus] = useState<{
+    required: boolean;
+    locked: boolean;
+    locked_until: string | null;
+    attempts_remaining: number;
+  } | null>(null);
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -79,6 +84,13 @@ export default function AutomationLayout({
       const next = await automationGate.status();
       setStatus(next);
 
+      // The panel password is optional. When it is switched off the admin login
+      // and the view-automation permission are the access control, so there is
+      // no second screen to show.
+      if (!next.required) {
+        setGate('unlocked');
+        return;
+      }
       if (!next.configured) {
         setGate('setup');
         return;
@@ -131,8 +143,16 @@ export default function AutomationLayout({
       window.dispatchEvent(new Event(AUTOMATION_UNLOCKED_EVENT));
       toast.success('Automation panel unlocked');
     } catch (error: any) {
-      const message = error?.response?.data?.message || 'Incorrect password';
-      toast.error(typeof message === 'string' ? message : 'Incorrect password');
+      // Distinguish a rejected password from a request that never arrived —
+      // reporting a network or CORS failure as "incorrect password" sends you
+      // hunting for the wrong problem.
+      if (!error?.response) {
+        toast.error('Could not reach the server. Check your connection and try again.');
+      } else {
+        const message = error.response.data?.message;
+        const text = Array.isArray(message) ? message.join(', ') : message;
+        toast.error(typeof text === 'string' && text ? text : 'Incorrect password');
+      }
       await refreshGate();
     } finally {
       setSubmitting(false);
@@ -324,13 +344,16 @@ export default function AutomationLayout({
           </div>
 
           <div className="ml-auto flex items-center gap-2">
-            <button
-              onClick={handleLock}
-              className="inline-flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-200 transition hover:bg-slate-700"
-              title="Lock the panel now"
-            >
-              <FaUnlock /> Lock
-            </button>
+            {/* Only meaningful while the panel password is switched on. */}
+            {status?.required && (
+              <button
+                onClick={handleLock}
+                className="inline-flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-200 transition hover:bg-slate-700"
+                title="Lock the panel now"
+              >
+                <FaUnlock /> Lock
+              </button>
+            )}
           </div>
         </div>
 
