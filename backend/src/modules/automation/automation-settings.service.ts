@@ -56,6 +56,17 @@ export type AutomationGlobalSettings = {
 
 export type AutomationAiSettings = {
   enabled: boolean;
+  /** anthropic | openai | gemini | xai | custom. Claude is the default. */
+  provider: string;
+  /** Only for `custom`, or to point a hosted provider at a proxy. */
+  base_url: string | null;
+  /**
+   * API key entered through the panel. Never returned by the API. Falls back to
+   * the provider's environment variable when empty.
+   */
+  api_key: string | null;
+  /** Ask the provider to guarantee JSON. Turn off if yours rejects the field. */
+  json_mode: boolean;
   model: string;
   effort: 'low' | 'medium' | 'high' | 'xhigh' | 'max';
   max_tokens: number;
@@ -106,6 +117,10 @@ const DEFAULTS: {
   },
   ai: {
     enabled: false,
+    provider: 'anthropic',
+    base_url: null,
+    api_key: null,
+    json_mode: true,
     model: 'claude-opus-5',
     effort: 'low',
     max_tokens: 1024,
@@ -227,9 +242,12 @@ export class AutomationSettingsService {
     ]);
 
     const { password_hash, ...safeGate } = gate;
+    // The provider key is write-only, exactly like the panel password hash and
+    // the page access token: it goes in through a form and never comes back out.
+    const { api_key, ...safeAi } = ai;
     return {
       global,
-      ai,
+      ai: { ...safeAi, api_key_set: Boolean(api_key) } as any,
       escalation,
       gate: { ...safeGate, password_set: Boolean(password_hash) },
     };

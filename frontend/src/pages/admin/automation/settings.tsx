@@ -16,6 +16,23 @@ import {
   inputClass,
 } from '@/components/automation/AutomationUI';
 
+/** Shown under the model field so the expected format is obvious per provider. */
+const PROVIDER_HINTS: Record<string, string> = {
+  anthropic: 'e.g. claude-opus-5, claude-sonnet-5',
+  openai: 'e.g. gpt-4o, gpt-4o-mini',
+  gemini: 'e.g. gemini-2.0-flash, gemini-1.5-pro',
+  xai: 'e.g. grok-2-latest',
+  custom: "Whatever model name your endpoint expects",
+};
+
+const PROVIDER_DEFAULT_MODEL: Record<string, string> = {
+  anthropic: 'claude-opus-5',
+  openai: 'gpt-4o',
+  gemini: 'gemini-2.0-flash',
+  xai: 'grok-2-latest',
+  custom: '',
+};
+
 /** Every knob in one place: global behaviour, the AI layer, escalation, the password. */
 export default function AutomationSettingsPage() {
   const toast = useToast();
@@ -353,14 +370,80 @@ export default function AutomationSettingsPage() {
               disabled={!canManage}
             />
 
-            <Field label="Model">
+            <Field
+              label="Provider"
+              hint="Switching provider? Clear the model field to get that provider's default."
+            >
+              <select
+                className={inputClass}
+                disabled={!canManage}
+                value={settings.ai.provider || 'anthropic'}
+                onChange={(e) => patch('ai', { provider: e.target.value })}
+              >
+                <option value="anthropic">Anthropic (Claude)</option>
+                <option value="openai">OpenAI</option>
+                <option value="gemini">Google Gemini</option>
+                <option value="xai">xAI (Grok)</option>
+                <option value="custom">Other OpenAI-compatible endpoint</option>
+              </select>
+            </Field>
+
+            <Field
+              label="Model"
+              hint={
+                PROVIDER_HINTS[settings.ai.provider || 'anthropic'] ??
+                'Leave blank to use the default'
+              }
+            >
               <input
                 className={inputClass}
                 disabled={!canManage}
                 value={settings.ai.model}
                 onChange={(e) => patch('ai', { model: e.target.value })}
+                placeholder={PROVIDER_DEFAULT_MODEL[settings.ai.provider || 'anthropic'] ?? ''}
               />
             </Field>
+
+            <Field
+              label="API key"
+              hint={
+                settings.ai.api_key_set
+                  ? 'A key is saved. Leave blank to keep it; type a new one to replace it.'
+                  : 'Paste a key, or set the provider environment variable on the server.'
+              }
+            >
+              <input
+                type="password"
+                className={inputClass}
+                disabled={!canManage}
+                value={settings.ai.api_key ?? ''}
+                onChange={(e) => patch('ai', { api_key: e.target.value })}
+                placeholder={settings.ai.api_key_set ? '•••••••• (saved)' : ''}
+              />
+            </Field>
+
+            {(settings.ai.provider === 'custom' || settings.ai.provider === 'openai') && (
+              <Field
+                label="Base URL"
+                hint="Required for a custom endpoint. Groq, Together, OpenRouter and a local Ollama all work here."
+              >
+                <input
+                  className={inputClass}
+                  disabled={!canManage}
+                  value={settings.ai.base_url ?? ''}
+                  onChange={(e) => patch('ai', { base_url: e.target.value })}
+                  placeholder="https://api.openai.com/v1"
+                />
+              </Field>
+            )}
+
+            <Check
+              label="Ask the provider to return strict JSON"
+              hint="Improves reliability. Turn off if your endpoint rejects the response_format field."
+              checked={settings.ai.json_mode !== false}
+              onChange={(v) => patch('ai', { json_mode: v })}
+              disabled={!canManage}
+            />
 
             <Field label="Effort" hint="Lower is cheaper and faster; short replies rarely need more.">
               <select

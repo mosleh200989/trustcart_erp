@@ -93,7 +93,18 @@ export class AutomationController {
 
     const actor = this.actor(request);
     const before = await this.settings.getAll();
-    const updated = await this.settings.update(section, dto.patch, actor.id);
+
+    const patch: Record<string, any> = { ...dto.patch };
+    if (section === 'ai') {
+      // The key field comes back blank because it is never sent to the browser.
+      // Blank therefore means "leave it alone", never "erase it" — the same rule
+      // as the channel access token field.
+      if (!String(patch.api_key ?? '').trim()) delete patch.api_key;
+      // Read-only flag the panel echoes back; not a stored setting.
+      delete patch.api_key_set;
+    }
+
+    const updated = await this.settings.update(section, patch, actor.id);
 
     await this.audit.record(
       actor,
