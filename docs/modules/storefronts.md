@@ -12,7 +12,7 @@ that sells products from the shared TrustCart inventory. First storefront:
 | Products | Picked from inventory via `storefront_products` join table. `product_id` always required. |
 | Prices | No per-storefront override — TrustCart's `base_price`/`sale_price` shown as-is. |
 | Categories | Per-storefront `storefront_categories` table. Main `categories` table untouched. |
-| Meta pixel / CAPI | Per-storefront columns on `storefronts` (pixel id, CAPI token, test code). CAPI reads them in `MetaCapiService.getStorefrontPixelConfig()`. |
+| Meta pixel / CAPI | Per-storefront columns on `storefronts` (pixel id, CAPI token, test code). CAPI reads them in `MetaCapiService.getStorefrontPixelConfig()`. The **browser** pixel for a live storefront domain is emitted server-side in `_document.tsx` (Handsome Man = `1400043995434164`) so Pixel Helper and the noscript fallback both see it; `HMLayout`'s DB-driven init only runs where that snippet is absent. |
 | Frontend | Same Next.js app. Hand-coded template per storefront (like landing page templates). HM lives in `frontend/src/pages/hm/` + `frontend/src/components/storefronts/handsomeman/`. |
 | Routing | `frontend/src/middleware.ts` maps the domain to the `/hm/*` page tree with clean URLs. |
 
@@ -132,5 +132,5 @@ duplicate/toggle/delete, per-page delivery charges, phone/WhatsApp buttons.
 1. Create the row in `/admin/storefronts` (slug becomes the `order_source`).
 2. Hand-code a template: new folder under `frontend/src/components/storefronts/<slug>/` and pages under `frontend/src/pages/<prefix>/`.
 3. Map the domain in `frontend/src/middleware.ts` (`STOREFRONT_DOMAINS`).
-4. Add the domain to backend CORS (`backend/src/main.ts`) and `DEDICATED_PIXEL_HOSTS` (`frontend/src/pages/_document.tsx`).
+4. Add the domain to backend CORS (`backend/src/main.ts`) and `DEDICATED_PIXEL_HOSTS` (`frontend/src/pages/_document.tsx`); add its own host-gated pixel block in `_document.tsx` too, the way Handsome Man does.
 5. nginx conf + DNS + certbot (copy `nginx/handsomemanbd.conf`).
