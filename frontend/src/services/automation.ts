@@ -237,6 +237,10 @@ export type AutomationSettings = {
     fallback_action: 'escalate' | 'ignore';
     product_statuses: string[];
     require_panel_password: boolean;
+    reply_delay_enabled: boolean;
+    reply_delay_ms_per_char: number;
+    reply_delay_min_ms: number;
+    reply_delay_max_ms: number;
   };
   ai: {
     enabled: boolean;

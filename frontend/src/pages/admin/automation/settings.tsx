@@ -252,6 +252,71 @@ export default function AutomationSettingsPage() {
               )}
             </div>
 
+            <div className="md:col-span-2 rounded-lg border border-slate-200 p-3">
+              <Check
+                label="Pace replies like a human"
+                hint="Replying the instant a message arrives is the clearest sign a bot is answering. The reply is worked out immediately but held before sending, scaled by how long it would take to type."
+                checked={settings.global.reply_delay_enabled}
+                onChange={(v) => patch('global', { reply_delay_enabled: v })}
+                disabled={!canManage}
+              />
+              {settings.global.reply_delay_enabled && (
+                <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                  <Field label="Milliseconds per character" hint="80 ≈ a fast typist">
+                    <input
+                      type="number"
+                      min={0}
+                      className={inputClass}
+                      disabled={!canManage}
+                      value={settings.global.reply_delay_ms_per_char}
+                      onChange={(e) =>
+                        patch('global', { reply_delay_ms_per_char: Number(e.target.value) })
+                      }
+                    />
+                  </Field>
+                  <Field label="Minimum wait (ms)" hint="Floor for very short replies">
+                    <input
+                      type="number"
+                      min={0}
+                      className={inputClass}
+                      disabled={!canManage}
+                      value={settings.global.reply_delay_min_ms}
+                      onChange={(e) =>
+                        patch('global', { reply_delay_min_ms: Number(e.target.value) })
+                      }
+                    />
+                  </Field>
+                  <Field label="Maximum wait (ms)" hint="Ceiling for long replies">
+                    <input
+                      type="number"
+                      min={0}
+                      className={inputClass}
+                      disabled={!canManage}
+                      value={settings.global.reply_delay_max_ms}
+                      onChange={(e) =>
+                        patch('global', { reply_delay_max_ms: Number(e.target.value) })
+                      }
+                    />
+                  </Field>
+                </div>
+              )}
+              {settings.global.reply_delay_enabled && (
+                <p className="mt-2 text-xs text-slate-500">
+                  A {120}-character reply would be held about{' '}
+                  {(
+                    Math.min(
+                      Math.max(
+                        120 * (settings.global.reply_delay_ms_per_char || 0),
+                        settings.global.reply_delay_min_ms || 0,
+                      ),
+                      settings.global.reply_delay_max_ms || Number.MAX_SAFE_INTEGER,
+                    ) / 1000
+                  ).toFixed(1)}
+                  s before sending.
+                </p>
+              )}
+            </div>
+
             <Field
               label="Log retention (days)"
               hint="Old events are pruned nightly. 0 keeps everything — the disk will grow."

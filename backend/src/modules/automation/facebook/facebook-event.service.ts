@@ -388,24 +388,6 @@ export class FacebookEventService {
       return;
     }
 
-    // Only in live mode. A typing bubble is visible to the customer, so queuing
-    // it in shadow mode broke shadow mode's one promise — that nothing reaches
-    // anyone. It also fired before the decision, so it appeared even for
-    // messages the bot then declined to answer.
-    if (
-      channel.mode === 'live' &&
-      global.typing_indicator &&
-      event.threadType === 'message' &&
-      event.psid
-    ) {
-      void this.outbox.enqueue({
-        channelId: channel.id,
-        action: 'sender_action',
-        payload: { psid: event.psid, sender_action: 'typing_on' },
-        conversationId: conversation.id,
-      });
-    }
-
     const history = await this.loadHistory(conversation.id);
     const decision = await this.replyBrain.decide({
       channel,
@@ -668,12 +650,28 @@ export class FacebookEventService {
     }
 
     if (event.threadType === 'message' && event.psid) {
+      const global = await this.settings.getGlobal();
+      const delayMs = FacebookOutboxService.computeDelayMs(body, global);
+
+      // Show the typing bubble now and send when the "typing" would plausibly
+      // have finished. Replying the instant a message lands is the clearest
+      // tell that a machine is answering.
+      if (global.typing_indicator && delayMs > 0) {
+        await this.outbox.enqueue({
+          channelId: channel.id,
+          action: 'sender_action',
+          payload: { psid: event.psid, sender_action: 'typing_on' },
+          conversationId: conversation.id,
+        });
+      }
+
       await this.outbox.enqueue({
         channelId: channel.id,
         action: 'send_message',
         payload: { psid: event.psid, message: body },
         conversationId: conversation.id,
         messageId: message.id,
+        delayMs,
       });
     }
   }

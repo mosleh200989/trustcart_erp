@@ -43,7 +43,34 @@ export class FacebookOutboxService {
   ) {}
 
   /**
-   * Queues an action and attempts it right away.
+   * Computes how long a reply should be held before sending.
+   *
+   * Static and pure so the pacing can be reasoned about and tested without a
+   * database. Scaled by length, then clamped: the floor stops a two-word answer
+   * arriving instantly, the ceiling stops a long one leaving someone waiting.
+   */
+  static computeDelayMs(
+    text: string,
+    settings: {
+      reply_delay_enabled?: boolean;
+      reply_delay_ms_per_char?: number;
+      reply_delay_min_ms?: number;
+      reply_delay_max_ms?: number;
+    },
+  ): number {
+    if (!settings?.reply_delay_enabled) return 0;
+
+    const perChar = Math.max(Number(settings.reply_delay_ms_per_char) || 0, 0);
+    const min = Math.max(Number(settings.reply_delay_min_ms) || 0, 0);
+    const max = Math.max(Number(settings.reply_delay_max_ms) || 0, 0);
+
+    const scaled = String(text ?? '').length * perChar;
+    const floored = Math.max(scaled, min);
+    return max > 0 ? Math.min(floored, max) : floored;
+  }
+
+  /**
+   * Queues an action and attempts it, immediately or after `delayMs`.
    * Returns the row; callers do not need to await the send itself.
    */
   async enqueue(input: {
@@ -53,7 +80,11 @@ export class FacebookOutboxService {
     conversationId?: number | null;
     messageId?: number | null;
     sendNow?: boolean;
+    /** Hold this long before dispatching. The row is durable either way. */
+    delayMs?: number;
   }): Promise<AutomationOutbox> {
+    const delayMs = Math.max(Number(input.delayMs) || 0, 0);
+
     const row = await this.outboxRepository.save(
       this.outboxRepository.create({
         channel_id: input.channelId,
@@ -64,15 +95,25 @@ export class FacebookOutboxService {
         status: 'pending',
         attempts: 0,
         max_attempts: BACKOFF_MINUTES.length,
-        next_attempt_at: new Date(),
+        // The due time is stored, not just held in a timer, so a restart during
+        // the wait loses nothing — the sweep picks the row up instead.
+        next_attempt_at: new Date(Date.now() + delayMs),
       }),
     );
 
     if (input.sendNow !== false) {
       // Fire and forget: the caller has already answered Meta with 200.
-      void this.attempt(row).catch((error) =>
-        this.logger.error(`Outbox ${row.id} attempt failed: ${error?.message}`),
-      );
+      const run = () =>
+        void this.attempt(row).catch((error) =>
+          this.logger.error(`Outbox ${row.id} attempt failed: ${error?.message}`),
+        );
+
+      if (delayMs > 0) {
+        this.logger.log(`Outbox ${row.id} (${row.action}) held for ${delayMs}ms before sending`);
+        setTimeout(run, delayMs);
+      } else {
+        run();
+      }
     }
 
     return row;
@@ -84,6 +125,23 @@ export class FacebookOutboxService {
     const global = await this.settings.getGlobal();
     if (global.kill_switch) {
       this.logger.warn(`Outbox ${row.id} held: kill switch is engaged`);
+      return;
+    }
+
+    // Claim the row before doing anything. A held reply has both a timer and
+    // the sweep watching it, and they can fire together at exactly the due
+    // moment — without this, the customer gets the same message twice. The
+    // conditional update is the lock: whoever flips it first wins, and pushing
+    // the due time forward keeps the sweep off it while the send is in flight.
+    const claim = await this.outboxRepository
+      .createQueryBuilder()
+      .update(AutomationOutbox)
+      .set({ next_attempt_at: new Date(Date.now() + 5 * 60000) })
+      .where('id = :id AND status = :status', { id: row.id, status: 'pending' })
+      .execute();
+
+    if (!claim.affected) {
+      this.logger.debug(`Outbox ${row.id} already claimed or no longer pending; skipping.`);
       return;
     }
 
@@ -200,8 +258,12 @@ export class FacebookOutboxService {
     await this.outboxRepository.save(row);
   }
 
-  /** Retries everything that is due. Overlap-guarded so a slow run cannot stack. */
-  @Cron(CronExpression.EVERY_MINUTE)
+  /**
+   * Retries everything that is due, and is the safety net for held replies:
+   * if the process restarts mid-wait the in-memory timer is gone, but the row
+   * carries its own due time, so this picks it up. Overlap-guarded.
+   */
+  @Cron(CronExpression.EVERY_30_SECONDS)
   async sweep(): Promise<void> {
     if (this.sweepRunning) return;
     this.sweepRunning = true;
