@@ -225,6 +225,31 @@ export type AutomationAuditRow = {
   created_at: string;
 };
 
+export type AutomationImportRun = {
+  id: number;
+  channel_id: number;
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
+  since: string | null;
+  threads_imported: number;
+  messages_imported: number;
+  pages_fetched: number;
+  error: string | null;
+  started_at: string | null;
+  finished_at: string | null;
+  created_at: string;
+};
+
+export type AutomationHistoryMessage = {
+  id: number;
+  thread_id: number;
+  channel_id: number;
+  direction: 'inbound' | 'outbound';
+  text: string | null;
+  masked_counts: Record<string, number>;
+  is_example: boolean;
+  sent_at: string | null;
+};
+
 export type AutomationSettings = {
   global: {
     enabled: boolean;
@@ -460,6 +485,41 @@ export const automation = {
   },
   async cancelOutbox(id: number) {
     const res = await automationClient.post(`/automation/outbox/${id}/cancel`);
+    return res.data;
+  },
+
+  async startImport(channelId: number, sinceDays: number): Promise<AutomationImportRun> {
+    const res = await automationClient.post('/automation/import/start', {
+      channel_id: channelId,
+      since_days: sinceDays,
+    });
+    return res.data;
+  },
+  async listImportRuns(channelId?: number): Promise<AutomationImportRun[]> {
+    const res = await automationClient.get('/automation/import/runs', {
+      params: channelId ? { channel_id: channelId } : undefined,
+    });
+    return Array.isArray(res.data) ? res.data : [];
+  },
+  async cancelImport(id: number) {
+    const res = await automationClient.post(`/automation/import/runs/${id}/cancel`);
+    return res.data;
+  },
+  async historyStats(): Promise<Record<string, number>> {
+    const res = await automationClient.get('/automation/history/stats');
+    return res.data;
+  },
+  async listHistoryMessages(params: Record<string, any> = {}): Promise<{
+    rows: AutomationHistoryMessage[];
+    total: number;
+  }> {
+    const res = await automationClient.get('/automation/history/messages', { params });
+    return res.data;
+  },
+  async setHistoryExample(id: number, isExample: boolean) {
+    const res = await automationClient.put(`/automation/history/messages/${id}/example`, {
+      is_example: isExample,
+    });
     return res.data;
   },
 

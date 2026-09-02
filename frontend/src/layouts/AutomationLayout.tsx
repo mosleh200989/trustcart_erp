@@ -6,6 +6,7 @@ import {
   FaBolt,
   FaClipboardList,
   FaComments,
+  FaDownload,
   FaHistory,
   FaInbox,
   FaLock,
@@ -33,6 +34,7 @@ const NAV: NavItem[] = [
   { title: 'Inbox', path: '/admin/automation/inbox', icon: FaInbox },
   { title: 'Events', path: '/admin/automation/events', icon: FaComments },
   { title: 'Outbox', path: '/admin/automation/outbox', icon: FaPaperPlane },
+  { title: 'History import', path: '/admin/automation/import', icon: FaDownload },
   { title: 'Settings', path: '/admin/automation/settings', icon: FaSlidersH },
   { title: 'History', path: '/admin/automation/audit', icon: FaHistory },
 ];
