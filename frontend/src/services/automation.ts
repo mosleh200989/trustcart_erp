@@ -235,6 +235,7 @@ export type AutomationSettings = {
     typing_indicator: boolean;
     mark_seen: boolean;
     fallback_action: 'escalate' | 'ignore';
+    product_statuses: string[];
   };
   ai: {
     enabled: boolean;

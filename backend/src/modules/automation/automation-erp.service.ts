@@ -5,6 +5,7 @@ import { Product } from '../products/product.entity';
 import { SalesOrder } from '../sales/sales-order.entity';
 import { StorefrontProduct } from '../storefronts/storefront-product.entity';
 import { Customer } from '../customers/customer.entity';
+import { AutomationSettingsService } from './automation-settings.service';
 
 export type ProductFact = {
   id: number;
@@ -62,6 +63,7 @@ export class AutomationErpService {
     private readonly storefrontProductRepository: Repository<StorefrontProduct>,
     @InjectRepository(Customer)
     private readonly customerRepository: Repository<Customer>,
+    private readonly settings: AutomationSettingsService,
   ) {}
 
   /** Order numbers the customer typed, e.g. `SO-1720000000-4821` or a bare 6+ digit run. */
@@ -114,6 +116,14 @@ export class AutomationErpService {
 
   /**
    * Products the message might be about.
+   *
+   * Which catalogue statuses count is a setting, not a constant. `inactive` here
+   * means "not listed on the main site", not "discontinued" — most of the
+   * catalogue carries it and much of that still has stock, and ads run against
+   * those products, so customers ask about them and the bot has to answer.
+   * A product with no stock is still found; it is reported as out of stock,
+   * which is the distinction a customer actually cares about.
+   *
    * When the channel belongs to a storefront, only that brand's published
    * products are considered — a Handsome Man page must never quote a
    * TrustCart-only grocery item.
@@ -122,10 +132,14 @@ export class AutomationErpService {
     const tokens = AutomationErpService.tokenize(text);
     if (tokens.length === 0) return [];
 
+    const { product_statuses: statuses } = await this.settings.getGlobal();
+    const allowedStatuses =
+      Array.isArray(statuses) && statuses.length > 0 ? statuses : ['active', 'inactive'];
+
     try {
       const query = this.productRepository
         .createQueryBuilder('p')
-        .where('p.status = :status', { status: 'active' })
+        .where('p.status IN (:...statuses)', { statuses: allowedStatuses })
         .take(5);
 
       query.andWhere(
@@ -141,7 +155,17 @@ export class AutomationErpService {
           select: ['product_id'],
         });
         const ids = scoped.map((row) => row.product_id);
-        if (ids.length === 0) return [];
+        if (ids.length === 0) {
+          // Loud, because it is silent otherwise: a channel pointed at a
+          // storefront with nothing published can never quote any product, and
+          // the symptom is just "the bot keeps escalating".
+          this.logger.warn(
+            `Storefront ${storefrontId} has no published products — product lookup will ` +
+              'return nothing for this channel. Publish products to it, or clear the ' +
+              "channel's storefront so it searches the whole catalogue.",
+          );
+          return [];
+        }
         query.andWhere('p.id IN (:...ids)', { ids });
       }
 
