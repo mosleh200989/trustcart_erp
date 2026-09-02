@@ -36,7 +36,7 @@ const NAV: NavItem[] = [
   { title: 'History', path: '/admin/automation/audit', icon: FaHistory },
 ];
 
-type GateState = 'checking' | 'setup' | 'locked' | 'unlocked';
+type GateState = 'checking' | 'setup' | 'locked' | 'unlocked' | 'unreachable';
 
 /**
  * Shell for the Automation sub-panel.
@@ -97,7 +97,11 @@ export default function AutomationLayout({
       }
       setGate(getAutomationToken() ? 'unlocked' : 'locked');
     } catch {
-      setGate('locked');
+      // Do not fall back to the password screen. If the status call itself
+      // failed we do not know whether a password is even required, and showing
+      // a prompt turns a connection problem into an unanswerable one — the user
+      // types a correct password forever and it never reaches the server.
+      setGate('unreachable');
     }
   }, []);
 
@@ -212,6 +216,33 @@ export default function AutomationLayout({
           Your role does not include the <code className="text-amber-300">view-automation</code>{' '}
           permission. Ask an administrator to grant it on the Roles &amp; Permissions page.
         </p>
+        <BackToAdmin />
+      </GateShell>
+    );
+  }
+
+  if (gate === 'unreachable') {
+    return (
+      <GateShell>
+        <h1 className="text-xl font-bold text-white">Cannot reach the server</h1>
+        <p className="mt-2 text-sm text-slate-400">
+          The panel loaded but its API calls are not getting through. This is a connection
+          problem, not a password problem.
+        </p>
+        <ul className="mt-3 list-disc space-y-1 pl-5 text-xs text-slate-500">
+          <li>Check whether an ad blocker or privacy extension is blocking the API domain</li>
+          <li>Confirm the backend is running</li>
+          <li>Look for a CORS error in the browser console</li>
+        </ul>
+        <button
+          onClick={() => {
+            setGate('checking');
+            refreshGate();
+          }}
+          className="mt-5 w-full rounded-lg bg-amber-500 px-4 py-2.5 text-sm font-semibold text-slate-900 transition hover:bg-amber-400"
+        >
+          Try again
+        </button>
         <BackToAdmin />
       </GateShell>
     );
