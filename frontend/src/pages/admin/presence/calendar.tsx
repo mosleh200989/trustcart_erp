@@ -3,7 +3,7 @@ import AdminLayout from '@/layouts/AdminLayout';
 import AdminPageHeader from '@/components/admin/AdminPageHeader';
 import apiClient from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
-import { FaFileExcel, FaGripVertical, FaSave, FaSearch, FaSyncAlt, FaUserClock } from 'react-icons/fa';
+import { FaChevronLeft, FaChevronRight, FaFileExcel, FaGripVertical, FaSave, FaSearch, FaSyncAlt, FaUserClock } from 'react-icons/fa';
 
 type CalendarRow = {
   userId: number;
@@ -31,6 +31,9 @@ type CalendarRow = {
 type CalendarData = {
   sheetName: string;
   timezone: string;
+  year?: number;
+  month?: number;
+  trackingStartDateKey?: string | null;
   days: Array<{ day: number; key: string; label: string; weekday: string }>;
   keyConfig: Record<string, { key: string; label: string; color: string; editable?: boolean }>;
   rowGap: { every: number; size: number };
@@ -70,6 +73,39 @@ function getCurrentMonthSheetName() {
   return `${now.toLocaleString('en-US', { month: 'short', timeZone: 'Asia/Dhaka' })}-${String(
     Number(now.toLocaleString('en-US', { year: 'numeric', timeZone: 'Asia/Dhaka' })),
   ).slice(-2)}`;
+}
+
+const MONTH_SHORT_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const MONTH_LONG_NAMES = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+];
+
+function parseSheetName(sheetName?: string | null) {
+  const match = String(sheetName || '').match(/^([A-Za-z]{3})-(\d{2})$/);
+  if (!match) return null;
+  const monthIndex = MONTH_SHORT_NAMES.findIndex((name) => name.toLowerCase() === match[1].toLowerCase());
+  if (monthIndex < 0) return null;
+  return { year: 2000 + Number(match[2]), monthIndex };
+}
+
+function buildSheetName(year: number, monthIndex: number) {
+  return `${MONTH_SHORT_NAMES[monthIndex]}-${String(year).slice(-2)}`;
+}
+
+function sheetNameFromIndex(monthCount: number) {
+  return buildSheetName(Math.floor(monthCount / 12), monthCount % 12);
+}
+
+function sheetNameToIndex(sheetName?: string | null) {
+  const parsed = parseSheetName(sheetName);
+  return parsed ? parsed.year * 12 + parsed.monthIndex : null;
+}
+
+function formatSheetLabel(sheetName?: string | null) {
+  const parsed = parseSheetName(sheetName);
+  if (!parsed) return sheetName || '-';
+  return `${MONTH_LONG_NAMES[parsed.monthIndex]} ${parsed.year}`;
 }
 
 function xmlEscape(value: any) {
@@ -292,6 +328,7 @@ function createCalendarWorkbook(data: CalendarData, rows: CalendarRow[]) {
 export default function PresenceCalendarPage() {
   const { hasPermission } = useAuth();
   const currentMonthSheetName = useMemo(() => getCurrentMonthSheetName(), []);
+  const [sheetName, setSheetName] = useState(currentMonthSheetName);
   const [data, setData] = useState<CalendarData | null>(null);
   const [rows, setRows] = useState<CalendarRow[]>([]);
   const [dragUserId, setDragUserId] = useState<number | null>(null);
@@ -318,7 +355,7 @@ export default function PresenceCalendarPage() {
     setLoading(true);
     setMessage('');
     try {
-      const res = await apiClient.get('/presence/calendar', { params: { sheetName: currentMonthSheetName } });
+      const res = await apiClient.get('/presence/calendar', { params: { sheetName } });
       setData(res.data);
       setRows(Array.isArray(res.data?.rows) ? res.data.rows : []);
     } catch (err: any) {
@@ -333,7 +370,7 @@ export default function PresenceCalendarPage() {
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canViewCalendar, currentMonthSheetName]);
+  }, [canViewCalendar, sheetName]);
 
   useEffect(() => {
     let cancelled = false;
@@ -359,6 +396,34 @@ export default function PresenceCalendarPage() {
       cancelled = true;
     };
   }, [editingCell?.userId, editingCell?.dateKey]);
+
+  const currentMonthIndex = useMemo(() => sheetNameToIndex(currentMonthSheetName) ?? 0, [currentMonthSheetName]);
+  const selectedMonthIndex = useMemo(() => sheetNameToIndex(sheetName) ?? currentMonthIndex, [sheetName, currentMonthIndex]);
+
+  const monthOptions = useMemo(() => {
+    const trackingKey = data?.trackingStartDateKey || '';
+    const trackingMatch = /^(\d{4})-(\d{2})/.exec(trackingKey);
+    const trackingIndex = trackingMatch ? Number(trackingMatch[1]) * 12 + (Number(trackingMatch[2]) - 1) : null;
+    let earliestIndex = trackingIndex == null ? currentMonthIndex - 11 : trackingIndex;
+    earliestIndex = Math.min(earliestIndex, currentMonthIndex, selectedMonthIndex);
+    const options: Array<{ value: string; label: string }> = [];
+    for (let index = Math.max(currentMonthIndex, selectedMonthIndex); index >= earliestIndex; index -= 1) {
+      const value = sheetNameFromIndex(index);
+      options.push({ value, label: formatSheetLabel(value) });
+    }
+    return options;
+  }, [data?.trackingStartDateKey, currentMonthIndex, selectedMonthIndex]);
+
+  const earliestMonthIndex = useMemo(
+    () => (monthOptions.length ? sheetNameToIndex(monthOptions[monthOptions.length - 1].value) ?? currentMonthIndex : currentMonthIndex),
+    [monthOptions, currentMonthIndex],
+  );
+
+  const shiftMonth = (delta: number) => {
+    const next = selectedMonthIndex + delta;
+    if (next < earliestMonthIndex || next > currentMonthIndex) return;
+    setSheetName(sheetNameFromIndex(next));
+  };
 
   const legend = useMemo(() => {
     const config = data?.keyConfig || {};
@@ -503,7 +568,7 @@ export default function PresenceCalendarPage() {
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `check-in-out-calendar-${data.sheetName || currentMonthSheetName}.xlsx`;
+    link.download = `check-in-out-calendar-${data.sheetName || sheetName}.xlsx`;
     document.body.appendChild(link);
     link.click();
     link.remove();
@@ -585,8 +650,52 @@ export default function PresenceCalendarPage() {
 
         <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-4 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div>
-            <div className="text-sm font-semibold text-gray-900">{data?.sheetName || currentMonthSheetName}</div>
-            <div className="text-sm text-gray-500">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="inline-flex items-center rounded-lg border border-gray-300 bg-white">
+                <button
+                  type="button"
+                  onClick={() => shiftMonth(-1)}
+                  disabled={loading || !canViewCalendar || selectedMonthIndex <= earliestMonthIndex}
+                  title="Previous month"
+                  aria-label="Previous month"
+                  className="px-2.5 py-2 text-gray-600 hover:text-gray-900 disabled:opacity-40 disabled:hover:text-gray-600"
+                >
+                  <FaChevronLeft className="text-xs" />
+                </button>
+                <select
+                  value={sheetName}
+                  onChange={(event) => setSheetName(event.target.value)}
+                  disabled={loading || !canViewCalendar}
+                  aria-label="Calendar month"
+                  className="border-x border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-100 disabled:opacity-60"
+                >
+                  {monthOptions.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => shiftMonth(1)}
+                  disabled={loading || !canViewCalendar || selectedMonthIndex >= currentMonthIndex}
+                  title="Next month"
+                  aria-label="Next month"
+                  className="px-2.5 py-2 text-gray-600 hover:text-gray-900 disabled:opacity-40 disabled:hover:text-gray-600"
+                >
+                  <FaChevronRight className="text-xs" />
+                </button>
+              </div>
+              <span className="text-xs font-semibold uppercase tracking-wide text-gray-400">{data?.sheetName || sheetName}</span>
+              {sheetName !== currentMonthSheetName && (
+                <button
+                  type="button"
+                  onClick={() => setSheetName(currentMonthSheetName)}
+                  className="text-xs font-semibold text-blue-700 hover:text-blue-900"
+                >
+                  Back to current month
+                </button>
+              )}
+            </div>
+            <div className="mt-1 text-sm text-gray-500">
               Timezone: {data?.timezone || '-'} <span className="mx-1 text-gray-300">|</span> Users: {filteredRows.length}{hasActiveFilters ? ` of ${rows.length}` : ''} <span className="mx-1 text-gray-300">|</span> Gap every {data?.rowGap?.every || 0} rows
             </div>
           </div>
