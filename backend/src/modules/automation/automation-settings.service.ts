@@ -40,6 +40,18 @@ export type AutomationGlobalSettings = {
    * if you want an unattended admin session to be insufficient here.
    */
   require_panel_password: boolean;
+  /**
+   * Human-paced replying. An instant answer is the clearest possible signal
+   * that a machine is talking, so a reply is generated immediately but held
+   * before sending, scaled by how long it would plausibly take to type.
+   */
+  reply_delay_enabled: boolean;
+  /** Milliseconds per character. ~80ms is a fast human typist. */
+  reply_delay_ms_per_char: number;
+  /** Never reply faster than this, however short the message. */
+  reply_delay_min_ms: number;
+  /** Never make anyone wait longer than this, however long the message. */
+  reply_delay_max_ms: number;
 };
 
 export type AutomationAiSettings = {
@@ -87,6 +99,10 @@ const DEFAULTS: {
     fallback_action: 'escalate',
     product_statuses: ['active', 'inactive'],
     require_panel_password: false,
+    reply_delay_enabled: true,
+    reply_delay_ms_per_char: 80,
+    reply_delay_min_ms: 3000,
+    reply_delay_max_ms: 25000,
   },
   ai: {
     enabled: false,

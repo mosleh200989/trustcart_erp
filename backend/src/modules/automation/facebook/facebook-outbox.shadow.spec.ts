@@ -17,11 +17,21 @@ import { AutomationEvent } from '../entities/automation-event.entity';
  *
  * These tests pin the guarantee where it cannot be forgotten — in the sender.
  */
-function makeService(channelMode: 'off' | 'shadow' | 'live') {
+function makeService(channelMode: 'off' | 'shadow' | 'live', claimAffected = 1) {
+  // attempt() claims the row with a conditional UPDATE before doing anything,
+  // so the mock has to model that: affected = 0 means someone else got there
+  // first and nothing should be sent.
+  const execute = jest.fn(async () => ({ affected: claimAffected }));
+  const queryBuilder: any = { execute };
+  queryBuilder.update = jest.fn(() => queryBuilder);
+  queryBuilder.set = jest.fn(() => queryBuilder);
+  queryBuilder.where = jest.fn(() => queryBuilder);
+
   const outboxRepository = {
     save: jest.fn(async (row) => row),
     findOne: jest.fn(),
     update: jest.fn(),
+    createQueryBuilder: jest.fn(() => queryBuilder),
   } as unknown as Repository<AutomationOutbox>;
 
   const channelRepository = {
@@ -112,6 +122,17 @@ describe('FacebookOutboxService shadow-mode guarantee', () => {
     expect(outboxRepository.save).toHaveBeenCalled();
   });
 
+  it('sends nothing if another worker already claimed the row', async () => {
+    // A held reply is watched by both an in-process timer and the cron sweep,
+    // and at the due moment they can fire together. Without the claim the
+    // customer receives the same message twice.
+    const { service, facebookApi } = makeService('live', 0);
+
+    await service.attempt(row('send_message', { psid: '123', message: 'hi' }));
+
+    expect(facebookApi.sendMessage).not.toHaveBeenCalled();
+  });
+
   it('does send when the channel is live', async () => {
     const { service, facebookApi } = makeService('live');
 
@@ -122,5 +143,53 @@ describe('FacebookOutboxService shadow-mode guarantee', () => {
       '123',
       'hi',
     );
+  });
+});
+
+/**
+ * Human-paced replying. An instant answer is the clearest tell that a machine is
+ * talking, so a reply is generated at once but held before sending.
+ */
+describe('FacebookOutboxService.computeDelayMs', () => {
+  const on = {
+    reply_delay_enabled: true,
+    reply_delay_ms_per_char: 80,
+    reply_delay_min_ms: 3000,
+    reply_delay_max_ms: 25000,
+  };
+
+  it('scales with the length of the reply', () => {
+    const short = FacebookOutboxService.computeDelayMs('a'.repeat(100), on);
+    const long = FacebookOutboxService.computeDelayMs('a'.repeat(200), on);
+
+    expect(short).toBe(8000);
+    expect(long).toBe(16000);
+  });
+
+  it('never replies faster than the floor, however short the message', () => {
+    // "Ji." at 80ms/char would be 240ms — instant enough to read as a bot.
+    expect(FacebookOutboxService.computeDelayMs('Ji.', on)).toBe(3000);
+  });
+
+  it('never makes anyone wait longer than the ceiling', () => {
+    expect(FacebookOutboxService.computeDelayMs('a'.repeat(5000), on)).toBe(25000);
+  });
+
+  it('sends immediately when pacing is switched off', () => {
+    expect(
+      FacebookOutboxService.computeDelayMs('a'.repeat(200), { ...on, reply_delay_enabled: false }),
+    ).toBe(0);
+  });
+
+  it('treats missing or malformed settings as no delay rather than throwing', () => {
+    expect(FacebookOutboxService.computeDelayMs('hello', {})).toBe(0);
+    expect(
+      FacebookOutboxService.computeDelayMs('hello', { reply_delay_enabled: true }),
+    ).toBe(0);
+  });
+
+  it('handles an absent ceiling by only applying the floor', () => {
+    const noMax = { ...on, reply_delay_max_ms: 0 };
+    expect(FacebookOutboxService.computeDelayMs('a'.repeat(1000), noMax)).toBe(80000);
   });
 });
