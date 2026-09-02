@@ -21,6 +21,7 @@ import { automationGate, getAutomationToken, clearAutomationToken } from '@/serv
 import {
   AUTOMATION_LOCKED_EVENT,
   AUTOMATION_UNLOCKED_EVENT,
+  setAutomationUnlocked,
 } from '@/hooks/useAutomationGate';
 
 type NavItem = { title: string; path: string; icon: any; permissions?: string[] };
@@ -104,6 +105,14 @@ export default function AutomationLayout({
       setGate('unreachable');
     }
   }, []);
+
+  // One place publishes the gate state to the panel pages. Deriving it anywhere
+  // else drifts: when the password is switched off no token is ever issued, so
+  // anything inferring "unlocked" from a stored token reports locked forever and
+  // every page hangs on its loading state.
+  useEffect(() => {
+    setAutomationUnlocked(gate === 'unlocked');
+  }, [gate]);
 
   useEffect(() => {
     if (isLoading) return;
