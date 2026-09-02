@@ -7,13 +7,20 @@ import { StorefrontProduct } from '../storefronts/storefront-product.entity';
 import { Customer } from '../customers/customer.entity';
 import { AutomationSettingsService } from './automation-settings.service';
 
+/**
+ * What the reply engine is allowed to know about a product.
+ *
+ * Deliberately carries no stock information. Stock is tracked inside the company
+ * and must never be stated in a customer message, so it is not merely omitted
+ * from the wording — it never enters the object that builds the reply, and
+ * therefore cannot leak through a prompt change or a new template placeholder.
+ * Every product the bot can find is treated as available.
+ */
 export type ProductFact = {
   id: number;
   name: string;
   price: number;
   salePrice: number | null;
-  inStock: boolean;
-  stockQuantity: number;
 };
 
 export type OrderFact = {
@@ -119,10 +126,9 @@ export class AutomationErpService {
    *
    * Which catalogue statuses count is a setting, not a constant. `inactive` here
    * means "not listed on the main site", not "discontinued" — most of the
-   * catalogue carries it and much of that still has stock, and ads run against
-   * those products, so customers ask about them and the bot has to answer.
-   * A product with no stock is still found; it is reported as out of stock,
-   * which is the distinction a customer actually cares about.
+   * catalogue carries it, ads run against those products, so customers ask about
+   * them and the bot has to answer. Stock is not consulted at all: every product
+   * found is treated as available, and availability is never discussed.
    *
    * When the channel belongs to a storefront, only that brand's published
    * products are considered — a Handsome Man page must never quote a
@@ -174,14 +180,13 @@ export class AutomationErpService {
       return products.map((product) => {
         const base = Number(product.base_price) || 0;
         const sale = product.sale_price != null ? Number(product.sale_price) : null;
-        const stock = Number(product.stock_quantity ?? 0);
         return {
           id: product.id,
           name: product.name_en || product.name_bn || `#${product.id}`,
           price: base,
+          // A sale price only counts when it is a real discount; 0 or a value
+          // above the base price is bad data, not an offer.
           salePrice: sale && sale > 0 && sale < base ? sale : null,
-          inStock: stock > 0,
-          stockQuantity: stock,
         };
       });
     } catch (error: any) {

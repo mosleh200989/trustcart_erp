@@ -104,7 +104,7 @@ describe('AutomationErpService.findProducts', () => {
     expect(statusClause!.params.statuses).toEqual(['active', 'inactive']);
   });
 
-  it('returns an inactive product and reports it as in stock when it has stock', async () => {
+  it('returns an inactive product with its price', async () => {
     const { service } = makeService({
       productRows: [
         {
@@ -120,26 +120,39 @@ describe('AutomationErpService.findProducts', () => {
     const found = await service.findProducts('kasri oil dam koto?');
 
     expect(found).toHaveLength(1);
-    expect(found[0]).toMatchObject({
-      id: 311,
-      name: 'Kasri Oil',
-      price: 850,
-      salePrice: 699,
-      inStock: true,
-    });
+    expect(found[0]).toEqual({ id: 311, name: 'Kasri Oil', price: 850, salePrice: 699 });
   });
 
-  it('reports out of stock rather than hiding the product', async () => {
+  it('carries no stock information at all, whatever the catalogue says', async () => {
+    // Stock is company-internal. It must not reach a customer message, so it is
+    // absent from the object the reply is built from rather than merely unused.
     const { service } = makeService({
       productRows: [
         { id: 42, name_en: 'Gastro Care', base_price: 500 as any, stock_quantity: 0 },
+        { id: 43, name_en: 'Gastro Care Plus', base_price: 900 as any, stock_quantity: 25 },
       ],
     });
 
-    const [product] = await service.findProducts('gastro care available?');
+    const found = await service.findProducts('gastro care');
 
-    expect(product.inStock).toBe(false);
-    expect(product.price).toBe(500);
+    for (const product of found) {
+      expect(Object.keys(product).sort()).toEqual(['id', 'name', 'price', 'salePrice']);
+      expect(JSON.stringify(product).toLowerCase()).not.toContain('stock');
+    }
+    expect(found[0].price).toBe(500);
+  });
+
+  it('ignores a sale price of zero rather than quoting 0 BDT', async () => {
+    const { service } = makeService({
+      productRows: [
+        { id: 7, name_en: 'Coconut oil trial', base_price: 300 as any, sale_price: 0 as any },
+      ],
+    });
+
+    const [product] = await service.findProducts('coconut oil');
+
+    expect(product.salePrice).toBeNull();
+    expect(product.price).toBe(300);
   });
 
   it('returns nothing when the message has no searchable words', async () => {

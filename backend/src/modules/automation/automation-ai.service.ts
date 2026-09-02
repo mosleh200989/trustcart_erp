@@ -61,15 +61,15 @@ export class AutomationAiService {
     const lines: string[] = [];
 
     if (erp.products.length > 0) {
+      // Price only. Stock is company-internal and must never reach a customer,
+      // so it is not in ProductFact at all — there is nothing here to render.
       lines.push('Products that may match the question:');
       for (const product of erp.products) {
         const price =
           product.salePrice != null
             ? `${product.salePrice} BDT (was ${product.price} BDT)`
             : `${product.price} BDT`;
-        lines.push(
-          `- ${product.name}: ${price}; ${product.inStock ? 'in stock' : 'out of stock'}`,
-        );
+        lines.push(`- ${product.name}: ${price}`);
       }
     }
 

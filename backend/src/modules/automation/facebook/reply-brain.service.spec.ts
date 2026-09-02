@@ -33,7 +33,7 @@ const EMPTY_ERP: ErpContext = {
 
 const ERP_WITH_PRODUCT: ErpContext = {
   products: [
-    { id: 7, name: 'Beard Oil', price: 850, salePrice: 699, inStock: true, stockQuantity: 12 },
+    { id: 7, name: 'Beard Oil', price: 850, salePrice: 699 },
   ],
   orders: [
     {
@@ -107,13 +107,11 @@ describe('ReplyBrainService.renderTemplate', () => {
 
   it('fills product and order placeholders from ERP data', () => {
     const out = ReplyBrainService.renderTemplate(
-      '{{product_name}} is {{product_price}} and it is {{product_stock}}. Order {{order_number}} is {{order_status}}.',
+      '{{product_name}} is {{product_price}}. Order {{order_number}} is {{order_status}}.',
       { ...base, erp: ERP_WITH_PRODUCT },
     );
 
-    expect(out).toBe(
-      'Beard Oil is 699 BDT and it is in stock. Order SO-1735000000-1234 is processing.',
-    );
+    expect(out).toBe('Beard Oil is 699 BDT. Order SO-1735000000-1234 is processing.');
   });
 
   it('uses the sale price when one is active', () => {
@@ -139,6 +137,18 @@ describe('ReplyBrainService.renderTemplate', () => {
       erp: ERP_WITH_PRODUCT,
     });
     expect(out).toBe('Hi Rahim');
+  });
+
+  it('cannot express stock — the placeholder does not resolve', () => {
+    // Stock is company-internal. A rule author typing {{product_stock}} must not
+    // silently get an availability claim into a customer message; the template
+    // language simply has no such value, so the whole reply is refused.
+    expect(
+      ReplyBrainService.renderTemplate('Eta {{product_stock}} ache', {
+        ...base,
+        erp: ERP_WITH_PRODUCT,
+      }),
+    ).toBeNull();
   });
 
   it('substitutes the page name', () => {

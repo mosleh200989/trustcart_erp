@@ -148,7 +148,8 @@ export class ReplyBrainService {
           : product.salePrice != null
             ? `${product.salePrice} BDT`
             : `${product.price} BDT`,
-      product_stock: product == null ? null : product.inStock ? 'in stock' : 'out of stock',
+      // No product_stock placeholder: stock is company-internal and must never
+      // appear in a customer message, so the template language cannot express it.
       order_number: order?.orderNumber ?? null,
       order_status: order?.status ?? null,
     };
