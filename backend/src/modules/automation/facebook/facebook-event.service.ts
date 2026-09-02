@@ -388,7 +388,16 @@ export class FacebookEventService {
       return;
     }
 
-    if (global.typing_indicator && event.threadType === 'message' && event.psid) {
+    // Only in live mode. A typing bubble is visible to the customer, so queuing
+    // it in shadow mode broke shadow mode's one promise — that nothing reaches
+    // anyone. It also fired before the decision, so it appeared even for
+    // messages the bot then declined to answer.
+    if (
+      channel.mode === 'live' &&
+      global.typing_indicator &&
+      event.threadType === 'message' &&
+      event.psid
+    ) {
       void this.outbox.enqueue({
         channelId: channel.id,
         action: 'sender_action',

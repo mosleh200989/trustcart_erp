@@ -93,6 +93,21 @@ export class FacebookOutboxService {
       return;
     }
 
+    // Last line of defence for shadow and off mode. Callers are supposed not to
+    // enqueue anything for a channel that is not live, but "supposed not to" is
+    // how a typing indicator once reached a real customer during a shadow run.
+    // Enforcing it here means shadow mode holds even if a future code path
+    // forgets — the promise is kept by the sender, not by every caller.
+    if (channel.mode !== 'live') {
+      row.status = 'cancelled';
+      row.last_error = `Channel is in ${channel.mode} mode; nothing is sent to customers.`;
+      await this.outboxRepository.save(row);
+      this.logger.warn(
+        `Outbox ${row.id} (${row.action}) cancelled: channel "${channel.name}" is in ${channel.mode} mode.`,
+      );
+      return;
+    }
+
     try {
       const externalId = await this.dispatch(channel, row);
 
