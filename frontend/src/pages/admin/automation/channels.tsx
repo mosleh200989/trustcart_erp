@@ -120,7 +120,12 @@ export default function AutomationChannelsPage() {
     try {
       const result = await automation.verifyChannel(id);
       if (result.ok) {
-        toast.success(`Token is valid for "${result.page?.name}"`);
+        const who = result.page?.name ? `"${result.page.name}"` : `page ${result.page?.id}`;
+        toast.success(`Token is valid for ${who}`);
+        // A token minted from the Messenger use case can send and receive but
+        // cannot read page details. That is fine now and a problem later, so say
+        // so rather than letting it look like a clean pass.
+        if (result.note) toast.warning(result.note, 9000);
       } else {
         toast.error(result.warning || result.error || 'Token check failed');
       }

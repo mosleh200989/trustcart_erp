@@ -139,14 +139,42 @@ export class FacebookApiService {
     return `${(lastSpace > limit * 0.6 ? cut.slice(0, lastSpace) : cut).trimEnd()}…`;
   }
 
-  /** Confirms the stored token works and returns the page it belongs to. */
-  async verifyToken(channel: AutomationChannel): Promise<{ id: string; name: string }> {
-    return this.get<{ id: string; name: string }>(
-      '/me',
-      { fields: 'id,name' },
-      this.token(channel),
-      'Verify page token',
-    );
+  /**
+   * Confirms the stored token works and returns the page it belongs to.
+   *
+   * Reading the page *name* needs `pages_read_engagement`, which a token minted
+   * from the Messenger use case does not have. That token still sends and
+   * receives messages perfectly well, so a name lookup failing must not be
+   * reported as a broken token. Fall back to the id alone — matching it against
+   * the configured page is the check that actually matters.
+   */
+  async verifyToken(
+    channel: AutomationChannel,
+  ): Promise<{ id: string; name: string | null; limitedScopes: boolean }> {
+    const token = this.token(channel);
+
+    try {
+      const full = await this.get<{ id: string; name: string }>(
+        '/me',
+        { fields: 'id,name' },
+        token,
+        'Verify page token',
+      );
+      return { id: full.id, name: full.name ?? null, limitedScopes: false };
+    } catch (error) {
+      const graphError = error as GraphApiError;
+      // 100 = the field is not readable with these permissions. Anything else
+      // (bad token, revoked app) is a genuine failure and should surface.
+      if (graphError?.code !== 100) throw error;
+
+      const minimal = await this.get<{ id: string }>(
+        '/me',
+        { fields: 'id' },
+        token,
+        'Verify page token (id only)',
+      );
+      return { id: minimal.id, name: null, limitedScopes: true };
+    }
   }
 
   /** Public reply under a comment. Returns Meta's id for the new comment. */

@@ -125,10 +125,11 @@ export class AutomationService {
   /** Confirms the stored token works and that it belongs to the configured page. */
   async verifyChannel(id: number): Promise<{
     ok: boolean;
-    page?: { id: string; name: string };
+    page?: { id: string; name: string | null };
     subscriptions?: any;
     error?: string;
     warning?: string;
+    note?: string;
   }> {
     const channel = await this.getChannelWithToken(id);
     try {
@@ -140,12 +141,28 @@ export class AutomationService {
         // Subscription read needs an extra permission; not fatal for a token check.
       }
 
-      const warning =
-        page.id !== channel.page_id
-          ? `This token belongs to page ${page.id} ("${page.name}"), not the configured page ${channel.page_id}.`
-          : undefined;
+      // The only thing that must be true: the token belongs to this page.
+      if (page.id !== channel.page_id) {
+        return {
+          ok: false,
+          page,
+          subscriptions,
+          warning:
+            `This token belongs to page ${page.id}${page.name ? ` ("${page.name}")` : ''}, ` +
+            `not the configured page ${channel.page_id}.`,
+        };
+      }
 
-      return { ok: !warning, page, subscriptions, warning };
+      return {
+        ok: true,
+        page,
+        subscriptions,
+        note: page.limitedScopes
+          ? 'Token is valid for this page and can send and receive messages. It cannot read ' +
+            'page details, so add pages_read_engagement and regenerate it before importing ' +
+            'conversation history.'
+          : undefined,
+      };
     } catch (error: any) {
       return { ok: false, error: error?.message || 'Token verification failed' };
     }
