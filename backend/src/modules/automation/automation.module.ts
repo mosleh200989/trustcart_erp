@@ -9,6 +9,9 @@ import { AutomationMessage } from './entities/automation-message.entity';
 import { AutomationRule } from './entities/automation-rule.entity';
 import { AutomationOutbox } from './entities/automation-outbox.entity';
 import { AutomationAudit } from './entities/automation-audit.entity';
+import { AutomationImportRun } from './entities/automation-import-run.entity';
+import { AutomationHistoryThread } from './entities/automation-history-thread.entity';
+import { AutomationHistoryMessage } from './entities/automation-history-message.entity';
 
 import { Product } from '../products/product.entity';
 import { SalesOrder } from '../sales/sales-order.entity';
@@ -29,6 +32,7 @@ import { FacebookApiService } from './facebook/facebook-api.service';
 import { ReplyBrainService } from './facebook/reply-brain.service';
 import { FacebookOutboxService } from './facebook/facebook-outbox.service';
 import { FacebookEventService } from './facebook/facebook-event.service';
+import { HistoryImportService } from './history/history-import.service';
 
 import { AutomationController } from './automation.controller';
 import { AutomationGateController } from './automation-gate.controller';
@@ -57,6 +61,9 @@ import { MetaWebhookGuard } from '../../common/guards/meta-webhook.guard';
       AutomationRule,
       AutomationOutbox,
       AutomationAudit,
+      AutomationImportRun,
+      AutomationHistoryThread,
+      AutomationHistoryMessage,
       // Read-only, for grounding replies and escalating to support.
       Product,
       SalesOrder,
@@ -79,6 +86,7 @@ import { MetaWebhookGuard } from '../../common/guards/meta-webhook.guard';
     ReplyBrainService,
     FacebookOutboxService,
     FacebookEventService,
+    HistoryImportService,
     MetaWebhookGuard,
   ],
   exports: [AutomationSettingsService, TypeOrmModule],

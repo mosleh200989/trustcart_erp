@@ -232,3 +232,22 @@ export class SubscribePageDto {
   @IsString({ each: true })
   fields?: string[];
 }
+
+/** Kick off a Messenger history import for one channel. */
+export class StartImportDto {
+  @IsInt()
+  channel_id!: number;
+
+  /** How far back to go. Clamped server-side to 1..730 days. */
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(730)
+  since_days?: number;
+}
+
+/** Mark or unmark an imported message as a style example. */
+export class SetExampleDto {
+  @IsBoolean()
+  is_example!: boolean;
+}

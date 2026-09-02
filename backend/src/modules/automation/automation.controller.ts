@@ -22,6 +22,7 @@ import { AutomationSettingsService } from './automation-settings.service';
 import { AutomationAuditService } from './automation-audit.service';
 import { FacebookEventService } from './facebook/facebook-event.service';
 import { FacebookOutboxService } from './facebook/facebook-outbox.service';
+import { HistoryImportService } from './history/history-import.service';
 import {
   CreateChannelDto,
   CreateRuleDto,
@@ -33,6 +34,8 @@ import {
   UpdateConversationStatusDto,
   UpdateRuleDto,
   UpdateSettingsSectionDto,
+  StartImportDto,
+  SetExampleDto,
 } from './dto/automation.dto';
 
 /** Settings sections the panel is allowed to patch. `gate` is off-limits here. */
@@ -53,6 +56,7 @@ export class AutomationController {
     private readonly audit: AutomationAuditService,
     private readonly events: FacebookEventService,
     private readonly outbox: FacebookOutboxService,
+    private readonly historyImport: HistoryImportService,
   ) {}
 
   private actor(request: Request) {
@@ -374,6 +378,78 @@ export class AutomationController {
     const cancelled = await this.outbox.cancel(id);
     await this.audit.record(this.actor(request), 'outbox.cancel', 'outbox', id);
     return { cancelled };
+  }
+
+  // ─── Messenger history import ────────────────────────────────────────────
+
+  @Post('import/start')
+  @RequirePermissions('import-automation-history')
+  async startImport(@Body() dto: StartImportDto, @Req() request: Request) {
+    const actor = this.actor(request);
+    const run = await this.historyImport.start(dto.channel_id, dto.since_days ?? 180, actor.id);
+    await this.audit.record(actor, 'history.import_start', 'import_run', run.id, null, {
+      channel_id: dto.channel_id,
+      since_days: dto.since_days ?? 180,
+    });
+    return run;
+  }
+
+  @Get('import/runs')
+  @RequirePermissions('view-automation')
+  listImportRuns(@Query('channel_id') channelId?: string) {
+    return this.historyImport.listRuns(channelId ? Number(channelId) : undefined);
+  }
+
+  @Get('import/runs/:id')
+  @RequirePermissions('view-automation')
+  getImportRun(@Param('id', ParseIntPipe) id: number) {
+    return this.historyImport.getRun(id);
+  }
+
+  @Post('import/runs/:id/cancel')
+  @RequirePermissions('import-automation-history')
+  async cancelImport(@Param('id', ParseIntPipe) id: number, @Req() request: Request) {
+    const run = await this.historyImport.cancel(id);
+    await this.audit.record(this.actor(request), 'history.import_cancel', 'import_run', id);
+    return run;
+  }
+
+  @Get('history/stats')
+  @RequirePermissions('view-automation')
+  historyStats() {
+    return this.historyImport.stats();
+  }
+
+  @Get('history/messages')
+  @RequirePermissions('view-automation')
+  listHistoryMessages(
+    @Query('direction') direction?: 'inbound' | 'outbound',
+    @Query('only_examples') onlyExamples?: string,
+    @Query('search') search?: string,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+  ) {
+    return this.historyImport.listMessages({
+      direction,
+      onlyExamples: onlyExamples === 'true',
+      search,
+      limit: limit ? Number(limit) : undefined,
+      offset: offset ? Number(offset) : undefined,
+    });
+  }
+
+  @Put('history/messages/:id/example')
+  @RequirePermissions('import-automation-history')
+  async setExample(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: SetExampleDto,
+    @Req() request: Request,
+  ) {
+    const message = await this.historyImport.setExample(id, dto.is_example);
+    await this.audit.record(this.actor(request), 'history.set_example', 'history_message', id, null, {
+      is_example: dto.is_example,
+    });
+    return message;
   }
 
   @Get('audit')

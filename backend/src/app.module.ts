@@ -273,6 +273,9 @@ import { AutomationMessage } from './modules/automation/entities/automation-mess
 import { AutomationRule } from './modules/automation/entities/automation-rule.entity';
 import { AutomationOutbox } from './modules/automation/entities/automation-outbox.entity';
 import { AutomationAudit } from './modules/automation/entities/automation-audit.entity';
+import { AutomationImportRun } from './modules/automation/entities/automation-import-run.entity';
+import { AutomationHistoryThread } from './modules/automation/entities/automation-history-thread.entity';
+import { AutomationHistoryMessage } from './modules/automation/entities/automation-history-message.entity';
 import { AutomationModule } from './modules/automation/automation.module';
 
 @Module({
@@ -402,6 +405,9 @@ import { AutomationModule } from './modules/automation/automation.module';
             AutomationRule,
             AutomationOutbox,
             AutomationAudit,
+            AutomationImportRun,
+            AutomationHistoryThread,
+            AutomationHistoryMessage,
             // Issues
             Issue, IssueComment, IssueAttachment, IssueEvent,
           ],
