@@ -236,6 +236,7 @@ export type AutomationSettings = {
     mark_seen: boolean;
     fallback_action: 'escalate' | 'ignore';
     product_statuses: string[];
+    require_panel_password: boolean;
   };
   ai: {
     enabled: boolean;
@@ -288,6 +289,7 @@ export type AutomationOverview = {
 
 export const automationGate = {
   async status(): Promise<{
+    required: boolean;
     configured: boolean;
     locked: boolean;
     locked_until: string | null;

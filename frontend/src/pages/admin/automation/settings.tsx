@@ -181,6 +181,13 @@ export default function AutomationSettingsPage() {
               onChange={(v) => patch('global', { mark_seen: v })}
               disabled={!canManage}
             />
+            <Check
+              label="Require a separate panel password"
+              hint="Off: the admin login and the view-automation permission are the access control. On: this panel asks for its own password as well."
+              checked={settings.global.require_panel_password}
+              onChange={(v) => patch('global', { require_panel_password: v })}
+              disabled={!canManage}
+            />
 
             <Field label="Mode for newly created channels">
               <select
