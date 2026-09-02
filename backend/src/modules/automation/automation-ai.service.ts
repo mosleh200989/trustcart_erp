@@ -1,7 +1,13 @@
 import { Injectable, Logger } from '@nestjs/common';
-import Anthropic from '@anthropic-ai/sdk';
 import { AutomationAiSettings } from './automation-settings.service';
 import { ErpContext } from './automation-erp.service';
+import { AiMessage } from './ai/ai-provider.types';
+import {
+  createAiProvider,
+  normalizeProviderName,
+  resolveModel,
+} from './ai/ai-provider.factory';
+import { AnthropicProvider } from './ai/anthropic.provider';
 
 export type AiTurn = { role: 'user' | 'assistant'; text: string };
 
@@ -41,19 +47,19 @@ present in the SHOP FACTS section.`.trim();
 @Injectable()
 export class AutomationAiService {
   private readonly logger = new Logger(AutomationAiService.name);
-  private client: Anthropic | null = null;
 
-  /** True when an API key is available and the model can actually be called. */
-  isConfigured(): boolean {
-    return Boolean(String(process.env.ANTHROPIC_API_KEY ?? '').trim());
+  /**
+   * Why a reply cannot be generated right now, or null when it can.
+   * Returned as text so the panel can say what is missing rather than just
+   * refusing.
+   */
+  configurationError(settings: AutomationAiSettings): string | null {
+    return createAiProvider(settings as any).configurationError();
   }
 
-  private getClient(): Anthropic {
-    if (!this.client) {
-      // The SDK reads ANTHROPIC_API_KEY from the environment itself.
-      this.client = new Anthropic();
-    }
-    return this.client;
+  /** True when the selected provider has everything it needs. */
+  isConfigured(settings?: AutomationAiSettings): boolean {
+    return this.configurationError((settings ?? {}) as AutomationAiSettings) === null;
   }
 
   /** Renders ERP rows into the plain-text fact sheet the model is allowed to quote. */
@@ -141,17 +147,12 @@ export class AutomationAiService {
     threadType: 'comment' | 'message';
   }): Promise<AiReply> {
     const { settings, persona, channelName, incomingText, history, erp, threadType } = options;
-    const model = settings.model || 'claude-opus-5';
+    const provider = createAiProvider(settings as any);
+    const model = resolveModel(settings as any);
 
-    if (!this.isConfigured()) {
-      return {
-        text: null,
-        confidence: 0,
-        escalate: true,
-        reason: 'ANTHROPIC_API_KEY is not set',
-        model,
-        usage: null,
-      };
+    const configError = provider.configurationError();
+    if (configError) {
+      return { text: null, confidence: 0, escalate: true, reason: configError, model, usage: null };
     }
 
     const system = [
@@ -166,57 +167,42 @@ export class AutomationAiService {
       OUTPUT_CONTRACT,
     ].join('\n\n');
 
-    const messages: Anthropic.MessageParam[] = [
+    const messages: AiMessage[] = [
       ...history.map((turn) => ({ role: turn.role, content: turn.text })),
       { role: 'user' as const, content: incomingText },
     ];
 
     try {
-      const response = await this.getClient().messages.create({
-        model,
-        max_tokens: Number(settings.max_tokens) || 1024,
+      const response = await provider.complete({
         system,
-        thinking: { type: 'adaptive' },
-        output_config: { effort: settings.effort || 'low' },
         messages,
+        model,
+        maxTokens: Number(settings.max_tokens) || 1024,
+        effort: settings.effort,
+        jsonMode: settings.json_mode !== false,
       });
 
-      if (response.stop_reason === 'refusal') {
+      // A refusal is a decision, not a failure: hand it to a human rather than
+      // retrying or sending nothing.
+      if (response.refusal) {
         return {
           text: null,
           confidence: 0,
           escalate: true,
-          reason: `Model declined: ${response.stop_details?.category ?? 'unknown'}`,
+          reason: response.refusal,
           model,
-          usage: response.usage as any,
+          usage: response.usage,
         };
       }
 
-      const textBlock = response.content.find(
-        (block): block is Anthropic.TextBlock => block.type === 'text',
-      );
-
-      return this.parse(textBlock?.text ?? '', model, (response.usage as any) ?? null);
+      return this.parse(response.text ?? '', model, response.usage);
     } catch (error: unknown) {
-      // Most specific first: a bad request is a bug in our payload, a rate limit
-      // is transient, and anything else is logged for the panel to surface.
-      let reason = 'Unknown AI error';
-      if (error instanceof Anthropic.BadRequestError) {
-        reason = `Bad request to Claude: ${error.message}`;
-        this.logger.error(reason);
-      } else if (error instanceof Anthropic.AuthenticationError) {
-        reason = 'ANTHROPIC_API_KEY is invalid';
-        this.logger.error(reason);
-      } else if (error instanceof Anthropic.RateLimitError) {
-        reason = 'Claude rate limit reached';
-        this.logger.warn(reason);
-      } else if (error instanceof Anthropic.APIError) {
-        reason = `Claude API error ${error.status}: ${error.message}`;
-        this.logger.error(reason);
-      } else {
-        this.logger.error(`AI reply failed: ${(error as Error)?.message}`);
-      }
+      const reason =
+        normalizeProviderName(settings.provider) === 'anthropic'
+          ? AnthropicProvider.describeError(error)
+          : ((error as Error)?.message ?? 'Unknown AI error');
 
+      this.logger.error(`AI reply failed (${settings.provider ?? 'anthropic'}): ${reason}`);
       return { text: null, confidence: 0, escalate: true, reason, model, usage: null };
     }
   }

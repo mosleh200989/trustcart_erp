@@ -269,6 +269,11 @@ export type AutomationSettings = {
   };
   ai: {
     enabled: boolean;
+    provider: string;
+    base_url: string | null;
+    api_key: string | null;
+    api_key_set?: boolean;
+    json_mode: boolean;
     model: string;
     effort: 'low' | 'medium' | 'high' | 'xhigh' | 'max';
     max_tokens: number;
