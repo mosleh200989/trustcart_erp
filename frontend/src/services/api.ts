@@ -25,6 +25,34 @@ apiClient.interceptors.request.use((config) => {
   return config;
 });
 
+/**
+ * An admin can sign a device out from the sessions page. The next request that
+ * device makes comes back 401 with code SESSION_REVOKED — drop the dead token
+ * and send the person to the login screen rather than leaving them clicking
+ * around a page whose data will never load again.
+ *
+ * Only this one code is acted on: plain 401s are normal on public pages, where
+ * there is no session to end.
+ */
+apiClient.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    const code = error?.response?.data?.code;
+    if (error?.response?.status === 401 && code === 'SESSION_REVOKED' && typeof window !== 'undefined') {
+      try {
+        localStorage.removeItem('authToken');
+      } catch {
+        // localStorage may be blocked
+      }
+      const { pathname } = window.location;
+      if (pathname.startsWith('/admin') && !pathname.startsWith('/admin/login')) {
+        window.location.href = '/admin/login?signedOut=1';
+      }
+    }
+    return Promise.reject(error);
+  },
+);
+
 export default apiClient;
 
 // Transform snake_case API response to camelCase for frontend

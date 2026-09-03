@@ -12,7 +12,14 @@ export default function AdminLogin() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [signedOut, setSignedOut] = useState(false);
   const redirectingRef = useRef(false);
+
+  // ?signedOut=1 is set by the API client when a session is revoked mid-use.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    setSignedOut(new URLSearchParams(window.location.search).get('signedOut') === '1');
+  }, []);
 
   // An already authenticated admin may have arrived here while the auth
   // context was still hydrating. Honor the original protected route once.
@@ -69,6 +76,13 @@ export default function AdminLogin() {
           <img src="/trust-cart-logo-main.png" alt="TrustCart ERP" className="h-20 mx-auto mb-4" />
           <p className="text-gray-600">Admin Login</p>
         </div>
+
+        {/* An admin signed this device out from the Device Sessions page. */}
+        {signedOut && !error && (
+          <div className="mb-4 rounded border border-amber-200 bg-amber-50 px-4 py-3 text-amber-800">
+            This device was signed out. Please log in again.
+          </div>
+        )}
 
         {/* Error Message */}
         {error && (

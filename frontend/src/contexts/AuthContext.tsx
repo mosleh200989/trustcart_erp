@@ -27,7 +27,8 @@ type AuthContextValue = {
   /** Log in with identifier (email/phone) + password. Stores token, refreshes state. Returns the raw API response data. */
   login: (identifier: string, password: string) => Promise<any>;
   refresh: () => Promise<void>;
-  logout: () => void;
+  /** Pass false to skip the server-side session close (token already invalid). */
+  logout: (endSession?: boolean) => void;
   /** True while the user/token state is being read on first mount. */
   isAuthenticated: boolean;
   hasPermission: (slug: string) => boolean;
@@ -67,8 +68,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [permissions, setPermissions] = useState<AuthPermission[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  const logout = useCallback(() => {
+  /**
+   * `endSession` tells the server to close this device's login session so it
+   * stops showing as signed in on the admin session list. It is skipped when
+   * the token is already known to be invalid (an expired or revoked session),
+   * where the call would only 401.
+   */
+  const logout = useCallback((endSession = true) => {
     if (typeof window !== 'undefined') {
+      if (endSession && localStorage.getItem(AUTH_TOKEN_KEY)) {
+        // Fire and forget: the local sign-out must not wait on the network.
+        apiClient.post('/auth/logout').catch(() => {});
+      }
       localStorage.removeItem(AUTH_TOKEN_KEY);
     }
     setUser(null);
@@ -101,8 +112,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setRoles(Array.isArray(data?.roles) ? data.roles : []);
       setPermissions(Array.isArray(data?.permissions) ? data.permissions : []);
     } catch (err: any) {
-      // Most common failure: expired/invalid token
-      logout();
+      // Most common failure: expired/invalid token — nothing to close server-side.
+      logout(false);
     } finally {
       setIsLoading(false);
     }

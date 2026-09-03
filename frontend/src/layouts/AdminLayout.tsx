@@ -455,8 +455,15 @@ const menuItems: MenuItem[] = [
   {
     title: 'Users',
     icon: FaUser,
-    path: '/admin/users',
-    requiredPermissions: ['view-users']
+    children: [
+      { title: 'All Users', icon: FaUser, path: '/admin/users', requiredPermissions: ['view-users'] },
+      {
+        title: 'Device Sessions',
+        icon: FaShieldAlt,
+        path: '/admin/users/sessions',
+        requiredPermissions: ['view-user-sessions', 'revoke-user-sessions'],
+      },
+    ],
   },
   {
     title: 'Roles',

@@ -206,6 +206,8 @@ import { PresenceModule } from './modules/presence/presence.module';
 // Audit Log Module
 import { AuditLogModule } from './modules/audit-log/audit-log.module';
 import { IssuesModule } from './modules/issues/issues.module';
+import { UserSessionsModule } from './modules/user-sessions/user-sessions.module';
+import { UserSession } from './modules/user-sessions/entities/user-session.entity';
 import { Issue } from './modules/issues/entities/issue.entity';
 import { IssueComment } from './modules/issues/entities/issue-comment.entity';
 import { IssueAttachment } from './modules/issues/entities/issue-attachment.entity';
@@ -410,6 +412,8 @@ import { AutomationModule } from './modules/automation/automation.module';
             AutomationHistoryMessage,
             // Issues
             Issue, IssueComment, IssueAttachment, IssueEvent,
+            // Login sessions (devices)
+            UserSession,
           ],
           synchronize: false,
           logging: configService.get<string>('NODE_ENV') === 'development',
@@ -476,6 +480,7 @@ import { AutomationModule } from './modules/automation/automation.module';
     AuditLogModule,
     AutomationModule,
     IssuesModule,
+    UserSessionsModule,
   ],
   controllers: [],
   providers: [],

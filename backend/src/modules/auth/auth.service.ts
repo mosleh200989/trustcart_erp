@@ -5,6 +5,7 @@ import { User } from '../users/user.entity';
 import { Customer } from '../customers/customer.entity';
 import * as bcrypt from 'bcrypt';
 import * as jwt from 'jsonwebtoken';
+import { UserSessionsService } from '../user-sessions/user-sessions.service';
 
 @Injectable()
 export class AuthService {
@@ -13,7 +14,42 @@ export class AuthService {
     private usersRepository: Repository<User>,
     @InjectRepository(Customer)
     private customersRepository: Repository<Customer>,
+    private userSessions: UserSessionsService,
   ) {}
+
+  /**
+   * Sign a token and record the login as a session, so the device shows up in
+   * the admin session list and can be signed out again.
+   *
+   * The session key travels in the `sid` claim. If the session row could not be
+   * written the token is still issued without a `sid` — a login must not fail
+   * over bookkeeping — and validateJwtPayload treats such a token as legacy.
+   */
+  private async issueToken(
+    payload: Record<string, any>,
+    session: {
+      subjectType: 'user' | 'customer';
+      userId?: number | null;
+      customerId?: number | null;
+      roleId?: number | null;
+    },
+    request?: any,
+  ): Promise<string> {
+    const sessionKey = await this.userSessions.createSession({ ...session, request });
+
+    return jwt.sign(
+      sessionKey ? { ...payload, sid: sessionKey } : payload,
+      process.env.JWT_SECRET || 'trustcart-erp-secret-key-2024',
+      { expiresIn: '24h' },
+    );
+  }
+
+  /** Sign the caller's own device out; the token stops working immediately. */
+  async logout(sessionKey?: string | null) {
+    if (!sessionKey) return { success: true, revoked: 0 };
+    const result = await this.userSessions.revokeByKey(String(sessionKey), 'logout');
+    return { success: true, revoked: result.revoked };
+  }
 
   /**
    * Normalize phone number to support both formats:
@@ -48,7 +84,7 @@ export class AuthService {
     return [...new Set(variants)]; // Remove duplicates
   }
 
-  async login(identifier: string, password: string) {
+  async login(identifier: string, password: string, request?: any) {
     const loginValue = (identifier || '').toString().trim();
     if (!loginValue) {
       throw new UnauthorizedException('Invalid credentials');
@@ -102,10 +138,10 @@ export class AuthService {
         }
 
         // Generate token for customer
-        const token = jwt.sign(
+        const token = await this.issueToken(
           { id: customer.id, email: customer.email, phone: customer.phone, roleSlug: 'customer-account', type: 'customer' },
-          process.env.JWT_SECRET || 'trustcart-erp-secret-key-2024',
-          { expiresIn: '24h' }
+          { subjectType: 'customer', customerId: customer.id },
+          request,
         );
 
         return {
@@ -148,10 +184,10 @@ export class AuthService {
             if ((existingUser as any).isDeleted || existingUser.status !== 'active') {
               throw new UnauthorizedException('Account is inactive');
             }
-            const token = jwt.sign(
+            const token = await this.issueToken(
               { id: existingUser.id, email: existingUser.email, roleId: existingUser.roleId, type: 'user' },
-              process.env.JWT_SECRET || 'trustcart-erp-secret-key-2024',
-              { expiresIn: '24h' }
+              { subjectType: 'user', userId: existingUser.id, roleId: existingUser.roleId },
+              request,
             );
 
             return {
@@ -181,10 +217,10 @@ export class AuthService {
           // roles table might not exist in some demo setups; ignore
         }
 
-        const token = jwt.sign(
+        const token = await this.issueToken(
           { id: newUser.id, email: newUser.email, roleId: newUser.roleId, roleSlug, type: 'user' },
-          process.env.JWT_SECRET || 'trustcart-erp-secret-key-2024',
-          { expiresIn: '24h' }
+          { subjectType: 'user', userId: newUser.id, roleId: newUser.roleId },
+          request,
         );
 
         return {
@@ -234,10 +270,10 @@ export class AuthService {
     }
 
     // Generate JWT token
-    const token = jwt.sign(
+    const token = await this.issueToken(
       { id: user.id, email: user.email, roleId: user.roleId, roleSlug, type: 'user' },
-      process.env.JWT_SECRET || 'trustcart-erp-secret-key-2024',
-      { expiresIn: '24h' }
+      { subjectType: 'user', userId: user.id, roleId: user.roleId },
+      request,
     );
 
     return {
@@ -253,7 +289,10 @@ export class AuthService {
     };
   }
 
-  async register(body: { email: string; password: string; name?: string; last_name?: string; phone?: string }) {
+  async register(
+    body: { email: string; password: string; name?: string; last_name?: string; phone?: string },
+    request?: any,
+  ) {
     const { email, password } = body;
 
     const existingUser = await this.usersRepository.findOne({ where: { email, isDeleted: false } });
@@ -333,6 +372,23 @@ export class AuthService {
       throw new UnauthorizedException('Invalid token payload');
     }
 
+    // Tokens issued before sessions existed carry no `sid`; they keep working
+    // until they expire. Everything newer is only valid while its session is.
+    const sessionKey = payload?.sid ? String(payload.sid) : null;
+    if (sessionKey) {
+      const session = await this.userSessions.touch(sessionKey);
+      if (session.status !== 'active') {
+        throw new UnauthorizedException({
+          statusCode: 401,
+          message:
+            session.status !== 'revoked' || session.reason === 'logout'
+              ? 'Your session has ended. Please sign in again.'
+              : 'This device was signed out by an administrator.',
+          code: 'SESSION_REVOKED',
+        });
+      }
+    }
+
     const tokenType = payload?.type;
     const treatAsCustomer =
       tokenType === 'customer' ||
@@ -355,6 +411,7 @@ export class AuthService {
         roleSlug: 'customer-account',
         type: 'customer',
         username: customer.name,
+        sessionKey,
       };
     }
 
@@ -388,6 +445,7 @@ export class AuthService {
       roleSlug,
       type: 'user',
       username: user.name,
+      sessionKey,
     };
   }
 

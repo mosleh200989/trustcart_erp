@@ -5,6 +5,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { UsersModule } from '../users/users.module';
 import { RbacModule } from '../rbac/rbac.module';
+import { UserSessionsModule } from '../user-sessions/user-sessions.module';
 import { User } from '../users/user.entity';
 import { Customer } from '../customers/customer.entity';
 import { AuthService } from './auth.service';
@@ -16,6 +17,7 @@ import { JwtStrategy } from './jwt.strategy';
     TypeOrmModule.forFeature([User, Customer]),
     UsersModule,
     RbacModule,
+    UserSessionsModule,
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.registerAsync({
       imports: [ConfigModule],
