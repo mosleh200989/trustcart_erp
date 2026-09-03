@@ -2,6 +2,7 @@ import { Logger } from '@nestjs/common';
 import { WebSocketGateway, WebSocketServer } from '@nestjs/websockets';
 import type { Server, Socket } from 'socket.io';
 import jwt from 'jsonwebtoken';
+import { requireJwtSecret } from '../../common/jwt-secret';
 
 @WebSocketGateway({
   namespace: '/telephony',
@@ -31,7 +32,7 @@ export class TelephonyGateway {
         return;
       }
 
-      jwt.verify(token, process.env.JWT_SECRET || 'trustcart-erp-secret-key-2024');
+      jwt.verify(token, requireJwtSecret());
       this.logger.log(`Socket connected: ${client.id}`);
     } catch (err) {
       this.logger.warn(`Socket connection rejected: invalid token (${(err as any)?.message || 'unknown'})`);

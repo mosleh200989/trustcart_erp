@@ -10,6 +10,7 @@ import { RequireAnyPermission, RequirePermissions } from '../../common/decorator
 import { Public } from '../../common/decorators/public.decorator';
 import { getDhakaDateString } from '../../common/utils/dhaka-date';
 import * as jwt from 'jsonwebtoken';
+import { requireJwtSecret } from '../../common/jwt-secret';
 import { getRequestClientIp, getRequestUserAgent } from '../../common/utils/request-client';
 
 @Controller('sales')
@@ -601,7 +602,7 @@ export class SalesController {
       const authHeader = req?.headers?.authorization;
       if (authHeader && authHeader.startsWith('Bearer ')) {
         const token = authHeader.slice(7);
-        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'trustcart-erp-secret-key-2024') as any;
+        const decoded = jwt.verify(token, requireJwtSecret()) as any;
         if (decoded && decoded.id && decoded.type === 'user') {
           authUser = decoded;
         }

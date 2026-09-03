@@ -6,6 +6,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
+import { requireJwtSecret } from '../../common/jwt-secret';
 import * as jwt from 'jsonwebtoken';
 import { AutomationSettingsService } from './automation-settings.service';
 
@@ -23,7 +24,7 @@ export type AutomationGateStatus = {
 };
 
 function jwtSecret(): string {
-  return process.env.JWT_SECRET || 'trustcart-erp-secret-key-2024';
+  return requireJwtSecret();
 }
 
 /**

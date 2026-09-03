@@ -8,6 +8,7 @@ import { RbacModule } from '../rbac/rbac.module';
 import { UserSessionsModule } from '../user-sessions/user-sessions.module';
 import { User } from '../users/user.entity';
 import { Customer } from '../customers/customer.entity';
+import { requireJwtSecret } from '../../common/jwt-secret';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { JwtStrategy } from './jwt.strategy';
@@ -19,11 +20,16 @@ import { JwtStrategy } from './jwt.strategy';
     RbacModule,
     UserSessionsModule,
     PassportModule.register({ defaultStrategy: 'jwt' }),
+    // registerAsync, not register: the plain form evaluates its options while
+    // this file is still being imported, which is before ConfigModule has read
+    // .env into process.env — the secret would look missing and the app would
+    // refuse to start. Depending on ConfigService is what orders the factory
+    // after that load, even though the secret itself comes from process.env.
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: async (configService: ConfigService) => ({
-        secret: configService.get<string>('JWT_SECRET') || 'trustcart-erp-secret-key-2024',
+      useFactory: () => ({
+        secret: requireJwtSecret(),
         signOptions: { expiresIn: '24h' },
       }),
     }),

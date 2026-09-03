@@ -7,6 +7,7 @@ import * as bcrypt from 'bcrypt';
 import * as jwt from 'jsonwebtoken';
 import { UserSessionsService } from '../user-sessions/user-sessions.service';
 import { LoginAttemptsService, LoginResult } from '../user-sessions/login-attempts.service';
+import { requireJwtSecret } from '../../common/jwt-secret';
 
 @Injectable()
 export class AuthService {
@@ -41,7 +42,7 @@ export class AuthService {
 
     return jwt.sign(
       sessionKey ? { ...payload, sid: sessionKey } : payload,
-      process.env.JWT_SECRET || 'trustcart-erp-secret-key-2024',
+      requireJwtSecret(),
       { expiresIn: '24h' },
     );
   }
@@ -498,7 +499,7 @@ export class AuthService {
 
   async validateToken(token: string) {
     try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'trustcart-erp-secret-key-2024');
+      const decoded = jwt.verify(token, requireJwtSecret());
       return { valid: true, user: decoded };
     } catch (error) {
       return { valid: false };
